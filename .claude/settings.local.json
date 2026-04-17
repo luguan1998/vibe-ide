@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"minimal clay morphism GUI developer tool\" --design-system -p \"Claude Code GUI\")",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"minimal clay morphism GUI developer tool\" --design-system -p \"Claude Code GUI\")",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"clay morphism soft playful\" --domain style)",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"soft warm playful friendly\" --domain color)",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"playful soft friendly modern\" --domain typography)",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"developer tool terminal code editor\" --domain product)",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"clay\" --domain prompt)",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"layout responsive form interactive\" --stack html-tailwind)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch",
+      "mcp__gitnexus__list_repos"
+    ]
+  }
+}
