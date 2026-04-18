@@ -7,11 +7,12 @@ interface DiffViewerProps {
   isStaged: boolean
   onStage: (path: string) => Promise<void>
   onUnstage: (path: string) => Promise<void>
+  onBack?: () => void
 }
 
 type ViewMode = 'diff' | 'edit'
 
-export default function DiffViewer({ filePath, diffContent, isStaged, onStage, onUnstage }: DiffViewerProps) {
+export default function DiffViewer({ filePath, diffContent, isStaged, onStage, onUnstage, onBack }: DiffViewerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('diff')
   const [fileContent, setFileContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
@@ -53,11 +54,23 @@ export default function DiffViewer({ filePath, diffContent, isStaged, onStage, o
     setSaving(false)
   }, [filePath, modifiedContent])
 
+  // Ctrl+S to save
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 's' && viewMode === 'edit') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [viewMode, handleSave])
+
   // Parse diff content for inline display
   const renderInlineDiff = () => {
     const lines = diffContent.split('\n')
     return (
-      <div className="font-mono text-xs leading-5 overflow-x-auto">
+      <div className="font-mono text-xs leading-5 overflow-auto">
         {lines.map((line, i) => {
           let className = 'text-ide-text-muted'
           if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ')) {
@@ -202,6 +215,14 @@ export default function DiffViewer({ filePath, diffContent, isStaged, onStage, o
       {/* Diff Header */}
       <div className="px-3 py-1.5 flex items-center justify-between bg-ide-hover/30 border-b border-ide-border shrink-0">
         <div className="flex items-center gap-2 text-sm">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="text-ide-text-muted hover:text-ide-text mr-2"
+            >
+              ← Back
+            </button>
+          )}
           <span className="text-ide-text font-medium truncate max-w-[200px]">{filePath}</span>
           {isStaged && <span className="text-xs text-ide-success">staged</span>}
         </div>
@@ -245,25 +266,9 @@ export default function DiffViewer({ filePath, diffContent, isStaged, onStage, o
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto min-h-[200px] max-h-[400px]">
+      <div className="overflow-auto" style={{ height: 'calc(100vh - 80px)' }}>
         {viewMode === 'diff' ? renderInlineDiff() : renderEditor()}
       </div>
-
-      {/* Save button for edit mode */}
-      {viewMode === 'edit' && (
-        <div className="px-3 py-2 border-t border-ide-border shrink-0">
-          <button
-            onClick={handleSave}
-            disabled={saving || modifiedContent === fileContent}
-            className="px-3 py-1 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Saving...' : 'Save File'}
-          </button>
-          {modifiedContent !== fileContent && (
-            <span className="ml-2 text-xs text-ide-warning">Modified</span>
-          )}
-        </div>
-      )}
     </div>
   )
 }

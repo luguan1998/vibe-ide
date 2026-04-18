@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react'
 import SessionPanel from './components/SessionPanel'
 import TerminalView from './components/TerminalView'
 import GitPanel from './components/GitPanel'
+import DiffViewer from './components/DiffViewer'
 import { TerminalSession } from '@shared/types'
 
 // Declare the window API type
@@ -43,12 +44,22 @@ declare global {
   }
 }
 
+type CenterView = 'terminal' | 'diff'
+
+interface DiffFileState {
+  filePath: string
+  diffContent: string
+  isStaged: boolean
+}
+
 export default function App() {
   const [sessions, setSessions] = useState<TerminalSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [rightPanelWidth, setRightPanelWidth] = useState(380)
   const [leftPanelWidth, setLeftPanelWidth] = useState(240)
   const [isDragging, setIsDragging] = useState(false)
+  const [centerView, setCenterView] = useState<CenterView>('terminal')
+  const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
 
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
@@ -126,6 +137,24 @@ export default function App() {
     document.addEventListener('mouseup', onMouseUp)
   }, [leftPanelWidth])
 
+  const handleFileSelect = useCallback((filePath: string, diffContent: string, isStaged: boolean) => {
+    setDiffFile({ filePath, diffContent, isStaged })
+    setCenterView('diff')
+  }, [])
+
+  const handleBackToTerminal = useCallback(() => {
+    setCenterView('terminal')
+    setDiffFile(null)
+  }, [])
+
+  const handleStage = useCallback(async (filePath: string) => {
+    await window.api.git.add(filePath)
+  }, [])
+
+  const handleUnstage = useCallback(async (filePath: string) => {
+    await window.api.git.reset(filePath)
+  }, [])
+
   // Auto-create first session on mount
   React.useEffect(() => {
     if (sessions.length === 0) {
@@ -167,9 +196,18 @@ export default function App() {
           onMouseDown={handleLeftResizeStart}
         />
 
-        {/* Center Panel: Terminal */}
+        {/* Center Panel: Terminal or Diff */}
         <div className="flex-1 flex flex-col overflow-hidden bg-ide-bg">
-          {sessions.length === 0 ? (
+          {centerView === 'diff' && diffFile ? (
+            <DiffViewer
+              filePath={diffFile.filePath}
+              diffContent={diffFile.diffContent}
+              isStaged={diffFile.isStaged}
+              onStage={handleStage}
+              onUnstage={handleUnstage}
+              onBack={handleBackToTerminal}
+            />
+          ) : sessions.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-ide-text-muted">
               No active terminal session. Create one to start.
             </div>
@@ -194,7 +232,7 @@ export default function App() {
 
         {/* Right Panel: Git Management */}
         <div className="shrink-0 flex flex-col bg-ide-sidebar border-l border-ide-border overflow-hidden" style={{ width: rightPanelWidth }}>
-          <GitPanel workspacePath={activeSessionCwd} />
+          <GitPanel workspacePath={activeSessionCwd} onFileSelect={handleFileSelect} />
         </div>
       </div>
     </div>

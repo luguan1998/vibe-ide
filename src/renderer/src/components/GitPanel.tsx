@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch } from '@shared/types'
-import DiffViewer from './DiffViewer'
 
 interface GitPanelProps {
   workspacePath: string | null
+  onFileSelect?: (filePath: string, diffContent: string, isStaged: boolean) => void
 }
 
 type GitTab = 'changes' | 'log' | 'branches'
 
-export default function GitPanel({ workspacePath }: GitPanelProps) {
+export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps) {
   const [activeTab, setActiveTab] = useState<GitTab>('changes')
   const [status, setStatus] = useState<GitStatusResult | null>(null)
   const [logs, setLogs] = useState<GitLogEntry[]>([])
@@ -88,7 +88,11 @@ export default function GitPanel({ workspacePath }: GitPanelProps) {
   const handleFileClick = useCallback(async (file: GitFileStatus) => {
     setSelectedFile(file.path)
     await loadDiff(file.path, file.staged)
-  }, [loadDiff])
+    if (onFileSelect) {
+      const result = await window.api.git.diff(file.path, file.staged)
+      onFileSelect(file.path, result.content || '', file.staged)
+    }
+  }, [loadDiff, onFileSelect])
 
   // Stage a file
   const handleStage = useCallback(async (filePath: string) => {
@@ -99,6 +103,14 @@ export default function GitPanel({ workspacePath }: GitPanelProps) {
   // Unstage a file
   const handleUnstage = useCallback(async (filePath: string) => {
     await window.api.git.reset(filePath)
+    await refreshStatus()
+  }, [refreshStatus])
+
+  // Unstage all files
+  const handleUnstageAll = useCallback(async (filePaths: string[]) => {
+    for (const fp of filePaths) {
+      await window.api.git.reset(fp)
+    }
     await refreshStatus()
   }, [refreshStatus])
 
@@ -242,7 +254,7 @@ export default function GitPanel({ workspacePath }: GitPanelProps) {
                 <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50 flex items-center justify-between">
                   <span>Staged Changes ({status.files.filter(f => f.staged).length})</span>
                   <button
-                    onClick={() => handleUnstage(status!.files.filter(f => f.staged).map(f => f.path))}
+                    onClick={() => handleUnstageAll(status!.files.filter(f => f.staged).map(f => f.path))}
                     className="text-xs text-ide-text-muted hover:text-ide-text"
                   >
                     Unstage All
@@ -338,17 +350,6 @@ export default function GitPanel({ workspacePath }: GitPanelProps) {
               <div className="px-3 py-4 text-sm text-ide-text-muted text-center">
                 No changes detected
               </div>
-            )}
-
-            {/* Diff Viewer */}
-            {selectedFile && diffContent && (
-              <DiffViewer
-                filePath={selectedFile}
-                diffContent={diffContent}
-                isStaged={diffStaged}
-                onStage={handleStage}
-                onUnstage={handleUnstage}
-              />
             )}
           </div>
         )}
