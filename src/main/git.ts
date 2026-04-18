@@ -64,6 +64,13 @@ function mapStatus(raw: string, index: string): GitStatusResult {
 }
 
 export function registerGitHandlers(): void {
+  // Set git workspace path — switches git instance to a new directory
+  ipcMain.handle(IPC_CHANNELS.GIT_SET_WORKSPACE, async (_event, path: string) => {
+    currentWorkspace = path
+    gitInstance = simpleGit(currentWorkspace)
+    return { success: true, path: currentWorkspace }
+  })
+
   // Get git status
   ipcMain.handle(IPC_CHANNELS.GIT_STATUS, async () => {
     try {
@@ -252,6 +259,19 @@ export function registerGitHandlers(): void {
   // Get current workspace
   ipcMain.handle(IPC_CHANNELS.WORKSPACE_CURRENT, () => {
     return { path: currentWorkspace }
+  })
+
+  // Pick directory - just shows dialog, does NOT change global workspace
+  ipcMain.handle(IPC_CHANNELS.WORKSPACE_PICK_DIR, async () => {
+    const { dialog } = require('electron')
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      title: 'Select Directory for Terminal'
+    })
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { path: result.filePaths[0] }
+    }
+    return { canceled: true }
   })
 }
 

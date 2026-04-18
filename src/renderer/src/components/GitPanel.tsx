@@ -2,9 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch } from '@shared/types'
 import DiffViewer from './DiffViewer'
 
+interface GitPanelProps {
+  workspacePath: string | null
+}
+
 type GitTab = 'changes' | 'log' | 'branches'
 
-export default function GitPanel() {
+export default function GitPanel({ workspacePath }: GitPanelProps) {
   const [activeTab, setActiveTab] = useState<GitTab>('changes')
   const [status, setStatus] = useState<GitStatusResult | null>(null)
   const [logs, setLogs] = useState<GitLogEntry[]>([])
@@ -133,10 +137,7 @@ export default function GitPanel() {
     else if (activeTab === 'branches') refreshBranches()
   }, [activeTab, refreshStatus, refreshLog, refreshBranches])
 
-  // Initial load
-  useEffect(() => {
-    refreshStatus()
-  }, [])
+  // Initial load — handled by workspacePath effect above
 
   // Get status icon for file
   const getStatusIcon = (file: GitFileStatus): string => {
@@ -160,6 +161,19 @@ export default function GitPanel() {
       case 'conflicted': return 'text-ide-danger'
       default: return 'text-ide-text-muted'
     }
+  }
+
+  if (!workspacePath) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="h-10 px-3 flex items-center border-b border-ide-border shrink-0">
+          <h2 className="text-sm font-semibold text-ide-text uppercase tracking-wider">Git</h2>
+        </div>
+        <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
+          No active session
+        </div>
+      </div>
+    )
   }
 
   return (

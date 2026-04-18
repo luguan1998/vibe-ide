@@ -6,12 +6,16 @@ import 'xterm/css/xterm.css'
 
 interface TerminalViewProps {
   sessionId: string
+  sessionName?: string
+  sessionCwd?: string
 }
 
-export default function TerminalView({ sessionId }: TerminalViewProps) {
+export default function TerminalView({ sessionId, sessionName, sessionCwd }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const dataHandlerRef = useRef<any>(null)
+  const exitHandlerRef = useRef<any>(null)
   const [isReady, setIsReady] = useState(false)
 
   // Initialize xterm.js
@@ -103,17 +107,22 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
   useEffect(() => {
     if (!xtermRef.current || !isReady) return
 
-    // Remove old listeners and set up new ones
-    window.api.terminal.removeDataListener()
-    window.api.terminal.removeExitListener()
+    // Remove only our own previous listeners
+    if (dataHandlerRef.current) {
+      window.api.terminal.removeDataListener(dataHandlerRef.current)
+    }
+    if (exitHandlerRef.current) {
+      window.api.terminal.removeExitListener(exitHandlerRef.current)
+    }
 
-    window.api.terminal.onData((data: { id: string; data: string }) => {
+    // Register new listeners and store handlers for cleanup
+    dataHandlerRef.current = window.api.terminal.onData((data: { id: string; data: string }) => {
       if (data.id === sessionId && xtermRef.current) {
         xtermRef.current.write(data.data)
       }
     })
 
-    window.api.terminal.onExit((data: { id: string; exitCode: number }) => {
+    exitHandlerRef.current = window.api.terminal.onExit((data: { id: string; exitCode: number }) => {
       if (data.id === sessionId && xtermRef.current) {
         xtermRef.current.write(`\r\n[Process exited with code ${data.exitCode}]\r\n`)
       }
@@ -125,8 +134,14 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
     }
 
     return () => {
-      window.api.terminal.removeDataListener()
-      window.api.terminal.removeExitListener()
+      if (dataHandlerRef.current) {
+        window.api.terminal.removeDataListener(dataHandlerRef.current)
+        dataHandlerRef.current = null
+      }
+      if (exitHandlerRef.current) {
+        window.api.terminal.removeExitListener(exitHandlerRef.current)
+        exitHandlerRef.current = null
+      }
     }
   }, [sessionId, isReady])
 
@@ -166,7 +181,8 @@ export default function TerminalView({ sessionId }: TerminalViewProps) {
     <div className="flex flex-col h-full">
       {/* Terminal tab header */}
       <div className="h-10 px-3 flex items-center border-b border-ide-border shrink-0 bg-ide-sidebar/50">
-        <span className="text-sm text-ide-text-muted">Session: {sessionId.slice(0, 12)}</span>
+        <span className="text-sm text-ide-text-muted">{sessionName || sessionId.slice(0, 12)}</span>
+        {sessionCwd && <span className="text-xs text-ide-text-muted ml-2 opacity-70 truncate">{sessionCwd}</span>}
       </div>
 
       {/* Terminal container */}

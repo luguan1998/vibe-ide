@@ -9,21 +9,34 @@ const api = {
     resize: (id: string, cols: number, rows: number) => ipcRenderer.send(IPC_CHANNELS.PTY_RESIZE, { id, cols, rows }),
     close: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.PTY_CLOSE, id),
     onData: (callback: (data: { id: string; data: string }) => void) => {
-      ipcRenderer.on(IPC_CHANNELS.PTY_DATA, (_event, data) => callback(data))
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.PTY_DATA, handler)
+      return handler
     },
     onExit: (callback: (data: { id: string; exitCode: number }) => void) => {
-      ipcRenderer.on(IPC_CHANNELS.PTY_EXIT, (_event, data) => callback(data))
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.PTY_EXIT, handler)
+      return handler
     },
-    removeDataListener: () => {
-      ipcRenderer.removeAllListeners(IPC_CHANNELS.PTY_DATA)
+    removeDataListener: (handler?: any) => {
+      if (handler) {
+        ipcRenderer.removeListener(IPC_CHANNELS.PTY_DATA, handler)
+      } else {
+        ipcRenderer.removeAllListeners(IPC_CHANNELS.PTY_DATA)
+      }
     },
-    removeExitListener: () => {
-      ipcRenderer.removeAllListeners(IPC_CHANNELS.PTY_EXIT)
+    removeExitListener: (handler?: any) => {
+      if (handler) {
+        ipcRenderer.removeListener(IPC_CHANNELS.PTY_EXIT, handler)
+      } else {
+        ipcRenderer.removeAllListeners(IPC_CHANNELS.PTY_EXIT)
+      }
     }
   },
 
   // Git operations
   git: {
+    setWorkspace: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_WORKSPACE, path),
     status: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STATUS),
     log: (count?: number) => ipcRenderer.invoke(IPC_CHANNELS.GIT_LOG, count),
     diff: (filePath?: string, staged?: boolean) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DIFF, filePath, staged),
@@ -49,7 +62,8 @@ const api = {
   // Workspace operations
   workspace: {
     open: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_OPEN),
-    current: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_CURRENT)
+    current: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_CURRENT),
+    pickDir: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_PICK_DIR)
   }
 }
 

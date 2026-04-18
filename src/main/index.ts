@@ -5,7 +5,13 @@ import { registerPtyHandlers } from './pty'
 import { registerGitHandlers } from './git'
 import { registerFileHandlers } from './file'
 
+// Fix GPU cache permission issue on Windows
+app.setPath('cache', join(app.getPath('userData'), 'Cache'))
+
 let mainWindow: BrowserWindow | null = null
+
+// Fix Windows permission issues
+app.commandLine.appendSwitch('no-sandbox')
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -34,6 +40,18 @@ function createWindow(): void {
     mainWindow!.show()
   })
 
+  // Open DevTools in dev mode for debugging
+  if (is.dev) {
+    mainWindow.webContents.openDevTools()
+  }
+
+  // Fallback: show window after 2 seconds even if ready-to-show didn't fire
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show()
+    }
+  }, 2000)
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -56,12 +74,14 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Register IPC handlers
-  registerPtyHandlers(mainWindow)
+  // Register IPC handlers (git and file don't need mainWindow)
   registerGitHandlers()
   registerFileHandlers()
 
   createWindow()
+
+  // Register PTY handlers after window is created
+  registerPtyHandlers(mainWindow)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

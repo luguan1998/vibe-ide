@@ -23,46 +23,51 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
 
   // Create a new terminal session
   ipcMain.handle(IPC_CHANNELS.PTY_CREATE, (_event, options: CreateTerminalOptions) => {
-    const id = `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const shell = options.shell || getShell()
-    const cwd = options.cwd || process.cwd()
-    const name = options.name || `Terminal ${terminals.size + 1}`
+    try {
+      const id = `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const shell = options.shell || getShell()
+      const cwd = options.cwd || process.cwd()
+      const name = options.name || `Terminal ${terminals.size + 1}`
 
-    const ptyProcess = pty.spawn(shell, [], {
-      name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
-      cwd,
-      env: process.env as Record<string, string>
-    })
+      const ptyProcess = pty.spawn(shell, [], {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        cwd,
+        env: process.env as Record<string, string>
+      })
 
-    const session: TerminalSession = {
-      id,
-      name,
-      shell,
-      cwd,
-      active: true,
-      createdAt: Date.now()
+      const session: TerminalSession = {
+        id,
+        name,
+        shell,
+        cwd,
+        active: true,
+        createdAt: Date.now()
+      }
+
+      terminals.set(id, { pty: ptyProcess, session })
+
+      // Send terminal data to renderer
+      ptyProcess.onData((data: string) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, { id, data })
+        }
+      })
+
+      // Handle terminal exit
+      ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IPC_CHANNELS.PTY_EXIT, { id, exitCode })
+        }
+        terminals.delete(id)
+      })
+
+      return session
+    } catch (err: any) {
+      console.error('Failed to create PTY:', err)
+      return { error: err.message }
     }
-
-    terminals.set(id, { pty: ptyProcess, session })
-
-    // Send terminal data to renderer
-    ptyProcess.onData((data: string) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, { id, data })
-      }
-    })
-
-    // Handle terminal exit
-    ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send(IPC_CHANNELS.PTY_EXIT, { id, exitCode })
-      }
-      terminals.delete(id)
-    })
-
-    return session
   })
 
   // Write data to terminal

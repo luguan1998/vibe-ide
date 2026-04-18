@@ -10,6 +10,7 @@ export const IPC_CHANNELS = {
 
   // Git
   GIT_STATUS: 'git:status',
+  GIT_SET_WORKSPACE: 'git:setWorkspace',
   GIT_LOG: 'git:log',
   GIT_DIFF: 'git:diff',
   GIT_COMMIT: 'git:commit',
@@ -30,7 +31,8 @@ export const IPC_CHANNELS = {
 
   // Workspace
   WORKSPACE_OPEN: 'workspace:open',
-  WORKSPACE_CURRENT: 'workspace:current'
+  WORKSPACE_CURRENT: 'workspace:current',
+  WORKSPACE_PICK_DIR: 'workspace:pickDir'
 } as const
 
 // Terminal types

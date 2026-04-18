@@ -13,14 +13,32 @@ declare global {
         write: (id: string, data: string) => void
         resize: (id: string, cols: number, rows: number) => void
         close: (id: string) => Promise<boolean>
-        onData: (callback: (data: { id: string; data: string }) => void) => void
-        onExit: (callback: (data: { id: string; exitCode: number }) => void) => void
-        removeDataListener: () => void
-        removeExitListener: () => void
+        onData: (callback: (data: { id: string; data: string }) => void) => any
+        onExit: (callback: (data: { id: string; exitCode: number }) => void) => any
+        removeDataListener: (handler?: any) => void
+        removeExitListener: (handler?: any) => void
       }
-      git: any
+      git: {
+        setWorkspace: (path: string) => Promise<any>
+        status: () => Promise<any>
+        log: (count?: number) => Promise<any>
+        diff: (filePath?: string, staged?: boolean) => Promise<any>
+        add: (files: string | string[]) => Promise<any>
+        reset: (files: string | string[]) => Promise<any>
+        commit: (options: any) => Promise<any>
+        branches: () => Promise<any>
+        checkout: (branch: string) => Promise<any>
+        stashList: () => Promise<any>
+        stashPush: (message?: string) => Promise<any>
+        stashPop: () => Promise<any>
+        init: () => Promise<any>
+      }
       file: any
-      workspace: any
+      workspace: {
+        open: () => Promise<any>
+        current: () => Promise<{ path: string }>
+        pickDir: () => Promise<{ path: string; canceled: boolean }>
+      }
     }
   }
 }
@@ -32,13 +50,20 @@ export default function App() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(240)
   const [isDragging, setIsDragging] = useState(false)
 
-  // Create a new terminal session
+  // Get cwd of the currently active session
+  const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
+
+  // Create a new terminal session — ask user to pick a directory first
   const handleCreateSession = useCallback(async () => {
-    const session = await window.api.terminal.create({
-      cwd: process.cwd?.() || undefined
-    })
-    setSessions(prev => [...prev, session])
-    setActiveSessionId(session.id)
+    try {
+      const dirResult = await window.api.workspace.pickDir()
+      if (dirResult.canceled) return
+      const session = await window.api.terminal.create({ cwd: dirResult.path })
+      setSessions(prev => [...prev, session])
+      setActiveSessionId(session.id)
+    } catch (err) {
+      console.error('Failed to create terminal session:', err)
+    }
   }, [])
 
   // Switch active session
@@ -144,12 +169,20 @@ export default function App() {
 
         {/* Center Panel: Terminal */}
         <div className="flex-1 flex flex-col overflow-hidden bg-ide-bg">
-          {activeSessionId ? (
-            <TerminalView sessionId={activeSessionId} />
-          ) : (
+          {sessions.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-ide-text-muted">
               No active terminal session. Create one to start.
             </div>
+          ) : (
+            sessions.map(session => (
+              <div
+                key={session.id}
+                className="flex-1 flex flex-col overflow-hidden"
+                style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
+              >
+                <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} />
+              </div>
+            ))
           )}
         </div>
 
@@ -161,7 +194,7 @@ export default function App() {
 
         {/* Right Panel: Git Management */}
         <div className="shrink-0 flex flex-col bg-ide-sidebar border-l border-ide-border overflow-hidden" style={{ width: rightPanelWidth }}>
-          <GitPanel />
+          <GitPanel workspacePath={activeSessionCwd} />
         </div>
       </div>
     </div>
