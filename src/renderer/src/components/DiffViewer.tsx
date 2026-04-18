@@ -156,6 +156,20 @@ export default function DiffViewer({ filePath, diffContent, isStaged, showSquigg
     return langMap[ext] || 'plaintext'
   }
 
+  const configureMonaco = (monaco: any) => {
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      allowNonTsExtensions: true,
+      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+      module: monaco.languages.typescript.ModuleKind.CommonJS,
+      noEmit: true
+    })
+    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: !showSquiggles,
+      noSyntaxValidation: !showSquiggles
+    })
+  }
+
   return (
     <div className="flex flex-col border-t border-ide-border animate-fade-in">
       <div className="px-3 py-1.5 flex items-center justify-between bg-ide-hover/30 border-b border-ide-border shrink-0">
@@ -226,12 +240,7 @@ export default function DiffViewer({ filePath, diffContent, isStaged, showSquigg
               wordWrap: 'on',
               renderIndicators: true
             }}
-            beforeMount={(monaco) => {
-              monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-                noSemanticValidation: !showSquiggles,
-                noSyntaxValidation: !showSquiggles
-              })
-            }}
+            beforeMount={configureMonaco}
           />
         ) : (
           <Editor
@@ -250,12 +259,7 @@ export default function DiffViewer({ filePath, diffContent, isStaged, showSquigg
               automaticLayout: true,
               padding: { top: 8 }
             }}
-            beforeMount={(monaco) => {
-              monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-                noSemanticValidation: !showSquiggles,
-                noSyntaxValidation: !showSquiggles
-              })
-            }}
+            beforeMount={configureMonaco}
           />
         )}
       </div>
