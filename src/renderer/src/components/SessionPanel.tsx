@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { TerminalSession } from '@shared/types'
 
 interface SessionPanelProps {
@@ -7,6 +7,7 @@ interface SessionPanelProps {
   onCreateSession: () => void
   onSwitchSession: (id: string) => void
   onCloseSession: (id: string) => void
+  onRenameSession?: (id: string, newName: string) => Promise<void>
 }
 
 export default function SessionPanel({
@@ -14,8 +15,52 @@ export default function SessionPanel({
   activeSessionId,
   onCreateSession,
   onSwitchSession,
-  onCloseSession
+  onCloseSession,
+  onRenameSession
 }: SessionPanelProps) {
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const [newName, setNewName] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (renaming && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [renaming])
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null)
+    window.addEventListener('click', handleClick)
+    return () => window.removeEventListener('click', handleClick)
+  }, [])
+
+  const handleContextMenu = (e: React.MouseEvent, sessionId: string) => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, sessionId })
+  }
+
+  const handleRename = async () => {
+    if (!renaming || !newName.trim()) {
+      setRenaming(null)
+      return
+    }
+    if (onRenameSession) {
+      await onRenameSession(renaming, newName.trim())
+    } else {
+      await (window.api.terminal as any).rename(renaming, newName.trim())
+    }
+    setRenaming(null)
+    setNewName('')
+  }
+
+  const startRename = (session: TerminalSession) => {
+    setRenaming(session.id)
+    setNewName(session.name)
+    setContextMenu(null)
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -46,15 +91,34 @@ export default function SessionPanel({
                   : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
               }`}
               onClick={() => onSwitchSession(session.id)}
+              onContextMenu={(e) => handleContextMenu(e, session.id)}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  {/* Terminal icon */}
                   <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <polyline points="4 17 10 11 4 5" />
                     <line x1="12" y1="19" x2="20" y2="19" />
                   </svg>
-                  <span className="text-sm truncate">{session.name}</span>
+                  {renaming === session.id ? (
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={(e) => {
+                        e.stopPropagation()
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleRename()
+                        }
+                        if (e.key === 'Escape') setRenaming(null)
+                      }}
+                      onBlur={handleRename}
+                      className="bg-ide-bg border border-ide-accent rounded px-1 text-sm text-ide-text outline-none w-24"
+                    />
+                  ) : (
+                    <span className="text-sm truncate">{session.name}</span>
+                  )}
                 </div>
                 <button
                   onClick={(e) => {
@@ -78,10 +142,33 @@ export default function SessionPanel({
         )}
       </div>
 
-      {/* Footer info */}
-      <div className="h-8 px-3 flex items-center border-t border-ide-border text-xs text-ide-text-muted shrink-0">
-        {sessions.length} session(s)
-      </div>
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover"
+            onClick={() => {
+              const session = sessions.find(s => s.id === contextMenu.sessionId)
+              if (session) startRename(session)
+            }}
+          >
+            Rename
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover"
+            onClick={() => {
+              onCloseSession(contextMenu.sessionId)
+              setContextMenu(null)
+            }}
+          >
+            Close
+          </button>
+        </div>
+      )}
     </div>
   )
 }

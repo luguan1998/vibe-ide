@@ -92,6 +92,14 @@ export default function App() {
     }
   }, [activeSessionId, sessions])
 
+  // Rename a terminal session
+  const handleRenameSession = useCallback(async (id: string, newName: string) => {
+    const result = await window.api.terminal.rename(id, newName)
+    if (result.session) {
+      setSessions(prev => prev.map(s => s.id === id ? result.session : s))
+    }
+  }, [])
+
   // Handle panel resizing
   const handleRightResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -187,6 +195,7 @@ export default function App() {
             onCreateSession={handleCreateSession}
             onSwitchSession={handleSwitchSession}
             onCloseSession={handleCloseSession}
+            onRenameSession={handleRenameSession}
           />
         </div>
 

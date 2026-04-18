@@ -160,7 +160,7 @@ export default function DiffViewer({ filePath, diffContent, isStaged, onStage, o
               ← Back
             </button>
           )}
-          <span className="text-ide-text font-medium truncate max-w-[200px]">{filePath}</span>
+          <span className="text-ide-text font-medium truncate max-w-md">{filePath}</span>
           {isStaged && <span className="text-xs text-ide-success">staged</span>}
         </div>
 

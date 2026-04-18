@@ -96,6 +96,16 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
     }
     return false
   })
+
+  // Rename terminal
+  ipcMain.handle(IPC_CHANNELS.PTY_RENAME, (_event, id: string, newName: string) => {
+    const managed = terminals.get(id)
+    if (managed) {
+      managed.session.name = newName
+      return { success: true, session: managed.session }
+    }
+    return { error: 'Session not found' }
+  })
 }
 
 // Clean up all terminals on app quit

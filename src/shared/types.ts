@@ -4,6 +4,7 @@ export const IPC_CHANNELS = {
   PTY_CREATE: 'pty:create',
   PTY_WRITE: 'pty:write',
   PTY_RESIZE: 'pty:resize',
+  PTY_RENAME: 'pty:rename',
   PTY_CLOSE: 'pty:close',
   PTY_DATA: 'pty:data',
   PTY_EXIT: 'pty:exit',
