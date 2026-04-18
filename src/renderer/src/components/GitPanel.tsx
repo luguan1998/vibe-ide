@@ -106,6 +106,14 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
     await refreshStatus()
   }, [refreshStatus])
 
+  // Stage all files
+  const handleStageAll = useCallback(async (filePaths: string[]) => {
+    for (const fp of filePaths) {
+      await window.api.git.add(fp)
+    }
+    await refreshStatus()
+  }, [refreshStatus])
+
   // Unstage all files
   const handleUnstageAll = useCallback(async (filePaths: string[]) => {
     for (const fp of filePaths) {
@@ -290,6 +298,12 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
               <div className="border-b border-ide-border">
                 <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50 flex items-center justify-between">
                   <span>Changes ({status.files.filter(f => !f.staged && f.status !== 'untracked').length})</span>
+                  <button
+                    onClick={() => handleStageAll(status!.files.filter(f => !f.staged && f.status !== 'untracked').map(f => f.path))}
+                    className="text-xs text-ide-text-muted hover:text-ide-text"
+                  >
+                    Stage All
+                  </button>
                 </div>
                 {status.files.filter(f => !f.staged && f.status !== 'untracked').map(file => (
                   <div
@@ -319,8 +333,14 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
             {/* Untracked Files */}
             {status && status.files.filter(f => f.status === 'untracked').length > 0 && (
               <div className="border-b border-ide-border">
-                <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50">
-                  Untracked ({status.files.filter(f => f.status === 'untracked').length})
+                <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50 flex items-center justify-between">
+                  <span>Untracked ({status.files.filter(f => f.status === 'untracked').length})</span>
+                  <button
+                    onClick={() => handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path))}
+                    className="text-xs text-ide-text-muted hover:text-ide-text"
+                  >
+                    Stage All
+                  </button>
                 </div>
                 {status.files.filter(f => f.status === 'untracked').map(file => (
                   <div
