@@ -50,6 +50,7 @@ interface DiffFileState {
   filePath: string
   diffContent: string
   isStaged: boolean
+  showSquiggles?: boolean
 }
 
 export default function App() {
@@ -60,6 +61,8 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
+  const [showConfigMenu, setShowConfigMenu] = useState(false)
+  const [showSquiggles, setShowSquiggles] = useState(true)
 
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
@@ -175,14 +178,28 @@ export default function App() {
       {/* Title Bar */}
       <div className="titlebar-drag h-9 bg-ide-sidebar border-b border-ide-border flex items-center px-4 select-none shrink-0">
         <span className="text-ide-text-muted text-sm font-medium tracking-wide">Vibe IDE</span>
-        <div className="ml-auto flex gap-2 titlebar-no-drag">
-          <button
-            className="text-ide-text-muted hover:text-ide-text text-xs px-2 py-1 rounded hover:bg-ide-hover"
-            onClick={handleCreateSession}
-          >
-            + New Terminal
-          </button>
-        </div>
+        <button
+          className="ml-4 titlebar-no-drag text-ide-text-muted hover:text-ide-text w-6 h-6 rounded hover:bg-ide-hover flex items-center justify-center relative"
+          onClick={() => setShowConfigMenu(!showConfigMenu)}
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          {showConfigMenu && (
+            <div className="absolute left-0 top-full mt-1 w-48 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50">
+              <label className="flex items-center gap-2 px-3 py-1.5 text-sm text-ide-text hover:bg-ide-hover cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showSquiggles}
+                  onChange={(e) => setShowSquiggles(e.target.checked)}
+                  className="accent-ide-accent"
+                />
+                显示错误提示
+              </label>
+            </div>
+          )}
+        </button>
       </div>
 
       {/* Main Content - 3 Panels */}
@@ -212,6 +229,7 @@ export default function App() {
               filePath={diffFile.filePath}
               diffContent={diffFile.diffContent}
               isStaged={diffFile.isStaged}
+              showSquiggles={showSquiggles}
               onStage={handleStage}
               onUnstage={handleUnstage}
               onBack={handleBackToTerminal}

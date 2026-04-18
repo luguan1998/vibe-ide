@@ -5,6 +5,7 @@ interface DiffViewerProps {
   filePath: string
   diffContent: string
   isStaged: boolean
+  showSquiggles?: boolean
   onStage: (path: string) => Promise<void>
   onUnstage: (path: string) => Promise<void>
   onBack?: () => void
@@ -39,7 +40,7 @@ function parseDiffContent(diff: string): { original: string; modified: string } 
   }
 }
 
-export default function DiffViewer({ filePath, diffContent, isStaged, onStage, onUnstage, onBack }: DiffViewerProps) {
+export default function DiffViewer({ filePath, diffContent, isStaged, showSquiggles = true, onStage, onUnstage, onBack }: DiffViewerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('diff')
   const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
@@ -61,10 +62,17 @@ export default function DiffViewer({ filePath, diffContent, isStaged, onStage, o
   }, [loadContents])
 
   const loadForEdit = useCallback(async () => {
-    if (!diffContent) return
-    const { modified } = parseDiffContent(diffContent)
-    setModifiedContent(modified)
-  }, [diffContent])
+    try {
+      const result = await window.api.file.read(filePath)
+      if (result.error) {
+        setModifiedContent('')
+      } else {
+        setModifiedContent(result.content)
+      }
+    } catch (err) {
+      setModifiedContent('')
+    }
+  }, [filePath])
 
   useEffect(() => {
     if (viewMode === 'edit') {
@@ -215,7 +223,14 @@ export default function DiffViewer({ filePath, diffContent, isStaged, onStage, o
               scrollBeyondLastLine: false,
               fontSize: 12,
               lineNumbers: 'on',
-              wordWrap: 'on'
+              wordWrap: 'on',
+              renderIndicators: true
+            }}
+            beforeMount={(monaco) => {
+              monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+                noSemanticValidation: !showSquiggles,
+                noSyntaxValidation: !showSquiggles
+              })
             }}
           />
         ) : (
@@ -234,6 +249,12 @@ export default function DiffViewer({ filePath, diffContent, isStaged, onStage, o
               tabSize: 2,
               automaticLayout: true,
               padding: { top: 8 }
+            }}
+            beforeMount={(monaco) => {
+              monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+                noSemanticValidation: !showSquiggles,
+                noSyntaxValidation: !showSquiggles
+              })
             }}
           />
         )}
