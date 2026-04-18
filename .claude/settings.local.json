@@ -12,7 +12,8 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebSearch",
-      "mcp__gitnexus__list_repos"
+      "mcp__gitnexus__list_repos",
+      "Bash(gh search *)"
     ]
   }
 }

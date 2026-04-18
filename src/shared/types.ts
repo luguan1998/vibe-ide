@@ -1,0 +1,110 @@
+// IPC Channel definitions
+export const IPC_CHANNELS = {
+  // Terminal
+  PTY_CREATE: 'pty:create',
+  PTY_WRITE: 'pty:write',
+  PTY_RESIZE: 'pty:resize',
+  PTY_CLOSE: 'pty:close',
+  PTY_DATA: 'pty:data',
+  PTY_EXIT: 'pty:exit',
+
+  // Git
+  GIT_STATUS: 'git:status',
+  GIT_LOG: 'git:log',
+  GIT_DIFF: 'git:diff',
+  GIT_COMMIT: 'git:commit',
+  GIT_ADD: 'git:add',
+  GIT_RESET: 'git:reset',
+  GIT_CHECKOUT: 'git:checkout',
+  GIT_BRANCHES: 'git:branches',
+  GIT_STASH_LIST: 'git:stashList',
+  GIT_STASH_PUSH: 'git:stashPush',
+  GIT_STASH_POP: 'git:stashPop',
+  GIT_INIT: 'git:init',
+
+  // File
+  FILE_READ: 'file:read',
+  FILE_WRITE: 'file:write',
+  FILE_LIST: 'file:list',
+  FILE_TREE: 'file:tree',
+
+  // Workspace
+  WORKSPACE_OPEN: 'workspace:open',
+  WORKSPACE_CURRENT: 'workspace:current'
+} as const
+
+// Terminal types
+export interface TerminalSession {
+  id: string
+  name: string
+  shell: string
+  cwd: string
+  active: boolean
+  createdAt: number
+}
+
+export interface CreateTerminalOptions {
+  shell?: string
+  cwd?: string
+  name?: string
+}
+
+// Git types
+export interface GitFileStatus {
+  path: string
+  status: 'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | 'untracked' | 'staged' | 'unstaged' | 'conflicted'
+  staged: boolean
+  oldPath?: string
+}
+
+export interface GitLogEntry {
+  hash: string
+  message: string
+  author: string
+  date: string
+  refs?: string
+}
+
+export interface GitBranch {
+  name: string
+  current: boolean
+}
+
+export interface GitDiffResult {
+  file: string
+  content: string
+  oldContent: string
+  hunks: GitDiffHunk[]
+}
+
+export interface GitDiffHunk {
+  oldStart: number
+  oldLines: number
+  newStart: number
+  newLines: number
+  content: string
+}
+
+export interface GitStatusResult {
+  files: GitFileStatus[]
+  branch: string
+  ahead: number
+  behind: number
+  staged: number
+  unstaged: number
+  untracked: number
+  clean: boolean
+}
+
+export interface CommitOptions {
+  message: string
+  files?: string[]
+}
+
+// File types
+export interface FileNode {
+  name: string
+  path: string
+  type: 'file' | 'directory'
+  children?: FileNode[]
+}
