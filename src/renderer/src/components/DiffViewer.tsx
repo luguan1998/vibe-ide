@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import Editor from '@monaco-editor/react'
+import { Editor, DiffEditor } from '@monaco-editor/react'
 
 interface DiffViewerProps {
   filePath: string
@@ -12,161 +12,99 @@ interface DiffViewerProps {
 
 type ViewMode = 'diff' | 'edit'
 
+function parseDiffContent(diff: string): { original: string; modified: string } {
+  const originalLines: string[] = []
+  const modifiedLines: string[] = []
+
+  const lines = diff.split('\n')
+  for (const line of lines) {
+    if (line.startsWith('diff ') || line.startsWith('index ') ||
+        line.startsWith('--- ') || line.startsWith('+++ ') ||
+        line.startsWith('@@')) {
+      continue
+    }
+    if (line.startsWith('-')) {
+      originalLines.push(line.slice(1))
+    } else if (line.startsWith('+')) {
+      modifiedLines.push(line.slice(1))
+    } else if (line.trim()) {
+      originalLines.push(line)
+      modifiedLines.push(line)
+    }
+  }
+
+  return {
+    original: originalLines.join('\n'),
+    modified: modifiedLines.join('\n')
+  }
+}
+
 export default function DiffViewer({ filePath, diffContent, isStaged, onStage, onUnstage, onBack }: DiffViewerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('diff')
-  const [fileContent, setFileContent] = useState<string>('')
+  const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
   const [saving, setSaving] = useState(false)
 
-  // Load original file content for editing
-  const loadFileContent = useCallback(async () => {
-    try {
-      // Try to get the file content from git or from the actual file
-      const result = await window.api.file.read(filePath)
-      if (result.error) {
-        setFileContent('')
-      } else {
-        setFileContent(result.content)
-        setModifiedContent(result.content)
-      }
-    } catch (err) {
-      setFileContent('')
+  const loadContents = useCallback(() => {
+    if (diffContent) {
+      const { original, modified } = parseDiffContent(diffContent)
+      setOriginalContent(original)
+      setModifiedContent(modified)
+    } else {
+      setOriginalContent('')
       setModifiedContent('')
     }
-  }, [filePath])
+  }, [diffContent])
 
-  // Load content when switching to edit mode
+  useEffect(() => {
+    loadContents()
+  }, [loadContents])
+
+  const loadForEdit = useCallback(async () => {
+    if (!diffContent) return
+    const { modified } = parseDiffContent(diffContent)
+    setModifiedContent(modified)
+  }, [diffContent])
+
   useEffect(() => {
     if (viewMode === 'edit') {
-      loadFileContent()
+      loadForEdit()
     }
-  }, [viewMode, loadFileContent])
+  }, [viewMode, loadForEdit])
 
-  // Save file content
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
       await window.api.file.write(filePath, modifiedContent)
-      setFileContent(modifiedContent)
     } catch (err) {
-      // Handle error silently
     }
     setSaving(false)
   }, [filePath, modifiedContent])
 
-  // Ctrl+S to save
+  const handleSaveDiff = useCallback(async () => {
+    setSaving(true)
+    try {
+      await window.api.file.write(filePath, modifiedContent)
+    } catch (err) {
+    }
+    setSaving(false)
+  }, [filePath, modifiedContent])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === 's' && viewMode === 'edit') {
+      if (e.ctrlKey && e.key === 's') {
         e.preventDefault()
-        handleSave()
+        if (viewMode === 'edit') {
+          handleSave()
+        } else if (viewMode === 'diff') {
+          handleSaveDiff()
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [viewMode, handleSave])
+  }, [viewMode, handleSave, handleSaveDiff])
 
-  // Parse diff content for inline display
-  const renderInlineDiff = () => {
-    const lines = diffContent.split('\n')
-    return (
-      <div className="font-mono text-xs leading-5 overflow-auto">
-        {lines.map((line, i) => {
-          let className = 'text-ide-text-muted'
-          if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ')) {
-            className = 'text-ide-accent font-bold'
-          } else if (line.startsWith('@@')) {
-            className = 'text-ide-warning bg-ide-warning/10'
-          } else if (line.startsWith('+') && !line.startsWith('+++')) {
-            className = 'text-ide-success bg-ide-success/10'
-          } else if (line.startsWith('-') && !line.startsWith('---')) {
-            className = 'text-ide-danger bg-ide-danger/10'
-          }
-
-          return (
-            <div key={i} className={`${className} px-2 whitespace-pre`}>
-              {line}
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-
-  // Monaco diff editor view
-  const renderMonacoDiff = () => {
-    // Parse original and modified content from diff
-    let originalContent = ''
-    let modifiedContentStr = ''
-
-    // Try to extract content from diff
-    const lines = diffContent.split('\n')
-    const originalLines: string[] = []
-    const modifiedLines: string[] = []
-
-    for (const line of lines) {
-      if (line.startsWith('-') && !line.startsWith('---') && !line.startsWith('diff') && !line.startsWith('index') && !line.startsWith('@@')) {
-        originalLines.push(line.substring(1))
-      } else if (line.startsWith('+') && !line.startsWith('+++') && !line.startsWith('diff') && !line.startsWith('index') && !line.startsWith('@@')) {
-        modifiedLines.push(line.substring(1))
-      } else if (!line.startsWith('diff') && !line.startsWith('index') && !line.startsWith('---') && !line.startsWith('+++') && !line.startsWith('@@') && !line.startsWith('-') && !line.startsWith('+')) {
-        // Context line
-        originalLines.push(line)
-        modifiedLines.push(line)
-      }
-    }
-
-    // If we can't parse diff properly, use file content as original
-    originalContent = fileContent || originalLines.join('\n')
-    modifiedContentStr = modifiedLines.join('\n') || fileContent
-
-    return (
-      <Editor
-        height="100%"
-        language={getLanguageFromFile(filePath)}
-        theme="vs-dark"
-        options={{
-          renderSideBySide: true,
-          readOnly: true,
-          minimap: { enabled: false },
-          scrollBeyondLastLine: false,
-          fontSize: 12,
-          lineNumbers: 'on',
-          contextmenu: false,
-          folding: false,
-          wordWrap: 'on'
-        }}
-        original={originalContent}
-        modified={modifiedContentStr}
-        diffEditor={true}
-      />
-    )
-  }
-
-  // Monaco edit view
-  const renderEditor = () => {
-    return (
-      <Editor
-        height="100%"
-        language={getLanguageFromFile(filePath)}
-        theme="vs-dark"
-        value={modifiedContent}
-        onChange={(value) => setModifiedContent(value || '')}
-        options={{
-          minimap: { enabled: false },
-          scrollBeyondLastLine: false,
-          fontSize: 13,
-          lineNumbers: 'on',
-          wordWrap: 'on',
-          tabSize: 2,
-          automaticLayout: true,
-          padding: { top: 8 }
-        }}
-      />
-    )
-  }
-
-  // Detect language from file extension
   const getLanguageFromFile = (path: string): string => {
     const ext = path.split('.').pop()?.toLowerCase() || ''
     const langMap: Record<string, string> = {
@@ -212,7 +150,6 @@ export default function DiffViewer({ filePath, diffContent, isStaged, onStage, o
 
   return (
     <div className="flex flex-col border-t border-ide-border animate-fade-in">
-      {/* Diff Header */}
       <div className="px-3 py-1.5 flex items-center justify-between bg-ide-hover/30 border-b border-ide-border shrink-0">
         <div className="flex items-center gap-2 text-sm">
           {onBack && (
@@ -228,7 +165,6 @@ export default function DiffViewer({ filePath, diffContent, isStaged, onStage, o
         </div>
 
         <div className="flex items-center gap-1">
-          {/* View mode toggle */}
           <button
             onClick={() => setViewMode('diff')}
             className={`px-2 py-1 text-xs rounded transition-colors ${
@@ -246,7 +182,6 @@ export default function DiffViewer({ filePath, diffContent, isStaged, onStage, o
             Edit
           </button>
 
-          {/* Stage/Unstage buttons */}
           {!isStaged ? (
             <button
               onClick={() => onStage(filePath)}
@@ -265,9 +200,43 @@ export default function DiffViewer({ filePath, diffContent, isStaged, onStage, o
         </div>
       </div>
 
-      {/* Content */}
       <div className="overflow-auto" style={{ height: 'calc(100vh - 80px)' }}>
-        {viewMode === 'diff' ? renderInlineDiff() : renderEditor()}
+        {viewMode === 'diff' ? (
+          <DiffEditor
+            height="100%"
+            language={getLanguageFromFile(filePath)}
+            theme="vs-dark"
+            original={originalContent}
+            modified={modifiedContent}
+            options={{
+              renderSideBySide: true,
+              readOnly: false,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              fontSize: 12,
+              lineNumbers: 'on',
+              wordWrap: 'on'
+            }}
+          />
+        ) : (
+          <Editor
+            height="100%"
+            language={getLanguageFromFile(filePath)}
+            theme="vs-dark"
+            value={modifiedContent}
+            onChange={(value) => setModifiedContent(value || '')}
+            options={{
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              fontSize: 13,
+              lineNumbers: 'on',
+              wordWrap: 'on',
+              tabSize: 2,
+              automaticLayout: true,
+              padding: { top: 8 }
+            }}
+          />
+        )}
       </div>
     </div>
   )
