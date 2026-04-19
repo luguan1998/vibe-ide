@@ -180,6 +180,21 @@ export default function TerminalView({ sessionId, sessionName, sessionCwd }: Ter
     return () => observer.disconnect()
   }, [isReady])
 
+  // Handle right-click paste
+  const handleContextMenu = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text && xtermRef.current) {
+        window.api.terminal.write(sessionId, text)
+      }
+    } catch (err) {
+      console.error('Failed to read clipboard:', err)
+    }
+  }, [sessionId])
+
   return (
     <div className="flex flex-col h-full">
       {/* Terminal tab header */}
@@ -189,7 +204,11 @@ export default function TerminalView({ sessionId, sessionName, sessionCwd }: Ter
       </div>
 
       {/* Terminal container */}
-      <div ref={terminalRef} className="flex-1 overflow-hidden p-1" />
+      <div
+        ref={terminalRef}
+        className="flex-1 overflow-hidden p-1"
+        onContextMenu={handleContextMenu}
+      />
     </div>
   )
 }
