@@ -40,20 +40,47 @@ function parseDiffContent(diff: string): { original: string; modified: string } 
   }
 }
 
+function parseDiffStats(diff: string): { additions: number; deletions: number } {
+  const lines = diff.split('\n')
+  let totalAdditions = 0
+  let totalDeletions = 0
+
+  for (const line of lines) {
+    if (line.startsWith('@@')) {
+      const match = line.match(/@@\s*-(\d+)(?:,(\d+))?\s*\+(\d+)(?:,(\d+))?\s*@@/)
+      if (match) {
+        const oldLines = parseInt(match[1])
+        const oldCount = parseInt(match[2]) || oldLines
+        const newLines = parseInt(match[3])
+        const newCount = parseInt(match[4]) || newLines
+
+        totalDeletions += oldCount
+        totalAdditions += newCount
+      }
+    }
+  }
+
+  return { additions: totalAdditions, deletions: totalDeletions }
+}
+
 export default function DiffViewer({ filePath, diffContent, isStaged, showSquiggles = true, onStage, onUnstage, onBack }: DiffViewerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('diff')
   const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const [diffStats, setDiffStats] = useState<{ additions: number; deletions: number }>({ additions: 0, deletions: 0 })
 
   const loadContents = useCallback(() => {
     if (diffContent) {
       const { original, modified } = parseDiffContent(diffContent)
+      const stats = parseDiffStats(diffContent)
       setOriginalContent(original)
       setModifiedContent(modified)
+      setDiffStats(stats)
     } else {
       setOriginalContent('')
       setModifiedContent('')
+      setDiffStats({ additions: 0, deletions: 0 })
     }
   }, [diffContent])
 
@@ -183,6 +210,12 @@ export default function DiffViewer({ filePath, diffContent, isStaged, showSquigg
             </button>
           )}
           <span className="text-ide-text font-medium truncate max-w-md">{filePath}</span>
+          {(diffStats.additions > 0 || diffStats.deletions > 0) && (
+            <div className="flex items-center gap-1 text-xs shrink-0">
+              {diffStats.additions > 0 && <span className="text-ide-success">+{diffStats.additions}</span>}
+              {diffStats.deletions > 0 && <span className="text-ide-danger">-{diffStats.deletions}</span>}
+            </div>
+          )}
           {isStaged && <span className="text-xs text-ide-success">staged</span>}
         </div>
 
