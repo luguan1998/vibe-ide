@@ -100,6 +100,8 @@ export default function App() {
   // Switch active session
   const handleSwitchSession = useCallback((id: string) => {
     setActiveSessionId(id)
+    setCenterView('terminal')
+    setDiffFile(null)
   }, [])
 
   // Close a terminal session
