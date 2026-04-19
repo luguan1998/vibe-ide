@@ -83,6 +83,17 @@ export default function App() {
     }
   }, [])
 
+  // Clone a terminal session (same cwd and shell)
+  const handleCloneSession = useCallback(async (cwd: string, shell: string) => {
+    try {
+      const session = await window.api.terminal.create({ cwd, shell })
+      setSessions(prev => [...prev, session])
+      setActiveSessionId(session.id)
+    } catch (err) {
+      console.error('Failed to clone terminal session:', err)
+    }
+  }, [])
+
   // Switch active session
   const handleSwitchSession = useCallback((id: string) => {
     setActiveSessionId(id)
@@ -213,6 +224,7 @@ export default function App() {
             sessions={sessions}
             activeSessionId={activeSessionId}
             onCreateSession={handleCreateSession}
+            onCloneSession={handleCloneSession}
             onSwitchSession={handleSwitchSession}
             onCloseSession={handleCloseSession}
             onRenameSession={handleRenameSession}

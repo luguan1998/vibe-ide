@@ -5,6 +5,7 @@ interface SessionPanelProps {
   sessions: TerminalSession[]
   activeSessionId: string | null
   onCreateSession: (shell?: string) => void
+  onCloneSession: (cwd: string, shell: string) => void
   onSwitchSession: (id: string) => void
   onCloseSession: (id: string) => void
   onRenameSession?: (id: string, newName: string) => Promise<void>
@@ -15,6 +16,7 @@ export default function SessionPanel({
   sessions,
   activeSessionId,
   onCreateSession,
+  onCloneSession,
   onSwitchSession,
   onCloseSession,
   onRenameSession,
@@ -189,6 +191,18 @@ export default function SessionPanel({
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover"
+            onClick={() => {
+              const session = sessions.find(s => s.id === contextMenu.sessionId)
+              if (session) {
+                onCloneSession(session.cwd, session.shell)
+              }
+              setContextMenu(null)
+            }}
+          >
+            Clone
+          </button>
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover"
             onClick={() => {
