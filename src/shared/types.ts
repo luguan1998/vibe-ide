@@ -49,6 +49,12 @@ export interface TerminalSession {
   createdAt: number
 }
 
+export interface RenameTerminalResult {
+  success: boolean
+  session?: TerminalSession
+  error?: string
+}
+
 export interface CreateTerminalOptions {
   shell?: string
   cwd?: string

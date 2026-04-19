@@ -3,14 +3,14 @@ import SessionPanel from './components/SessionPanel'
 import TerminalView from './components/TerminalView'
 import GitPanel from './components/GitPanel'
 import DiffViewer from './components/DiffViewer'
-import { TerminalSession, ShellOption } from '@shared/types'
+import { TerminalSession, ShellOption, RenameTerminalResult } from '@shared/types'
 
 // Declare the window API type
 declare global {
   interface Window {
     api: {
       terminal: {
-        rename(id: string, newName: string): unknown
+        rename(id: string, newName: string): Promise<RenameTerminalResult>
         create: (options?: any) => Promise<TerminalSession>
         write: (id: string, data: string) => void
         resize: (id: string, cols: number, rows: number) => void
@@ -113,8 +113,8 @@ export default function App() {
   // Rename a terminal session
   const handleRenameSession = useCallback(async (id: string, newName: string) => {
     const result = await window.api.terminal.rename(id, newName)
-    if (result.session) {
-      setSessions(prev => prev.map(s => s.id === id ? result.session : s))
+    if (result.success && result.session) {
+      setSessions(prev => prev.map(s => s.id === id ? result.session! : s))
     }
   }, [])
 
