@@ -49,7 +49,8 @@ const api = {
     stashList: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_LIST),
     stashPush: (message?: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_PUSH, message),
     stashPop: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_POP),
-    init: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_INIT)
+    init: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_INIT),
+    show: (hash: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW, hash)
   },
 
   // File operations

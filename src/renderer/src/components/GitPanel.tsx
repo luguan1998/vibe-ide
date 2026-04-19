@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch } from '@shared/types'
+import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, GitCommitFile } from '@shared/types'
 
 interface GitPanelProps {
   workspacePath: string | null
@@ -20,6 +20,9 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentGitPath, setCurrentGitPath] = useState<string | null>(null)
+  const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
+  const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
+  const [commitDiff, setCommitDiff] = useState<string>('')
 
   // Switch git workspace when workspacePath changes
   useEffect(() => {
@@ -110,6 +113,38 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
       onFileSelect(file.path, result.content || '', file.staged)
     }
   }, [loadDiff, onFileSelect])
+
+  // Handle commit click - show expanded files and diff
+  const handleCommitClick = useCallback(async (hash: string) => {
+    if (expandedCommit === hash) {
+      setExpandedCommit(null)
+      setCommitFiles([])
+      setCommitDiff('')
+      return
+    }
+    setLoading(true)
+    try {
+      const result = await window.api.git.show(hash)
+      if (result.error) {
+        setError(result.error)
+      } else {
+        setExpandedCommit(hash)
+        setCommitFiles(result.files || [])
+        setCommitDiff(result.diff || '')
+      }
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setLoading(false)
+  }, [expandedCommit])
+
+  // Handle commit file click - show diff in main view
+  const handleCommitFileClick = useCallback(async (file: GitCommitFile) => {
+    if (!file.diff || !onFileSelect) return
+    const filePath = file.path
+    setSelectedFile(filePath)
+    onFileSelect(filePath, file.diff, false)
+  }, [onFileSelect])
 
   // Stage a file
   const handleStage = useCallback(async (filePath: string) => {
@@ -397,14 +432,51 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
               <div className="px-3 py-4 text-sm text-ide-text-muted text-center">No commits yet</div>
             ) : (
               logs.map(entry => (
-                <div key={entry.hash} className="px-3 py-2 border-b border-ide-border/50 hover:bg-ide-hover cursor-pointer">
-                  <div className="text-sm text-ide-text truncate">{entry.message}</div>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-ide-text-muted">
-                    <span className="text-ide-accent">{entry.hash.slice(0, 7)}</span>
-                    <span>{entry.author}</span>
-                    <span>{new Date(entry.date).toLocaleDateString()}</span>
-                    {entry.refs && <span className="text-ide-warning">{entry.refs}</span>}
+                <div key={entry.hash}>
+                  <div
+                    className={`px-3 py-2 border-b border-ide-border/50 hover:bg-ide-hover cursor-pointer ${
+                      expandedCommit === entry.hash ? 'bg-ide-accent/10' : ''
+                    }`}
+                    onClick={() => handleCommitClick(entry.hash)}
+                  >
+                    <div className="text-sm text-ide-text truncate">{entry.message}</div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-ide-text-muted">
+                      <span className="text-ide-accent">{entry.hash.slice(0, 7)}</span>
+                      <span>{entry.author}</span>
+                      <span>{new Date(entry.date).toLocaleDateString()}</span>
+                      {entry.refs && <span className="text-ide-warning">{entry.refs}</span>}
+                    </div>
                   </div>
+                  {expandedCommit === entry.hash && (
+                    <div className="bg-ide-bg border-b border-ide-border animate-fade-in">
+                      <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50">
+                        Changed Files ({commitFiles.length})
+                      </div>
+                      {commitFiles.map(file => (
+                        <div
+                          key={file.path}
+                          className="px-3 py-1.5 text-sm cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                          onClick={() => handleCommitFileClick(file)}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`text-xs font-bold w-4 text-center shrink-0 ${
+                              file.status === 'added' ? 'text-ide-success' :
+                              file.status === 'deleted' ? 'text-ide-danger' :
+                              file.status === 'renamed' ? 'text-ide-warning' :
+                              'text-ide-text-muted'
+                            }`}>
+                              {file.status === 'added' ? 'A' : file.status === 'deleted' ? 'D' : file.status === 'renamed' ? 'R' : 'M'}
+                            </span>
+                            <span className="truncate">{file.path}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs shrink-0">
+                            {file.additions > 0 && <span className="text-ide-success">+{file.additions}</span>}
+                            {file.deletions > 0 && <span className="text-ide-danger">-{file.deletions}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))
             )}

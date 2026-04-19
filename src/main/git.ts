@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import simpleGit, { SimpleGit } from 'simple-git'
-import { IPC_CHANNELS, GitStatusResult, GitLogEntry, GitDiffResult, GitBranch, CommitOptions } from '../shared/types'
+import { IPC_CHANNELS, GitStatusResult, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, GitShowResult, GitCommitFile } from '../shared/types'
 import { readFile, writeFile } from 'fs/promises'
 
 let gitInstance: SimpleGit | null = null
@@ -237,6 +237,84 @@ export function registerGitHandlers(): void {
       const git = getGit()
       await git.init()
       return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Git show - get commit details with files and diff
+  ipcMain.handle(IPC_CHANNELS.GIT_SHOW, async (_event, hash: string) => {
+    try {
+      const git = getGit()
+      const showOutput = await git.show([hash, '--stat', '--format=%H%n%s%n%an%n%ad%n', '--date=iso'])
+      const lines = showOutput.split('\n')
+
+      const result: GitShowResult = {
+        hash: '',
+        message: '',
+        author: '',
+        date: '',
+        files: [],
+        diff: ''
+      }
+
+      let i = 0
+      if (lines[i]) result.hash = lines[i++]
+      if (lines[i]) result.message = lines[i++]
+      if (lines[i]) result.author = lines[i++]
+      if (lines[i]) result.date = lines[i++]
+
+      const filePaths: string[] = []
+      const fileInfos: { path: string; status: GitCommitFile['status']; additions: number; deletions: number }[] = []
+      for (; i < lines.length; i++) {
+        const line = lines[i]
+        if (line.includes('|')) {
+          const parts = line.split('|')
+          const path = parts[0].trim()
+          const stats = parts[1].trim()
+          let status: GitCommitFile['status'] = 'modified'
+          let additions = 0
+          let deletions = 0
+
+          if (path.startsWith('A ')) {
+            status = 'added'
+          } else if (path.startsWith('D ')) {
+            status = 'deleted'
+          } else if (path.startsWith('R ') || line.includes(' -> ')) {
+            status = 'renamed'
+          }
+
+          const addMatch = stats.match(/(\d+)/)
+          if (addMatch) {
+            if (stats.includes('+') && !stats.includes('-')) {
+              additions = parseInt(addMatch[1])
+            } else if (stats.includes('-') && !stats.includes('+')) {
+              deletions = parseInt(addMatch[1])
+            }
+          }
+
+          const cleanPath = path.includes(' -> ')
+            ? path.replace('A ', '').split(' -> ')[1]
+            : path.replace(/^[AMD]\s*/, '').trim()
+          filePaths.push(cleanPath)
+          fileInfos.push({ path: cleanPath, status, additions, deletions })
+        }
+      }
+
+      const files: GitCommitFile[] = []
+      for (const info of fileInfos) {
+        let fileDiff = ''
+        try {
+          fileDiff = await git.diff([`${hash}^`, hash, '--', info.path])
+        } catch {
+          fileDiff = ''
+        }
+        files.push({ ...info, diff: fileDiff })
+      }
+
+      result.files = files
+
+      return result
     } catch (err: any) {
       return { error: err.message }
     }

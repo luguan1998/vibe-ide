@@ -23,6 +23,7 @@ export const IPC_CHANNELS = {
   GIT_STASH_PUSH: 'git:stashPush',
   GIT_STASH_POP: 'git:stashPop',
   GIT_INIT: 'git:init',
+  GIT_SHOW: 'git:show',
 
   // File
   FILE_READ: 'file:read',
@@ -87,6 +88,23 @@ export interface GitLogEntry {
 export interface GitBranch {
   name: string
   current: boolean
+}
+
+export interface GitCommitFile {
+  path: string
+  status: 'added' | 'modified' | 'deleted' | 'renamed'
+  additions: number
+  deletions: number
+  diff?: string
+}
+
+export interface GitShowResult {
+  hash: string
+  message: string
+  author: string
+  date: string
+  files: GitCommitFile[]
+  diff?: string
 }
 
 export interface GitDiffResult {

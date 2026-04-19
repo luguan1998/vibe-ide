@@ -34,6 +34,7 @@ declare global {
         stashPush: (message?: string) => Promise<any>
         stashPop: () => Promise<any>
         init: () => Promise<any>
+        show: (hash: string) => Promise<any>
       }
       file: any
       workspace: {
