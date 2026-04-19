@@ -10,6 +10,7 @@ declare global {
   interface Window {
     api: {
       terminal: {
+        rename(id: string, newName: string): unknown
         create: (options?: any) => Promise<TerminalSession>
         write: (id: string, data: string) => void
         resize: (id: string, cols: number, rows: number) => void
