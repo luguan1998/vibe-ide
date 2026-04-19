@@ -52,7 +52,8 @@ declare global {
 type CenterView = 'terminal' | 'diff'
 
 interface DiffFileState {
-  filePath: string
+  filePath: string          // 相对路径（用于 git diff）
+  fullPath: string          // 完整路径（用于 file read/write）
   diffContent: string
   isStaged: boolean
   showSquiggles?: boolean
@@ -168,9 +169,11 @@ export default function App() {
   }, [leftPanelWidth])
 
   const handleFileSelect = useCallback((filePath: string, diffContent: string, isStaged: boolean) => {
-    setDiffFile({ filePath, diffContent, isStaged })
+    // filePath 是相对路径，需要拼接 workspace 路径得到完整路径
+    const fullPath = activeSessionCwd ? `${activeSessionCwd}/${filePath}` : filePath
+    setDiffFile({ filePath, fullPath, diffContent, isStaged })
     setCenterView('diff')
-  }, [])
+  }, [activeSessionCwd])
 
   const handleBackToTerminal = useCallback(() => {
     setCenterView('terminal')
@@ -187,6 +190,11 @@ export default function App() {
 
   const handleRefreshGit = useCallback(async () => {
     setGitRefreshKey(k => k + 1)
+  }, [])
+
+  const handleRefreshDiff = useCallback(async (filePath: string, isStaged: boolean): Promise<string> => {
+    const result = await window.api.git.diff(filePath, isStaged)
+    return result.content || ''
   }, [])
 
   // Auto-create first session on mount
@@ -252,6 +260,7 @@ export default function App() {
           {centerView === 'diff' && diffFile ? (
             <DiffViewer
               filePath={diffFile.filePath}
+              fullPath={diffFile.fullPath}
               diffContent={diffFile.diffContent}
               isStaged={diffFile.isStaged}
               showSquiggles={showSquiggles}
@@ -259,6 +268,7 @@ export default function App() {
               onUnstage={handleUnstage}
               onBack={handleBackToTerminal}
               onSaved={handleRefreshGit}
+              onRefreshDiff={handleRefreshDiff}
             />
           ) : sessions.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-ide-text-muted">

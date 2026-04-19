@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Editor, DiffEditor } from '@monaco-editor/react'
 
 interface DiffViewerProps {
-  filePath: string
+  filePath: string          // 相对路径（用于 git 操作）
+  fullPath: string          // 完整路径（用于 file read/write）
   diffContent: string
   isStaged: boolean
   showSquiggles?: boolean
@@ -10,6 +11,7 @@ interface DiffViewerProps {
   onUnstage: (path: string) => Promise<void>
   onBack?: () => void
   onSaved?: (path: string) => Promise<void>
+  onRefreshDiff?: (path: string, staged: boolean) => Promise<string>
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -19,19 +21,39 @@ function parseDiffContent(diff: string): { original: string; modified: string } 
   const modifiedLines: string[] = []
 
   const lines = diff.split('\n')
+  let inHunk = false
+
   for (const line of lines) {
+    // Skip diff header lines
     if (line.startsWith('diff ') || line.startsWith('index ') ||
-        line.startsWith('--- ') || line.startsWith('+++ ') ||
-        line.startsWith('@@')) {
+        line.startsWith('--- ') || line.startsWith('+++ ')) {
       continue
     }
+
+    // Process hunk headers - mark we're in content area
+    if (line.startsWith('@@')) {
+      inHunk = true
+      continue
+    }
+
+    // Only process lines inside hunks
+    if (!inHunk) continue
+
+    // Handle diff content lines
     if (line.startsWith('-')) {
+      // Removed line - goes to original only
       originalLines.push(line.slice(1))
     } else if (line.startsWith('+')) {
+      // Added line - goes to modified only
       modifiedLines.push(line.slice(1))
-    } else if (line.trim()) {
-      originalLines.push(line)
-      modifiedLines.push(line)
+    } else if (line.startsWith(' ')) {
+      // Context line - goes to both
+      originalLines.push(line.slice(1))
+      modifiedLines.push(line.slice(1))
+    } else if (line === '') {
+      // Empty line within hunk - goes to both
+      originalLines.push('')
+      modifiedLines.push('')
     }
   }
 
@@ -64,7 +86,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions: totalAdditions, deletions: totalDeletions }
 }
 
-export default function DiffViewer({ filePath, diffContent, isStaged, showSquiggles = true, onStage, onUnstage, onBack, onSaved }: DiffViewerProps) {
+export default function DiffViewer({ filePath, fullPath, diffContent, isStaged, showSquiggles = true, onStage, onUnstage, onBack, onSaved, onRefreshDiff }: DiffViewerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('diff')
   const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
@@ -91,7 +113,7 @@ export default function DiffViewer({ filePath, diffContent, isStaged, showSquigg
 
   const loadForEdit = useCallback(async () => {
     try {
-      const result = await window.api.file.read(filePath)
+      const result = await window.api.file.read(fullPath)
       if (result.error) {
         setModifiedContent('')
       } else {
@@ -100,37 +122,52 @@ export default function DiffViewer({ filePath, diffContent, isStaged, showSquigg
     } catch (err) {
       setModifiedContent('')
     }
-  }, [filePath])
+  }, [fullPath])
 
   useEffect(() => {
     if (viewMode === 'edit') {
       loadForEdit()
+    } else if (viewMode === 'diff') {
+      // 切换回 diff 时，重新获取最新 diff
+      if (onRefreshDiff) {
+        onRefreshDiff(filePath, isStaged).then(newDiff => {
+          if (newDiff) {
+            const { original, modified } = parseDiffContent(newDiff)
+            setOriginalContent(original)
+            setModifiedContent(modified)
+            setDiffStats(parseDiffStats(newDiff))
+          }
+        })
+      } else {
+        // fallback: 使用传入的 diffContent
+        loadContents()
+      }
     }
-  }, [viewMode, loadForEdit])
+  }, [viewMode, filePath, isStaged, onRefreshDiff, loadForEdit, loadContents])
 
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      await window.api.file.write(filePath, modifiedContent)
+      await window.api.file.write(fullPath, modifiedContent)
       if (onSaved) {
         await onSaved(filePath)
       }
     } catch (err) {
     }
     setSaving(false)
-  }, [filePath, modifiedContent, onSaved])
+  }, [fullPath, filePath, modifiedContent, onSaved])
 
   const handleSaveDiff = useCallback(async () => {
     setSaving(true)
     try {
-      await window.api.file.write(filePath, modifiedContent)
+      await window.api.file.write(fullPath, modifiedContent)
       if (onSaved) {
         await onSaved(filePath)
       }
     } catch (err) {
     }
     setSaving(false)
-  }, [filePath, modifiedContent, onSaved])
+  }, [fullPath, filePath, modifiedContent, onSaved])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
