@@ -20,7 +20,17 @@
       "Bash(npm ls *)",
       "Bash(node -e \"const pty = require\\('node-pty'\\); console.log\\('node-pty loaded OK:', typeof pty.spawn\\)\")",
       "Bash(npm view *)",
-      "Bash(taskkill /F /IM electron.exe)"
+      "Bash(taskkill /F /IM electron.exe)",
+      "Bash(node *)",
+      "Bash(reg query *)",
+      "Bash(cmd.exe *)",
+      "Bash(ls *)",
+      "Bash(npx electron *)",
+      "Bash(where bb_browser.cmd)",
+      "Read(//c/Users/luguan/**)",
+      "Bash(npm list *)",
+      "Bash(npm root *)"
     ]
-  }
+  },
+  "outputStyle": "Structural Thinking"
 }

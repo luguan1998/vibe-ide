@@ -19,6 +19,23 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
   const [commitMessage, setCommitMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [currentGitPath, setCurrentGitPath] = useState<string | null>(null)
+
+  // Switch git workspace when workspacePath changes
+  useEffect(() => {
+    if (!workspacePath || workspacePath === currentGitPath) return
+    const switchWorkspace = async () => {
+      const result = await window.api.git.setWorkspace(workspacePath)
+      if (result.success) {
+        setCurrentGitPath(workspacePath)
+        // Refresh all git data for the new workspace
+        refreshStatus()
+        refreshLog()
+        refreshBranches()
+      }
+    }
+    switchWorkspace()
+  }, [workspacePath])
 
   // Refresh git status
   const refreshStatus = useCallback(async () => {

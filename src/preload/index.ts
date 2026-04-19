@@ -65,6 +65,11 @@ const api = {
     open: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_OPEN),
     current: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_CURRENT),
     pickDir: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_PICK_DIR)
+  },
+
+  // Shell operations
+  shell: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.SHELL_LIST)
   }
 }
 

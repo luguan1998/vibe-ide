@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { WebLinksAddon } from 'xterm-addon-web-links'
+import { ClipboardAddon } from '@xterm/addon-clipboard'
 import 'xterm/css/xterm.css'
 
 interface TerminalViewProps {
@@ -63,9 +64,11 @@ export default function TerminalView({ sessionId, sessionName, sessionCwd }: Ter
 
     const fitAddon = new FitAddon()
     const webLinksAddon = new WebLinksAddon()
+    const clipboardAddon = new ClipboardAddon()
 
     term.loadAddon(fitAddon)
     term.loadAddon(webLinksAddon)
+    term.loadAddon(clipboardAddon)
 
     term.open(terminalRef.current)
     fitAddon.fit()

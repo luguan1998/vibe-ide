@@ -1,8 +1,8 @@
 node_modules/
-.claude/
 dist/
 out/
 .DS_Store
 *.log
 .env
 .env.*
+.claude/

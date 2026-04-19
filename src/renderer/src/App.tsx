@@ -3,7 +3,7 @@ import SessionPanel from './components/SessionPanel'
 import TerminalView from './components/TerminalView'
 import GitPanel from './components/GitPanel'
 import DiffViewer from './components/DiffViewer'
-import { TerminalSession } from '@shared/types'
+import { TerminalSession, ShellOption } from '@shared/types'
 
 // Declare the window API type
 declare global {
@@ -40,6 +40,9 @@ declare global {
         current: () => Promise<{ path: string }>
         pickDir: () => Promise<{ path: string; canceled: boolean }>
       }
+      shell: {
+        list: () => Promise<ShellOption[]>
+      }
     }
   }
 }
@@ -68,11 +71,11 @@ export default function App() {
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
 
   // Create a new terminal session — ask user to pick a directory first
-  const handleCreateSession = useCallback(async () => {
+  const handleCreateSession = useCallback(async (shell?: string) => {
     try {
       const dirResult = await window.api.workspace.pickDir()
       if (dirResult.canceled) return
-      const session = await window.api.terminal.create({ cwd: dirResult.path })
+      const session = await window.api.terminal.create({ cwd: dirResult.path, shell })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
     } catch (err) {
@@ -213,6 +216,7 @@ export default function App() {
             onSwitchSession={handleSwitchSession}
             onCloseSession={handleCloseSession}
             onRenameSession={handleRenameSession}
+            onGetShells={() => window.api.shell.list()}
           />
         </div>
 

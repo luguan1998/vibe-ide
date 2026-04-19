@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { TerminalSession } from '@shared/types'
+import { TerminalSession, ShellOption } from '@shared/types'
 
 interface SessionPanelProps {
   sessions: TerminalSession[]
   activeSessionId: string | null
-  onCreateSession: () => void
+  onCreateSession: (shell?: string) => void
   onSwitchSession: (id: string) => void
   onCloseSession: (id: string) => void
   onRenameSession?: (id: string, newName: string) => Promise<void>
+  onGetShells: () => Promise<ShellOption[]>
 }
 
 export default function SessionPanel({
@@ -16,11 +17,14 @@ export default function SessionPanel({
   onCreateSession,
   onSwitchSession,
   onCloseSession,
-  onRenameSession
+  onRenameSession,
+  onGetShells
 }: SessionPanelProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
+  const [showShellPicker, setShowShellPicker] = useState(false)
+  const [shells, setShells] = useState<ShellOption[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -67,13 +71,49 @@ export default function SessionPanel({
       <div className="h-10 px-3 flex items-center justify-between border-b border-ide-border shrink-0">
         <h2 className="text-sm font-semibold text-ide-text uppercase tracking-wider">Sessions</h2>
         <button
-          onClick={onCreateSession}
+          onClick={async () => {
+            const shellList = await onGetShells()
+            setShells(shellList)
+            setShowShellPicker(!showShellPicker)
+          }}
           className="w-6 h-6 rounded bg-ide-accent hover:bg-ide-accent-hover text-white flex items-center justify-center text-sm transition-colors"
           title="New Terminal"
         >
           +
         </button>
       </div>
+
+      {/* Shell Picker Dropdown */}
+      {showShellPicker && (
+        <div className="border-b border-ide-border px-3 py-2 shrink-0 bg-ide-sidebar">
+          <div className="text-xs text-ide-text-muted mb-1">Select shell:</div>
+          {shells.filter(s => s.available).map((shell) => (
+            <button
+              key={shell.id}
+              className="w-full px-2 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover rounded mb-0.5 flex items-center gap-2"
+              onClick={() => {
+                setShowShellPicker(false)
+                onCreateSession(shell.path)
+              }}
+            >
+              <svg className="w-3.5 h-3.5 shrink-0 text-ide-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="4 17 10 11 4 5" />
+                <line x1="12" y1="19" x2="20" y2="19" />
+              </svg>
+              <span>{shell.name}</span>
+            </button>
+          ))}
+          <button
+            className="w-full px-2 py-1.5 text-left text-xs text-ide-text-muted hover:bg-ide-hover rounded"
+            onClick={() => {
+              setShowShellPicker(false)
+              onCreateSession()
+            }}
+          >
+            Default shell
+          </button>
+        </div>
+      )}
 
       {/* Session List */}
       <div className="flex-1 overflow-y-auto py-1">

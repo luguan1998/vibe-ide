@@ -1,7 +1,8 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { join } from 'path'
+import { existsSync } from 'fs'
 import * as pty from 'node-pty'
-import { IPC_CHANNELS, CreateTerminalOptions, TerminalSession } from '../shared/types'
+import { IPC_CHANNELS, CreateTerminalOptions, TerminalSession, ShellOption } from '../shared/types'
 
 interface ManagedPty {
   pty: pty.IPty
@@ -18,8 +19,94 @@ function getShell(): string {
   return process.env.SHELL || '/bin/bash'
 }
 
+function detectShells(): ShellOption[] {
+  const shells: ShellOption[] = []
+
+  if (process.platform === 'win32') {
+    // CMD
+    const cmdPath = process.env.COMSPEC || 'C:\\Windows\\System32\\cmd.exe'
+    shells.push({
+      id: 'cmd',
+      name: 'CMD',
+      path: cmdPath,
+      available: existsSync(cmdPath)
+    })
+
+    // PowerShell (Windows built-in)
+    const psPaths = [
+      'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+      'C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe'
+    ]
+    const psPath = psPaths.find(p => existsSync(p)) || psPaths[0]
+    shells.push({
+      id: 'powershell',
+      name: 'PowerShell',
+      path: psPath,
+      available: psPaths.some(p => existsSync(p))
+    })
+
+    // PowerShell 7 (pwsh)
+    const pwshPaths = [
+      'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+      'C:\\Program Files (x86)\\PowerShell\\7\\pwsh.exe'
+    ]
+    const pwshPath = pwshPaths.find(p => existsSync(p)) || pwshPaths[0]
+    shells.push({
+      id: 'pwsh',
+      name: 'PowerShell 7',
+      path: pwshPath,
+      available: pwshPaths.some(p => existsSync(p))
+    })
+
+    // Git Bash
+    const gitBashPaths = [
+      'C:\\Program Files\\Git\\bin\\bash.exe',
+      'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
+      join(process.env.LOCALAPPDATA || '', 'Programs', 'Git', 'bin', 'bash.exe'),
+      join(process.env.HOME || '', 'scoop', 'apps', 'git', 'current', 'bin', 'bash.exe')
+    ]
+    const gitBashPath = gitBashPaths.find(p => existsSync(p)) || gitBashPaths[0]
+    shells.push({
+      id: 'git-bash',
+      name: 'Git Bash',
+      path: gitBashPath,
+      available: gitBashPaths.some(p => existsSync(p))
+    })
+
+    // WSL bash (if WSL installed)
+    const wslPath = 'C:\\Windows\\System32\\wsl.exe'
+    shells.push({
+      id: 'wsl',
+      name: 'WSL',
+      path: wslPath,
+      available: existsSync(wslPath)
+    })
+  } else {
+    // macOS / Linux
+    const unixShells = [
+      { id: 'bash', name: 'Bash', path: '/bin/bash' },
+      { id: 'zsh', name: 'Zsh', path: '/bin/zsh' },
+      { id: 'fish', name: 'Fish', path: '/usr/bin/fish' },
+      { id: 'sh', name: 'Sh', path: '/bin/sh' }
+    ]
+    for (const s of unixShells) {
+      shells.push({
+        ...s,
+        available: existsSync(s.path)
+      })
+    }
+  }
+
+  return shells
+}
+
 export function registerPtyHandlers(win: BrowserWindow | null): void {
   mainWindow = win
+
+  // List available shells
+  ipcMain.handle(IPC_CHANNELS.SHELL_LIST, () => {
+    return detectShells()
+  })
 
   // Create a new terminal session
   ipcMain.handle(IPC_CHANNELS.PTY_CREATE, (_event, options: CreateTerminalOptions) => {
