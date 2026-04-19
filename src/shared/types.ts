@@ -75,6 +75,8 @@ export interface GitFileStatus {
   status: 'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | 'untracked' | 'staged' | 'unstaged' | 'conflicted'
   staged: boolean
   oldPath?: string
+  additions?: number
+  deletions?: number
 }
 
 export interface GitLogEntry {

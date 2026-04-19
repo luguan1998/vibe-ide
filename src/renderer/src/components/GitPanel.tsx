@@ -235,6 +235,17 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
     }
   }
 
+  const calcFileStats = (files: GitFileStatus[]) => {
+    return files.reduce(
+      (acc, f) => {
+        acc.additions += f.additions || 0
+        acc.deletions += f.deletions || 0
+        return acc
+      },
+      { additions: 0, deletions: 0 }
+    )
+  }
+
   if (!workspacePath) {
     return (
       <div className="flex flex-col h-full">
@@ -311,15 +322,25 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
             {/* Staged Changes */}
             {status && status.files.filter(f => f.staged).length > 0 && (
               <div className="border-b border-ide-border">
-                <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50 flex items-center justify-between">
-                  <span>Staged Changes ({status.files.filter(f => f.staged).length})</span>
-                  <button
-                    onClick={() => handleUnstageAll(status!.files.filter(f => f.staged).map(f => f.path))}
-                    className="text-xs text-ide-text-muted hover:text-ide-text"
-                  >
-                    Unstage All
-                  </button>
-                </div>
+                {(() => {
+                  const stagedFiles = status.files.filter(f => f.staged)
+                  const stats = calcFileStats(stagedFiles)
+                  return (
+                    <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span>Staged Changes ({stagedFiles.length})</span>
+{stats.additions > 0 && <span className="text-ide-success font-mono">+{stats.additions}</span>}
+                      {stats.deletions > 0 && <span className="text-ide-danger font-mono">-{stats.deletions}</span>}
+                      </div>
+                      <button
+                        onClick={() => handleUnstageAll(stagedFiles.map(f => f.path))}
+                        className="text-xs text-ide-text-muted hover:text-ide-text"
+                      >
+                        Unstage All
+                      </button>
+                    </div>
+                  )
+                })()}
                 {status.files.filter(f => f.staged).map(file => (
                   <div
                     key={`staged-${file.path}`}
@@ -334,12 +355,16 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
                       </span>
                       <span className="truncate">{file.path}</span>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleUnstage(file.path) }}
-                      className="opacity-0 group-hover:opacity-100 text-xs text-ide-text-muted hover:text-ide-text shrink-0"
-                    >
-                      −
-                    </button>
+                    <div className="flex items-center gap-2 text-xs shrink-0">
+                      {(file.additions ?? 0) > 0 && <span className="text-ide-success font-mono">+{file.additions}</span>}
+                      {(file.deletions ?? 0) > 0 && <span className="text-ide-danger font-mono">-{file.deletions}</span>}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleUnstage(file.path) }}
+                        className="opacity-0 group-hover:opacity-100 text-xs text-ide-text-muted hover:text-ide-text shrink-0"
+                      >
+                        −
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -348,15 +373,25 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
             {/* Unstaged Changes */}
             {status && status.files.filter(f => !f.staged && f.status !== 'untracked').length > 0 && (
               <div className="border-b border-ide-border">
-                <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50 flex items-center justify-between">
-                  <span>Changes ({status.files.filter(f => !f.staged && f.status !== 'untracked').length})</span>
-                  <button
-                    onClick={() => handleStageAll(status!.files.filter(f => !f.staged && f.status !== 'untracked').map(f => f.path))}
-                    className="text-xs text-ide-text-muted hover:text-ide-text"
-                  >
-                    Stage All
-                  </button>
-                </div>
+                {(() => {
+                  const modifiedFiles = status.files.filter(f => !f.staged && f.status !== 'untracked')
+                  const stats = calcFileStats(modifiedFiles)
+                  return (
+                    <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span>Changes ({modifiedFiles.length})</span>
+{stats.additions > 0 && <span className="text-ide-success font-mono">+{stats.additions}</span>}
+                      {stats.deletions > 0 && <span className="text-ide-danger font-mono">-{stats.deletions}</span>}
+                      </div>
+                      <button
+                        onClick={() => handleStageAll(modifiedFiles.map(f => f.path))}
+                        className="text-xs text-ide-text-muted hover:text-ide-text"
+                      >
+                        Stage All
+                      </button>
+                    </div>
+                  )
+                })()}
                 {status.files.filter(f => !f.staged && f.status !== 'untracked').map(file => (
                   <div
                     key={`unstaged-${file.path}`}
@@ -371,12 +406,16 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
                       </span>
                       <span className="truncate">{file.path}</span>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
-                      className="opacity-0 group-hover:opacity-100 text-xs text-ide-text-muted hover:text-ide-text shrink-0"
-                    >
-                      +
-                    </button>
+                    <div className="flex items-center gap-2 text-xs shrink-0">
+                      {(file.additions ?? 0) > 0 && <span className="text-ide-success font-mono">+{file.additions}</span>}
+                      {(file.deletions ?? 0) > 0 && <span className="text-ide-danger font-mono">-{file.deletions}</span>}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
+                        className="opacity-0 group-hover:opacity-100 text-xs text-ide-text-muted hover:text-ide-text shrink-0"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -470,8 +509,8 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
                             <span className="truncate">{file.path}</span>
                           </div>
                           <div className="flex items-center gap-2 text-xs shrink-0">
-                            {file.additions > 0 && <span className="text-ide-success">+{file.additions}</span>}
-                            {file.deletions > 0 && <span className="text-ide-danger">-{file.deletions}</span>}
+                            {file.additions > 0 && <span className="text-ide-success font-mono">+{file.additions}</span>}
+                            {file.deletions > 0 && <span className="text-ide-danger font-mono">-{file.deletions}</span>}
                           </div>
                         </div>
                       ))}

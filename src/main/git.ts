@@ -76,13 +76,61 @@ export function registerGitHandlers(): void {
     try {
       const git = getGit()
       const status = await git.status()
+
+      const diffStat: Record<string, { additions: number; deletions: number }> = {}
+      try {
+        const diffNumstat = await git.diff(['--numstat'])
+        for (const line of diffNumstat.split('\n')) {
+          if (line.includes('\t')) {
+            const parts = line.split('\t')
+            const addPart = parts[0].trim()
+            const delPart = parts[1].trim()
+            const filePath = parts[2]?.trim() || ''
+            if (filePath) {
+              diffStat[filePath] = {
+                additions: addPart === '-' ? 0 : parseInt(addPart) || 0,
+                deletions: delPart === '-' ? 0 : parseInt(delPart) || 0
+              }
+            }
+          }
+        }
+      } catch {
+      }
+
+      const stagedDiffStat: Record<string, { additions: number; deletions: number }> = {}
+      try {
+        const stagedNumstat = await git.diff(['--cached', '--numstat'])
+        for (const line of stagedNumstat.split('\n')) {
+          if (line.includes('\t')) {
+            const parts = line.split('\t')
+            const addPart = parts[0].trim()
+            const delPart = parts[1].trim()
+            const filePath = parts[2]?.trim() || ''
+            if (filePath) {
+              stagedDiffStat[filePath] = {
+                additions: addPart === '-' ? 0 : parseInt(addPart) || 0,
+                deletions: delPart === '-' ? 0 : parseInt(delPart) || 0
+              }
+            }
+          }
+        }
+      } catch {
+      }
+
       const result: GitStatusResult = {
-        files: status.files.map(f => ({
-          path: f.path,
-          status: mapSimpleGitStatus(f),
-          staged: f.index !== '?' && f.index !== ' ',
-          oldPath: f.from
-        })),
+        files: status.files.map(f => {
+          const filePath = f.path
+          const isStaged = f.index !== '?' && f.index !== ' '
+          const stats = isStaged ? stagedDiffStat : diffStat
+          return {
+            path: filePath,
+            status: mapSimpleGitStatus(f),
+            staged: isStaged,
+            oldPath: f.from,
+            additions: stats[filePath]?.additions || 0,
+            deletions: stats[filePath]?.deletions || 0
+          }
+        }),
         branch: status.current || '',
         ahead: status.ahead,
         behind: status.behind,

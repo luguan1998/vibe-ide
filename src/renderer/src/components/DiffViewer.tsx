@@ -212,8 +212,8 @@ export default function DiffViewer({ filePath, diffContent, isStaged, showSquigg
           <span className="text-ide-text font-medium truncate max-w-md">{filePath}</span>
           {(diffStats.additions > 0 || diffStats.deletions > 0) && (
             <div className="flex items-center gap-1 text-xs shrink-0">
-              {diffStats.additions > 0 && <span className="text-ide-success">+{diffStats.additions}</span>}
-              {diffStats.deletions > 0 && <span className="text-ide-danger">-{diffStats.deletions}</span>}
+              {diffStats.additions > 0 && <span className="text-ide-success font-mono">+{diffStats.additions}</span>}
+              {diffStats.deletions > 0 && <span className="text-ide-danger font-mono">-{diffStats.deletions}</span>}
             </div>
           )}
           {isStaged && <span className="text-xs text-ide-success">staged</span>}
