@@ -9,6 +9,7 @@ interface DiffViewerProps {
   onStage: (path: string) => Promise<void>
   onUnstage: (path: string) => Promise<void>
   onBack?: () => void
+  onSaved?: (path: string) => Promise<void>
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -63,7 +64,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions: totalAdditions, deletions: totalDeletions }
 }
 
-export default function DiffViewer({ filePath, diffContent, isStaged, showSquiggles = true, onStage, onUnstage, onBack }: DiffViewerProps) {
+export default function DiffViewer({ filePath, diffContent, isStaged, showSquiggles = true, onStage, onUnstage, onBack, onSaved }: DiffViewerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('diff')
   const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
@@ -111,19 +112,25 @@ export default function DiffViewer({ filePath, diffContent, isStaged, showSquigg
     setSaving(true)
     try {
       await window.api.file.write(filePath, modifiedContent)
+      if (onSaved) {
+        await onSaved(filePath)
+      }
     } catch (err) {
     }
     setSaving(false)
-  }, [filePath, modifiedContent])
+  }, [filePath, modifiedContent, onSaved])
 
   const handleSaveDiff = useCallback(async () => {
     setSaving(true)
     try {
       await window.api.file.write(filePath, modifiedContent)
+      if (onSaved) {
+        await onSaved(filePath)
+      }
     } catch (err) {
     }
     setSaving(false)
-  }, [filePath, modifiedContent])
+  }, [filePath, modifiedContent, onSaved])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

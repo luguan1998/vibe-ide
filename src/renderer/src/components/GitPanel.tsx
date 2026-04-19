@@ -4,11 +4,12 @@ import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, 
 interface GitPanelProps {
   workspacePath: string | null
   onFileSelect?: (filePath: string, diffContent: string, isStaged: boolean) => void
+  refreshKey?: number
 }
 
 type GitTab = 'changes' | 'log' | 'branches'
 
-export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps) {
+export default function GitPanel({ workspacePath, onFileSelect, refreshKey }: GitPanelProps) {
   const [activeTab, setActiveTab] = useState<GitTab>('changes')
   const [status, setStatus] = useState<GitStatusResult | null>(null)
   const [logs, setLogs] = useState<GitLogEntry[]>([])
@@ -39,6 +40,13 @@ export default function GitPanel({ workspacePath, onFileSelect }: GitPanelProps)
     }
     switchWorkspace()
   }, [workspacePath])
+
+  // Handle refreshKey changes (triggered by Ctrl+S in DiffViewer)
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      refreshStatus()
+    }
+  }, [refreshKey])
 
   // Refresh git status
   const refreshStatus = useCallback(async () => {

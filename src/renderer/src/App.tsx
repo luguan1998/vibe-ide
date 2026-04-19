@@ -67,7 +67,8 @@ export default function App() {
   const [centerView, setCenterView] = useState<CenterView>('terminal')
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
   const [showConfigMenu, setShowConfigMenu] = useState(false)
-  const [showSquiggles, setShowSquiggles] = useState(true)
+  const [showSquiggles, setShowSquiggles] = useState(false)
+  const [gitRefreshKey, setGitRefreshKey] = useState(0)
 
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
@@ -182,6 +183,10 @@ export default function App() {
     await window.api.git.reset(filePath)
   }, [])
 
+  const handleRefreshGit = useCallback(async () => {
+    setGitRefreshKey(k => k + 1)
+  }, [])
+
   // Auto-create first session on mount
   React.useEffect(() => {
     if (sessions.length === 0) {
@@ -251,6 +256,7 @@ export default function App() {
               onStage={handleStage}
               onUnstage={handleUnstage}
               onBack={handleBackToTerminal}
+              onSaved={handleRefreshGit}
             />
           ) : sessions.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-ide-text-muted">
@@ -277,7 +283,7 @@ export default function App() {
 
         {/* Right Panel: Git Management */}
         <div className="shrink-0 flex flex-col bg-ide-sidebar border-l border-ide-border overflow-hidden" style={{ width: rightPanelWidth }}>
-          <GitPanel workspacePath={activeSessionCwd} onFileSelect={handleFileSelect} />
+          <GitPanel workspacePath={activeSessionCwd} onFileSelect={handleFileSelect} refreshKey={gitRefreshKey} />
         </div>
       </div>
     </div>

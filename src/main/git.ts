@@ -117,27 +117,59 @@ export function registerGitHandlers(): void {
       } catch {
       }
 
-      const result: GitStatusResult = {
-        files: status.files.map(f => {
-          const filePath = f.path
-          const isStaged = f.index !== '?' && f.index !== ' '
-          const stats = isStaged ? stagedDiffStat : diffStat
-          return {
+      const statusShort = await git.status(['-s'])
+      const stagedFiles: GitFileStatus[] = []
+      const unstagedFiles: GitFileStatus[] = []
+      const untrackedFiles: GitFileStatus[] = []
+
+      for (const f of statusShort.files) {
+        const indexStatus = f.index
+        const workdirStatus = f.working_dir
+        const filePath = f.path
+
+        if (indexStatus === '?' && workdirStatus === '?') {
+          untrackedFiles.push({
             path: filePath,
-            status: mapSimpleGitStatus(f),
-            staged: isStaged,
-            oldPath: f.from,
-            additions: stats[filePath]?.additions || 0,
-            deletions: stats[filePath]?.deletions || 0
-          }
-        }),
+            status: 'untracked',
+            staged: false,
+            additions: 0,
+            deletions: 0
+          })
+          continue
+        }
+
+        if (indexStatus !== '?' && indexStatus !== ' ') {
+          stagedFiles.push({
+            path: filePath,
+            status: mapShortStatus(indexStatus, f.from),
+            staged: true,
+            oldPath: getOldPath(f, indexStatus),
+            additions: stagedDiffStat[filePath]?.additions || 0,
+            deletions: stagedDiffStat[filePath]?.deletions || 0
+          })
+        }
+
+        if (workdirStatus !== ' ' && workdirStatus !== '?') {
+          unstagedFiles.push({
+            path: filePath,
+            status: mapShortStatus(workdirStatus, f.from),
+            staged: false,
+            oldPath: getOldPath(f, workdirStatus),
+            additions: diffStat[filePath]?.additions || 0,
+            deletions: diffStat[filePath]?.deletions || 0
+          })
+        }
+      }
+
+      const result: GitStatusResult = {
+        files: [...stagedFiles, ...unstagedFiles, ...untrackedFiles],
         branch: status.current || '',
         ahead: status.ahead,
         behind: status.behind,
-        staged: status.staged.length,
-        unstaged: status.modified.length + status.deleted.length,
-        untracked: status.not_added.length,
-        clean: status.isClean()
+        staged: stagedFiles.length,
+        unstaged: unstagedFiles.length,
+        untracked: untrackedFiles.length,
+        clean: stagedFiles.length === 0 && unstagedFiles.length === 0 && untrackedFiles.length === 0
       }
       return result
     } catch (err: any) {
@@ -414,4 +446,25 @@ function mapSimpleGitStatus(f: any): GitFileStatus['status'] {
   if (index === 'U') return 'conflicted'
   if (index !== ' ' && index !== '?') return 'staged'
   return 'unstaged'
+}
+
+function mapShortStatus(code: string, from?: string): GitFileStatus['status'] {
+  switch (code) {
+    case 'A': return 'added'
+    case 'M': return 'modified'
+    case 'D': return 'deleted'
+    case 'R': return 'renamed'
+    case 'C': return 'copied'
+    case 'U': return 'conflicted'
+    case ' ':
+    case '?':
+    default: return 'unstaged'
+  }
+}
+
+function getOldPath(f: { from?: string }, status: string): string | undefined {
+  if (status === 'R' || status === 'C') {
+    return f.from
+  }
+  return undefined
 }
