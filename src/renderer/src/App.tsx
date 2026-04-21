@@ -197,6 +197,35 @@ export default function App() {
     return result.content || ''
   }, [])
 
+  // 处理从终端点击文件路径打开文件
+  const handleOpenFileFromTerminal = useCallback(async (fullPath: string, lineNumber?: number) => {
+    try {
+      // 读取文件内容
+      const result = await window.api.file.read(fullPath)
+      if (result.error) {
+        console.error('Failed to read file:', result.error)
+        return
+      }
+
+      // 计算 filePath（相对路径）用于 git 操作
+      let filePath = fullPath
+      if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
+        filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
+      }
+
+      // 设置 diffFile 状态，使用空 diffContent（因为是从终端打开，不是 git diff）
+      setDiffFile({
+        filePath,
+        fullPath,
+        diffContent: '',  // 直接打开编辑，不是 diff 视图
+        isStaged: false
+      })
+      setCenterView('diff')
+    } catch (err) {
+      console.error('Failed to open file from terminal:', err)
+    }
+  }, [activeSessionCwd])
+
   // Auto-create first session on mount
   React.useEffect(() => {
     if (sessions.length === 0) {
@@ -281,7 +310,7 @@ export default function App() {
                 className="flex-1 flex flex-col overflow-hidden"
                 style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
               >
-                <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} />
+                <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} />
               </div>
             ))
           )}

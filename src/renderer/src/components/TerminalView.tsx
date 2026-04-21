@@ -1,22 +1,172 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { Terminal } from 'xterm'
+import { Terminal, ILinkProvider, ILink, IBufferRange } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { WebLinksAddon } from 'xterm-addon-web-links'
 import { ClipboardAddon } from '@xterm/addon-clipboard'
 import 'xterm/css/xterm.css'
 
+// 支持的文件扩展名（可编辑）
+const EDITABLE_EXTENSIONS = new Set([
+  'txt', 'c', 'py', 'ts', 'tsx', 'js', 'jsx', 'md', 'json', 'html', 'htm',
+  'css', 'yaml', 'yml', 'sh', 'bash', 'bat', 'cmd', 'sql', 'log', 'xml',
+  'toml', 'ini', 'env', 'rs', 'go', 'java', 'cpp', 'h', 'hpp', 'cs', 'rb',
+  'php', 'swift', 'kt', 'vue', 'svelte', 'scss', 'less', 'dockerfile',
+  'gitignore', 'cfg', 'conf', 'makefile', 'r', 'm', 'scala', 'clj', 'lua',
+  'pl', 'pm', 'ex', 'exs', 'erl', 'hrl', 'vim', 'editorconfig', 'eslintrc',
+  'prettierrc', 'lock', 'gradle', 'properties', 'ps1', 'vbs', 'wren'
+])
+
+// Windows 绝对路径: E:\path\file.txt 或 E:/path/file.txt
+// 相对路径: src/file.ts 或 ./src/file.ts 或 ../src/file.ts
+// 支持带行号: file.ts:10
+const WINDOWS_ABS_PATH = /[A-Za-z]:[\\\/][^\s:*?"<>|\r\n]+/
+const RELATIVE_PATH = /(?:\.{1,2}[\\\/]|[a-zA-Z0-9_])[a-zA-Z0-9_\-.\\\/]*[a-zA-Z0-9_\-.]+/
+const LINE_NUMBER = /:\d+/
+
+// 组合正则：匹配路径（可选带行号）
+const FILE_PATH_REGEX = new RegExp(
+  `(?:${WINDOWS_ABS_PATH.source}|${RELATIVE_PATH.source})(${LINE_NUMBER.source})?`,
+  'g'
+)
+
 interface TerminalViewProps {
   sessionId: string
   sessionName?: string
   sessionCwd?: string
+  onOpenFile?: (fullPath: string, lineNumber?: number) => void
 }
 
-export default function TerminalView({ sessionId, sessionName, sessionCwd }: TerminalViewProps) {
+/**
+ * 解析路径文本，提取文件路径和行号
+ * @param pathText 原始路径文本（可能包含行号）
+ * @param cwd 当前工作目录（用于相对路径）
+ * @returns { fullPath, lineNumber } 或 null（如果无效）
+ */
+function parseFilePath(pathText: string, cwd: string): { fullPath: string; lineNumber?: number } | null {
+  // 提取行号（如果有）
+  let lineNumber: number | undefined
+  let pathPart = pathText
+
+  const lineMatch = pathText.match(/:(\d+)$/)
+  if (lineMatch) {
+    lineNumber = parseInt(lineMatch[1], 10)
+    pathPart = pathText.slice(0, pathText.length - lineMatch[0].length)
+  }
+
+  // 检查扩展名是否支持
+  const extMatch = pathPart.match(/\.(?:([a-zA-Z0-9]+)|([a-zA-Z0-9]+\.[a-zA-Z0-9]+))$/)
+  if (!extMatch) return null
+
+  const ext = extMatch[1] || extMatch[2]?.split('.').pop()?.toLowerCase()
+  if (!ext || !EDITABLE_EXTENSIONS.has(ext.toLowerCase())) return null
+
+  // 判断是绝对路径还是相对路径
+  const isAbsolute = /^[A-Za-z]:[\\\/]/.test(pathPart)
+
+  let fullPath: string
+  if (isAbsolute) {
+    fullPath = pathPart
+  } else if (cwd) {
+    // 相对路径，拼接 cwd
+    // 处理 ./ 和 ../
+    fullPath = cwd.replace(/\\/g, '/') + '/' + pathPart.replace(/\\/g, '/')
+  } else {
+    return null
+  }
+
+  // 统一路径分隔符（Windows 使用反斜杠）
+  fullPath = fullPath.replace(/\//g, '\\')
+
+  return { fullPath, lineNumber }
+}
+
+/**
+ * 自定义链接提供者，用于检测文件路径并提供点击跳转
+ */
+class FileLinkProvider implements ILinkProvider {
+  private _terminal: Terminal
+  private _cwd: string
+  private _onOpenFile: (fullPath: string, lineNumber?: number) => void
+
+  constructor(
+    terminal: Terminal,
+    cwd: string,
+    onOpenFile: (fullPath: string, lineNumber?: number) => void
+  ) {
+    this._terminal = terminal
+    this._cwd = cwd
+    this._onOpenFile = onOpenFile
+  }
+
+  provideLinks(y: number, callback: (links: ILink[] | undefined) => void): void {
+    const links: ILink[] = []
+
+    // 获取当前行的文本
+    const line = this._terminal.buffer.active.getLine(y - 1)
+    if (!line) {
+      callback(undefined)
+      return
+    }
+
+    const lineText = line.translateToString(true)
+    if (!lineText) {
+      callback(undefined)
+      return
+    }
+
+    // 重置正则并匹配
+    FILE_PATH_REGEX.lastIndex = 0
+    let match: RegExpExecArray | null
+
+    while ((match = FILE_PATH_REGEX.exec(lineText)) !== null) {
+      const matchedText = match[0]
+      const startIndex = match.index
+
+      // 解析路径
+      const parsed = parseFilePath(matchedText, this._cwd)
+      if (!parsed) continue
+
+      // 计算在 terminal buffer 中的位置
+      const startX = startIndex + 1  // xterm 使用 1-based
+      const endX = startIndex + matchedText.length
+
+      const range: IBufferRange = {
+        start: { x: startX, y: y },
+        end: { x: endX, y: y }
+      }
+
+      const link: ILink = {
+        range,
+        text: matchedText,
+        activate: (_event: MouseEvent, _text: string) => {
+          this._onOpenFile(parsed.fullPath, parsed.lineNumber)
+        },
+        hover: (_event: MouseEvent, _text: string) => {
+          // 可以在这里添加 tooltip 提示
+        },
+        leave: (_event: MouseEvent, _text: string) => {
+          // 清理 hover 状态
+        },
+        decorations: {
+          pointerCursor: true,
+          underline: true
+        }
+      }
+
+      links.push(link)
+    }
+
+    callback(links.length > 0 ? links : undefined)
+  }
+}
+
+export default function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const dataHandlerRef = useRef<any>(null)
   const exitHandlerRef = useRef<any>(null)
+  const linkProviderRef = useRef<any>(null)
   const [isReady, setIsReady] = useState(false)
 
   // Initialize xterm.js
@@ -147,6 +297,31 @@ export default function TerminalView({ sessionId, sessionName, sessionCwd }: Ter
       }
     }
   }, [sessionId, isReady])
+
+  // Register file link provider when terminal is ready
+  useEffect(() => {
+    if (!xtermRef.current || !isReady || !onOpenFile) return
+
+    // 清理之前的 link provider
+    if (linkProviderRef.current) {
+      linkProviderRef.current.dispose()
+    }
+
+    // 注册新的 FileLinkProvider
+    const provider = new FileLinkProvider(
+      xtermRef.current,
+      sessionCwd || '',
+      onOpenFile
+    )
+    linkProviderRef.current = xtermRef.current.registerLinkProvider(provider)
+
+    return () => {
+      if (linkProviderRef.current) {
+        linkProviderRef.current.dispose()
+        linkProviderRef.current = null
+      }
+    }
+  }, [sessionCwd, isReady, onOpenFile])
 
   // Auto-fit on mount and when container resizes
   useEffect(() => {

@@ -87,7 +87,8 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
 }
 
 export default function DiffViewer({ filePath, fullPath, diffContent, isStaged, showSquiggles = true, onStage, onUnstage, onBack, onSaved, onRefreshDiff }: DiffViewerProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>('diff')
+  // 如果 diffContent 为空，默认进入 edit 模式（从终端直接打开文件）
+  const [viewMode, setViewMode] = useState<ViewMode>(diffContent ? 'diff' : 'edit')
   const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
   const [saving, setSaving] = useState(false)
@@ -110,6 +111,18 @@ export default function DiffViewer({ filePath, fullPath, diffContent, isStaged, 
   useEffect(() => {
     loadContents()
   }, [loadContents])
+
+  // 当 diffContent 从无到有变化时，如果是 edit 模式可以切换到 diff
+  useEffect(() => {
+    if (diffContent && viewMode === 'edit') {
+      // 如果用户之前是 edit 模式但现在有 diffContent 了，保持 edit 模式让用户决定
+      // 不自动切换
+    }
+    if (!diffContent && viewMode === 'diff') {
+      // 如果没有 diffContent 却在 diff 模式，切换到 edit
+      setViewMode('edit')
+    }
+  }, [diffContent])
 
   const loadForEdit = useCallback(async () => {
     try {
