@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, GitCommitFile } from '@shared/types'
 
 interface GitPanelProps {
@@ -24,6 +24,7 @@ export default function GitPanel({ workspacePath, onFileSelect, refreshKey }: Gi
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   const [commitDiff, setCommitDiff] = useState<string>('')
+  const gitChangedHandlerRef = useRef<any>(null)
 
   // Switch git workspace when workspacePath changes
   useEffect(() => {
@@ -47,6 +48,19 @@ export default function GitPanel({ workspacePath, onFileSelect, refreshKey }: Gi
       refreshStatus()
     }
   }, [refreshKey])
+
+  // Listen for git:changed events from file watcher
+  useEffect(() => {
+    gitChangedHandlerRef.current = window.api.git.onChanged(() => {
+      // Auto refresh when git state changes (external edits, terminal commands, etc.)
+      refreshStatus()
+      if (activeTab === 'log') refreshLog()
+    })
+
+    return () => {
+      window.api.git.removeChangedListener(gitChangedHandlerRef.current)
+    }
+  }, [activeTab])
 
   // Refresh git status
   const refreshStatus = useCallback(async () => {

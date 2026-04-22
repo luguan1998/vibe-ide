@@ -50,7 +50,19 @@ const api = {
     stashPush: (message?: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_PUSH, message),
     stashPop: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_POP),
     init: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_INIT),
-    show: (hash: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW, hash)
+    show: (hash: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW, hash),
+    onChanged: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on(IPC_CHANNELS.GIT_CHANGED, handler)
+      return handler
+    },
+    removeChangedListener: (handler?: any) => {
+      if (handler) {
+        ipcRenderer.removeListener(IPC_CHANNELS.GIT_CHANGED, handler)
+      } else {
+        ipcRenderer.removeAllListeners(IPC_CHANNELS.GIT_CHANGED)
+      }
+    }
   },
 
   // File operations

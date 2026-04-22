@@ -1,16 +1,55 @@
-import { ipcMain } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
 import simpleGit, { SimpleGit } from 'simple-git'
 import { IPC_CHANNELS, GitStatusResult, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, GitShowResult, GitCommitFile } from '../shared/types'
 import { readFile, writeFile } from 'fs/promises'
+import { watch, FSWatcher, existsSync } from 'fs'
+import { join } from 'path'
 
 let gitInstance: SimpleGit | null = null
 let currentWorkspace: string = process.cwd()
+let gitWatcher: FSWatcher | null = null
+let debounceTimer: NodeJS.Timeout | null = null
 
 function getGit(): SimpleGit {
   if (!gitInstance) {
     gitInstance = simpleGit(currentWorkspace)
   }
   return gitInstance
+}
+
+// Setup file watcher for .git directory
+function setupGitWatcher(workspace: string) {
+  // Clean up existing watcher
+  if (gitWatcher) {
+    gitWatcher.close()
+    gitWatcher = null
+  }
+
+  const gitDir = join(workspace, '.git')
+  if (!existsSync(gitDir)) {
+    return
+  }
+
+  // Watch .git directory for changes (index, refs, objects)
+  gitWatcher = watch(gitDir, { recursive: true }, (eventType, filename) => {
+    if (!filename) return
+
+    // Only trigger on relevant files (index, HEAD, refs, objects)
+    const relevantFiles = ['index', 'HEAD', 'refs/', 'objects/', 'config']
+    const isRelevant = relevantFiles.some(f => filename.startsWith(f) || filename === f)
+    if (!isRelevant) return
+
+    // Debounce: wait 100ms before notifying (avoid rapid-fire events)
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+    }
+    debounceTimer = setTimeout(() => {
+      // Notify all windows
+      BrowserWindow.getAllWindows().forEach(win => {
+        win.webContents.send(IPC_CHANNELS.GIT_CHANGED)
+      })
+    }, 100)
+  })
 }
 
 function mapStatus(raw: string, index: string): GitStatusResult {
@@ -68,6 +107,7 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_SET_WORKSPACE, async (_event, path: string) => {
     currentWorkspace = path
     gitInstance = simpleGit(currentWorkspace)
+    setupGitWatcher(path)  // Start watching the new workspace
     return { success: true, path: currentWorkspace }
   })
 

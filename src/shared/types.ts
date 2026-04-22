@@ -12,6 +12,7 @@ export const IPC_CHANNELS = {
   // Git
   GIT_STATUS: 'git:status',
   GIT_SET_WORKSPACE: 'git:setWorkspace',
+  GIT_CHANGED: 'git:changed',  // Push event when git state changes (file watcher)
   GIT_LOG: 'git:log',
   GIT_DIFF: 'git:diff',
   GIT_COMMIT: 'git:commit',
