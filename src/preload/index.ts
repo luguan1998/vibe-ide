@@ -80,10 +80,6 @@ const api = {
     pickDir: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_PICK_DIR)
   },
 
-  // Shell operations
-  shell: {
-    list: () => ipcRenderer.invoke(IPC_CHANNELS.SHELL_LIST)
-  }
 }
 
 contextBridge.exposeInMainWorld('api', api)

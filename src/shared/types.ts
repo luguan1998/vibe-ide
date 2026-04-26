@@ -37,15 +37,12 @@ export const IPC_CHANNELS = {
   WORKSPACE_CURRENT: 'workspace:current',
   WORKSPACE_PICK_DIR: 'workspace:pickDir',
 
-  // Shell
-  SHELL_LIST: 'shell:list'
 } as const
 
 // Terminal types
 export interface TerminalSession {
   id: string
   name: string
-  shell: string
   cwd: string
   active: boolean
   createdAt: number
@@ -58,16 +55,8 @@ export interface RenameTerminalResult {
 }
 
 export interface CreateTerminalOptions {
-  shell?: string
   cwd?: string
   name?: string
-}
-
-export interface ShellOption {
-  id: string
-  name: string
-  path: string
-  available: boolean
 }
 
 // Git types

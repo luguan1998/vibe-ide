@@ -3,7 +3,7 @@ import SessionPanel from './components/SessionPanel'
 import TerminalView from './components/TerminalView'
 import GitPanel from './components/GitPanel'
 import DiffViewer from './components/DiffViewer'
-import { TerminalSession, ShellOption, RenameTerminalResult } from '@shared/types'
+import { TerminalSession, RenameTerminalResult } from '@shared/types'
 
 // Declare the window API type
 declare global {
@@ -42,9 +42,6 @@ declare global {
         current: () => Promise<{ path: string }>
         pickDir: () => Promise<{ path: string; canceled: boolean }>
       }
-      shell: {
-        list: () => Promise<ShellOption[]>
-      }
     }
   }
 }
@@ -76,11 +73,11 @@ export default function App() {
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
 
   // Create a new terminal session — ask user to pick a directory first
-  const handleCreateSession = useCallback(async (shell?: string) => {
+  const handleCreateSession = useCallback(async () => {
     try {
       const dirResult = await window.api.workspace.pickDir()
       if (dirResult.canceled) return
-      const session = await window.api.terminal.create({ cwd: dirResult.path, shell })
+      const session = await window.api.terminal.create({ cwd: dirResult.path })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
     } catch (err) {
@@ -88,10 +85,10 @@ export default function App() {
     }
   }, [])
 
-  // Clone a terminal session (same cwd and shell)
-  const handleCloneSession = useCallback(async (cwd: string, shell: string) => {
+  // Clone a terminal session (same cwd)
+  const handleCloneSession = useCallback(async (cwd: string) => {
     try {
-      const session = await window.api.terminal.create({ cwd, shell })
+      const session = await window.api.terminal.create({ cwd })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
     } catch (err) {
@@ -338,7 +335,6 @@ export default function App() {
             onSwitchSession={handleSwitchSession}
             onCloseSession={handleCloseSession}
             onRenameSession={handleRenameSession}
-            onGetShells={() => window.api.shell.list()}
           />
         </div>
 
