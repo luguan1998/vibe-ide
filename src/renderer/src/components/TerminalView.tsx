@@ -34,6 +34,7 @@ interface TerminalViewProps {
   sessionName?: string
   sessionCwd?: string
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  onCommand?: (command: string) => void
   showHeader?: boolean  // 是否显示顶部标题栏，默认 true
 }
 
@@ -79,6 +80,53 @@ function parseFilePath(pathText: string, cwd: string): { fullPath: string; lineN
   fullPath = fullPath.replace(/\//g, '\\')
 
   return { fullPath, lineNumber }
+}
+
+/**
+ * Strip ANSI escape codes from terminal output
+ */
+function stripAnsiForCommand(text: string): string {
+  return text
+    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+    .replace(/\x1b\][^\x07]*\x07/g, '')
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '') // Strip other control chars
+}
+
+/**
+ * Extract the shell command from a terminal line (prompt + command, or raw input).
+ * Returns null only for empty Enter or whitespace-only lines.
+ */
+function extractShellCommand(line: string): string | null {
+  let clean = line.trim()
+  if (!clean) return null
+
+  // Try to find a known prompt boundary and strip it
+  const promptEnds = [
+    '> ', '$ ', '# ', '] ', ') ', '❯ ', '┃ ', '▶ ', '→ ', 'λ ',
+    '>', '$', '#', ']', ')', '❯', '┃', '▶', '→', 'λ'
+  ]
+  let bestIdx = -1
+  let bestLen = 0
+
+  for (const end of promptEnds) {
+    const idx = clean.lastIndexOf(end)
+    if (idx > bestIdx || (idx === bestIdx && end.length > bestLen)) {
+      bestIdx = idx
+      bestLen = end.length
+    }
+  }
+
+  if (bestIdx >= 0) {
+    const after = clean.slice(bestIdx + bestLen).trim()
+    // Non-empty text after prompt → real command
+    if (after && !/^[%<>❯┃▶→λ\s]*$/.test(after)) return after
+    // Prompt found but nothing after → empty Enter, skip
+    return null
+  }
+
+  // No known prompt — return the whole stripped line (e.g. Claude Code, custom prompts)
+  if (/^[%<>❯┃▶→λ\s]*$/.test(clean)) return null
+  return clean
 }
 
 /**
@@ -161,7 +209,7 @@ class FileLinkProvider implements ILinkProvider {
   }
 }
 
-export default function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, showHeader = true }: TerminalViewProps) {
+export default function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -231,6 +279,23 @@ export default function TerminalView({ sessionId, sessionName, sessionCwd, onOpe
     // Handle terminal data input
     term.onData((data: string) => {
       window.api.terminal.write(sessionId, data)
+
+      // Track commands by reading xterm buffer on Enter (uses echoed text, not raw keystrokes)
+      if (onCommand) {
+        for (const ch of data) {
+          if (ch === '\r') {
+            const buffer = term.buffer.active
+            const cursorY = buffer.baseY + buffer.cursorY
+            const line = buffer.getLine(cursorY)
+            if (line) {
+              const lineText = line.translateToString(true)
+              const clean = stripAnsiForCommand(lineText)
+              const cmd = extractShellCommand(clean)
+              if (cmd) onCommand(cmd)
+            }
+          }
+        }
+      }
     })
 
     // Handle resize

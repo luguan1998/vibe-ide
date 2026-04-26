@@ -9,6 +9,7 @@ interface SessionPanelProps {
   onSwitchSession: (id: string) => void
   onCloseSession: (id: string) => void
   onRenameSession?: (id: string, newName: string) => Promise<void>
+  commandHistory?: Record<string, string[]>
 }
 
 export default function SessionPanel({
@@ -18,12 +19,15 @@ export default function SessionPanel({
   onCloneSession,
   onSwitchSession,
   onCloseSession,
-  onRenameSession
+  onRenameSession,
+  commandHistory = {}
 }: SessionPanelProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
+  const [historyModal, setHistoryModal] = useState<{ sessionId: string; name: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const historyListRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (renaming && inputRef.current) {
@@ -173,6 +177,18 @@ export default function SessionPanel({
             Rename
           </button>
           <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover"
+            onClick={() => {
+              const session = sessions.find(s => s.id === contextMenu.sessionId)
+              if (session) {
+                setHistoryModal({ sessionId: session.id, name: session.name })
+              }
+              setContextMenu(null)
+            }}
+          >
+            History
+          </button>
+          <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover"
             onClick={() => {
               onCloseSession(contextMenu.sessionId)
@@ -183,6 +199,78 @@ export default function SessionPanel({
           </button>
         </div>
       )}
+
+      {/* History Modal */}
+      {historyModal && (() => {
+        const cmds = commandHistory[historyModal.sessionId] || []
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            onClick={() => setHistoryModal(null)}
+          >
+            <div
+              className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[520px] max-h-[70vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="px-4 py-3 border-b border-ide-border flex items-center justify-between shrink-0">
+                <div>
+                  <span className="text-sm font-semibold text-ide-text">History</span>
+                  <span className="text-xs text-ide-text-muted ml-2">{historyModal.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-ide-text-muted">{cmds.length} commands</span>
+                  <button
+                    onClick={() => setHistoryModal(null)}
+                    className="text-ide-text-muted hover:text-ide-text transition-colors"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* List */}
+              <div ref={historyListRef} className="flex-1 overflow-y-auto py-1">
+                {cmds.length === 0 ? (
+                  <div className="px-4 py-8 text-sm text-ide-text-muted text-center">
+                    No commands recorded yet for this session
+                  </div>
+                ) : (
+                  cmds.map((cmd, i) => (
+                    <div
+                      key={`${historyModal.sessionId}-${i}`}
+                      className="px-4 py-1.5 text-sm font-mono text-ide-text hover:bg-ide-hover flex items-start gap-3 group"
+                    >
+                      <span className="text-xs text-ide-text-muted shrink-0 mt-px select-none w-6 text-right">
+                        {i + 1}
+                      </span>
+                      <span className="truncate flex-1" title={cmd}>
+                        {cmd.length > 80 ? cmd.slice(0, 80) + '...' : cmd}
+                      </span>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          await navigator.clipboard.writeText(cmd)
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-xs text-ide-text-muted hover:text-ide-text shrink-0 transition-opacity p-0.5"
+                        title="Copy"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

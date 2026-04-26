@@ -79,6 +79,17 @@ export default function App() {
   const [showSquiggles, setShowSquiggles] = useState(false)
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
+  const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
+
+  // Track terminal commands per session
+  const handleCommandEntered = useCallback((sessionId: string, command: string) => {
+    setCommandHistory(prev => {
+      const existing = prev[sessionId] || []
+      const next = [...existing, command]
+      if (next.length > 500) return { ...prev, [sessionId]: next.slice(-500) }
+      return { ...prev, [sessionId]: next }
+    })
+  }, [])
 
   // Ctrl+F → focus search in right panel (only when not in diff/edit mode)
   React.useEffect(() => {
@@ -134,6 +145,12 @@ export default function App() {
   const handleCloseSession = useCallback(async (id: string) => {
     await window.api.terminal.close(id)
     setSessions(prev => prev.filter(s => s.id !== id))
+    // 清理该 session 的命令历史
+    setCommandHistory(prev => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
     if (activeSessionId === id) {
       const remaining = sessions.filter(s => s.id !== id)
       setActiveSessionId(remaining.length > 0 ? remaining[0].id : null)
@@ -392,6 +409,7 @@ export default function App() {
             onSwitchSession={handleSwitchSession}
             onCloseSession={handleCloseSession}
             onRenameSession={handleRenameSession}
+            commandHistory={commandHistory}
           />
         </div>
 
@@ -428,7 +446,7 @@ export default function App() {
                 className="flex-1 flex flex-col overflow-hidden"
                 style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
               >
-                <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} />
+                <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} />
               </div>
             ))
           )}
