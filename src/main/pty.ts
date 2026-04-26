@@ -135,6 +135,23 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
 
       terminals.set(id, { pty: ptyProcess, session })
 
+      // 启动后延迟发送清屏命令，清掉启动信息
+      setTimeout(() => {
+        const managed = terminals.get(id)
+        if (managed) {
+          if (shell.includes('powershell') || shell.includes('pwsh')) {
+            // PowerShell: Clear-Host 函数清屏
+            managed.pty.write('Clear-Host\r')
+          } else if (shell.includes('cmd')) {
+            managed.pty.write('cls\r')
+          } else {
+            // bash/zsh/fish/wsl 等 Unix shell: 用 Ctrl+L (\x0c) 触发 readline clear-screen
+            // 不会 echo 命令文本，无多余换行，直接清屏并重绘 prompt
+            managed.pty.write('\x0c')
+          }
+        }
+      }, 500)  // 延迟 500ms 让 shell 先输出完启动信息
+
       // Send terminal data to renderer
       ptyProcess.onData((data: string) => {
         if (mainWindow && !mainWindow.isDestroyed()) {

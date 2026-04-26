@@ -34,6 +34,7 @@ interface TerminalViewProps {
   sessionName?: string
   sessionCwd?: string
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  showHeader?: boolean  // 是否显示顶部标题栏，默认 true
 }
 
 /**
@@ -160,7 +161,7 @@ class FileLinkProvider implements ILinkProvider {
   }
 }
 
-export default function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile }: TerminalViewProps) {
+export default function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, showHeader = true }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -372,11 +373,13 @@ export default function TerminalView({ sessionId, sessionName, sessionCwd, onOpe
 
   return (
     <div className="flex flex-col h-full">
-      {/* Terminal tab header */}
-      <div className="h-10 px-3 flex items-center border-b border-ide-border shrink-0 bg-ide-sidebar/50">
-        <span className="text-sm text-ide-text-muted">{sessionName || sessionId.slice(0, 12)}</span>
-        {sessionCwd && <span className="text-xs text-ide-text-muted ml-2 opacity-70 truncate">{sessionCwd}</span>}
-      </div>
+      {/* Terminal tab header - 可选显示 */}
+      {showHeader && (
+        <div className="h-10 px-3 flex items-center border-b border-ide-border shrink-0 bg-ide-sidebar/50">
+          <span className="text-sm text-ide-text-muted">{sessionName || sessionId.slice(0, 12)}</span>
+          {sessionCwd && <span className="text-xs text-ide-text-muted ml-2 opacity-70 truncate">{sessionCwd}</span>}
+        </div>
+      )}
 
       {/* Terminal container */}
       <div

@@ -62,6 +62,7 @@ interface DiffFileState {
 export default function App() {
   const [sessions, setSessions] = useState<TerminalSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [rightTerminalSession, setRightTerminalSession] = useState<TerminalSession | null>(null)  // 右侧独立终端
   const [rightPanelWidth, setRightPanelWidth] = useState(380)
   const [leftPanelWidth, setLeftPanelWidth] = useState(240)
   const [isDragging, setIsDragging] = useState(false)
@@ -197,7 +198,7 @@ export default function App() {
     return result.content || ''
   }, [])
 
-  // 处理从终端点击文件路径打开文件
+  // 处理从中间终端点击文件路径打开文件
   const handleOpenFileFromTerminal = useCallback(async (fullPath: string, lineNumber?: number) => {
     try {
       // 读取文件内容
@@ -223,6 +224,69 @@ export default function App() {
       setCenterView('diff')
     } catch (err) {
       console.error('Failed to open file from terminal:', err)
+    }
+  }, [activeSessionCwd])
+
+  // 处理从右侧终端点击文件路径打开文件 - 直接切换到 edit 模式
+  const handleOpenFileFromRightTerminal = useCallback(async (fullPath: string, lineNumber?: number) => {
+    try {
+      // 读取文件内容
+      const result = await window.api.file.read(fullPath)
+      if (result.error) {
+        console.error('Failed to read file:', result.error)
+        return
+      }
+
+      // 计算 filePath（相对路径）用于 git 操作，使用右侧终端的 cwd
+      const rightCwd = rightTerminalSession?.cwd
+      let filePath = fullPath
+      if (rightCwd && fullPath.startsWith(rightCwd)) {
+        filePath = fullPath.slice(rightCwd.length).replace(/^[\\\/]+/, '')
+      }
+
+      // 设置 diffFile 状态，直接打开编辑模式
+      setDiffFile({
+        filePath,
+        fullPath,
+        diffContent: '',  // 直接打开编辑，不是 diff 视图
+        isStaged: false
+      })
+      setCenterView('diff')
+    } catch (err) {
+      console.error('Failed to open file from right terminal:', err)
+    }
+  }, [rightTerminalSession])
+
+  // 创建右侧终端
+  const handleCreateRightTerminal = useCallback(async () => {
+    if (rightTerminalSession) return  // 已存在则不重复创建
+    try {
+      // 使用当前活动 session 的 cwd，如果没有则让用户选择
+      const cwd = activeSessionCwd
+      if (!cwd) return
+
+      const session = await window.api.terminal.create({ cwd })
+      setRightTerminalSession(session)
+    } catch (err) {
+      console.error('Failed to create right terminal:', err)
+    }
+  }, [rightTerminalSession, activeSessionCwd])
+
+  // 关闭右侧终端
+  const handleCloseRightTerminal = useCallback(async () => {
+    if (!rightTerminalSession) return
+    await window.api.terminal.close(rightTerminalSession.id)
+    setRightTerminalSession(null)
+  }, [rightTerminalSession])
+
+  // 当左侧活动 session 的 cwd 变化时，同步更新右侧终端（如果存在）
+  React.useEffect(() => {
+    if (rightTerminalSession && activeSessionCwd && rightTerminalSession.cwd !== activeSessionCwd) {
+      // 关闭旧的右侧终端，创建新的
+      window.api.terminal.close(rightTerminalSession.id)
+      window.api.terminal.create({ cwd: activeSessionCwd }).then(session => {
+        setRightTerminalSession(session)
+      })
     }
   }, [activeSessionCwd])
 
@@ -324,7 +388,15 @@ export default function App() {
 
         {/* Right Panel: Git Management */}
         <div className="shrink-0 flex flex-col bg-ide-sidebar border-l border-ide-border overflow-hidden" style={{ width: rightPanelWidth }}>
-          <GitPanel workspacePath={activeSessionCwd} onFileSelect={handleFileSelect} refreshKey={gitRefreshKey} />
+          <GitPanel
+            workspacePath={activeSessionCwd}
+            onFileSelect={handleFileSelect}
+            refreshKey={gitRefreshKey}
+            onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
+            rightTerminalSession={rightTerminalSession}
+            onCreateRightTerminal={handleCreateRightTerminal}
+            onCloseRightTerminal={handleCloseRightTerminal}
+          />
         </div>
       </div>
     </div>

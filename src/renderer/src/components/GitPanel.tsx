@@ -1,15 +1,26 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, GitCommitFile } from '@shared/types'
+import TerminalView from './TerminalView'
+import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, GitCommitFile, TerminalSession } from '@shared/types'
 
 interface GitPanelProps {
   workspacePath: string | null
   onFileSelect?: (filePath: string, diffContent: string, isStaged: boolean) => void
   refreshKey?: number
+  // 右侧终端跳转时，触发中间终端切换到 edit 模式
+  onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
+  // 右侧独立终端 session
+  rightTerminalSession?: TerminalSession | null
+  // 创建右侧终端
+  onCreateRightTerminal?: () => void
+  // 关闭右侧终端
+  onCloseRightTerminal?: () => void
 }
 
 type GitTab = 'changes' | 'log' | 'branches'
+type GitSection = 'git' | 'terminal' | 'search'
 
-export default function GitPanel({ workspacePath, onFileSelect, refreshKey }: GitPanelProps) {
+export default function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal }: GitPanelProps) {
+  const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [activeTab, setActiveTab] = useState<GitTab>('changes')
   const [status, setStatus] = useState<GitStatusResult | null>(null)
   const [logs, setLogs] = useState<GitLogEntry[]>([])
@@ -268,11 +279,73 @@ export default function GitPanel({ workspacePath, onFileSelect, refreshKey }: Gi
     )
   }
 
+  // 右侧终端打开文件的回调 - 触发中间终端切换到 edit
+  const handleRightTerminalOpenFile = useCallback(async (fullPath: string, lineNumber?: number) => {
+    if (onOpenFileFromRightTerminal) {
+      onOpenFileFromRightTerminal(fullPath, lineNumber)
+    }
+  }, [onOpenFileFromRightTerminal])
+
   if (!workspacePath) {
     return (
       <div className="flex flex-col h-full">
-        <div className="h-10 px-3 flex items-center border-b border-ide-border shrink-0">
-          <h2 className="text-sm font-semibold text-ide-text uppercase tracking-wider">Git</h2>
+        {/* 顶部栏目切换 - 左侧当前选中文字 + 右侧三个图标 */}
+        <div className="flex border-b border-ide-border shrink-0 items-center px-3 py-2">
+          {/* 左侧：当前选中的文字 */}
+          <span className="text-sm text-ide-text font-medium">
+            {activeSection === 'git' ? 'Git' : activeSection === 'terminal' ? '终端' : '搜索'}
+          </span>
+
+          {/* 右侧：三个图标按钮 */}
+          <div className="ml-auto flex gap-1">
+            {/* Git 图标 */}
+            <button
+              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+                activeSection === 'git'
+                  ? 'text-ide-accent bg-ide-accent/10'
+                  : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+              }`}
+              onClick={() => setActiveSection('git')}
+              title="Git"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <circle cx="18" cy="18" r="3" />
+                <circle cx="6" cy="6" r="3" />
+                <path d="M6 21V9a9 9 0 0 0 9 9" />
+                <path d="M18 3v12" />
+              </svg>
+            </button>
+            {/* Terminal 图标 */}
+            <button
+              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+                activeSection === 'terminal'
+                  ? 'text-ide-accent bg-ide-accent/10'
+                  : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+              }`}
+              onClick={() => setActiveSection('terminal')}
+              title="终端"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <polyline points="4 17 10 11 4 5" />
+                <line x1="12" y1="19" x2="20" y2="19" />
+              </svg>
+            </button>
+            {/* Search 图标 */}
+            <button
+              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+                activeSection === 'search'
+                  ? 'text-ide-accent bg-ide-accent/10'
+                  : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+              }`}
+              onClick={() => setActiveSection('search')}
+              title="搜索"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </button>
+          </div>
         </div>
         <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
           No active session
@@ -283,53 +356,110 @@ export default function GitPanel({ workspacePath, onFileSelect, refreshKey }: Gi
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="h-10 px-3 flex items-center border-b border-ide-border shrink-0">
-        <h2 className="text-sm font-semibold text-ide-text uppercase tracking-wider">Git</h2>
-        <button
-          onClick={refreshStatus}
-          className="ml-auto text-ide-text-muted hover:text-ide-text text-sm transition-colors"
-          title="Refresh"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-          </svg>
-        </button>
-      </div>
+      {/* 顶部栏目切换 - 左侧当前选中文字 + 右侧三个图标 */}
+      <div className="flex border-b border-ide-border shrink-0 items-center px-3 py-2">
+        {/* 左侧：当前选中的文字 */}
+        <span className="text-sm text-ide-text font-medium">
+          {activeSection === 'git' ? 'Git' : activeSection === 'terminal' ? '终端' : '搜索'}
+        </span>
 
-      {/* Branch Info */}
-      {status && (
-        <div className="px-3 py-2 border-b border-ide-border shrink-0">
-          <div className="flex items-center gap-2 text-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-accent shrink-0">
-              <line x1="6" y1="3" x2="6" y2="15" />
-              <circle cx="18" cy="6" r="3" />
-              <circle cx="6" cy="18" r="3" />
-              <path d="M18 9a9 9 0 0 0-9 9" />
-            </svg>
-            <span className="text-ide-text font-medium">{status.branch}</span>
-            {status.ahead > 0 && <span className="text-ide-success text-xs">↑{status.ahead}</span>}
-            {status.behind > 0 && <span className="text-ide-warning text-xs">↓{status.behind}</span>}
-          </div>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex border-b border-ide-border shrink-0">
-        {(['changes', 'log', 'branches'] as GitTab[]).map(tab => (
+        {/* 右侧：三个图标按钮 */}
+        <div className="ml-auto flex gap-1">
+          {/* Git 图标 */}
           <button
-            key={tab}
-            className={`px-3 py-2 text-sm transition-colors ${
-              activeTab === tab
-                ? 'text-ide-accent border-b-2 border-ide-accent'
-                : 'text-ide-text-muted hover:text-ide-text'
+            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+              activeSection === 'git'
+                ? 'text-ide-accent bg-ide-accent/10'
+                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
             }`}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => setActiveSection('git')}
+            title="Git"
           >
-            {tab === 'changes' ? 'Changes' : tab === 'log' ? 'Log' : 'Branches'}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <circle cx="18" cy="18" r="3" />
+              <circle cx="6" cy="6" r="3" />
+              <path d="M6 21V9a9 9 0 0 0 9 9" />
+              <path d="M18 3v12" />
+            </svg>
           </button>
-        ))}
+          {/* Terminal 图标 */}
+          <button
+            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+              activeSection === 'terminal'
+                ? 'text-ide-accent bg-ide-accent/10'
+                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+            }`}
+            onClick={() => setActiveSection('terminal')}
+            title="终端"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <polyline points="4 17 10 11 4 5" />
+              <line x1="12" y1="19" x2="20" y2="19" />
+            </svg>
+          </button>
+          {/* Search 图标 */}
+          <button
+            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+              activeSection === 'search'
+                ? 'text-ide-accent bg-ide-accent/10'
+                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+            }`}
+            onClick={() => setActiveSection('search')}
+            title="搜索"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      {/* Git 内容 */}
+      {activeSection === 'git' && (
+        <>
+          {/* Branch Info + Refresh Button */}
+          {status && (
+            <div className="px-3 py-2 border-b border-ide-border shrink-0 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-accent shrink-0">
+                  <line x1="6" y1="3" x2="6" y2="15" />
+                  <circle cx="18" cy="6" r="3" />
+                  <circle cx="6" cy="18" r="3" />
+                  <path d="M18 9a9 9 0 0 0-9 9" />
+                </svg>
+                <span className="text-ide-text font-medium">{status.branch}</span>
+                {status.ahead > 0 && <span className="text-ide-success text-xs">↑{status.ahead}</span>}
+                {status.behind > 0 && <span className="text-ide-warning text-xs">↓{status.behind}</span>}
+              </div>
+              <button
+                onClick={refreshStatus}
+                className="text-ide-text-muted hover:text-ide-text text-sm transition-colors"
+                title="Refresh"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* Git Tabs */}
+          <div className="flex border-b border-ide-border shrink-0">
+            {(['changes', 'log', 'branches'] as GitTab[]).map(tab => (
+              <button
+                key={tab}
+                className={`px-3 py-2 text-sm transition-colors ${
+                  activeTab === tab
+                    ? 'text-ide-accent border-b-2 border-ide-accent'
+                    : 'text-ide-text-muted hover:text-ide-text'
+                }`}
+                onClick={() => setActiveTab(tab)}
+              >
+                {tab === 'changes' ? 'Changes' : tab === 'log' ? 'Log' : 'Branches'}
+              </button>
+            ))}
+          </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
@@ -577,39 +707,76 @@ export default function GitPanel({ workspacePath, onFileSelect, refreshKey }: Gi
       </div>
 
       {/* Commit area */}
-      {activeTab === 'changes' && (
-        <div className="shrink-0 border-t border-ide-border p-3">
-          {/* Quick actions */}
-          <div className="flex gap-2 mb-2">
-            <button
-              onClick={handleStash}
-              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors"
-            >
-              Stash
-            </button>
-            <button
-              onClick={handleStashPop}
-              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors"
-            >
-              Pop Stash
-            </button>
-          </div>
-          <textarea
-            value={commitMessage}
-            onChange={(e) => setCommitMessage(e.target.value)}
-            placeholder="Commit message..."
-            className="w-full h-24 text-sm bg-ide-bg border border-ide-border rounded px-2 py-1.5 text-ide-text resize-none focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && e.ctrlKey) handleCommit()
-            }}
-          />
-          <button
-            onClick={handleCommit}
-            disabled={!commitMessage.trim()}
-            className="mt-2 w-full py-1.5 text-sm bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Commit (Ctrl+Enter)
-          </button>
+          {activeTab === 'changes' && (
+            <div className="shrink-0 border-t border-ide-border p-3">
+              {/* Quick actions */}
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={handleStash}
+                  className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors"
+                >
+                  Stash
+                </button>
+                <button
+                  onClick={handleStashPop}
+                  className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors"
+                >
+                  Pop Stash
+                </button>
+              </div>
+              <textarea
+                value={commitMessage}
+                onChange={(e) => setCommitMessage(e.target.value)}
+                placeholder="Commit message..."
+                className="w-full h-24 text-sm bg-ide-bg border border-ide-border rounded px-2 py-1.5 text-ide-text resize-none focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.ctrlKey) handleCommit()
+                }}
+              />
+              <button
+                onClick={handleCommit}
+                disabled={!commitMessage.trim()}
+                className="mt-2 w-full py-1.5 text-sm bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Commit (Ctrl+Enter)
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Terminal 栏目 */}
+      {activeSection === 'terminal' && (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {rightTerminalSession ? (
+            <TerminalView
+              sessionId={rightTerminalSession.id}
+              sessionName="Right Terminal"
+              sessionCwd={rightTerminalSession.cwd}
+              onOpenFile={handleRightTerminalOpenFile}
+              showHeader={false}
+            />
+          ) : workspacePath ? (
+            <div className="flex-1 flex items-center justify-center">
+              <button
+                onClick={onCreateRightTerminal}
+                className="px-4 py-2 text-sm bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+              >
+                启动终端
+              </button>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
+              请先选择工作目录
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Search 栏目 */}
+      {activeSection === 'search' && (
+        <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
+          Search功能开发中...
         </div>
       )}
     </div>
