@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Editor, DiffEditor } from '@monaco-editor/react'
 
 interface DiffViewerProps {
@@ -7,6 +7,7 @@ interface DiffViewerProps {
   diffContent: string
   isStaged: boolean
   showSquiggles?: boolean
+  lineNumber?: number       // 跳转到指定行
   onStage: (path: string) => Promise<void>
   onUnstage: (path: string) => Promise<void>
   onBack?: () => void
@@ -86,13 +87,31 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions: totalAdditions, deletions: totalDeletions }
 }
 
-export default function DiffViewer({ filePath, fullPath, diffContent, isStaged, showSquiggles = true, onStage, onUnstage, onBack, onSaved, onRefreshDiff }: DiffViewerProps) {
+export default function DiffViewer({ filePath, fullPath, diffContent, isStaged, showSquiggles = true, lineNumber, onStage, onUnstage, onBack, onSaved, onRefreshDiff }: DiffViewerProps) {
   // 如果 diffContent 为空，默认进入 edit 模式（从终端直接打开文件）
   const [viewMode, setViewMode] = useState<ViewMode>(diffContent ? 'diff' : 'edit')
   const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [diffStats, setDiffStats] = useState<{ additions: number; deletions: number }>({ additions: 0, deletions: 0 })
+
+  // Editor refs for imperative line jumping
+  const diffEditorRef = useRef<any>(null)
+  const editEditorRef = useRef<any>(null)
+
+  // Jump to lineNumber whenever it changes (handles both mount and prop updates)
+  useEffect(() => {
+    if (!lineNumber || lineNumber <= 0) return
+
+    if (viewMode === 'diff' && diffEditorRef.current) {
+      const modifiedEditor = diffEditorRef.current.getModifiedEditor()
+      modifiedEditor.revealLineInCenter(lineNumber)
+      modifiedEditor.setPosition({ lineNumber, column: 1 })
+    } else if (viewMode === 'edit' && editEditorRef.current) {
+      editEditorRef.current.revealLineInCenter(lineNumber)
+      editEditorRef.current.setPosition({ lineNumber, column: 1 })
+    }
+  }, [lineNumber, viewMode])
 
   const loadContents = useCallback(() => {
     if (diffContent) {
@@ -331,6 +350,14 @@ export default function DiffViewer({ filePath, fullPath, diffContent, isStaged, 
               renderIndicators: true
             }}
             beforeMount={configureMonaco}
+            onMount={(editor) => {
+              diffEditorRef.current = editor
+              if (lineNumber && lineNumber > 0) {
+                const modifiedEditor = editor.getModifiedEditor()
+                modifiedEditor.revealLineInCenter(lineNumber)
+                modifiedEditor.setPosition({ lineNumber, column: 1 })
+              }
+            }}
           />
         ) : (
           <Editor
@@ -350,6 +377,13 @@ export default function DiffViewer({ filePath, fullPath, diffContent, isStaged, 
               padding: { top: 8 }
             }}
             beforeMount={configureMonaco}
+            onMount={(editor) => {
+              editEditorRef.current = editor
+              if (lineNumber && lineNumber > 0) {
+                editor.revealLineInCenter(lineNumber)
+                editor.setPosition({ lineNumber, column: 1 })
+              }
+            }}
           />
         )}
       </div>

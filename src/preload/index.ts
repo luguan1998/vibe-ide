@@ -80,6 +80,12 @@ const api = {
     pickDir: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_PICK_DIR)
   },
 
+  // Search operations
+  search: {
+    grep: (options: { query: string; cwd: string; regex?: boolean; caseSensitive?: boolean; include?: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GREP, options)
+  }
+
 }
 
 contextBridge.exposeInMainWorld('api', api)

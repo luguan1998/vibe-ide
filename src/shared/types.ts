@@ -37,6 +37,8 @@ export const IPC_CHANNELS = {
   WORKSPACE_CURRENT: 'workspace:current',
   WORKSPACE_PICK_DIR: 'workspace:pickDir',
 
+  // Search
+  SEARCH_GREP: 'search:grep'
 } as const
 
 // Terminal types
@@ -136,4 +138,27 @@ export interface FileNode {
   path: string
   type: 'file' | 'directory'
   children?: FileNode[]
+}
+
+// Search types
+export interface GrepSearchOptions {
+  query: string
+  cwd: string
+  regex?: boolean
+  caseSensitive?: boolean
+  include?: string
+}
+
+export interface GrepMatch {
+  file: string
+  fullPath: string
+  line: number
+  column: number
+  content: string
+}
+
+export interface GrepSearchResult {
+  matches: GrepMatch[]
+  total: number
+  truncated: boolean
 }

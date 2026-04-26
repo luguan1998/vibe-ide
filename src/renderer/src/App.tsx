@@ -42,6 +42,15 @@ declare global {
         current: () => Promise<{ path: string }>
         pickDir: () => Promise<{ path: string; canceled: boolean }>
       }
+      search: {
+        grep: (options: {
+          query: string
+          cwd: string
+          regex?: boolean
+          caseSensitive?: boolean
+          include?: string
+        }) => Promise<any>
+      }
     }
   }
 }
@@ -53,6 +62,7 @@ interface DiffFileState {
   fullPath: string          // 完整路径（用于 file read/write）
   diffContent: string
   isStaged: boolean
+  lineNumber?: number       // 跳转到指定行
   showSquiggles?: boolean
 }
 
@@ -68,6 +78,23 @@ export default function App() {
   const [showConfigMenu, setShowConfigMenu] = useState(false)
   const [showSquiggles, setShowSquiggles] = useState(false)
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
+  const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
+
+  // Ctrl+F → focus search in right panel (only when not in diff/edit mode)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        if (centerView !== 'diff') {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          setSearchFocusTrigger(k => k + 1)
+        }
+      }
+    }
+    // capture phase: intercept before xterm.js gets it
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [centerView])
 
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
@@ -216,7 +243,8 @@ export default function App() {
         filePath,
         fullPath,
         diffContent: '',  // 直接打开编辑，不是 diff 视图
-        isStaged: false
+        isStaged: false,
+        lineNumber
       })
       setCenterView('diff')
     } catch (err) {
@@ -246,7 +274,8 @@ export default function App() {
         filePath,
         fullPath,
         diffContent: '',  // 直接打开编辑，不是 diff 视图
-        isStaged: false
+        isStaged: false,
+        lineNumber
       })
       setCenterView('diff')
     } catch (err) {
@@ -275,6 +304,34 @@ export default function App() {
     await window.api.terminal.close(rightTerminalSession.id)
     setRightTerminalSession(null)
   }, [rightTerminalSession])
+
+  // 处理从搜索面板打开文件
+  const handleOpenFileFromSearch = useCallback(async (fullPath: string, lineNumber?: number) => {
+    try {
+      const result = await window.api.file.read(fullPath)
+      if (result.error) {
+        console.error('Failed to read file:', result.error)
+        return
+      }
+
+      let filePath = fullPath
+      if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
+        filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
+      }
+
+      setDiffFile({
+        filePath,
+        fullPath,
+        diffContent: '',
+        isStaged: false,
+        lineNumber
+      })
+      setCenterView('diff')
+    } catch (err) {
+      console.error('Failed to open file from search:', err)
+    }
+  }, [activeSessionCwd])
+
 
   // 当左侧活动 session 的 cwd 变化时，同步更新右侧终端（如果存在）
   React.useEffect(() => {
@@ -353,6 +410,7 @@ export default function App() {
               diffContent={diffFile.diffContent}
               isStaged={diffFile.isStaged}
               showSquiggles={showSquiggles}
+              lineNumber={diffFile.lineNumber}
               onStage={handleStage}
               onUnstage={handleUnstage}
               onBack={handleBackToTerminal}
@@ -389,9 +447,11 @@ export default function App() {
             onFileSelect={handleFileSelect}
             refreshKey={gitRefreshKey}
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
+            onOpenFileFromSearch={handleOpenFileFromSearch}
             rightTerminalSession={rightTerminalSession}
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
+            searchFocusTrigger={searchFocusTrigger}
           />
         </div>
       </div>

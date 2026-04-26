@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import TerminalView from './TerminalView'
+import SearchPanel from './SearchPanel'
 import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, GitCommitFile, TerminalSession } from '@shared/types'
 
 interface GitPanelProps {
@@ -8,18 +9,22 @@ interface GitPanelProps {
   refreshKey?: number
   // 右侧终端跳转时，触发中间终端切换到 edit 模式
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
+  // 搜索跳转时，触发中间终端切换到 edit 模式
+  onOpenFileFromSearch?: (fullPath: string, lineNumber?: number) => void
   // 右侧独立终端 session
   rightTerminalSession?: TerminalSession | null
   // 创建右侧终端
   onCreateRightTerminal?: () => void
   // 关闭右侧终端
   onCloseRightTerminal?: () => void
+  // Ctrl+F 触发搜索面板聚焦
+  searchFocusTrigger?: number
 }
 
 type GitTab = 'changes' | 'log' | 'branches'
 type GitSection = 'git' | 'terminal' | 'search'
 
-export default function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal }: GitPanelProps) {
+export default function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger }: GitPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [activeTab, setActiveTab] = useState<GitTab>('changes')
   const [status, setStatus] = useState<GitStatusResult | null>(null)
@@ -241,6 +246,13 @@ export default function GitPanel({ workspacePath, onFileSelect, refreshKey, onOp
     else if (activeTab === 'log') refreshLog()
     else if (activeTab === 'branches') refreshBranches()
   }, [activeTab, refreshStatus, refreshLog, refreshBranches])
+
+  // Ctrl+F → 切换到搜索面板
+  useEffect(() => {
+    if (searchFocusTrigger !== undefined && searchFocusTrigger > 0) {
+      setActiveSection('search')
+    }
+  }, [searchFocusTrigger])
 
   // Initial load — handled by workspacePath effect above
 
@@ -775,9 +787,15 @@ export default function GitPanel({ workspacePath, onFileSelect, refreshKey, onOp
 
       {/* Search 栏目 */}
       {activeSection === 'search' && (
-        <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
-          Search功能开发中...
-        </div>
+        <SearchPanel
+          cwd={workspacePath}
+          onOpenFile={(fullPath, lineNumber) => {
+            if (onOpenFileFromSearch) {
+              onOpenFileFromSearch(fullPath, lineNumber)
+            }
+          }}
+          focusTrigger={searchFocusTrigger}
+        />
       )}
     </div>
   )

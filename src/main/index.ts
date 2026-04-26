@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers } from './pty'
 import { registerGitHandlers } from './git'
 import { registerFileHandlers } from './file'
+import { registerSearchHandlers } from './search'
 
 // Fix GPU cache permission issue on Windows
 app.setPath('cache', join(app.getPath('userData'), 'Cache'))
@@ -74,9 +75,10 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Register IPC handlers (git and file don't need mainWindow)
+  // Register IPC handlers (git, file, search don't need mainWindow)
   registerGitHandlers()
   registerFileHandlers()
+  registerSearchHandlers()
 
   createWindow()
 
