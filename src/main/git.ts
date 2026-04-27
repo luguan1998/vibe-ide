@@ -19,12 +19,41 @@ function getGit(): SimpleGit {
 // Skip patterns for file watcher
 const WATCHER_SKIP = /[\\/](\.git|node_modules|\.next|dist|build|out|__pycache__|target|\.cache)[\\/]/
 
+const COOLDOWN_MS = 2000  // Minimum gap between notifications
+let lastNotifyTime = 0
+let pendingTimer: NodeJS.Timeout | null = null
+
+function notifyGitChanged() {
+  const now = Date.now()
+  const elapsed = now - lastNotifyTime
+
+  if (elapsed >= COOLDOWN_MS) {
+    lastNotifyTime = now
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send(IPC_CHANNELS.GIT_CHANGED)
+    })
+  } else {
+    // In cooldown — schedule one deferred notification at cooldown end
+    if (!pendingTimer) {
+      pendingTimer = setTimeout(() => {
+        pendingTimer = null
+        lastNotifyTime = Date.now()
+        BrowserWindow.getAllWindows().forEach(win => {
+          win.webContents.send(IPC_CHANNELS.GIT_CHANGED)
+        })
+      }, COOLDOWN_MS - elapsed)
+    }
+  }
+}
+
 // Setup file watcher on workspace (not .git) to detect external file changes
 function setupGitWatcher(workspace: string) {
   if (gitWatcher) {
     gitWatcher.close()
     gitWatcher = null
   }
+  if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null }
+  if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null }
 
   if (!existsSync(workspace)) return
 
@@ -34,12 +63,11 @@ function setupGitWatcher(workspace: string) {
     const normalized = filename.replace(/\\/g, '/')
     if (WATCHER_SKIP.test('/' + normalized + '/')) return
 
-    // Debounce: coalesce rapid-fire events
+    // Debounce + cooldown: coalesce events, prevent notification storms
     if (debounceTimer) clearTimeout(debounceTimer)
     debounceTimer = setTimeout(() => {
-      BrowserWindow.getAllWindows().forEach(win => {
-        win.webContents.send(IPC_CHANNELS.GIT_CHANGED)
-      })
+      debounceTimer = null
+      notifyGitChanged()
     }, 300)
   })
 }
