@@ -135,7 +135,6 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_STATUS, async () => {
     try {
       const git = getGit()
-      const status = await git.status()
 
       const diffStat: Record<string, { additions: number; deletions: number }> = {}
       try {
@@ -223,9 +222,9 @@ export function registerGitHandlers(): void {
 
       const result: GitStatusResult = {
         files: [...stagedFiles, ...unstagedFiles, ...untrackedFiles],
-        branch: status.current || '',
-        ahead: status.ahead,
-        behind: status.behind,
+        branch: statusShort.current || '',
+        ahead: statusShort.ahead,
+        behind: statusShort.behind,
         staged: stagedFiles.length,
         unstaged: unstagedFiles.length,
         untracked: untrackedFiles.length,
