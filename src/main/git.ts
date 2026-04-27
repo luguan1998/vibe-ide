@@ -3,7 +3,6 @@ import simpleGit, { SimpleGit } from 'simple-git'
 import { IPC_CHANNELS, GitStatusResult, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, GitShowResult, GitCommitFile } from '../shared/types'
 import { readFile, writeFile } from 'fs/promises'
 import { watch, FSWatcher, existsSync } from 'fs'
-import { join } from 'path'
 
 let gitInstance: SimpleGit | null = null
 let currentWorkspace: string = process.cwd()
@@ -17,38 +16,31 @@ function getGit(): SimpleGit {
   return gitInstance
 }
 
-// Setup file watcher for .git directory
+// Skip patterns for file watcher
+const WATCHER_SKIP = /[\\/](\.git|node_modules|\.next|dist|build|out|__pycache__|target|\.cache)[\\/]/
+
+// Setup file watcher on workspace (not .git) to detect external file changes
 function setupGitWatcher(workspace: string) {
-  // Clean up existing watcher
   if (gitWatcher) {
     gitWatcher.close()
     gitWatcher = null
   }
 
-  const gitDir = join(workspace, '.git')
-  if (!existsSync(gitDir)) {
-    return
-  }
+  if (!existsSync(workspace)) return
 
-  // Watch .git directory for changes (index, refs, objects)
-  gitWatcher = watch(gitDir, { recursive: true }, (eventType, filename) => {
+  gitWatcher = watch(workspace, { recursive: true }, (_eventType, filename) => {
     if (!filename) return
+    // Skip .git, node_modules, and other generated dirs
+    const normalized = filename.replace(/\\/g, '/')
+    if (WATCHER_SKIP.test('/' + normalized + '/')) return
 
-    // Only trigger on relevant files (index, HEAD, refs, objects)
-    const relevantFiles = ['index', 'HEAD', 'refs/', 'objects/', 'config']
-    const isRelevant = relevantFiles.some(f => filename.startsWith(f) || filename === f)
-    if (!isRelevant) return
-
-    // Debounce: wait 100ms before notifying (avoid rapid-fire events)
-    if (debounceTimer) {
-      clearTimeout(debounceTimer)
-    }
+    // Debounce: coalesce rapid-fire events
+    if (debounceTimer) clearTimeout(debounceTimer)
     debounceTimer = setTimeout(() => {
-      // Notify all windows
       BrowserWindow.getAllWindows().forEach(win => {
         win.webContents.send(IPC_CHANNELS.GIT_CHANGED)
       })
-    }, 100)
+    }, 300)
   })
 }
 
