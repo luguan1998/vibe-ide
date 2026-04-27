@@ -240,6 +240,18 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     await refreshStatus()
   }, [refreshStatus])
 
+  // Init git repo
+  const handleInit = useCallback(async () => {
+    const result = await window.api.git.init()
+    if (result.success) {
+      setError(null)
+      setCurrentGitPath(workspacePath)
+      await refreshStatus()
+      await refreshLog()
+      await refreshBranches()
+    }
+  }, [workspacePath, refreshStatus, refreshLog, refreshBranches])
+
   // Auto refresh on tab change
   useEffect(() => {
     if (activeTab === 'changes') refreshStatus()
@@ -477,7 +489,15 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       <div className="flex-1 overflow-y-auto">
         {error && (
           <div className="px-3 py-2 text-sm text-ide-danger bg-ide-danger/10 animate-fade-in">
-            {error}
+            <p className="mb-2">{error}</p>
+            {/not a git/i.test(error) && (
+              <button
+                onClick={handleInit}
+                className="px-3 py-1 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+              >
+                git init
+              </button>
+            )}
           </div>
         )}
 
