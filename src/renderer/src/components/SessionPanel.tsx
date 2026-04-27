@@ -12,7 +12,7 @@ interface SessionPanelProps {
   commandHistory?: Record<string, string[]>
 }
 
-export default function SessionPanel({
+const SessionPanel = React.memo(function SessionPanel({
   sessions,
   activeSessionId,
   onCreateSession,
@@ -273,4 +273,6 @@ export default function SessionPanel({
       })()}
     </div>
   )
-}
+})
+
+export default SessionPanel

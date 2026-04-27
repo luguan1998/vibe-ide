@@ -209,7 +209,7 @@ class FileLinkProvider implements ILinkProvider {
   }
 }
 
-export default function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true }: TerminalViewProps) {
+const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -454,4 +454,6 @@ export default function TerminalView({ sessionId, sessionName, sessionCwd, onOpe
       />
     </div>
   )
-}
+})
+
+export default TerminalView

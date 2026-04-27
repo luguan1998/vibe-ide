@@ -87,7 +87,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions: totalAdditions, deletions: totalDeletions }
 }
 
-export default function DiffViewer({ filePath, fullPath, diffContent, isStaged, showSquiggles = true, lineNumber, onStage, onUnstage, onBack, onSaved, onRefreshDiff }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, showSquiggles = true, lineNumber, onStage, onUnstage, onBack, onSaved, onRefreshDiff }: DiffViewerProps) {
   // 如果 diffContent 为空，默认进入 edit 模式（从终端直接打开文件）
   const [viewMode, setViewMode] = useState<ViewMode>(diffContent ? 'diff' : 'edit')
   const [originalContent, setOriginalContent] = useState<string>('')
@@ -389,4 +389,6 @@ export default function DiffViewer({ filePath, fullPath, diffContent, isStaged, 
       </div>
     </div>
   )
-}
+})
+
+export default DiffViewer

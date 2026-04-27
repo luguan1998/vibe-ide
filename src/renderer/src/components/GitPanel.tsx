@@ -24,7 +24,7 @@ interface GitPanelProps {
 type GitTab = 'changes' | 'log' | 'branches'
 type GitSection = 'git' | 'terminal' | 'search'
 
-export default function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger }: GitPanelProps) {
+const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger }: GitPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [activeTab, setActiveTab] = useState<GitTab>('changes')
   const [status, setStatus] = useState<GitStatusResult | null>(null)
@@ -799,4 +799,6 @@ export default function GitPanel({ workspacePath, onFileSelect, refreshKey, onOp
       )}
     </div>
   )
-}
+})
+
+export default GitPanel
