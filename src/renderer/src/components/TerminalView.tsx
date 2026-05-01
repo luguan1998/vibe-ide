@@ -429,7 +429,10 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     try {
       const text = await navigator.clipboard.readText()
       if (text && xtermRef.current) {
-        window.api.terminal.write(sessionId, text)
+        // Use term.paste() instead of direct PTY write — it handles
+        // bracketed paste mode wrapping (\x1b[200~...\x1b[201~) so
+        // Claude Code CLI detects pastes and shows placeholders.
+        xtermRef.current.paste(text)
       }
     } catch (err) {
       console.error('Failed to read clipboard:', err)
