@@ -22,7 +22,7 @@ interface GitPanelProps {
 }
 
 type GitTab = 'changes' | 'log' | 'branches'
-type GitSection = 'git' | 'terminal' | 'search'
+type GitSection = 'git' | 'terminal' | 'search' | 'file'
 
 const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger }: GitPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
@@ -313,63 +313,66 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   if (!workspacePath) {
     return (
       <div className="flex flex-col h-full">
-        {/* 顶部栏目切换 - 左侧当前选中文字 + 右侧三个图标 */}
-        <div className="flex border-b border-ide-border shrink-0 items-center px-3 py-2">
-          {/* 左侧：当前选中的文字 */}
-          <span className="text-sm text-ide-text font-medium">
-            {activeSection === 'git' ? 'Git' : activeSection === 'terminal' ? '终端' : '搜索'}
-          </span>
-
-          {/* 右侧：三个图标按钮 */}
-          <div className="ml-auto flex gap-1">
-            {/* Git 图标 */}
-            <button
-              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
-                activeSection === 'git'
-                  ? 'text-ide-accent bg-ide-accent/10'
-                  : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-              }`}
-              onClick={() => setActiveSection('git')}
-              title="Git"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <circle cx="18" cy="18" r="3" />
-                <circle cx="6" cy="6" r="3" />
-                <path d="M6 21V9a9 9 0 0 0 9 9" />
-                <path d="M18 3v12" />
-              </svg>
-            </button>
-            {/* Terminal 图标 */}
-            <button
-              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
-                activeSection === 'terminal'
-                  ? 'text-ide-accent bg-ide-accent/10'
-                  : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-              }`}
-              onClick={() => setActiveSection('terminal')}
-              title="终端"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <polyline points="4 17 10 11 4 5" />
-                <line x1="12" y1="19" x2="20" y2="19" />
-              </svg>
-            </button>
-            {/* Search 图标 */}
-            <button
-              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
-                activeSection === 'search'
-                  ? 'text-ide-accent bg-ide-accent/10'
-                  : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-              }`}
-              onClick={() => setActiveSection('search')}
-              title="搜索"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </button>
-          </div>
+        {/* 顶部栏目切换 — tab 风格 */}
+        <div className="h-10 flex items-center border-b border-ide-border shrink-0">
+          <button
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
+              activeSection === 'git'
+                ? 'text-ide-accent bg-ide-accent/20'
+                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+            }`}
+            onClick={() => setActiveSection('git')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <circle cx="18" cy="18" r="3" />
+              <circle cx="6" cy="6" r="3" />
+              <path d="M6 21V9a9 9 0 0 0 9 9" />
+              <path d="M18 3v12" />
+            </svg>
+            <span>Git</span>
+          </button>
+          <button
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
+              activeSection === 'terminal'
+                ? 'text-ide-accent bg-ide-accent/20'
+                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+            }`}
+            onClick={() => setActiveSection('terminal')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <polyline points="4 17 10 11 4 5" />
+              <line x1="12" y1="19" x2="20" y2="19" />
+            </svg>
+            <span>Aux</span>
+          </button>
+          <button
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
+              activeSection === 'search'
+                ? 'text-ide-accent bg-ide-accent/20'
+                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+            }`}
+            onClick={() => setActiveSection('search')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span>Find</span>
+          </button>
+          <button
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
+              activeSection === 'file'
+                ? 'text-ide-accent bg-ide-accent/20'
+                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+            }`}
+            onClick={() => setActiveSection('file')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+              <polyline points="13 2 13 9 20 9" />
+            </svg>
+            <span>File</span>
+          </button>
         </div>
         <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
           No active session
@@ -380,63 +383,66 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
 
   return (
     <div className="flex flex-col h-full">
-      {/* 顶部栏目切换 - 左侧当前选中文字 + 右侧三个图标 */}
-      <div className="flex border-b border-ide-border shrink-0 items-center px-3 py-2">
-        {/* 左侧：当前选中的文字 */}
-        <span className="text-sm text-ide-text font-medium">
-          {activeSection === 'git' ? 'Git' : activeSection === 'terminal' ? '终端' : '搜索'}
-        </span>
-
-        {/* 右侧：三个图标按钮 */}
-        <div className="ml-auto flex gap-1">
-          {/* Git 图标 */}
-          <button
-            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
-              activeSection === 'git'
-                ? 'text-ide-accent bg-ide-accent/10'
-                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-            }`}
-            onClick={() => setActiveSection('git')}
-            title="Git"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-              <circle cx="18" cy="18" r="3" />
-              <circle cx="6" cy="6" r="3" />
-              <path d="M6 21V9a9 9 0 0 0 9 9" />
-              <path d="M18 3v12" />
-            </svg>
-          </button>
-          {/* Terminal 图标 */}
-          <button
-            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
-              activeSection === 'terminal'
-                ? 'text-ide-accent bg-ide-accent/10'
-                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-            }`}
-            onClick={() => setActiveSection('terminal')}
-            title="终端"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-              <polyline points="4 17 10 11 4 5" />
-              <line x1="12" y1="19" x2="20" y2="19" />
-            </svg>
-          </button>
-          {/* Search 图标 */}
-          <button
-            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
-              activeSection === 'search'
-                ? 'text-ide-accent bg-ide-accent/10'
-                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-            }`}
-            onClick={() => setActiveSection('search')}
-            title="搜索"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </button>
-        </div>
+      {/* 顶部栏目切换 — tab 风格 */}
+      <div className="h-10 flex items-center border-b border-ide-border shrink-0">
+        <button
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
+            activeSection === 'git'
+              ? 'text-ide-accent bg-ide-accent/20'
+              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+          }`}
+          onClick={() => setActiveSection('git')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+            <circle cx="18" cy="18" r="3" />
+            <circle cx="6" cy="6" r="3" />
+            <path d="M6 21V9a9 9 0 0 0 9 9" />
+            <path d="M18 3v12" />
+          </svg>
+          <span>Git</span>
+        </button>
+        <button
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
+            activeSection === 'terminal'
+              ? 'text-ide-accent bg-ide-accent/20'
+              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+          }`}
+          onClick={() => setActiveSection('terminal')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+            <polyline points="4 17 10 11 4 5" />
+            <line x1="12" y1="19" x2="20" y2="19" />
+          </svg>
+          <span>Aux</span>
+        </button>
+        <button
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
+            activeSection === 'search'
+              ? 'text-ide-accent bg-ide-accent/20'
+              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+          }`}
+          onClick={() => setActiveSection('search')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <span>Find</span>
+        </button>
+        <button
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
+            activeSection === 'file'
+              ? 'text-ide-accent bg-ide-accent/20'
+              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+          }`}
+          onClick={() => setActiveSection('file')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+            <polyline points="13 2 13 9 20 9" />
+          </svg>
+          <span>File</span>
+        </button>
       </div>
 
       {/* Git 内容 */}
@@ -469,11 +475,11 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           )}
 
           {/* Git Tabs — 三个等宽选框 */}
-          <div className="flex border-b border-ide-border shrink-0">
+          <div className="h-10 flex items-center border-b border-ide-border shrink-0">
             <button
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
                 activeTab === 'changes'
-                  ? 'text-ide-accent bg-ide-accent/10'
+                  ? 'text-ide-accent bg-ide-accent/20'
                   : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
               }`}
               onClick={() => setActiveTab('changes')}
@@ -488,7 +494,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             <button
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
                 activeTab === 'log'
-                  ? 'text-ide-accent bg-ide-accent/10'
+                  ? 'text-ide-accent bg-ide-accent/20'
                   : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
               }`}
               onClick={() => setActiveTab('log')}
@@ -502,7 +508,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             <button
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
                 activeTab === 'branches'
-                  ? 'text-ide-accent bg-ide-accent/10'
+                  ? 'text-ide-accent bg-ide-accent/20'
                   : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
               }`}
               onClick={() => setActiveTab('branches')}
@@ -809,7 +815,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
         </>
       )}
 
-      {/* Terminal 栏目 */}
+      {/* Aux 栏目 */}
       {activeSection === 'terminal' && (
         <div className="flex-1 flex flex-col overflow-hidden">
           {rightTerminalSession ? (
@@ -848,6 +854,13 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           }}
           focusTrigger={searchFocusTrigger}
         />
+      )}
+
+      {/* File 栏目 — 预留 */}
+      {activeSection === 'file' && (
+        <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
+          File
+        </div>
       )}
     </div>
   )
