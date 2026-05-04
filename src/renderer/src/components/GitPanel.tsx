@@ -36,11 +36,13 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [commitMessage, setCommitMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const [currentGitPath, setCurrentGitPath] = useState<string | null>(null)
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   const [commitDiff, setCommitDiff] = useState<string>('')
   const gitChangedHandlerRef = useRef<any>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
 
   // Switch git workspace when workspacePath changes
   useEffect(() => {
@@ -77,6 +79,12 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       window.api.git.removeChangedListener(gitChangedHandlerRef.current)
     }
   }, [activeTab])
+  // Dismiss context menu on outside click
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null)
+    window.addEventListener('click', handleClick)
+    return () => window.removeEventListener('click', handleClick)
+  }, [])
 
   // Refresh git status
   const refreshStatus = useCallback(async () => {
@@ -226,6 +234,26 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     await window.api.git.checkout(branch)
     await refreshBranches()
     await refreshStatus()
+  }, [refreshBranches, refreshStatus])
+
+  // Apply worktree branch changes as file modifications (no commits)
+  const handleApplyBranch = useCallback(async (branch: string) => {
+    try {
+      const result = await window.api.git.applyBranch(branch)
+      if (result.error) {
+        setError(result.error)
+      } else {
+        if (result.message) {
+          setMessage(result.message)
+          setTimeout(() => setMessage(null), 3000)
+        }
+        await refreshBranches()
+        await refreshStatus()
+      }
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setContextMenu(null)
   }, [refreshBranches, refreshStatus])
 
   // Stash
@@ -525,6 +553,11 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
+        {message && (
+          <div className="px-3 py-2 text-sm text-ide-accent bg-ide-accent/10 animate-fade-in">
+            <p>{message}</p>
+          </div>
+        )}
         {error && (
           <div className="px-3 py-2 text-sm text-ide-danger bg-ide-danger/10 animate-fade-in">
             <p className="mb-2">{error}</p>
@@ -756,6 +789,12 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                     branch.current ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
                   }`}
                   onClick={() => !branch.current && handleCheckout(branch.name)}
+                  onContextMenu={(e) => {
+                    if (branch.name.startsWith('worktree-')) {
+                      e.preventDefault()
+                      setContextMenu({ x: e.clientX, y: e.clientY, branchName: branch.name })
+                    }
+                  }}
                 >
                   <div className="flex items-center gap-2">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0">
@@ -860,6 +899,22 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       {activeSection === 'file' && (
         <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
           File
+        </div>
+      )}
+
+      {/* Context Menu for worktree branches */}
+      {contextMenu && (
+        <div
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover whitespace-nowrap"
+            onClick={() => handleApplyBranch(contextMenu.branchName)}
+          >
+            合并修改
+          </button>
         </div>
       )}
     </div>

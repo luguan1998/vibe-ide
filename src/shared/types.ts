@@ -19,6 +19,7 @@ export const IPC_CHANNELS = {
   GIT_ADD: 'git:add',
   GIT_RESET: 'git:reset',
   GIT_CHECKOUT: 'git:checkout',
+  GIT_APPLY_BRANCH: 'git:applyBranch',
   GIT_BRANCHES: 'git:branches',
   GIT_STASH_LIST: 'git:stashList',
   GIT_STASH_PUSH: 'git:stashPush',

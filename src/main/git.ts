@@ -1,7 +1,9 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import simpleGit, { SimpleGit } from 'simple-git'
 import { IPC_CHANNELS, GitStatusResult, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, GitShowResult, GitCommitFile } from '../shared/types'
-import { readFile, writeFile } from 'fs/promises'
+import { readFile, writeFile, unlink } from 'fs/promises'
+import { tmpdir } from 'os'
+import path from 'path'
 import { watch, FSWatcher, existsSync } from 'fs'
 
 let gitInstance: SimpleGit | null = null
@@ -332,6 +334,60 @@ export function registerGitHandlers(): void {
       await git.checkout(branch)
       return { success: true }
     } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Git apply branch changes as file modifications (no commits)
+  ipcMain.handle(IPC_CHANNELS.GIT_APPLY_BRANCH, async (_event, branch: string) => {
+    const git = getGit()
+    try {
+      // Step 1: Merge commits from the branch (if any)
+      await git.raw(['merge', '--squash', '--no-commit', branch])
+      await git.raw(['reset', 'HEAD'])
+
+      // Step 2: Find worktree path and apply its uncommitted changes
+      const wtList = await git.raw(['worktree', 'list', '--porcelain'])
+      let worktreePath = ''
+      const lines = wtList.split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('branch ') && lines[i].includes(branch)) {
+          // Find preceding worktree path line
+          for (let j = i - 1; j >= 0; j--) {
+            if (lines[j].startsWith('worktree ')) {
+              worktreePath = lines[j].replace('worktree ', '').trim()
+              break
+            }
+          }
+          break
+        }
+      }
+
+      if (worktreePath) {
+        // Get diff of uncommitted changes from worktree
+        const wtGit = simpleGit(worktreePath)
+        const diffPatch = await wtGit.raw(['diff', 'HEAD'])
+        const untrackedPatch = await wtGit.raw(['diff', '--cached'])
+        if (diffPatch.trim() || untrackedPatch.trim()) {
+          const patchFile = path.join(tmpdir(), `vibe-apply-${Date.now()}.patch`)
+          await writeFile(patchFile, diffPatch + untrackedPatch, 'utf-8')
+          try {
+            await git.raw(['apply', '--3way', patchFile])
+          } finally {
+            await unlink(patchFile).catch(() => {})
+          }
+        }
+      }
+
+      // Check if anything actually changed
+      const diffResult = await git.raw(['diff', '--name-only'])
+      const stagedDiff = await git.raw(['diff', '--cached', '--name-only'])
+      if (!diffResult.trim() && !stagedDiff.trim()) {
+        return { success: true, message: '该分支没有新的修改需要合并' }
+      }
+      return { success: true }
+    } catch (err: any) {
+      try { await git.raw(['merge', '--abort']) } catch {}
       return { error: err.message }
     }
   })

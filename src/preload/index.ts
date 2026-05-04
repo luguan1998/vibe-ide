@@ -46,6 +46,7 @@ const api = {
     commit: (options: any) => ipcRenderer.invoke(IPC_CHANNELS.GIT_COMMIT, options),
     branches: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_BRANCHES),
     checkout: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_CHECKOUT, branch),
+    applyBranch: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_APPLY_BRANCH, branch),
     stashList: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_LIST),
     stashPush: (message?: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_PUSH, message),
     stashPop: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_POP),

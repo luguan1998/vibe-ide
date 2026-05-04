@@ -30,6 +30,7 @@ declare global {
         commit: (options: any) => Promise<any>
         branches: () => Promise<any>
         checkout: (branch: string) => Promise<any>
+        applyBranch: (branch: string) => Promise<any>
         stashList: () => Promise<any>
         stashPush: (message?: string) => Promise<any>
         stashPop: () => Promise<any>
