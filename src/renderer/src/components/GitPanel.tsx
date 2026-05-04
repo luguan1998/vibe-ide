@@ -26,7 +26,11 @@ type GitSection = 'git' | 'terminal' | 'search' | 'file'
 
 const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger }: GitPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
-  const [activeTab, setActiveTab] = useState<GitTab>('changes')
+  const [stagedExpanded, setStagedExpanded] = useState(true)
+  const [changesExpanded, setChangesExpanded] = useState(true)
+  const [untrackedExpanded, setUntrackedExpanded] = useState(true)
+  const [logExpanded, setLogExpanded] = useState(false)
+  const [branchesExpanded, setBranchesExpanded] = useState(false)
   const [status, setStatus] = useState<GitStatusResult | null>(null)
   const [logs, setLogs] = useState<GitLogEntry[]>([])
   const [branches, setBranches] = useState<GitBranch[]>([])
@@ -72,13 +76,13 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     gitChangedHandlerRef.current = window.api.git.onChanged(() => {
       // Auto refresh when git state changes (external edits, terminal commands, etc.)
       refreshStatus()
-      if (activeTab === 'log') refreshLog()
+      if (logExpanded) refreshLog()
     })
 
     return () => {
       window.api.git.removeChangedListener(gitChangedHandlerRef.current)
     }
-  }, [activeTab])
+  }, [logExpanded])
   // Dismiss context menu on outside click
   useEffect(() => {
     const handleClick = () => setContextMenu(null)
@@ -281,11 +285,12 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   }, [workspacePath, refreshStatus, refreshLog, refreshBranches])
 
   // Auto refresh on tab change
+  // Initial load of all git data on mount
   useEffect(() => {
-    if (activeTab === 'changes') refreshStatus()
-    else if (activeTab === 'log') refreshLog()
-    else if (activeTab === 'branches') refreshBranches()
-  }, [activeTab, refreshStatus, refreshLog, refreshBranches])
+    refreshStatus()
+    refreshLog()
+    refreshBranches()
+  }, [])
 
   // Ctrl+F → 切换到搜索面板
   useEffect(() => {
@@ -342,12 +347,12 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     return (
       <div className="flex flex-col h-full">
         {/* 顶部栏目切换 — tab 风格 */}
-        <div className="h-10 flex items-center border-b border-ide-border shrink-0">
+        <div className="h-10 flex items-center shrink-0">
           <button
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
               activeSection === 'git'
-                ? 'text-ide-accent bg-ide-accent/20'
-                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+                ? 'text-ide-text border-b-2 border-ide-accent'
+                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover border-b-2 border-transparent'
             }`}
             onClick={() => setActiveSection('git')}
           >
@@ -362,8 +367,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           <button
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
               activeSection === 'terminal'
-                ? 'text-ide-accent bg-ide-accent/20'
-                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+                ? 'text-ide-text border-b-2 border-ide-accent'
+                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover border-b-2 border-transparent'
             }`}
             onClick={() => setActiveSection('terminal')}
           >
@@ -376,8 +381,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           <button
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
               activeSection === 'search'
-                ? 'text-ide-accent bg-ide-accent/20'
-                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+                ? 'text-ide-text border-b-2 border-ide-accent'
+                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover border-b-2 border-transparent'
             }`}
             onClick={() => setActiveSection('search')}
           >
@@ -390,8 +395,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           <button
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
               activeSection === 'file'
-                ? 'text-ide-accent bg-ide-accent/20'
-                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+                ? 'text-ide-text border-b-2 border-ide-accent'
+                : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover border-b-2 border-transparent'
             }`}
             onClick={() => setActiveSection('file')}
           >
@@ -412,12 +417,12 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   return (
     <div className="flex flex-col h-full">
       {/* 顶部栏目切换 — tab 风格 */}
-      <div className="h-10 flex items-center border-b border-ide-border shrink-0">
+      <div className="h-10 flex items-center shrink-0">
         <button
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
             activeSection === 'git'
-              ? 'text-ide-accent bg-ide-accent/20'
-              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+              ? 'text-ide-text border-b-2 border-ide-accent'
+              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover border-b-2 border-transparent'
           }`}
           onClick={() => setActiveSection('git')}
         >
@@ -432,8 +437,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
         <button
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
             activeSection === 'terminal'
-              ? 'text-ide-accent bg-ide-accent/20'
-              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+              ? 'text-ide-text border-b-2 border-ide-accent'
+              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover border-b-2 border-transparent'
           }`}
           onClick={() => setActiveSection('terminal')}
         >
@@ -446,8 +451,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
         <button
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
             activeSection === 'search'
-              ? 'text-ide-accent bg-ide-accent/20'
-              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+              ? 'text-ide-text border-b-2 border-ide-accent'
+              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover border-b-2 border-transparent'
           }`}
           onClick={() => setActiveSection('search')}
         >
@@ -460,8 +465,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
         <button
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
             activeSection === 'file'
-              ? 'text-ide-accent bg-ide-accent/20'
-              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+              ? 'text-ide-text border-b-2 border-ide-accent'
+              : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover border-b-2 border-transparent'
           }`}
           onClick={() => setActiveSection('file')}
         >
@@ -476,83 +481,36 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       {/* Git 内容 */}
       {activeSection === 'git' && (
         <>
-          {/* Branch Info + Refresh Button */}
+          {/* Branch + Git Tabs — 合并一行 */}
           {status && (
-            <div className="px-3 py-2 border-b border-ide-border shrink-0 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-accent shrink-0">
+            <div className="h-9 px-3 flex items-center border-b border-ide-border shrink-0 gap-2">
+              {/* Left: branch info */}
+              <div className="flex items-center gap-1.5 min-w-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
                   <line x1="6" y1="3" x2="6" y2="15" />
                   <circle cx="18" cy="6" r="3" />
                   <circle cx="6" cy="18" r="3" />
                   <path d="M18 9a9 9 0 0 0-9 9" />
                 </svg>
-                <span className="text-ide-text font-medium">{status.branch}</span>
-                {status.ahead > 0 && <span className="text-ide-success text-xs">↑{status.ahead}</span>}
-                {status.behind > 0 && <span className="text-ide-warning text-xs">↓{status.behind}</span>}
+                <span className="text-xs text-ide-text font-medium truncate">{status.branch}</span>
+                {status.ahead > 0 && <span className="text-ide-success text-[11px]">↑{status.ahead}</span>}
+                {status.behind > 0 && <span className="text-ide-warning text-[11px]">↓{status.behind}</span>}
+                <button
+                  onClick={refreshStatus}
+                  className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 ml-1"
+                  title="Refresh"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                  </svg>
+                </button>
               </div>
-              <button
-                onClick={refreshStatus}
-                className="text-ide-text-muted hover:text-ide-text text-sm transition-colors"
-                title="Refresh"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-                </svg>
-              </button>
+
             </div>
           )}
 
-          {/* Git Tabs — 三个等宽选框 */}
-          <div className="h-10 flex items-center border-b border-ide-border shrink-0">
-            <button
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
-                activeTab === 'changes'
-                  ? 'text-ide-accent bg-ide-accent/20'
-                  : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-              }`}
-              onClick={() => setActiveTab('changes')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <line x1="3" y1="9" x2="21" y2="9" />
-                <line x1="9" y1="21" x2="9" y2="9" />
-              </svg>
-              Changes
-            </button>
-            <button
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
-                activeTab === 'log'
-                  ? 'text-ide-accent bg-ide-accent/20'
-                  : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-              }`}
-              onClick={() => setActiveTab('log')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              Log
-            </button>
-            <button
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ${
-                activeTab === 'branches'
-                  ? 'text-ide-accent bg-ide-accent/20'
-                  : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-              }`}
-              onClick={() => setActiveTab('branches')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                <line x1="6" y1="3" x2="6" y2="15" />
-                <circle cx="18" cy="6" r="3" />
-                <circle cx="6" cy="18" r="3" />
-                <path d="M18 9a9 9 0 0 0-9 9" />
-              </svg>
-              Branches
-            </button>
-          </div>
-
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto flex flex-col">
         {message && (
           <div className="px-3 py-2 text-sm text-ide-accent bg-ide-accent/10 animate-fade-in">
             <p>{message}</p>
@@ -572,7 +530,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           </div>
         )}
 
-        {activeTab === 'changes' && (
+        {status && (
           <div className="flex flex-col">
             {/* Staged Changes */}
             {status && status.files.filter(f => f.staged).length > 0 && (
@@ -581,22 +539,33 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   const stagedFiles = status.files.filter(f => f.staged)
                   const stats = calcFileStats(stagedFiles)
                   return (
-                    <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50 flex items-center justify-between">
+                    <div
+                      className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                      onClick={() => setStagedExpanded(!stagedExpanded)}
+                    >
                       <div className="flex items-center gap-2">
-                        <span>Staged Changes ({stagedFiles.length})</span>
+                        <span className="w-3 text-center text-ide-text-muted">{stagedExpanded ? '▼' : '▸'}</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-success shrink-0">
+                          <polyline points="21 8 21 21 3 21 3 8" />
+                          <rect x="1" y="3" width="22" height="5" />
+                          <line x1="10" y1="12" x2="14" y2="12" />
+                        </svg>
+                        <span>Staged ({stagedFiles.length})</span>
 {stats.additions > 0 && <span className="text-ide-success font-mono">+{stats.additions}</span>}
                       {stats.deletions > 0 && <span className="text-ide-danger font-mono">-{stats.deletions}</span>}
                       </div>
-                      <button
-                        onClick={() => handleUnstageAll(stagedFiles.map(f => f.path))}
-                        className="text-xs text-ide-text-muted hover:text-ide-text"
-                      >
-                        Unstage All
-                      </button>
+                      {stagedExpanded && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleUnstageAll(stagedFiles.map(f => f.path)) }}
+                          className="text-xs font-normal normal-case text-ide-text-muted hover:text-ide-text"
+                        >
+                          Unstage All
+                        </button>
+                      )}
                     </div>
                   )
                 })()}
-                {status.files.filter(f => f.staged).map(file => (
+                {stagedExpanded && status.files.filter(f => f.staged).map(file => (
                   <div
                     key={`staged-${file.path}`}
                     className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-ide-hover flex items-center justify-between group ${
@@ -632,22 +601,32 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   const modifiedFiles = status.files.filter(f => !f.staged && f.status !== 'untracked')
                   const stats = calcFileStats(modifiedFiles)
                   return (
-                    <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50 flex items-center justify-between">
+                    <div
+                      className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                      onClick={() => setChangesExpanded(!changesExpanded)}
+                    >
                       <div className="flex items-center gap-2">
+                        <span className="w-3 text-center text-ide-text-muted">{changesExpanded ? '▼' : '▸'}</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
                         <span>Changes ({modifiedFiles.length})</span>
 {stats.additions > 0 && <span className="text-ide-success font-mono">+{stats.additions}</span>}
                       {stats.deletions > 0 && <span className="text-ide-danger font-mono">-{stats.deletions}</span>}
                       </div>
-                      <button
-                        onClick={() => handleStageAll(modifiedFiles.map(f => f.path))}
-                        className="text-xs text-ide-text-muted hover:text-ide-text"
-                      >
-                        Stage All
-                      </button>
+                      {changesExpanded && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleStageAll(modifiedFiles.map(f => f.path)) }}
+                          className="text-xs font-normal normal-case text-ide-text-muted hover:text-ide-text"
+                        >
+                          Stage All
+                        </button>
+                      )}
                     </div>
                   )
                 })()}
-                {status.files.filter(f => !f.staged && f.status !== 'untracked').map(file => (
+                {changesExpanded && status.files.filter(f => !f.staged && f.status !== 'untracked').map(file => (
                   <div
                     key={`unstaged-${file.path}`}
                     className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-ide-hover flex items-center justify-between group ${
@@ -679,16 +658,30 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             {/* Untracked Files */}
             {status && status.files.filter(f => f.status === 'untracked').length > 0 && (
               <div className="border-b border-ide-border">
-                <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50 flex items-center justify-between">
-                  <span>Untracked ({status.files.filter(f => f.status === 'untracked').length})</span>
-                  <button
-                    onClick={() => handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path))}
-                    className="text-xs text-ide-text-muted hover:text-ide-text"
-                  >
-                    Stage All
-                  </button>
+                <div
+                  className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                  onClick={() => setUntrackedExpanded(!untrackedExpanded)}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 text-center text-ide-text-muted">{untrackedExpanded ? '▼' : '▸'}</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="12" y1="18" x2="12" y2="12" />
+                      <line x1="9" y1="15" x2="15" y2="15" />
+                    </svg>
+                    <span>Untracked ({status.files.filter(f => f.status === 'untracked').length})</span>
+                  </div>
+                  {untrackedExpanded && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path)) }}
+                      className="text-xs font-normal normal-case text-ide-text-muted hover:text-ide-text"
+                    >
+                      Stage All
+                    </button>
+                  )}
                 </div>
-                {status.files.filter(f => f.status === 'untracked').map(file => (
+                {untrackedExpanded && status.files.filter(f => f.status === 'untracked').map(file => (
                   <div
                     key={`untracked-${file.path}`}
                     className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-ide-hover flex items-center justify-between group ${
@@ -720,12 +713,28 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           </div>
         )}
 
-        {activeTab === 'log' && (
-          <div className="flex flex-col">
-            {logs.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-ide-text-muted text-center">No commits yet</div>
-            ) : (
-              logs.map(entry => (
+        <div className="mt-auto">
+        {/* Commits / Log */}
+        <div className="border-b border-ide-border">
+          <div
+            className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+            onClick={() => setLogExpanded(!logExpanded)}
+          >
+            <div className="flex items-center gap-2">
+              <span className="w-3 text-center text-ide-text-muted">{logExpanded ? '▼' : '▸'}</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span>Commits ({logs.length})</span>
+            </div>
+          </div>
+          {logExpanded && (
+            <div className="flex flex-col">
+              {logs.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-ide-text-muted text-center">No commits yet</div>
+              ) : (
+                logs.map(entry => (
                 <div key={entry.hash}>
                   <div
                     className={`px-3 py-2 border-b border-ide-border/50 hover:bg-ide-hover cursor-pointer ${
@@ -775,9 +784,27 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
               ))
             )}
           </div>
-        )}
+          )}
+        </div>
 
-        {activeTab === 'branches' && (
+        {/* Branches */}
+        <div className="border-b border-ide-border">
+          <div
+            className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+            onClick={() => setBranchesExpanded(!branchesExpanded)}
+          >
+            <div className="flex items-center gap-2">
+              <span className="w-3 text-center text-ide-text-muted">{branchesExpanded ? '▼' : '▸'}</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
+                <circle cx="12" cy="18" r="3" />
+                <circle cx="6" cy="6" r="3" />
+                <circle cx="18" cy="6" r="3" />
+                <path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 0-2 2v2" />
+              </svg>
+              <span>Branches ({branches.length})</span>
+            </div>
+          </div>
+          {branchesExpanded && (
           <div className="flex flex-col">
             {branches.length === 0 ? (
               <div className="px-3 py-4 text-sm text-ide-text-muted text-center">No branches</div>
@@ -814,9 +841,11 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           </div>
         )}
       </div>
+      </div>
+      </div>
 
       {/* Commit area */}
-          {activeTab === 'changes' && (
+          {status && (
             <div className="shrink-0 border-t border-ide-border p-3">
               {/* Quick actions */}
               <div className="flex gap-2 mb-2">
