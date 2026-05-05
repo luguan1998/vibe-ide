@@ -46,6 +46,16 @@ html, body, #root {
   background-color: #1a1a2e !important;
 }
 
+/* 禁用 Monaco 所有 hover tooltip */
+.monaco-hover,
+.workbench-hover,
+.workbench-hover-container,
+.workbench-hover-pointer {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
 /* Titlebar drag area */
 .titlebar-drag {
   -webkit-app-region: drag;
