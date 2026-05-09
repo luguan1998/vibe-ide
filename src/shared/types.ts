@@ -39,7 +39,10 @@ export const IPC_CHANNELS = {
   WORKSPACE_PICK_DIR: 'workspace:pickDir',
 
   // Search
-  SEARCH_GREP: 'search:grep'
+  SEARCH_GREP: 'search:grep',
+
+  // Theme
+  TITLE_BAR_UPDATE: 'titlebar:update'
 } as const
 
 // Terminal types

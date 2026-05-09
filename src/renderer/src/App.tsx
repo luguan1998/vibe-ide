@@ -4,6 +4,7 @@ import TerminalView from './components/TerminalView'
 import GitPanel from './components/GitPanel'
 import DiffViewer from './components/DiffViewer'
 import { TerminalSession, RenameTerminalResult } from '@shared/types'
+import { useTheme } from './themes'
 
 // Declare the window API type
 declare global {
@@ -52,6 +53,9 @@ declare global {
           include?: string
         }) => Promise<any>
       }
+      theme: {
+        setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
+      }
     }
   }
 }
@@ -78,6 +82,7 @@ export default function App() {
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
   const [showConfigMenu, setShowConfigMenu] = useState(false)
   const [showSquiggles, setShowSquiggles] = useState(false)
+  const { themes, currentThemeId, setTheme } = useTheme()
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
@@ -383,16 +388,36 @@ export default function App() {
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
           {showConfigMenu && (
-            <div className="absolute left-0 top-full mt-1 w-48 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50">
-              <label className="flex items-center gap-2 px-3 py-1.5 text-sm text-ide-text hover:bg-ide-hover cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showSquiggles}
-                  onChange={(e) => setShowSquiggles(e.target.checked)}
-                  className="accent-ide-accent"
-                />
-                显示错误提示
-              </label>
+            <div className="absolute left-0 top-full mt-1 w-52 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 max-h-80 overflow-y-auto">
+              <div className="px-3 py-1 text-xs text-ide-text-muted uppercase tracking-wider">Theme</div>
+              {themes.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => { setTheme(t.id); setShowConfigMenu(false) }}
+                  className={`w-full px-3 py-1.5 text-sm text-left flex items-center gap-2 transition-colors ${
+                    currentThemeId === t.id
+                      ? 'text-ide-accent bg-ide-accent/10'
+                      : 'text-ide-text hover:bg-ide-hover'
+                  }`}
+                >
+                  <span
+                    className="w-3 h-3 rounded-full border border-ide-border shrink-0"
+                    style={{ backgroundColor: `rgb(${t.css['ide-accent']})` }}
+                  />
+                  {t.label}
+                </button>
+              ))}
+              <div className="border-t border-ide-border mt-1 pt-1">
+                <label className="flex items-center gap-2 px-3 py-1.5 text-sm text-ide-text hover:bg-ide-hover cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showSquiggles}
+                    onChange={(e) => setShowSquiggles(e.target.checked)}
+                    className="accent-ide-accent"
+                  />
+                  显示错误提示
+                </label>
+              </div>
             </div>
           )}
         </button>

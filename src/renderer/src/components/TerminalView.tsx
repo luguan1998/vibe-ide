@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { Terminal, ILinkProvider, ILink, IBufferRange } from 'xterm'
-import { FitAddon } from 'xterm-addon-fit'
-import { WebLinksAddon } from 'xterm-addon-web-links'
+import { Terminal, ILinkProvider, ILink, IBufferRange } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
 import { ClipboardAddon } from '@xterm/addon-clipboard'
-import 'xterm/css/xterm.css'
+import { useTheme } from '../themes'
+import '@xterm/xterm/css/xterm.css'
 
 // 支持的文件扩展名（可编辑）
 const EDITABLE_EXTENSIONS = new Set([
@@ -217,6 +218,7 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
   const exitHandlerRef = useRef<any>(null)
   const linkProviderRef = useRef<any>(null)
   const [isReady, setIsReady] = useState(false)
+  const { theme: currentTheme } = useTheme()
 
   // Initialize xterm.js
   useEffect(() => {
@@ -228,29 +230,7 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     }
 
     const term = new Terminal({
-      theme: {
-        background: '#1a1a2e',
-        foreground: '#e0e0e0',
-        cursor: '#7c3aed',
-        cursorAccent: '#1a1a2e',
-        selectionBackground: 'rgba(124, 58, 237, 0.3)',
-        black: '#000000',
-        red: '#e74c3c',
-        green: '#10b981',
-        yellow: '#f59e0b',
-        blue: '#3b82f6',
-        magenta: '#a855f7',
-        cyan: '#06b6d4',
-        white: '#e0e0e0',
-        brightBlack: '#555555',
-        brightRed: '#ff6b6b',
-        brightGreen: '#34d399',
-        brightYellow: '#fbbf24',
-        brightBlue: '#60a5fa',
-        brightMagenta: '#c084fc',
-        brightCyan: '#22d3ee',
-        brightWhite: '#ffffff'
-      },
+      theme: currentTheme.terminal,
       fontFamily: 'JetBrains Mono, Fira Code, Cascadia Code, Consolas, monospace',
       fontSize: 14,
       lineHeight: 1.2,
@@ -321,6 +301,15 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
       setIsReady(false)
     }
   }, []) // Initialize once
+
+  // Update terminal theme when it changes
+  useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.options.theme = currentTheme.terminal
+      const el = terminalRef.current?.querySelector('.xterm') as HTMLElement | null
+      if (el) el.style.backgroundColor = currentTheme.terminal.background
+    }
+  }, [currentTheme])
 
   // Listen for terminal data from PTY
   useEffect(() => {

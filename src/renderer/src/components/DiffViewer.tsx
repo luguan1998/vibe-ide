@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Editor, DiffEditor } from '@monaco-editor/react'
+import { useTheme } from '../themes'
+import { registerMonacoThemes } from '../themes'
 
 interface DiffViewerProps {
   filePath: string          // 相对路径（用于 git 操作）
@@ -88,6 +90,8 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
 }
 
 const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, showSquiggles = true, lineNumber, onStage, onUnstage, onBack, onSaved, onRefreshDiff }: DiffViewerProps) {
+  const { theme: currentTheme } = useTheme()
+
   // 如果 diffContent 为空，默认进入 edit 模式（从终端直接打开文件）
   const [viewMode, setViewMode] = useState<ViewMode>(diffContent ? 'diff' : 'edit')
   const [originalContent, setOriginalContent] = useState<string>('')
@@ -260,6 +264,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }
 
   const configureMonaco = (monaco: any) => {
+    registerMonacoThemes(monaco)
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
       target: monaco.languages.typescript.ScriptTarget.ES2020,
       allowNonTsExtensions: true,
@@ -336,7 +341,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           <DiffEditor
             height="100%"
             language={getLanguageFromFile(filePath)}
-            theme="vs-dark"
+            theme={currentTheme.monacoTheme}
             original={originalContent}
             modified={modifiedContent}
             options={{
@@ -363,7 +368,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           <Editor
             height="100%"
             language={getLanguageFromFile(filePath)}
-            theme="vs-dark"
+            theme={currentTheme.monacoTheme}
             value={modifiedContent}
             onChange={(value) => setModifiedContent(value || '')}
             options={{

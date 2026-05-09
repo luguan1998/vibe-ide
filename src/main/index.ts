@@ -5,6 +5,7 @@ import { registerPtyHandlers } from './pty'
 import { registerGitHandlers } from './git'
 import { registerFileHandlers } from './file'
 import { registerSearchHandlers } from './search'
+import { IPC_CHANNELS } from '../shared/types'
 
 // Fix GPU cache permission issue on Windows
 app.setPath('cache', join(app.getPath('userData'), 'Cache'))
@@ -84,6 +85,13 @@ app.whenReady().then(() => {
 
   // Register PTY handlers after window is created
   registerPtyHandlers(mainWindow)
+
+  // Title bar theme update
+  ipcMain.on(IPC_CHANNELS.TITLE_BAR_UPDATE, (_, options) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setTitleBarOverlay(options)
+    }
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

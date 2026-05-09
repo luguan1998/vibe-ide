@@ -85,6 +85,12 @@ const api = {
   search: {
     grep: (options: { query: string; cwd: string; regex?: boolean; caseSensitive?: boolean; include?: string }) =>
       ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GREP, options)
+  },
+
+  // Theme operations
+  theme: {
+    setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) =>
+      ipcRenderer.send(IPC_CHANNELS.TITLE_BAR_UPDATE, options)
   }
 
 }

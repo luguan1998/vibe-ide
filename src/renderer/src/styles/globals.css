@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --ide-bg: 26 26 46;
+  --ide-sidebar: 22 33 62;
+  --ide-panel: 15 52 96;
+  --ide-border: 42 42 74;
+  --ide-text: 224 224 224;
+  --ide-text-muted: 136 136 170;
+  --ide-accent: 124 58 237;
+  --ide-accent-hover: 109 40 217;
+  --ide-success: 16 185 129;
+  --ide-danger: 239 68 68;
+  --ide-warning: 245 158 11;
+  --ide-hover: 30 30 58;
+  --ide-active: 46 46 74;
+  --scrollbar-track: 26 26 46;
+  --scrollbar-thumb: 58 58 90;
+  --scrollbar-thumb-hover: 90 90 122;
+  --selection-bg: 124 58 237;
+  --selection-opacity: 0.3;
+  --focus-outline: 124 58 237;
+  --monaco-margin-bg: 26 26 46;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -13,8 +36,8 @@ html, body, #root {
   width: 100%;
   overflow: hidden;
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
-  background-color: #1a1a2e;
-  color: #e0e0e0;
+  background-color: rgb(var(--ide-bg));
+  color: rgb(var(--ide-text));
 }
 
 /* Custom scrollbar */
@@ -24,16 +47,16 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1a2e;
+  background: rgb(var(--scrollbar-track));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3a3a5a;
+  background: rgb(var(--scrollbar-thumb));
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #5a5a7a;
+  background: rgb(var(--scrollbar-thumb-hover));
 }
 
 /* xterm overrides */
@@ -43,7 +66,7 @@ html, body, #root {
 
 /* Monaco editor overrides */
 .monaco-editor .margin {
-  background-color: #1a1a2e !important;
+  background-color: rgb(var(--monaco-margin-bg)) !important;
 }
 
 /* 禁用 Monaco 所有 hover tooltip */
@@ -67,12 +90,12 @@ html, body, #root {
 
 /* Selection highlight */
 ::selection {
-  background: rgba(124, 58, 237, 0.3);
+  background: rgb(var(--selection-bg) / var(--selection-opacity));
 }
 
 /* Focus styles */
 *:focus-visible {
-  outline: 2px solid #7c3aed;
+  outline: 2px solid rgb(var(--focus-outline));
   outline-offset: -2px;
 }
 
