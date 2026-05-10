@@ -39,6 +39,7 @@ declare global {
         push: () => Promise<any>
         init: () => Promise<any>
         show: (hash: string) => Promise<any>
+        showFile: (ref: string, filePath: string) => Promise<any>
       }
       file: {
         read: (filePath: string) => Promise<any>
@@ -480,7 +481,7 @@ export default function App() {
                 className="flex-1 flex flex-col overflow-hidden"
                 style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
               >
-                <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} />
+                <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} />
               </div>
             ))
           )}

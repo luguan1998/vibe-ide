@@ -74,7 +74,7 @@ const SessionPanel = React.memo(function SessionPanel({
         <h2 className="text-sm font-semibold text-ide-text uppercase tracking-wider">Sessions</h2>
         <button
           onClick={onCreateSession}
-          className="w-6 h-6 rounded bg-ide-accent hover:bg-ide-accent-hover text-white flex items-center justify-center text-sm transition-colors"
+          className="w-6 h-6 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white flex items-center justify-center text-sm transition-colors"
           title="New Terminal"
         >
           +

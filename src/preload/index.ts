@@ -54,6 +54,7 @@ const api = {
     push: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_PUSH),
     init: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_INIT),
     show: (hash: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW, hash),
+    showFile: (ref: string, filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW_FILE, ref, filePath),
     onChanged: (callback: () => void) => {
       const handler = () => callback()
       ipcRenderer.on(IPC_CHANNELS.GIT_CHANGED, handler)

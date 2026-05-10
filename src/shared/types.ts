@@ -27,6 +27,7 @@ export const IPC_CHANNELS = {
   GIT_PUSH: 'git:push',
   GIT_INIT: 'git:init',
   GIT_SHOW: 'git:show',
+  GIT_SHOW_FILE: 'git:showFile',
   GIT_DISCARD: 'git:discard',
 
   // File

@@ -595,7 +595,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   <div
                     key={`staged-${file.path}`}
                     className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
-                      selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text-muted'
+                      selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
                     onClick={() => handleFileClick(file)}
                   >
@@ -656,7 +656,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   <div
                     key={`unstaged-${file.path}`}
                     className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
-                      selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text-muted'
+                      selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
                     onClick={() => handleFileClick(file)}
                   >
@@ -717,7 +717,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   <div
                     key={`untracked-${file.path}`}
                     className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
-                      selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text-muted'
+                      selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
                     onClick={() => handleFileClick(file)}
                   >
@@ -854,7 +854,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                 <div
                   key={branch.name}
                   className={`pl-5 pr-2 py-1.5 text-xs border-b border-ide-border/50 cursor-pointer flex items-center justify-between ${
-                    branch.current ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
+                    branch.current ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text hover:bg-ide-hover'
                   }`}
                   onClick={() => !branch.current && handleCheckout(branch.name)}
                   onContextMenu={(e) => {

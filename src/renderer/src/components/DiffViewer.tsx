@@ -92,12 +92,15 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
 const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, showSquiggles = true, lineNumber, onStage, onUnstage, onBack, onSaved, onRefreshDiff }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
 
-  // 如果 diffContent 为空，默认进入 edit 模式（从终端直接打开文件）
-  const [viewMode, setViewMode] = useState<ViewMode>(diffContent ? 'diff' : 'edit')
+  // Always start in diff mode for full file comparison
+  const [viewMode, setViewMode] = useState<ViewMode>('diff')
   const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
   const [diffStats, setDiffStats] = useState<{ additions: number; deletions: number }>({ additions: 0, deletions: 0 })
+  const savedContentRef = useRef('')
+  const justLoadedRef = useRef(false)
 
   // Editor refs for imperative line jumping
   const diffEditorRef = useRef<any>(null)
@@ -106,46 +109,53 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   // Jump to lineNumber whenever it changes (handles both mount and prop updates)
   useEffect(() => {
     if (!lineNumber || lineNumber <= 0) return
-
-    if (viewMode === 'diff' && diffEditorRef.current) {
-      const modifiedEditor = diffEditorRef.current.getModifiedEditor()
-      modifiedEditor.revealLineInCenter(lineNumber)
-      modifiedEditor.setPosition({ lineNumber, column: 1 })
-    } else if (viewMode === 'edit' && editEditorRef.current) {
-      editEditorRef.current.revealLineInCenter(lineNumber)
-      editEditorRef.current.setPosition({ lineNumber, column: 1 })
-    }
+    try {
+      if (viewMode === 'diff' && diffEditorRef.current) {
+        const modifiedEditor = diffEditorRef.current.getModifiedEditor()
+        const count = modifiedEditor.getModel()?.getLineCount() || 0
+        const ln = Math.min(lineNumber, count)
+        if (ln > 0) {
+          modifiedEditor.revealLineInCenter(ln)
+          modifiedEditor.setPosition({ lineNumber: ln, column: 1 })
+        }
+      } else if (viewMode === 'edit' && editEditorRef.current) {
+        const count = editEditorRef.current.getModel()?.getLineCount() || 0
+        const ln = Math.min(lineNumber, count)
+        if (ln > 0) {
+          editEditorRef.current.revealLineInCenter(ln)
+          editEditorRef.current.setPosition({ lineNumber: ln, column: 1 })
+        }
+      }
+    } catch {}
   }, [lineNumber, viewMode])
 
-  const loadContents = useCallback(() => {
-    if (diffContent) {
-      const { original, modified } = parseDiffContent(diffContent)
-      const stats = parseDiffStats(diffContent)
+  const loadContents = useCallback(async () => {
+    try {
+      const [headResult, currResult] = await Promise.all([
+        window.api.git.showFile('HEAD', filePath),
+        isStaged
+          ? window.api.git.showFile('', filePath)
+          : window.api.file.read(fullPath)
+      ])
+      const original = headResult.error ? '' : headResult.content
+      const modified = currResult.error ? '' : (currResult.content || '')
+      const stats = diffContent ? parseDiffStats(diffContent) : { additions: 0, deletions: 0 }
       setOriginalContent(original)
       setModifiedContent(modified)
       setDiffStats(stats)
-    } else {
+      savedContentRef.current = modified
+      setIsDirty(false)
+      justLoadedRef.current = true
+    } catch {
       setOriginalContent('')
       setModifiedContent('')
       setDiffStats({ additions: 0, deletions: 0 })
     }
-  }, [diffContent])
+  }, [filePath, fullPath, isStaged])
 
   useEffect(() => {
     loadContents()
   }, [loadContents])
-
-  // 当 diffContent 从无到有变化时，如果是 edit 模式可以切换到 diff
-  useEffect(() => {
-    if (diffContent && viewMode === 'edit') {
-      // 如果用户之前是 edit 模式但现在有 diffContent 了，保持 edit 模式让用户决定
-      // 不自动切换
-    }
-    if (!diffContent && viewMode === 'diff') {
-      // 如果没有 diffContent 却在 diff 模式，切换到 edit
-      setViewMode('edit')
-    }
-  }, [diffContent])
 
   const loadForEdit = useCallback(async () => {
     try {
@@ -154,6 +164,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         setModifiedContent('')
       } else {
         setModifiedContent(result.content)
+        savedContentRef.current = result.content
+        setIsDirty(false)
       }
     } catch (err) {
       setModifiedContent('')
@@ -163,23 +175,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   useEffect(() => {
     if (viewMode === 'edit') {
       loadForEdit()
-    } else if (viewMode === 'diff') {
-      // 切换回 diff 时，重新获取最新 diff
-      if (onRefreshDiff) {
-        onRefreshDiff(filePath, isStaged).then(newDiff => {
-          if (newDiff) {
-            const { original, modified } = parseDiffContent(newDiff)
-            setOriginalContent(original)
-            setModifiedContent(modified)
-            setDiffStats(parseDiffStats(newDiff))
-          }
-        })
-      } else {
-        // fallback: 使用传入的 diffContent
-        loadContents()
-      }
     }
-  }, [viewMode, filePath, isStaged, onRefreshDiff, loadForEdit, loadContents])
+  }, [viewMode, loadForEdit])
 
   const handleSave = useCallback(async () => {
     setSaving(true)
@@ -190,6 +187,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       }
     } catch (err) {
     }
+    savedContentRef.current = modifiedContent
+    setIsDirty(false)
     setSaving(false)
   }, [fullPath, filePath, modifiedContent, onSaved])
 
@@ -202,6 +201,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       }
     } catch (err) {
     }
+    savedContentRef.current = modifiedContent
+    setIsDirty(false)
     setSaving(false)
   }, [fullPath, filePath, modifiedContent, onSaved])
 
@@ -280,14 +281,17 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
 
   return (
     <div className="flex flex-col border-t border-ide-border animate-fade-in">
-      <div className="px-3 py-1.5 flex items-center justify-between bg-ide-hover/30 border-b border-ide-border shrink-0">
+      <div className="h-10 px-3 flex items-center justify-between bg-ide-hover/30 border-b border-ide-border shrink-0">
         <div className="flex items-center gap-2 text-sm">
           {onBack && (
             <button
               onClick={onBack}
-              className="text-ide-text-muted hover:text-ide-text mr-2"
+              className="w-6 h-6 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors"
+              title="Back to Terminal"
             >
-              ← Back
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3.5 h-3.5">
+                <polyline points="15 4 7 12 15 20" />
+              </svg>
             </button>
           )}
           <span className="text-ide-text font-medium truncate max-w-md">{filePath}</span>
@@ -300,39 +304,26 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           {isStaged && <span className="text-xs text-ide-success">staged</span>}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          {isDirty && <span className="text-[11px] text-ide-warning font-medium">● 未保存</span>}
+          <div className="flex items-center rounded-md bg-ide-hover overflow-hidden">
           <button
             onClick={() => setViewMode('diff')}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              viewMode === 'diff' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+            className={`px-2.5 py-1 text-xs transition-colors ${
+              viewMode === 'diff' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'
             }`}
           >
             Diff
           </button>
           <button
             onClick={() => setViewMode('edit')}
-            className={`px-2 py-1 text-xs rounded transition-colors ${
-              viewMode === 'edit' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+            className={`px-2.5 py-1 text-xs transition-colors ${
+              viewMode === 'edit' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'
             }`}
           >
             Edit
           </button>
-
-          {!isStaged ? (
-            <button
-              onClick={() => onStage(filePath)}
-              className="px-2 py-1 text-xs text-ide-success hover:bg-ide-success/10 rounded transition-colors"
-            >
-              + Stage
-            </button>
-          ) : (
-            <button
-              onClick={() => onUnstage(filePath)}
-              className="px-2 py-1 text-xs text-ide-danger hover:bg-ide-danger/10 rounded transition-colors"
-            >
-              − Unstage
-            </button>
-          )}
+        </div>
         </div>
       </div>
 
@@ -357,10 +348,25 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             beforeMount={configureMonaco}
             onMount={(editor) => {
               diffEditorRef.current = editor
+              const modifiedEditor = editor.getModifiedEditor()
+              modifiedEditor.onDidChangeModelContent(() => {
+                const val = modifiedEditor.getValue()
+                setModifiedContent(val)
+                if (justLoadedRef.current) {
+                  justLoadedRef.current = false
+                  return
+                }
+                setIsDirty(val !== savedContentRef.current)
+              })
               if (lineNumber && lineNumber > 0) {
-                const modifiedEditor = editor.getModifiedEditor()
-                modifiedEditor.revealLineInCenter(lineNumber)
-                modifiedEditor.setPosition({ lineNumber, column: 1 })
+                try {
+                  const count = modifiedEditor.getModel()?.getLineCount() || 0
+                  const ln = Math.min(lineNumber, count)
+                  if (ln > 0) {
+                    modifiedEditor.revealLineInCenter(ln)
+                    modifiedEditor.setPosition({ lineNumber: ln, column: 1 })
+                  }
+                } catch {}
               }
             }}
           />
@@ -370,7 +376,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             language={getLanguageFromFile(filePath)}
             theme={currentTheme.monacoTheme}
             value={modifiedContent}
-            onChange={(value) => setModifiedContent(value || '')}
+            onChange={(value) => {
+              setModifiedContent(value || '')
+              setIsDirty((value || '') !== savedContentRef.current)
+            }}
             options={{
               minimap: { enabled: false },
               scrollBeyondLastLine: false,
@@ -385,8 +394,14 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             onMount={(editor) => {
               editEditorRef.current = editor
               if (lineNumber && lineNumber > 0) {
-                editor.revealLineInCenter(lineNumber)
-                editor.setPosition({ lineNumber, column: 1 })
+                try {
+                  const count = editor.getModel()?.getLineCount() || 0
+                  const ln = Math.min(lineNumber, count)
+                  if (ln > 0) {
+                    editor.revealLineInCenter(ln)
+                    editor.setPosition({ lineNumber: ln, column: 1 })
+                  }
+                } catch {}
               }
             }}
           />

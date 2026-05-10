@@ -288,6 +288,17 @@ export function registerGitHandlers(): void {
     }
   })
 
+  // Git show file (get file content at a ref)
+  ipcMain.handle(IPC_CHANNELS.GIT_SHOW_FILE, async (_event, ref: string, filePath: string) => {
+    try {
+      const git = getGit()
+      const result = await git.show([`${ref}:${filePath}`])
+      return { content: result }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
   // Git discard (checkout file to discard changes)
   ipcMain.handle(IPC_CHANNELS.GIT_DISCARD, async (_event, filePath: string) => {
     try {
