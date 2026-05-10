@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { readFile, writeFile, readdir, stat } from 'fs/promises'
+import { readFile, writeFile, readdir, stat, unlink } from 'fs/promises'
 import { join, dirname } from 'path'
 import { IPC_CHANNELS, FileNode } from '../shared/types'
 
@@ -37,6 +37,16 @@ export function registerFileHandlers(): void {
         path: join(dirPath, entry.name),
         type: entry.isDirectory() ? 'directory' : 'file'
       }))
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Delete file
+  ipcMain.handle(IPC_CHANNELS.FILE_DELETE, async (_event, filePath: string) => {
+    try {
+      await unlink(filePath)
+      return { success: true }
     } catch (err: any) {
       return { error: err.message }
     }

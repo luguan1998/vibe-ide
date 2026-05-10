@@ -288,6 +288,17 @@ export function registerGitHandlers(): void {
     }
   })
 
+  // Git discard (checkout file to discard changes)
+  ipcMain.handle(IPC_CHANNELS.GIT_DISCARD, async (_event, filePath: string) => {
+    try {
+      const git = getGit()
+      await git.checkout(['--', filePath])
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
   // Git reset (unstage)
   ipcMain.handle(IPC_CHANNELS.GIT_RESET, async (_event, files: string | string[]) => {
     try {

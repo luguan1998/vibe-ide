@@ -47,6 +47,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [commitDiff, setCommitDiff] = useState<string>('')
   const gitChangedHandlerRef = useRef<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ type: string; filePath: string; fileName: string } | null>(null)
 
   // Switch git workspace when workspacePath changes
   useEffect(() => {
@@ -208,6 +209,19 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     await refreshStatus()
   }, [refreshStatus])
 
+  // Discard changes (git checkout -- file)
+  const handleDiscard = useCallback(async (filePath: string) => {
+    await window.api.git.discard(filePath)
+    await refreshStatus()
+  }, [refreshStatus])
+
+  // Delete untracked file
+  const handleDeleteFile = useCallback(async (filePath: string) => {
+    const fullPath = workspacePath ? `${workspacePath.replace(/\\/g, '/')}/${filePath}` : filePath
+    await window.api.file.delete(fullPath)
+    await refreshStatus()
+  }, [refreshStatus, workspacePath])
+
   // Stage all files
   const handleStageAll = useCallback(async (filePaths: string[]) => {
     for (const fp of filePaths) {
@@ -336,6 +350,12 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     )
   }
 
+  const splitPath = (filePath: string): { name: string; dir: string } => {
+    const idx = filePath.lastIndexOf('/')
+    if (idx === -1) return { name: filePath, dir: '' }
+    return { name: filePath.slice(idx + 1), dir: filePath.slice(0, idx + 1) }
+  }
+
   // 右侧终端打开文件的回调 - 触发中间终端切换到 edit
   const handleRightTerminalOpenFile = useCallback(async (fullPath: string, lineNumber?: number) => {
     if (onOpenFileFromRightTerminal) {
@@ -407,7 +427,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             <span>File</span>
           </button>
         </div>
-        <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
+        <div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">
           No active session
         </div>
       </div>
@@ -483,9 +503,9 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
         <>
           {/* Branch + Git Tabs — 合并一行 */}
           {status && (
-            <div className="h-9 px-3 flex items-center border-b border-ide-border shrink-0 gap-2">
+            <div className="h-9 pl-2 pr-3 flex items-center border-b border-ide-border shrink-0 gap-2">
               {/* Left: branch info */}
-              <div className="flex items-center gap-1.5 min-w-0">
+              <div className="flex items-center gap-1 min-w-0">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
                   <line x1="6" y1="3" x2="6" y2="15" />
                   <circle cx="18" cy="6" r="3" />
@@ -540,11 +560,11 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   const stats = calcFileStats(stagedFiles)
                   return (
                     <div
-                      className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                      className="pl-2 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
                       onClick={() => setStagedExpanded(!stagedExpanded)}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="w-3 text-center text-ide-text-muted">{stagedExpanded ? '▼' : '▸'}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="w-2 text-center text-ide-text-muted">{stagedExpanded ? '▼' : '▶'}</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-success shrink-0">
                           <polyline points="21 8 21 21 3 21 3 8" />
                           <rect x="1" y="3" width="22" height="5" />
@@ -557,7 +577,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                       {stagedExpanded && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleUnstageAll(stagedFiles.map(f => f.path)) }}
-                          className="text-xs font-normal normal-case text-ide-text-muted hover:text-ide-text"
+                          className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
                         >
                           Unstage All
                         </button>
@@ -565,32 +585,32 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                     </div>
                   )
                 })()}
-                {stagedExpanded && status.files.filter(f => f.staged).map(file => (
+                {stagedExpanded && status.files.filter(f => f.staged).map(file => {
+                  const { name, dir } = splitPath(file.path)
+                  return (
                   <div
                     key={`staged-${file.path}`}
-                    className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-ide-hover flex items-center justify-between group ${
+                    className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
                       selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text-muted'
                     }`}
                     onClick={() => handleFileClick(file)}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className={`text-xs font-bold ${getStatusColor(file)} w-4 text-center shrink-0`}>
-                        {getStatusIcon(file)}
-                      </span>
-                      <span className="truncate">{file.path}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs shrink-0">
-                      {(file.additions ?? 0) > 0 && <span className="text-ide-success font-mono">+{file.additions}</span>}
-                      {(file.deletions ?? 0) > 0 && <span className="text-ide-danger font-mono">-{file.deletions}</span>}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleUnstage(file.path) }}
-                        className="opacity-0 group-hover:opacity-100 text-xs text-ide-text-muted hover:text-ide-text shrink-0"
-                      >
-                        −
-                      </button>
-                    </div>
+                    <span className={`font-bold ${getStatusColor(file)} w-3.5 text-center shrink-0`}>
+                      {getStatusIcon(file)}
+                    </span>
+                    <span className="shrink-0 text-[11px]">{name}</span>
+                    {dir && <span className="truncate text-ide-text-muted text-[10px] min-w-0">{dir}</span>}
+                    <span className="flex-1" />
+                    <span className="shrink-0 w-5" />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleUnstage(file.path) }}
+                      className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center"
+                      title="取消暂存"
+                    >
+                      −
+                    </button>
                   </div>
-                ))}
+                )})}
               </div>
             )}
 
@@ -602,11 +622,11 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   const stats = calcFileStats(modifiedFiles)
                   return (
                     <div
-                      className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                      className="pl-2 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
                       onClick={() => setChangesExpanded(!changesExpanded)}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="w-3 text-center text-ide-text-muted">{changesExpanded ? '▼' : '▸'}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="w-2 text-center text-ide-text-muted">{changesExpanded ? '▼' : '▶'}</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -618,7 +638,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                       {changesExpanded && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleStageAll(modifiedFiles.map(f => f.path)) }}
-                          className="text-xs font-normal normal-case text-ide-text-muted hover:text-ide-text"
+                          className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
                         >
                           Stage All
                         </button>
@@ -626,32 +646,38 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                     </div>
                   )
                 })()}
-                {changesExpanded && status.files.filter(f => !f.staged && f.status !== 'untracked').map(file => (
+                {changesExpanded && status.files.filter(f => !f.staged && f.status !== 'untracked').map(file => {
+                  const { name, dir } = splitPath(file.path)
+                  return (
                   <div
                     key={`unstaged-${file.path}`}
-                    className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-ide-hover flex items-center justify-between group ${
+                    className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
                       selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text-muted'
                     }`}
                     onClick={() => handleFileClick(file)}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className={`text-xs font-bold ${getStatusColor(file)} w-4 text-center shrink-0`}>
-                        {getStatusIcon(file)}
-                      </span>
-                      <span className="truncate">{file.path}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs shrink-0">
-                      {(file.additions ?? 0) > 0 && <span className="text-ide-success font-mono">+{file.additions}</span>}
-                      {(file.deletions ?? 0) > 0 && <span className="text-ide-danger font-mono">-{file.deletions}</span>}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
-                        className="opacity-0 group-hover:opacity-100 text-xs text-ide-text-muted hover:text-ide-text shrink-0"
-                      >
-                        +
-                      </button>
-                    </div>
+                    <span className={`font-bold ${getStatusColor(file)} w-3.5 text-center shrink-0`}>
+                      {getStatusIcon(file)}
+                    </span>
+                    <span className="shrink-0 text-[11px]">{name}</span>
+                    {dir && <span className="truncate text-ide-text-muted text-[10px] min-w-0">{dir}</span>}
+                    <span className="flex-1" />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
+                      className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center"
+                      title="暂存修改"
+                    >
+                      +
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: 'discard', filePath: file.path, fileName: name }) }}
+                      className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center"
+                      title="撤销修改"
+                    >
+                      −
+                    </button>
                   </div>
-                ))}
+                )})}
               </div>
             )}
 
@@ -659,11 +685,11 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             {status && status.files.filter(f => f.status === 'untracked').length > 0 && (
               <div className="border-b border-ide-border">
                 <div
-                  className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                  className="pl-2 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
                   onClick={() => setUntrackedExpanded(!untrackedExpanded)}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 text-center text-ide-text-muted">{untrackedExpanded ? '▼' : '▸'}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 text-center text-ide-text-muted">{untrackedExpanded ? '▼' : '▶'}</span>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                       <polyline points="14 2 14 8 20 8" />
@@ -675,38 +701,48 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   {untrackedExpanded && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path)) }}
-                      className="text-xs font-normal normal-case text-ide-text-muted hover:text-ide-text"
+                      className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
                     >
                       Stage All
                     </button>
                   )}
                 </div>
-                {untrackedExpanded && status.files.filter(f => f.status === 'untracked').map(file => (
+                {untrackedExpanded && status.files.filter(f => f.status === 'untracked').map(file => {
+                  const { name, dir } = splitPath(file.path)
+                  return (
                   <div
                     key={`untracked-${file.path}`}
-                    className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-ide-hover flex items-center justify-between group ${
+                    className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
                       selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text-muted'
                     }`}
                     onClick={() => handleFileClick(file)}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs font-bold text-ide-text-muted w-4 text-center shrink-0">U</span>
-                      <span className="truncate">{file.path}</span>
-                    </div>
+                    <span className="font-bold text-ide-text-muted w-3.5 text-center shrink-0">U</span>
+                    <span className="shrink-0 text-[11px]">{name}</span>
+                    {dir && <span className="truncate text-ide-text-muted text-[10px] min-w-0">{dir}</span>}
+                    <span className="flex-1" />
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
-                      className="opacity-0 group-hover:opacity-100 text-xs text-ide-text-muted hover:text-ide-text shrink-0"
+                      className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center"
+                      title="暂存修改"
                     >
                       +
                     </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: 'delete', filePath: file.path, fileName: name }) }}
+                      className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center"
+                      title="删除文件"
+                    >
+                      −
+                    </button>
                   </div>
-                ))}
+                )})}
               </div>
             )}
 
             {/* Clean state */}
             {status && status.clean && (
-              <div className="px-3 py-4 text-sm text-ide-text-muted text-center">
+              <div className="px-2 py-2 text-xs text-ide-text-muted text-center">
                 No changes detected
               </div>
             )}
@@ -717,11 +753,11 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
         {/* Commits / Log */}
         <div className="border-b border-ide-border">
           <div
-            className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+            className="pl-2 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
             onClick={() => setLogExpanded(!logExpanded)}
           >
-            <div className="flex items-center gap-2">
-              <span className="w-3 text-center text-ide-text-muted">{logExpanded ? '▼' : '▸'}</span>
+            <div className="flex items-center gap-1">
+              <span className="w-2 text-center text-ide-text-muted">{logExpanded ? '▼' : '▶'}</span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
@@ -732,18 +768,18 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           {logExpanded && (
             <div className="flex flex-col">
               {logs.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-ide-text-muted text-center">No commits yet</div>
+                <div className="px-2 py-2 text-xs text-ide-text-muted text-center">No commits yet</div>
               ) : (
                 logs.map(entry => (
                 <div key={entry.hash}>
                   <div
-                    className={`px-3 py-2 border-b border-ide-border/50 hover:bg-ide-hover cursor-pointer ${
+                    className={`pl-5 pr-2 py-1.5 border-b border-ide-border/50 hover:bg-ide-hover cursor-pointer ${
                       expandedCommit === entry.hash ? 'bg-ide-accent/10' : ''
                     }`}
                     onClick={() => handleCommitClick(entry.hash)}
                   >
-                    <div className="text-sm text-ide-text truncate">{entry.message}</div>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-ide-text-muted">
+                    <div className="text-xs text-ide-text truncate">{entry.message}</div>
+                    <div className="flex items-center gap-1 mt-1 text-xs text-ide-text-muted">
                       <span className="text-ide-accent">{entry.hash.slice(0, 7)}</span>
                       <span>{entry.author}</span>
                       <span>{new Date(entry.date).toLocaleDateString()}</span>
@@ -752,32 +788,33 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   </div>
                   {expandedCommit === entry.hash && (
                     <div className="bg-ide-bg border-b border-ide-border animate-fade-in">
-                      <div className="px-3 py-1.5 text-xs text-ide-text-muted uppercase tracking-wider bg-ide-hover/50">
-                        Changed Files ({commitFiles.length})
+                      <div className="pl-5 pr-2 py-1 text-[11px] text-ide-text-muted uppercase tracking-wider bg-ide-hover/50">
+                        Files ({commitFiles.length})
                       </div>
-                      {commitFiles.map(file => (
+                      {commitFiles.map(file => {
+                        const { name, dir } = splitPath(file.path)
+                        return (
                         <div
                           key={file.path}
-                          className="px-3 py-1.5 text-sm cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                          className="pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1"
                           onClick={() => handleCommitFileClick(file)}
                         >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className={`text-xs font-bold w-4 text-center shrink-0 ${
-                              file.status === 'added' ? 'text-ide-success' :
-                              file.status === 'deleted' ? 'text-ide-danger' :
-                              file.status === 'renamed' ? 'text-ide-warning' :
-                              'text-ide-text-muted'
-                            }`}>
-                              {file.status === 'added' ? 'A' : file.status === 'deleted' ? 'D' : file.status === 'renamed' ? 'R' : 'M'}
-                            </span>
-                            <span className="truncate">{file.path}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs shrink-0">
+                          <span className={`text-xs font-bold w-3.5 text-center shrink-0 ${
+                            file.status === 'added' ? 'text-ide-success' :
+                            file.status === 'deleted' ? 'text-ide-danger' :
+                            file.status === 'renamed' ? 'text-ide-warning' :
+                            'text-ide-text-muted'
+                          }`}>
+                            {file.status === 'added' ? 'A' : file.status === 'deleted' ? 'D' : file.status === 'renamed' ? 'R' : 'M'}
+                          </span>
+                          <span className="shrink-0 text-[11px]">{name}</span>
+                          {dir && <span className="truncate text-ide-text-muted text-[10px] min-w-0">{dir}</span>}
+                          <span className="shrink-0 ml-auto flex items-center gap-1 text-[11px]">
                             {file.additions > 0 && <span className="text-ide-success font-mono">+{file.additions}</span>}
                             {file.deletions > 0 && <span className="text-ide-danger font-mono">-{file.deletions}</span>}
-                          </div>
+                          </span>
                         </div>
-                      ))}
+                      )})}
                     </div>
                   )}
                 </div>
@@ -790,11 +827,11 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
         {/* Branches */}
         <div className="border-b border-ide-border">
           <div
-            className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+            className="pl-2 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
             onClick={() => setBranchesExpanded(!branchesExpanded)}
           >
-            <div className="flex items-center gap-2">
-              <span className="w-3 text-center text-ide-text-muted">{branchesExpanded ? '▼' : '▸'}</span>
+            <div className="flex items-center gap-1">
+              <span className="w-2 text-center text-ide-text-muted">{branchesExpanded ? '▼' : '▶'}</span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
                 <circle cx="12" cy="18" r="3" />
                 <circle cx="6" cy="6" r="3" />
@@ -807,12 +844,12 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           {branchesExpanded && (
           <div className="flex flex-col">
             {branches.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-ide-text-muted text-center">No branches</div>
+              <div className="px-2 py-2 text-xs text-ide-text-muted text-center">No branches</div>
             ) : (
               branches.map(branch => (
                 <div
                   key={branch.name}
-                  className={`px-3 py-2 border-b border-ide-border/50 cursor-pointer flex items-center justify-between ${
+                  className={`pl-5 pr-2 py-1.5 text-xs border-b border-ide-border/50 cursor-pointer flex items-center justify-between ${
                     branch.current ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
                   }`}
                   onClick={() => !branch.current && handleCheckout(branch.name)}
@@ -823,14 +860,14 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                     }
                   }}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0">
                       <line x1="6" y1="3" x2="6" y2="15" />
                       <circle cx="18" cy="6" r="3" />
                       <circle cx="6" cy="18" r="3" />
                       <path d="M18 9a9 9 0 0 0-9 9" />
                     </svg>
-                    <span className="text-sm">{branch.name}</span>
+                    <span className="text-xs">{branch.name}</span>
                   </div>
                   {branch.current && (
                     <span className="text-xs text-ide-accent">current</span>
@@ -866,7 +903,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                 value={commitMessage}
                 onChange={(e) => setCommitMessage(e.target.value)}
                 placeholder="Commit message..."
-                className="w-full h-24 text-sm bg-ide-bg border border-ide-border rounded px-2 py-1.5 text-ide-text resize-none focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50"
+                className="w-full h-20 text-xs bg-ide-bg border border-ide-border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.ctrlKey) handleCommit()
                 }}
@@ -874,7 +911,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
               <button
                 onClick={handleCommit}
                 disabled={!commitMessage.trim()}
-                className="mt-2 w-full py-1.5 text-sm bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Commit (Ctrl+Enter)
               </button>
@@ -898,13 +935,13 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             <div className="flex-1 flex items-center justify-center">
               <button
                 onClick={onCreateRightTerminal}
-                className="px-4 py-2 text-sm bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+                className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
               >
                 启动终端
               </button>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
+            <div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">
               请先选择工作目录
             </div>
           )}
@@ -926,8 +963,44 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
 
       {/* File 栏目 — 预留 */}
       {activeSection === 'file' && (
-        <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
+        <div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">
           File
+        </div>
+      )}
+
+      {/* Confirm Dialog */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmAction(null)}>
+          <div className="bg-ide-bg border border-ide-border rounded shadow-lg p-4 max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm text-ide-text mb-4">
+              {confirmAction.type === 'discard'
+                ? `确定撤销对 ${confirmAction.fileName} 的修改？此操作不可恢复。`
+                : `确定删除 ${confirmAction.fileName}？此操作不可恢复。`
+              }
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded"
+                onClick={() => setConfirmAction(null)}
+              >
+                取消
+              </button>
+              <button
+                className="px-3 py-1.5 text-xs bg-ide-danger hover:bg-red-600 text-white rounded"
+                onClick={async () => {
+                  const { type, filePath } = confirmAction
+                  setConfirmAction(null)
+                  if (type === 'discard') {
+                    await handleDiscard(filePath)
+                  } else {
+                    await handleDeleteFile(filePath)
+                  }
+                }}
+              >
+                确认
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -939,7 +1012,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover whitespace-nowrap"
+            className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
             onClick={() => handleApplyBranch(contextMenu.branchName)}
           >
             合并修改

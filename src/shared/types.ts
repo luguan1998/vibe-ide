@@ -26,12 +26,14 @@ export const IPC_CHANNELS = {
   GIT_STASH_POP: 'git:stashPop',
   GIT_INIT: 'git:init',
   GIT_SHOW: 'git:show',
+  GIT_DISCARD: 'git:discard',
 
   // File
   FILE_READ: 'file:read',
   FILE_WRITE: 'file:write',
   FILE_LIST: 'file:list',
   FILE_TREE: 'file:tree',
+  FILE_DELETE: 'file:delete',
 
   // Workspace
   WORKSPACE_OPEN: 'workspace:open',

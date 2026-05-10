@@ -32,13 +32,20 @@ declare global {
         branches: () => Promise<any>
         checkout: (branch: string) => Promise<any>
         applyBranch: (branch: string) => Promise<any>
+        discard: (filePath: string) => Promise<any>
         stashList: () => Promise<any>
         stashPush: (message?: string) => Promise<any>
         stashPop: () => Promise<any>
         init: () => Promise<any>
         show: (hash: string) => Promise<any>
       }
-      file: any
+      file: {
+        read: (filePath: string) => Promise<any>
+        write: (filePath: string, content: string) => Promise<any>
+        list: (dirPath: string) => Promise<any>
+        tree: (dirPath: string, depth?: number) => Promise<any>
+        delete: (filePath: string) => Promise<any>
+      }
       workspace: {
         open: () => Promise<any>
         current: () => Promise<{ path: string }>

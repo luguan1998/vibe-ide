@@ -47,6 +47,7 @@ const api = {
     branches: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_BRANCHES),
     checkout: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_CHECKOUT, branch),
     applyBranch: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_APPLY_BRANCH, branch),
+    discard: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DISCARD, filePath),
     stashList: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_LIST),
     stashPush: (message?: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_PUSH, message),
     stashPop: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_POP),
@@ -71,7 +72,8 @@ const api = {
     read: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_READ, filePath),
     write: (filePath: string, content: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_WRITE, filePath, content),
     list: (dirPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_LIST, dirPath),
-    tree: (dirPath: string, depth?: number) => ipcRenderer.invoke(IPC_CHANNELS.FILE_TREE, dirPath, depth)
+    tree: (dirPath: string, depth?: number) => ipcRenderer.invoke(IPC_CHANNELS.FILE_TREE, dirPath, depth),
+    delete: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_DELETE, filePath)
   },
 
   // Workspace operations
