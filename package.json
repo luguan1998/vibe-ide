@@ -15,6 +15,7 @@
     "@monaco-editor/react": "^4.6.0",
     "@xterm/addon-clipboard": "^0.2.0",
     "@xterm/addon-fit": "latest",
+    "@xterm/addon-unicode11": "^0.9.0",
     "@xterm/addon-web-links": "latest",
     "@xterm/xterm": "^5.5.0",
     "lucide-react": "^0.469.0",

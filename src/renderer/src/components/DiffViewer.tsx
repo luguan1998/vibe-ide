@@ -15,6 +15,7 @@ interface DiffViewerProps {
   onBack?: () => void
   onSaved?: (path: string) => Promise<void>
   onRefreshDiff?: (path: string, staged: boolean) => Promise<string>
+  defaultEdit?: boolean
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -89,11 +90,10 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions: totalAdditions, deletions: totalDeletions }
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, showSquiggles = true, lineNumber, onStage, onUnstage, onBack, onSaved, onRefreshDiff }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, showSquiggles = true, lineNumber, onStage, onUnstage, onBack, onSaved, onRefreshDiff, defaultEdit }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
 
-  // Always start in diff mode for full file comparison
-  const [viewMode, setViewMode] = useState<ViewMode>('diff')
+  const [viewMode, setViewMode] = useState<ViewMode>(defaultEdit ? 'edit' : 'diff')
   const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
   const [saving, setSaving] = useState(false)

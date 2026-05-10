@@ -35,7 +35,11 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
         cols: 80,
         rows: 24,
         cwd,
-        env: process.env as Record<string, string>
+        env: Object.assign({}, process.env, {
+          LANG: 'en_US.UTF-8',
+          LC_ALL: 'en_US.UTF-8',
+          PYTHONUTF8: '1'
+        }) as Record<string, string>
       })
 
       const session: TerminalSession = {
@@ -73,6 +77,8 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
           })
         }
 
+        // Set UTF-8 code page then clear screen
+        managed.pty.write('chcp 65001 >$null\r')
         // Clear-Host 保证 prompt 一定出现
         managed.pty.write('Clear-Host\r')
       }, 600)

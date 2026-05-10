@@ -72,6 +72,7 @@ declare global {
 type CenterView = 'terminal' | 'diff'
 
 interface DiffFileState {
+  defaultEdit?: boolean
   filePath: string          // 相对路径（用于 git diff）
   fullPath: string          // 完整路径（用于 file read/write）
   diffContent: string
@@ -106,9 +107,10 @@ export default function App() {
     })
   }, [])
 
-  // Ctrl+F → focus search in right panel (only when not in diff/edit mode)
+  // Global keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+F → focus search in right panel
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         if (centerView !== 'diff') {
           e.preventDefault()
@@ -116,11 +118,26 @@ export default function App() {
           setSearchFocusTrigger(k => k + 1)
         }
       }
+      // Ctrl+Up/Down → switch terminal session
+      if (e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault()
+          const idx = sessions.findIndex(s => s.id === activeSessionId)
+          const next = e.key === 'ArrowUp'
+            ? (idx - 1 + sessions.length) % sessions.length
+            : (idx + 1) % sessions.length
+          if (sessions[next]) {
+            setActiveSessionId(sessions[next].id)
+            setCenterView('terminal')
+            setDiffFile(null)
+          }
+        }
+      }
     }
     // capture phase: intercept before xterm.js gets it
     window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [centerView])
+  }, [centerView, sessions, activeSessionId])
 
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
@@ -274,9 +291,10 @@ export default function App() {
       setDiffFile({
         filePath,
         fullPath,
-        diffContent: '',  // 直接打开编辑，不是 diff 视图
+        diffContent: '',
         isStaged: false,
-        lineNumber
+        lineNumber,
+        defaultEdit: true
       })
       setCenterView('diff')
     } catch (err) {
@@ -469,6 +487,7 @@ export default function App() {
               onBack={handleBackToTerminal}
               onSaved={handleRefreshGit}
               onRefreshDiff={handleRefreshDiff}
+              defaultEdit={diffFile.defaultEdit}
             />
           ) : sessions.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-ide-text-muted">

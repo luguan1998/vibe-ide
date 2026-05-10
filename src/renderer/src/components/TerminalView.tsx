@@ -3,6 +3,7 @@ import { Terminal, ILinkProvider, ILink, IBufferRange } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { ClipboardAddon } from '@xterm/addon-clipboard'
+import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { useTheme } from '../themes'
 import '@xterm/xterm/css/xterm.css'
 
@@ -238,16 +239,20 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
       cursorStyle: 'bar',
       scrollback: 10000,
       allowTransparency: true,
-      allowProposedApi: true
+      allowProposedApi: true,
+      windowsMode: true
     })
 
     const fitAddon = new FitAddon()
     const webLinksAddon = new WebLinksAddon()
     const clipboardAddon = new ClipboardAddon()
+    const unicode11Addon = new Unicode11Addon()
 
     term.loadAddon(fitAddon)
     term.loadAddon(webLinksAddon)
     term.loadAddon(clipboardAddon)
+    term.loadAddon(unicode11Addon)
+    term.unicode.activeVersion = '11'
 
     term.open(terminalRef.current)
     fitAddon.fit()
@@ -255,6 +260,25 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     xtermRef.current = term
     fitAddonRef.current = fitAddon
     setIsReady(true)
+
+    // Custom key bindings: Shift+Enter → newline, Ctrl+C → copy selection
+    term.attachCustomKeyEventHandler((e: KeyboardEvent): boolean => {
+      if (e.type !== 'keydown') return true
+      // Shift+Enter: send ESC+CR for multi-line input
+      if (e.key === 'Enter' && e.shiftKey) {
+        window.api.terminal.write(sessionId, '\x1b\r')
+        return false
+      }
+      // Ctrl+C with selection: copy to clipboard, don't send to PTY
+      if (e.key === 'c' && e.ctrlKey && !e.metaKey) {
+        const sel = term.getSelection()
+        if (sel) {
+          navigator.clipboard.writeText(sel).catch(() => {})
+          return false
+        }
+      }
+      return true
+    })
 
     // Handle terminal data input
     term.onData((data: string) => {
@@ -378,18 +402,30 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     }
   }, [sessionCwd, isReady, onOpenFile])
 
-  // Auto-fit on mount and when container resizes
+  // Auto-fit on mount and when container resizes (debounced 100ms)
   useEffect(() => {
     if (!fitAddonRef.current) return
 
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let prevCols = 0
+    let prevRows = 0
     const observer = new ResizeObserver(() => {
-      if (fitAddonRef.current && xtermRef.current) {
+      if (!fitAddonRef.current || !xtermRef.current) return
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
         try {
-          fitAddonRef.current.fit()
+          fitAddonRef.current!.fit()
+          const c = xtermRef.current!.cols
+          const r = xtermRef.current!.rows
+          if (c !== prevCols || r !== prevRows) {
+            prevCols = c
+            prevRows = r
+            window.api.terminal.resize(sessionId, c, r)
+          }
         } catch (e) {
           // Ignore
         }
-      }
+      }, 200)
     })
 
     if (terminalRef.current) {
@@ -407,24 +443,28 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
       }
     }, 100)
 
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      if (timer) clearTimeout(timer)
+    }
   }, [isReady])
 
-  // Handle right-click paste
+  // Handle right-click: copy selection / paste clipboard
   const handleContextMenu = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    if (!xtermRef.current) return
 
-    try {
-      const text = await navigator.clipboard.readText()
-      if (text && xtermRef.current) {
-        // Use term.paste() instead of direct PTY write — it handles
-        // bracketed paste mode wrapping (\x1b[200~...\x1b[201~) so
-        // Claude Code CLI detects pastes and shows placeholders.
-        xtermRef.current.paste(text)
-      }
-    } catch (err) {
-      console.error('Failed to read clipboard:', err)
+    const sel = xtermRef.current.getSelection()
+    if (sel) {
+      // Has selection → copy to clipboard
+      try { await navigator.clipboard.writeText(sel) } catch {}
+    } else {
+      // No selection → paste clipboard
+      try {
+        const text = await navigator.clipboard.readText()
+        if (text) xtermRef.current.paste(text)
+      } catch {}
     }
   }, [sessionId])
 

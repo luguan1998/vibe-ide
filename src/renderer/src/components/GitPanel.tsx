@@ -91,6 +91,25 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     return () => window.removeEventListener('click', handleClick)
   }, [])
 
+  // Ctrl+Left/Right → switch right panel tabs
+  const tabOrder = ['git', 'terminal', 'search', 'file'] as const
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const idx = tabOrder.indexOf(activeSection)
+        const next = e.key === 'ArrowRight'
+          ? (idx + 1) % tabOrder.length
+          : (idx - 1 + tabOrder.length) % tabOrder.length
+        setActiveSection(tabOrder[next])
+      }
+    }
+    window.addEventListener('keydown', handleKey, true)
+    return () => window.removeEventListener('keydown', handleKey, true)
+  }, [activeSection])
+
   // Refresh git status
   const refreshStatus = useCallback(async () => {
     setLoading(true)
