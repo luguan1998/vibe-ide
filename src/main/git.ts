@@ -414,6 +414,17 @@ export function registerGitHandlers(): void {
     }
   })
 
+  // Git push
+  ipcMain.handle(IPC_CHANNELS.GIT_PUSH, async () => {
+    try {
+      const git = getGit()
+      await git.push()
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
   // Git stash push
   ipcMain.handle(IPC_CHANNELS.GIT_STASH_PUSH, async (_event, message?: string) => {
     try {

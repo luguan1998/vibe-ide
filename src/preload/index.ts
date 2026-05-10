@@ -51,6 +51,7 @@ const api = {
     stashList: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_LIST),
     stashPush: (message?: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_PUSH, message),
     stashPop: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_POP),
+    push: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_PUSH),
     init: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_INIT),
     show: (hash: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW, hash),
     onChanged: (callback: () => void) => {

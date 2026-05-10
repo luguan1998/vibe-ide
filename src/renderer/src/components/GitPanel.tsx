@@ -281,6 +281,11 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   }, [refreshStatus])
 
   // Pop stash
+  const handlePush = useCallback(async () => {
+    await window.api.git.push()
+    await refreshStatus()
+  }, [refreshStatus])
+
   const handleStashPop = useCallback(async () => {
     await window.api.git.stashPop()
     await refreshStatus()
@@ -505,7 +510,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           {status && (
             <div className="h-9 pl-2 pr-3 flex items-center border-b border-ide-border shrink-0 gap-2">
               {/* Left: branch info */}
-              <div className="flex items-center gap-1 min-w-0">
+              <div className="flex items-center gap-1 min-w-0 flex-1">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
                   <line x1="6" y1="3" x2="6" y2="15" />
                   <circle cx="18" cy="6" r="3" />
@@ -515,17 +520,16 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                 <span className="text-xs text-ide-text font-medium truncate">{status.branch}</span>
                 {status.ahead > 0 && <span className="text-ide-success text-[11px]">↑{status.ahead}</span>}
                 {status.behind > 0 && <span className="text-ide-warning text-[11px]">↓{status.behind}</span>}
-                <button
-                  onClick={refreshStatus}
-                  className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 ml-1"
-                  title="Refresh"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-                  </svg>
-                </button>
               </div>
-
+              <button
+                onClick={refreshStatus}
+                className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0"
+                title="Refresh"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                </svg>
+              </button>
             </div>
           )}
 
@@ -899,22 +903,37 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   Pop Stash
                 </button>
               </div>
-              <textarea
-                value={commitMessage}
-                onChange={(e) => setCommitMessage(e.target.value)}
-                placeholder="Commit message..."
-                className="w-full h-20 text-xs bg-ide-bg border border-ide-border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.ctrlKey) handleCommit()
-                }}
-              />
-              <button
-                onClick={handleCommit}
-                disabled={!commitMessage.trim()}
-                className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Commit (Ctrl+Enter)
-              </button>
+              {status.clean && status.ahead > 0 ? (
+                <button
+                  onClick={handlePush}
+                  className="w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <line x1="12" y1="19" x2="12" y2="5" />
+                    <polyline points="5 12 12 5 19 12" />
+                  </svg>
+                  Push{status.ahead > 0 ? ` (${status.ahead})` : ''}
+                </button>
+              ) : (
+                <>
+                  <textarea
+                    value={commitMessage}
+                    onChange={(e) => setCommitMessage(e.target.value)}
+                    placeholder="Commit message..."
+                    className="w-full h-20 text-xs bg-ide-bg border border-ide-border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.ctrlKey) handleCommit()
+                    }}
+                  />
+                  <button
+                    onClick={handleCommit}
+                    disabled={!commitMessage.trim()}
+                    className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Commit (Ctrl+Enter)
+                  </button>
+                </>
+              )}
             </div>
           )}
         </>

@@ -36,6 +36,7 @@ declare global {
         stashList: () => Promise<any>
         stashPush: (message?: string) => Promise<any>
         stashPop: () => Promise<any>
+        push: () => Promise<any>
         init: () => Promise<any>
         show: (hash: string) => Promise<any>
       }
