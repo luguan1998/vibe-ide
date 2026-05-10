@@ -262,23 +262,24 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     setIsReady(true)
 
     // Custom key bindings: Shift+Enter → newline, Ctrl+C → copy selection
-    term.attachCustomKeyEventHandler((e: KeyboardEvent): boolean => {
-      if (e.type !== 'keydown') return true
-      // Shift+Enter: send ESC+CR for multi-line input
+    // Must use DOM capture to intercept before xterm.js's internal handlers
+    const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && e.shiftKey) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
         window.api.terminal.write(sessionId, '\x1b\r')
-        return false
+        return
       }
-      // Ctrl+C with selection: copy to clipboard, don't send to PTY
       if (e.key === 'c' && e.ctrlKey && !e.metaKey) {
         const sel = term.getSelection()
         if (sel) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
           navigator.clipboard.writeText(sel).catch(() => {})
-          return false
         }
       }
-      return true
-    })
+    }
+    terminalRef.current?.addEventListener('keydown', onKeyDown, true)
 
     // Handle terminal data input
     term.onData((data: string) => {
@@ -318,6 +319,7 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     window.addEventListener('resize', onResize)
 
     return () => {
+      terminalRef.current?.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('resize', onResize)
       term.dispose()
       xtermRef.current = null
