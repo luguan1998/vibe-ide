@@ -11,12 +11,13 @@ interface GitPanelProps {
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
   // 搜索跳转时，触发中间终端切换到 edit 模式
   onOpenFileFromSearch?: (fullPath: string, lineNumber?: number) => void
-  // 右侧独立终端 session
+  // 右侧独立终端 session（当前活动 session 的）
   rightTerminalSession?: TerminalSession | null
+  activeSessionId?: string | null
   // 创建右侧终端
-  onCreateRightTerminal?: () => void
+  onCreateRightTerminal?: (sessionId: string) => void
   // 关闭右侧终端
-  onCloseRightTerminal?: () => void
+  onCloseRightTerminal?: (sessionId: string) => void
   // Ctrl+F 触发搜索面板聚焦
   searchFocusTrigger?: number
   // 文件浏览器打开文件
@@ -86,7 +87,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile }: {
   )
 }
 
-const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger, onOpenFileFromExplorer }: GitPanelProps) {
+const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger, onOpenFileFromExplorer, activeSessionId }: GitPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [stagedExpanded, setStagedExpanded] = useState(true)
   const [changesExpanded, setChangesExpanded] = useState(true)
@@ -1103,11 +1104,12 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
               sessionCwd={rightTerminalSession.cwd}
               onOpenFile={handleRightTerminalOpenFile}
               showHeader={false}
+              fontSize={12}
             />
           ) : workspacePath ? (
             <div className="flex-1 flex items-center justify-center">
               <button
-                onClick={onCreateRightTerminal}
+                onClick={() => activeSessionId && onCreateRightTerminal?.(activeSessionId)}
                 className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
               >
                 启动终端

@@ -38,6 +38,7 @@ interface TerminalViewProps {
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   onCommand?: (command: string) => void
   showHeader?: boolean  // 是否显示顶部标题栏，默认 true
+  fontSize?: number
 }
 
 /**
@@ -211,7 +212,7 @@ class FileLinkProvider implements ILinkProvider {
   }
 }
 
-const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true }: TerminalViewProps) {
+const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14}: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -233,7 +234,7 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     const term = new Terminal({
       theme: currentTheme.terminal,
       fontFamily: 'JetBrains Mono, Fira Code, Cascadia Code, Consolas, monospace',
-      fontSize: 14,
+      fontSize,
       lineHeight: 1.2,
       cursorBlink: true,
       cursorStyle: 'bar',

@@ -1,6 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { TerminalSession } from '@shared/types'
 
+const SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '🤖', '🐸', '👾', '🎯', '🚀', '⚡', '🌟', '💫', '🌀', '🎭', '🪐', '👻', '🍕', '🎲', '🧩', '🌈', '🦧', '🐉', '🎸']
+
+function hashId(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 31 + id.charCodeAt(i)) | 0
+  }
+  return Math.abs(h)
+}
+
+function getSessionEmoji(id: string): string {
+  return SESSION_EMOJIS[hashId(id) % SESSION_EMOJIS.length]
+}
+
 interface SessionPanelProps {
   sessions: TerminalSession[]
   activeSessionId: string | null
@@ -101,10 +115,7 @@ const SessionPanel = React.memo(function SessionPanel({
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="4 17 10 11 4 5" />
-                    <line x1="12" y1="19" x2="20" y2="19" />
-                  </svg>
+                  <span className="text-sm shrink-0">{getSessionEmoji(session.id)}</span>
                   {renaming === session.id ? (
                     <input
                       ref={inputRef}

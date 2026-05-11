@@ -85,7 +85,7 @@ interface DiffFileState {
 export default function App() {
   const [sessions, setSessions] = useState<TerminalSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const [rightTerminalSession, setRightTerminalSession] = useState<TerminalSession | null>(null)  // 右侧独立终端
+  const [rightTerminalSessions, setRightTerminalSessions] = useState<Record<string, TerminalSession>>({})  // 每个 session 独立的右侧终端
   const [rightPanelWidth, setRightPanelWidth] = useState(380)
   const [leftPanelWidth, setLeftPanelWidth] = useState(240)
   const [isDragging, setIsDragging] = useState(false)
@@ -184,11 +184,21 @@ export default function App() {
       delete next[id]
       return next
     })
+    // 清理该 session 的右侧终端
+    const rightTerm = rightTerminalSessions[id]
+    if (rightTerm) {
+      window.api.terminal.close(rightTerm.id)
+      setRightTerminalSessions(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    }
     if (activeSessionId === id) {
       const remaining = sessions.filter(s => s.id !== id)
       setActiveSessionId(remaining.length > 0 ? remaining[0].id : null)
     }
-  }, [activeSessionId, sessions])
+  }, [activeSessionId, sessions, rightTerminalSessions])
 
   // Rename a terminal session
   const handleRenameSession = useCallback(async (id: string, newName: string) => {
@@ -313,8 +323,8 @@ export default function App() {
         return
       }
 
-      // 计算 filePath（相对路径）用于 git 操作，使用右侧终端的 cwd
-      const rightCwd = rightTerminalSession?.cwd
+      // 计算 filePath（相对路径），右侧终端 cwd 与活动 session cwd 一致
+      const rightCwd = activeSessionCwd
       let filePath = fullPath
       if (rightCwd && fullPath.startsWith(rightCwd)) {
         filePath = fullPath.slice(rightCwd.length).replace(/^[\\\/]+/, '')
@@ -332,29 +342,32 @@ export default function App() {
     } catch (err) {
       console.error('Failed to open file from right terminal:', err)
     }
-  }, [rightTerminalSession])
+  }, [activeSessionCwd])
 
-  // 创建右侧终端
-  const handleCreateRightTerminal = useCallback(async () => {
-    if (rightTerminalSession) return  // 已存在则不重复创建
+  // 创建右侧终端（每个 session 独立）
+  const handleCreateRightTerminal = useCallback(async (sessionId: string) => {
+    if (rightTerminalSessions[sessionId]) return
+    const session = sessions.find(s => s.id === sessionId)
+    if (!session?.cwd) return
     try {
-      // 使用当前活动 session 的 cwd，如果没有则让用户选择
-      const cwd = activeSessionCwd
-      if (!cwd) return
-
-      const session = await window.api.terminal.create({ cwd })
-      setRightTerminalSession(session)
+      const term = await window.api.terminal.create({ cwd: session.cwd })
+      setRightTerminalSessions(prev => ({ ...prev, [sessionId]: term }))
     } catch (err) {
       console.error('Failed to create right terminal:', err)
     }
-  }, [rightTerminalSession, activeSessionCwd])
+  }, [rightTerminalSessions, sessions])
 
   // 关闭右侧终端
-  const handleCloseRightTerminal = useCallback(async () => {
-    if (!rightTerminalSession) return
-    await window.api.terminal.close(rightTerminalSession.id)
-    setRightTerminalSession(null)
-  }, [rightTerminalSession])
+  const handleCloseRightTerminal = useCallback(async (sessionId: string) => {
+    const term = rightTerminalSessions[sessionId]
+    if (!term) return
+    await window.api.terminal.close(term.id)
+    setRightTerminalSessions(prev => {
+      const next = { ...prev }
+      delete next[sessionId]
+      return next
+    })
+  }, [rightTerminalSessions])
 
   // 处理从搜索面板打开文件
   const handleOpenFileFromSearch = useCallback(async (fullPath: string, lineNumber?: number) => {
@@ -403,17 +416,6 @@ export default function App() {
     }
   }, [activeSessionCwd])
 
-
-  // 当左侧活动 session 的 cwd 变化时，同步更新右侧终端（如果存在）
-  React.useEffect(() => {
-    if (rightTerminalSession && activeSessionCwd && rightTerminalSession.cwd !== activeSessionCwd) {
-      // 关闭旧的右侧终端，创建新的
-      window.api.terminal.close(rightTerminalSession.id)
-      window.api.terminal.create({ cwd: activeSessionCwd }).then(session => {
-        setRightTerminalSession(session)
-      })
-    }
-  }, [activeSessionCwd])
 
   // Auto-create first session on mount
   React.useEffect(() => {
@@ -537,12 +539,13 @@ export default function App() {
         <div className="shrink-0 flex flex-col bg-ide-sidebar border-l border-ide-border overflow-hidden" style={{ width: rightPanelWidth }}>
           <GitPanel
             workspacePath={activeSessionCwd}
+            activeSessionId={activeSessionId}
             onFileSelect={handleFileSelect}
             refreshKey={gitRefreshKey}
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
             onOpenFileFromSearch={handleOpenFileFromSearch}
             onOpenFileFromExplorer={handleOpenFileFromExplorer}
-            rightTerminalSession={rightTerminalSession}
+            rightTerminalSession={activeSessionId ? rightTerminalSessions[activeSessionId] : undefined}
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
             searchFocusTrigger={searchFocusTrigger}
