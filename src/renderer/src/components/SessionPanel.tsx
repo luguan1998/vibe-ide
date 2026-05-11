@@ -23,6 +23,7 @@ interface SessionPanelProps {
   onSwitchSession: (id: string) => void
   onCloseSession: (id: string) => void
   onRenameSession?: (id: string, newName: string) => Promise<void>
+  onReorderSessions?: (fromIndex: number, toIndex: number) => void
   commandHistory?: Record<string, string[]>
 }
 
@@ -34,14 +35,17 @@ const SessionPanel = React.memo(function SessionPanel({
   onSwitchSession,
   onCloseSession,
   onRenameSession,
+  onReorderSessions,
   commandHistory = {}
 }: SessionPanelProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
-  const [historyModal, setHistoryModal] = useState<{ sessionId: string; name: string } | null>(null)
+  const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; name: string; left: number; top: number } | null>(null)
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const historyListRef = useRef<HTMLDivElement>(null)
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
 
   useEffect(() => {
     if (renaming && inputRef.current) {
@@ -96,22 +100,67 @@ const SessionPanel = React.memo(function SessionPanel({
       </div>
 
       {/* Session List */}
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 overflow-y-auto py-1"
+        onDragOver={(e) => {
+          if (dragIndex !== null && sessions.length > 0) {
+            setDropIndex(sessions.length)
+          }
+        }}
+      >
         {sessions.length === 0 ? (
           <div className="px-3 py-4 text-ide-text-muted text-sm text-center">
             No sessions yet
           </div>
         ) : (
-          sessions.map((session) => (
+          sessions.map((session, index) => (
             <div
               key={session.id}
+              draggable={!!onReorderSessions}
               className={`group px-3 py-2 mx-1 rounded cursor-pointer transition-colors ${
                 session.id === activeSessionId
                   ? 'bg-ide-accent/20 text-ide-text border-l-2 border-ide-accent'
                   : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-              }`}
+              } ${dragIndex === index ? 'opacity-40' : ''} ${dropIndex === index && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
               onClick={() => onSwitchSession(session.id)}
               onContextMenu={(e) => handleContextMenu(e, session.id)}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect()
+                hoverTimerRef.current = setTimeout(() => {
+                  setHoverPreview({ sessionId: session.id, name: session.name, left: rect.right + 6, top: rect.top })
+                }, 600)
+              }}
+              onMouseLeave={() => {
+                if (hoverTimerRef.current) {
+                  clearTimeout(hoverTimerRef.current)
+                  hoverTimerRef.current = null
+                }
+                setHoverPreview(null)
+              }}
+              onDragStart={() => setDragIndex(index)}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (dragIndex === null || dragIndex === index) {
+                  setDropIndex(null)
+                  return
+                }
+                const rect = e.currentTarget.getBoundingClientRect()
+                const midY = rect.top + rect.height / 2
+                setDropIndex(e.clientY < midY ? index : index + 1)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (dragIndex !== null && dragIndex !== index) {
+                  const toIndex = dropIndex !== null && dropIndex > dragIndex ? dropIndex - 1 : dropIndex ?? index
+                  onReorderSessions?.(dragIndex, toIndex)
+                }
+                setDragIndex(null)
+                setDropIndex(null)
+              }}
+              onDragEnd={() => {
+                setDragIndex(null)
+                setDropIndex(null)
+              }}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
@@ -157,6 +206,9 @@ const SessionPanel = React.memo(function SessionPanel({
             </div>
           ))
         )}
+        {dropIndex === sessions.length && dropIndex !== dragIndex && dragIndex !== sessions.length - 1 && (
+          <div className="mx-1 border-t-2 border-ide-accent" />
+        )}
       </div>
 
       {/* Context Menu */}
@@ -188,18 +240,6 @@ const SessionPanel = React.memo(function SessionPanel({
             Rename
           </button>
           <button
-            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover"
-            onClick={() => {
-              const session = sessions.find(s => s.id === contextMenu.sessionId)
-              if (session) {
-                setHistoryModal({ sessionId: session.id, name: session.name })
-              }
-              setContextMenu(null)
-            }}
-          >
-            History
-          </button>
-          <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover"
             onClick={() => {
               onCloseSession(contextMenu.sessionId)
@@ -211,73 +251,58 @@ const SessionPanel = React.memo(function SessionPanel({
         </div>
       )}
 
-      {/* History Modal */}
-      {historyModal && (() => {
-        const cmds = commandHistory[historyModal.sessionId] || []
+      {/* History Hover Popover */}
+      {hoverPreview && (() => {
+        const cmds = commandHistory[hoverPreview.sessionId] || []
         return (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-            onClick={() => setHistoryModal(null)}
+            className="fixed z-50 bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-80 max-h-64 flex flex-col"
+            style={{ left: hoverPreview.left, top: hoverPreview.top }}
+            onMouseEnter={() => {
+              if (hoverTimerRef.current) {
+                clearTimeout(hoverTimerRef.current)
+                hoverTimerRef.current = null
+              }
+            }}
+            onMouseLeave={() => setHoverPreview(null)}
           >
-            <div
-              className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[520px] max-h-[70vh] flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="px-4 py-3 border-b border-ide-border flex items-center justify-between shrink-0">
-                <div>
-                  <span className="text-sm font-semibold text-ide-text">History</span>
-                  <span className="text-xs text-ide-text-muted ml-2">{historyModal.name}</span>
+            <div className="px-3 py-1.5 border-b border-ide-border flex items-center justify-between shrink-0">
+              <span className="text-xs font-semibold text-ide-text">History</span>
+              <span className="text-xs text-ide-text-muted ml-2">{hoverPreview.name}</span>
+            </div>
+            <div className="flex-1 overflow-y-auto py-1">
+              {cmds.length === 0 ? (
+                <div className="px-3 py-4 text-xs text-ide-text-muted text-center">
+                  No commands yet
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-ide-text-muted">{cmds.length} commands</span>
-                  <button
-                    onClick={() => setHistoryModal(null)}
-                    className="text-ide-text-muted hover:text-ide-text transition-colors"
+              ) : (
+                cmds.slice(-20).reverse().map((cmd, i) => (
+                  <div
+                    key={`hp-${i}`}
+                    className="px-3 py-0.5 text-xs font-mono text-ide-text hover:bg-ide-hover flex items-center gap-2 group"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              {/* List */}
-              <div ref={historyListRef} className="flex-1 overflow-y-auto py-1">
-                {cmds.length === 0 ? (
-                  <div className="px-4 py-8 text-sm text-ide-text-muted text-center">
-                    No commands recorded yet for this session
-                  </div>
-                ) : (
-                  cmds.map((cmd, i) => (
-                    <div
-                      key={`${historyModal.sessionId}-${i}`}
-                      className="px-4 py-1.5 text-sm font-mono text-ide-text hover:bg-ide-hover flex items-start gap-3 group"
+                    <span className="text-ide-text-muted shrink-0 select-none w-5 text-right">
+                      {cmds.length - i}
+                    </span>
+                    <span className="truncate flex-1" title={cmd}>
+                      {cmd.length > 60 ? cmd.slice(0, 60) + '...' : cmd}
+                    </span>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        await navigator.clipboard.writeText(cmd)
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-text shrink-0 transition-opacity p-0.5"
+                      title="Copy"
                     >
-                      <span className="text-xs text-ide-text-muted shrink-0 mt-px select-none w-6 text-right">
-                        {i + 1}
-                      </span>
-                      <span className="truncate flex-1" title={cmd}>
-                        {cmd.length > 80 ? cmd.slice(0, 80) + '...' : cmd}
-                      </span>
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          await navigator.clipboard.writeText(cmd)
-                        }}
-                        className="opacity-0 group-hover:opacity-100 text-xs text-ide-text-muted hover:text-ide-text shrink-0 transition-opacity p-0.5"
-                        title="Copy"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )

@@ -201,6 +201,15 @@ export default function App() {
     }
   }, [activeSessionId, sessions, rightTerminalSessions])
 
+  const handleReorderSessions = useCallback((fromIndex: number, toIndex: number) => {
+    setSessions(prev => {
+      const next = [...prev]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      return next
+    })
+  }, [])
+
   // Rename a terminal session
   const handleRenameSession = useCallback(async (id: string, newName: string) => {
     const result = await window.api.terminal.rename(id, newName)
@@ -418,13 +427,6 @@ export default function App() {
   }, [activeSessionCwd])
 
 
-  // Auto-create first session on mount
-  React.useEffect(() => {
-    if (sessions.length === 0) {
-      handleCreateSession()
-    }
-  }, [])
-
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
       {/* Title Bar */}
@@ -486,6 +488,7 @@ export default function App() {
             onSwitchSession={handleSwitchSession}
             onCloseSession={handleCloseSession}
             onRenameSession={handleRenameSession}
+            onReorderSessions={handleReorderSessions}
             commandHistory={commandHistory}
           />
         </div>
