@@ -8,6 +8,7 @@ interface DiffViewerProps {
   fullPath: string          // 完整路径（用于 file read/write）
   diffContent: string
   isStaged: boolean
+  commitHash?: string       // 查看历史 commit 时的 commit hash
   showSquiggles?: boolean
   lineNumber?: number       // 跳转到指定行
   onStage: (path: string) => Promise<void>
@@ -90,7 +91,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions: totalAdditions, deletions: totalDeletions }
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, showSquiggles = true, lineNumber, onStage, onUnstage, onBack, onSaved, onRefreshDiff, defaultEdit }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, onStage, onUnstage, onBack, onSaved, onRefreshDiff, defaultEdit }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
 
   const [viewMode, setViewMode] = useState<ViewMode>(defaultEdit ? 'edit' : 'diff')
@@ -131,14 +132,28 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
 
   const loadContents = useCallback(async () => {
     try {
-      const [headResult, currResult] = await Promise.all([
-        window.api.git.showFile('HEAD', filePath),
-        isStaged
-          ? window.api.git.showFile('', filePath)
-          : window.api.file.read(fullPath)
-      ])
-      const original = headResult.error ? '' : headResult.content
-      const modified = currResult.error ? '' : (currResult.content || '')
+      let original: string
+      let modified: string
+
+      if (commitHash) {
+        // 查看历史 commit：左边是 parent 的文件内容，右边是 commit 时的文件内容
+        const [parentResult, commitResult] = await Promise.all([
+          window.api.git.showFile(`${commitHash}^`, filePath),
+          window.api.git.showFile(commitHash, filePath)
+        ])
+        original = parentResult.error ? '' : parentResult.content
+        modified = commitResult.error ? '' : (commitResult.content || '')
+      } else {
+        const [headResult, currResult] = await Promise.all([
+          window.api.git.showFile('HEAD', filePath),
+          isStaged
+            ? window.api.git.showFile('', filePath)
+            : window.api.file.read(fullPath)
+        ])
+        original = headResult.error ? '' : headResult.content
+        modified = currResult.error ? '' : (currResult.content || '')
+      }
+
       const stats = diffContent ? parseDiffStats(diffContent) : { additions: 0, deletions: 0 }
       setOriginalContent(original)
       setModifiedContent(modified)
@@ -151,7 +166,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       setModifiedContent('')
       setDiffStats({ additions: 0, deletions: 0 })
     }
-  }, [filePath, fullPath, isStaged])
+  }, [filePath, fullPath, isStaged, commitHash])
 
   useEffect(() => {
     loadContents()
@@ -209,6 +224,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 's') {
+        if (commitHash) return
         e.preventDefault()
         if (viewMode === 'edit') {
           handleSave()
@@ -311,7 +327,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
 
         <div className="flex items-center gap-2">
           {isDirty && <span className="text-[11px] text-ide-warning font-medium">● 未保存</span>}
-          <div className="flex items-center rounded-md bg-ide-hover overflow-hidden">
+          {!commitHash && (
+        <div className="flex items-center rounded-md bg-ide-hover overflow-hidden">
           <button
             onClick={() => setViewMode('diff')}
             className={`px-2.5 py-1 text-xs transition-colors ${
@@ -329,6 +346,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             Edit
           </button>
         </div>
+          )}
         </div>
       </div>
 
@@ -342,7 +360,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             modified={modifiedContent}
             options={{
               renderSideBySide: true,
-              readOnly: false,
+              readOnly: !!commitHash,
               minimap: { enabled: false },
               scrollBeyondLastLine: false,
               fontSize: 12,

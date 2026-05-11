@@ -78,6 +78,7 @@ interface DiffFileState {
   fullPath: string          // 完整路径（用于 file read/write）
   diffContent: string
   isStaged: boolean
+  commitHash?: string       // 查看历史 commit 时的 commit hash
   lineNumber?: number       // 跳转到指定行
   showSquiggles?: boolean
 }
@@ -253,10 +254,10 @@ export default function App() {
     document.addEventListener('mouseup', onMouseUp)
   }, [leftPanelWidth])
 
-  const handleFileSelect = useCallback((filePath: string, diffContent: string, isStaged: boolean) => {
+  const handleFileSelect = useCallback((filePath: string, diffContent: string, isStaged: boolean, commitHash?: string) => {
     // filePath 是相对路径，需要拼接 workspace 路径得到完整路径
     const fullPath = activeSessionCwd ? `${activeSessionCwd}/${filePath}` : filePath
-    setDiffFile({ filePath, fullPath, diffContent, isStaged })
+    setDiffFile({ filePath, fullPath, diffContent, isStaged, commitHash })
     setCenterView('diff')
   }, [activeSessionCwd])
 
@@ -503,6 +504,7 @@ export default function App() {
               fullPath={diffFile.fullPath}
               diffContent={diffFile.diffContent}
               isStaged={diffFile.isStaged}
+              commitHash={diffFile.commitHash}
               showSquiggles={showSquiggles}
               lineNumber={diffFile.lineNumber}
               onStage={handleStage}

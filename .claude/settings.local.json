@@ -29,7 +29,9 @@
       "Bash(where bb_browser.cmd)",
       "Read(//c/Users/luguan/**)",
       "Bash(npm list *)",
-      "Bash(npm root *)"
+      "Bash(npm root *)",
+      "Bash(npx tsc *)",
+      "Bash(npx electron-vite *)"
     ]
   },
   "outputStyle": "Coding Vibes"

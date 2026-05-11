@@ -5,7 +5,7 @@ import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, 
 
 interface GitPanelProps {
   workspacePath: string | null
-  onFileSelect?: (filePath: string, diffContent: string, isStaged: boolean) => void
+  onFileSelect?: (filePath: string, diffContent: string, isStaged: boolean, commitHash?: string) => void
   refreshKey?: number
   // 右侧终端跳转时，触发中间终端切换到 edit 模式
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
@@ -281,8 +281,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     if (!file.diff || !onFileSelect) return
     const filePath = file.path
     setSelectedFile(filePath)
-    onFileSelect(filePath, file.diff, false)
-  }, [onFileSelect])
+    onFileSelect(filePath, file.diff, false, expandedCommit!)
+  }, [onFileSelect, expandedCommit])
 
   // Stage a file
   const handleStage = useCallback(async (filePath: string) => {
