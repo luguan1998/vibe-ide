@@ -216,10 +216,14 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           handleSaveDiff()
         }
       }
+      if (e.key === 'Escape' && onBack) {
+        e.preventDefault()
+        onBack()
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [viewMode, handleSave, handleSaveDiff])
+  }, [viewMode, handleSave, handleSaveDiff, onBack])
 
   const getLanguageFromFile = (path: string): string => {
     const ext = path.split('.').pop()?.toLowerCase() || ''
@@ -271,6 +275,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       allowNonTsExtensions: true,
       moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
       module: monaco.languages.typescript.ModuleKind.CommonJS,
+      jsx: monaco.languages.typescript.JsxEmit.React,
       noEmit: true
     })
     monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
@@ -287,7 +292,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             <button
               onClick={onBack}
               className="w-6 h-6 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors"
-              title="Back to Terminal"
+              title="Esc"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3.5 h-3.5">
                 <polyline points="15 4 7 12 15 20" />

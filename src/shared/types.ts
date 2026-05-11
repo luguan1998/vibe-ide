@@ -29,6 +29,7 @@ export const IPC_CHANNELS = {
   GIT_SHOW: 'git:show',
   GIT_SHOW_FILE: 'git:showFile',
   GIT_DISCARD: 'git:discard',
+  GIT_REMOTE_BRANCHES: 'git:remoteBranches',
 
   // File
   FILE_READ: 'file:read',

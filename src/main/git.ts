@@ -426,11 +426,33 @@ export function registerGitHandlers(): void {
   })
 
   // Git push
-  ipcMain.handle(IPC_CHANNELS.GIT_PUSH, async () => {
+  ipcMain.handle(IPC_CHANNELS.GIT_PUSH, async (_event, remote?: string, branch?: string) => {
     try {
       const git = getGit()
-      await git.push()
+      if (remote && branch) {
+        await git.push(remote, branch)
+      } else {
+        await git.push()
+      }
       return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Git remote branches
+  ipcMain.handle(IPC_CHANNELS.GIT_REMOTE_BRANCHES, async () => {
+    try {
+      const git = getGit()
+      const result = await git.branch(['-r'])
+      return result.all
+        .filter((name: string) => !name.includes('HEAD'))
+        .map((name: string) => {
+          const parts = name.split('/')
+          const remote = parts[0]
+          const branch = parts.slice(1).join('/')
+          return { name: name.trim(), remote, branch }
+        })
     } catch (err: any) {
       return { error: err.message }
     }

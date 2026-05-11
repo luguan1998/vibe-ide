@@ -36,7 +36,8 @@ declare global {
         stashList: () => Promise<any>
         stashPush: (message?: string) => Promise<any>
         stashPop: () => Promise<any>
-        push: () => Promise<any>
+        push: (remote?: string, branch?: string) => Promise<any>
+        remoteBranches: () => Promise<any>
         init: () => Promise<any>
         show: (hash: string) => Promise<any>
         showFile: (ref: string, filePath: string) => Promise<any>
@@ -382,6 +383,26 @@ export default function App() {
     }
   }, [activeSessionCwd])
 
+  // 处理从文件浏览器打开文件 — 默认 edit 模式
+  const handleOpenFileFromExplorer = useCallback(async (fullPath: string) => {
+    try {
+      let filePath = fullPath
+      if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
+        filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
+      }
+      setDiffFile({
+        filePath,
+        fullPath,
+        diffContent: '',
+        isStaged: false,
+        defaultEdit: true
+      })
+      setCenterView('diff')
+    } catch (err) {
+      console.error('Failed to open file from explorer:', err)
+    }
+  }, [activeSessionCwd])
+
 
   // 当左侧活动 session 的 cwd 变化时，同步更新右侧终端（如果存在）
   React.useEffect(() => {
@@ -520,6 +541,7 @@ export default function App() {
             refreshKey={gitRefreshKey}
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
             onOpenFileFromSearch={handleOpenFileFromSearch}
+            onOpenFileFromExplorer={handleOpenFileFromExplorer}
             rightTerminalSession={rightTerminalSession}
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
