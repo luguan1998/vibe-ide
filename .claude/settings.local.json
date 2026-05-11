@@ -31,7 +31,17 @@
       "Bash(npm list *)",
       "Bash(npm root *)",
       "Bash(npx tsc *)",
-      "Bash(npx electron-vite *)"
+      "Bash(npx electron-vite *)",
+      "Bash(npx electron-builder *)",
+      "Bash(curl -L -o \"%TEMP%/winCodeSign-2.6.0.7z\" \"https://github.com/electron-userland/electron-builder-binaries/releases/download/winCodeSign-2.6.0/winCodeSign-2.6.0.7z\")",
+      "Bash(mkdir -p \"C:/Users/l30033004/AppData/Local/electron-builder/Cache/winCodeSign\")",
+      "Bash(curl -L -o \"C:/Users/l30033004/AppData/Local/electron-builder/Cache/winCodeSign/winCodeSign-2.6.0.7z\" \"https://github.com/electron-userland/electron-builder-binaries/releases/download/winCodeSign-2.6.0/winCodeSign-2.6.0.7z\")",
+      "Bash(mkdir -p /tmp/wcs)",
+      "Bash(node_modules/7zip-bin/win/x64/7za.exe x *)",
+      "Bash(d:/test/vibe-ide/node_modules/app-builder-bin/win/x64/app-builder.exe --help)",
+      "Bash(rm -rf \"C:/Users/l30033004/AppData/Local/electron-builder/Cache/winCodeSign\")",
+      "Bash(d:/test/vibe-ide/node_modules/app-builder-bin/win/x64/app-builder.exe download-artifact *)",
+      "Bash(CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --x64)"
     ]
   },
   "outputStyle": "Coding Vibes"

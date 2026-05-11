@@ -7,7 +7,23 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "start": "electron-vite preview"
+    "start": "electron-vite preview",
+    "package:win": "npm run build && npx electron-builder --win --x64 ; npx node scripts/zip-win.js"
+  },
+  "build": {
+    "appId": "com.vibe-ide",
+    "productName": "Vibe IDE",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "win": {
+      "target": "dir"
+    },
+    "nodeGypRebuild": false,
+    "npmRebuild": false
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
