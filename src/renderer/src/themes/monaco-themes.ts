@@ -23,7 +23,6 @@ export function registerMonacoThemes(monaco: any): void {
     const panel = rgbToHex(css['ide-panel'])
     const scrollThumb = rgbToHex(css['scrollbar-thumb'])
     const scrollThumbHover = rgbToHex(css['scrollbar-thumb-hover'])
-
     const isLight = theme.id === 'github-light' || theme.id === 'solarized-light'
 
     monaco.editor.defineTheme(theme.monacoTheme, {
@@ -55,8 +54,10 @@ export function registerMonacoThemes(monaco: any): void {
         'editorGutter.background': bg,
         'editorRuler.foreground': border,
         'editorOverviewRuler.border': border,
-        'scrollbarSlider.background': scrollThumb,
-        'scrollbarSlider.hoverBackground': scrollThumbHover,
+        'scrollbar.background': 'transparent',
+        'scrollbarSlider.background': scrollThumb + '59',
+        'scrollbarSlider.hoverBackground': scrollThumbHover + '8C',
+        'scrollbarSlider.activeBackground': scrollThumbHover + 'BF',
         'editorOverviewRuler.background': bg,
         'editorStickyScroll.background': sidebar,
         'minimap.background': bg,

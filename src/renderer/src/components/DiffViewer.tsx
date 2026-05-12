@@ -357,10 +357,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               wordWrap: 'on',
               renderIndicators: true,
               scrollbar: {
-                vertical: 'hidden',
-                horizontal: 'hidden',
-                verticalScrollbarSize: 0,
-                horizontalScrollbarSize: 0,
+                verticalScrollbarSize: 5,
+                horizontalScrollbarSize: 5,
                 useShadows: false
               }
             }}
@@ -407,7 +405,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               wordWrap: 'on',
               tabSize: 2,
               automaticLayout: true,
-              padding: { top: 8 }
+              padding: { top: 8 },
+              scrollbar: {
+                verticalScrollbarSize: 8,
+                horizontalScrollbarSize: 8,
+                useShadows: false
+              }
             }}
             beforeMount={configureMonaco}
             onMount={(editor) => {
