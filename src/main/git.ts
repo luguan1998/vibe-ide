@@ -514,17 +514,13 @@ export function registerGitHandlers(): void {
       if (lines[i]) result.author = lines[i++]
       if (lines[i]) result.date = lines[i++]
 
-      const filePaths: string[] = []
-      const fileInfos: { path: string; status: GitCommitFile['status']; additions: number; deletions: number }[] = []
+      const fileInfos: { path: string; status: GitCommitFile['status'] }[] = []
       for (; i < lines.length; i++) {
         const line = lines[i]
         if (line.includes('|')) {
           const parts = line.split('|')
           const path = parts[0].trim()
-          const stats = parts[1].trim()
           let status: GitCommitFile['status'] = 'modified'
-          let additions = 0
-          let deletions = 0
 
           if (path.startsWith('A ')) {
             status = 'added'
@@ -534,32 +530,28 @@ export function registerGitHandlers(): void {
             status = 'renamed'
           }
 
-          const addMatch = stats.match(/(\d+)/)
-          if (addMatch) {
-            if (stats.includes('+') && !stats.includes('-')) {
-              additions = parseInt(addMatch[1])
-            } else if (stats.includes('-') && !stats.includes('+')) {
-              deletions = parseInt(addMatch[1])
-            }
-          }
-
           const cleanPath = path.includes(' -> ')
             ? path.replace('A ', '').split(' -> ')[1]
             : path.replace(/^[AMD]\s*/, '').trim()
-          filePaths.push(cleanPath)
-          fileInfos.push({ path: cleanPath, status, additions, deletions })
+          fileInfos.push({ path: cleanPath, status })
         }
       }
 
       const files: GitCommitFile[] = []
       for (const info of fileInfos) {
         let fileDiff = ''
+        let additions = 0
+        let deletions = 0
         try {
           fileDiff = await git.diff([`${hash}^`, hash, '--', info.path])
+          for (const diffLine of fileDiff.split('\n')) {
+            if (diffLine.startsWith('+') && !diffLine.startsWith('+++')) additions++
+            else if (diffLine.startsWith('-') && !diffLine.startsWith('---')) deletions++
+          }
         } catch {
           fileDiff = ''
         }
-        files.push({ ...info, diff: fileDiff })
+        files.push({ ...info, additions, deletions, diff: fileDiff })
       }
 
       result.files = files

@@ -69,26 +69,15 @@ function parseDiffContent(diff: string): { original: string; modified: string } 
 }
 
 function parseDiffStats(diff: string): { additions: number; deletions: number } {
-  const lines = diff.split('\n')
-  let totalAdditions = 0
-  let totalDeletions = 0
+  let additions = 0
+  let deletions = 0
 
-  for (const line of lines) {
-    if (line.startsWith('@@')) {
-      const match = line.match(/@@\s*-(\d+)(?:,(\d+))?\s*\+(\d+)(?:,(\d+))?\s*@@/)
-      if (match) {
-        const oldLines = parseInt(match[1])
-        const oldCount = parseInt(match[2]) || oldLines
-        const newLines = parseInt(match[3])
-        const newCount = parseInt(match[4]) || newLines
-
-        totalDeletions += oldCount
-        totalAdditions += newCount
-      }
-    }
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+') && !line.startsWith('+++')) additions++
+    else if (line.startsWith('-') && !line.startsWith('---')) deletions++
   }
 
-  return { additions: totalAdditions, deletions: totalDeletions }
+  return { additions, deletions }
 }
 
 const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, onStage, onUnstage, onBack, onSaved, onRefreshDiff, defaultEdit }: DiffViewerProps) {
