@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { ClipboardAddon } from '@xterm/addon-clipboard'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
+import { WebglAddon } from '@xterm/addon-webgl'
 import { useTheme } from '../themes'
 import '@xterm/xterm/css/xterm.css'
 
@@ -241,7 +242,8 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
       scrollback: 10000,
       allowTransparency: true,
       allowProposedApi: true,
-      windowsMode: true
+      windowsMode: true,
+      drawBoldTextInBrightColors: false
     })
 
     const fitAddon = new FitAddon()
@@ -254,6 +256,12 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     term.loadAddon(clipboardAddon)
     term.loadAddon(unicode11Addon)
     term.unicode.activeVersion = '11'
+
+    try {
+      term.loadAddon(new WebglAddon())
+    } catch {
+      // WebGL 不可用时回退到 Canvas 渲染器
+    }
 
     term.open(terminalRef.current)
     fitAddon.fit()

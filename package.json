@@ -5,10 +5,10 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "electron-vite build && node scripts/copy-monaco.js",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
-    "package:win": "npm run build && npx electron-builder --win --x64 ; npx node scripts/zip-win.js"
+    "package:win": "npm run build && npx electron-builder --win --x64 && node scripts/set-icon.js && npx node scripts/zip-win.js"
   },
   "build": {
     "appId": "com.vibe-ide",
@@ -20,7 +20,8 @@
       "out/**/*"
     ],
     "win": {
-      "target": "dir"
+      "target": "dir",
+      "signAndEditExecutable": false
     },
     "nodeGypRebuild": false,
     "npmRebuild": false
@@ -33,6 +34,7 @@
     "@xterm/addon-fit": "latest",
     "@xterm/addon-unicode11": "^0.9.0",
     "@xterm/addon-web-links": "latest",
+    "@xterm/addon-webgl": "^0.18.0",
     "@xterm/xterm": "^5.5.0",
     "lucide-react": "^0.469.0",
     "monaco-editor": "^0.52.2",
@@ -49,7 +51,9 @@
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
+    "png-to-ico": "^3.0.1",
     "postcss": "^8.4.49",
+    "resedit": "^3.0.2",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
     "vite": "^5.4.11"

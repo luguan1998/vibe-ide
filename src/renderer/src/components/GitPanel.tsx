@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import TerminalView from './TerminalView'
+const TerminalView = React.lazy(() => import('./TerminalView'))
 import SearchPanel from './SearchPanel'
 import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, GitCommitFile, TerminalSession, FileNode } from '@shared/types'
 
@@ -1098,14 +1098,16 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       {activeSection === 'terminal' && (
         <div className="flex-1 flex flex-col overflow-hidden">
           {rightTerminalSession ? (
-            <TerminalView
-              sessionId={rightTerminalSession.id}
-              sessionName="Right Terminal"
-              sessionCwd={rightTerminalSession.cwd}
-              onOpenFile={handleRightTerminalOpenFile}
-              showHeader={false}
-              fontSize={12}
-            />
+            <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">Loading...</div>}>
+              <TerminalView
+                sessionId={rightTerminalSession.id}
+                sessionName="Right Terminal"
+                sessionCwd={rightTerminalSession.cwd}
+                onOpenFile={handleRightTerminalOpenFile}
+                showHeader={false}
+                fontSize={12}
+              />
+            </React.Suspense>
           ) : workspacePath ? (
             <div className="flex-1 flex items-center justify-center">
               <button
