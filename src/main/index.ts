@@ -1,8 +1,8 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { registerPtyHandlers } from './pty'
-import { registerGitHandlers } from './git'
+import { registerPtyHandlers, cleanupTerminals } from './pty'
+import { registerGitHandlers, cleanupGitWatcher } from './git'
 import { registerFileHandlers } from './file'
 import { registerSearchHandlers } from './search'
 import { IPC_CHANNELS } from '../shared/types'
@@ -40,6 +40,10 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow!.show()
+  })
+
+  mainWindow.on('closed', () => {
+    mainWindow = null
   })
 
   // Open DevTools in dev mode for debugging
@@ -96,6 +100,11 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('before-quit', () => {
+  cleanupTerminals()
+  cleanupGitWatcher()
 })
 
 app.on('window-all-closed', () => {

@@ -124,6 +124,15 @@ function mapStatus(raw: string, index: string): GitStatusResult {
   }
 }
 
+export function cleanupGitWatcher(): void {
+  if (gitWatcher) {
+    gitWatcher.close()
+    gitWatcher = null
+  }
+  if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null }
+  if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null }
+}
+
 export function registerGitHandlers(): void {
   // Set git workspace path — switches git instance to a new directory
   ipcMain.handle(IPC_CHANNELS.GIT_SET_WORKSPACE, async (_event, path: string) => {
