@@ -61,7 +61,7 @@ html, body, #root {
 
 /* xterm overrides */
 .xterm {
-  padding: 4px;
+  padding: 0;
 }
 
 /* Monaco editor overrides */

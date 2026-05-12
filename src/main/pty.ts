@@ -38,7 +38,8 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
         env: Object.assign({}, process.env, {
           LANG: 'en_US.UTF-8',
           LC_ALL: 'en_US.UTF-8',
-          PYTHONUTF8: '1'
+          PYTHONUTF8: '1',
+          COLORTERM: 'truecolor'
         }) as Record<string, string>
       })
 

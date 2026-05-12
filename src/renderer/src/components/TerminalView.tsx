@@ -234,9 +234,11 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
 
     const term = new Terminal({
       theme: currentTheme.terminal,
-      fontFamily: 'JetBrains Mono, Fira Code, Cascadia Code, Consolas, monospace',
+      fontFamily: 'Cascadia Code, JetBrains Mono, Fira Code, Consolas, monospace',
       fontSize,
-      lineHeight: 1.2,
+      fontWeight: '400',
+      letterSpacing: 0,
+      lineHeight: 1.0,
       cursorBlink: true,
       cursorStyle: 'bar',
       scrollback: 10000,
