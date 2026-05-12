@@ -399,6 +399,7 @@ export default function App() {
         fullPath,
         diffContent: '',
         isStaged: false,
+        defaultEdit: true,
         lineNumber
       })
       setCenterView('diff')
