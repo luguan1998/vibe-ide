@@ -339,7 +339,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         </div>
       </div>
 
-      <div className="overflow-auto" style={{ height: 'calc(100vh - 80px)' }}>
+      <div className="overflow-hidden" style={{ height: 'calc(100vh - 80px)' }}>
         {viewMode === 'diff' ? (
           <DiffEditor
             height="100%"
@@ -355,7 +355,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               fontSize: 12,
               lineNumbers: 'on',
               wordWrap: 'on',
-              renderIndicators: true
+              renderIndicators: true,
+              scrollbar: {
+                vertical: 'hidden',
+                horizontal: 'hidden',
+                useShadows: false
+              }
             }}
             beforeMount={configureMonaco}
             onMount={(editor) => {

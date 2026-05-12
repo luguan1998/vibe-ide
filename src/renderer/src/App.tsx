@@ -1,11 +1,11 @@
 import React, { useState, useCallback, lazy, Suspense } from 'react'
 import SessionPanel from './components/SessionPanel'
 import GitPanel from './components/GitPanel'
+import DiffViewer from './components/DiffViewer'
 import { TerminalSession, RenameTerminalResult } from '@shared/types'
 import { useTheme } from './themes'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
-const DiffViewer = lazy(() => import('./components/DiffViewer'))
 
 // Declare the window API type
 declare global {
@@ -503,23 +503,21 @@ export default function App() {
         {/* Center Panel: Terminal or Diff */}
         <div className="flex-1 flex flex-col overflow-hidden bg-ide-bg">
           {centerView === 'diff' && diffFile ? (
-            <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
-              <DiffViewer
-                filePath={diffFile.filePath}
-                fullPath={diffFile.fullPath}
-                diffContent={diffFile.diffContent}
-                isStaged={diffFile.isStaged}
-                commitHash={diffFile.commitHash}
-                showSquiggles={showSquiggles}
-                lineNumber={diffFile.lineNumber}
-                onStage={handleStage}
-                onUnstage={handleUnstage}
-                onBack={handleBackToTerminal}
-                onSaved={handleRefreshGit}
-                onRefreshDiff={handleRefreshDiff}
-                defaultEdit={diffFile.defaultEdit}
-              />
-            </Suspense>
+            <DiffViewer
+              filePath={diffFile.filePath}
+              fullPath={diffFile.fullPath}
+              diffContent={diffFile.diffContent}
+              isStaged={diffFile.isStaged}
+              commitHash={diffFile.commitHash}
+              showSquiggles={showSquiggles}
+              lineNumber={diffFile.lineNumber}
+              onStage={handleStage}
+              onUnstage={handleUnstage}
+              onBack={handleBackToTerminal}
+              onSaved={handleRefreshGit}
+              onRefreshDiff={handleRefreshDiff}
+              defaultEdit={diffFile.defaultEdit}
+            />
           ) : sessions.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-ide-text-muted">
               No active terminal session. Create one to start.

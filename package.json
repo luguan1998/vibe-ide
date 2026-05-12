@@ -5,7 +5,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build && node scripts/copy-monaco.js",
+    "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
     "package:win": "npm run build && npx electron-builder --win --x64 && node scripts/set-icon.js && npx node scripts/zip-win.js"
