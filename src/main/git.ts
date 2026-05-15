@@ -271,13 +271,14 @@ export function registerGitHandlers(): void {
       let diffOutput: string
 
       if (filePath) {
-        diffOutput = staged
-          ? await git.diff(['--cached', filePath])
-          : await git.diff([filePath])
+        const cmdArgs = staged
+          ? ['diff', '--cached', '--', filePath]
+          : ['diff', '--', filePath]
+        diffOutput = await git.raw(cmdArgs)
       } else {
         diffOutput = staged
-          ? await git.diff(['--cached'])
-          : await git.diff()
+          ? await git.raw(['diff', '--cached'])
+          : await git.raw(['diff'])
       }
 
       return { content: diffOutput } as GitDiffResult

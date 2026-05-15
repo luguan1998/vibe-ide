@@ -92,6 +92,34 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GREP, options)
   },
 
+  // Font size adjustment (pushed from main process for Ctrl+-/= that Chromium eats)
+  onFontAdjust: (callback: (delta: number) => void) => {
+    const handler = (_event: any, delta: number) => callback(delta)
+    ipcRenderer.on(IPC_CHANNELS.FONT_ADJUST, handler)
+    return handler
+  },
+  removeFontAdjustListener: (handler?: any) => {
+    if (handler) {
+      ipcRenderer.removeListener(IPC_CHANNELS.FONT_ADJUST, handler)
+    } else {
+      ipcRenderer.removeAllListeners(IPC_CHANNELS.FONT_ADJUST)
+    }
+  },
+
+  // Focus events (from menu)
+  onFocusSettings: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on(IPC_CHANNELS.FOCUS_SETTINGS, handler)
+    return handler
+  },
+  removeFocusSettingsListener: (handler?: any) => {
+    if (handler) {
+      ipcRenderer.removeListener(IPC_CHANNELS.FOCUS_SETTINGS, handler)
+    } else {
+      ipcRenderer.removeAllListeners(IPC_CHANNELS.FOCUS_SETTINGS)
+    }
+  },
+
   // Theme operations
   theme: {
     setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) =>

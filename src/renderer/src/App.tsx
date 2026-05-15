@@ -3,6 +3,7 @@ import SessionPanel from './components/SessionPanel'
 import GitPanel from './components/GitPanel'
 import DiffViewer from './components/DiffViewer'
 import { TerminalSession, RenameTerminalResult } from '@shared/types'
+import { getShortcuts, eventMatchesBinding } from './shortcuts'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
 
@@ -66,6 +67,10 @@ declare global {
       theme: {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
       }
+      onFontAdjust: (callback: (delta: number) => void) => any
+      removeFontAdjustListener: (handler?: any) => void
+      onFocusSettings: (callback: () => void) => any
+      removeFocusSettingsListener: (handler?: any) => void
     }
   }
 }
@@ -95,8 +100,59 @@ export default function App() {
   const [showSquiggles, setShowSquiggles] = useState(false)
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
+  const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
   const [claudeStatus, setClaudeStatus] = useState<Record<string, 'running' | 'idle' | null>>({})
+  const [terminalFontSize, setTerminalFontSize] = useState(() => {
+    try {
+      const v = localStorage.getItem('vibe-ide-terminal-font-size')
+      return v ? Math.max(8, Math.min(30, Number(v))) : 14
+    } catch { return 14 }
+  })
+  const [editorFontSize, setEditorFontSize] = useState(() => {
+    try {
+      const v = localStorage.getItem('vibe-ide-editor-font-size')
+      return v ? Math.max(8, Math.min(30, Number(v))) : 13
+    } catch { return 13 }
+  })
+  const centerViewRef = React.useRef<CenterView>('terminal')
+
+  // Keep ref in sync so IPC listener always sees latest centerView
+  React.useEffect(() => {
+    centerViewRef.current = centerView
+  }, [centerView])
+
+  // Persist font sizes to localStorage
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-terminal-font-size', String(terminalFontSize)) } catch {}
+  }, [terminalFontSize])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-editor-font-size', String(editorFontSize)) } catch {}
+  }, [editorFontSize])
+
+  // Listen for font-adjust IPC from main process (for Ctrl+-/= keys eaten by Chromium)
+  React.useEffect(() => {
+    const handler = window.api.onFontAdjust((delta: number) => {
+      if (centerViewRef.current === 'terminal') {
+        setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
+      } else {
+        setEditorFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
+      }
+    })
+    return () => {
+      window.api.removeFontAdjustListener(handler)
+    }
+  }, [])
+
+  // Listen for focus:settings IPC from main process menu
+  React.useEffect(() => {
+    const handler = window.api.onFocusSettings(() => {
+      setFocusSettingsTrigger(k => k + 1)
+    })
+    return () => {
+      window.api.removeFocusSettingsListener(handler)
+    }
+  }, [])
 
   const handleClaudeStatusChange = useCallback((sessionId: string, status: 'running' | 'idle' | null) => {
     setClaudeStatus(prev => {
@@ -118,27 +174,58 @@ export default function App() {
   // Global keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+F → focus search in right panel
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      const bindings = getShortcuts()
+
+      // search.focus → focus search in right panel
+      if (eventMatchesBinding(e, bindings['search.focus'])) {
         if (centerView !== 'diff') {
           e.preventDefault()
           e.stopImmediatePropagation()
           setSearchFocusTrigger(k => k + 1)
         }
       }
-      // Ctrl+Up/Down → switch terminal session
-      if (e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-          e.preventDefault()
-          const idx = sessions.findIndex(s => s.id === activeSessionId)
-          const next = e.key === 'ArrowUp'
-            ? (idx - 1 + sessions.length) % sessions.length
-            : (idx + 1) % sessions.length
-          if (sessions[next]) {
-            setActiveSessionId(sessions[next].id)
-            setCenterView('terminal')
-            setDiffFile(null)
-          }
+
+      // terminal.next / terminal.prev → switch terminal session
+      if (eventMatchesBinding(e, bindings['terminal.next'])) {
+        e.preventDefault()
+        const idx = sessions.findIndex(s => s.id === activeSessionId)
+        const next = (idx + 1) % sessions.length
+        if (sessions[next]) {
+          setActiveSessionId(sessions[next].id)
+          setCenterView('terminal')
+          setDiffFile(null)
+        }
+      }
+      if (eventMatchesBinding(e, bindings['terminal.prev'])) {
+        e.preventDefault()
+        const idx = sessions.findIndex(s => s.id === activeSessionId)
+        const next = (idx - 1 + sessions.length) % sessions.length
+        if (sessions[next]) {
+          setActiveSessionId(sessions[next].id)
+          setCenterView('terminal')
+          setDiffFile(null)
+        }
+      }
+
+      // font.increase / font.decrease → adjust font size
+      // Also match numpad aliases (NumpadAdd ⇔ Equal, NumpadSubtract ⇔ Minus)
+      const increaseMatch =
+        eventMatchesBinding(e, bindings['font.increase']) ||
+        (bindings['font.increase'].endsWith('Equal') &&
+         eventMatchesBinding(e, bindings['font.increase'].replace('Equal', 'NumpadAdd')))
+      const decreaseMatch =
+        eventMatchesBinding(e, bindings['font.decrease']) ||
+        (bindings['font.decrease'].endsWith('Minus') &&
+         eventMatchesBinding(e, bindings['font.decrease'].replace('Minus', 'NumpadSubtract')))
+
+      if (increaseMatch || decreaseMatch) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const delta = decreaseMatch ? -1 : 1
+        if (centerView === 'terminal') {
+          setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
+        } else if (centerView === 'diff') {
+          setEditorFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
         }
       }
     }
@@ -463,6 +550,7 @@ export default function App() {
             claudeStatus={claudeStatus}
             showSquiggles={showSquiggles}
             onToggleSquiggles={setShowSquiggles}
+            focusSettingsTrigger={focusSettingsTrigger}
           />
         </div>
 
@@ -489,6 +577,7 @@ export default function App() {
               onSaved={handleRefreshGit}
               onRefreshDiff={handleRefreshDiff}
               defaultEdit={diffFile.defaultEdit}
+              fontSize={editorFontSize}
             />
           ) : sessions.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-ide-text-muted">
@@ -502,7 +591,7 @@ export default function App() {
                   className="flex-1 flex flex-col overflow-hidden"
                   style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
                 >
-                  <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} onClaudeStatusChange={handleClaudeStatusChange} />
+                  <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} newlineShortcut={getShortcuts()['terminal.newline']} onClaudeStatusChange={handleClaudeStatusChange} />
                 </div>
               ))}
             </Suspense>

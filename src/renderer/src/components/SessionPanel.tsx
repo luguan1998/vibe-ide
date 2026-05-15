@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { TerminalSession } from '@shared/types'
 import { Zap, Coffee, Plus, Settings } from 'lucide-react'
 import { useTheme } from '../themes'
+import SettingsPanel from './SettingsPanel'
 
 const SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '🤖', '🐸', '👾', '🎯', '🚀', '⚡', '🌟', '💫', '🌀', '🎭', '🪐', '👻', '🍕', '🎲', '🧩', '🌈', '🦧', '🐉', '🎸']
 
@@ -30,6 +31,7 @@ interface SessionPanelProps {
   claudeStatus?: Record<string, 'running' | 'idle' | null>
   showSquiggles?: boolean
   onToggleSquiggles?: (value: boolean) => void
+  focusSettingsTrigger?: number
 }
 
 const SessionPanel = React.memo(function SessionPanel({
@@ -44,15 +46,19 @@ const SessionPanel = React.memo(function SessionPanel({
   commandHistory = {},
   claudeStatus = {},
   showSquiggles = false,
-  onToggleSquiggles
+  onToggleSquiggles,
+  focusSettingsTrigger = 0
 }: SessionPanelProps) {
+  const [showShortcuts, setShowShortcuts] = useState(false)
   const [showConfigMenu, setShowConfigMenu] = useState(false)
+  const [showThemeFlyout, setShowThemeFlyout] = useState(false)
   const { themes, currentThemeId, setTheme } = useTheme()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
   const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; name: string; left: number; top: number } | null>(null)
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const themeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
@@ -81,6 +87,13 @@ const SessionPanel = React.memo(function SessionPanel({
     document.addEventListener('click', handleClick, true)
     return () => document.removeEventListener('click', handleClick, true)
   }, [showConfigMenu])
+
+  // Menu → Settings → Keyboard Shortcuts opens the shortcuts modal
+  useEffect(() => {
+    if (focusSettingsTrigger > 0) {
+      setShowShortcuts(true)
+    }
+  }, [focusSettingsTrigger])
 
   const handleContextMenu = (e: React.MouseEvent, sessionId: string) => {
     e.preventDefault()
@@ -141,32 +154,71 @@ const SessionPanel = React.memo(function SessionPanel({
         <div className="flex items-center gap-1.5">
           <div className="relative config-menu-area">
             <button
-              className="w-6 h-6 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-active hover:text-ide-text flex items-center justify-center transition-colors shrink-0"
+              className={`w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${
+                showConfigMenu
+                  ? 'text-ide-accent bg-ide-accent/20'
+                  : 'text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white'
+              }`}
               onClick={() => setShowConfigMenu(!showConfigMenu)}
               title="Settings"
             >
               <Settings size={13} />
             </button>
             {showConfigMenu && (
-              <div className="absolute right-0 top-full mt-1 w-48 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 max-h-80 overflow-y-auto config-menu-area">
-                <div className="px-3 py-1 text-[11px] text-ide-text-muted uppercase tracking-wider">Theme</div>
-                {themes.map((t) => (
+              <div className="absolute right-0 top-full mt-1 w-44 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 config-menu-area">
+                {/* Theme flyout */}
+                <div
+                  className="relative"
+                  onMouseEnter={() => {
+                    if (themeFlyoutTimerRef.current) clearTimeout(themeFlyoutTimerRef.current)
+                    setShowThemeFlyout(true)
+                  }}
+                  onMouseLeave={() => {
+                    themeFlyoutTimerRef.current = setTimeout(() => setShowThemeFlyout(false), 200)
+                  }}
+                >
+                  <div className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover flex items-center justify-between cursor-default transition-colors">
+                    Theme
+                    <span className="text-ide-text-muted text-[10px]">▶</span>
+                  </div>
+                  {showThemeFlyout && (
+                    <div
+                      className="absolute left-full top-0 ml-1 w-40 bg-ide-bg border border-ide-border rounded shadow-lg py-1 max-h-64 overflow-y-auto"
+                      onMouseEnter={() => {
+                        if (themeFlyoutTimerRef.current) clearTimeout(themeFlyoutTimerRef.current)
+                      }}
+                      onMouseLeave={() => setShowThemeFlyout(false)}
+                    >
+                      {themes.map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => { setTheme(t.id); setShowConfigMenu(false); setShowThemeFlyout(false) }}
+                          className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 transition-colors ${
+                            currentThemeId === t.id
+                              ? 'text-ide-accent bg-ide-accent/10'
+                              : 'text-ide-text hover:bg-ide-hover'
+                          }`}
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full border border-ide-border shrink-0"
+                            style={{ backgroundColor: `rgb(${t.css['ide-accent']})` }}
+                          />
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Keyboard Shortcuts */}
+                <div className="border-t border-ide-border mt-1 pt-1">
                   <button
-                    key={t.id}
-                    onClick={() => { setTheme(t.id); setShowConfigMenu(false) }}
-                    className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 transition-colors ${
-                      currentThemeId === t.id
-                        ? 'text-ide-accent bg-ide-accent/10'
-                        : 'text-ide-text hover:bg-ide-hover'
-                    }`}
+                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                    onClick={() => { setShowShortcuts(true); setShowConfigMenu(false) }}
                   >
-                    <span
-                      className="w-3 h-3 rounded-full border border-ide-border shrink-0"
-                      style={{ backgroundColor: `rgb(${t.css['ide-accent']})` }}
-                    />
-                    {t.label}
+                    Keyboard Shortcuts
                   </button>
-                ))}
+                </div>
+                {/* Squiggles at bottom */}
                 {onToggleSquiggles && (
                   <div className="border-t border-ide-border mt-1 pt-1">
                     <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover cursor-pointer">
@@ -212,9 +264,9 @@ const SessionPanel = React.memo(function SessionPanel({
               draggable={!!onReorderSessions}
               className={`group px-3 py-2 mx-1 rounded cursor-pointer transition-colors ${
                 session.id === activeSessionId
-                  ? 'bg-ide-accent/20 text-ide-text border-l-2 border-ide-accent'
+                  ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
                   : claudeStatus[session.id] === 'running'
-                    ? 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text border-l-2 border-ide-accent/60 animate-border-pulse'
+                    ? 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text border-l-[3px] border-ide-accent/60 animate-border-pulse'
                     : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
               } ${dragIndex === index ? 'opacity-40' : ''} ${dropIndex === index && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
               onClick={() => onSwitchSession(session.id)}
@@ -281,13 +333,16 @@ const SessionPanel = React.memo(function SessionPanel({
                   ) : (
                     <span className="text-sm truncate">{session.name}</span>
                   )}
+                  {session.id !== activeSessionId && claudeStatus[session.id] === 'running' && (
+                    <span className="text-[10px] text-ide-accent animate-march ml-0.5 shrink-0 font-mono font-bold">&gt;&gt;</span>
+                  )}
                 </div>
                 <button
                     onClick={(e) => {
                       e.stopPropagation()
                       onCloseSession(session.id)
                     }}
-                    className="opacity-0 group-hover:opacity-100 w-4 h-4 rounded text-ide-text-muted hover:text-ide-danger transition-all shrink-0"
+                    className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
                     title="Close Session"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
@@ -403,6 +458,26 @@ const SessionPanel = React.memo(function SessionPanel({
           </div>
         )
       })()}
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcuts && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowShortcuts(false)}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+              <span className="text-sm font-semibold text-ide-text">Keyboard Shortcuts</span>
+              <button
+                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                onClick={() => setShowShortcuts(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <SettingsPanel />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 })

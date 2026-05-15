@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers, cleanupTerminals } from './pty'
@@ -58,6 +58,20 @@ function createWindow(): void {
     }
   }, 2000)
 
+  // Intercept Ctrl+= / Ctrl++ / Ctrl+- at the main-process level
+  // Chromium eats main-keyboard Ctrl+- before it reaches the renderer, so we
+  // must detect it here, block the default zoom, and forward via IPC
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.control && !input.meta) {
+      const isZoomKey = input.key === '=' || input.key === '+' || input.key === '-'
+      if (isZoomKey) {
+        event.preventDefault()
+        const delta = input.key === '-' ? -1 : 1
+        mainWindow?.webContents.send(IPC_CHANNELS.FONT_ADJUST, delta)
+      }
+    }
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -89,6 +103,51 @@ app.whenReady().then(() => {
 
   // Register PTY handlers after window is created
   registerPtyHandlers(mainWindow)
+
+  // Clamp zoom to 100% — prevents Chromium's built-in page zoom from eating Ctrl+= / Ctrl+-
+  if (mainWindow) {
+    mainWindow.webContents.setVisualZoomLevelLimits(1, 1)
+  }
+
+  // Minimal app menu WITHOUT zoomIn/zoomOut/ResetZoom roles
+  // so Ctrl+= / Ctrl+- are not eaten as menu accelerators
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: 'File',
+      submenu: [{ role: 'quit' }]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Settings',
+      submenu: [
+        {
+          label: 'Keyboard Shortcuts',
+          click: () => {
+            mainWindow?.webContents.send(IPC_CHANNELS.FOCUS_SETTINGS)
+          }
+        }
+      ]
+    }
+  ]))
 
   // Title bar theme update
   ipcMain.on(IPC_CHANNELS.TITLE_BAR_UPDATE, (_, options) => {

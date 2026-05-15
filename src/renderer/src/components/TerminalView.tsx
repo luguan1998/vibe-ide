@@ -3,6 +3,7 @@ import { Terminal, ILinkProvider, ILink, IBufferRange } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { ClipboardAddon } from '@xterm/addon-clipboard'
+import { eventMatchesBinding } from '../shortcuts'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { useTheme } from '../themes'
@@ -42,6 +43,7 @@ interface TerminalViewProps {
   fontSize?: number
   isAux?: boolean
   onClaudeStatusChange?: (sessionId: string, status: 'running' | 'idle' | null) => void
+  newlineShortcut?: string // e.g. "Shift+Enter"
 }
 
 /**
@@ -220,7 +222,7 @@ const CLAUDE_END_RE = /\x1b\[\?1049l/
 const IDLE_THRESHOLD = 3000
 const IDLE_CHECK_INTERVAL = 2000
 
-const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onClaudeStatusChange}: TerminalViewProps) {
+const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onClaudeStatusChange, newlineShortcut = 'Shift+Enter'}: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -229,6 +231,8 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
   const linkProviderRef = useRef<any>(null)
   const [isReady, setIsReady] = useState(false)
   const { theme: currentTheme } = useTheme()
+  const newlineShortcutRef = useRef(newlineShortcut)
+  newlineShortcutRef.current = newlineShortcut
   const claudePresentRef = useRef(false)
   const lastOutputRef = useRef(0)
   const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -283,10 +287,10 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     fitAddonRef.current = fitAddon
     setIsReady(true)
 
-    // Custom key bindings: Shift+Enter → newline, Ctrl+C → copy selection
+    // Custom key bindings: newline (configurable), Ctrl+C → copy selection
     // Must use DOM capture to intercept before xterm.js's internal handlers
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && e.shiftKey) {
+      if (eventMatchesBinding(e, newlineShortcutRef.current)) {
         e.preventDefault()
         e.stopImmediatePropagation()
         window.api.terminal.write(sessionId, '\x1b\r')
@@ -358,6 +362,14 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
       if (el) el.style.backgroundColor = currentTheme.terminal.background
     }
   }, [currentTheme])
+
+  // Update font size dynamically without recreating terminal
+  useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.options.fontSize = fontSize
+      try { fitAddonRef.current?.fit() } catch {}
+    }
+  }, [fontSize])
 
   // Listen for terminal data from PTY
   useEffect(() => {

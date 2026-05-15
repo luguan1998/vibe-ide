@@ -47,7 +47,13 @@ export const IPC_CHANNELS = {
   SEARCH_GREP: 'search:grep',
 
   // Theme
-  TITLE_BAR_UPDATE: 'titlebar:update'
+  TITLE_BAR_UPDATE: 'titlebar:update',
+
+  // Font
+  FONT_ADJUST: 'font:adjust',
+
+  // Focus
+  FOCUS_SETTINGS: 'focus:settings'
 } as const
 
 // Terminal types

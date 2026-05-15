@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 const TerminalView = React.lazy(() => import('./TerminalView'))
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Lightbulb } from 'lucide-react'
 import SearchPanel from './SearchPanel'
+import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, GitCommitFile, TerminalSession, FileNode } from '@shared/types'
 
 interface GitPanelProps {
@@ -336,15 +337,18 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const tabOrder = ['git', 'terminal', 'search', 'file'] as const
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (!e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      const bindings = getShortcuts()
+      if (eventMatchesBinding(e, bindings['panel.tabRight'])) {
         e.preventDefault()
         e.stopImmediatePropagation()
         const idx = tabOrder.indexOf(activeSection)
-        const next = e.key === 'ArrowRight'
-          ? (idx + 1) % tabOrder.length
-          : (idx - 1 + tabOrder.length) % tabOrder.length
-        setActiveSection(tabOrder[next])
+        setActiveSection(tabOrder[(idx + 1) % tabOrder.length])
+      }
+      if (eventMatchesBinding(e, bindings['panel.tabLeft'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const idx = tabOrder.indexOf(activeSection)
+        setActiveSection(tabOrder[(idx - 1 + tabOrder.length) % tabOrder.length])
       }
     }
     window.addEventListener('keydown', handleKey, true)
@@ -728,7 +732,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
         {/* 顶部栏目切换 — Codex 风格 */}
         <div className="h-10 flex items-center shrink-0 px-3 border-b border-ide-border">
           <span className="text-xs font-semibold text-ide-text tracking-wide uppercase">
-            {activeSection === 'git' ? 'Git' : activeSection === 'terminal' ? 'Aux' : activeSection === 'search' ? 'Find' : 'File'}
+            {activeSection === 'git' ? 'Git' : activeSection === 'terminal' ? 'Aux' : activeSection === 'search' ? 'Find' : activeSection === 'file' ? 'File' : 'Settings'}
           </span>
           <div className="flex-1" />
           <div className="flex items-center gap-0.5">
@@ -788,7 +792,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       {/* 顶部栏目切换 — Codex 风格 */}
       <div className="h-10 flex items-center shrink-0 px-3 border-b border-ide-border">
         <span className="text-xs font-semibold text-ide-text tracking-wide uppercase">
-          {activeSection === 'git' ? 'Git' : activeSection === 'terminal' ? 'Aux' : activeSection === 'search' ? 'Find' : 'File'}
+          {activeSection === 'git' ? 'Git' : activeSection === 'terminal' ? 'Aux' : activeSection === 'search' ? 'Find' : activeSection === 'file' ? 'File' : 'Settings'}
         </span>
         <div className="flex-1" />
         <div className="flex items-center gap-0.5">
@@ -1400,7 +1404,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           {docTree.length > 0 && (
             <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '45%', overflowY: 'auto' }}>
               <div className="px-2 py-1 text-[10px] text-ide-text-muted uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm">
-                架构
+                <Lightbulb size={12} className="text-ide-text-muted" />
+                <span className="ml-1">arch</span>
               </div>
               {docTree.map(node => (
                 <DocTreeItem

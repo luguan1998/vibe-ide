@@ -11,6 +11,7 @@ interface DiffViewerProps {
   commitHash?: string       // 查看历史 commit 时的 commit hash
   showSquiggles?: boolean
   lineNumber?: number       // 跳转到指定行
+  fontSize?: number         // 编辑器字体大小
   onStage: (path: string) => Promise<void>
   onUnstage: (path: string) => Promise<void>
   onBack?: () => void
@@ -43,6 +44,9 @@ function parseDiffContent(diff: string): { original: string; modified: string } 
 
     // Only process lines inside hunks
     if (!inHunk) continue
+
+    // Skip "No newline at end of file" marker — it's metadata, not content
+    if (line.startsWith('\\ ')) continue
 
     // Handle diff content lines
     if (line.startsWith('-')) {
@@ -80,7 +84,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions, deletions }
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, onStage, onUnstage, onBack, onSaved, onRefreshDiff, defaultEdit }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 13, onStage, onUnstage, onBack, onSaved, onRefreshDiff, defaultEdit }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
 
   const [viewMode, setViewMode] = useState<ViewMode>(defaultEdit ? 'edit' : 'diff')
@@ -133,13 +137,17 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         original = parentResult.error ? '' : parentResult.content
         modified = commitResult.error ? '' : (commitResult.content || '')
       } else {
-        const [headResult, currResult] = await Promise.all([
-          window.api.git.showFile('HEAD', filePath),
+        // Staged:   HEAD  vs INDEX  (git show '' = index)
+        // Unstaged: INDEX vs WORKTREE (file.read = working tree)
+        const [stagedResult, currResult] = await Promise.all([
+          isStaged
+            ? window.api.git.showFile('HEAD', filePath)
+            : window.api.git.showFile('', filePath),
           isStaged
             ? window.api.git.showFile('', filePath)
             : window.api.file.read(fullPath)
         ])
-        original = headResult.error ? '' : headResult.content
+        original = stagedResult.error ? '' : stagedResult.content
         modified = currResult.error ? '' : (currResult.content || '')
       }
 
@@ -352,7 +360,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               readOnly: !!commitHash,
               minimap: { enabled: false },
               scrollBeyondLastLine: false,
-              fontSize: 12,
+              fontSize,
               lineNumbers: 'on',
               wordWrap: 'on',
               renderIndicators: true,
@@ -400,7 +408,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             options={{
               minimap: { enabled: false },
               scrollBeyondLastLine: false,
-              fontSize: 13,
+              fontSize,
               lineNumbers: 'on',
               wordWrap: 'on',
               tabSize: 2,
