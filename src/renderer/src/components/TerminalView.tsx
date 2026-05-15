@@ -38,8 +38,10 @@ interface TerminalViewProps {
   sessionCwd?: string
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   onCommand?: (command: string) => void
-  showHeader?: boolean  // 是否显示顶部标题栏，默认 true
+  showHeader?: boolean
   fontSize?: number
+  isAux?: boolean
+  onClaudeStatusChange?: (sessionId: string, status: 'running' | 'idle' | null) => void
 }
 
 /**
@@ -213,7 +215,12 @@ class FileLinkProvider implements ILinkProvider {
   }
 }
 
-const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14}: TerminalViewProps) {
+const CLAUDE_START_RE = /\x1b\]0;.*?(?:claude|v\d+\.\d+).*?\x07|\x1b\[\?1049h/i
+const CLAUDE_END_RE = /\x1b\[\?1049l/
+const IDLE_THRESHOLD = 3000
+const IDLE_CHECK_INTERVAL = 2000
+
+const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onClaudeStatusChange}: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -222,6 +229,10 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
   const linkProviderRef = useRef<any>(null)
   const [isReady, setIsReady] = useState(false)
   const { theme: currentTheme } = useTheme()
+  const claudePresentRef = useRef(false)
+  const lastOutputRef = useRef(0)
+  const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const prevStatusRef = useRef<'running' | 'idle' | null>(null)
 
   // Initialize xterm.js
   useEffect(() => {
@@ -364,6 +375,36 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     dataHandlerRef.current = window.api.terminal.onData((data: { id: string; data: string }) => {
       if (data.id === sessionId && xtermRef.current) {
         xtermRef.current.write(data.data)
+
+        // Claude Code detection (main terminals only)
+        if (!isAux && onClaudeStatusChange) {
+          lastOutputRef.current = Date.now()
+
+          if (!claudePresentRef.current && CLAUDE_START_RE.test(data.data)) {
+            claudePresentRef.current = true
+            onClaudeStatusChange(sessionId, 'idle')
+            prevStatusRef.current = 'idle'
+            // Start idle detection timer
+            if (!idleTimerRef.current) {
+              idleTimerRef.current = setInterval(() => {
+                const idle = Date.now() - lastOutputRef.current >= IDLE_THRESHOLD
+                const newStatus = idle ? 'idle' : 'running'
+                if (newStatus !== prevStatusRef.current) {
+                  prevStatusRef.current = newStatus
+                  onClaudeStatusChange!(sessionId, newStatus)
+                }
+              }, IDLE_CHECK_INTERVAL)
+            }
+          } else if (claudePresentRef.current && CLAUDE_END_RE.test(data.data)) {
+            claudePresentRef.current = false
+            if (idleTimerRef.current) {
+              clearInterval(idleTimerRef.current)
+              idleTimerRef.current = null
+            }
+            prevStatusRef.current = null
+            onClaudeStatusChange(sessionId, null)
+          }
+        }
       }
     })
 
@@ -386,6 +427,10 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
       if (exitHandlerRef.current) {
         window.api.terminal.removeExitListener(exitHandlerRef.current)
         exitHandlerRef.current = null
+      }
+      if (idleTimerRef.current) {
+        clearInterval(idleTimerRef.current)
+        idleTimerRef.current = null
       }
     }
   }, [sessionId, isReady])

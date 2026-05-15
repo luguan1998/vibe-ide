@@ -1,5 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { TerminalSession } from '@shared/types'
+import { Zap, Coffee, Plus, Settings } from 'lucide-react'
+import { useTheme } from '../themes'
 
 const SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '🤖', '🐸', '👾', '🎯', '🚀', '⚡', '🌟', '💫', '🌀', '🎭', '🪐', '👻', '🍕', '🎲', '🧩', '🌈', '🦧', '🐉', '🎸']
 
@@ -25,6 +27,9 @@ interface SessionPanelProps {
   onRenameSession?: (id: string, newName: string) => Promise<void>
   onReorderSessions?: (fromIndex: number, toIndex: number) => void
   commandHistory?: Record<string, string[]>
+  claudeStatus?: Record<string, 'running' | 'idle' | null>
+  showSquiggles?: boolean
+  onToggleSquiggles?: (value: boolean) => void
 }
 
 const SessionPanel = React.memo(function SessionPanel({
@@ -36,8 +41,13 @@ const SessionPanel = React.memo(function SessionPanel({
   onCloseSession,
   onRenameSession,
   onReorderSessions,
-  commandHistory = {}
+  commandHistory = {},
+  claudeStatus = {},
+  showSquiggles = false,
+  onToggleSquiggles
 }: SessionPanelProps) {
+  const [showConfigMenu, setShowConfigMenu] = useState(false)
+  const { themes, currentThemeId, setTheme } = useTheme()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
@@ -59,6 +69,18 @@ const SessionPanel = React.memo(function SessionPanel({
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
   }, [])
+
+  useEffect(() => {
+    if (!showConfigMenu) return
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.config-menu-area')) {
+        setShowConfigMenu(false)
+      }
+    }
+    document.addEventListener('click', handleClick, true)
+    return () => document.removeEventListener('click', handleClick, true)
+  }, [showConfigMenu])
 
   const handleContextMenu = (e: React.MouseEvent, sessionId: string) => {
     e.preventDefault()
@@ -85,18 +107,90 @@ const SessionPanel = React.memo(function SessionPanel({
     setContextMenu(null)
   }
 
+  const stats = useMemo(() => {
+    const total = sessions.length
+    const running = sessions.filter(s => claudeStatus[s.id] === 'running').length
+    const idle = total - running
+    return { total, running, idle }
+  }, [sessions, claudeStatus])
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
+      {/* Header + Dashboard merged */}
       <div className="h-10 px-3 flex items-center justify-between border-b border-ide-border shrink-0">
-        <h2 className="text-sm font-semibold text-ide-text uppercase tracking-wider">Sessions</h2>
-        <button
-          onClick={onCreateSession}
-          className="w-6 h-6 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white flex items-center justify-center text-sm transition-colors"
-          title="New Terminal"
-        >
-          +
-        </button>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`flex items-center gap-1 px-2 py-0.5 rounded transition-colors ${
+              stats.running > 0
+                ? 'text-ide-accent bg-ide-accent/10'
+                : 'text-ide-text-muted bg-ide-hover'
+            }`}
+            title="Claude 运行中"
+          >
+            <Zap size={13} className="shrink-0" />
+            <span className="text-xs font-bold font-mono">{stats.running}</span>
+          </span>
+          <span
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-ide-text-muted bg-ide-hover transition-colors"
+            title="空闲"
+          >
+            <Coffee size={13} className="shrink-0" />
+            <span className="text-xs font-bold font-mono">{stats.idle}</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="relative config-menu-area">
+            <button
+              className="w-6 h-6 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-active hover:text-ide-text flex items-center justify-center transition-colors shrink-0"
+              onClick={() => setShowConfigMenu(!showConfigMenu)}
+              title="Settings"
+            >
+              <Settings size={13} />
+            </button>
+            {showConfigMenu && (
+              <div className="absolute right-0 top-full mt-1 w-48 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 max-h-80 overflow-y-auto config-menu-area">
+                <div className="px-3 py-1 text-[11px] text-ide-text-muted uppercase tracking-wider">Theme</div>
+                {themes.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setTheme(t.id); setShowConfigMenu(false) }}
+                    className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 transition-colors ${
+                      currentThemeId === t.id
+                        ? 'text-ide-accent bg-ide-accent/10'
+                        : 'text-ide-text hover:bg-ide-hover'
+                    }`}
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full border border-ide-border shrink-0"
+                      style={{ backgroundColor: `rgb(${t.css['ide-accent']})` }}
+                    />
+                    {t.label}
+                  </button>
+                ))}
+                {onToggleSquiggles && (
+                  <div className="border-t border-ide-border mt-1 pt-1">
+                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showSquiggles}
+                        onChange={(e) => onToggleSquiggles(e.target.checked)}
+                        className="accent-ide-accent"
+                      />
+                      显示错误提示
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={onCreateSession}
+            className="w-6 h-6 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors shrink-0"
+            title="New Terminal"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Session List */}
@@ -119,7 +213,9 @@ const SessionPanel = React.memo(function SessionPanel({
               className={`group px-3 py-2 mx-1 rounded cursor-pointer transition-colors ${
                 session.id === activeSessionId
                   ? 'bg-ide-accent/20 text-ide-text border-l-2 border-ide-accent'
-                  : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
+                  : claudeStatus[session.id] === 'running'
+                    ? 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text border-l-2 border-ide-accent/60 animate-border-pulse'
+                    : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
               } ${dragIndex === index ? 'opacity-40' : ''} ${dropIndex === index && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
               onClick={() => onSwitchSession(session.id)}
               onContextMenu={(e) => handleContextMenu(e, session.id)}
@@ -187,18 +283,18 @@ const SessionPanel = React.memo(function SessionPanel({
                   )}
                 </div>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onCloseSession(session.id)
-                  }}
-                  className="opacity-0 group-hover:opacity-100 w-4 h-4 rounded text-ide-text-muted hover:text-ide-danger transition-all shrink-0"
-                  title="Close Session"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onCloseSession(session.id)
+                    }}
+                    className="opacity-0 group-hover:opacity-100 w-4 h-4 rounded text-ide-text-muted hover:text-ide-danger transition-all shrink-0"
+                    title="Close Session"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
               </div>
               <div className="text-xs text-ide-text-muted mt-0.5 truncate opacity-70">
                 {session.cwd}

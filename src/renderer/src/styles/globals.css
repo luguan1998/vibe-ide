@@ -108,3 +108,12 @@ html, body, #root {
 .animate-fade-in {
   animation: fadeIn 0.15s ease-out;
 }
+
+@keyframes borderPulse {
+  0%, 100% { border-left-color: rgb(var(--ide-accent) / 0.6); }
+  50% { border-left-color: rgb(var(--ide-accent)); }
+}
+
+.animate-border-pulse {
+  animation: borderPulse 2s ease-in-out infinite;
+}

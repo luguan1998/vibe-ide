@@ -54,6 +54,17 @@ const vibeDark: IDETheme = {
     brightCyan: '#22d3ee', brightWhite: '#ffffff'
   },
   monacoTheme: 'vibe-ide-default',
+  monacoRules: [
+    { token: 'comment', foreground: '#8888aa', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#a855f7' },
+    { token: 'string', foreground: '#10b981' },
+    { token: 'number', foreground: '#f59e0b' },
+    { token: 'type', foreground: '#6d28d9' },
+    { token: 'function', foreground: '#7c3aed' },
+    { token: 'variable', foreground: '#e0e0e0' },
+    { token: 'constant', foreground: '#3b82f6' },
+    { token: 'regexp', foreground: '#ef4444' }
+  ],
   titleBar: { color: '#1a1a2e', symbolColor: '#8888aa', backgroundColor: '#1a1a2e' }
 }
 
@@ -92,6 +103,17 @@ const oneDark: IDETheme = {
     brightCyan: '#56b6c2', brightWhite: '#ffffff'
   },
   monacoTheme: 'vibe-ide-one-dark',
+  monacoRules: [
+    { token: 'comment', foreground: '#5c6370', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#c678dd' },
+    { token: 'string', foreground: '#98c379' },
+    { token: 'number', foreground: '#d19a66' },
+    { token: 'type', foreground: '#e5c07b' },
+    { token: 'function', foreground: '#61afef' },
+    { token: 'variable', foreground: '#e06c75' },
+    { token: 'constant', foreground: '#56b6c2' },
+    { token: 'regexp', foreground: '#56b6c2' }
+  ],
   titleBar: { color: '#21252b', symbolColor: '#5c6370', backgroundColor: '#21252b' }
 }
 
@@ -130,6 +152,17 @@ const dracula: IDETheme = {
     brightCyan: '#a4ffff', brightWhite: '#ffffff'
   },
   monacoTheme: 'vibe-ide-dracula',
+  monacoRules: [
+    { token: 'comment', foreground: '#6272a4', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#ff79c6' },
+    { token: 'string', foreground: '#f1fa8c' },
+    { token: 'number', foreground: '#bd93f9' },
+    { token: 'type', foreground: '#8be9fd' },
+    { token: 'function', foreground: '#50fa7b' },
+    { token: 'variable', foreground: '#f8f8f2' },
+    { token: 'constant', foreground: '#bd93f9' },
+    { token: 'regexp', foreground: '#ff5555' }
+  ],
   titleBar: { color: '#21222c', symbolColor: '#6272a4', backgroundColor: '#21222c' }
 }
 
@@ -168,6 +201,17 @@ const nord: IDETheme = {
     brightCyan: '#8fbcbb', brightWhite: '#eceff4'
   },
   monacoTheme: 'vibe-ide-nord',
+  monacoRules: [
+    { token: 'comment', foreground: '#616e88', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#81a1c1' },
+    { token: 'string', foreground: '#a3be8c' },
+    { token: 'number', foreground: '#b48ead' },
+    { token: 'type', foreground: '#8fbcbb' },
+    { token: 'function', foreground: '#88c0d0' },
+    { token: 'variable', foreground: '#d8dee9' },
+    { token: 'constant', foreground: '#b48ead' },
+    { token: 'regexp', foreground: '#ebcb8b' }
+  ],
   titleBar: { color: '#3b4252', symbolColor: '#616e88', backgroundColor: '#3b4252' }
 }
 
@@ -206,6 +250,17 @@ const solarizedDark: IDETheme = {
     brightCyan: '#2aa198', brightWhite: '#fdf6e3'
   },
   monacoTheme: 'vibe-ide-solarized-dark',
+  monacoRules: [
+    { token: 'comment', foreground: '#586e75', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#859900' },
+    { token: 'string', foreground: '#2aa198' },
+    { token: 'number', foreground: '#d33682' },
+    { token: 'type', foreground: '#b58900' },
+    { token: 'function', foreground: '#268bd2' },
+    { token: 'variable', foreground: '#839496' },
+    { token: 'constant', foreground: '#6c71c4' },
+    { token: 'regexp', foreground: '#dc322f' }
+  ],
   titleBar: { color: '#073642', symbolColor: '#586e75', backgroundColor: '#073642' }
 }
 
@@ -253,6 +308,55 @@ const monokai: IDETheme = {
   css: {
     'ide-bg': t('#272822'),
     'ide-sidebar': t('#1e1f1c'),
+    'ide-panel': t('#1a1b18'),
+    'ide-border': t('#3e3d32'),
+    'ide-text': t('#f8f8f2'),
+    'ide-text-muted': t('#75715e'),
+    'ide-accent': t('#f92672'),
+    'ide-accent-hover': t('#d91e62'),
+    'ide-success': t('#a6e22e'),
+    'ide-danger': t('#f92672'),
+    'ide-warning': t('#e6db74'),
+    'ide-hover': t('#3e3d32'),
+    'ide-active': t('#49483e'),
+    'scrollbar-track': t('#272822'),
+    'scrollbar-thumb': t('#49483e'),
+    'scrollbar-thumb-hover': t('#75715e'),
+    'selection-bg': t('#f92672'),
+    'selection-opacity': '0.3',
+    'focus-outline': t('#f92672'),
+    'monaco-margin-bg': t('#272822')
+  },
+  terminal: {
+    background: '#272822', foreground: '#f8f8f2', cursor: '#f92672', cursorAccent: '#272822',
+    selectionBackground: hexToRgba('#f92672', 0.3),
+    black: '#272822', red: '#f92672', green: '#a6e22e', yellow: '#e6db74',
+    blue: '#66d9ef', magenta: '#ae81ff', cyan: '#a1efe4', white: '#f8f8f2',
+    brightBlack: '#75715e', brightRed: '#f92672', brightGreen: '#a6e22e',
+    brightYellow: '#e6db74', brightBlue: '#66d9ef', brightMagenta: '#ae81ff',
+    brightCyan: '#a1efe4', brightWhite: '#ffffff'
+  },
+  monacoTheme: 'vibe-ide-monokai',
+  monacoRules: [
+    { token: 'comment', foreground: '#75715e', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#f92672' },
+    { token: 'string', foreground: '#e6db74' },
+    { token: 'number', foreground: '#ae81ff' },
+    { token: 'type', foreground: '#66d9ef' },
+    { token: 'function', foreground: '#a6e22e' },
+    { token: 'variable', foreground: '#f8f8f2' },
+    { token: 'constant', foreground: '#ae81ff' },
+    { token: 'regexp', foreground: '#e6db74' }
+  ],
+  titleBar: { color: '#1e1f1c', symbolColor: '#75715e', backgroundColor: '#1e1f1c' }
+}
+
+const monokaiPro: IDETheme = {
+  id: 'monokai-pro',
+  label: 'Monokai Pro',
+  css: {
+    'ide-bg': t('#272822'),
+    'ide-sidebar': t('#1e1f1c'),
     'ide-panel': t('#2d2e27'),
     'ide-border': t('#3e3d32'),
     'ide-text': t('#f8f8f2'),
@@ -281,8 +385,68 @@ const monokai: IDETheme = {
     brightYellow: '#e6db74', brightBlue: '#66d9ef', brightMagenta: '#ae81ff',
     brightCyan: '#a1efe4', brightWhite: '#ffffff'
   },
-  monacoTheme: 'vibe-ide-monokai',
+  monacoTheme: 'vibe-ide-monokai-pro',
+  monacoRules: [
+    { token: 'comment', foreground: '#75715e', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#a6e22e' },
+    { token: 'string', foreground: '#e6db74' },
+    { token: 'number', foreground: '#ae81ff' },
+    { token: 'type', foreground: '#66d9ef' },
+    { token: 'function', foreground: '#a6e22e' },
+    { token: 'variable', foreground: '#f8f8f2' },
+    { token: 'constant', foreground: '#ae81ff' },
+    { token: 'regexp', foreground: '#e6db74' }
+  ],
   titleBar: { color: '#1e1f1c', symbolColor: '#75715e', backgroundColor: '#1e1f1c' }
+}
+
+const vscodeDark: IDETheme = {
+  id: 'vscode-dark',
+  label: 'VS Code Dark',
+  css: {
+    'ide-bg': t('#1e1e1e'),
+    'ide-sidebar': t('#252526'),
+    'ide-panel': t('#2d2d2d'),
+    'ide-border': t('#3c3c3c'),
+    'ide-text': t('#d4d4d4'),
+    'ide-text-muted': t('#858585'),
+    'ide-accent': t('#007acc'),
+    'ide-accent-hover': t('#1a8ad4'),
+    'ide-success': t('#4ec9b0'),
+    'ide-danger': t('#f44747'),
+    'ide-warning': t('#cca700'),
+    'ide-hover': t('#2a2d2e'),
+    'ide-active': t('#37373d'),
+    'scrollbar-track': t('#1e1e1e'),
+    'scrollbar-thumb': t('#424242'),
+    'scrollbar-thumb-hover': t('#555555'),
+    'selection-bg': t('#007acc'),
+    'selection-opacity': '0.3',
+    'focus-outline': t('#007acc'),
+    'monaco-margin-bg': t('#1e1e1e')
+  },
+  terminal: {
+    background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#007acc', cursorAccent: '#1e1e1e',
+    selectionBackground: hexToRgba('#007acc', 0.3),
+    black: '#000000', red: '#cd3131', green: '#0dbc79', yellow: '#e5e510',
+    blue: '#2472c8', magenta: '#bc3fbc', cyan: '#11a8cd', white: '#e5e5e5',
+    brightBlack: '#666666', brightRed: '#f14c4c', brightGreen: '#23d18b',
+    brightYellow: '#f5f543', brightBlue: '#3b8eea', brightMagenta: '#d670d6',
+    brightCyan: '#29b8db', brightWhite: '#ffffff'
+  },
+  monacoTheme: 'vibe-ide-vscode-dark',
+  monacoRules: [
+    { token: 'comment', foreground: '#6a9955', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#569cd6' },
+    { token: 'string', foreground: '#ce9178' },
+    { token: 'number', foreground: '#b5cea8' },
+    { token: 'type', foreground: '#4ec9b0' },
+    { token: 'function', foreground: '#dcdcaa' },
+    { token: 'variable', foreground: '#9cdcfe' },
+    { token: 'constant', foreground: '#4fc1ff' },
+    { token: 'regexp', foreground: '#d16969' }
+  ],
+  titleBar: { color: '#252526', symbolColor: '#858585', backgroundColor: '#252526' }
 }
 
 const githubLight: IDETheme = {
@@ -358,6 +522,17 @@ const tokyoNight: IDETheme = {
     brightCyan: '#7dcfff', brightWhite: '#ffffff'
   },
   monacoTheme: 'vibe-ide-tokyo-night',
+  monacoRules: [
+    { token: 'comment', foreground: '#565f89', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#bb9af7' },
+    { token: 'string', foreground: '#9ece6a' },
+    { token: 'number', foreground: '#ff9e64' },
+    { token: 'type', foreground: '#2ac3de' },
+    { token: 'function', foreground: '#7aa2f7' },
+    { token: 'variable', foreground: '#c0caf5' },
+    { token: 'constant', foreground: '#ff9e64' },
+    { token: 'regexp', foreground: '#f7768e' }
+  ],
   titleBar: { color: '#16161e', symbolColor: '#565f89', backgroundColor: '#16161e' }
 }
 
@@ -396,6 +571,17 @@ const catppuccin: IDETheme = {
     brightCyan: '#94e2d5', brightWhite: '#a6adc8'
   },
   monacoTheme: 'vibe-ide-catppuccin',
+  monacoRules: [
+    { token: 'comment', foreground: '#6c7086', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#cba6f7' },
+    { token: 'string', foreground: '#a6e3a1' },
+    { token: 'number', foreground: '#fab387' },
+    { token: 'type', foreground: '#89b4fa' },
+    { token: 'function', foreground: '#89b4fa' },
+    { token: 'variable', foreground: '#cdd6f4' },
+    { token: 'constant', foreground: '#fab387' },
+    { token: 'regexp', foreground: '#f38ba8' }
+  ],
   titleBar: { color: '#181825', symbolColor: '#6c7086', backgroundColor: '#181825' }
 }
 
@@ -407,6 +593,8 @@ export const THEMES: IDETheme[] = [
   solarizedDark,
   solarizedLight,
   monokai,
+  monokaiPro,
+  vscodeDark,
   githubLight,
   tokyoNight,
   catppuccin

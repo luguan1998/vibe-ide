@@ -28,7 +28,7 @@ export function registerMonacoThemes(monaco: any): void {
     monaco.editor.defineTheme(theme.monacoTheme, {
       base: isLight ? 'vs' : 'vs-dark',
       inherit: true,
-      rules: [
+      rules: theme.monacoRules ?? [
         { token: 'comment', foreground: muted, fontStyle: 'italic' },
         { token: 'keyword', foreground: accent },
         { token: 'string', foreground: success },
@@ -43,7 +43,7 @@ export function registerMonacoThemes(monaco: any): void {
         'editor.background': bg,
         'editor.foreground': fg,
         'editor.lineHighlightBackground': hover,
-        'editor.selectionBackground': `rgb(${css['selection-bg']} / ${css['selection-opacity']})`,
+        'editor.selectionBackground': accent + '33',
         'editorCursor.foreground': accent,
         'editorLineNumber.foreground': muted,
         'editorLineNumber.activeForeground': fg,

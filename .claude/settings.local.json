@@ -41,7 +41,9 @@
       "Bash(d:/test/vibe-ide/node_modules/app-builder-bin/win/x64/app-builder.exe --help)",
       "Bash(rm -rf \"C:/Users/l30033004/AppData/Local/electron-builder/Cache/winCodeSign\")",
       "Bash(d:/test/vibe-ide/node_modules/app-builder-bin/win/x64/app-builder.exe download-artifact *)",
-      "Bash(CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --x64)"
+      "Bash(CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --x64)",
+      "Bash(python3 *)",
+      "Bash(python *)"
     ]
   },
   "outputStyle": "Coding Vibes"

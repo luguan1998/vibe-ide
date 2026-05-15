@@ -28,6 +28,39 @@ There are no tests, linting, or formatting commands configured.
 
 The app follows standard Electron separation with electron-vite managing builds:
 
+```
+src/
+├── main/                         # 主进程 (Node.js)
+│   ├── index.ts                  # 应用生命周期、窗口管理、IPC 注册
+│   ├── pty.ts                    # node-pty 终端会话管理
+│   ├── git.ts                    # simple-git 版本控制操作
+│   ├── file.ts                   # 文件系统读写、目录树
+│   └── search.ts                 # ripgrep 内容搜索
+├── preload/
+│   └── index.ts                  # contextBridge 桥接层
+├── renderer/
+│   ├── index.html                # 入口 HTML
+│   └── src/
+│       ├── main.tsx              # React 挂载入口
+│       ├── App.tsx               # 三栏布局、会话管理、全局状态
+│       ├── styles/
+│       │   └── globals.css       # Tailwind 基础 + CSS 变量 + 自定义动画
+│       ├── components/
+│       │   ├── SessionPanel.tsx  # 左侧会话列表面板
+│       │   ├── TerminalView.tsx  # xterm.js 终端视图
+│       │   ├── DiffViewer.tsx    # Monaco 代码编辑器/Diff 视图
+│       │   ├── GitPanel.tsx      # 右侧 Git/Aux/Search/File 面板
+│       │   └── SearchPanel.tsx   # 文件内容搜索组件
+│       └── themes/
+│           ├── types.ts          # 主题类型定义
+│           ├── definitions.ts    # 11 套主题配色
+│           ├── monaco-themes.ts  # Monaco 编辑器主题注册
+│           ├── context.tsx       # 主题 Context Provider
+│           └── index.ts          # 导出聚合
+└── shared/
+    └── types.ts                  # IPC 通道常量 + 跨层类型定义
+```
+
 - **Main process** (`src/main/`) — Node.js side, runs in Electron main process
   - `index.ts` — App lifecycle, frameless `BrowserWindow` (1400x900, min 900x600) with `titleBarOverlay` (height 36, bg `#1a1a2e`). Fixes Windows GPU cache permissions, adds `--no-sandbox` flag, registers all IPC handlers. Sets app model ID `com.vibe-ide`.
   - `pty.ts` — Terminal session management via `node-pty`. Spawns pwsh.exe (preferred) or powershell.exe with `-NoLogo`. Implements 600ms startup banner discard (buffers initial output, then clears screen + sends `Clear-Host` for a clean prompt). Exposes `registerPtyHandlers()` and `cleanupTerminals()`. Maintains internal `terminals` Map.

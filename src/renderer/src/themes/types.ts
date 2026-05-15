@@ -57,5 +57,6 @@ export interface IDETheme {
   css: ThemeCSSVariables
   terminal: TerminalTheme
   monacoTheme: string
+  monacoRules?: Array<{ token: string; foreground: string; fontStyle?: string }>
   titleBar: TitleBarTheme
 }

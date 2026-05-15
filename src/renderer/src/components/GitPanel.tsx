@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 const TerminalView = React.lazy(() => import('./TerminalView'))
+import { ChevronRight } from 'lucide-react'
 import SearchPanel from './SearchPanel'
 import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, GitCommitFile, TerminalSession, FileNode } from '@shared/types'
 
@@ -24,8 +25,104 @@ interface GitPanelProps {
   onOpenFileFromExplorer?: (fullPath: string) => void
 }
 
+function DocTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, workspacePath }: {
+  node: DocTreeNode
+  depth: number
+  expandedDirs: Set<string>
+  onToggle: (path: string) => void
+  onOpenFile: (fullPath: string) => void
+  workspacePath: string
+}) {
+  const isExpanded = expandedDirs.has(node.path)
+  const paddingLeft = 12 + depth * 14
+
+  return (
+    <>
+      <div
+        className={`pr-2 py-0.5 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none ${!node.isDir ? 'hover:text-ide-accent' : ''}`}
+        style={{ paddingLeft }}
+        onClick={() => {
+          if (node.isDir) { onToggle(node.path); return }
+          const normalizedWs = workspacePath.replace(/\\/g, '/')
+          onOpenFile(normalizedWs + '/' + node.path)
+        }}
+      >
+        {node.isDir ? (
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 text-ide-text-muted transition-transform shrink-0 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>
+            <path d="M4 6l4 4 4-4" />
+          </svg>
+        ) : (
+          <span className="w-3 shrink-0" />
+        )}
+        {node.isDir ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-ide-text-muted">
+            <path d="M5 2h5l4 4v9a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z M10 2v4h4" />
+          </svg>
+        )}
+        <span className="text-[11px] truncate text-ide-text">{node.name}</span>
+        {node.comment && (
+          <span className="text-[10px] text-ide-text-muted/60 truncate ml-2">{node.comment}</span>
+        )}
+      </div>
+      {node.isDir && isExpanded && node.children.map(child => (
+        <DocTreeItem
+          key={child.path}
+          node={child}
+          depth={depth + 1}
+          expandedDirs={expandedDirs}
+          onToggle={onToggle}
+          onOpenFile={onOpenFile}
+          workspacePath={workspacePath}
+        />
+      ))}
+    </>
+  )
+}
+
 type GitTab = 'changes' | 'log' | 'branches'
 type GitSection = 'git' | 'terminal' | 'search' | 'file'
+
+type FileKind = 'code' | 'style' | 'markup' | 'data' | 'docs' | 'image' | 'config' | 'script' | 'default'
+
+const FILE_KINDS: Record<string, { kind: FileKind; color: string }> = {
+  ts: { kind: 'code', color: 'text-ide-accent' }, tsx: { kind: 'code', color: 'text-ide-accent' },
+  js: { kind: 'code', color: 'text-ide-warning' }, jsx: { kind: 'code', color: 'text-ide-warning' }, mjs: { kind: 'code', color: 'text-ide-warning' }, cjs: { kind: 'code', color: 'text-ide-warning' },
+  py: { kind: 'code', color: 'text-[#3572A5]' },
+  go: { kind: 'code', color: 'text-[#00ADD8]' },
+  rs: { kind: 'code', color: 'text-[#dea584]' },
+  java: { kind: 'code', color: 'text-[#b07219]' },
+  css: { kind: 'style', color: 'text-[#a855f7]' }, scss: { kind: 'style', color: 'text-[#a855f7]' }, less: { kind: 'style', color: 'text-[#a855f7]' },
+  html: { kind: 'markup', color: 'text-[#e44d26]' }, htm: { kind: 'markup', color: 'text-[#e44d26]' },
+  vue: { kind: 'markup', color: 'text-ide-success' }, svelte: { kind: 'markup', color: 'text-ide-success' },
+  json: { kind: 'data', color: 'text-ide-warning' },
+  yml: { kind: 'data', color: 'text-[#cb3d3d]' }, yaml: { kind: 'data', color: 'text-[#cb3d3d]' },
+  md: { kind: 'docs', color: 'text-ide-accent' }, mdx: { kind: 'docs', color: 'text-ide-accent' },
+  svg: { kind: 'image', color: 'text-[#a855f7]' },
+  png: { kind: 'image', color: 'text-ide-success' }, jpg: { kind: 'image', color: 'text-ide-success' }, jpeg: { kind: 'image', color: 'text-ide-success' }, gif: { kind: 'image', color: 'text-ide-success' }, webp: { kind: 'image', color: 'text-ide-success' },
+  sh: { kind: 'script', color: 'text-ide-success' }, bash: { kind: 'script', color: 'text-ide-success' }, bat: { kind: 'script', color: 'text-ide-success' },
+  env: { kind: 'config', color: 'text-ide-text-muted' }, gitignore: { kind: 'config', color: 'text-ide-text-muted' },
+}
+
+function getFileInfo(name: string): { kind: FileKind; color: string } {
+  const ext = name.split('.').pop()?.toLowerCase() || ''
+  return FILE_KINDS[ext] || { kind: 'default', color: 'text-ide-text-muted' }
+}
+
+const FILE_ICON_PATHS: Record<FileKind, string> = {
+  code: 'M6 5L3 8l3 3M10 5l3 3-3 3',
+  style: 'M5.5 5l1.5 6M9 5l-1.5 6M4.5 7.5h7M4.5 9.5h7',
+  markup: 'M3.5 7L2 8.5l1.5 1.5M12.5 7L14 8.5l-1.5 1.5M8 5.5L6.5 11.5',
+  data: 'M5 5C4 5 3.5 5.5 3.5 6v.8C3.5 7.5 3 7.8 3 8s.5.5.5 1.2V10C3.5 10.5 4 11 5 11M11 5c1 0 1.5.5 1.5 1v.8c0 .7.5 1 .5 1.2s-.5.5-.5 1.2V10c0 .5-.5 1-1.5 1',
+  docs: 'M5 2h4l4 4v9a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z M9 2v4h4 M5 9h5 M5 11h4 M5 13h3',
+  image: 'M2 4h12v8H2z M2 11l3.5-3 2.5 2.5L10.5 7 14 10v1H2z M5.5 6a.8.8 0 110-1.6.8.8 0 010 1.6z',
+  config: 'M8 2l.5 1.5L10 3l.5 1-1.5.8.3 1.2h-1l-.2-1.1-1.5-.7L7 3l1.2.5L8 2z M8 7a1 1 0 100 2 1 1 0 000-2z',
+  script: 'M3 5h10v6H3z M5 7l1.5 1.5L5 10 M8 10h3',
+  default: 'M5 2h5l4 4v9a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z M10 2v4h4',
+}
 
 // File tree item component
 function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile }: {
@@ -66,10 +163,14 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile }: {
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>
         ) : (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
-            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
-            <polyline points="13 2 13 9 20 9" />
-          </svg>
+          (() => {
+            const info = getFileInfo(node.name)
+            return (
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}>
+                <path d={FILE_ICON_PATHS[info.kind]} />
+              </svg>
+            )
+          })()
         )}
         <span className="truncate text-ide-text">{node.name}</span>
       </div>
@@ -85,6 +186,77 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile }: {
       ))}
     </>
   )
+}
+
+function parseCommands(md: string): Array<{ command: string; comment: string }> {
+  const result: Array<{ command: string; comment: string }> = []
+  const normalized = md.replace(/\r\n/g, '\n')
+  const startMatch = normalized.match(/^## (?:Commands|命令)\s*$/im)
+  if (!startMatch || startMatch.index === undefined) return result
+  const rest = normalized.slice(startMatch.index + startMatch[0].length)
+  const nextH2 = rest.search(/\n## /)
+  const section = nextH2 === -1 ? rest : rest.slice(0, nextH2)
+  const codeBlockRe = /```[^\n]*\n([\s\S]*?)```/g
+  let match
+  while ((match = codeBlockRe.exec(section)) !== null) {
+    for (const line of match[1].split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      const hashIdx = trimmed.indexOf('#')
+      if (hashIdx >= 0) {
+        result.push({ command: trimmed.slice(0, hashIdx).trim(), comment: trimmed.slice(hashIdx + 1).trim() })
+      } else {
+        result.push({ command: trimmed, comment: '' })
+      }
+    }
+  }
+  return result
+}
+
+interface DocTreeNode {
+  name: string
+  path: string
+  comment: string
+  isDir: boolean
+  children: DocTreeNode[]
+}
+
+function parseDocTree(md: string): DocTreeNode[] {
+  const root: DocTreeNode[] = []
+  const stack: { depth: number; node: DocTreeNode }[] = []
+  let rootPrefix = ''
+  const lines = md.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const m = line.match(/^([\s│]*)[├└]──\s+(\S+)/)
+    if (!m) continue
+
+    // Detect root directory from preceding line
+    if (rootPrefix === '' && i > 0) {
+      const prevLine = lines[i - 1].trim()
+      const rootMatch = prevLine.match(/^(\S+?\/)\s*$/)
+      if (rootMatch) rootPrefix = rootMatch[1]
+    }
+
+    const rawName = m[2]
+    const isDir = rawName.endsWith('/')
+    const name = rawName.replace(/\/$/, '')
+    const comment = (line.match(/#\s*(.+)/) || [])[1] || ''
+    const depth = Math.max(0, Math.floor(m[1].length / 4))
+    const node: DocTreeNode = { name, path: name, comment, isDir, children: [] }
+
+    while (stack.length > 0 && stack[stack.length - 1].depth >= depth) stack.pop()
+    if (stack.length === 0) {
+      node.path = rootPrefix + name
+      root.push(node)
+    } else {
+      const parent = stack[stack.length - 1].node
+      node.path = parent.path + '/' + name
+      parent.children.push(node)
+    }
+    stack.push({ depth, node })
+  }
+  return root
 }
 
 const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger, onOpenFileFromExplorer, activeSessionId }: GitPanelProps) {
@@ -110,6 +282,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [commitDiff, setCommitDiff] = useState<string>('')
   const gitChangedHandlerRef = useRef<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
+  const [commands, setCommands] = useState<Array<{ command: string; comment: string }>>([])
   const [confirmAction, setConfirmAction] = useState<{ type: string; filePath: string; fileName: string } | null>(null)
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
@@ -430,6 +603,46 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     }
   }, [activeSection, workspacePath, loadFileTree])
 
+  const [docTree, setDocTree] = useState<DocTreeNode[]>([])
+  const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
+
+  // Load CLAUDE.md commands & tree
+  useEffect(() => {
+    if (!workspacePath) { setCommands([]); setDocTree([]); return }
+    const mdPath = workspacePath.replace(/\\/g, '/') + '/CLAUDE.md'
+    window.api.file.read(mdPath).then((res: any) => {
+      if (res.error) { setCommands([]); setDocTree([]); return }
+      const normalized = res.content.replace(/\r\n/g, '\n')
+      setCommands(parseCommands(normalized))
+      const docTreeResult = parseDocTree(normalized)
+      setDocTree(docTreeResult)
+      // Auto-expand first level
+      setExpandedDocDirs(new Set(docTreeResult.filter(n => n.isDir).map(n => n.path)))
+    }).catch(() => { setCommands([]); setDocTree([]) })
+  }, [workspacePath])
+
+  const pendingCommandRef = useRef<string | null>(null)
+
+  // Execute pending command when aux terminal becomes ready
+  useEffect(() => {
+    if (rightTerminalSession && pendingCommandRef.current) {
+      const cmd = pendingCommandRef.current
+      pendingCommandRef.current = null
+      setTimeout(() => {
+        window.api.terminal.write(rightTerminalSession.id, cmd + '\r')
+      }, 400)
+    }
+  }, [rightTerminalSession])
+
+  const handleRunCommand = useCallback((command: string) => {
+    if (rightTerminalSession) {
+      window.api.terminal.write(rightTerminalSession.id, command + '\r')
+    } else if (activeSessionId) {
+      pendingCommandRef.current = command
+      onCreateRightTerminal?.(activeSessionId)
+    }
+  }, [rightTerminalSession, activeSessionId, onCreateRightTerminal])
+
   // Toggle directory expand
   const toggleDir = useCallback((path: string) => {
     setExpandedDirs(prev => {
@@ -704,7 +917,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                           onClick={(e) => { e.stopPropagation(); handleUnstageAll(stagedFiles.map(f => f.path)) }}
                           className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
                         >
-                          Unstage All
+                          全部取消
                         </button>
                       )}
                     </div>
@@ -765,7 +978,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                           onClick={(e) => { e.stopPropagation(); handleStageAll(modifiedFiles.map(f => f.path)) }}
                           className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
                         >
-                          Stage All
+                          全部暂存
                         </button>
                       )}
                     </div>
@@ -828,7 +1041,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                       onClick={(e) => { e.stopPropagation(); handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path)) }}
                       className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
                     >
-                      Stage All
+                      全部暂存
                     </button>
                   )}
                 </div>
@@ -1097,29 +1310,52 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       {/* Aux 栏目 */}
       {activeSection === 'terminal' && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          {rightTerminalSession ? (
-            <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">Loading...</div>}>
-              <TerminalView
-                sessionId={rightTerminalSession.id}
-                sessionName="Right Terminal"
-                sessionCwd={rightTerminalSession.cwd}
-                onOpenFile={handleRightTerminalOpenFile}
-                showHeader={false}
-                fontSize={12}
-              />
-            </React.Suspense>
-          ) : workspacePath ? (
-            <div className="flex-1 flex items-center justify-center">
-              <button
-                onClick={() => activeSessionId && onCreateRightTerminal?.(activeSessionId)}
-                className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
-              >
-                启动终端
-              </button>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">
-              请先选择工作目录
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {rightTerminalSession ? (
+              <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">Loading...</div>}>
+                <TerminalView
+                  sessionId={rightTerminalSession.id}
+                  sessionName="Right Terminal"
+                  sessionCwd={rightTerminalSession.cwd}
+                  onOpenFile={handleRightTerminalOpenFile}
+                  showHeader={false}
+                  fontSize={12}
+                  isAux={true}
+                />
+              </React.Suspense>
+            ) : workspacePath ? (
+              <div className="h-full flex items-center justify-center">
+                <button
+                  onClick={() => activeSessionId && onCreateRightTerminal?.(activeSessionId)}
+                  className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+                >
+                  启动终端
+                </button>
+              </div>
+            ) : (
+              <div className="h-full flex items-center justify-center text-ide-text-muted text-xs">
+                请先选择工作目录
+              </div>
+            )}
+          </div>
+          {commands.length > 0 && (
+            <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '40%', overflowY: 'auto' }}>
+              <div className="px-2 py-1 text-[10px] text-ide-text-muted uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm">
+                Commands
+              </div>
+              {commands.map((cmd, i) => (
+                <div key={i} className="px-2 py-0.5 flex items-center gap-1.5 hover:bg-ide-hover group">
+                  <button
+                    onClick={() => handleRunCommand(cmd.command)}
+                    className="w-5 h-5 rounded text-ide-accent hover:bg-ide-accent/20 flex items-center justify-center shrink-0 transition-colors"
+                    title={`Run: ${cmd.command}`}
+                  >
+                    <ChevronRight size={12} strokeWidth={2.5} />
+                  </button>
+                  <span className="text-[11px] font-mono font-semibold text-ide-text shrink-0 w-[8.5rem] truncate">{cmd.command}</span>
+                  <span className="text-[10px] text-ide-text-muted/60 truncate">{cmd.comment}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -1138,23 +1374,48 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
         />
       )}
 
-      {/* File 栏目 — 文件浏览器 */}
+      {/* File 栏目 — 文件浏览器 + 文档目录树 */}
       {activeSection === 'file' && (
-        <div className="flex-1 overflow-y-auto">
-          {fileTree.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
-              {workspacePath ? 'Empty directory' : 'No workspace'}
-            </div>
-          ) : (
-            <div className="flex flex-col py-1">
-              {fileTree.map(node => (
-                <FileTreeItem
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {fileTree.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
+                {workspacePath ? 'Empty directory' : 'No workspace'}
+              </div>
+            ) : (
+              <div className="flex flex-col py-1">
+                {fileTree.map(node => (
+                  <FileTreeItem
+                    key={node.path}
+                    node={node}
+                    depth={0}
+                    expandedDirs={expandedDirs}
+                    onToggle={toggleDir}
+                    onOpenFile={(fullPath) => onOpenFileFromExplorer?.(fullPath)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          {docTree.length > 0 && (
+            <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '45%', overflowY: 'auto' }}>
+              <div className="px-2 py-1 text-[10px] text-ide-text-muted uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm">
+                架构
+              </div>
+              {docTree.map(node => (
+                <DocTreeItem
                   key={node.path}
                   node={node}
                   depth={0}
-                  expandedDirs={expandedDirs}
-                  onToggle={toggleDir}
+                  expandedDirs={expandedDocDirs}
+                  onToggle={(path) => setExpandedDocDirs(prev => {
+                    const next = new Set(prev)
+                    if (next.has(path)) next.delete(path)
+                    else next.add(path)
+                    return next
+                  })}
                   onOpenFile={(fullPath) => onOpenFileFromExplorer?.(fullPath)}
+                  workspacePath={workspacePath || ''}
                 />
               ))}
             </div>

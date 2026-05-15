@@ -3,7 +3,6 @@ import SessionPanel from './components/SessionPanel'
 import GitPanel from './components/GitPanel'
 import DiffViewer from './components/DiffViewer'
 import { TerminalSession, RenameTerminalResult } from '@shared/types'
-import { useTheme } from './themes'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
 
@@ -93,12 +92,18 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
-  const [showConfigMenu, setShowConfigMenu] = useState(false)
   const [showSquiggles, setShowSquiggles] = useState(false)
-  const { themes, currentThemeId, setTheme } = useTheme()
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
+  const [claudeStatus, setClaudeStatus] = useState<Record<string, 'running' | 'idle' | null>>({})
+
+  const handleClaudeStatusChange = useCallback((sessionId: string, status: 'running' | 'idle' | null) => {
+    setClaudeStatus(prev => {
+      if (prev[sessionId] === status) return prev
+      return { ...prev, [sessionId]: status }
+    })
+  }, [])
 
   // Track terminal commands per session
   const handleCommandEntered = useCallback((sessionId: string, command: string) => {
@@ -180,8 +185,13 @@ export default function App() {
   const handleCloseSession = useCallback(async (id: string) => {
     await window.api.terminal.close(id)
     setSessions(prev => prev.filter(s => s.id !== id))
-    // 清理该 session 的命令历史
+    // 清理该 session 的命令历史和 Claude 状态
     setCommandHistory(prev => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setClaudeStatus(prev => {
       const next = { ...prev }
       delete next[id]
       return next
@@ -434,48 +444,6 @@ export default function App() {
       {/* Title Bar */}
       <div className="titlebar-drag h-9 bg-ide-sidebar border-b border-ide-border flex items-center px-4 select-none shrink-0">
         <span className="text-ide-text-muted text-sm font-medium tracking-wide">Vibe IDE</span>
-        <button
-          className="ml-4 titlebar-no-drag text-ide-text-muted hover:text-ide-text w-6 h-6 rounded hover:bg-ide-hover flex items-center justify-center relative"
-          onClick={() => setShowConfigMenu(!showConfigMenu)}
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-          {showConfigMenu && (
-            <div className="absolute left-0 top-full mt-1 w-52 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 max-h-80 overflow-y-auto">
-              <div className="px-3 py-1 text-xs text-ide-text-muted uppercase tracking-wider">Theme</div>
-              {themes.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => { setTheme(t.id); setShowConfigMenu(false) }}
-                  className={`w-full px-3 py-1.5 text-sm text-left flex items-center gap-2 transition-colors ${
-                    currentThemeId === t.id
-                      ? 'text-ide-accent bg-ide-accent/10'
-                      : 'text-ide-text hover:bg-ide-hover'
-                  }`}
-                >
-                  <span
-                    className="w-3 h-3 rounded-full border border-ide-border shrink-0"
-                    style={{ backgroundColor: `rgb(${t.css['ide-accent']})` }}
-                  />
-                  {t.label}
-                </button>
-              ))}
-              <div className="border-t border-ide-border mt-1 pt-1">
-                <label className="flex items-center gap-2 px-3 py-1.5 text-sm text-ide-text hover:bg-ide-hover cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showSquiggles}
-                    onChange={(e) => setShowSquiggles(e.target.checked)}
-                    className="accent-ide-accent"
-                  />
-                  显示错误提示
-                </label>
-              </div>
-            </div>
-          )}
-        </button>
       </div>
 
       {/* Main Content - 3 Panels */}
@@ -492,6 +460,9 @@ export default function App() {
             onRenameSession={handleRenameSession}
             onReorderSessions={handleReorderSessions}
             commandHistory={commandHistory}
+            claudeStatus={claudeStatus}
+            showSquiggles={showSquiggles}
+            onToggleSquiggles={setShowSquiggles}
           />
         </div>
 
@@ -531,7 +502,7 @@ export default function App() {
                   className="flex-1 flex flex-col overflow-hidden"
                   style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
                 >
-                  <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} />
+                  <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} onClaudeStatusChange={handleClaudeStatusChange} />
                 </div>
               ))}
             </Suspense>
