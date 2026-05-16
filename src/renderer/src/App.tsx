@@ -380,21 +380,8 @@ export default function App() {
     setDiffFile(null)
   }, [])
 
-  const handleStage = useCallback(async (filePath: string) => {
-    await window.api.git.add(filePath)
-  }, [])
-
-  const handleUnstage = useCallback(async (filePath: string) => {
-    await window.api.git.reset(filePath)
-  }, [])
-
   const handleRefreshGit = useCallback(async () => {
     setGitRefreshKey(k => k + 1)
-  }, [])
-
-  const handleRefreshDiff = useCallback(async (filePath: string, isStaged: boolean): Promise<string> => {
-    const result = await window.api.git.diff(filePath, isStaged)
-    return result.content || ''
   }, [])
 
   // 处理从中间终端点击文件路径打开文件
@@ -581,11 +568,8 @@ export default function App() {
               commitHash={diffFile.commitHash}
               showSquiggles={showSquiggles}
               lineNumber={diffFile.lineNumber}
-              onStage={handleStage}
-              onUnstage={handleUnstage}
               onBack={handleBackToTerminal}
               onSaved={handleRefreshGit}
-              onRefreshDiff={handleRefreshDiff}
               defaultEdit={diffFile.defaultEdit}
               fontSize={editorFontSize}
               wordWrap={wordWrap}

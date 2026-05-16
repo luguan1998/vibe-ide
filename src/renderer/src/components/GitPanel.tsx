@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 const TerminalView = React.lazy(() => import('./TerminalView'))
-import { ChevronRight, Lightbulb } from 'lucide-react'
+import { Lightbulb } from 'lucide-react'
 import SearchPanel from './SearchPanel'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { useI18n } from '../i18n'
-import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, GitCommitFile, TerminalSession, FileNode } from '@shared/types'
+import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitCommitFile, TerminalSession, FileNode } from '@shared/types'
 
 interface GitPanelProps {
   workspacePath: string | null

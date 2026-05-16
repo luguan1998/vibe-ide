@@ -13,11 +13,8 @@ interface DiffViewerProps {
   lineNumber?: number       // 跳转到指定行
   fontSize?: number         // 编辑器字体大小
   wordWrap?: boolean        // 是否自动换行
-  onStage: (path: string) => Promise<void>
-  onUnstage: (path: string) => Promise<void>
   onBack?: () => void
   onSaved?: (path: string) => Promise<void>
-  onRefreshDiff?: (path: string, staged: boolean) => Promise<string>
   defaultEdit?: boolean
 }
 
@@ -85,7 +82,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions, deletions }
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 13, wordWrap = true, onStage, onUnstage, onBack, onSaved, onRefreshDiff, defaultEdit }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 13, wordWrap = true, onBack, onSaved, defaultEdit }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
 
   const [viewMode, setViewMode] = useState<ViewMode>(defaultEdit ? 'edit' : 'diff')

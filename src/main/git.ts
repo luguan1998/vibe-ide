@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import simpleGit, { SimpleGit } from 'simple-git'
 import { IPC_CHANNELS, GitStatusResult, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, GitShowResult, GitCommitFile } from '../shared/types'
-import { readFile, writeFile, unlink } from 'fs/promises'
+import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { watch, FSWatcher, existsSync } from 'fs'

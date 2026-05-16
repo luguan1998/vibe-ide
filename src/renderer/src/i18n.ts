@@ -9,7 +9,7 @@
  * New strings only need an English entry + a zh entry in ZH_MAP.
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import React, { createContext, useContext, useState, useCallback } from 'react'
 
 export type Lang = 'en' | 'zh'
 

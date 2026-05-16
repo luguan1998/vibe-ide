@@ -84,10 +84,6 @@ html, body, #root {
   -webkit-app-region: drag;
 }
 
-.titlebar-no-drag {
-  -webkit-app-region: no-drag;
-}
-
 /* Selection highlight */
 ::selection {
   background: rgb(var(--selection-bg) / var(--selection-opacity));

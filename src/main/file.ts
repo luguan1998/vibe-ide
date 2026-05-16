@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { readFile, writeFile, readdir, stat, unlink } from 'fs/promises'
+import { readFile, writeFile, readdir, unlink } from 'fs/promises'
 import { join, dirname } from 'path'
 import { IPC_CHANNELS, FileNode } from '../shared/types'
 

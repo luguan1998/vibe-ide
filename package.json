@@ -28,7 +28,6 @@
     "npmRebuild": false
   },
   "dependencies": {
-    "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@monaco-editor/react": "^4.6.0",
     "@xterm/addon-clipboard": "^0.2.0",

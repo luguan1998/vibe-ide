@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { IDETheme } from './types'
 import { THEMES, DEFAULT_THEME_ID } from './definitions'
 
@@ -30,13 +30,11 @@ function getInitialTheme(): string {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [currentThemeId, setCurrentThemeId] = useState(getInitialTheme)
-  const appliedRef = useRef<string | null>(null)
 
   const currentTheme = THEMES.find((t) => t.id === currentThemeId) ?? THEMES[0]
 
   useEffect(() => {
     applyCSSVariables(currentTheme)
-    appliedRef.current = currentThemeId
   }, [currentThemeId, currentTheme])
 
   useEffect(() => {
