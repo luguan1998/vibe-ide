@@ -296,7 +296,9 @@ const solarizedLight: IDETheme = {
     blue: '#268bd2', magenta: '#6c71c4', cyan: '#2aa198', white: '#93a1a1',
     brightBlack: '#586e75', brightRed: '#dc322f', brightGreen: '#859900',
     brightYellow: '#b58900', brightBlue: '#268bd2', brightMagenta: '#6c71c4',
-    brightCyan: '#2aa198', brightWhite: '#fdf6e3'
+    brightCyan: '#2aa198', brightWhite: '#fdf6e3',
+    fontWeight: '500',
+    allowTransparency: false
   },
   monacoTheme: 'vibe-ide-solarized-light',
   titleBar: { color: '#eee8d5', symbolColor: '#93a1a1', backgroundColor: '#eee8d5' }
@@ -481,7 +483,9 @@ const githubLight: IDETheme = {
     blue: '#0969da', magenta: '#8250df', cyan: '#1b7c83', white: '#6e7781',
     brightBlack: '#57606a', brightRed: '#a40e26', brightGreen: '#1a7f37',
     brightYellow: '#9a6700', brightBlue: '#0969da', brightMagenta: '#8250df',
-    brightCyan: '#1b7c83', brightWhite: '#1f2328'
+    brightCyan: '#1b7c83', brightWhite: '#1f2328',
+    fontWeight: '500',
+    allowTransparency: false
   },
   monacoTheme: 'vibe-ide-github-light',
   titleBar: { color: '#f6f8fa', symbolColor: '#656d76', backgroundColor: '#f6f8fa' }

@@ -27,6 +27,8 @@ export interface TerminalTheme {
   cursor: string
   cursorAccent: string
   selectionBackground: string
+  fontWeight?: string
+  allowTransparency?: boolean
   black: string
   red: string
   green: string

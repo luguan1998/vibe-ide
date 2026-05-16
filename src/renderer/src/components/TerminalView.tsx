@@ -249,15 +249,15 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
 
     const term = new Terminal({
       theme: currentTheme.terminal,
-      fontFamily: 'Cascadia Code, JetBrains Mono, Fira Code, Consolas, monospace',
+      fontFamily: 'Cascadia Code, JetBrains Mono, Fira Code, Consolas, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace',
       fontSize,
-      fontWeight: '400',
+      fontWeight: currentTheme.terminal.fontWeight || '400',
       letterSpacing: 0,
       lineHeight: 1.0,
       cursorBlink: true,
       cursorStyle: 'bar',
       scrollback: 10000,
-      allowTransparency: true,
+      allowTransparency: currentTheme.terminal.allowTransparency ?? true,
       allowProposedApi: true,
       windowsMode: true,
       drawBoldTextInBrightColors: false
@@ -358,6 +358,7 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
   useEffect(() => {
     if (xtermRef.current) {
       xtermRef.current.options.theme = currentTheme.terminal
+      xtermRef.current.options.allowTransparency = currentTheme.terminal.allowTransparency ?? true
       const el = terminalRef.current?.querySelector('.xterm') as HTMLElement | null
       if (el) el.style.backgroundColor = currentTheme.terminal.background
     }
