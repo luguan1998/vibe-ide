@@ -879,7 +879,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                 {status.behind > 0 && <span className="text-ide-warning text-[11px]">↓{status.behind}</span>}
               </div>
               <button
-                onClick={refreshStatus}
+                onClick={() => { refreshStatus(); refreshLog(); refreshBranches() }}
                 className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
                 title="Refresh"
               >
