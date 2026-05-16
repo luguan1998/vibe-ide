@@ -158,6 +158,23 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       setDiffStats(stats)
       savedContentRef.current = modified
       setIsDirty(false)
+      // Jump to line after content loads (onMount fires too early)
+      if (lineNumber && lineNumber > 0) {
+        setTimeout(() => {
+          try {
+            if (viewMode === 'diff' && diffEditorRef.current) {
+              const e = diffEditorRef.current.getModifiedEditor()
+              const c = e.getModel()?.getLineCount() || 0
+              const ln = Math.min(lineNumber, c)
+              if (ln > 0) { e.revealLineInCenter(ln); e.setPosition({ lineNumber: ln, column: 1 }) }
+            } else if (viewMode === 'edit' && editEditorRef.current) {
+              const c = editEditorRef.current.getModel()?.getLineCount() || 0
+              const ln = Math.min(lineNumber, c)
+              if (ln > 0) { editEditorRef.current.revealLineInCenter(ln); editEditorRef.current.setPosition({ lineNumber: ln, column: 1 }) }
+            }
+          } catch {}
+        }, 100)
+      }
       justLoadedRef.current = true
     } catch {
       setOriginalContent('')
@@ -179,6 +196,17 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         setModifiedContent(result.content)
         savedContentRef.current = result.content
         setIsDirty(false)
+        if (lineNumber && lineNumber > 0) {
+          setTimeout(() => {
+            try {
+              if (editEditorRef.current) {
+                const c = editEditorRef.current.getModel()?.getLineCount() || 0
+                const ln = Math.min(lineNumber, c)
+                if (ln > 0) { editEditorRef.current.revealLineInCenter(ln); editEditorRef.current.setPosition({ lineNumber: ln, column: 1 }) }
+              }
+            } catch {}
+          }, 100)
+        }
       }
     } catch (err) {
       setModifiedContent('')

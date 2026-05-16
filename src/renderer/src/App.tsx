@@ -573,6 +573,7 @@ export default function App() {
         <div className="flex-1 flex flex-col overflow-hidden bg-ide-bg">
           {centerView === 'diff' && diffFile ? (
             <DiffViewer
+              key={`${diffFile.fullPath}-${diffFile.commitHash || 'working'}`}
               filePath={diffFile.filePath}
               fullPath={diffFile.fullPath}
               diffContent={diffFile.diffContent}
