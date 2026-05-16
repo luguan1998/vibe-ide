@@ -4,6 +4,7 @@ import * as monaco from 'monaco-editor'
 import { loader } from '@monaco-editor/react'
 import App from './App'
 import { ThemeProvider } from './themes'
+import { I18nProvider } from './i18n'
 import './styles/globals.css'
 
 // 直接使用打包进 bundle 的 monaco 实例，不走 CDN / 动态脚本注入
@@ -12,7 +13,9 @@ loader.config({ monaco })
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
-      <App />
+      <I18nProvider>
+        <App />
+      </I18nProvider>
     </ThemeProvider>
   </React.StrictMode>
 )

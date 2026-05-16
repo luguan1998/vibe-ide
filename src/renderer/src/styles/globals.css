@@ -35,7 +35,7 @@ html, body, #root {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', monospace, sans-serif;
   background-color: rgb(var(--ide-bg));
   color: rgb(var(--ide-text));
 }

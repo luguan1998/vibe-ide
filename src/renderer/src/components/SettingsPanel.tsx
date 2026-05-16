@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { RotateCcw } from 'lucide-react'
+import { useI18n } from '../i18n'
 import {
   getAllShortcutDefs,
   getShortcuts,
@@ -13,6 +14,7 @@ import {
 export default function SettingsPanel() {
   const [shortcuts, setShortcuts] = useState<Record<string, string>>({})
   const [listeningId, setListeningId] = useState<string | null>(null)
+  const { t } = useI18n()
   const refresh = useCallback(() => setShortcuts(getShortcuts()), [])
 
   // Load on mount
@@ -61,7 +63,7 @@ export default function SettingsPanel() {
                 isReadonly ? 'opacity-50' : 'hover:bg-ide-hover/50'
               }`}
             >
-              <span className="text-xs text-ide-text">{def.label}</span>
+              <span className="text-xs text-ide-text">{t(def.label)}</span>
               {isReadonly ? (
                 <span className="text-[11px] text-ide-text-muted font-mono">
                   {displayLabel(current)}
@@ -77,7 +79,7 @@ export default function SettingsPanel() {
                   `}
                   onClick={() => setListeningId(isListening ? null : def.id)}
                 >
-                  {isListening ? 'Press keys...' : displayLabel(current)}
+                  {isListening ? t('Press keys...') : displayLabel(current)}
                 </button>
               )}
             </div>
@@ -90,7 +92,7 @@ export default function SettingsPanel() {
           onClick={handleReset}
         >
           <RotateCcw size={11} />
-          Reset to defaults
+          {t('Reset to defaults')}
         </button>
       </div>
     </div>

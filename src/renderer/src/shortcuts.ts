@@ -135,48 +135,54 @@ export function eventMatchesBinding(e: KeyboardEvent, raw: string): boolean {
 export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
   {
     id: 'search.focus',
-    label: '聚焦搜索',
+    label: 'Focus Search',
     defaultKeys: 'Ctrl+KeyF',
   },
   {
     id: 'terminal.next',
-    label: '下一个终端',
+    label: 'Next Terminal',
     defaultKeys: 'Ctrl+ArrowDown',
   },
   {
     id: 'terminal.prev',
-    label: '上一个终端',
+    label: 'Previous Terminal',
     defaultKeys: 'Ctrl+ArrowUp',
   },
   {
     id: 'font.increase',
-    label: '字体放大',
+    label: 'Font Size Increase',
     defaultKeys: 'Ctrl+Equal',
   },
   {
     id: 'font.decrease',
-    label: '字体缩小',
+    label: 'Font Size Decrease',
     defaultKeys: 'Ctrl+Minus',
   },
   {
     id: 'panel.tabRight',
-    label: '右侧标签右移',
+    label: 'Panel Tab Right',
     defaultKeys: 'Ctrl+ArrowRight',
   },
   {
     id: 'panel.tabLeft',
-    label: '右侧标签左移',
+    label: 'Panel Tab Left',
     defaultKeys: 'Ctrl+ArrowLeft',
   },
   {
     id: 'terminal.newline',
-    label: '终端内换行',
+    label: 'Terminal Newline',
     defaultKeys: 'Shift+Enter',
   },
   {
     id: 'terminal.contextMenu',
-    label: '终端右键复制/粘贴',
+    label: 'Terminal Copy/Paste',
     defaultKeys: 'Right-click',
+    readonly: true,
+  },
+  {
+    id: 'diff.close',
+    label: 'Close Diff / Back',
+    defaultKeys: 'Escape',
     readonly: true,
   },
 ]

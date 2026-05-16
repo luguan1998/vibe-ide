@@ -12,6 +12,7 @@ interface DiffViewerProps {
   showSquiggles?: boolean
   lineNumber?: number       // 跳转到指定行
   fontSize?: number         // 编辑器字体大小
+  wordWrap?: boolean        // 是否自动换行
   onStage: (path: string) => Promise<void>
   onUnstage: (path: string) => Promise<void>
   onBack?: () => void
@@ -84,7 +85,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions, deletions }
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 13, onStage, onUnstage, onBack, onSaved, onRefreshDiff, defaultEdit }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 13, wordWrap = true, onStage, onUnstage, onBack, onSaved, onRefreshDiff, defaultEdit }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
 
   const [viewMode, setViewMode] = useState<ViewMode>(defaultEdit ? 'edit' : 'diff')
@@ -299,12 +300,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
 
   return (
     <div className="flex flex-col border-t border-ide-border animate-fade-in">
-      <div className="h-10 px-3 flex items-center justify-between bg-ide-hover/30 border-b border-ide-border shrink-0">
+      <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0">
         <div className="flex items-center gap-2 text-sm">
           {onBack && (
             <button
               onClick={onBack}
-              className="w-6 h-6 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors"
+              className="w-6 h-6 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors"
               title="Esc"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3.5 h-3.5">
@@ -362,11 +363,11 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               scrollBeyondLastLine: false,
               fontSize,
               lineNumbers: 'on',
-              wordWrap: 'on',
+              wordWrap: wordWrap ? 'on' : 'off',
               renderIndicators: true,
               scrollbar: {
                 verticalScrollbarSize: 5,
-                horizontalScrollbarSize: 5,
+                horizontalScrollbarSize: 10,
                 useShadows: false
               }
             }}
@@ -410,13 +411,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               scrollBeyondLastLine: false,
               fontSize,
               lineNumbers: 'on',
-              wordWrap: 'on',
+              wordWrap: wordWrap ? 'on' : 'off',
               tabSize: 2,
               automaticLayout: true,
               padding: { top: 8 },
               scrollbar: {
                 verticalScrollbarSize: 8,
-                horizontalScrollbarSize: 8,
+                horizontalScrollbarSize: 10,
                 useShadows: false
               }
             }}

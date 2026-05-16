@@ -103,6 +103,10 @@ export default function App() {
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
   const [claudeStatus, setClaudeStatus] = useState<Record<string, 'running' | 'idle' | null>>({})
+  const [wordWrap, setWordWrap] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-word-wrap') !== 'false' } catch { return true }
+  })
+
   const [terminalFontSize, setTerminalFontSize] = useState(() => {
     try {
       const v = localStorage.getItem('vibe-ide-terminal-font-size')
@@ -129,6 +133,9 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-editor-font-size', String(editorFontSize)) } catch {}
   }, [editorFontSize])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-word-wrap', String(wordWrap)) } catch {}
+  }, [wordWrap])
 
   // Listen for font-adjust IPC from main process (for Ctrl+-/= keys eaten by Chromium)
   React.useEffect(() => {
@@ -550,6 +557,8 @@ export default function App() {
             claudeStatus={claudeStatus}
             showSquiggles={showSquiggles}
             onToggleSquiggles={setShowSquiggles}
+            wordWrap={wordWrap}
+            onToggleWordWrap={setWordWrap}
             focusSettingsTrigger={focusSettingsTrigger}
           />
         </div>
@@ -578,6 +587,7 @@ export default function App() {
               onRefreshDiff={handleRefreshDiff}
               defaultEdit={diffFile.defaultEdit}
               fontSize={editorFontSize}
+              wordWrap={wordWrap}
             />
           ) : sessions.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-ide-text-muted">

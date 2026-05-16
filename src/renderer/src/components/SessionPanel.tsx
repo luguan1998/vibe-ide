@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { TerminalSession } from '@shared/types'
-import { Zap, Coffee, Plus, Settings } from 'lucide-react'
+import { Zap, Coffee, Plus, ChevronRight } from 'lucide-react'
 import { useTheme } from '../themes'
+import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
 
 const SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '🤖', '🐸', '👾', '🎯', '🚀', '⚡', '🌟', '💫', '🌀', '🎭', '🪐', '👻', '🍕', '🎲', '🧩', '🌈', '🦧', '🐉', '🎸']
@@ -31,6 +32,8 @@ interface SessionPanelProps {
   claudeStatus?: Record<string, 'running' | 'idle' | null>
   showSquiggles?: boolean
   onToggleSquiggles?: (value: boolean) => void
+  wordWrap?: boolean
+  onToggleWordWrap?: (value: boolean) => void
   focusSettingsTrigger?: number
 }
 
@@ -47,12 +50,15 @@ const SessionPanel = React.memo(function SessionPanel({
   claudeStatus = {},
   showSquiggles = false,
   onToggleSquiggles,
+  wordWrap = true,
+  onToggleWordWrap,
   focusSettingsTrigger = 0
 }: SessionPanelProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showConfigMenu, setShowConfigMenu] = useState(false)
   const [showThemeFlyout, setShowThemeFlyout] = useState(false)
   const { themes, currentThemeId, setTheme } = useTheme()
+  const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
@@ -138,14 +144,14 @@ const SessionPanel = React.memo(function SessionPanel({
                 ? 'text-ide-accent bg-ide-accent/10'
                 : 'text-ide-text-muted bg-ide-hover'
             }`}
-            title="Claude 运行中"
+            title={t('Claude running')}
           >
             <Zap size={13} className="shrink-0" />
             <span className="text-xs font-bold font-mono">{stats.running}</span>
           </span>
           <span
             className="flex items-center gap-1 px-2 py-0.5 rounded text-ide-text-muted bg-ide-hover transition-colors"
-            title="空闲"
+            title={t('Idle')}
           >
             <Coffee size={13} className="shrink-0" />
             <span className="text-xs font-bold font-mono">{stats.idle}</span>
@@ -160,12 +166,27 @@ const SessionPanel = React.memo(function SessionPanel({
                   : 'text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white'
               }`}
               onClick={() => setShowConfigMenu(!showConfigMenu)}
-              title="Settings"
+              title={t('Settings')}
             >
-              <Settings size={13} />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-[13px] h-[13px]">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
             </button>
             {showConfigMenu && (
               <div className="absolute right-0 top-full mt-1 w-44 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 config-menu-area">
+                {/* Language toggle */}
+                <div className="inline-flex items-center rounded-md bg-ide-hover overflow-hidden mx-3 my-1.5">
+                  <button
+                    className={`px-2 py-1 text-[11px] transition-colors ${lang === 'zh' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                    onClick={() => setLang('zh')}
+                  >中</button>
+                  <button
+                    className={`px-2 py-1 text-[11px] transition-colors ${lang === 'en' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                    onClick={() => setLang('en')}
+                  >EN</button>
+                </div>
+                <div className="border-t border-ide-border" />
                 {/* Theme flyout */}
                 <div
                   className="relative"
@@ -178,8 +199,8 @@ const SessionPanel = React.memo(function SessionPanel({
                   }}
                 >
                   <div className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover flex items-center justify-between cursor-default transition-colors">
-                    Theme
-                    <span className="text-ide-text-muted text-[10px]">▶</span>
+                    {t('Theme')}
+                    <ChevronRight size={10} className="text-ide-text-muted" />
                   </div>
                   {showThemeFlyout && (
                     <div
@@ -215,9 +236,23 @@ const SessionPanel = React.memo(function SessionPanel({
                     className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
                     onClick={() => { setShowShortcuts(true); setShowConfigMenu(false) }}
                   >
-                    Keyboard Shortcuts
+                    {t('Keyboard Shortcuts')}
                   </button>
                 </div>
+                {/* Word Wrap toggle */}
+                {onToggleWordWrap && (
+                  <div className="border-t border-ide-border mt-1 pt-1">
+                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={wordWrap}
+                        onChange={(e) => onToggleWordWrap(e.target.checked)}
+                        className="accent-ide-accent"
+                      />
+                      {t('Word Wrap')}
+                    </label>
+                  </div>
+                )}
                 {/* Squiggles at bottom */}
                 {onToggleSquiggles && (
                   <div className="border-t border-ide-border mt-1 pt-1">
@@ -228,7 +263,7 @@ const SessionPanel = React.memo(function SessionPanel({
                         onChange={(e) => onToggleSquiggles(e.target.checked)}
                         className="accent-ide-accent"
                       />
-                      显示错误提示
+                      {t('Show squiggles')}
                     </label>
                   </div>
                 )}
@@ -238,7 +273,7 @@ const SessionPanel = React.memo(function SessionPanel({
           <button
             onClick={onCreateSession}
             className="w-6 h-6 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors shrink-0"
-            title="New Terminal"
+            title={t('New Terminal')}
           >
             <Plus size={14} />
           </button>
@@ -255,7 +290,7 @@ const SessionPanel = React.memo(function SessionPanel({
       >
         {sessions.length === 0 ? (
           <div className="px-3 py-4 text-ide-text-muted text-sm text-center">
-            No sessions yet
+            {t('No sessions yet')}
           </div>
         ) : (
           sessions.map((session, index) => (
@@ -280,9 +315,10 @@ const SessionPanel = React.memo(function SessionPanel({
               onMouseLeave={() => {
                 if (hoverTimerRef.current) {
                   clearTimeout(hoverTimerRef.current)
-                  hoverTimerRef.current = null
                 }
-                setHoverPreview(null)
+                hoverTimerRef.current = setTimeout(() => {
+                  setHoverPreview(null)
+                }, 200)
               }}
               onDragStart={() => setDragIndex(index)}
               onDragOver={(e) => {
@@ -343,7 +379,7 @@ const SessionPanel = React.memo(function SessionPanel({
                       onCloseSession(session.id)
                     }}
                     className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
-                    title="Close Session"
+                    title={t('Close Session')}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
                       <line x1="18" y1="6" x2="6" y2="18" />
@@ -379,7 +415,7 @@ const SessionPanel = React.memo(function SessionPanel({
               setContextMenu(null)
             }}
           >
-            Clone
+            {t('Clone')}
           </button>
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover"
@@ -388,7 +424,7 @@ const SessionPanel = React.memo(function SessionPanel({
               if (session) startRename(session)
             }}
           >
-            Rename
+            {t('Rename')}
           </button>
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover"
@@ -397,7 +433,7 @@ const SessionPanel = React.memo(function SessionPanel({
               setContextMenu(null)
             }}
           >
-            Close
+            {t('Close')}
           </button>
         </div>
       )}
@@ -405,6 +441,7 @@ const SessionPanel = React.memo(function SessionPanel({
       {/* History Hover Popover */}
       {hoverPreview && (() => {
         const cmds = commandHistory[hoverPreview.sessionId] || []
+        const displayed = cmds.slice(-20)
         return (
           <div
             className="fixed z-50 bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-80 max-h-64 flex flex-col"
@@ -415,25 +452,25 @@ const SessionPanel = React.memo(function SessionPanel({
                 hoverTimerRef.current = null
               }
             }}
-            onMouseLeave={() => setHoverPreview(null)}
+            onMouseLeave={() => {
+              hoverTimerRef.current = setTimeout(() => {
+                setHoverPreview(null)
+              }, 300)
+            }}
           >
-            <div className="px-3 py-1.5 border-b border-ide-border flex items-center justify-between shrink-0">
-              <span className="text-xs font-semibold text-ide-text">History</span>
-              <span className="text-xs text-ide-text-muted ml-2">{hoverPreview.name}</span>
-            </div>
             <div className="flex-1 overflow-y-auto py-1">
               {cmds.length === 0 ? (
                 <div className="px-3 py-4 text-xs text-ide-text-muted text-center">
-                  No commands yet
+                  {t('No commands yet')}
                 </div>
               ) : (
-                cmds.slice(-20).reverse().map((cmd, i) => (
+                displayed.map((cmd, i) => (
                   <div
                     key={`hp-${i}`}
                     className="px-3 py-0.5 text-xs font-mono text-ide-text hover:bg-ide-hover flex items-center gap-2 group"
                   >
                     <span className="text-ide-text-muted shrink-0 select-none w-5 text-right">
-                      {cmds.length - i}
+                      {cmds.length - displayed.length + i + 1}
                     </span>
                     <span className="truncate flex-1" title={cmd}>
                       {cmd.length > 60 ? cmd.slice(0, 60) + '...' : cmd}
@@ -444,7 +481,7 @@ const SessionPanel = React.memo(function SessionPanel({
                         await navigator.clipboard.writeText(cmd)
                       }}
                       className="opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-text shrink-0 transition-opacity p-0.5"
-                      title="Copy"
+                      title={t('Copy')}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -464,7 +501,7 @@ const SessionPanel = React.memo(function SessionPanel({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowShortcuts(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-              <span className="text-sm font-semibold text-ide-text">Keyboard Shortcuts</span>
+              <span className="text-sm font-semibold text-ide-text">{t('Keyboard Shortcuts')}</span>
               <button
                 className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
                 onClick={() => setShowShortcuts(false)}

@@ -3,6 +3,7 @@ const TerminalView = React.lazy(() => import('./TerminalView'))
 import { ChevronRight, Lightbulb } from 'lucide-react'
 import SearchPanel from './SearchPanel'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
+import { useI18n } from '../i18n'
 import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitShowResult, GitCommitFile, TerminalSession, FileNode } from '@shared/types'
 
 interface GitPanelProps {
@@ -24,6 +25,44 @@ interface GitPanelProps {
   searchFocusTrigger?: number
   // 文件浏览器打开文件
   onOpenFileFromExplorer?: (fullPath: string) => void
+}
+
+type FileKind = 'code' | 'style' | 'markup' | 'data' | 'docs' | 'image' | 'config' | 'script' | 'default'
+
+const FILE_KINDS: Record<string, { kind: FileKind; color: string }> = {
+  ts: { kind: 'code', color: 'text-ide-accent' }, tsx: { kind: 'code', color: 'text-ide-accent' },
+  js: { kind: 'code', color: 'text-ide-warning' }, jsx: { kind: 'code', color: 'text-ide-warning' }, mjs: { kind: 'code', color: 'text-ide-warning' }, cjs: { kind: 'code', color: 'text-ide-warning' },
+  py: { kind: 'code', color: 'text-[#3572A5]' },
+  go: { kind: 'code', color: 'text-[#00ADD8]' },
+  rs: { kind: 'code', color: 'text-[#dea584]' },
+  java: { kind: 'code', color: 'text-[#b07219]' },
+  css: { kind: 'style', color: 'text-[#a855f7]' }, scss: { kind: 'style', color: 'text-[#a855f7]' }, less: { kind: 'style', color: 'text-[#a855f7]' },
+  html: { kind: 'markup', color: 'text-ide-accent' }, htm: { kind: 'markup', color: 'text-ide-accent' },
+  vue: { kind: 'markup', color: 'text-ide-accent' }, svelte: { kind: 'markup', color: 'text-ide-accent' },
+  json: { kind: 'data', color: 'text-ide-warning' },
+  yml: { kind: 'data', color: 'text-[#cb3d3d]' }, yaml: { kind: 'data', color: 'text-[#cb3d3d]' },
+  md: { kind: 'docs', color: 'text-ide-accent' }, mdx: { kind: 'docs', color: 'text-ide-accent' },
+  svg: { kind: 'image', color: 'text-[#a855f7]' },
+  png: { kind: 'image', color: 'text-ide-success' }, jpg: { kind: 'image', color: 'text-ide-success' }, jpeg: { kind: 'image', color: 'text-ide-success' }, gif: { kind: 'image', color: 'text-ide-success' }, webp: { kind: 'image', color: 'text-ide-success' }, ico: { kind: 'image', color: 'text-ide-success' },
+  sh: { kind: 'script', color: 'text-ide-accent' }, bash: { kind: 'script', color: 'text-ide-accent' }, bat: { kind: 'script', color: 'text-ide-accent' },
+  env: { kind: 'config', color: 'text-ide-text-muted' }, gitignore: { kind: 'config', color: 'text-ide-text-muted' },
+}
+
+function getFileInfo(name: string): { kind: FileKind; color: string } {
+  const ext = name.split('.').pop()?.toLowerCase() || ''
+  return FILE_KINDS[ext] || { kind: 'default', color: 'text-ide-text-muted' }
+}
+
+const FILE_ICON_PATHS: Record<FileKind, string> = {
+  code: `<path d="M4.75 4.25a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1Z" /><path fill-rule="evenodd" d="M2 3.5A1.5 1.5 0 0 1 3.5 2H6a1.5 1.5 0 0 1 1.5 1.5V6A1.5 1.5 0 0 1 6 7.5H3.5A1.5 1.5 0 0 1 2 6V3.5Zm1.5 0H6V6H3.5V3.5Z" clip-rule="evenodd" /><path d="M4.25 11.25a.5.5 0 1 1 1 0 .5.5 0 0 1-1 0Z" /><path fill-rule="evenodd" d="M2 10a1.5 1.5 0 0 1 1.5-1.5H6A1.5 1.5 0 0 1 7.5 10v2.5A1.5 1.5 0 0 1 6 14H3.5A1.5 1.5 0 0 1 2 12.5V10Zm1.5 2.5V10H6v2.5H3.5Z" clip-rule="evenodd" /><path d="M11.25 4.25a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1Z" /><path fill-rule="evenodd" d="M10 2a1.5 1.5 0 0 0-1.5 1.5V6A1.5 1.5 0 0 0 10 7.5h2.5A1.5 1.5 0 0 0 14 6V3.5A1.5 1.5 0 0 0 12.5 2H10Zm2.5 1.5H10V6h2.5V3.5Z" clip-rule="evenodd" /><path d="M8.5 9.417a.917.917 0 1 1 1.833 0 .917.917 0 0 1-1.833 0ZM8.5 13.083a.917.917 0 1 1 1.833 0 .917.917 0 0 1-1.833 0ZM13.083 8.5a.917.917 0 1 0 0 1.833.917.917 0 0 0 0-1.833ZM12.166 13.084a.917.917 0 1 1 1.833 0 .917.917 0 0 1-1.833 0ZM11.25 10.333a.917.917 0 1 0 0 1.833.917.917 0 0 0 0-1.833Z" />`,
+  style: `<path fill-rule="evenodd" d="M3.75 2a.75.75 0 0 0-.75.75v10.5a.75.75 0 0 0 1.28.53L8 10.06l3.72 3.72a.75.75 0 0 0 1.28-.53V2.75a.75.75 0 0 0-.75-.75h-8.5Z" clip-rule="evenodd" />`,
+  markup: `<path fill-rule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clip-rule="evenodd" />`,
+  data: `<path d="M8 7c3.314 0 6-1.343 6-3s-2.686-3-6-3-6 1.343-6 3 2.686 3 6 3Z" /><path d="M8 8.5c1.84 0 3.579-.37 4.914-1.037A6.33 6.33 0 0 0 14 6.78V8c0 1.657-2.686 3-6 3S2 9.657 2 8V6.78c.346.273.72.5 1.087.683C4.42 8.131 6.16 8.5 8 8.5Z" /><path d="M8 12.5c1.84 0 3.579-.37 4.914-1.037.366-.183.74-.41 1.086-.684V12c0 1.657-2.686 3-6 3s-6-1.343-6-3v-1.22c.346.273.72.5 1.087.683C4.42 12.131 6.16 12.5 8 12.5Z" />`,
+  docs: `<path d="M2.5 3.5A1.5 1.5 0 0 1 4 2h4.879a1.5 1.5 0 0 1 1.06.44l3.122 3.12a1.5 1.5 0 0 1 .439 1.061V12.5A1.5 1.5 0 0 1 12 14H4a1.5 1.5 0 0 1-1.5-1.5v-9Z" />`,
+  image: `<path fill-rule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm10.5 5.707a.5.5 0 0 0-.146-.353l-1-1a.5.5 0 0 0-.708 0L9.354 9.646a.5.5 0 0 1-.708 0L6.354 7.354a.5.5 0 0 0-.708 0l-2 2a.5.5 0 0 0-.146.353V12a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5V9.707ZM12 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" clip-rule="evenodd" />`,
+  config: `<path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.55a1.5 1.5 0 0 1-.764 1.323l-.476.275a2.5 2.5 0 1 0 2.5 4.33l.476-.275a1.5 1.5 0 0 1 1.528 0l.476.275a2.5 2.5 0 1 0 2.5-4.33l-.476-.275a1.5 1.5 0 0 1-.764-1.323V3.5A2.5 2.5 0 0 0 8 1Zm0 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z" />`,
+  script: `<path fill-rule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clip-rule="evenodd" />`,
+  default: `<path d="M2.5 3.5A1.5 1.5 0 0 1 4 2h4.879a1.5 1.5 0 0 1 1.06.44l3.122 3.12a1.5 1.5 0 0 1 .439 1.061V12.5A1.5 1.5 0 0 1 12 14H4a1.5 1.5 0 0 1-1.5-1.5v-9Z" />`,
 }
 
 function DocTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, workspacePath }: {
@@ -56,13 +95,24 @@ function DocTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, workspac
           <span className="w-3 shrink-0" />
         )}
         {node.isDir ? (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
+          isExpanded ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              <path d="M2 10h12l2 4h6" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          )
         ) : (
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-ide-text-muted">
-            <path d="M5 2h5l4 4v9a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z M10 2v4h4" />
-          </svg>
+          (() => {
+            const info = getFileInfo(node.name)
+            return (
+              <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
+                dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] || FILE_ICON_PATHS.default }} />
+            )
+          })()
         )}
         <span className="text-[11px] truncate text-ide-text">{node.name}</span>
         {node.comment && (
@@ -86,44 +136,6 @@ function DocTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, workspac
 
 type GitTab = 'changes' | 'log' | 'branches'
 type GitSection = 'git' | 'terminal' | 'search' | 'file'
-
-type FileKind = 'code' | 'style' | 'markup' | 'data' | 'docs' | 'image' | 'config' | 'script' | 'default'
-
-const FILE_KINDS: Record<string, { kind: FileKind; color: string }> = {
-  ts: { kind: 'code', color: 'text-ide-accent' }, tsx: { kind: 'code', color: 'text-ide-accent' },
-  js: { kind: 'code', color: 'text-ide-warning' }, jsx: { kind: 'code', color: 'text-ide-warning' }, mjs: { kind: 'code', color: 'text-ide-warning' }, cjs: { kind: 'code', color: 'text-ide-warning' },
-  py: { kind: 'code', color: 'text-[#3572A5]' },
-  go: { kind: 'code', color: 'text-[#00ADD8]' },
-  rs: { kind: 'code', color: 'text-[#dea584]' },
-  java: { kind: 'code', color: 'text-[#b07219]' },
-  css: { kind: 'style', color: 'text-[#a855f7]' }, scss: { kind: 'style', color: 'text-[#a855f7]' }, less: { kind: 'style', color: 'text-[#a855f7]' },
-  html: { kind: 'markup', color: 'text-[#e44d26]' }, htm: { kind: 'markup', color: 'text-[#e44d26]' },
-  vue: { kind: 'markup', color: 'text-ide-success' }, svelte: { kind: 'markup', color: 'text-ide-success' },
-  json: { kind: 'data', color: 'text-ide-warning' },
-  yml: { kind: 'data', color: 'text-[#cb3d3d]' }, yaml: { kind: 'data', color: 'text-[#cb3d3d]' },
-  md: { kind: 'docs', color: 'text-ide-accent' }, mdx: { kind: 'docs', color: 'text-ide-accent' },
-  svg: { kind: 'image', color: 'text-[#a855f7]' },
-  png: { kind: 'image', color: 'text-ide-success' }, jpg: { kind: 'image', color: 'text-ide-success' }, jpeg: { kind: 'image', color: 'text-ide-success' }, gif: { kind: 'image', color: 'text-ide-success' }, webp: { kind: 'image', color: 'text-ide-success' },
-  sh: { kind: 'script', color: 'text-ide-success' }, bash: { kind: 'script', color: 'text-ide-success' }, bat: { kind: 'script', color: 'text-ide-success' },
-  env: { kind: 'config', color: 'text-ide-text-muted' }, gitignore: { kind: 'config', color: 'text-ide-text-muted' },
-}
-
-function getFileInfo(name: string): { kind: FileKind; color: string } {
-  const ext = name.split('.').pop()?.toLowerCase() || ''
-  return FILE_KINDS[ext] || { kind: 'default', color: 'text-ide-text-muted' }
-}
-
-const FILE_ICON_PATHS: Record<FileKind, string> = {
-  code: 'M6 5L3 8l3 3M10 5l3 3-3 3',
-  style: 'M5.5 5l1.5 6M9 5l-1.5 6M4.5 7.5h7M4.5 9.5h7',
-  markup: 'M3.5 7L2 8.5l1.5 1.5M12.5 7L14 8.5l-1.5 1.5M8 5.5L6.5 11.5',
-  data: 'M5 5C4 5 3.5 5.5 3.5 6v.8C3.5 7.5 3 7.8 3 8s.5.5.5 1.2V10C3.5 10.5 4 11 5 11M11 5c1 0 1.5.5 1.5 1v.8c0 .7.5 1 .5 1.2s-.5.5-.5 1.2V10c0 .5-.5 1-1.5 1',
-  docs: 'M5 2h4l4 4v9a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z M9 2v4h4 M5 9h5 M5 11h4 M5 13h3',
-  image: 'M2 4h12v8H2z M2 11l3.5-3 2.5 2.5L10.5 7 14 10v1H2z M5.5 6a.8.8 0 110-1.6.8.8 0 010 1.6z',
-  config: 'M8 2l.5 1.5L10 3l.5 1-1.5.8.3 1.2h-1l-.2-1.1-1.5-.7L7 3l1.2.5L8 2z M8 7a1 1 0 100 2 1 1 0 000-2z',
-  script: 'M3 5h10v6H3z M5 7l1.5 1.5L5 10 M8 10h3',
-  default: 'M5 2h5l4 4v9a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z M10 2v4h4',
-}
 
 // File tree item component
 function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile }: {
@@ -160,16 +172,22 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile }: {
           <span className="w-3 shrink-0" />
         )}
         {isDir ? (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
+          isExpanded ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              <path d="M2 10h12l2 4h6" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          )
         ) : (
           (() => {
             const info = getFileInfo(node.name)
             return (
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}>
-                <path d={FILE_ICON_PATHS[info.kind]} />
-              </svg>
+              <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
+                dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
             )
           })()
         )}
@@ -290,6 +308,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [remoteBranches, setRemoteBranches] = useState<{ name: string; remote: string; branch: string }[]>([])
   const [selectedRemote, setSelectedRemote] = useState<string>('')
   const [showPushDropdown, setShowPushDropdown] = useState(false)
+  const { t } = useI18n()
 
   // Switch git workspace when workspacePath changes
   useEffect(() => {
@@ -919,8 +938,9 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                       {stagedExpanded && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleUnstageAll(stagedFiles.map(f => f.path)) }}
-                          className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                          className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors inline-flex items-center gap-1"
                         >
+                          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fill-rule="evenodd" d="M9.75 3.5A2.75 2.75 0 0 0 7 6.25v5.19l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V6.25a4.25 4.25 0 0 1 8.5 0v1a.75.75 0 0 1-1.5 0v-1A2.75 2.75 0 0 0 9.75 3.5Z" clip-rule="evenodd" /></svg>
                           全部取消
                         </button>
                       )}
@@ -980,8 +1000,9 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                       {changesExpanded && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleStageAll(modifiedFiles.map(f => f.path)) }}
-                          className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                          className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors inline-flex items-center gap-1"
                         >
+                          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fill-rule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clip-rule="evenodd" /></svg>
                           全部暂存
                         </button>
                       )}
@@ -1043,8 +1064,9 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   {untrackedExpanded && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path)) }}
-                      className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                      className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors inline-flex items-center gap-1"
                     >
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fill-rule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clip-rule="evenodd" /></svg>
                       全部暂存
                     </button>
                   )}
@@ -1333,19 +1355,19 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   onClick={() => activeSessionId && onCreateRightTerminal?.(activeSessionId)}
                   className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
                 >
-                  启动终端
+                  {t('Launch Terminal')}
                 </button>
               </div>
             ) : (
               <div className="h-full flex items-center justify-center text-ide-text-muted text-xs">
-                请先选择工作目录
+                {t('Please select a workspace first')}
               </div>
             )}
           </div>
           {commands.length > 0 && (
             <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '40%', overflowY: 'auto' }}>
               <div className="px-2 py-1 text-[10px] text-ide-text-muted uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm">
-                Commands
+                {t('Commands')}
               </div>
               {commands.map((cmd, i) => (
                 <div key={i} className="px-2 py-0.5 flex items-center gap-1.5 hover:bg-ide-hover group">
@@ -1354,7 +1376,9 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                     className="w-5 h-5 rounded text-ide-accent hover:bg-ide-accent/20 flex items-center justify-center shrink-0 transition-colors"
                     title={`Run: ${cmd.command}`}
                   >
-                    <ChevronRight size={12} strokeWidth={2.5} />
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                      <path fill-rule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clip-rule="evenodd" />
+                    </svg>
                   </button>
                   <span className="text-[11px] font-mono font-semibold text-ide-text shrink-0 w-[8.5rem] truncate">{cmd.command}</span>
                   <span className="text-[10px] text-ide-text-muted/60 truncate">{cmd.comment}</span>
@@ -1403,9 +1427,9 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           </div>
           {docTree.length > 0 && (
             <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '45%', overflowY: 'auto' }}>
-              <div className="px-2 py-1 text-[10px] text-ide-text-muted uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm">
+              <div className="px-2 py-1 text-[10px] text-ide-text-muted uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1">
                 <Lightbulb size={12} className="text-ide-text-muted" />
-                <span className="ml-1">arch</span>
+                <span>arch</span>
               </div>
               {docTree.map(node => (
                 <DocTreeItem
