@@ -77,72 +77,40 @@ src/
     └── types.ts                  # IPC 通道常量 + 跨层类型定义
 ```
 
-- **Main process** (`src/main/`) — Node.js side, runs in Electron main process
-  - `index.ts` — App lifecycle, frameless `BrowserWindow` (1400x900, min 900x600) with `titleBarOverlay` (height 36, bg `#1a1a2e`). Fixes Windows GPU cache permissions, adds `--no-sandbox` flag, registers all IPC handlers. Sets app model ID `com.vibe-ide`.
-  - `pty.ts` — Terminal session management via `node-pty`. Spawns pwsh.exe (preferred) or powershell.exe with `-NoLogo`. Implements 600ms startup banner discard (buffers initial output, then clears screen + sends `Clear-Host` for a clean prompt). Exposes `registerPtyHandlers()` and `cleanupTerminals()`. Maintains internal `terminals` Map.
-  - `git.ts` — Git operations via `simple-git`. All git commands: status, log, diff, add, reset, commit, branch, checkout, stash (list/push/pop), init, show. Maintains workspace path and a file watcher (`fs.watch`) that uses a 2-second cooldown to batch `git:changed` push events for auto-refresh. Should `WATCHER_SKIP` regex skip `.git`, `node_modules`, and common build dirs.
-  - `file.ts` — File system operations (read, write, list, tree). `file:tree` builds recursive file trees up to configurable depth (default 3), skips hidden dirs, `node_modules`, `.git`.
-  - `search.ts` — Content search via `search:grep`. Tries ripgrep (`rg --json`) as a subprocess first (200 max results, 15s timeout), falls back to Node.js native implementation. Skips `node_modules`, `.git`, `dist`, `build`, etc. Supports regex, case-sensitive, and include pattern (glob) options. Files over 1MB are skipped.
+### Main process (`src/main/`)
 
-- **Preload** (`src/preload/index.ts`) — Bridge between main and renderer via `contextBridge.exposeInMainWorld('api', ...)`. Exposes `window.api` with five namespaces: `terminal`, `git`, `file`, `workspace`, `search`. All `invoke` channels use `ipcRenderer.invoke()`, all `send` channels use `ipcRenderer.send()`, all `on` channels use `ipcRenderer.on()` with cleanup methods (`removeDataListener`, `removeExitListener`, `removeChangedListener`).
+| File | Role |
+|------|------|
+| `index.ts` | 窗口管理、IPC 注册 |
+| `pty.ts` | node-pty 终端会话 |
+| `git.ts` | simple-git 版本控制 |
+| `file.ts` | 文件系统读写 |
+| `search.ts` | ripgrep 内容搜索 |
 
-- **Renderer** (`src/renderer/src/`) — React app (browser side)
-  - `App.tsx` — Three-panel layout: left (SessionPanel), center (TerminalView / DiffViewer), right (GitPanel with sub-tabs). Resizable panels with drag handles. Manages sessions, active session, auxiliary right terminal, diff file state, search focus trigger, command history (per session, 500 max), and `showSquiggles` config. Auto-creates first session on mount. Ctrl+F captured in capture phase to focus search panel.
-  - `components/SessionPanel.tsx` — Terminal session list with create (+), switch, clone, close, and inline rename. Right-click context menu (Clone, Rename, History, Close). History modal shows per-session command history with copy buttons (entries truncated to 80 chars).
-  - `components/TerminalView.tsx` — xterm.js terminal (`React.memo`). Uses FitAddon, WebLinksAddon, ClipboardAddon. Custom dark purple theme (bg `#1a1a2e`, cursor `#7c3aed`). Font: JetBrains Mono / Fira Code / Cascadia Code / Consolas, 14px, 10000-line scrollback. `FileLinkProvider` (implements `ILinkProvider`) detects Windows absolute paths and relative paths (`./src/file.ts:10`) in terminal output — click to open in DiffViewer. Right-click pastes clipboard text via xterm's `paste()` (respects bracketed paste mode). Tracks command history by reading scrollback on Enter, stripping ANSI codes, and extracting shell commands via prompt boundary regex.
-  - `components/GitPanel.tsx` — Right panel with bottom tab navigation: Git / Aux / Search / File. Git section has three sub-tabs:
-    - **Changes** — Staged/unstaged/untracked file lists with per-file stage/unstage, Stage All / Unstage All, stash push/pop, commit message textarea (Ctrl+Enter to commit).
-    - **Log** — Last 50 commits, expandable to show changed files with +/- counts, click file to open diff.
-    - **Branches** — List all branches, click to checkout.
-    Detects non-git directories and shows "git init" button. Listens to `git:changed` push events for auto-refresh. Auto-calls `git.setWorkspace()` when `workspacePath` changes.
-  - `components/DiffViewer.tsx` — File diff viewer/editor using Monaco Editor (`React.memo`). Two modes: **diff** (`DiffEditor`) and **edit** (`Editor`). Parses unified diff content for Monaco. File type → Monaco language mapping (~30 languages). Supports line number jump on mount. Ctrl+S saves edited content back to filesystem, triggers git refresh. Stage/unstage buttons. Shows +/- stats in header.
-  - `components/SearchPanel.tsx` — Content search panel. 300ms debounced input, regex toggle, case-sensitive toggle, optional include pattern (e.g. `*.ts`). Results grouped by file (expandable/collapsible), showing line numbers and content snippets (max 200 chars). Total count display with truncation warning at 200. Click result to open file in DiffViewer. Loading spinner during search. Focus trigger via `focusTrigger` prop (incremented by Ctrl+F).
+### Preload (`src/preload/index.ts`)
 
-- **Shared** (`src/shared/types.ts`) — IPC channel constants (`IPC_CHANNELS`) and TypeScript interfaces shared across all three Electron layers. This is the contract between main and renderer.
+`contextBridge.exposeInMainWorld('api', ...)` 暴露 `window.api`（5 命名空间: terminal / git / file / workspace / search）。
 
-### IPC communication pattern
+### Renderer (`src/renderer/src/`)
 
-All renderer-to-main communication uses Electron IPC:
+| 组件 | 位置 | 职责 |
+|------|------|------|
+| `App.tsx` | 根 | 三栏布局 + 全局状态 |
+| `SessionPanel.tsx` | 左侧栏 | session 列表管理 |
+| `TerminalView.tsx` | 中间 | xterm.js 终端 |
+| `DiffViewer.tsx` | 中间 | Monaco 编辑器/Diff |
+| `GitPanel.tsx` | 右侧栏 | Git/Aux/Search/File 子面板 |
+| `SearchPanel.tsx` | 右侧栏 | 文件内容搜索 |
 
-**Terminal channels:**
-- `pty:create` (invoke) — Create new PTY session
-- `pty:write` (send) — Write data to PTY
-- `pty:resize` (send) — Resize PTY cols/rows
-- `pty:rename` (invoke) — Rename a session
-- `pty:close` (invoke) — Close PTY session
-- `pty:data` (on) — Main→renderer: PTY output data
-- `pty:exit` (on) — Main→renderer: PTY process exit
+### IPC 频道 (`src/shared/types.ts`)
 
-**Git channels:**
-- `git:setWorkspace` (invoke) — Set working directory, start file watcher
-- `git:status` (invoke) — Get working tree status
-- `git:log` (invoke) — Get commit log (50 entries)
-- `git:diff` (invoke) — Get diff (supports --cached and file path)
-- `git:add` (invoke) — Stage files
-- `git:reset` (invoke) — Unstage files
-- `git:commit` (invoke) — Commit with message
-- `git:branches` (invoke) — List branches
-- `git:checkout` (invoke) — Checkout branch
-- `git:stashList` (invoke) — List stashes
-- `git:stashPush` (invoke) — Push stash
-- `git:stashPop` (invoke) — Pop stash
-- `git:init` (invoke) — Initialize git repo
-- `git:show` (invoke) — Show commit details with per-file diffs
-- `git:changed` (on) — Main→renderer: file watcher push event (2s cooldown)
+所有 renderer→main 通信走 Electron IPC，分 5 组：
 
-**File channels:**
-- `file:read` (invoke) — Read file content
-- `file:write` (invoke) — Write file content (auto-creates parent dirs)
-- `file:list` (invoke) — List directory entries
-- `file:tree` (invoke) — Recursive file tree (configurable depth, default 3)
-
-**Workspace channels:**
-- `workspace:open` (invoke) — Open directory dialog, changes global workspace
-- `workspace:current` (invoke) — Get current workspace path
-- `workspace:pickDir` (invoke) — Open directory dialog without changing global state
-
-**Search channels:**
-- `search:grep` (invoke) — Search file contents (ripgrep with Node.js fallback)
+- **pty:** create, write, resize, rename, close, data(on), exit(on)
+- **git:** setWorkspace, status, log, diff, add, reset, commit, branches, checkout, stashList, stashPush, stashPop, init, show, changed(on)
+- **file:** read, write, list, tree
+- **workspace:** open, current, pickDir
+- **search:** grep
 
 ### Key config
 
@@ -157,7 +125,7 @@ All renderer-to-main communication uses Electron IPC:
 
 ### Key dependencies
 
-- **Runtime:** `@anthropic-ai/claude-code` (Claude CLI), `@monaco-editor/react` + `monaco-editor` (code editor/diff), `@xterm/xterm` + addons (terminal), `node-pty` (native PTY), `simple-git` (git), `react` 18, `lucide-react` (icons), `electron-updater` (auto-update)
+- **Runtime:** `@monaco-editor/react` + `monaco-editor` (code editor/diff), `@xterm/xterm` + addons (terminal), `node-pty` (native PTY), `simple-git` (git), `react` 18, `lucide-react` (icons), `electron-updater` (auto-update)
 - **Build:** `electron-vite`, `electron-builder` (packaging), `tailwindcss`, `typescript`
 
 ### Native dependency note
