@@ -1338,7 +1338,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   />
                   <button
                     onClick={handleCommit}
-                    disabled={!commitMessage.trim()}
+                    disabled={!commitMessage.trim() || !status?.files?.some(f => f.staged)}
                     className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Commit (Ctrl+Enter)
