@@ -575,8 +575,10 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       await window.api.git.push()
     }
     await refreshStatus()
+    await refreshLog()
+    await refreshBranches()
     setShowPushDropdown(false)
-  }, [refreshStatus, selectedRemote])
+  }, [refreshStatus, refreshLog, refreshBranches, selectedRemote])
 
   const handleStashPop = useCallback(async () => {
     await window.api.git.stashPop()

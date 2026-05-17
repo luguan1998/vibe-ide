@@ -506,8 +506,39 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_SHOW, async (_event, hash: string) => {
     try {
       const git = getGit()
-      const showOutput = await git.show([hash, '--stat', '--format=%H%n%s%n%an%n%ad%n', '--date=iso'])
-      const lines = showOutput.split('\n')
+
+      // 用 --name-status 获取可靠的文件状态 (A/D/M/R)
+      const nameStatusOutput = await git.diff([`${hash}^`, hash, '--name-status'])
+      const statusMap = new Map<string, GitCommitFile['status']>()
+      const statusLines = nameStatusOutput ? nameStatusOutput.split('\n').filter(Boolean) : []
+      for (const line of statusLines) {
+        const tab = line.indexOf('\t')
+        if (tab < 0) continue
+        const rawStatus = line.slice(0, tab).trim()
+        const filePath = line.slice(tab + 1).trim()
+        let status: GitCommitFile['status'] = 'modified'
+        if (rawStatus.startsWith('A')) status = 'added'
+        else if (rawStatus.startsWith('D')) status = 'deleted'
+        else if (rawStatus.startsWith('R')) status = 'renamed'
+        else if (rawStatus.startsWith('M')) status = 'modified'
+        statusMap.set(filePath, status)
+      }
+
+      // 用 --numstat 获取每文件增删行数（不依赖于 --stat 解析）
+      const numstatOutput = await git.diff([`${hash}^`, hash, '--numstat'])
+      const statMap = new Map<string, { additions: number; deletions: number }>()
+      const numstatLines = numstatOutput ? numstatOutput.split('\n').filter(Boolean) : []
+      for (const line of numstatLines) {
+        const parts = line.split('\t')
+        if (parts.length < 3) continue
+        const adds = parts[0] === '-' ? 0 : parseInt(parts[0], 10) || 0
+        const dels = parts[1] === '-' ? 0 : parseInt(parts[1], 10) || 0
+        const filePath = parts[2].trim()
+        statMap.set(filePath, { additions: adds, deletions: dels })
+      }
+
+      // 获取show格式的消息头
+      const showOutput = await git.show([hash, '--format=%H%n%s%n%an%n%ad%n', '--date=iso', '--no-patch'])
 
       const result: GitShowResult = {
         hash: '',
@@ -518,50 +549,35 @@ export function registerGitHandlers(): void {
         diff: ''
       }
 
-      let i = 0
-      if (lines[i]) result.hash = lines[i++]
-      if (lines[i]) result.message = lines[i++]
-      if (lines[i]) result.author = lines[i++]
-      if (lines[i]) result.date = lines[i++]
+      const lines = showOutput.split('\n').filter(Boolean)
+      if (lines[0]) result.hash = lines[0]
+      if (lines[1]) result.message = lines[1]
+      if (lines[2]) result.author = lines[2]
+      if (lines[3]) result.date = lines[3]
 
-      const fileInfos: { path: string; status: GitCommitFile['status'] }[] = []
-      for (; i < lines.length; i++) {
-        const line = lines[i]
-        if (line.includes('|')) {
-          const parts = line.split('|')
-          const path = parts[0].trim()
-          let status: GitCommitFile['status'] = 'modified'
-
-          if (path.startsWith('A ')) {
-            status = 'added'
-          } else if (path.startsWith('D ')) {
-            status = 'deleted'
-          } else if (path.startsWith('R ') || line.includes(' -> ')) {
-            status = 'renamed'
-          }
-
-          const cleanPath = path.includes(' -> ')
-            ? path.replace('A ', '').split(' -> ')[1]
-            : path.replace(/^[AMD]\s*/, '').trim()
-          fileInfos.push({ path: cleanPath, status })
-        }
-      }
-
+      // 合并 status 和 stat 信息
+      const allPaths = new Set([...statusMap.keys(), ...statMap.keys()])
       const files: GitCommitFile[] = []
-      for (const info of fileInfos) {
+      for (const filePath of allPaths) {
+        const status = statusMap.get(filePath) || 'modified'
+        const stat = statMap.get(filePath) || { additions: 0, deletions: 0 }
+
         let fileDiff = ''
-        let additions = 0
-        let deletions = 0
+        let additions = stat.additions
+        let deletions = stat.deletions
         try {
-          fileDiff = await git.diff([`${hash}^`, hash, '--', info.path])
-          for (const diffLine of fileDiff.split('\n')) {
-            if (diffLine.startsWith('+') && !diffLine.startsWith('+++')) additions++
-            else if (diffLine.startsWith('-') && !diffLine.startsWith('---')) deletions++
+          fileDiff = await git.diff([`${hash}^`, hash, '--', filePath])
+          if (!statMap.has(filePath)) {
+            // 如果 numstat 没有该文件，手动计数
+            for (const diffLine of fileDiff.split('\n')) {
+              if (diffLine.startsWith('+') && !diffLine.startsWith('+++')) additions++
+              else if (diffLine.startsWith('-') && !diffLine.startsWith('---')) deletions++
+            }
           }
         } catch {
           fileDiff = ''
         }
-        files.push({ ...info, additions, deletions, diff: fileDiff })
+        files.push({ path: filePath, status, additions, deletions, diff: fileDiff })
       }
 
       result.files = files
