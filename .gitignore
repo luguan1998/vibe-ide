@@ -7,3 +7,5 @@ out/
 .env.*
 .claude/
 .gitnexus/
+__pycache__/
+*.pyc

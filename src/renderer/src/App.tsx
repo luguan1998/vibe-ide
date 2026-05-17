@@ -107,6 +107,21 @@ export default function App() {
     try { return localStorage.getItem('vibe-ide-word-wrap') !== 'false' } catch { return true }
   })
 
+  const [fileTreeDepth, setFileTreeDepth] = useState(() => {
+    try {
+      const v = localStorage.getItem('vibe-ide-file-tree-depth')
+      return v ? Math.max(1, Math.min(8, Number(v))) : 3
+    } catch { return 3 }
+  })
+
+  const handleFileTreeDepthChange = useCallback((delta: number) => {
+    setFileTreeDepth(prev => {
+      const next = Math.max(1, Math.min(8, prev + delta))
+      try { localStorage.setItem('vibe-ide-file-tree-depth', String(next)) } catch {}
+      return next
+    })
+  }, [])
+
   const [terminalFontSize, setTerminalFontSize] = useState(() => {
     try {
       const v = localStorage.getItem('vibe-ide-terminal-font-size')
@@ -546,6 +561,8 @@ export default function App() {
             onToggleSquiggles={setShowSquiggles}
             wordWrap={wordWrap}
             onToggleWordWrap={setWordWrap}
+            fileTreeDepth={fileTreeDepth}
+            onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}
           />
         </div>
@@ -613,6 +630,7 @@ export default function App() {
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
             searchFocusTrigger={searchFocusTrigger}
+            fileTreeDepth={fileTreeDepth}
           />
         </div>
       </div>

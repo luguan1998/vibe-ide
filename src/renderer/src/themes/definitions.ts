@@ -590,6 +590,7 @@ const catppuccin: IDETheme = {
 }
 
 export const THEMES: IDETheme[] = [
+  vscodeDark,
   vibeDark,
   oneDark,
   dracula,
@@ -598,10 +599,9 @@ export const THEMES: IDETheme[] = [
   solarizedLight,
   monokai,
   monokaiPro,
-  vscodeDark,
   githubLight,
   tokyoNight,
   catppuccin
 ]
 
-export const DEFAULT_THEME_ID = 'vibe-dark'
+export const DEFAULT_THEME_ID = 'vscode-dark'

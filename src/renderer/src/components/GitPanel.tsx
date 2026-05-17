@@ -25,6 +25,7 @@ interface GitPanelProps {
   searchFocusTrigger?: number
   // 文件浏览器打开文件
   onOpenFileFromExplorer?: (fullPath: string) => void
+  fileTreeDepth?: number
 }
 
 type FileKind = 'code' | 'style' | 'markup' | 'data' | 'docs' | 'image' | 'config' | 'script' | 'default'
@@ -278,7 +279,7 @@ function parseDocTree(md: string): DocTreeNode[] {
   return root
 }
 
-const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger, onOpenFileFromExplorer, activeSessionId }: GitPanelProps) {
+const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger, onOpenFileFromExplorer, activeSessionId, fileTreeDepth = 3 }: GitPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [stagedExpanded, setStagedExpanded] = useState(true)
   const [changesExpanded, setChangesExpanded] = useState(true)
@@ -613,12 +614,12 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const loadFileTree = useCallback(async () => {
     if (!workspacePath) return
     try {
-      const result = await window.api.file.tree(workspacePath, 3)
+      const result = await window.api.file.tree(workspacePath, fileTreeDepth)
       if (!result.error) {
         setFileTree(result)
       }
     } catch {}
-  }, [workspacePath])
+  }, [workspacePath, fileTreeDepth])
 
   useEffect(() => {
     if (activeSection === 'file' && workspacePath) {

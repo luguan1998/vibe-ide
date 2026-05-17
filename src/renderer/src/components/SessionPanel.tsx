@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { TerminalSession } from '@shared/types'
-import { Zap, Coffee, Plus, ChevronRight } from 'lucide-react'
+import { Zap, Coffee, Plus } from 'lucide-react'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
@@ -34,6 +34,8 @@ interface SessionPanelProps {
   onToggleSquiggles?: (value: boolean) => void
   wordWrap?: boolean
   onToggleWordWrap?: (value: boolean) => void
+  fileTreeDepth?: number
+  onChangeFileTreeDepth?: (delta: number) => void
   focusSettingsTrigger?: number
 }
 
@@ -52,6 +54,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onToggleSquiggles,
   wordWrap = true,
   onToggleWordWrap,
+  fileTreeDepth = 3,
+  onChangeFileTreeDepth,
   focusSettingsTrigger = 0
 }: SessionPanelProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
@@ -200,7 +204,6 @@ const SessionPanel = React.memo(function SessionPanel({
                 >
                   <div className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover flex items-center justify-between cursor-default transition-colors">
                     {t('Theme')}
-                    <ChevronRight size={10} className="text-ide-text-muted" />
                   </div>
                   {showThemeFlyout && (
                     <div
@@ -239,6 +242,27 @@ const SessionPanel = React.memo(function SessionPanel({
                     {t('Keyboard Shortcuts')}
                   </button>
                 </div>
+                {/* File Tree Depth */}
+                {onChangeFileTreeDepth && (
+                  <div className="border-t border-ide-border mt-1 pt-1">
+                    <div className="flex items-center justify-between px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover">
+                      <span className="whitespace-nowrap shrink-0">{t('File Tree Depth')}</span>
+                      <div className="flex items-center gap-px">
+                        <button
+                          className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
+                          disabled={fileTreeDepth <= 1}
+                          onClick={(e) => { e.stopPropagation(); onChangeFileTreeDepth(-1) }}
+                        >{'<'}</button>
+                        <span className="text-center font-mono text-ide-accent font-bold text-xs leading-none">{fileTreeDepth}</span>
+                        <button
+                          className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
+                          disabled={fileTreeDepth >= 8}
+                          onClick={(e) => { e.stopPropagation(); onChangeFileTreeDepth(1) }}
+                        >{'>'}</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* Word Wrap toggle */}
                 {onToggleWordWrap && (
                   <div className="border-t border-ide-border mt-1 pt-1">

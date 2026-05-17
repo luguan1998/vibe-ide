@@ -63,8 +63,7 @@ export function registerFileHandlers(): void {
 }
 
 async function buildFileTree(dirPath: string, maxDepth: number, currentDepth: number = 0): Promise<FileNode[]> {
-  if (currentDepth >= maxDepth) return []
-
+  // 到达最大深度时：仍列出当前目录文件，但不递归子目录
   const entries = await readdir(dirPath, { withFileTypes: true })
   const nodes: FileNode[] = []
 

@@ -50,6 +50,9 @@ const ZH_MAP: Record<string, string> = {
   'Terminal Copy/Paste': '终端右键复制/粘贴',
   'Close Diff / Back': '关闭Diff/返回终端',
 
+  // File Tree
+  'File Tree Depth': '文件树深度',
+
   // GitPanel Aux
   'Launch Terminal': '启动终端',
   'Please select a workspace first': '请先选择工作目录',
