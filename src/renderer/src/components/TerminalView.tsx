@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { ClipboardAddon } from '@xterm/addon-clipboard'
 import { eventMatchesBinding } from '../shortcuts'
-import { Unicode11Addon } from '@xterm/addon-unicode11'
+import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { useTheme } from '../themes'
 import '@xterm/xterm/css/xterm.css'
@@ -266,13 +266,12 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     const fitAddon = new FitAddon()
     const webLinksAddon = new WebLinksAddon()
     const clipboardAddon = new ClipboardAddon()
-    const unicode11Addon = new Unicode11Addon()
+    const unicodeGraphemesAddon = new UnicodeGraphemesAddon()
 
     term.loadAddon(fitAddon)
     term.loadAddon(webLinksAddon)
     term.loadAddon(clipboardAddon)
-    term.loadAddon(unicode11Addon)
-    term.unicode.activeVersion = '11'
+    term.loadAddon(unicodeGraphemesAddon)
 
     try {
       term.loadAddon(new WebglAddon())
