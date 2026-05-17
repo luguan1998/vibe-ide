@@ -302,6 +302,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [commitDiff, setCommitDiff] = useState<string>('')
   const gitChangedHandlerRef = useRef<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
+  const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)
   const [commands, setCommands] = useState<Array<{ command: string; comment: string }>>([])
   const [confirmAction, setConfirmAction] = useState<{ type: string; filePath: string; fileName: string } | null>(null)
   const [fileTree, setFileTree] = useState<FileNode[]>([])
@@ -346,9 +347,9 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       window.api.git.removeChangedListener(gitChangedHandlerRef.current)
     }
   }, [logExpanded])
-  // Dismiss context menu on outside click
+  // Dismiss context menus on outside click
   useEffect(() => {
-    const handleClick = () => setContextMenu(null)
+    const handleClick = () => { setContextMenu(null); setCommitContextMenu(null) }
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
   }, [])
@@ -1153,6 +1154,10 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                       expandedCommit === entry.hash ? 'bg-ide-accent/10' : ''
                     }`}
                     onClick={() => handleCommitClick(entry.hash)}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      setCommitContextMenu({ x: e.clientX, y: e.clientY, hash: entry.hash, message: entry.message })
+                    }}
                   >
                     <div className="text-xs text-ide-text truncate">{entry.message}</div>
                     <div className="flex items-center gap-1 mt-1 text-xs text-ide-text-muted">
@@ -1512,6 +1517,35 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             onClick={() => handleApplyBranch(contextMenu.branchName)}
           >
             合并修改
+          </button>
+        </div>
+      )}
+
+      {/* Context Menu for commit entries */}
+      {commitContextMenu && (
+        <div
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50"
+          style={{ left: commitContextMenu.x, top: commitContextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+            onClick={() => {
+              const msg = commitContextMenu.message.replace(/\n/g, '\r\n')
+              navigator.clipboard.writeText(msg)
+              setCommitContextMenu(null)
+            }}
+          >
+            Copy Message
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+            onClick={() => {
+              navigator.clipboard.writeText(commitContextMenu.hash)
+              setCommitContextMenu(null)
+            }}
+          >
+            Copy Hash
           </button>
         </div>
       )}

@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Vibe IDE — an Electron-based desktop IDE with native terminal, git management, file diff/edit, content search, and session management. Built with electron-vite, React, TypeScript, and Tailwind CSS.
 
+## UI Coding Rules
+
+1. **抄骨不凭记** — 凡言"跟XX一样"，先 Read 模板代码，类名逐个对照，不得凭记忆自创
+2. **同级同骨架** — 同级菜单/列表项，容器结构（padding/margin/分隔线）必须一致，写完 grep 同类 className 验证
+3. **细节照抄** — 圆点、图标、颜色等视觉细节照搬模板写法，不变种（如 `style={{ backgroundColor: rgb(...) }}` 不改为 `var(--xxx)`）
+4. **遍历交互态** — 改完后脑中过一遍 hover/选中/空态/中英文/分隔线覆盖范围
+5. **信息不过二** — 同一份数据出现两次以上，立刻抽共享常量，不种重复因
+
 ## Commands
 
 ### Development (start the app)

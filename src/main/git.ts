@@ -251,10 +251,12 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_LOG, async (_event, count?: number) => {
     try {
       const git = getGit()
-      const log = await git.log({ maxCount: count || 50 })
+      // multiLine: true → body 用 %B（完整原始信息，含换行），避免 %b 换行丢失
+      const log = await git.log({ maxCount: count || 50, multiLine: true })
       return log.all.map(entry => ({
         hash: entry.hash,
-        message: entry.message,
+        // %B 已包含 subject + body 完整信息，%s 只有标题行
+        message: entry.body || entry.message,
         author: entry.author_name,
         date: entry.date,
         refs: entry.refs
