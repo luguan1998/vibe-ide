@@ -21,6 +21,13 @@ npm run build:win  # Package win exe to ./out/
 npm run preview    # Run the built app from ./out/ (no hot reload)
 ```
 
+### version
+```bash
+npm version patch   # 0.1.0 → 0.1.1  修bug                                                  
+npm version minor   # 0.1.0 → 0.2.0  新功能                                                 
+npm version major   # 0.1.0 → 1.0.0  破坏性变更
+```
+
 There are no tests, linting, or formatting commands configured.
 
 ## Architecture

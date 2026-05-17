@@ -630,10 +630,11 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
 
   // Load CLAUDE.md commands & tree
-  useEffect(() => {
+  const loadClaudeCommands = useCallback(async () => {
     if (!workspacePath) { setCommands([]); setDocTree([]); return }
     const mdPath = workspacePath.replace(/\\/g, '/') + '/CLAUDE.md'
-    window.api.file.read(mdPath).then((res: any) => {
+    try {
+      const res: any = await window.api.file.read(mdPath)
       if (res.error) { setCommands([]); setDocTree([]); return }
       const normalized = res.content.replace(/\r\n/g, '\n')
       setCommands(parseCommands(normalized))
@@ -641,8 +642,16 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       setDocTree(docTreeResult)
       // Auto-expand first level
       setExpandedDocDirs(new Set(docTreeResult.filter(n => n.isDir).map(n => n.path)))
-    }).catch(() => { setCommands([]); setDocTree([]) })
+    } catch { setCommands([]); setDocTree([]) }
   }, [workspacePath])
+
+  // Load on workspace change
+  useEffect(() => { loadClaudeCommands() }, [workspacePath])
+
+  // Reload commands every time user switches to Aux tab
+  useEffect(() => {
+    if (activeSection === 'terminal') loadClaudeCommands()
+  }, [activeSection])
 
   const pendingCommandRef = useRef<string | null>(null)
 
