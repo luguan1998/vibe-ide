@@ -8,6 +8,7 @@ export const IPC_CHANNELS = {
   PTY_CLOSE: 'pty:close',
   PTY_DATA: 'pty:data',
   PTY_EXIT: 'pty:exit',
+  PTY_GET_SHELLS: 'pty:getShells',
 
   // Git
   GIT_STATUS: 'git:status',
@@ -61,6 +62,7 @@ export interface TerminalSession {
   id: string
   name: string
   cwd: string
+  shell?: string
   active: boolean
   createdAt: number
 }
@@ -74,6 +76,7 @@ export interface RenameTerminalResult {
 export interface CreateTerminalOptions {
   cwd?: string
   name?: string
+  shell?: string
 }
 
 // Git types

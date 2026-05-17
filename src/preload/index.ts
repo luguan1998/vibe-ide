@@ -9,6 +9,7 @@ const api = {
     resize: (id: string, cols: number, rows: number) => ipcRenderer.send(IPC_CHANNELS.PTY_RESIZE, { id, cols, rows }),
     close: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.PTY_CLOSE, id),
     rename: (id: string, newName: string) => ipcRenderer.invoke(IPC_CHANNELS.PTY_RENAME, id, newName),
+    getShells: () => ipcRenderer.invoke(IPC_CHANNELS.PTY_GET_SHELLS),
     onData: (callback: (data: { id: string; data: string }) => void) => {
       const handler = (_event: any, data: any) => callback(data)
       ipcRenderer.on(IPC_CHANNELS.PTY_DATA, handler)

@@ -13,7 +13,8 @@ declare global {
     api: {
       terminal: {
         rename(id: string, newName: string): Promise<RenameTerminalResult>
-        create: (options?: any) => Promise<TerminalSession>
+        create: (options?: { cwd?: string; name?: string; shell?: string }) => Promise<TerminalSession>
+        getShells: () => Promise<{ value: string; label: string }[]>
         write: (id: string, data: string) => void
         resize: (id: string, cols: number, rows: number) => void
         close: (id: string) => Promise<boolean>
@@ -260,11 +261,11 @@ export default function App() {
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
 
   // Create a new terminal session — ask user to pick a directory first
-  const handleCreateSession = useCallback(async () => {
+  const handleCreateSession = useCallback(async (shell?: string) => {
     try {
       const dirResult = await window.api.workspace.pickDir()
       if (dirResult.canceled) return
-      const session = await window.api.terminal.create({ cwd: dirResult.path })
+      const session = await window.api.terminal.create({ cwd: dirResult.path, shell })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
     } catch (err) {
@@ -273,9 +274,9 @@ export default function App() {
   }, [])
 
   // Clone a terminal session (same cwd)
-  const handleCloneSession = useCallback(async (cwd: string) => {
+  const handleCloneSession = useCallback(async (cwd: string, shell?: string) => {
     try {
-      const session = await window.api.terminal.create({ cwd })
+      const session = await window.api.terminal.create({ cwd, shell })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
     } catch (err) {
@@ -467,7 +468,9 @@ export default function App() {
     const session = sessions.find(s => s.id === sessionId)
     if (!session?.cwd) return
     try {
-      const term = await window.api.terminal.create({ cwd: session.cwd })
+      // 🌀 从 localStorage 读取用户选择的 shell 类型
+      const shell = (() => { try { return localStorage.getItem('vibe-ide-term-type') || undefined } catch { return undefined } })()
+      const term = await window.api.terminal.create({ cwd: session.cwd, shell })
       setRightTerminalSessions(prev => ({ ...prev, [sessionId]: term }))
     } catch (err) {
       console.error('Failed to create right terminal:', err)

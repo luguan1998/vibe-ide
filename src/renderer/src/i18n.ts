@@ -21,6 +21,7 @@ const ZH_MAP: Record<string, string> = {
   'Idle': '空闲',
   'Settings': '设置',
   'Theme': '主题',
+  'Term Type': '终端类型',
   'Keyboard Shortcuts': '键盘快捷键',
   'Word Wrap': '自动换行',
   'Show squiggles': '显示错误提示',

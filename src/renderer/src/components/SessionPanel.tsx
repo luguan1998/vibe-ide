@@ -7,6 +7,12 @@ import SettingsPanel from './SettingsPanel'
 
 const SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '🤖', '🐸', '👾', '🎯', '🚀', '⚡', '🌟', '💫', '🌀', '🎭', '🪐', '👻', '🍕', '🎲', '🧩', '🌈', '🦧', '🐉', '🎸']
 
+// 🌀 fallback — IPC 取不到时兜底
+const FALLBACK_SHELLS = [
+  { value: 'pwsh', label: 'PowerShell 7' },
+  { value: 'powershell', label: 'PowerShell 5' },
+]
+
 function hashId(id: string): number {
   let h = 0
   for (let i = 0; i < id.length; i++) {
@@ -22,8 +28,8 @@ function getSessionEmoji(id: string): string {
 interface SessionPanelProps {
   sessions: TerminalSession[]
   activeSessionId: string | null
-  onCreateSession: () => void
-  onCloneSession: (cwd: string) => void
+  onCreateSession: (shell?: string) => void
+  onCloneSession: (cwd: string, shell?: string) => void
   onSwitchSession: (id: string) => void
   onCloseSession: (id: string) => void
   onRenameSession?: (id: string, newName: string) => Promise<void>
@@ -61,6 +67,27 @@ const SessionPanel = React.memo(function SessionPanel({
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showConfigMenu, setShowConfigMenu] = useState(false)
   const [showThemeFlyout, setShowThemeFlyout] = useState(false)
+  const [showTermTypeFlyout, setShowTermTypeFlyout] = useState(false)
+  const [termType, setTermType] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-term-type') || 'pwsh' } catch { return 'pwsh' }
+  })
+  const [shellOptions, setShellOptions] = useState(FALLBACK_SHELLS)
+
+  // 启动时从主进程获取本机已安装的 shell，过滤选项
+  useEffect(() => {
+    window.api.terminal.getShells().then((shells: { value: string; label: string }[]) => {
+      if (shells.length > 0) {
+        setShellOptions(shells)
+        // 如果当前选中的 shell 不在可用列表中，切到第一个
+        setTermType(prev => {
+          if (shells.some(s => s.value === prev)) return prev
+          const first = shells[0].value
+          try { localStorage.setItem('vibe-ide-term-type', first) } catch {}
+          return first
+        })
+      }
+    }).catch(() => {})
+  }, [])
   const { themes, currentThemeId, setTheme } = useTheme()
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
@@ -69,6 +96,7 @@ const SessionPanel = React.memo(function SessionPanel({
   const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; name: string; left: number; top: number } | null>(null)
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const themeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const termTypeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
@@ -190,7 +218,7 @@ const SessionPanel = React.memo(function SessionPanel({
                     onClick={() => setLang('en')}
                   >EN</button>
                 </div>
-                <div className="border-t border-ide-border" />
+                <div className="border-t border-ide-border mt-1 pt-1">
                 {/* Theme flyout */}
                 <div
                   className="relative"
@@ -202,7 +230,7 @@ const SessionPanel = React.memo(function SessionPanel({
                     themeFlyoutTimerRef.current = setTimeout(() => setShowThemeFlyout(false), 200)
                   }}
                 >
-                  <div className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover flex items-center justify-between cursor-default transition-colors">
+                  <div className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors">
                     {t('Theme')}
                   </div>
                   {showThemeFlyout && (
@@ -216,7 +244,7 @@ const SessionPanel = React.memo(function SessionPanel({
                       {themes.map((t) => (
                         <button
                           key={t.id}
-                          onClick={() => { setTheme(t.id); setShowConfigMenu(false); setShowThemeFlyout(false) }}
+                          onClick={() => { setTheme(t.id) }}
                           className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 transition-colors ${
                             currentThemeId === t.id
                               ? 'text-ide-accent bg-ide-accent/10'
@@ -232,6 +260,55 @@ const SessionPanel = React.memo(function SessionPanel({
                       ))}
                     </div>
                   )}
+                </div>
+                </div>
+                <div className="border-t border-ide-border mt-1 pt-1">
+                {/* Term Type flyout */}
+                <div
+                  className="relative"
+                  onMouseEnter={() => {
+                    if (termTypeFlyoutTimerRef.current) clearTimeout(termTypeFlyoutTimerRef.current)
+                    setShowTermTypeFlyout(true)
+                  }}
+                  onMouseLeave={() => {
+                    termTypeFlyoutTimerRef.current = setTimeout(() => setShowTermTypeFlyout(false), 200)
+                  }}
+                >
+                  <div className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors">
+                    {t('Term Type')}
+                  </div>
+                  {showTermTypeFlyout && (
+                    <div
+                      className="absolute left-full top-0 ml-1 w-40 bg-ide-bg border border-ide-border rounded shadow-lg py-1"
+                      onMouseEnter={() => {
+                        if (termTypeFlyoutTimerRef.current) clearTimeout(termTypeFlyoutTimerRef.current)
+                      }}
+                      onMouseLeave={() => setShowTermTypeFlyout(false)}
+                    >
+                      {shellOptions.map((tt) => (
+                        <button
+                          key={tt.value}
+                          onClick={() => {
+                            setTermType(tt.value)
+                            try { localStorage.setItem('vibe-ide-term-type', tt.value) } catch {}
+                          }}
+                          className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 transition-colors ${
+                            termType === tt.value
+                              ? 'text-ide-accent bg-ide-accent/10'
+                              : 'text-ide-text hover:bg-ide-hover'
+                          }`}
+                        >
+                          <span className={`w-3 h-3 rounded-full shrink-0 ${
+                            termType === tt.value
+                              ? 'bg-ide-accent border-ide-accent'
+                              : 'border border-ide-border'
+                          }`} />
+                          {tt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 </div>
                 {/* Keyboard Shortcuts */}
                 <div className="border-t border-ide-border mt-1 pt-1">
@@ -295,9 +372,9 @@ const SessionPanel = React.memo(function SessionPanel({
             )}
           </div>
           <button
-            onClick={onCreateSession}
+            onClick={() => onCreateSession(termType)}
             className="w-6 h-6 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors shrink-0"
-            title={t('New Terminal')}
+            title={`${t('New Terminal')} (${shellOptions.find(tt => tt.value === termType)?.label || termType})`}
           >
             <Plus size={14} />
           </button>
@@ -313,8 +390,8 @@ const SessionPanel = React.memo(function SessionPanel({
         }}
       >
         {sessions.length === 0 ? (
-          <div className="px-3 py-4 text-ide-text-muted text-sm text-center">
-            {t('No sessions yet')}
+          <div className="h-full flex items-center justify-center text-ide-text-muted text-sm">
+            No sessions yet
           </div>
         ) : (
           sessions.map((session, index) => (
@@ -434,7 +511,7 @@ const SessionPanel = React.memo(function SessionPanel({
             onClick={() => {
               const session = sessions.find(s => s.id === contextMenu.sessionId)
               if (session) {
-                onCloneSession(session.cwd)
+                onCloneSession(session.cwd, session.shell)
               }
               setContextMenu(null)
             }}
