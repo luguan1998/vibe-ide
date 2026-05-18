@@ -31,6 +31,7 @@ export const IPC_CHANNELS = {
   GIT_SHOW_FILE: 'git:showFile',
   GIT_DISCARD: 'git:discard',
   GIT_REMOTE_BRANCHES: 'git:remoteBranches',
+  GIT_WORKTREE_PATH: 'git:worktreePath',
 
   // File
   FILE_READ: 'file:read',
@@ -100,6 +101,7 @@ export interface GitLogEntry {
 export interface GitBranch {
   name: string
   current: boolean
+  remote?: boolean
 }
 
 export interface GitCommitFile {

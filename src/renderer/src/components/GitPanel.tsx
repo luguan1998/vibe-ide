@@ -8,7 +8,7 @@ import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitCommitFile, 
 
 interface GitPanelProps {
   workspacePath: string | null
-  onFileSelect?: (filePath: string, diffContent: string, isStaged: boolean, commitHash?: string) => void
+  onFileSelect?: (filePath: string, diffContent: string, isStaged: boolean, commitHash?: string, fullPath?: string) => void
   refreshKey?: number
   // 右侧终端跳转时，触发中间终端切换到 edit 模式
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
@@ -18,7 +18,7 @@ interface GitPanelProps {
   rightTerminalSession?: TerminalSession | null
   activeSessionId?: string | null
   // 创建右侧终端
-  onCreateRightTerminal?: (sessionId: string) => void
+  onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
   // 关闭右侧终端
   onCloseRightTerminal?: (sessionId: string) => void
   // Ctrl+F 触发搜索面板聚焦
@@ -297,6 +297,11 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [currentGitPath, setCurrentGitPath] = useState<string | null>(null)
+  // 每个 session 独立记忆 worktree 导航状态，避免多 session 同 cwd 时互相干扰
+  const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string }>>({})
+  const worktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
+  // worktree 导航激活时用 worktree 路径，否则用 session 原始 cwd
+  const effectiveGitPath = worktreeNav?.worktreePath || workspacePath
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   const [commitDiff, setCommitDiff] = useState<string>('')
@@ -312,21 +317,20 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [showPushDropdown, setShowPushDropdown] = useState(false)
   const { t } = useI18n()
 
-  // Switch git workspace when workspacePath changes
+  // Switch git workspace when effective path changes
   useEffect(() => {
-    if (!workspacePath || workspacePath === currentGitPath) return
+    if (!effectiveGitPath || effectiveGitPath === currentGitPath) return
     const switchWorkspace = async () => {
-      const result = await window.api.git.setWorkspace(workspacePath)
+      const result = await window.api.git.setWorkspace(effectiveGitPath)
       if (result.success) {
-        setCurrentGitPath(workspacePath)
-        // Refresh all git data for the new workspace
+        setCurrentGitPath(effectiveGitPath)
         refreshStatus()
         refreshLog()
         refreshBranches()
       }
     }
     switchWorkspace()
-  }, [workspacePath])
+  }, [effectiveGitPath])
 
   // Handle refreshKey changes (triggered by Ctrl+S in DiffViewer)
   useEffect(() => {
@@ -446,9 +450,13 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     await loadDiff(file.path, file.staged)
     if (onFileSelect) {
       const result = await window.api.git.diff(file.path, file.staged)
-      onFileSelect(file.path, result.content || '', file.staged)
+      // 用 effectiveGitPath 计算正确的绝对路径（worktree 模式下不同于 session cwd）
+      const resolvedFullPath = effectiveGitPath
+        ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}`
+        : ''
+      onFileSelect(file.path, result.content || '', file.staged, undefined, resolvedFullPath)
     }
-  }, [loadDiff, onFileSelect])
+  }, [loadDiff, onFileSelect, effectiveGitPath])
 
   // Handle commit click - show expanded files and diff
   const handleCommitClick = useCallback(async (hash: string) => {
@@ -502,10 +510,10 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
 
   // Delete untracked file
   const handleDeleteFile = useCallback(async (filePath: string) => {
-    const fullPath = workspacePath ? `${workspacePath.replace(/\\/g, '/')}/${filePath}` : filePath
+    const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${filePath}` : filePath
     await window.api.file.delete(fullPath)
     await refreshStatus()
-  }, [refreshStatus, workspacePath])
+  }, [refreshStatus, effectiveGitPath])
 
   // Stage all files
   const handleStageAll = useCallback(async (filePaths: string[]) => {
@@ -538,6 +546,29 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     await refreshBranches()
     await refreshStatus()
   }, [refreshBranches, refreshStatus])
+
+  // Navigate to worktree: switch git workspace to worktree path
+  const handleNavigateToWorktree = useCallback(async (branch: string) => {
+    try {
+      const result = await window.api.git.getWorktreePath(branch)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      if (result.path) {
+        // 关闭已有终端，让用户重新 Launch 到 worktree 目录
+        if (rightTerminalSession && activeSessionId) {
+          onCloseRightTerminal?.(activeSessionId)
+        }
+        setSessionWorktreeNav(prev => ({
+          ...prev,
+          [activeSessionId!]: { originalPath: workspacePath!, worktreePath: result.path }
+        }))
+      }
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }, [workspacePath, rightTerminalSession, activeSessionId, onCloseRightTerminal])
 
   // Apply worktree branch changes as file modifications (no commits)
   const handleApplyBranch = useCallback(async (branch: string) => {
@@ -598,13 +629,31 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     }
   }, [workspacePath, refreshStatus, refreshLog, refreshBranches])
 
-  // Auto refresh on tab change
-  // Initial load of all git data on mount
+  // 切 session 时刷新 git 数据；skip 初始挂载避免与 effectiveGitPath effect 重复
+  const activeSessionMountedRef = useRef(false)
   useEffect(() => {
+    if (!activeSessionMountedRef.current) {
+      activeSessionMountedRef.current = true
+      return
+    }
     refreshStatus()
     refreshLog()
     refreshBranches()
-  }, [])
+  }, [activeSessionId])
+
+  // 切到 git tab 时刷新；skip 初始挂载同理
+  const activeSectionMountedRef = useRef(false)
+  useEffect(() => {
+    if (!activeSectionMountedRef.current) {
+      activeSectionMountedRef.current = true
+      return
+    }
+    if (activeSection === 'git') {
+      refreshStatus()
+      refreshLog()
+      refreshBranches()
+    }
+  }, [activeSection])
 
   // Ctrl+F → 切换到搜索面板
   useEffect(() => {
@@ -635,8 +684,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
 
   // Load CLAUDE.md commands & tree
   const loadClaudeCommands = useCallback(async () => {
-    if (!workspacePath) { setCommands([]); setDocTree([]); return }
-    const mdPath = workspacePath.replace(/\\/g, '/') + '/CLAUDE.md'
+    if (!effectiveGitPath) { setCommands([]); setDocTree([]); return }
+    const mdPath = effectiveGitPath.replace(/\\/g, '/') + '/CLAUDE.md'
     try {
       const res: any = await window.api.file.read(mdPath)
       if (res.error) { setCommands([]); setDocTree([]); return }
@@ -647,10 +696,10 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       // Auto-expand first level
       setExpandedDocDirs(new Set(docTreeResult.filter(n => n.isDir).map(n => n.path)))
     } catch { setCommands([]); setDocTree([]) }
-  }, [workspacePath])
+  }, [effectiveGitPath])
 
-  // Load on workspace change
-  useEffect(() => { loadClaudeCommands() }, [workspacePath])
+  // Load on workspace or worktree path change
+  useEffect(() => { loadClaudeCommands() }, [effectiveGitPath])
 
   // Reload commands every time user switches to Aux tab
   useEffect(() => {
@@ -891,6 +940,26 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                 {status.ahead > 0 && <span className="text-ide-success text-[11px]">↑{status.ahead}</span>}
                 {status.behind > 0 && <span className="text-ide-warning text-[11px]">↓{status.behind}</span>}
               </div>
+              {worktreeNav && (
+                <button
+                  onClick={() => {
+                    if (rightTerminalSession && activeSessionId) {
+                      onCloseRightTerminal?.(activeSessionId)
+                    }
+                    setSessionWorktreeNav(prev => {
+                      const next = { ...prev }
+                      delete next[activeSessionId!]
+                      return next
+                    })
+                  }}
+                  className="text-ide-warning hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
+                  title="返回原工作区"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={() => { refreshStatus(); refreshLog(); refreshBranches() }}
                 className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
@@ -1231,9 +1300,16 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                 <div
                   key={branch.name}
                   className={`pl-5 pr-2 py-1.5 text-xs border-b border-ide-border/50 cursor-pointer flex items-center justify-between ${
-                    branch.current ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text hover:bg-ide-hover'
+                    branch.current ? 'bg-ide-accent/10 text-ide-text' : branch.remote ? 'text-ide-text-muted cursor-not-allowed' : 'text-ide-text hover:bg-ide-hover'
                   }`}
-                  onClick={() => !branch.current && handleCheckout(branch.name)}
+                  onClick={() => {
+                    if (branch.current || branch.remote) return
+                    if (branch.name.startsWith('worktree-')) {
+                      handleNavigateToWorktree(branch.name)
+                    } else {
+                      handleCheckout(branch.name)
+                    }
+                  }}
                   onContextMenu={(e) => {
                     if (branch.name.startsWith('worktree-')) {
                       e.preventDefault()
@@ -1369,7 +1445,14 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             ) : workspacePath ? (
               <div className="h-full flex items-center justify-center">
                 <button
-                  onClick={() => activeSessionId && onCreateRightTerminal?.(activeSessionId)}
+                  onClick={() => {
+                    if (!activeSessionId) return
+                    if (worktreeNav) {
+                      onCreateRightTerminal?.(activeSessionId, effectiveGitPath)
+                    } else {
+                      onCreateRightTerminal?.(activeSessionId)
+                    }
+                  }}
                   className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
                 >
                   {t('Launch Terminal')}

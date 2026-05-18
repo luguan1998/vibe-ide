@@ -351,11 +351,14 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_BRANCHES, async () => {
     try {
       const git = getGit()
-      const branches = await git.branch()
-      return branches.all.map(name => ({
-        name,
-        current: name === branches.current
-      })) as GitBranch[]
+      const branches = await git.branch(['-a'])
+      return branches.all
+        .filter(name => !name.includes('HEAD'))
+        .map(name => ({
+          name,
+          current: name === branches.current,
+          remote: name.startsWith('remotes/')
+        })) as GitBranch[]
     } catch (err: any) {
       return { error: err.message }
     }
@@ -465,6 +468,33 @@ export function registerGitHandlers(): void {
           const branch = parts.slice(1).join('/')
           return { name: name.trim(), remote, branch }
         })
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Git worktree path — get filesystem path for a worktree branch
+  ipcMain.handle(IPC_CHANNELS.GIT_WORKTREE_PATH, async (_event, branch: string) => {
+    try {
+      const git = getGit()
+      const wtList = await git.raw(['worktree', 'list', '--porcelain'])
+      let worktreePath = ''
+      const lines = wtList.split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('branch ') && lines[i].includes(branch)) {
+          for (let j = i - 1; j >= 0; j--) {
+            if (lines[j].startsWith('worktree ')) {
+              worktreePath = lines[j].replace('worktree ', '').trim()
+              break
+            }
+          }
+          break
+        }
+      }
+      if (!worktreePath) {
+        return { error: `找不到分支 ${branch} 对应的 worktree 路径` }
+      }
+      return { path: worktreePath }
     } catch (err: any) {
       return { error: err.message }
     }

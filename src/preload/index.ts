@@ -57,6 +57,7 @@ const api = {
     init: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_INIT),
     show: (hash: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW, hash),
     showFile: (ref: string, filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW_FILE, ref, filePath),
+    getWorktreePath: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_WORKTREE_PATH, branch),
     onChanged: (callback: () => void) => {
       const handler = () => callback()
       ipcRenderer.on(IPC_CHANNELS.GIT_CHANGED, handler)

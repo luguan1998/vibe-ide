@@ -36,8 +36,6 @@ npm version minor   # 0.1.0 → 0.2.0  新功能
 npm version major   # 0.1.0 → 1.0.0  破坏性变更
 ```
 
-There are no tests, linting, or formatting commands configured.
-
 ## Architecture
 
 ### Electron multi-process structure (electron-vite)
@@ -128,6 +126,13 @@ src/
 - **Runtime:** `@monaco-editor/react` + `monaco-editor` (code editor/diff), `@xterm/xterm` + addons (terminal), `node-pty` (native PTY), `simple-git` (git), `react` 18, `lucide-react` (icons), `electron-updater` (auto-update)
 - **Build:** `electron-vite`, `electron-builder` (packaging), `tailwindcss`, `typescript`
 
-### Native dependency note
+## Architecture Constraint: Session Independence
+
+Each terminal session must own its Git panel state independently — **no global singletons in renderer state.**
+
+- GitPanel state tied to the active session (worktree navigation, git paths) **must** be keyed by `activeSessionId` (e.g. `Record<string, ...>`), never a single value.
+- The main-process `git.ts` uses a global `gitInstance` + `currentWorkspace`. The renderer compensates by calling `git.setWorkspace()` reactively via `useEffect` on the per-session effective path.
+- Do NOT rely on `workspacePath` prop changes alone to detect session switches — two sessions can share the same cwd.
+- Avoid implicit side-effects from `useEffect` for session-switch behaviors (e.g. closing terminals). Call handlers explicitly when the user performs an action.
 
 `node-pty` is a native module that requires C++ build tools. On Windows, ensure `node-gyp` prerequisites are installed (Visual Studio Build Tools with C++ workload, or `windows-build-tools` npm package). It's externalized from the Vite bundle and loaded at runtime.

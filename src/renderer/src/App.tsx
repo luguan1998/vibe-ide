@@ -43,6 +43,7 @@ declare global {
         init: () => Promise<any>
         show: (hash: string) => Promise<any>
         showFile: (ref: string, filePath: string) => Promise<any>
+        getWorktreePath: (branch: string) => Promise<any>
       }
       file: {
         read: (filePath: string) => Promise<any>
@@ -384,9 +385,8 @@ export default function App() {
     document.addEventListener('mouseup', onMouseUp)
   }, [leftPanelWidth])
 
-  const handleFileSelect = useCallback((filePath: string, diffContent: string, isStaged: boolean, commitHash?: string) => {
-    // filePath 是相对路径，需要拼接 workspace 路径得到完整路径
-    const fullPath = activeSessionCwd ? `${activeSessionCwd}/${filePath}` : filePath
+  const handleFileSelect = useCallback((filePath: string, diffContent: string, isStaged: boolean, commitHash?: string, resolvedFullPath?: string) => {
+    const fullPath = resolvedFullPath || (activeSessionCwd ? `${activeSessionCwd}/${filePath}` : filePath)
     setDiffFile({ filePath, fullPath, diffContent, isStaged, commitHash })
     setCenterView('diff')
   }, [activeSessionCwd])
@@ -463,14 +463,15 @@ export default function App() {
   }, [activeSessionCwd])
 
   // 创建右侧终端（每个 session 独立）
-  const handleCreateRightTerminal = useCallback(async (sessionId: string) => {
+  const handleCreateRightTerminal = useCallback(async (sessionId: string, cwdOverride?: string) => {
     if (rightTerminalSessions[sessionId]) return
     const session = sessions.find(s => s.id === sessionId)
-    if (!session?.cwd) return
+    const cwd = cwdOverride || session?.cwd
+    if (!cwd) return
     try {
       // 🌀 从 localStorage 读取用户选择的 shell 类型
       const shell = (() => { try { return localStorage.getItem('vibe-ide-term-type') || undefined } catch { return undefined } })()
-      const term = await window.api.terminal.create({ cwd: session.cwd, shell })
+      const term = await window.api.terminal.create({ cwd, shell })
       setRightTerminalSessions(prev => ({ ...prev, [sessionId]: term }))
     } catch (err) {
       console.error('Failed to create right terminal:', err)

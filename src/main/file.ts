@@ -75,9 +75,9 @@ async function buildFileTree(dirPath: string, maxDepth: number, currentDepth: nu
   })
 
   for (const entry of sorted) {
-    // Skip hidden directories and common ignore patterns
-    if (entry.name.startsWith('.') && entry.name !== '.git') continue
-    if (entry.name === 'node_modules' || entry.name === '.git') continue
+    // Skip hidden directories and node_modules, but keep dotfiles (.gitignore etc.)
+    if (entry.isDirectory() && entry.name.startsWith('.')) continue
+    if (entry.name === 'node_modules') continue
 
     const fullPath = join(dirPath, entry.name)
     const node: FileNode = {
