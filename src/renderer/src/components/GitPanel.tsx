@@ -310,6 +310,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)
   const [commands, setCommands] = useState<Array<{ command: string; comment: string }>>([])
   const [confirmAction, setConfirmAction] = useState<{ type: string; filePath: string; fileName: string } | null>(null)
+  const [conflictApply, setConflictApply] = useState<{ branch: string; message: string; patchFile: string; prePatchFile: string } | null>(null)
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [remoteBranches, setRemoteBranches] = useState<{ name: string; remote: string; branch: string }[]>([])
@@ -572,8 +573,14 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
 
   // Apply worktree branch changes as file modifications (no commits)
   const handleApplyBranch = useCallback(async (branch: string) => {
+    setContextMenu(null)
     try {
       const result = await window.api.git.applyBranch(branch)
+      if (result.conflict) {
+        // 有冲突：弹确认对话框让用户选择保留还是放弃
+        setConflictApply({ branch, message: result.message, patchFile: result.patchFile, prePatchFile: result.prePatchFile })
+        return
+      }
       if (result.error) {
         setError(result.error)
       } else {
@@ -587,7 +594,6 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     } catch (err: any) {
       setError(err.message)
     }
-    setContextMenu(null)
   }, [refreshBranches, refreshStatus])
 
   // Stash
@@ -1582,6 +1588,48 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                 }}
               >
                 确认
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Conflict Dialog — 合并修改遇冲突 */}
+      {conflictApply && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={async () => {
+          const { patchFile, prePatchFile } = conflictApply
+          setConflictApply(null)
+          await window.api.git.abortApply(patchFile, prePatchFile)
+          await refreshStatus()
+        }}>
+          <div className="bg-ide-bg border border-ide-border rounded shadow-lg p-4 max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm text-ide-text mb-2">
+              合并 {conflictApply.branch} 时检测到冲突
+            </p>
+            <p className="text-[11px] text-ide-text-muted mb-4 max-h-24 overflow-y-auto">
+              {conflictApply.message.slice(0, 300)}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-3 py-1.5 text-xs bg-ide-danger hover:bg-red-600 text-white rounded"
+                onClick={async () => {
+                  const { patchFile, prePatchFile } = conflictApply
+                  setConflictApply(null)
+                  await window.api.git.abortApply(patchFile, prePatchFile)
+                  await refreshStatus()
+                }}
+              >
+                放弃
+              </button>
+              <button
+                className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded"
+                onClick={async () => {
+                  setConflictApply(null)
+                  await refreshBranches()
+                  await refreshStatus()
+                }}
+              >
+                保留冲突
               </button>
             </div>
           </div>
