@@ -32,7 +32,7 @@ export const IPC_CHANNELS = {
   GIT_DISCARD: 'git:discard',
   GIT_REMOTE_BRANCHES: 'git:remoteBranches',
   GIT_WORKTREE_PATH: 'git:worktreePath',
-  GIT_ABORT_APPLY: 'git:abortApply',
+  GIT_APPLY_BRANCH_RETRY: 'git:applyBranchRetry',
 
   // File
   FILE_READ: 'file:read',

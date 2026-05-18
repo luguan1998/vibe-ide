@@ -379,13 +379,62 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_APPLY_BRANCH, async (_event, branch: string) => {
     const git = getGit()
     try {
-      // 备份当前工作区修改，用于放弃时还原
-      const preDiff = await git.raw(['diff', '--binary', 'HEAD'])
-      let prePatchFile = ''
-      if (preDiff.trim()) {
-        prePatchFile = path.join(tmpdir(), `vibe-pre-${Date.now()}.patch`)
-        await writeFile(prePatchFile, preDiff, 'utf-8')
+      const committedDiff = await git.raw(['diff', '--full-index', 'HEAD', branch])
+
+      const wtList = await git.raw(['worktree', 'list', '--porcelain'])
+      let worktreePath = ''
+      const lines = wtList.split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('branch ') && lines[i].includes(branch)) {
+          for (let j = i - 1; j >= 0; j--) {
+            if (lines[j].startsWith('worktree ')) {
+              worktreePath = lines[j].replace('worktree ', '').trim()
+              break
+            }
+          }
+          break
+        }
       }
+
+      let uncommittedDiff = ''
+      let stagedDiff = ''
+      if (worktreePath) {
+        const wtGit = simpleGit(worktreePath)
+        uncommittedDiff = await wtGit.raw(['diff', '--full-index', 'HEAD'])
+        stagedDiff = await wtGit.raw(['diff', '--cached', '--full-index'])
+      }
+
+      const fullPatch = [committedDiff, uncommittedDiff, stagedDiff]
+        .filter(s => s.trim())
+        .join('\n')
+      if (!fullPatch.trim()) {
+        return { success: true, message: '该分支没有新的修改需要合并' }
+      }
+
+      const patchFile = path.join(tmpdir(), `vibe-apply-${Date.now()}.patch`)
+      await writeFile(patchFile, fullPatch, 'utf-8')
+
+      try {
+        await git.raw(['apply', '--3way', patchFile])
+        await unlink(patchFile).catch(() => {})
+        await git.raw(['reset', 'HEAD']).catch(() => {})
+      } catch (applyErr: any) {
+        await unlink(patchFile).catch(() => {})
+        return { conflict: true, message: applyErr.message }
+      }
+
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Retry apply after syncing index — called from "保留冲突" dialog button
+  ipcMain.handle(IPC_CHANNELS.GIT_APPLY_BRANCH_RETRY, async (_event, branch: string) => {
+    const git = getGit()
+    try {
+      // 同步 index 与 worktree，消除 "does not match index" 错误
+      await git.raw(['add', '-A'])
 
       const committedDiff = await git.raw(['diff', '--full-index', 'HEAD', branch])
 
@@ -416,60 +465,21 @@ export function registerGitHandlers(): void {
         .filter(s => s.trim())
         .join('\n')
       if (!fullPatch.trim()) {
-        await unlink(prePatchFile).catch(() => {})
         return { success: true, message: '该分支没有新的修改需要合并' }
       }
 
       const patchFile = path.join(tmpdir(), `vibe-apply-${Date.now()}.patch`)
       await writeFile(patchFile, fullPatch, 'utf-8')
 
-      // git apply --3way 要求 index == worktree，先同步；记录原已暂存文件以便还原
-      const stagedBefore = await git.raw(['diff', '--cached', '--name-only'])
-      await git.raw(['add', '-A'])
-
       try {
         await git.raw(['apply', '--3way', patchFile])
-      } catch (applyErr: any) {
-        if (/conflict/i.test(applyErr.message || '')) {
-          await git.raw(['reset', 'HEAD'])
-          if (stagedBefore.trim()) {
-            const files = stagedBefore.split('\n').filter(Boolean)
-            await git.add(files)
-          }
-          return { conflict: true, message: applyErr.message, patchFile, prePatchFile }
-        }
         await unlink(patchFile).catch(() => {})
-        await unlink(prePatchFile).catch(() => {})
-        return { error: applyErr.message }
+        await git.raw(['reset', 'HEAD']).catch(() => {})
+      } catch (applyErr: any) {
+        await unlink(patchFile).catch(() => {})
+        return { conflict: true, message: applyErr.message }
       }
 
-      // 成功：清理临时文件，unstage + 还原原暂存状态
-      await unlink(patchFile).catch(() => {})
-      await unlink(prePatchFile).catch(() => {})
-      await git.raw(['reset', 'HEAD'])
-      if (stagedBefore.trim()) {
-        const files = stagedBefore.split('\n').filter(Boolean)
-        await git.add(files)
-      }
-      return { success: true }
-    } catch (err: any) {
-      return { error: err.message }
-    }
-  })
-
-  // Abort conflicted apply — user chose "放弃"，还原到 apply 前状态
-  ipcMain.handle(IPC_CHANNELS.GIT_ABORT_APPLY, async (_event, patchFile: string, prePatchFile: string) => {
-    try {
-      const git = getGit()
-      await unlink(patchFile).catch(() => {})
-      // 丢弃 apply 的所有修改
-      await git.raw(['reset', '--hard', 'HEAD']).catch(() => {})
-      await git.raw(['clean', '-fd']).catch(() => {})
-      // 还原 apply 前的已有修改
-      if (prePatchFile) {
-        try { await git.raw(['apply', prePatchFile]) } catch { /* 尽力还原 */ }
-        await unlink(prePatchFile).catch(() => {})
-      }
       return { success: true }
     } catch (err: any) {
       return { error: err.message }

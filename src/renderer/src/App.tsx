@@ -44,7 +44,7 @@ declare global {
         show: (hash: string) => Promise<any>
         showFile: (ref: string, filePath: string) => Promise<any>
         getWorktreePath: (branch: string) => Promise<any>
-        abortApply: (patchFile: string, prePatchFile: string) => Promise<any>
+        applyBranchRetry: (branch: string) => Promise<any>
       }
       file: {
         read: (filePath: string) => Promise<any>
