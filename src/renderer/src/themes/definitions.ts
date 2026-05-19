@@ -540,6 +540,71 @@ const tokyoNight: IDETheme = {
   titleBar: { color: '#16161e', symbolColor: '#565f89', backgroundColor: '#16161e' }
 }
 
+// 🎵 Hatsune Miku — 初音未来印象色主题
+// 官方苍绿 #39C5BB 为核心，樱粉点缀，深黛底色如舞台夜幕
+const miku: IDETheme = {
+  id: 'miku',
+  label: 'Hatsune Miku',
+  css: {
+    'ide-bg': t('#1b413f'),
+    'ide-sidebar': t('#153533'),
+    'ide-panel': t('#224f4c'),
+    'ide-border': t('#2d5a57'),
+    'ide-text': t('#d4eaea'),
+    'ide-text-muted': t('#5c7a7a'),
+    'ide-accent': t('#39C5BB'),
+    'ide-accent-hover': t('#5ddbd2'),
+    'ide-success': t('#39C5BB'),
+    'ide-danger': t('#ff6b8a'),
+    'ide-warning': t('#f0c060'),
+    'ide-hover': t('#224f4c'),
+    'ide-active': t('#2d5a57'),
+    'scrollbar-track': t('#1b413f'),
+    'scrollbar-thumb': t('#2d5a57'),
+    'scrollbar-thumb-hover': t('#5c7a7a'),
+    'selection-bg': t('#39C5BB'),
+    'selection-opacity': '0.3',
+    'focus-outline': t('#39C5BB'),
+    'monaco-margin-bg': t('#1b413f')
+  },
+  terminal: {
+    background: '#1b413f',
+    foreground: '#e8f4f4',
+    cursor: '#39C5BB',
+    cursorAccent: '#1b413f',
+    selectionBackground: hexToRgba('#39C5BB', 0.3),
+    black: '#1a3030',
+    red: '#ff7b9b',
+    green: '#4ddbc8',
+    yellow: '#f5cc6e',
+    blue: '#6db8f0',
+    magenta: '#d090ff',
+    cyan: '#6de0d8',
+    white: '#e0f0f0',
+    brightBlack: '#6e8a8a',
+    brightRed: '#ffa8c0',
+    brightGreen: '#6de8da',
+    brightYellow: '#f8e090',
+    brightBlue: '#90d0ff',
+    brightMagenta: '#e0b8ff',
+    brightCyan: '#9af0e8',
+    brightWhite: '#ffffff'
+  },
+  monacoTheme: 'vibe-ide-miku',
+  monacoRules: [
+    { token: 'comment', foreground: '#5c7a7a', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#39C5BB' },
+    { token: 'string', foreground: '#86e8e0' },
+    { token: 'number', foreground: '#ff8fab' },
+    { token: 'type', foreground: '#5ddbd2' },
+    { token: 'function', foreground: '#7dcfff' },
+    { token: 'variable', foreground: '#d4eaea' },
+    { token: 'constant', foreground: '#ff8fab' },
+    { token: 'regexp', foreground: '#ff6b8a' }
+  ],
+  titleBar: { color: '#153533', symbolColor: '#5c7a7a', backgroundColor: '#153533' }
+}
+
 const catppuccin: IDETheme = {
   id: 'catppuccin-mocha',
   label: 'Catppuccin',
@@ -601,7 +666,8 @@ export const THEMES: IDETheme[] = [
   monokaiPro,
   githubLight,
   tokyoNight,
-  catppuccin
+  catppuccin,
+  miku
 ]
 
 export const DEFAULT_THEME_ID = 'vscode-dark'
