@@ -74,6 +74,8 @@ declare global {
       removeFontAdjustListener: (handler?: any) => void
       onFocusSettings: (callback: () => void) => any
       removeFocusSettingsListener: (handler?: any) => void
+      onStartupOpenPath: (callback: (data: { type: 'directory' | 'file'; path: string }) => void) => any
+      removeStartupOpenPathListener: (handler?: any) => void
     }
   }
 }
@@ -178,7 +180,6 @@ export default function App() {
       window.api.removeFocusSettingsListener(handler)
     }
   }, [])
-
   const handleClaudeStatusChange = useCallback((sessionId: string, status: 'running' | 'idle' | null) => {
     setClaudeStatus(prev => {
       if (prev[sessionId] === status) return prev
@@ -274,6 +275,56 @@ export default function App() {
       console.error('Failed to create terminal session:', err)
     }
   }, [])
+
+  // Create a terminal session at a specific path (no directory picker)
+  const handleCreateSessionAt = useCallback(async (cwd: string, shell?: string) => {
+    try {
+      const session = await window.api.terminal.create({ cwd, shell })
+      setSessions(prev => [...prev, session])
+      setActiveSessionId(session.id)
+      return session
+    } catch (err) {
+      console.error('Failed to create terminal session at path:', err)
+      return null
+    }
+  }, [])
+
+  // Listen for startup:openPath IPC from main process (CLI argument or second instance)
+  React.useEffect(() => {
+    const handler = window.api.onStartupOpenPath(async (data: { type: 'directory' | 'file'; path: string }) => {
+      if (data.type === 'directory') {
+        await handleCreateSessionAt(data.path)
+      } else {
+        // File: open parent directory as session, then open the file in editor
+        const parentDir = data.path.replace(/[/\\][^/\\]*$/, '') || data.path
+        const session = await handleCreateSessionAt(parentDir)
+        if (session) {
+          try {
+            const result = await window.api.file.read(data.path)
+            if (!result.error) {
+              let filePath = data.path
+              if (parentDir && data.path.startsWith(parentDir)) {
+                filePath = data.path.slice(parentDir.length).replace(/^[\\/]+/, '')
+              }
+              setDiffFile({
+                filePath,
+                fullPath: data.path,
+                diffContent: '',
+                isStaged: false,
+                defaultEdit: true
+              })
+              setCenterView('diff')
+            }
+          } catch (err) {
+            console.error('Failed to open file from startup path:', err)
+          }
+        }
+      }
+    })
+    return () => {
+      window.api.removeStartupOpenPathListener(handler)
+    }
+  }, [handleCreateSessionAt])
 
   // Clone a terminal session (same cwd)
   const handleCloneSession = useCallback(async (cwd: string, shell?: string) => {

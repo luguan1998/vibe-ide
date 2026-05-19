@@ -765,6 +765,9 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
 
   // Initial load — handled by workspacePath effect above
 
+  // Detect conflict markers in staged files
+  const hasConflictInStaged = status?.files?.some(f => f.staged && f.status === 'conflicted') ?? false
+
   // Get status icon for file
   const getStatusIcon = (file: GitFileStatus): string => {
     switch (file.status) {
@@ -1418,9 +1421,19 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                       if (e.key === 'Enter' && e.ctrlKey) handleCommit()
                     }}
                   />
+                  {hasConflictInStaged && (
+                    <div className="mt-2 px-2 py-1.5 text-[11px] text-ide-danger bg-ide-danger/10 rounded animate-fade-in flex items-center gap-1.5">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 shrink-0">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      暂存区存在冲突文件，请先解决冲突后再提交
+                    </div>
+                  )}
                   <button
                     onClick={handleCommit}
-                    disabled={!commitMessage.trim() || !status?.files?.some(f => f.staged)}
+                    disabled={!commitMessage.trim() || !status?.files?.some(f => f.staged) || hasConflictInStaged}
                     className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Commit (Ctrl+Enter)

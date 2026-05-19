@@ -1,5 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
-import { join } from 'path'
+import { join, resolve } from 'path'
+import { statSync, existsSync } from 'fs'
+import { createHash } from 'crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers, cleanupTerminals } from './pty'
 import { registerGitHandlers, cleanupGitWatcher } from './git'
@@ -7,13 +9,66 @@ import { registerFileHandlers } from './file'
 import { registerSearchHandlers } from './search'
 import { IPC_CHANNELS } from '../shared/types'
 
-// Fix GPU cache permission issue on Windows
+// Derive a path-specific instance lock so different exe copies run concurrently
+// while the same exe still behaves as a singleton.
+const exePath = app.getPath('exe')
+const exeHash = createHash('md5').update(exePath).digest('hex').slice(0, 8)
+app.name = `vibe-ide-${exeHash}`
+
+// Fix GPU cache permission issue on Windows (must be after app.name so userData is correct)
 app.setPath('cache', join(app.getPath('userData'), 'Cache'))
 
 let mainWindow: BrowserWindow | null = null
 
 // Fix Windows permission issues
 app.commandLine.appendSwitch('no-sandbox')
+
+// Single instance lock — only blocks the same exe path
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+}
+
+// Parse user-provided path from command line arguments
+function parseStartupPath(argv: string[]): string | null {
+  // Filter out flags (--foo, -f) and take remaining positional args
+  const positional = argv.filter(a => !a.startsWith('-'))
+  // Check from the end — the user path is typically the last positional arg
+  for (let i = positional.length - 1; i >= 0; i--) {
+    const arg = positional[i]
+    // Skip the electron/executable binary and common non-path entries
+    if (arg.endsWith('.exe') || arg.endsWith('.js') || arg === '.') continue
+    // Resolve to absolute path
+    const resolved = resolve(arg)
+    if (existsSync(resolved)) return resolved
+  }
+  return null
+}
+
+// Send a startup path to the renderer
+function sendStartupPath(fullPath: string): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  try {
+    const stats = statSync(fullPath)
+    const payload = stats.isDirectory()
+      ? { type: 'directory' as const, path: fullPath }
+      : { type: 'file' as const, path: fullPath }
+    mainWindow.webContents.send(IPC_CHANNELS.STARTUP_OPEN_PATH, payload)
+  } catch {
+    // Path doesn't exist, ignore
+  }
+}
+
+// Handle second instance — forward the path to the existing window
+app.on('second-instance', (_event, commandLine) => {
+  const path = parseStartupPath(commandLine)
+  if (path && mainWindow) {
+    sendStartupPath(path)
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  }
+})
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -100,6 +155,15 @@ app.whenReady().then(() => {
   registerSearchHandlers()
 
   createWindow()
+
+  // Handle initial startup path from command line
+  const startupPath = parseStartupPath(process.argv)
+  if (startupPath) {
+    // Wait for renderer to mount and register IPC listeners before sending
+    mainWindow!.webContents.on('did-finish-load', () => {
+      setTimeout(() => sendStartupPath(startupPath), 800)
+    })
+  }
 
   // Register PTY handlers after window is created
   registerPtyHandlers(mainWindow)

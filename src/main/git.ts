@@ -231,6 +231,20 @@ export function registerGitHandlers(): void {
         }
       }
 
+      // Check staged files for conflict markers via cached diff (not disk read)
+      const stagedForConflictCheck = stagedFiles.map(f => f.path)
+      if (stagedForConflictCheck.length > 0) {
+        try {
+          const cachedDiff = await git.raw(['diff', '--cached'])
+          const conflictPaths = parseConflictFilesFromDiff(cachedDiff)
+          for (const f of stagedFiles) {
+            if (conflictPaths.has(f.path)) {
+              f.status = 'conflicted'
+            }
+          }
+        } catch {}
+      }
+
       const result: GitStatusResult = {
         files: [...stagedFiles, ...unstagedFiles, ...untrackedFiles],
         branch: statusShort.current || '',
@@ -744,4 +758,22 @@ function getOldPath(f: { from?: string }, status: string): string | undefined {
     return f.from
   }
   return undefined
+}
+
+// 从 git diff --cached 输出中扫描冲突标记，返回包含冲突的文件路径集合
+const CONFLICT_MARKER_RE = /^\+<{7}(?: |$)|^\+={7}$|^\+>{7}(?: |$)/
+function parseConflictFilesFromDiff(diff: string): Set<string> {
+  const conflictPaths = new Set<string>()
+  let currentFile = ''
+  for (const line of diff.split('\n')) {
+    const fileMatch = line.match(/^\+\+\+ b\/(.+)/)
+    if (fileMatch) {
+      currentFile = fileMatch[1]
+      continue
+    }
+    if (CONFLICT_MARKER_RE.test(line)) {
+      if (currentFile) conflictPaths.add(currentFile)
+    }
+  }
+  return conflictPaths
 }

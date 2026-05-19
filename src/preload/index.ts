@@ -123,6 +123,20 @@ const api = {
     }
   },
 
+  // Startup path (from command line argument or second instance)
+  onStartupOpenPath: (callback: (data: { type: 'directory' | 'file'; path: string }) => void) => {
+    const handler = (_event: any, data: any) => callback(data)
+    ipcRenderer.on(IPC_CHANNELS.STARTUP_OPEN_PATH, handler)
+    return handler
+  },
+  removeStartupOpenPathListener: (handler?: any) => {
+    if (handler) {
+      ipcRenderer.removeListener(IPC_CHANNELS.STARTUP_OPEN_PATH, handler)
+    } else {
+      ipcRenderer.removeAllListeners(IPC_CHANNELS.STARTUP_OPEN_PATH)
+    }
+  },
+
   // Theme operations
   theme: {
     setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) =>

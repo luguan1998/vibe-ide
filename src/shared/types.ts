@@ -56,7 +56,10 @@ export const IPC_CHANNELS = {
   FONT_ADJUST: 'font:adjust',
 
   // Focus
-  FOCUS_SETTINGS: 'focus:settings'
+  FOCUS_SETTINGS: 'focus:settings',
+
+  // Startup
+  STARTUP_OPEN_PATH: 'startup:openPath'
 } as const
 
 // Terminal types
