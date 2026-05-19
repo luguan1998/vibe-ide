@@ -58,9 +58,9 @@ const SessionPanel = React.memo(function SessionPanel({
   claudeStatus = {},
   showSquiggles = false,
   onToggleSquiggles,
-  wordWrap = true,
+  wordWrap = false,
   onToggleWordWrap,
-  fileTreeDepth = 3,
+  fileTreeDepth = 5,
   onChangeFileTreeDepth,
   focusSettingsTrigger = 0
 }: SessionPanelProps) {

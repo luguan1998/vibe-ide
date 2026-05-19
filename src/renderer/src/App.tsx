@@ -109,13 +109,13 @@ export default function App() {
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
   const [claudeStatus, setClaudeStatus] = useState<Record<string, 'running' | 'idle' | null>>({})
   const [wordWrap, setWordWrap] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-word-wrap') !== 'false' } catch { return true }
+    try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
   })
 
   const [fileTreeDepth, setFileTreeDepth] = useState(() => {
     try {
       const v = localStorage.getItem('vibe-ide-file-tree-depth')
-      return v ? Math.max(1, Math.min(8, Number(v))) : 3
+      return v ? Math.max(1, Math.min(8, Number(v))) : 5
     } catch { return 3 }
   })
 

@@ -388,7 +388,7 @@ function parseDocTree(md: string): DocTreeNode[] {
   return root
 }
 
-const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger, onOpenFileFromExplorer, activeSessionId, fileTreeDepth = 3 }: GitPanelProps) {
+const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, refreshKey, onOpenFileFromRightTerminal, onOpenFileFromSearch, rightTerminalSession, onCreateRightTerminal, onCloseRightTerminal, searchFocusTrigger, onOpenFileFromExplorer, activeSessionId, fileTreeDepth = 5 }: GitPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [stagedExpanded, setStagedExpanded] = useState(true)
   const [changesExpanded, setChangesExpanded] = useState(true)
@@ -473,7 +473,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   }, [])
 
   // Ctrl+Left/Right → switch right panel tabs
-  const tabOrder = ['git', 'terminal', 'search', 'file'] as const
+  const tabOrder = ['git', 'terminal', 'file', 'search'] as const
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const bindings = getShortcuts()
@@ -1061,16 +1061,6 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
               </svg>
             </button>
             <button
-              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${activeSection === 'search' ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-              onClick={() => setActiveSection('search')}
-              title="Find"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </button>
-            <button
               className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${activeSection === 'file' ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
               onClick={() => setActiveSection('file')}
               title="File"
@@ -1078,6 +1068,16 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                 <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
                 <polyline points="13 2 13 9 20 9" />
+              </svg>
+            </button>
+            <button
+              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${activeSection === 'search' ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+              onClick={() => setActiveSection('search')}
+              title="Find"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </button>
           </div>
@@ -1121,16 +1121,6 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             </svg>
           </button>
           <button
-            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${activeSection === 'search' ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-            onClick={() => setActiveSection('search')}
-            title="Find"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </button>
-          <button
             className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${activeSection === 'file' ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
             onClick={() => setActiveSection('file')}
             title="File"
@@ -1138,6 +1128,16 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
               <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
               <polyline points="13 2 13 9 20 9" />
+            </svg>
+          </button>
+          <button
+            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${activeSection === 'search' ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+            onClick={() => setActiveSection('search')}
+            title="Find"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </button>
         </div>
