@@ -120,7 +120,12 @@ src/
 │       │   ├── SessionPanel.tsx # 左侧会话列表面板
 │       │   ├── TerminalView.tsx # xterm.js 终端视图
 │       │   ├── DiffViewer.tsx   # Monaco 编辑器/Diff 视图
-│       │   ├── GitPanel.tsx     # 右侧 Git/Aux/Search/File 面板
+│       │   ├── RightPanel.tsx   # 右侧多 tab 面板（编排器）
+│       │   ├── GitTab.tsx       # Git tab：版本控制
+│       │   ├── AuxTab.tsx       # Aux tab：辅助终端 + CLAUDE.md 命令
+│       │   ├── FileTab.tsx      # File tab：文件浏览器 + arch 目录树
+│       │   ├── FileIcons.tsx    # 共享：文件类型图标映射
+│       │   ├── DocTree.tsx      # 共享：CLAUDE.md 解析 + 文档树
 │       │   └── SearchPanel.tsx  # 文件内容搜索
 │       └── themes/              # 11 套主题配色
 └── shared/

@@ -65,8 +65,13 @@ src/
 │       │   ├── SessionPanel.tsx  # 左侧会话列表面板
 │       │   ├── TerminalView.tsx  # xterm.js 终端视图
 │       │   ├── DiffViewer.tsx    # Monaco 代码编辑器/Diff 视图
-│       │   ├── GitPanel.tsx      # 右侧 Git/Aux/Search/File 面板
-│       │   └── SearchPanel.tsx   # 文件内容搜索组件
+│       │   ├── RightPanel.tsx    # 右侧多 tab 面板（编排器）
+│       │   ├── GitTab.tsx        # Git tab：版本控制
+│       │   ├── AuxTab.tsx        # Aux tab：辅助终端 + CLAUDE.md 命令
+│       │   ├── FileTab.tsx       # File tab：文件浏览器 + arch 目录树
+│       │   ├── FileIcons.tsx     # 共享：文件类型图标映射
+│       │   ├── DocTree.tsx       # 共享：CLAUDE.md 解析 + 文档树
+│       │   └── SearchPanel.tsx   # Search tab：文件内容搜索
 │       └── themes/
 │           ├── types.ts          # 主题类型定义
 │           ├── definitions.ts    # 11 套主题配色
@@ -99,7 +104,10 @@ src/
 | `SessionPanel.tsx` | 左侧栏 | session 列表管理 |
 | `TerminalView.tsx` | 中间 | xterm.js 终端 |
 | `DiffViewer.tsx` | 中间 | Monaco 编辑器/Diff |
-| `GitPanel.tsx` | 右侧栏 | Git/Aux/Search/File 子面板 |
+| `RightPanel.tsx` | 右侧栏 | 多 tab 编排器（Git/Aux/Search/File） |
+| `GitTab.tsx` | 右侧栏 | Git 版本控制 |
+| `AuxTab.tsx` | 右侧栏 | 辅助终端 + CLAUDE.md 命令 |
+| `FileTab.tsx` | 右侧栏 | 文件浏览器 + arch 目录树 |
 | `SearchPanel.tsx` | 右侧栏 | 文件内容搜索 |
 
 ### IPC 频道 (`src/shared/types.ts`)
@@ -130,9 +138,9 @@ src/
 
 ## Architecture Constraint: Session Independence
 
-Each terminal session must own its Git panel state independently — **no global singletons in renderer state.**
+Each terminal session must own its RightPanel/GitTab state independently — **no global singletons in renderer state.**
 
-- GitPanel state tied to the active session (worktree navigation, git paths) **must** be keyed by `activeSessionId` (e.g. `Record<string, ...>`), never a single value.
+- RightPanel/GitTab state tied to the active session (worktree navigation, git paths) **must** be keyed by `activeSessionId` (e.g. `Record<string, ...>`), never a single value.
 - The main-process `git.ts` uses a global `gitInstance` + `currentWorkspace`. The renderer compensates by calling `git.setWorkspace()` reactively via `useEffect` on the per-session effective path.
 - Do NOT rely on `workspacePath` prop changes alone to detect session switches — two sessions can share the same cwd.
 - Avoid implicit side-effects from `useEffect` for session-switch behaviors (e.g. closing terminals). Call handlers explicitly when the user performs an action.

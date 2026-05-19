@@ -120,7 +120,12 @@ src/
 │       │   ├── SessionPanel.tsx # Left sidebar session list
 │       │   ├── TerminalView.tsx # xterm.js terminal view
 │       │   ├── DiffViewer.tsx   # Monaco Editor / Diff viewer
-│       │   ├── GitPanel.tsx     # Right panel with Git/Aux/Search/File tabs
+│       │   ├── RightPanel.tsx   # Right panel orchestrator
+│       │   ├── GitTab.tsx       # Git version control tab
+│       │   ├── AuxTab.tsx       # Aux terminal + CLAUDE.md commands
+│       │   ├── FileTab.tsx      # File explorer + arch doc tree
+│       │   ├── FileIcons.tsx    # Shared file icon utilities
+│       │   ├── DocTree.tsx      # Shared CLAUDE.md parser + doc tree
 │       │   └── SearchPanel.tsx  # File content search
 │       └── themes/              # 11 theme color schemes
 └── shared/

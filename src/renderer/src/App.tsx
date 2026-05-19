@@ -1,6 +1,6 @@
 import React, { useState, useCallback, lazy, Suspense } from 'react'
 import SessionPanel from './components/SessionPanel'
-import GitPanel from './components/GitPanel'
+import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
 import { TerminalSession, RenameTerminalResult } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
@@ -674,7 +674,7 @@ export default function App() {
 
         {/* Right Panel: Git Management */}
         <div className="shrink-0 flex flex-col bg-ide-sidebar border-l border-ide-border overflow-hidden" style={{ width: rightPanelWidth }}>
-          <GitPanel
+          <RightPanel
             workspacePath={activeSessionCwd}
             activeSessionId={activeSessionId}
             onFileSelect={handleFileSelect}

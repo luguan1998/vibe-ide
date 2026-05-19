@@ -54,7 +54,7 @@ const ZH_MAP: Record<string, string> = {
   // File Tree
   'File Tree Depth': '文件树深度',
 
-  // GitPanel Aux
+  // RightPanel Aux
   'Launch Terminal': '启动终端',
   'Please select a workspace first': '请先选择工作目录',
   'Commands': 'Commands',
