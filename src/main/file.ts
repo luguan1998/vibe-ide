@@ -1,5 +1,5 @@
-import { ipcMain } from 'electron'
-import { readFile, writeFile, readdir, unlink } from 'fs/promises'
+import { ipcMain, shell } from 'electron'
+import { readFile, writeFile, readdir, rename, mkdir, rm } from 'fs/promises'
 import { join, dirname } from 'path'
 import { IPC_CHANNELS, FileNode } from '../shared/types'
 
@@ -42,10 +42,40 @@ export function registerFileHandlers(): void {
     }
   })
 
-  // Delete file
+  // Delete file or directory
   ipcMain.handle(IPC_CHANNELS.FILE_DELETE, async (_event, filePath: string) => {
     try {
-      await unlink(filePath)
+      await rm(filePath, { recursive: true })
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Rename/move file or directory
+  ipcMain.handle(IPC_CHANNELS.FILE_RENAME, async (_event, oldPath: string, newPath: string) => {
+    try {
+      await rename(oldPath, newPath)
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Create directory
+  ipcMain.handle(IPC_CHANNELS.FILE_CREATE_DIR, async (_event, dirPath: string) => {
+    try {
+      await mkdir(dirPath, { recursive: true })
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Open file in system explorer
+  ipcMain.handle(IPC_CHANNELS.FILE_OPEN_EXPLORER, async (_event, filePath: string) => {
+    try {
+      shell.showItemInFolder(filePath)
       return { success: true }
     } catch (err: any) {
       return { error: err.message }

@@ -13,6 +13,7 @@ Vibe IDE — an Electron-based desktop IDE with native terminal, git management,
 3. **细节照抄** — 圆点、图标、颜色等视觉细节照搬模板写法，不变种（如 `style={{ backgroundColor: rgb(...) }}` 不改为 `var(--xxx)`）
 4. **遍历交互态** — 改完后脑中过一遍 hover/选中/空态/中英文/分隔线覆盖范围
 5. **信息不过二** — 同一份数据出现两次以上，立刻抽共享常量，不种重复因
+6. **禁用同步弹窗** — 严禁使用 `confirm()`、`prompt()`、`alert()` 等同步阻塞式浏览器原生弹窗，会导致终端状态机异常。确认/输入类交互统一使用项目已有的异步 Modal 模式（参考 `confirmAction` 状态 + fixed 定位弹窗，或内联 `<input>` 编辑）
 
 ## Commands
 

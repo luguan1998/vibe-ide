@@ -79,7 +79,10 @@ const api = {
     write: (filePath: string, content: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_WRITE, filePath, content),
     list: (dirPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_LIST, dirPath),
     tree: (dirPath: string, depth?: number) => ipcRenderer.invoke(IPC_CHANNELS.FILE_TREE, dirPath, depth),
-    delete: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_DELETE, filePath)
+    delete: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_DELETE, filePath),
+    rename: (oldPath: string, newPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_RENAME, oldPath, newPath),
+    createDir: (dirPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_CREATE_DIR, dirPath),
+    openExplorer: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_OPEN_EXPLORER, filePath)
   },
 
   // Workspace operations

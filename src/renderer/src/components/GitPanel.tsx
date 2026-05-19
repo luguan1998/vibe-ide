@@ -139,22 +139,54 @@ type GitTab = 'changes' | 'log' | 'branches'
 type GitSection = 'git' | 'terminal' | 'search' | 'file'
 
 // File tree item component
-function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile }: {
+function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel }: {
   node: FileNode
   depth: number
   expandedDirs: Set<string>
   onToggle: (path: string) => void
   onOpenFile: (fullPath: string) => void
+  onContextMenu: (e: React.MouseEvent, node: FileNode) => void
+  editingState: { type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null
+  onEditSubmit: (value: string) => void
+  onEditCancel: () => void
 }) {
   const isDir = node.type === 'directory'
   const isExpanded = expandedDirs.has(node.path)
   const paddingLeft = 12 + depth * 16
+  const isRenaming = editingState?.type === 'rename' && editingState.nodePath === node.path
+  const isCreating = editingState && editingState.nodePath === node.path && (editingState.type === 'newFile' || editingState.type === 'newFolder')
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  React.useEffect(() => {
+    if ((isRenaming || isCreating) && inputRef.current) {
+      inputRef.current.focus()
+      if (isRenaming) {
+        const dotIdx = node.name.lastIndexOf('.')
+        if (dotIdx > 0) {
+          inputRef.current.setSelectionRange(0, dotIdx)
+        } else {
+          inputRef.current.select()
+        }
+      }
+    }
+  }, [isRenaming, isCreating])
 
   const handleClick = () => {
+    if (isRenaming || isCreating) return
     if (isDir) {
       onToggle(node.path)
     } else {
       onOpenFile(node.path)
+    }
+  }
+
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      onEditSubmit(inputRef.current?.value || '')
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onEditCancel()
     }
   }
 
@@ -164,6 +196,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile }: {
         className="pr-2 py-0.5 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none"
         style={{ paddingLeft }}
         onClick={handleClick}
+        onContextMenu={(e) => { if (!isRenaming && !isCreating) onContextMenu(e, node) }}
       >
         {isDir ? (
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 text-ide-text-muted transition-transform shrink-0 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>
@@ -172,38 +205,114 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile }: {
         ) : (
           <span className="w-3 shrink-0" />
         )}
-        {isDir ? (
-          isExpanded ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              <path d="M2 10h12l2 4h6" />
-            </svg>
+        {isRenaming ? (
+          isDir ? (
+            isExpanded ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                <path d="M2 10h12l2 4h6" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+            )
           ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
+            (() => {
+              const info = getFileInfo(node.name)
+              return (
+                <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
+                  dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+              )
+            })()
           )
         ) : (
-          (() => {
-            const info = getFileInfo(node.name)
-            return (
-              <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
-                dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+          isDir ? (
+            isExpanded ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                <path d="M2 10h12l2 4h6" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
             )
-          })()
+          ) : (
+            (() => {
+              const info = getFileInfo(node.name)
+              return (
+                <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
+                  dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+              )
+            })()
+          )
         )}
-        <span className="truncate text-ide-text">{node.name}</span>
+        {isRenaming ? (
+          <input
+            ref={inputRef}
+            className="flex-1 min-w-0 bg-ide-hover border border-ide-accent rounded px-1 py-px text-xs text-ide-text outline-none"
+            defaultValue={node.name}
+            onKeyDown={handleInputKeyDown}
+            onBlur={() => onEditCancel()}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <span className="truncate text-ide-text">{node.name}</span>
+        )}
       </div>
-      {isDir && isExpanded && node.children?.map(child => (
-        <FileTreeItem
-          key={child.path}
-          node={child}
-          depth={depth + 1}
-          expandedDirs={expandedDirs}
-          onToggle={onToggle}
-          onOpenFile={onOpenFile}
-        />
-      ))}
+      {isRenaming && editingState?.error && (
+        <div style={{ paddingLeft }} className="py-0.5 text-[11px] text-ide-danger">
+          {editingState.error}
+        </div>
+      )}
+      {isDir && isExpanded && (
+        <>
+          {isCreating && (
+            <div
+              className="pr-2 py-0.5 text-xs flex items-center gap-0.5 bg-ide-accent/10"
+              style={{ paddingLeft: 12 + (depth + 1) * 16 }}
+            >
+              <span className="w-3 shrink-0" />
+              {editingState!.type === 'newFolder' ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 text-ide-text-muted"
+                  dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS.default }} />
+              )}
+              <input
+                ref={inputRef}
+                className="flex-1 min-w-0 bg-ide-bg border border-ide-accent rounded px-1 py-px text-xs text-ide-text outline-none"
+                placeholder={editingState!.type === 'newFolder' ? '文件夹名称' : '文件名称'}
+                onKeyDown={handleInputKeyDown}
+                onBlur={() => onEditCancel()}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
+          {isCreating && editingState?.error && (
+            <div style={{ paddingLeft: 12 + (depth + 1) * 16 }} className="py-0.5 text-[11px] text-ide-danger">
+              {editingState.error}
+            </div>
+          )}
+          {node.children?.map(child => (
+            <FileTreeItem
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              expandedDirs={expandedDirs}
+              onToggle={onToggle}
+              onOpenFile={onOpenFile}
+              onContextMenu={onContextMenu}
+              editingState={editingState}
+              onEditSubmit={onEditSubmit}
+              onEditCancel={onEditCancel}
+            />
+          ))}
+        </>
+      )}
     </>
   )
 }
@@ -310,6 +419,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const gitChangedHandlerRef = useRef<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
   const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)
+  const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; node: FileNode } | null>(null)
+  const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
   const [commands, setCommands] = useState<Array<{ command: string; comment: string }>>([])
   const [confirmAction, setConfirmAction] = useState<{ type: string; filePath: string; fileName: string } | null>(null)
   const [conflictApply, setConflictApply] = useState<{ branch: string; message: string } | null>(null)
@@ -356,7 +467,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   }, [logExpanded])
   // Dismiss context menus on outside click
   useEffect(() => {
-    const handleClick = () => { setContextMenu(null); setCommitContextMenu(null) }
+    const handleClick = () => { setContextMenu(null); setCommitContextMenu(null); setFileContextMenu(null) }
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
   }, [])
@@ -705,6 +816,86 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       loadFileTree()
     }
   }, [activeSection, workspacePath, loadFileTree])
+
+  // File context menu handlers
+  const handleFileDeleteFromMenu = useCallback((node: FileNode) => {
+    setFileContextMenu(null)
+    setConfirmAction({ type: 'deleteFile', filePath: node.path, fileName: node.name })
+  }, [])
+
+  const handleFileRename = useCallback((node: FileNode) => {
+    setFileContextMenu(null)
+    setEditingState({ type: 'rename', nodePath: node.path })
+  }, [])
+
+  const handleNewFile = useCallback((dirNode: FileNode) => {
+    setFileContextMenu(null)
+    setExpandedDirs(prev => { const next = new Set(prev); next.add(dirNode.path); return next })
+    setEditingState({ type: 'newFile', nodePath: dirNode.path })
+  }, [])
+
+  const handleNewFolder = useCallback((dirNode: FileNode) => {
+    setFileContextMenu(null)
+    setExpandedDirs(prev => { const next = new Set(prev); next.add(dirNode.path); return next })
+    setEditingState({ type: 'newFolder', nodePath: dirNode.path })
+  }, [])
+
+  const handleEditSubmit = useCallback(async (value: string) => {
+    if (!editingState || !value.trim()) { setEditingState(null); return }
+    const trimmed = value.trim()
+    switch (editingState.type) {
+      case 'rename': {
+        const nodePath = editingState.nodePath
+        const sep = nodePath.includes('\\') ? '\\' : '/'
+        const oldName = nodePath.split(sep).pop()!
+        if (trimmed === oldName) { setEditingState(null); return }
+        const dir = nodePath.substring(0, nodePath.lastIndexOf(sep))
+        const newPath = dir + sep + trimmed
+        const result = await window.api.file.rename(nodePath, newPath)
+        if (result.error) {
+          setEditingState(prev => prev ? { ...prev, error: result.error } : null)
+          return
+        }
+        setEditingState(null)
+        setExpandedDirs(prev => { const next = new Set(prev); next.delete(nodePath); return next })
+        await loadFileTree()
+        break
+      }
+      case 'newFile': {
+        const sep = editingState.nodePath.includes('\\') ? '\\' : '/'
+        const newPath = editingState.nodePath + sep + trimmed
+        const result = await window.api.file.write(newPath, '')
+        if (result.error) {
+          setEditingState(prev => prev ? { ...prev, error: result.error } : null)
+          return
+        }
+        setEditingState(null)
+        await loadFileTree()
+        break
+      }
+      case 'newFolder': {
+        const sep = editingState.nodePath.includes('\\') ? '\\' : '/'
+        const newPath = editingState.nodePath + sep + trimmed
+        const result = await window.api.file.createDir(newPath)
+        if (result.error) {
+          setEditingState(prev => prev ? { ...prev, error: result.error } : null)
+          return
+        }
+        setEditingState(null)
+        await loadFileTree()
+        break
+      }
+    }
+  }, [editingState, loadFileTree])
+
+  const handleEditCancel = useCallback(() => {
+    setEditingState(null)
+  }, [])
+
+  const handleOpenExplorer = useCallback(async (node: FileNode) => {
+    setFileContextMenu(null)
+    await window.api.file.openExplorer(node.path)
+  }, [])
 
   const [docTree, setDocTree] = useState<DocTreeNode[]>([])
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
@@ -1536,7 +1727,15 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
       {/* File 栏目 — 文件浏览器 + 文档目录树 */}
       {activeSection === 'file' && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div
+            className="flex-1 min-h-0 overflow-y-auto"
+            onContextMenu={(e) => {
+              if (!workspacePath) return
+              e.preventDefault()
+              const rootNode: FileNode = { name: workspacePath.split(/[\\/]/).pop() || workspacePath, path: workspacePath, type: 'directory' }
+              setFileContextMenu({ x: e.clientX, y: e.clientY, node: rootNode })
+            }}
+          >
             {fileTree.length === 0 ? (
               <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
                 {workspacePath ? 'Empty directory' : 'No workspace'}
@@ -1551,6 +1750,14 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                     expandedDirs={expandedDirs}
                     onToggle={toggleDir}
                     onOpenFile={(fullPath) => onOpenFileFromExplorer?.(fullPath)}
+                    onContextMenu={(e, node) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setFileContextMenu({ x: e.clientX, y: e.clientY, node })
+                    }}
+                    editingState={editingState}
+                    onEditSubmit={handleEditSubmit}
+                    onEditCancel={handleEditCancel}
                   />
                 ))}
               </div>
@@ -1590,7 +1797,9 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             <p className="text-sm text-ide-text mb-4">
               {confirmAction.type === 'discard'
                 ? `确定撤销对 ${confirmAction.fileName} 的修改？此操作不可恢复。`
-                : `确定删除 ${confirmAction.fileName}？此操作不可恢复。`
+                : confirmAction.type === 'deleteFile'
+                  ? `确定删除 ${confirmAction.fileName}？`
+                  : `确定删除 ${confirmAction.fileName}？此操作不可恢复。`
               }
             </p>
             <div className="flex justify-end gap-2">
@@ -1607,6 +1816,9 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   setConfirmAction(null)
                   if (type === 'discard') {
                     await handleDiscard(filePath)
+                  } else if (type === 'deleteFile') {
+                    await window.api.file.delete(filePath)
+                    await loadFileTree()
                   } else {
                     await handleDeleteFile(filePath)
                   }
@@ -1697,6 +1909,61 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
           </button>
         </div>
       )}
+
+      {/* Context Menu for file explorer */}
+      {fileContextMenu && (() => {
+        const isRoot = fileContextMenu.node.path === workspacePath
+        return (
+        <div
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50"
+          style={{ left: fileContextMenu.x, top: fileContextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {fileContextMenu.node.type === 'directory' ? (
+            <>
+              <button
+                className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                onClick={() => handleNewFile(fileContextMenu.node)}
+              >
+                新建文件
+              </button>
+              <button
+                className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                onClick={() => handleNewFolder(fileContextMenu.node)}
+              >
+                新建文件夹
+              </button>
+              {!isRoot && <div className="border-t border-ide-border my-1" />}
+            </>
+          ) : (
+            <>
+              <button
+                className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                onClick={() => handleOpenExplorer(fileContextMenu.node)}
+              >
+                打开文件所在位置
+              </button>
+              <div className="border-t border-ide-border my-1" />
+            </>
+          )}
+          {!isRoot && (
+            <>
+              <button
+                className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                onClick={() => handleFileRename(fileContextMenu.node)}
+              >
+                重命名
+              </button>
+              <button
+                className="w-full px-3 py-1.5 text-left text-xs text-ide-danger hover:bg-ide-hover whitespace-nowrap"
+                onClick={() => handleFileDeleteFromMenu(fileContextMenu.node)}
+              >
+                删除
+              </button>
+            </>
+          )}
+        </div>
+      )})()}
     </div>
   )
 })

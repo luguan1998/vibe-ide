@@ -40,6 +40,9 @@ export const IPC_CHANNELS = {
   FILE_LIST: 'file:list',
   FILE_TREE: 'file:tree',
   FILE_DELETE: 'file:delete',
+  FILE_RENAME: 'file:rename',
+  FILE_CREATE_DIR: 'file:createDir',
+  FILE_OPEN_EXPLORER: 'file:openExplorer',
 
   // Workspace
   WORKSPACE_OPEN: 'workspace:open',
