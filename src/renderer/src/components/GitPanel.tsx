@@ -429,6 +429,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [remoteBranches, setRemoteBranches] = useState<{ name: string; remote: string; branch: string }[]>([])
   const [selectedRemote, setSelectedRemote] = useState<string>('')
   const [showPushDropdown, setShowPushDropdown] = useState(false)
+  const [stashCount, setStashCount] = useState(0)
   const { t } = useI18n()
 
   // Switch git workspace when effective path changes
@@ -441,6 +442,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
         refreshStatus()
         refreshLog()
         refreshBranches()
+        refreshStashCount()
       }
     }
     switchWorkspace()
@@ -728,11 +730,19 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
     }
   }, [refreshBranches, refreshStatus])
 
+  const refreshStashCount = useCallback(async () => {
+    const list = await window.api.git.stashList()
+    if (Array.isArray(list)) {
+      setStashCount(list.length)
+    }
+  }, [])
+
   // Stash
   const handleStash = useCallback(async () => {
     await window.api.git.stashPush()
     await refreshStatus()
-  }, [refreshStatus])
+    await refreshStashCount()
+  }, [refreshStatus, refreshStashCount])
 
   // Pop stash
   const handlePush = useCallback(async () => {
@@ -753,7 +763,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const handleStashPop = useCallback(async () => {
     await window.api.git.stashPop()
     await refreshStatus()
-  }, [refreshStatus])
+    await refreshStashCount()
+  }, [refreshStatus, refreshStashCount])
 
   // Init git repo
   const handleInit = useCallback(async () => {
@@ -1565,7 +1576,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   onClick={handleStashPop}
                   className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors"
                 >
-                  Pop Stash
+                  Pop Stash{stashCount > 0 ? ` (${stashCount})` : ''}
                 </button>
               </div>
               {status.clean && status.ahead > 0 ? (
