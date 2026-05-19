@@ -178,7 +178,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       setModifiedContent('')
       setDiffStats({ additions: 0, deletions: 0 })
     }
-  }, [filePath, fullPath, isStaged, commitHash])
+  }, [filePath, fullPath, isStaged, commitHash, diffContent])
 
   useEffect(() => {
     loadContents()
