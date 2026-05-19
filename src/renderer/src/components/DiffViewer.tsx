@@ -441,7 +441,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               automaticLayout: true,
               padding: { top: 8 },
               scrollbar: {
-                verticalScrollbarSize: 8,
+                verticalScrollbarSize: 12,
                 horizontalScrollbarSize: 10,
                 useShadows: false
               }
