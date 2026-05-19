@@ -287,6 +287,8 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [logExpanded, setLogExpanded] = useState(false)
   const [branchesExpanded, setBranchesExpanded] = useState(false)
   const [status, setStatus] = useState<GitStatusResult | null>(null)
+  const statusRef = useRef(status)
+  statusRef.current = status
   const [logs, setLogs] = useState<GitLogEntry[]>([])
   const [branches, setBranches] = useState<GitBranch[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -298,7 +300,7 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
   const [message, setMessage] = useState<string | null>(null)
   const [currentGitPath, setCurrentGitPath] = useState<string | null>(null)
   // 每个 session 独立记忆 worktree 导航状态，避免多 session 同 cwd 时互相干扰
-  const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string }>>({})
+  const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
   const worktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
   // worktree 导航激活时用 worktree 路径，否则用 session 原始 cwd
   const effectiveGitPath = worktreeNav?.worktreePath || workspacePath
@@ -561,15 +563,34 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
         if (rightTerminalSession && activeSessionId) {
           onCloseRightTerminal?.(activeSessionId)
         }
-        setSessionWorktreeNav(prev => ({
-          ...prev,
-          [activeSessionId!]: { originalPath: workspacePath!, worktreePath: result.path }
-        }))
+        setSessionWorktreeNav(prev => {
+          const existing = prev[activeSessionId!]
+          return {
+            ...prev,
+            [activeSessionId!]: {
+              originalPath: existing?.originalPath || workspacePath!,
+              worktreePath: result.path,
+              originalBranch: existing?.originalBranch || statusRef.current?.branch || ''
+            }
+          }
+        })
       }
     } catch (err: any) {
       setError(err.message)
     }
   }, [workspacePath, rightTerminalSession, activeSessionId, onCloseRightTerminal])
+
+  // Return from worktree navigation to original workspace
+  const handleBackFromWorktree = useCallback(() => {
+    if (rightTerminalSession && activeSessionId) {
+      onCloseRightTerminal?.(activeSessionId)
+    }
+    setSessionWorktreeNav(prev => {
+      const next = { ...prev }
+      delete next[activeSessionId!]
+      return next
+    })
+  }, [rightTerminalSession, activeSessionId, onCloseRightTerminal])
 
   // Apply worktree branch changes as file modifications (no commits)
   const handleApplyBranch = useCallback(async (branch: string) => {
@@ -949,26 +970,6 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                 {status.ahead > 0 && <span className="text-ide-success text-[11px]">↑{status.ahead}</span>}
                 {status.behind > 0 && <span className="text-ide-warning text-[11px]">↓{status.behind}</span>}
               </div>
-              {worktreeNav && (
-                <button
-                  onClick={() => {
-                    if (rightTerminalSession && activeSessionId) {
-                      onCloseRightTerminal?.(activeSessionId)
-                    }
-                    setSessionWorktreeNav(prev => {
-                      const next = { ...prev }
-                      delete next[activeSessionId!]
-                      return next
-                    })
-                  }}
-                  className="text-ide-warning hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
-                  title="返回原工作区"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                    <path d="M19 12H5M12 19l-7-7 7-7" />
-                  </svg>
-                </button>
-              )}
               <button
                 onClick={() => { refreshStatus(); refreshLog(); refreshBranches() }}
                 className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
@@ -1305,13 +1306,16 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
             {branches.length === 0 ? (
               <div className="px-2 py-2 text-xs text-ide-text-muted text-center">No branches</div>
             ) : (
-              branches.map(branch => (
+              branches.map(branch => {
+                const isOriginalBranch = worktreeNav && branch.name === worktreeNav.originalBranch
+                return (
                 <div
                   key={branch.name}
                   className={`pl-5 pr-2 py-1.5 text-xs border-b border-ide-border/50 cursor-pointer flex items-center justify-between ${
-                    branch.current ? 'bg-ide-accent/10 text-ide-text' : branch.remote ? 'text-ide-text-muted cursor-not-allowed' : 'text-ide-text hover:bg-ide-hover'
+                    isOriginalBranch ? 'bg-ide-success/10 text-ide-text' : branch.current ? 'bg-ide-accent/10 text-ide-text' : branch.remote ? 'text-ide-text-muted cursor-not-allowed' : 'text-ide-text hover:bg-ide-hover'
                   }`}
                   onClick={() => {
+                    if (isOriginalBranch) { handleBackFromWorktree(); return }
                     if (branch.current || branch.remote) return
                     if (branch.name.startsWith('worktree-')) {
                       handleNavigateToWorktree(branch.name)
@@ -1327,19 +1331,27 @@ const GitPanel = React.memo(function GitPanel({ workspacePath, onFileSelect, ref
                   }}
                 >
                   <div className="flex items-center gap-1">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0">
-                      <line x1="6" y1="3" x2="6" y2="15" />
-                      <circle cx="18" cy="6" r="3" />
-                      <circle cx="6" cy="18" r="3" />
-                      <path d="M18 9a9 9 0 0 0-9 9" />
-                    </svg>
+                    {isOriginalBranch ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 shrink-0 text-ide-success">
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 shrink-0">
+                        <line x1="6" y1="3" x2="6" y2="15" />
+                        <circle cx="18" cy="6" r="3" />
+                        <circle cx="6" cy="18" r="3" />
+                        <path d="M18 9a9 9 0 0 0-9 9" />
+                      </svg>
+                    )}
                     <span className="text-xs">{branch.name}</span>
                   </div>
-                  {branch.current && (
+                  {isOriginalBranch ? (
+                    <span className="text-xs text-ide-success">main</span>
+                  ) : branch.current && (
                     <span className="text-xs text-ide-accent">current</span>
                   )}
                 </div>
-              ))
+              )})
             )}
           </div>
         )}
