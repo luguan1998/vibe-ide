@@ -58,6 +58,19 @@ const ZH_MAP: Record<string, string> = {
   'Launch Terminal': '启动终端',
   'Please select a workspace first': '请先选择工作目录',
   'Commands': 'Commands',
+
+  // FileTab
+  'New File': '新建文件',
+  'New Folder': '新建文件夹',
+  'Open in Explorer': '打开文件所在位置',
+  'Delete': '删除',
+  'Folder name': '文件夹名称',
+  'File name': '文件名称',
+  'Empty directory': '空目录',
+  'No workspace': '无工作目录',
+  'Cancel': '取消',
+  'Confirm': '确认',
+  'Delete {fileName}?': '确定删除 {fileName}？',
 }
 
 // ── context ────────────────────────────────────────────────────────

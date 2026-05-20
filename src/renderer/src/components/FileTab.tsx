@@ -3,6 +3,7 @@ import { Lightbulb } from 'lucide-react'
 import { FileNode } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { parseDocTree, DocTreeItem, DocTreeNode } from './DocTree'
+import { useI18n } from '../i18n'
 
 interface FileTabProps {
   workspacePath: string | null
@@ -22,6 +23,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   onEditSubmit: (value: string) => void
   onEditCancel: () => void
 }) {
+  const { t } = useI18n()
   const isDir = node.type === 'directory'
   const isExpanded = expandedDirs.has(node.path)
   const paddingLeft = 12 + depth * 16
@@ -157,7 +159,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
               <input
                 ref={inputRef}
                 className="flex-1 min-w-0 bg-ide-bg border border-ide-accent rounded px-1 py-px text-xs text-ide-text outline-none"
-                placeholder={editingState!.type === 'newFolder' ? '文件夹名称' : '文件名称'}
+                placeholder={editingState!.type === 'newFolder' ? t('Folder name') : t('File name')}
                 onKeyDown={handleInputKeyDown}
                 onBlur={() => onEditCancel()}
                 onClick={(e) => e.stopPropagation()}
@@ -197,6 +199,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
   const [confirmAction, setConfirmAction] = useState<{ type: string; filePath: string; fileName: string } | null>(null)
   const [docTree, setDocTree] = useState<DocTreeNode[]>([])
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
+  const { t } = useI18n()
 
   // Load file tree
   const loadFileTree = useCallback(async () => {
@@ -365,7 +368,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
                 <input
                   ref={(el) => { inputRef.current = el; el?.focus() }}
                   className="flex-1 min-w-0 bg-ide-bg border border-ide-accent rounded px-1 py-px text-xs text-ide-text outline-none"
-                  placeholder={editingState.type === 'newFolder' ? '文件夹名称' : '文件名称'}
+                  placeholder={editingState.type === 'newFolder' ? t('Folder name') : t('File name')}
                   onKeyDown={handleKeyDown}
                   onBlur={() => handleEditCancel()}
                   onClick={(e) => e.stopPropagation()}
@@ -381,7 +384,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
         })()}
         {fileTree.length === 0 && !(editingState && editingState.nodePath === workspacePath) ? (
           <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
-            {workspacePath ? 'Empty directory' : 'No workspace'}
+            {workspacePath ? t('Empty directory') : t('No workspace')}
           </div>
         ) : (
           <div className="flex flex-col py-1">
@@ -436,14 +439,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmAction(null)}>
           <div className="bg-ide-bg border border-ide-border rounded shadow-lg p-4 max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm text-ide-text mb-4">
-              确定删除 {confirmAction.fileName}？
+              {t('Delete {fileName}?').replace('{fileName}', confirmAction.fileName)}
             </p>
             <div className="flex justify-end gap-2">
               <button
                 className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded"
                 onClick={() => setConfirmAction(null)}
               >
-                取消
+                {t('Cancel')}
               </button>
               <button
                 className="px-3 py-1.5 text-xs bg-ide-danger hover:bg-red-600 text-white rounded"
@@ -454,7 +457,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
                   await loadFileTree()
                 }}
               >
-                确认
+                {t('Confirm')}
               </button>
             </div>
           </div>
@@ -476,13 +479,13 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
                 className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
                 onClick={() => handleNewFile(fileContextMenu.node)}
               >
-                新建文件
+                {t('New File')}
               </button>
               <button
                 className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
                 onClick={() => handleNewFolder(fileContextMenu.node)}
               >
-                新建文件夹
+                {t('New Folder')}
               </button>
               {!isRoot && <div className="border-t border-ide-border my-1" />}
             </>
@@ -492,7 +495,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
                 className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
                 onClick={() => handleOpenExplorer(fileContextMenu.node)}
               >
-                打开文件所在位置
+                {t('Open in Explorer')}
               </button>
               <div className="border-t border-ide-border my-1" />
             </>
@@ -503,13 +506,13 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
                 className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
                 onClick={() => handleFileRename(fileContextMenu.node)}
               >
-                重命名
+                {t('Rename')}
               </button>
               <button
                 className="w-full px-3 py-1.5 text-left text-xs text-ide-danger hover:bg-ide-hover whitespace-nowrap"
                 onClick={() => handleFileDeleteFromMenu(fileContextMenu.node)}
               >
-                删除
+                {t('Delete')}
               </button>
             </>
           )}
