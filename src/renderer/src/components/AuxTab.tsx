@@ -48,9 +48,13 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
       window.api.terminal.write(rightTerminalSession.id, command + '\r')
     } else if (activeSessionId) {
       pendingCommandRef.current = command
-      onCreateRightTerminal?.(activeSessionId)
+      if (worktreeNav) {
+        onCreateRightTerminal?.(activeSessionId, effectiveGitPath)
+      } else {
+        onCreateRightTerminal?.(activeSessionId)
+      }
     }
-  }, [rightTerminalSession, activeSessionId, onCreateRightTerminal])
+  }, [rightTerminalSession, activeSessionId, onCreateRightTerminal, worktreeNav, effectiveGitPath])
 
   // 右侧终端打开文件的回调 - 触发中间终端切换到 edit
   const handleRightTerminalOpenFile = useCallback(async (fullPath: string, lineNumber?: number) => {
@@ -109,7 +113,7 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
                 title={`Run: ${cmd.command}`}
               >
                 <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                  <path fill-rule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clip-rule="evenodd" />
+                  <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
                 </svg>
               </button>
               <span className="text-[11px] font-mono font-semibold text-ide-text shrink-0 w-[8.5rem] truncate">{cmd.command}</span>

@@ -33,6 +33,7 @@ export const IPC_CHANNELS = {
   GIT_REMOTE_BRANCHES: 'git:remoteBranches',
   GIT_WORKTREE_PATH: 'git:worktreePath',
   GIT_APPLY_BRANCH_RETRY: 'git:applyBranchRetry',
+  GIT_DELETE_WORKTREE: 'git:deleteWorktree',
 
   // File
   FILE_READ: 'file:read',

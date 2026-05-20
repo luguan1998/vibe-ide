@@ -592,15 +592,15 @@ const miku: IDETheme = {
   },
   monacoTheme: 'vibe-ide-miku',
   monacoRules: [
-    { token: 'comment', foreground: '#5c7a7a', fontStyle: 'italic' },
-    { token: 'keyword', foreground: '#39C5BB' },
-    { token: 'string', foreground: '#86e8e0' },
-    { token: 'number', foreground: '#ff8fab' },
-    { token: 'type', foreground: '#5ddbd2' },
-    { token: 'function', foreground: '#7dcfff' },
-    { token: 'variable', foreground: '#d4eaea' },
-    { token: 'constant', foreground: '#ff8fab' },
-    { token: 'regexp', foreground: '#ff6b8a' }
+    { token: 'comment', foreground: '#6a9955', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#569cd6' },
+    { token: 'string', foreground: '#c586c0' },
+    { token: 'number', foreground: '#b5cea8' },
+    { token: 'type', foreground: '#4ec9b0' },
+    { token: 'function', foreground: '#dcdcaa' },
+    { token: 'variable', foreground: '#9cdcfe' },
+    { token: 'constant', foreground: '#4fc1ff' },
+    { token: 'regexp', foreground: '#d16969' }
   ],
   titleBar: { color: '#153533', symbolColor: '#5c7a7a', backgroundColor: '#153533' }
 }

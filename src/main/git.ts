@@ -691,6 +691,42 @@ export function registerGitHandlers(): void {
     }
   })
 
+  // Git delete worktree + branch
+  ipcMain.handle(IPC_CHANNELS.GIT_DELETE_WORKTREE, async (_event, branch: string) => {
+    const git = getGit()
+    try {
+      // 1. Find worktree path
+      const wtList = await git.raw(['worktree', 'list', '--porcelain'])
+      let worktreePath = ''
+      const lines = wtList.split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('branch ') && lines[i].includes(branch)) {
+          for (let j = i - 1; j >= 0; j--) {
+            if (lines[j].startsWith('worktree ')) {
+              worktreePath = lines[j].replace('worktree ', '').trim()
+              break
+            }
+          }
+          break
+        }
+      }
+
+      if (!worktreePath) {
+        return { error: `找不到分支 ${branch} 对应的 worktree 路径` }
+      }
+
+      // 2. Remove worktree (--force to skip uncommitted changes check)
+      await git.raw(['worktree', 'remove', worktreePath, '--force'])
+
+      // 3. Delete the branch
+      await git.raw(['branch', '-D', branch])
+
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
   // Workspace open - changes the git working directory
   ipcMain.handle(IPC_CHANNELS.WORKSPACE_OPEN, async () => {
     const { dialog } = require('electron')

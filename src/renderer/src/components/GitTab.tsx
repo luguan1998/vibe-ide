@@ -299,6 +299,28 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     })
   }, [rightTerminalSession, activeSessionId, onCloseRightTerminal, onWorktreeNavChange])
 
+  // Delete worktree branch
+  const handleDeleteWorktree = useCallback(async (branch: string) => {
+    setContextMenu(null)
+    try {
+      if (worktreeNav && worktreeNav.worktreePath) {
+        const wtListResult = await window.api.git.getWorktreePath(branch)
+        if (wtListResult.path && wtListResult.path === worktreeNav.worktreePath) {
+          handleBackFromWorktree()
+        }
+      }
+      const result = await window.api.git.deleteWorktree(branch)
+      if (result.error) {
+        setError(result.error)
+      } else {
+        await refreshBranches()
+        await refreshStatus()
+      }
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }, [worktreeNav, handleBackFromWorktree, refreshBranches, refreshStatus])
+
   // Apply worktree branch changes
   const handleApplyBranch = useCallback(async (branch: string) => {
     setContextMenu(null)
@@ -507,7 +529,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                           onClick={(e) => { e.stopPropagation(); handleUnstageAll(stagedFiles.map(f => f.path)) }}
                           className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors inline-flex items-center gap-1"
                         >
-                          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fill-rule="evenodd" d="M9.75 3.5A2.75 2.75 0 0 0 7 6.25v5.19l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V6.25a4.25 4.25 0 0 1 8.5 0v1a.75.75 0 0 1-1.5 0v-1A2.75 2.75 0 0 0 9.75 3.5Z" clip-rule="evenodd" /></svg>
+                          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M9.75 3.5A2.75 2.75 0 0 0 7 6.25v5.19l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V6.25a4.25 4.25 0 0 1 8.5 0v1a.75.75 0 0 1-1.5 0v-1A2.75 2.75 0 0 0 9.75 3.5Z" clipRule="evenodd" /></svg>
                           全部取消
                         </button>
                       )}
@@ -569,7 +591,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                           onClick={(e) => { e.stopPropagation(); handleStageAll(modifiedFiles.map(f => f.path)) }}
                           className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors inline-flex items-center gap-1"
                         >
-                          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fill-rule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clip-rule="evenodd" /></svg>
+                          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
                           全部暂存
                         </button>
                       )}
@@ -633,7 +655,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       onClick={(e) => { e.stopPropagation(); handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path)) }}
                       className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors inline-flex items-center gap-1"
                     >
-                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fill-rule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clip-rule="evenodd" /></svg>
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
                       全部暂存
                     </button>
                   )}
@@ -942,6 +964,12 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             onClick={() => handleApplyBranch(contextMenu.branchName)}
           >
             合并修改
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-left text-xs text-ide-danger hover:bg-ide-hover whitespace-nowrap"
+            onClick={() => handleDeleteWorktree(contextMenu.branchName)}
+          >
+            删除分支
           </button>
         </div>
       )}
