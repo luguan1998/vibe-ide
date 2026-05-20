@@ -113,9 +113,9 @@ function rgSearch(query: string, cwd: string, opts: {
  * Convert a simple glob include pattern to a RegExp for filename matching.
  * Supports: *.ts, *.{ts,tsx}, src/**\/*.ts
  */
-function globToRegex(glob: string): RegExp {
+export function globToRegex(glob: string): RegExp {
   let pattern = glob
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex specials (except *)
+    .replace(/[.+^${}()|[\]\\*]/g, '\\$&') // Escape regex specials
     .replace(/\\\*\\\*/g, '<<<GLOBSTAR>>>')  // Temporarily replace **
     .replace(/\\\*/g, '[^/]*')              // * → match non-slash chars
     .replace(/<<<GLOBSTAR>>>/g, '.*')       // ** → match anything
@@ -126,7 +126,7 @@ function globToRegex(glob: string): RegExp {
   return new RegExp(`^${pattern}$`)
 }
 
-function matchInclude(filePath: string, includeGlob: string): boolean {
+export function matchInclude(filePath: string, includeGlob: string): boolean {
   // Simple extension pattern: *.ext
   if (/^\*\.[a-zA-Z0-9]+$/.test(includeGlob)) {
     const ext = includeGlob.slice(1) // e.g. ".ts"
@@ -135,7 +135,7 @@ function matchInclude(filePath: string, includeGlob: string): boolean {
 
   // Brace expansion: *.{ext1,ext2}
   if (/^\*\.\{[a-zA-Z0-9,]+\}$/.test(includeGlob)) {
-    const exts = includeGlob.slice(2, -1).split(',').map(e => '.' + e.trim())
+    const exts = includeGlob.slice(3, -1).split(',').map(e => '.' + e.trim())
     return exts.some(ext => filePath.endsWith(ext))
   }
 

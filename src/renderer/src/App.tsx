@@ -1,9 +1,10 @@
-import React, { useState, useCallback, lazy, Suspense } from 'react'
+import React, { useState, useCallback, lazy, Suspense, useRef, useEffect } from 'react'
 import SessionPanel from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
 import { TerminalSession, RenameTerminalResult } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
+import type { TerminalViewHandle } from './components/TerminalView'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
 
@@ -145,6 +146,20 @@ export default function App() {
   React.useEffect(() => {
     centerViewRef.current = centerView
   }, [centerView])
+
+  // Terminal refs for focus management (keyed by sessionId)
+  const terminalRefs = useRef<Record<string, TerminalViewHandle>>({})
+
+  // Focus terminal when switching sessions or returning from diff
+  useEffect(() => {
+    if (centerView === 'terminal' && activeSessionId) {
+      // Delay to let the new TerminalView mount/show
+      const timer = setTimeout(() => {
+        terminalRefs.current[activeSessionId]?.focus()
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [centerView, activeSessionId])
 
   // Persist font sizes to localStorage
   React.useEffect(() => {
@@ -659,7 +674,7 @@ export default function App() {
                   className="flex-1 flex flex-col overflow-hidden"
                   style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
                 >
-                  <TerminalView sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} newlineShortcut={getShortcuts()['terminal.newline']} onClaudeStatusChange={handleClaudeStatusChange} />
+                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} newlineShortcut={getShortcuts()['terminal.newline']} onClaudeStatusChange={handleClaudeStatusChange} />
                 </div>
               ))}
             </Suspense>

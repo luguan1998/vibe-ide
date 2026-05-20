@@ -775,7 +775,7 @@ function mapSimpleGitStatus(f: any): GitFileStatus['status'] {
   return 'unstaged'
 }
 
-function mapShortStatus(code: string, from?: string): GitFileStatus['status'] {
+export function mapShortStatus(code: string, from?: string): GitFileStatus['status'] {
   switch (code) {
     case 'A': return 'added'
     case 'M': return 'modified'
@@ -789,7 +789,7 @@ function mapShortStatus(code: string, from?: string): GitFileStatus['status'] {
   }
 }
 
-function getOldPath(f: { from?: string }, status: string): string | undefined {
+export function getOldPath(f: { from?: string }, status: string): string | undefined {
   if (status === 'R' || status === 'C') {
     return f.from
   }
@@ -798,7 +798,7 @@ function getOldPath(f: { from?: string }, status: string): string | undefined {
 
 // 从 git diff --cached 输出中扫描冲突标记，返回包含冲突的文件路径集合
 const CONFLICT_MARKER_RE = /^\+<{7}(?: |$)|^\+={7}$|^\+>{7}(?: |$)/
-function parseConflictFilesFromDiff(diff: string): Set<string> {
+export function parseConflictFilesFromDiff(diff: string): Set<string> {
   const conflictPaths = new Set<string>()
   let currentFile = ''
   for (const line of diff.split('\n')) {

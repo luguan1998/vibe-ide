@@ -29,6 +29,7 @@ npm run dev        # Start dev mode with hot reload (launches Electron window)
 npm run build      # Compile all layers (main, preload, renderer) to ./out/
 npm run build:win  # Package win exe to ./out/
 npm run preview    # Run the built app from ./out/ (no hot reload)
+npm test           # test
 ```
 
 ### version

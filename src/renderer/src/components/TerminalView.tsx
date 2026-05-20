@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { Terminal, ILinkProvider, ILink, IBufferRange } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -44,6 +44,10 @@ interface TerminalViewProps {
   isAux?: boolean
   onClaudeStatusChange?: (sessionId: string, status: 'running' | 'idle' | null) => void
   newlineShortcut?: string // e.g. "Shift+Enter"
+}
+
+export interface TerminalViewHandle {
+  focus: () => void
 }
 
 /**
@@ -179,6 +183,9 @@ class FileLinkProvider implements ILinkProvider {
       const matchedText = match[0]
       const startIndex = match.index
 
+      // 跳过 URL（http/https/ftp 等），交给 WebLinksAddon 处理
+      if (/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//.test(matchedText)) continue
+
       // 解析路径
       const parsed = parseFilePath(matchedText, this._cwd)
       if (!parsed) continue
@@ -222,7 +229,7 @@ const CLAUDE_END_RE = /\x1b\[\?1049l/
 const IDLE_THRESHOLD = 3000
 const IDLE_CHECK_INTERVAL = 2000
 
-const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onClaudeStatusChange, newlineShortcut = 'Shift+Enter'}: TerminalViewProps) {
+const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onClaudeStatusChange, newlineShortcut = 'Shift+Enter'}: TerminalViewProps, ref) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -237,6 +244,13 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
   const lastOutputRef = useRef(0)
   const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevStatusRef = useRef<'running' | 'idle' | null>(null)
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      xtermRef.current?.focus()
+    }
+  }), [])
+
   // Initialize xterm.js
   useEffect(() => {
     if (!terminalRef.current) return
@@ -263,7 +277,12 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     })
 
     const fitAddon = new FitAddon()
-    const webLinksAddon = new WebLinksAddon()
+    // 🙏 覆盖默认 handleLink：原实现先 window.open() 再设 location.href，
+    // 导致 Electron 的 setWindowOpenHandler 截获 about:blank 而丢弃真实 URL。
+    // 此处直接 window.open(uri, '_blank')，让主进程 shell.openExternal 拿到正确链接。
+    const webLinksAddon = new WebLinksAddon((_event, uri) => {
+      window.open(uri, '_blank')
+    })
     const clipboardAddon = new ClipboardAddon()
     const unicodeGraphemesAddon = new UnicodeGraphemesAddon()
 
@@ -558,6 +577,6 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
       />
     </div>
   )
-})
+}))
 
 export default TerminalView

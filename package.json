@@ -7,6 +7,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "test": "node --test --test-reporter=spec test/**/*.test.mjs",
     "start": "electron-vite preview",
     "build:win": "npm run build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win --x64 && node -e \"var s=['register-context-menu.bat','unregister-context-menu.bat'];s.forEach(function(f){require('fs').copyFileSync('build/'+f,'dist/win-unpacked/'+f)})\" && node scripts/set-icon.js && node scripts/zip-win.js"
   },
