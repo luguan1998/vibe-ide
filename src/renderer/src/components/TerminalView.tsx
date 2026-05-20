@@ -358,6 +358,7 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
     if (xtermRef.current) {
       xtermRef.current.options.theme = currentTheme.terminal
       xtermRef.current.options.allowTransparency = currentTheme.terminal.allowTransparency ?? true
+      xtermRef.current.options.fontWeight = currentTheme.terminal.fontWeight || '400'
       const el = terminalRef.current?.querySelector('.xterm') as HTMLElement | null
       if (el) el.style.backgroundColor = currentTheme.terminal.background
     }
