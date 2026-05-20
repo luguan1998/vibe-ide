@@ -42,7 +42,7 @@ interface TerminalViewProps {
   showHeader?: boolean
   fontSize?: number
   isAux?: boolean
-  onClaudeStatusChange?: (sessionId: string, status: 'running' | 'idle' | null) => void
+  onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle' | null) => void
   newlineShortcut?: string // e.g. "Shift+Enter"
 }
 
@@ -224,12 +224,25 @@ class FileLinkProvider implements ILinkProvider {
   }
 }
 
-const CLAUDE_START_RE = /\x1b\]0;.*?(?:claude|v\d+\.\d+).*?\x07|\x1b\[\?1049h/i
-const CLAUDE_END_RE = /\x1b\[\?1049l/
-const IDLE_THRESHOLD = 3000
-const IDLE_CHECK_INTERVAL = 2000
+// 🌀 Claude Code 检测：OSC 标题序列含 "claude" 或版本号
+const CLAUDE_START_RE = /\x1b\]0;.*?(?:claude|v\d+\.\d+).*?\x07/i
+// 🌀 通用 TUI 检测：进入 alternate screen
+const ALT_SCREEN_ENTER = /\x1b\[\?1049h/
+const ALT_SCREEN_EXIT = /\x1b\[\?1049l/
+const IDLE_THRESHOLD = 2000   // 2秒无真实输出 → 判空闲
+const IDLE_CHECK_INTERVAL = 1000 // 每秒检查一次
 
-const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onClaudeStatusChange, newlineShortcut = 'Shift+Enter'}: TerminalViewProps, ref) {
+/**
+ * 🧘 过滤光标相关 escape 序列（这些是 keep-alive 信号，不代表真实输出）
+ * 只保留有意义的文本/渲染内容用于判断空闲
+ */
+function stripCursorEscapes(data: string): string {
+  return data
+    .replace(/\x1b\[\?25[hl]/g, '')   // 光标显示 \x1b[?25h / 隐藏 \x1b[?25l
+    .replace(/\x1b\[\d* ?q/g, '')     // DECSCUSR 光标样式 \x1b[0 q 等
+}
+
+const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onAgentStatusChange, newlineShortcut = 'Shift+Enter'}: TerminalViewProps, ref) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -240,7 +253,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   const { theme: currentTheme } = useTheme()
   const newlineShortcutRef = useRef(newlineShortcut)
   newlineShortcutRef.current = newlineShortcut
-  const claudePresentRef = useRef(false)
+  const tuiPresentRef = useRef(false)
   const lastOutputRef = useRef(0)
   const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevStatusRef = useRef<'running' | 'idle' | null>(null)
@@ -409,13 +422,19 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       if (data.id === sessionId && xtermRef.current) {
         xtermRef.current.write(data.data)
 
-        // Claude Code detection (main terminals only)
-        if (!isAux && onClaudeStatusChange) {
-          lastOutputRef.current = Date.now()
+        // TUI agent detection (main terminals only)
+        if (!isAux && onAgentStatusChange) {
+          // 🧘 只将有意义的输出（非光标序列）视为 agent 活动
+          const meaningful = stripCursorEscapes(data.data)
+          if (meaningful.trim().length > 0) {
+            lastOutputRef.current = Date.now()
+          }
 
-          if (!claudePresentRef.current && CLAUDE_START_RE.test(data.data)) {
-            claudePresentRef.current = true
-            onClaudeStatusChange(sessionId, 'idle')
+          // 🌀 双通道触发：Claude 标题检测 + 通用 alt screen 检测
+          if (!tuiPresentRef.current &&
+              (CLAUDE_START_RE.test(data.data) || ALT_SCREEN_ENTER.test(data.data))) {
+            tuiPresentRef.current = true
+            onAgentStatusChange(sessionId, 'idle')
             prevStatusRef.current = 'idle'
             // Start idle detection timer
             if (!idleTimerRef.current) {
@@ -424,18 +443,19 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
                 const newStatus = idle ? 'idle' : 'running'
                 if (newStatus !== prevStatusRef.current) {
                   prevStatusRef.current = newStatus
-                  onClaudeStatusChange!(sessionId, newStatus)
+                  onAgentStatusChange!(sessionId, newStatus)
                 }
               }, IDLE_CHECK_INTERVAL)
             }
-          } else if (claudePresentRef.current && CLAUDE_END_RE.test(data.data)) {
-            claudePresentRef.current = false
+          } else if (tuiPresentRef.current && ALT_SCREEN_EXIT.test(data.data)) {
+            tuiPresentRef.current = false
             if (idleTimerRef.current) {
               clearInterval(idleTimerRef.current)
               idleTimerRef.current = null
             }
+            lastOutputRef.current = 0
             prevStatusRef.current = null
-            onClaudeStatusChange(sessionId, null)
+            onAgentStatusChange(sessionId, null)
           }
         }
       }

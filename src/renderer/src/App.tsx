@@ -108,7 +108,7 @@ export default function App() {
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
-  const [claudeStatus, setClaudeStatus] = useState<Record<string, 'running' | 'idle' | null>>({})
+  const [agentStatus, setAgentStatus] = useState<Record<string, 'running' | 'idle' | null>>({})
   const [wordWrap, setWordWrap] = useState(() => {
     try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
   })
@@ -195,8 +195,8 @@ export default function App() {
       window.api.removeFocusSettingsListener(handler)
     }
   }, [])
-  const handleClaudeStatusChange = useCallback((sessionId: string, status: 'running' | 'idle' | null) => {
-    setClaudeStatus(prev => {
+  const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle' | null) => {
+    setAgentStatus(prev => {
       if (prev[sessionId] === status) return prev
       return { ...prev, [sessionId]: status }
     })
@@ -363,13 +363,13 @@ export default function App() {
   const handleCloseSession = useCallback(async (id: string) => {
     await window.api.terminal.close(id)
     setSessions(prev => prev.filter(s => s.id !== id))
-    // 清理该 session 的命令历史和 Claude 状态
+    // 清理该 session 的命令历史和 agent 状态
     setCommandHistory(prev => {
       const next = { ...prev }
       delete next[id]
       return next
     })
-    setClaudeStatus(prev => {
+    setAgentStatus(prev => {
       const next = { ...prev }
       delete next[id]
       return next
@@ -627,7 +627,7 @@ export default function App() {
             onRenameSession={handleRenameSession}
             onReorderSessions={handleReorderSessions}
             commandHistory={commandHistory}
-            claudeStatus={claudeStatus}
+            agentStatus={agentStatus}
             showSquiggles={showSquiggles}
             onToggleSquiggles={setShowSquiggles}
             wordWrap={wordWrap}
@@ -674,7 +674,7 @@ export default function App() {
                   className="flex-1 flex flex-col overflow-hidden"
                   style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
                 >
-                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} newlineShortcut={getShortcuts()['terminal.newline']} onClaudeStatusChange={handleClaudeStatusChange} />
+                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} newlineShortcut={getShortcuts()['terminal.newline']} onAgentStatusChange={handleAgentStatusChange} />
                 </div>
               ))}
             </Suspense>

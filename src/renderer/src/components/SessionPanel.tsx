@@ -35,7 +35,7 @@ interface SessionPanelProps {
   onRenameSession?: (id: string, newName: string) => Promise<void>
   onReorderSessions?: (fromIndex: number, toIndex: number) => void
   commandHistory?: Record<string, string[]>
-  claudeStatus?: Record<string, 'running' | 'idle' | null>
+  agentStatus?: Record<string, 'running' | 'idle' | null>
   showSquiggles?: boolean
   onToggleSquiggles?: (value: boolean) => void
   wordWrap?: boolean
@@ -55,7 +55,7 @@ const SessionPanel = React.memo(function SessionPanel({
   onRenameSession,
   onReorderSessions,
   commandHistory = {},
-  claudeStatus = {},
+  agentStatus = {},
   showSquiggles = false,
   onToggleSquiggles,
   wordWrap = false,
@@ -160,10 +160,10 @@ const SessionPanel = React.memo(function SessionPanel({
 
   const stats = useMemo(() => {
     const total = sessions.length
-    const running = sessions.filter(s => claudeStatus[s.id] === 'running').length
+    const running = sessions.filter(s => agentStatus[s.id] === 'running').length
     const idle = total - running
     return { total, running, idle }
-  }, [sessions, claudeStatus])
+  }, [sessions, agentStatus])
 
   return (
     <div className="flex flex-col h-full">
@@ -176,7 +176,7 @@ const SessionPanel = React.memo(function SessionPanel({
                 ? 'text-ide-accent bg-ide-accent/10'
                 : 'text-ide-text-muted bg-ide-hover'
             }`}
-            title={t('Claude running')}
+            title={t('Agent running')}
           >
             <Zap size={13} className="shrink-0" />
             <span className="text-xs font-bold font-mono">{stats.running}</span>
@@ -405,7 +405,7 @@ const SessionPanel = React.memo(function SessionPanel({
               className={`group px-3 py-2 mx-1 rounded cursor-pointer transition-colors ${
                 session.id === activeSessionId
                   ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
-                  : claudeStatus[session.id] === 'running'
+                  : agentStatus[session.id] === 'running'
                     ? 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text border-l-[3px] border-ide-accent/60 animate-border-pulse'
                     : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
               } ${dragIndex === index ? 'opacity-40' : ''} ${dropIndex === index && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
@@ -474,7 +474,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   ) : (
                     <span className="text-sm truncate">{session.name}</span>
                   )}
-                  {session.id !== activeSessionId && claudeStatus[session.id] === 'running' && (
+                  {session.id !== activeSessionId && agentStatus[session.id] === 'running' && (
                     <span className="text-[10px] text-ide-accent animate-march ml-0.5 shrink-0 font-mono font-bold">&gt;&gt;</span>
                   )}
                 </div>

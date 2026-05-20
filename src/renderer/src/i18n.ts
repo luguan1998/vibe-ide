@@ -17,7 +17,7 @@ export type Lang = 'en' | 'zh'
 
 const ZH_MAP: Record<string, string> = {
   // SessionPanel
-  'Claude running': 'Claude 正在运行',
+  'Agent running': 'Agent 正在运行',
   'Idle': '空闲',
   'Settings': '设置',
   'Theme': '主题',
