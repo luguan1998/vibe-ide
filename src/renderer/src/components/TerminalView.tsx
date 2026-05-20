@@ -229,8 +229,8 @@ const CLAUDE_START_RE = /\x1b\]0;.*?(?:claude|v\d+\.\d+).*?\x07/i
 // 🌀 通用 TUI 检测：进入 alternate screen
 const ALT_SCREEN_ENTER = /\x1b\[\?1049h/
 const ALT_SCREEN_EXIT = /\x1b\[\?1049l/
-const IDLE_THRESHOLD = 2000   // 2秒无真实输出 → 判空闲
-const IDLE_CHECK_INTERVAL = 1000 // 每秒检查一次
+const IDLE_THRESHOLD = 2000    // 2秒无真实输出 → 判空闲
+const RUNNING_DEBOUNCE = 800   // 持续输出 0.8秒 → 才切忙碌
 
 /**
  * 🧘 过滤光标相关 escape 序列（这些是 keep-alive 信号，不代表真实输出）
@@ -255,8 +255,13 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   newlineShortcutRef.current = newlineShortcut
   const tuiPresentRef = useRef(false)
   const lastOutputRef = useRef(0)
-  const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lastPtyResizeRef = useRef(0)
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevStatusRef = useRef<'running' | 'idle' | null>(null)
+  // 🧘 区分「初始检测设定的 idle」和「定时器触发的真 idle」
+  // 只有真 idle 才受 PTY resize 冷却抑制
+  const idleFromTimerRef = useRef(false)
+  const activationStartRef = useRef(0)
 
   useImperativeHandle(ref, () => ({
     focus: () => {
@@ -366,7 +371,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       if (fitAddonRef.current && xtermRef.current) {
         try {
           fitAddonRef.current.fit()
-          const dims = xtermRef.current.cols + 'x' + xtermRef.current.rows
+          lastPtyResizeRef.current = Date.now()
           window.api.terminal.resize(sessionId, xtermRef.current.cols, xtermRef.current.rows)
         } catch (e) {
           // Ignore fit errors during resize
@@ -426,36 +431,66 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         if (!isAux && onAgentStatusChange) {
           // 🧘 只将有意义的输出（非光标序列）视为 agent 活动
           const meaningful = stripCursorEscapes(data.data)
-          if (meaningful.trim().length > 0) {
-            lastOutputRef.current = Date.now()
-          }
 
           // 🌀 双通道触发：Claude 标题检测 + 通用 alt screen 检测
           if (!tuiPresentRef.current &&
               (CLAUDE_START_RE.test(data.data) || ALT_SCREEN_ENTER.test(data.data))) {
             tuiPresentRef.current = true
+            idleFromTimerRef.current = false
+            activationStartRef.current = 0
             onAgentStatusChange(sessionId, 'idle')
             prevStatusRef.current = 'idle'
-            // Start idle detection timer
-            if (!idleTimerRef.current) {
-              idleTimerRef.current = setInterval(() => {
-                const idle = Date.now() - lastOutputRef.current >= IDLE_THRESHOLD
-                const newStatus = idle ? 'idle' : 'running'
-                if (newStatus !== prevStatusRef.current) {
-                  prevStatusRef.current = newStatus
-                  onAgentStatusChange!(sessionId, newStatus)
-                }
-              }, IDLE_CHECK_INTERVAL)
+            if (meaningful.trim().length > 0) {
+              lastOutputRef.current = Date.now()
             }
           } else if (tuiPresentRef.current && ALT_SCREEN_EXIT.test(data.data)) {
             tuiPresentRef.current = false
             if (idleTimerRef.current) {
-              clearInterval(idleTimerRef.current)
+              clearTimeout(idleTimerRef.current)
               idleTimerRef.current = null
             }
             lastOutputRef.current = 0
             prevStatusRef.current = null
+            idleFromTimerRef.current = false
+            activationStartRef.current = 0
             onAgentStatusChange(sessionId, null)
+          } else if (tuiPresentRef.current && meaningful.trim().length > 0) {
+            lastOutputRef.current = Date.now()
+            const sinceResize = Date.now() - lastPtyResizeRef.current
+            const wasIdle = prevStatusRef.current === 'idle'
+
+            if (wasIdle) {
+              // 🧘 PTY resize 后 600ms 冷却期内抑制真 idle→running（session 切换导致 agent 重绘）
+              const suppressed = idleFromTimerRef.current && sinceResize < 600
+              if (!suppressed) {
+                // 🌀 累计活动时间达 RUNNING_DEBOUNCE + 最近有输出 → 切 running
+                if (activationStartRef.current === 0) {
+                  activationStartRef.current = Date.now()
+                }
+                if (Date.now() - activationStartRef.current >= RUNNING_DEBOUNCE) {
+                  prevStatusRef.current = 'running'
+                  idleFromTimerRef.current = false
+                  activationStartRef.current = 0
+                  onAgentStatusChange(sessionId, 'running')
+                }
+              }
+            }
+
+            // 🔄 重置 idle 防抖定时器：输出停止 IDLE_THRESHOLD 后切 idle
+            if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+            idleTimerRef.current = setTimeout(() => {
+              if (Date.now() - lastOutputRef.current >= IDLE_THRESHOLD) {
+                prevStatusRef.current = 'idle'
+                idleFromTimerRef.current = true
+                onAgentStatusChange!(sessionId, 'idle')
+              }
+              // 🧘 激活计时跨 idle 间隙累积，但超长静默后清理防过期
+              if (activationStartRef.current > 0 &&
+                  Date.now() - lastOutputRef.current >= IDLE_THRESHOLD + RUNNING_DEBOUNCE) {
+                activationStartRef.current = 0
+              }
+              idleTimerRef.current = null
+            }, IDLE_THRESHOLD)
           }
         }
       }
@@ -469,7 +504,20 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
     // Resize PTY to match terminal dimensions
     if (xtermRef.current) {
+      lastPtyResizeRef.current = Date.now()
       window.api.terminal.resize(sessionId, xtermRef.current.cols, xtermRef.current.rows)
+    }
+
+    // 🛡️ 防御：若 effect 重建时 agent 仍在运行但 timer 已丢，补建 idle 检测
+    if (tuiPresentRef.current && !idleTimerRef.current) {
+      idleTimerRef.current = setTimeout(() => {
+        if (Date.now() - lastOutputRef.current >= IDLE_THRESHOLD) {
+          prevStatusRef.current = 'idle'
+          idleFromTimerRef.current = true
+          onAgentStatusChange!(sessionId, 'idle')
+        }
+        idleTimerRef.current = null
+      }, IDLE_THRESHOLD)
     }
 
     return () => {
@@ -482,7 +530,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         exitHandlerRef.current = null
       }
       if (idleTimerRef.current) {
-        clearInterval(idleTimerRef.current)
+        clearTimeout(idleTimerRef.current)
         idleTimerRef.current = null
       }
     }
@@ -531,6 +579,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           if (c !== prevCols || r !== prevRows) {
             prevCols = c
             prevRows = r
+            lastPtyResizeRef.current = Date.now()
             window.api.terminal.resize(sessionId, c, r)
           }
         } catch (e) {
