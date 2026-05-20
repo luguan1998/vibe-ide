@@ -237,7 +237,6 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
   const lastOutputRef = useRef(0)
   const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevStatusRef = useRef<'running' | 'idle' | null>(null)
-
   // Initialize xterm.js
   useEffect(() => {
     if (!terminalRef.current) return
@@ -315,6 +314,8 @@ const TerminalView = React.memo(function TerminalView({ sessionId, sessionName, 
         for (const ch of data) {
           if (ch === '\r') {
             const buffer = term.buffer.active
+            // Skip command extraction when in alternate screen (TUI apps: vim, htop, etc.)
+            if (buffer.type === 'alternate') continue
             const cursorY = buffer.baseY + buffer.cursorY
             const line = buffer.getLine(cursorY)
             if (line) {
