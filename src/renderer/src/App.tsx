@@ -108,7 +108,7 @@ export default function App() {
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
-  const [agentStatus, setAgentStatus] = useState<Record<string, 'running' | 'idle' | null>>({})
+  const [agentStatus, setAgentStatus] = useState<Record<string, 'running' | 'idle'>>({})
   const [wordWrap, setWordWrap] = useState(() => {
     try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
   })
@@ -195,9 +195,10 @@ export default function App() {
       window.api.removeFocusSettingsListener(handler)
     }
   }, [])
-  const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle' | null) => {
+  const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     setAgentStatus(prev => {
       if (prev[sessionId] === status) return prev
+      if (import.meta.env.DEV) console.log(`[idle] STATE: ${sessionId.slice(-6)} ${prev[sessionId] ?? 'undefined'} → ${status}`)
       return { ...prev, [sessionId]: status }
     })
   }, [])

@@ -35,7 +35,7 @@ interface SessionPanelProps {
   onRenameSession?: (id: string, newName: string) => Promise<void>
   onReorderSessions?: (fromIndex: number, toIndex: number) => void
   commandHistory?: Record<string, string[]>
-  agentStatus?: Record<string, 'running' | 'idle' | null>
+  agentStatus?: Record<string, 'running' | 'idle'>
   showSquiggles?: boolean
   onToggleSquiggles?: (value: boolean) => void
   wordWrap?: boolean
