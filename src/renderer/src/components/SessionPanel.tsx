@@ -176,7 +176,7 @@ const SessionPanel = React.memo(function SessionPanel({
                 ? 'text-ide-accent bg-ide-accent/10'
                 : 'text-ide-text-muted bg-ide-hover'
             }`}
-            title={t('Agent running')}
+            title={t('running')}
           >
             <Zap size={13} className="shrink-0" />
             <span className="text-xs font-bold font-mono">{stats.running}</span>
@@ -263,7 +263,7 @@ const SessionPanel = React.memo(function SessionPanel({
                 </div>
                 </div>
                 <div className="border-t border-ide-border mt-1 pt-1">
-                {/* Term Type flyout */}
+                {/* Shell Type flyout */}
                 <div
                   className="relative"
                   onMouseEnter={() => {
@@ -275,7 +275,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   }}
                 >
                   <div className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors">
-                    {t('Term Type')}
+                    {t('Shell Type')}
                   </div>
                   {showTermTypeFlyout && (
                     <div
