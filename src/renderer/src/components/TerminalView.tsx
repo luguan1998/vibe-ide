@@ -287,7 +287,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       lineHeight: 1.0,
       cursorBlink: false,
       cursorStyle: 'bar',
-      scrollback: 10000,
+      scrollback: 50000,
       allowTransparency: currentTheme.terminal.allowTransparency ?? true,
       allowProposedApi: true,
       windowsMode: true,
@@ -420,6 +420,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     const onResize = () => {
       if (fitAddonRef.current && xtermRef.current) {
         try {
+          const rect = terminalRef.current?.getBoundingClientRect()
+          if (!rect || rect.width === 0 || rect.height === 0) return
           fitAddonRef.current.fit()
           window.api.terminal.resize(sessionId, xtermRef.current.cols, xtermRef.current.rows)
         } catch (e) {
