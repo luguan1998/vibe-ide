@@ -23,6 +23,15 @@ let mainWindow: BrowserWindow | null = null
 // Fix Windows permission issues
 app.commandLine.appendSwitch('no-sandbox')
 
+// 强制 ANGLE 使用 D3D11 硬件加速，禁用软件渲染回退。
+// 软件 WebGL (SwiftShader/llvmpipe) 会导致每次 gl.bufferData 全走 CPU，
+// 终端流式输出时 CPU 直接拉满。若硬件 GPU 确实不可用，WebGL 上下文
+// 创建会直接失败，TerminalView 中 try/catch 会回退到 DOM 渲染器。
+app.commandLine.appendSwitch('use-gl', 'angle')
+app.commandLine.appendSwitch('use-angle', 'd3d11')
+app.commandLine.appendSwitch('ignore-gpu-blocklist')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+
 // Single instance lock — only blocks the same exe path
 const gotTheLock = app.requestSingleInstanceLock()
 

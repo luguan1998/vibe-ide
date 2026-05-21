@@ -6,6 +6,7 @@ import { ClipboardAddon } from '@xterm/addon-clipboard'
 import { eventMatchesBinding } from '../shortcuts'
 import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes'
 import { WebglAddon } from '@xterm/addon-webgl'
+
 import { useTheme } from '../themes'
 import '@xterm/xterm/css/xterm.css'
 
@@ -284,13 +285,15 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       fontWeight: currentTheme.terminal.fontWeight || '400',
       letterSpacing: 0,
       lineHeight: 1.0,
-      cursorBlink: true,
+      cursorBlink: false,
       cursorStyle: 'bar',
       scrollback: 10000,
       allowTransparency: currentTheme.terminal.allowTransparency ?? true,
       allowProposedApi: true,
       windowsMode: true,
-      drawBoldTextInBrightColors: false
+      drawBoldTextInBrightColors: false,
+      rescaleOverlappingGlyphs: true,
+      customGlyphs: true
     })
 
     const fitAddon = new FitAddon()
@@ -308,14 +311,40 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     term.loadAddon(clipboardAddon)
     term.loadAddon(unicodeGraphemesAddon)
 
+    // WebGL 渲染器（与 VSCode 终端策略一致）。
+    // 主进程已配置 ANGLE/D3D11 硬件加速 + ignore-gpu-blocklist，
+    // 软件 GPU 回退已被禁用。若硬件 GPU 确实不可用，context 创建
+    // 会抛异常，catch 回退到内置 DOM 渲染器。
     try {
-      term.loadAddon(new WebglAddon())
+      const webglAddon = new WebglAddon()
+      webglAddon.onContextLoss(() => {
+        webglAddon.dispose()
+      })
+      term.loadAddon(webglAddon)
     } catch {
-      // WebGL 不可用时回退到 Canvas 渲染器
+      // WebGL2 不可用，回退到 DOM 渲染器
     }
 
     term.open(terminalRef.current)
     fitAddon.fit()
+
+    // 聚焦感知光标闪烁：失焦时静默以降低空闲渲染开销
+    let textareaEl: HTMLTextAreaElement | undefined
+    const onTextareaFocus = () => { term.options.cursorBlink = true }
+    const onTextareaBlur = () => { term.options.cursorBlink = false }
+    const onWindowBlur = () => { term.options.cursorBlink = false }
+    const onWindowFocus = () => {
+      if (document.activeElement === textareaEl) {
+        term.options.cursorBlink = true
+      }
+    }
+    if (term.textarea) {
+      textareaEl = term.textarea
+      textareaEl.addEventListener('focus', onTextareaFocus)
+      textareaEl.addEventListener('blur', onTextareaBlur)
+    }
+    window.addEventListener('blur', onWindowBlur)
+    window.addEventListener('focus', onWindowFocus)
 
     xtermRef.current = term
     fitAddonRef.current = fitAddon
@@ -404,6 +433,12 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     return () => {
       terminalRef.current?.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('resize', onResize)
+      if (textareaEl) {
+        textareaEl.removeEventListener('focus', onTextareaFocus)
+        textareaEl.removeEventListener('blur', onTextareaBlur)
+      }
+      window.removeEventListener('blur', onWindowBlur)
+      window.removeEventListener('focus', onWindowFocus)
       term.dispose()
       xtermRef.current = null
       fitAddonRef.current = null
