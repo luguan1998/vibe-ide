@@ -573,6 +573,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
         try {
+          const rect = terminalRef.current?.getBoundingClientRect()
+          if (!rect || rect.width === 0 || rect.height === 0) return
           fitAddonRef.current!.fit()
           const c = xtermRef.current!.cols
           const r = xtermRef.current!.rows
