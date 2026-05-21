@@ -19,6 +19,7 @@ interface RightPanelProps {
   searchFocusTrigger?: number
   onOpenFileFromExplorer?: (fullPath: string) => void
   fileTreeDepth?: number
+  onDiffScroll?: (delta: number) => void
 }
 
 type GitSection = 'git' | 'terminal' | 'search' | 'file'
@@ -85,7 +86,7 @@ const RightPanel = React.memo(function RightPanel({
   rightTerminalSession, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
   searchFocusTrigger, onOpenFileFromExplorer,
-  fileTreeDepth = 5
+  fileTreeDepth = 5, onDiffScroll
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   // worktree 导航状态跨 tab 共享：Git tab 显示 back 按钮，Aux tab 需要 worktree cwd
@@ -150,6 +151,7 @@ const RightPanel = React.memo(function RightPanel({
           rightTerminalSession={rightTerminalSession}
           onCloseRightTerminal={onCloseRightTerminal}
           onWorktreeNavChange={setSessionWorktreeNav}
+          onDiffScroll={onDiffScroll}
         />
       )}
 

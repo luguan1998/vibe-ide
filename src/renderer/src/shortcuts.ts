@@ -174,6 +174,16 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Shift+Enter',
   },
   {
+    id: 'terminal.pageDown',
+    label: 'Terminal Page Down',
+    defaultKeys: 'PageDown',
+  },
+  {
+    id: 'terminal.pageUp',
+    label: 'Terminal Page Up',
+    defaultKeys: 'PageUp',
+  },
+  {
     id: 'terminal.contextMenu',
     label: 'Terminal Copy/Paste',
     defaultKeys: 'Right-click',

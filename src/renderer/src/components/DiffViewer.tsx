@@ -13,6 +13,7 @@ interface DiffViewerProps {
   lineNumber?: number       // 跳转到指定行
   fontSize?: number         // 编辑器字体大小
   wordWrap?: boolean        // 是否自动换行
+  scrollTrigger?: number    // PageUp/PageDown 触发滚动，变化时滚动一页
   onBack?: () => void
   onSaved?: (path: string) => Promise<void>
   defaultEdit?: boolean
@@ -82,7 +83,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions, deletions }
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 13, wordWrap = false, onBack, onSaved, defaultEdit }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 13, wordWrap = false, scrollTrigger, onBack, onSaved, defaultEdit }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
 
   const [viewMode, setViewMode] = useState<ViewMode>(defaultEdit ? 'edit' : 'diff')
@@ -120,6 +121,24 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       }
     } catch {}
   }, [lineNumber, viewMode])
+
+  // PageUp/PageDown: 滚动 diff 编辑器一页
+  const prevScrollTrigger = useRef(scrollTrigger)
+  useEffect(() => {
+    if (scrollTrigger === undefined || prevScrollTrigger.current === scrollTrigger) return
+    const delta = scrollTrigger - prevScrollTrigger.current
+    prevScrollTrigger.current = scrollTrigger
+    try {
+      const editor = viewMode === 'diff'
+        ? diffEditorRef.current?.getModifiedEditor()
+        : editEditorRef.current
+      if (!editor) return
+      const layoutInfo = editor.getLayoutInfo()
+      const pageHeight = layoutInfo.height * 0.5
+      const newScrollTop = editor.getScrollTop() + delta * pageHeight
+      editor.setScrollTop(Math.max(0, newScrollTop))
+    } catch {}
+  }, [scrollTrigger, viewMode])
 
   const loadContents = useCallback(async () => {
     try {

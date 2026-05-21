@@ -107,6 +107,7 @@ export default function App() {
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
+  const [diffScrollTrigger, setDiffScrollTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
   const [agentStatus, setAgentStatus] = useState<Record<string, 'running' | 'idle'>>({})
   const [wordWrap, setWordWrap] = useState(() => {
@@ -459,6 +460,10 @@ export default function App() {
     setCenterView('diff')
   }, [activeSessionCwd])
 
+  const handleDiffScroll = useCallback((delta: number) => {
+    setDiffScrollTrigger(prev => prev + delta)
+  }, [])
+
   const handleBackToTerminal = useCallback(() => {
     setCenterView('terminal')
     setDiffFile(null)
@@ -662,6 +667,7 @@ export default function App() {
               defaultEdit={diffFile.defaultEdit}
               fontSize={editorFontSize}
               wordWrap={wordWrap}
+              scrollTrigger={diffScrollTrigger}
             />
           ) : sessions.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-ide-text-muted">
@@ -675,7 +681,7 @@ export default function App() {
                   className="flex-1 flex flex-col overflow-hidden"
                   style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
                 >
-                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} newlineShortcut={getShortcuts()['terminal.newline']} onAgentStatusChange={handleAgentStatusChange} />
+                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} />
                 </div>
               ))}
             </Suspense>
@@ -703,6 +709,7 @@ export default function App() {
             onCloseRightTerminal={handleCloseRightTerminal}
             searchFocusTrigger={searchFocusTrigger}
             fileTreeDepth={fileTreeDepth}
+            onDiffScroll={handleDiffScroll}
           />
         </div>
       </div>

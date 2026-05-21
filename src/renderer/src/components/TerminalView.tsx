@@ -44,6 +44,8 @@ interface TerminalViewProps {
   isAux?: boolean
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   newlineShortcut?: string // e.g. "Shift+Enter"
+  pageDownShortcut?: string // e.g. "PageDown"
+  pageUpShortcut?: string // e.g. "PageUp"
 }
 
 export interface TerminalViewHandle {
@@ -239,7 +241,7 @@ function stripAnsiEscapes(data: string): string {
     .replace(/[\b\x08]/g, '')                // 回退符
 }
 
-const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onAgentStatusChange, newlineShortcut = 'Shift+Enter'}: TerminalViewProps, ref) {
+const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onAgentStatusChange, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -250,6 +252,10 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   const { theme: currentTheme } = useTheme()
   const newlineShortcutRef = useRef(newlineShortcut)
   newlineShortcutRef.current = newlineShortcut
+  const pageDownShortcutRef = useRef(pageDownShortcut)
+  pageDownShortcutRef.current = pageDownShortcut
+  const pageUpShortcutRef = useRef(pageUpShortcut)
+  pageUpShortcutRef.current = pageUpShortcut
   const detectionReadyRef = useRef(false)    // 1s 延时后才开始检测
   const lastOutputRef = useRef(0)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -323,6 +329,28 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         e.stopImmediatePropagation()
         window.api.terminal.write(sessionId, '\x1b\r')
         return
+      }
+      // 📜 翻页快捷键：有滚动条时操作视口，无滚动条时透传 PTY（shell 自有行为）
+      //    baseY > 0 表示用户已向上滚动，此时 buffer 一定有 scrollback
+      //    不在最底部时 pageDown 翻页；已在最底部则放行，避免吞掉 shell 的 history 键
+      if (eventMatchesBinding(e, pageDownShortcutRef.current)) {
+        if (term.buffer.active.baseY > 0) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          term.scrollLines(term.rows - 1)
+          return
+        }
+        // baseY === 0 已在最底部 → 不做拦截，让 xterm 把 \x1b[6~ 发给 PTY
+      }
+      //    length > rows 意味着内容超出一屏，存在滚动条；一屏内则透传给 shell
+      if (eventMatchesBinding(e, pageUpShortcutRef.current)) {
+        if (term.buffer.active.length > term.rows) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          term.scrollLines(-(term.rows - 1))
+          return
+        }
+        // 缓冲区不足一屏 → 不做拦截，让 xterm 把 \x1b[5~ 发给 PTY
       }
       if (e.key === 'c' && e.ctrlKey && !e.metaKey) {
         const sel = term.getSelection()

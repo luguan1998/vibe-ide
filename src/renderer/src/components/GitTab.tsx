@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitCommitFile, TerminalSession } from '@shared/types'
 
 interface GitTabProps {
@@ -11,6 +11,7 @@ interface GitTabProps {
   rightTerminalSession?: TerminalSession | null
   onCloseRightTerminal?: (sessionId: string) => void
   onWorktreeNavChange: (updater: (prev: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => void
+  onDiffScroll?: (delta: number) => void
 }
 
 const getStatusIcon = (file: GitFileStatus): string => {
@@ -53,7 +54,8 @@ const splitPath = (filePath: string): { name: string; dir: string } => {
   return { name: filePath.slice(idx + 1), dir: filePath.slice(0, idx + 1) }
 }
 
-export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange }: GitTabProps) {
+export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll }: GitTabProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const [stagedExpanded, setStagedExpanded] = useState(true)
   const [changesExpanded, setChangesExpanded] = useState(true)
   const [untrackedExpanded, setUntrackedExpanded] = useState(true)
@@ -84,6 +86,59 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [selectedRemote, setSelectedRemote] = useState<string>('')
   const [showPushDropdown, setShowPushDropdown] = useState(false)
   const [stashCount, setStashCount] = useState(0)
+
+  // 可导航项：section 标题栏 + 文件行，从上往下
+  type NavItem = { type: 'header'; section: 'staged' | 'unstaged' | 'untracked' } | { type: 'file'; file: GitFileStatus; section: 'staged' | 'unstaged' | 'untracked' }
+  const navigableItems = useMemo(() => {
+    if (!status?.files) return [] as NavItem[]
+    const items: NavItem[] = []
+    const stagedFiles = status.files.filter(f => f.staged)
+    const unstagedFiles = status.files.filter(f => !f.staged && f.status !== 'untracked')
+    const untrackedFiles = status.files.filter(f => f.status === 'untracked')
+    if (stagedFiles.length > 0) {
+      items.push({ type: 'header', section: 'staged' })
+      if (stagedExpanded) stagedFiles.forEach(f => items.push({ type: 'file', file: f, section: 'staged' }))
+    }
+    if (unstagedFiles.length > 0) {
+      items.push({ type: 'header', section: 'unstaged' })
+      if (changesExpanded) unstagedFiles.forEach(f => items.push({ type: 'file', file: f, section: 'unstaged' }))
+    }
+    if (untrackedFiles.length > 0) {
+      items.push({ type: 'header', section: 'untracked' })
+      if (untrackedExpanded) untrackedFiles.forEach(f => items.push({ type: 'file', file: f, section: 'untracked' }))
+    }
+    return items
+  }, [status, stagedExpanded, changesExpanded, untrackedExpanded])
+
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+  const focusedIndexRef = useRef<number | null>(null)
+  useEffect(() => { focusedIndexRef.current = focusedIndex }, [focusedIndex])
+
+  // 切到 Git tab 时自动聚焦第一个可导航项
+  const hasAutoFocused = useRef(false)
+  useEffect(() => {
+    if (!hasAutoFocused.current && navigableItems.length > 0) {
+      setFocusedIndex(0)
+      hasAutoFocused.current = true
+    }
+  }, [navigableItems.length > 0])
+
+  // 抢焦点：避免中间 xterm 的 textarea 拦断键盘事件
+  useEffect(() => { containerRef.current?.focus() }, [])
+
+  // 当前高亮的标题栏：仅当 focusedIndex 指向 header 类型时
+  const focusedHeaderSection = useMemo(() => {
+    if (focusedIndex === null) return null
+    const item = navigableItems[focusedIndex]
+    return item?.type === 'header' ? item.section : null
+  }, [focusedIndex, navigableItems])
+
+  // 当前高亮的文件 key（section:path，避免同文件在 staged+unstaged 并行命中）
+  const focusedFileKey = useMemo(() => {
+    if (focusedIndex === null) return null
+    const item = navigableItems[focusedIndex]
+    return item?.type === 'file' ? `${item.section}:${item.file.path}` : null
+  }, [focusedIndex, navigableItems])
 
   // Refresh git status
   const refreshStatus = useCallback(async () => {
@@ -448,6 +503,53 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     return () => window.removeEventListener('click', handleClick)
   }, [showPushDropdown])
 
+  // Keyboard navigation: ArrowUp/Down 遍历标题栏+文件行，文件行自动打开 diff；Enter 触发标题栏批量操作
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      if (e.key === 'PageDown' || e.key === 'PageUp') {
+        e.preventDefault()
+        onDiffScroll?.(e.key === 'PageDown' ? 1 : -1)
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (navigableItems.length === 0) return
+        e.preventDefault()
+        setFocusedIndex(prev => {
+          const next = e.key === 'ArrowDown'
+            ? (prev === null ? 0 : Math.min(prev + 1, navigableItems.length - 1))
+            : (prev === null ? navigableItems.length - 1 : Math.max(prev - 1, 0))
+          return next
+        })
+      } else if (e.key === 'Enter') {
+        const idx = focusedIndexRef.current
+        if (idx === null) return
+        const item = navigableItems[idx]
+        if (item?.type === 'header' && statusRef.current?.files) {
+          e.preventDefault()
+          const files = statusRef.current.files
+          if (item.section === 'staged') {
+            handleUnstageAll(files.filter(f => f.staged).map(f => f.path))
+          } else if (item.section === 'unstaged') {
+            handleStageAll(files.filter(f => !f.staged && f.status !== 'untracked').map(f => f.path))
+          } else if (item.section === 'untracked') {
+            handleStageAll(files.filter(f => f.status === 'untracked').map(f => f.path))
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKey, true)
+    return () => window.removeEventListener('keydown', handleKey, true)
+  }, [navigableItems, onDiffScroll])
+
+  // focusedIndex 落到文件行时自动打开 diff
+  useEffect(() => {
+    if (focusedIndex === null || focusedIndex >= navigableItems.length) return
+    const item = navigableItems[focusedIndex]
+    if (item?.type === 'file') handleFileClick(item.file)
+  }, [focusedIndex, navigableItems, handleFileClick])
+
   // Detect conflict markers in staged files
   const hasConflictInStaged = status?.files?.some(f => f.staged && f.status === 'conflicted') ?? false
 
@@ -480,7 +582,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto flex flex-col">
+      <div ref={containerRef} tabIndex={-1} className="flex-1 overflow-y-auto flex flex-col outline-none focus:outline-none focus:ring-0">
         {message && (
           <div className="px-3 py-2 text-sm text-ide-accent bg-ide-accent/10 animate-fade-in">
             <p>{message}</p>
@@ -510,7 +612,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   const stats = calcFileStats(stagedFiles)
                   return (
                     <div
-                      className="pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                      className={`pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between ${focusedHeaderSection === 'staged' ? 'bg-ide-accent/10' : ''}`}
                       onClick={() => setStagedExpanded(!stagedExpanded)}
                     >
                       <div className="flex items-center gap-1">
@@ -527,7 +629,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       {stagedExpanded && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleUnstageAll(stagedFiles.map(f => f.path)) }}
-                          className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors inline-flex items-center gap-1"
+                          className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'staged' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'}`}
                         >
                           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M9.75 3.5A2.75 2.75 0 0 0 7 6.25v5.19l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V6.25a4.25 4.25 0 0 1 8.5 0v1a.75.75 0 0 1-1.5 0v-1A2.75 2.75 0 0 0 9.75 3.5Z" clipRule="evenodd" /></svg>
                           全部取消
@@ -542,9 +644,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   <div
                     key={`staged-${file.path}`}
                     className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
-                      selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
+                      focusedFileKey === `staged:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
-                    onClick={() => handleFileClick(file)}
+                    onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'staged' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
                   >
                     <span className={`font-bold ${getStatusColor(file)} w-3.5 text-center shrink-0`}>
                       {getStatusIcon(file)}
@@ -573,7 +675,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   const stats = calcFileStats(modifiedFiles)
                   return (
                     <div
-                      className="pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                      className={`pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between ${focusedHeaderSection === 'unstaged' ? 'bg-ide-accent/10' : ''}`}
                       onClick={() => setChangesExpanded(!changesExpanded)}
                     >
                       <div className="flex items-center gap-1">
@@ -589,7 +691,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       {changesExpanded && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleStageAll(modifiedFiles.map(f => f.path)) }}
-                          className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors inline-flex items-center gap-1"
+                          className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'unstaged' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'}`}
                         >
                           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
                           全部暂存
@@ -604,9 +706,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   <div
                     key={`unstaged-${file.path}`}
                     className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
-                      selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
+                      focusedFileKey === `unstaged:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
-                    onClick={() => handleFileClick(file)}
+                    onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'unstaged' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
                   >
                     <span className={`font-bold ${getStatusColor(file)} w-3.5 text-center shrink-0`}>
                       {getStatusIcon(file)}
@@ -637,7 +739,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             {status && status.files.filter(f => f.status === 'untracked').length > 0 && (
               <div className="border-b border-ide-border">
                 <div
-                  className="pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                  className={`pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between ${focusedHeaderSection === 'untracked' ? 'bg-ide-accent/10' : ''}`}
                   onClick={() => setUntrackedExpanded(!untrackedExpanded)}
                 >
                   <div className="flex items-center gap-1">
@@ -653,7 +755,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   {untrackedExpanded && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path)) }}
-                      className="text-[11px] font-normal normal-case px-2 py-0.5 rounded border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors inline-flex items-center gap-1"
+                      className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'untracked' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'}`}
                     >
                       <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
                       全部暂存
@@ -666,9 +768,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   <div
                     key={`untracked-${file.path}`}
                     className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
-                      selectedFile === file.path ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
+                      focusedFileKey === `untracked:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
-                    onClick={() => handleFileClick(file)}
+                    onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'untracked' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
                   >
                     <span className="font-bold text-ide-text-muted w-3.5 text-center shrink-0">U</span>
                     <span className="shrink-0 text-[11px]">{name}</span>
@@ -925,7 +1027,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 value={commitMessage}
                 onChange={(e) => setCommitMessage(e.target.value)}
                 placeholder="Commit message..."
-                className="w-full h-20 text-xs bg-ide-bg border border-ide-border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50"
+                className="w-full h-20 text-xs bg-ide-bg border border-ide-border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.ctrlKey) handleCommit()
                 }}
