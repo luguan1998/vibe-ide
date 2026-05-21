@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useI18n } from '../i18n'
 import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitCommitFile, TerminalSession } from '@shared/types'
 
 interface GitTabProps {
@@ -55,6 +56,7 @@ const splitPath = (filePath: string): { name: string; dir: string } => {
 }
 
 export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll }: GitTabProps) {
+  const { t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
   const [stagedExpanded, setStagedExpanded] = useState(true)
   const [changesExpanded, setChangesExpanded] = useState(true)
@@ -114,17 +116,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const focusedIndexRef = useRef<number | null>(null)
   useEffect(() => { focusedIndexRef.current = focusedIndex }, [focusedIndex])
 
-  // 切到 Git tab 时自动聚焦第一个可导航项
-  const hasAutoFocused = useRef(false)
-  useEffect(() => {
-    if (!hasAutoFocused.current && navigableItems.length > 0) {
-      setFocusedIndex(0)
-      hasAutoFocused.current = true
-    }
-  }, [navigableItems.length > 0])
-
-  // 抢焦点：避免中间 xterm 的 textarea 拦断键盘事件
-  useEffect(() => { containerRef.current?.focus() }, [])
 
   // 当前高亮的标题栏：仅当 focusedIndex 指向 header 类型时
   const focusedHeaderSection = useMemo(() => {
@@ -632,7 +623,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                           className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'staged' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'}`}
                         >
                           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M9.75 3.5A2.75 2.75 0 0 0 7 6.25v5.19l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V6.25a4.25 4.25 0 0 1 8.5 0v1a.75.75 0 0 1-1.5 0v-1A2.75 2.75 0 0 0 9.75 3.5Z" clipRule="evenodd" /></svg>
-                          全部取消
+                          {t('Clear All')}
                         </button>
                       )}
                     </div>
@@ -658,7 +649,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     <button
                       onClick={(e) => { e.stopPropagation(); handleUnstage(file.path) }}
                       className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center"
-                      title="取消暂存"
+                      title={t('Unstage')}
                     >
                       −
                     </button>
@@ -694,7 +685,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                           className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'unstaged' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'}`}
                         >
                           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
-                          全部暂存
+                          {t('Stage All')}
                         </button>
                       )}
                     </div>
@@ -719,14 +710,14 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
                       className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center"
-                      title="暂存修改"
+                      title={t('Stage')}
                     >
                       +
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: 'discard', filePath: file.path, fileName: name }) }}
                       className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center"
-                      title="撤销修改"
+                      title={t('Discard')}
                     >
                       −
                     </button>
@@ -758,7 +749,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'untracked' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'}`}
                     >
                       <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
-                      全部暂存
+                      {t('Stage All')}
                     </button>
                   )}
                 </div>
@@ -779,14 +770,14 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
                       className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center"
-                      title="暂存修改"
+                      title={t('Stage')}
                     >
                       +
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: 'delete', filePath: file.path, fileName: name }) }}
                       className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center"
-                      title="删除文件"
+                      title={t('Delete')}
                     >
                       −
                     </button>
@@ -1039,7 +1030,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     <line x1="12" y1="8" x2="12" y2="12" />
                     <line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
-                  暂存区存在冲突文件，请先解决冲突后再提交
+                  {t('Conflicted files in staged area. Please resolve conflicts before committing.')}
                 </div>
               )}
               <button
@@ -1065,13 +1056,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
             onClick={() => handleApplyBranch(contextMenu.branchName)}
           >
-            合并修改
+            {t('Merge Changes')}
           </button>
           <button
             className="w-full px-3 py-1.5 text-left text-xs text-ide-danger hover:bg-ide-hover whitespace-nowrap"
             onClick={() => handleDeleteWorktree(contextMenu.branchName)}
           >
-            删除分支
+            {t('Delete Branch')}
           </button>
         </div>
       )}
@@ -1111,8 +1102,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           <div className="bg-ide-bg border border-ide-border rounded shadow-lg p-4 max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm text-ide-text mb-4">
               {confirmAction.type === 'discard'
-                ? `确定撤销对 ${confirmAction.fileName} 的修改？此操作不可恢复。`
-                : `确定删除 ${confirmAction.fileName}？此操作不可恢复。`
+                ? t('Discard changes to {fileName}? This cannot be undone.').replace('{fileName}', confirmAction.fileName)
+                : t('Delete {fileName}?').replace('{fileName}', confirmAction.fileName)
               }
             </p>
             <div className="flex justify-end gap-2">
@@ -1120,7 +1111,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded"
                 onClick={() => setConfirmAction(null)}
               >
-                取消
+                {t('Cancel')}
               </button>
               <button
                 className="px-3 py-1.5 text-xs bg-ide-danger hover:bg-red-600 text-white rounded"
@@ -1134,7 +1125,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   }
                 }}
               >
-                确认
+                {t('Confirm')}
               </button>
             </div>
           </div>
@@ -1146,7 +1137,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConflictApply(null)}>
           <div className="bg-ide-bg border border-ide-border rounded shadow-lg p-4 max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm text-ide-text mb-2">
-              合并 {conflictApply.branch} 时检测到冲突
+              {t('Conflicts detected while merging {branch}').replace('{branch}', conflictApply.branch)}
             </p>
             <p className="text-[11px] text-ide-text-muted mb-4 max-h-24 overflow-y-auto">
               {conflictApply.message.slice(0, 300)}
@@ -1156,7 +1147,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded"
                 onClick={() => setConflictApply(null)}
               >
-                放弃
+                {t('Abort')}
               </button>
               <button
                 className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded"
@@ -1168,7 +1159,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   await refreshStatus()
                 }}
               >
-                保留冲突
+                {t('Keep Conflicts')}
               </button>
             </div>
           </div>

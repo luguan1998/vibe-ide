@@ -71,6 +71,21 @@ const ZH_MAP: Record<string, string> = {
   'Cancel': '取消',
   'Confirm': '确认',
   'Delete {fileName}?': '确定删除 {fileName}？',
+
+  // GitTab - Stage/Clear all
+  'Stage All': '全部暂存',
+  'Clear All': '全部取消',
+
+  // GitTab - Confirm dialog
+  'Discard changes to {fileName}? This cannot be undone.': '确定撤销对 {fileName} 的修改？此操作不可恢复。',
+
+  // GitTab - Conflict dialog
+  'Conflicts detected while merging {branch}': '合并 {branch} 时检测到冲突',
+  'Abort': '放弃',
+  'Keep Conflicts': '保留冲突',
+
+  // GitTab - Conflict warning
+  'Conflicted files in staged area. Please resolve conflicts before committing.': '暂存区存在冲突文件，请先解决冲突后再提交',
 }
 
 // ── context ────────────────────────────────────────────────────────
