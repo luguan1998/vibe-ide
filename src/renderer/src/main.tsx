@@ -7,6 +7,35 @@ import { ThemeProvider } from './themes'
 import { I18nProvider } from './i18n'
 import './styles/globals.css'
 
+// Workers for Monaco Editor (electron-vite handles ?worker imports)
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
+import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
+import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
+import CssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
+import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
+
+window.MonacoEnvironment = {
+  getWorker(_workerId: string, label: string): Worker {
+    switch (label) {
+      case 'typescript':
+      case 'javascript':
+        return new TsWorker()
+      case 'json':
+        return new JsonWorker()
+      case 'css':
+      case 'scss':
+      case 'less':
+        return new CssWorker()
+      case 'html':
+      case 'handlebars':
+      case 'razor':
+        return new HtmlWorker()
+      default:
+        return new EditorWorker()
+    }
+  }
+}
+
 // 直接使用打包进 bundle 的 monaco 实例，不走 CDN / 动态脚本注入
 loader.config({ monaco })
 

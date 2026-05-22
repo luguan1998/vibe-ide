@@ -230,8 +230,6 @@ class FileLinkProvider implements ILinkProvider {
 const DETECTION_DELAY = 2000  // term 启动 2s 后开始检测
 const IDLE_THRESHOLD = 2000   // 2秒无输出 → 判空闲
 const RUNNING_DEBOUNCE = 300  // 300ms 连续输出 → 切忙碌
-const DEBUG_IDLE = import.meta.env.DEV  // 🔍 编译宏：dev→true, build→false (tree-shaken)
-
 /**
  * 🧘 过滤所有 ANSI escape 序列（CSI/OSC/回退符），只保留纯文本用于判断空闲
  */
@@ -498,7 +496,6 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
               activationStartRef.current = Date.now()
             }
             if (Date.now() - activationStartRef.current >= RUNNING_DEBOUNCE) {
-              if (DEBUG_IDLE) console.log(`[idle] → RUNNING  sid=${sessionId.slice(-6)}`)
               prevStatusRef.current = 'running'
               activationStartRef.current = 0
               onAgentStatusChange(sessionId, 'running')
@@ -509,7 +506,6 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
           idleTimerRef.current = setTimeout(() => {
             if (Date.now() - lastOutputRef.current >= IDLE_THRESHOLD) {
-              if (DEBUG_IDLE) console.log(`[idle] → IDLE     sid=${sessionId.slice(-6)}`)
               prevStatusRef.current = 'idle'
               onAgentStatusChange!(sessionId, 'idle')
             }

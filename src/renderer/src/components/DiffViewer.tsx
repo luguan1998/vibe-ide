@@ -87,6 +87,11 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const { theme: currentTheme } = useTheme()
 
   const [viewMode, setViewMode] = useState<ViewMode>(defaultEdit ? 'edit' : 'diff')
+
+  // Reset viewMode when file changes
+  useEffect(() => {
+    setViewMode(defaultEdit ? 'edit' : 'diff')
+  }, [fullPath, defaultEdit])
   const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
   const [saving, setSaving] = useState(false)
@@ -94,6 +99,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const [diffStats, setDiffStats] = useState<{ additions: number; deletions: number }>({ additions: 0, deletions: 0 })
   const savedContentRef = useRef('')
   const justLoadedRef = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // Editor refs for imperative line jumping
   const diffEditorRef = useRef<any>(null)
@@ -265,6 +271,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle keys when visible (not display:none)
+      if (!containerRef.current?.offsetParent) return
       if (e.ctrlKey && e.key === 's') {
         if (commitHash) return
         e.preventDefault()
@@ -343,7 +351,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }
 
   return (
-    <div className="flex flex-col border-t border-ide-border animate-fade-in">
+    <div ref={containerRef} className="flex flex-col border-t border-ide-border animate-fade-in">
       <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0">
         <div className="flex items-center gap-2 text-sm">
           {onBack && (
@@ -400,6 +408,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             theme={currentTheme.monacoTheme}
             original={originalContent}
             modified={modifiedContent}
+            keepCurrentOriginalModel={true}
+            keepCurrentModifiedModel={true}
             options={{
               renderSideBySide: true,
               readOnly: !!commitHash,

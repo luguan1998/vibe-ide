@@ -199,7 +199,6 @@ export default function App() {
   const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     setAgentStatus(prev => {
       if (prev[sessionId] === status) return prev
-      if (import.meta.env.DEV) console.log(`[idle] STATE: ${sessionId.slice(-6)} ${prev[sessionId] ?? 'undefined'} → ${status}`)
       return { ...prev, [sessionId]: status }
     })
   }, [])
@@ -650,30 +649,34 @@ export default function App() {
           onMouseDown={handleLeftResizeStart}
         />
 
-        {/* Center Panel: Terminal or Diff */}
+        {/* Center Panel: Terminal or Diff — all three blocks always mounted, toggled via display */}
         <div className="flex-1 flex flex-col overflow-hidden bg-ide-bg">
-          {centerView === 'diff' && diffFile ? (
-            <DiffViewer
-              key={`${diffFile.fullPath}-${diffFile.commitHash || 'working'}`}
-              filePath={diffFile.filePath}
-              fullPath={diffFile.fullPath}
-              diffContent={diffFile.diffContent}
-              isStaged={diffFile.isStaged}
-              commitHash={diffFile.commitHash}
-              showSquiggles={showSquiggles}
-              lineNumber={diffFile.lineNumber}
-              onBack={handleBackToTerminal}
-              onSaved={handleRefreshGit}
-              defaultEdit={diffFile.defaultEdit}
-              fontSize={editorFontSize}
-              wordWrap={wordWrap}
-              scrollTrigger={diffScrollTrigger}
-            />
-          ) : sessions.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-ide-text-muted">
-              No active terminal session. Create one to start.
-            </div>
-          ) : (
+          {/* Diff */}
+          <div className="flex-1 flex flex-col overflow-hidden" style={{ display: centerView === 'diff' && diffFile ? 'flex' : 'none' }}>
+            {diffFile && (
+              <DiffViewer
+                filePath={diffFile.filePath}
+                fullPath={diffFile.fullPath}
+                diffContent={diffFile.diffContent}
+                isStaged={diffFile.isStaged}
+                commitHash={diffFile.commitHash}
+                showSquiggles={showSquiggles}
+                lineNumber={diffFile.lineNumber}
+                onBack={handleBackToTerminal}
+                onSaved={handleRefreshGit}
+                defaultEdit={diffFile.defaultEdit}
+                fontSize={editorFontSize}
+                wordWrap={wordWrap}
+                scrollTrigger={diffScrollTrigger}
+              />
+            )}
+          </div>
+          {/* Empty state */}
+          <div className="flex-1 flex items-center justify-center text-ide-text-muted" style={{ display: !(centerView === 'diff' && diffFile) && sessions.length === 0 ? 'flex' : 'none' }}>
+            No active terminal session. Create one to start.
+          </div>
+          {/* Terminal sessions */}
+          <div className="flex-1 flex flex-col overflow-hidden" style={{ display: !(centerView === 'diff' && diffFile) && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => (
                 <div
@@ -685,7 +688,7 @@ export default function App() {
                 </div>
               ))}
             </Suspense>
-          )}
+          </div>
         </div>
 
         {/* Right Panel Resize Handle */}
