@@ -58,6 +58,7 @@ const splitPath = (filePath: string): { name: string; dir: string } => {
 export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll }: GitTabProps) {
   const { t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [stagedExpanded, setStagedExpanded] = useState(true)
   const [changesExpanded, setChangesExpanded] = useState(true)
   const [untrackedExpanded, setUntrackedExpanded] = useState(true)
@@ -90,7 +91,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [stashCount, setStashCount] = useState(0)
 
   // 可导航项：section 标题栏 + 文件行，从上往下
-  type NavItem = { type: 'header'; section: 'staged' | 'unstaged' | 'untracked' } | { type: 'file'; file: GitFileStatus; section: 'staged' | 'unstaged' | 'untracked' }
+  type NavItem = { type: 'header'; section: 'staged' | 'unstaged' | 'untracked' } | { type: 'file'; file: GitFileStatus; section: 'staged' | 'unstaged' | 'untracked' } | { type: 'commit' }
   const navigableItems = useMemo(() => {
     if (!status?.files) return [] as NavItem[]
     const items: NavItem[] = []
@@ -108,6 +109,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     if (untrackedFiles.length > 0) {
       items.push({ type: 'header', section: 'untracked' })
       if (untrackedExpanded) untrackedFiles.forEach(f => items.push({ type: 'file', file: f, section: 'untracked' }))
+    }
+    if (!(status.clean && status.ahead > 0)) {
+      items.push({ type: 'commit' })
     }
     return items
   }, [status, stagedExpanded, changesExpanded, untrackedExpanded])
@@ -129,6 +133,12 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     if (focusedIndex === null) return null
     const item = navigableItems[focusedIndex]
     return item?.type === 'file' ? `${item.section}:${item.file.path}` : null
+  }, [focusedIndex, navigableItems])
+
+  const focusedCommit = useMemo(() => {
+    if (focusedIndex === null) return false
+    const item = navigableItems[focusedIndex]
+    return item?.type === 'commit'
   }, [focusedIndex, navigableItems])
 
   // Refresh git status
@@ -526,6 +536,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           } else if (item.section === 'untracked') {
             handleStageAll(files.filter(f => f.status === 'untracked').map(f => f.path))
           }
+        } else if (item?.type === 'commit') {
+          e.preventDefault()
+          textareaRef.current?.focus()
         }
       }
     }
@@ -1015,12 +1028,17 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           ) : (
             <>
               <textarea
+                ref={textareaRef}
                 value={commitMessage}
                 onChange={(e) => setCommitMessage(e.target.value)}
                 placeholder="Commit message..."
-                className="w-full h-20 text-xs bg-ide-bg border border-ide-border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50"
+                className={`w-full h-20 text-xs bg-ide-bg border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50 ${focusedCommit ? 'border-ide-accent bg-ide-accent/5' : 'border-ide-border'}`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.ctrlKey) handleCommit()
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    e.currentTarget.blur()
+                  }
                 }}
               />
               {hasConflictInStaged && (
