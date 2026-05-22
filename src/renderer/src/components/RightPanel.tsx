@@ -141,7 +141,6 @@ const RightPanel = React.memo(function RightPanel({
 
       {activeSection === 'git' && (
         <GitTab
-          key={activeSessionId || '##'}
           workspacePath={workspacePath}
           effectiveGitPath={effectiveGitPath}
           worktreeNav={worktreeNav}

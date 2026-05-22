@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Lightbulb } from 'lucide-react'
 import { FileNode } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
@@ -9,6 +9,59 @@ interface FileTabProps {
   workspacePath: string | null
   onOpenFileFromExplorer?: (fullPath: string) => void
   fileTreeDepth: number
+}
+
+// Workspace-root inline input (new file/folder at root level)
+function RootInput({ editingState, onEditSubmit, onEditCancel, t }: {
+  editingState: { type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string }
+  onEditSubmit: (value: string) => void
+  onEditCancel: () => void
+  t: (key: string) => string
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      onEditSubmit(inputRef.current?.value || '')
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onEditCancel()
+    }
+  }
+
+  return (
+    <div className="flex flex-col py-1">
+      <div className="pr-2 py-0.5 text-xs flex items-center gap-0.5 bg-ide-accent/10" style={{ paddingLeft: 12 }}>
+        <span className="w-3 shrink-0" />
+        {editingState.type === 'newFolder' ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 text-ide-text-muted"
+            dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS.default }} />
+        )}
+        <input
+          ref={inputRef}
+          className="flex-1 min-w-0 bg-ide-bg border border-ide-accent rounded px-1 py-px text-xs text-ide-text outline-none"
+          placeholder={editingState.type === 'newFolder' ? t('Folder name') : t('File name')}
+          onKeyDown={handleKeyDown}
+          onBlur={() => onEditCancel()}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+      {editingState?.error && (
+        <div style={{ paddingLeft: 12 }} className="py-0.5 text-[11px] text-ide-danger">
+          {editingState.error}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // File tree item component
@@ -342,46 +395,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
           setFileContextMenu({ x: e.clientX, y: e.clientY, node: rootNode })
         }}
       >
-        {workspacePath && editingState && editingState.nodePath === workspacePath && (() => {
-          const inputRef = { current: null as HTMLInputElement | null }
-          const handleKeyDown = (e: React.KeyboardEvent) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              handleEditSubmit(inputRef.current?.value || '')
-            } else if (e.key === 'Escape') {
-              e.preventDefault()
-              handleEditCancel()
-            }
-          }
-          return (
-            <div className="flex flex-col py-1">
-              <div className="pr-2 py-0.5 text-xs flex items-center gap-0.5 bg-ide-accent/10" style={{ paddingLeft: 12 }}>
-                <span className="w-3 shrink-0" />
-                {editingState.type === 'newFolder' ? (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 text-ide-text-muted"
-                    dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS.default }} />
-                )}
-                <input
-                  ref={(el) => { inputRef.current = el; el?.focus() }}
-                  className="flex-1 min-w-0 bg-ide-bg border border-ide-accent rounded px-1 py-px text-xs text-ide-text outline-none"
-                  placeholder={editingState.type === 'newFolder' ? t('Folder name') : t('File name')}
-                  onKeyDown={handleKeyDown}
-                  onBlur={() => handleEditCancel()}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
-              {editingState?.error && (
-                <div style={{ paddingLeft: 12 }} className="py-0.5 text-[11px] text-ide-danger">
-                  {editingState.error}
-                </div>
-              )}
-            </div>
-          )
-        })()}
+        {workspacePath && editingState && editingState.nodePath === workspacePath && (
+          <RootInput
+            editingState={editingState}
+            onEditSubmit={handleEditSubmit}
+            onEditCancel={handleEditCancel}
+            t={t}
+          />
+        )}
         {fileTree.length === 0 && !(editingState && editingState.nodePath === workspacePath) ? (
           <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
             {workspacePath ? t('Empty directory') : t('No workspace')}

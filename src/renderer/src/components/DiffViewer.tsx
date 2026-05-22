@@ -255,19 +255,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     setSaving(false)
   }, [fullPath, filePath, modifiedContent, onSaved])
 
-  const handleSaveDiff = useCallback(async () => {
-    setSaving(true)
-    try {
-      await window.api.file.write(fullPath, modifiedContent)
-      if (onSaved) {
-        await onSaved(filePath)
-      }
-    } catch (err) {
-    }
-    savedContentRef.current = modifiedContent
-    setIsDirty(false)
-    setSaving(false)
-  }, [fullPath, filePath, modifiedContent, onSaved])
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -276,11 +265,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       if (e.ctrlKey && e.key === 's') {
         if (commitHash) return
         e.preventDefault()
-        if (viewMode === 'edit') {
-          handleSave()
-        } else if (viewMode === 'diff') {
-          handleSaveDiff()
-        }
+        handleSaveRef.current()
       }
       if (e.key === 'Escape' && onBack) {
         e.preventDefault()
@@ -289,7 +274,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [viewMode, handleSave, handleSaveDiff, onBack])
+  }, [viewMode, onBack, commitHash])
 
   const getLanguageFromFile = (path: string): string => {
     const ext = path.split('.').pop()?.toLowerCase() || ''

@@ -5,6 +5,7 @@ import { loader } from '@monaco-editor/react'
 import App from './App'
 import { ThemeProvider } from './themes'
 import { I18nProvider } from './i18n'
+import ErrorBoundary from './components/ErrorBoundary'
 import './styles/globals.css'
 
 // Workers for Monaco Editor (electron-vite handles ?worker imports)
@@ -41,10 +42,12 @@ loader.config({ monaco })
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ThemeProvider>
-      <I18nProvider>
-        <App />
-      </I18nProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <I18nProvider>
+          <App />
+        </I18nProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 )

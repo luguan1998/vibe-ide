@@ -340,7 +340,8 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_RESET, async (_event, files: string | string[]) => {
     try {
       const git = getGit()
-      await git.reset(['HEAD', '--', files])
+      const fileList = Array.isArray(files) ? files : [files]
+      await git.reset(['HEAD', '--', ...fileList])
       return { success: true }
     } catch (err: any) {
       return { error: err.message }

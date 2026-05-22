@@ -193,37 +193,31 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     }
   }, [])
 
-  // Load diff for a file
-  const loadDiff = useCallback(async (filePath: string, staged: boolean) => {
+  // Handle file click - show diff
+  const handleFileClick = useCallback(async (file: GitFileStatus) => {
+    setSelectedFile(file.path)
     setLoading(true)
     try {
-      const result = await window.api.git.diff(filePath, staged)
+      const result = await window.api.git.diff(file.path, file.staged)
       if (result.error) {
         setError(result.error)
         setDiffContent('')
       } else {
         setDiffContent(result.content || '')
-        setDiffStaged(staged)
+        setDiffStaged(file.staged)
+      }
+      if (onFileSelect) {
+        const resolvedFullPath = effectiveGitPath
+          ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}`
+          : ''
+        onFileSelect(file.path, result.content || '', file.staged, undefined, resolvedFullPath)
       }
     } catch (err: any) {
       setError(err.message)
       setDiffContent('')
     }
     setLoading(false)
-  }, [])
-
-  // Handle file click - show diff
-  const handleFileClick = useCallback(async (file: GitFileStatus) => {
-    setSelectedFile(file.path)
-    await loadDiff(file.path, file.staged)
-    if (onFileSelect) {
-      const result = await window.api.git.diff(file.path, file.staged)
-      const resolvedFullPath = effectiveGitPath
-        ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}`
-        : ''
-      onFileSelect(file.path, result.content || '', file.staged, undefined, resolvedFullPath)
-    }
-  }, [loadDiff, onFileSelect, effectiveGitPath])
+  }, [onFileSelect, effectiveGitPath])
 
   // Handle commit click - show expanded files and diff
   const handleCommitClick = useCallback(async (hash: string) => {
@@ -284,17 +278,15 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
   // Stage all files
   const handleStageAll = useCallback(async (filePaths: string[]) => {
-    for (const fp of filePaths) {
-      await window.api.git.add(fp)
-    }
+    if (filePaths.length === 0) return
+    await window.api.git.add(filePaths)
     await refreshStatus()
   }, [refreshStatus])
 
   // Unstage all files
   const handleUnstageAll = useCallback(async (filePaths: string[]) => {
-    for (const fp of filePaths) {
-      await window.api.git.reset(fp)
-    }
+    if (filePaths.length === 0) return
+    await window.api.git.reset(filePaths)
     await refreshStatus()
   }, [refreshStatus])
 
