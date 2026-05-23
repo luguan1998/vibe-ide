@@ -30,7 +30,7 @@ const getStatusIcon = (file: GitFileStatus): string => {
 const getStatusColor = (file: GitFileStatus): string => {
   switch (file.status) {
     case 'added': return 'text-ide-success'
-    case 'modified': return 'ide-warning'
+    case 'modified': return 'text-ide-warning'
     case 'deleted': return 'text-ide-danger'
     case 'untracked': return 'text-ide-text-muted'
     case 'conflicted': return 'text-ide-danger'
