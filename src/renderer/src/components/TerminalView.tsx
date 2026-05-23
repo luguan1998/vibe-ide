@@ -656,12 +656,13 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         </div>
       )}
 
-      {/* Terminal container */}
+      {/* Terminal container: outer for visual spacing, inner for precise FitAddon measurement */}
       <div
-        ref={terminalRef}
-        className="flex-1 overflow-hidden p-1"
+        className="flex-1 overflow-hidden pt-1"
         onContextMenu={handleContextMenu}
-      />
+      >
+        <div ref={terminalRef} className="h-full" />
+      </div>
     </div>
   )
 }))
