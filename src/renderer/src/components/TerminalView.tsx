@@ -21,16 +21,20 @@ const EDITABLE_EXTENSIONS = new Set([
   'prettierrc', 'lock', 'gradle', 'properties', 'ps1', 'vbs', 'wren'
 ])
 
-// Windows 绝对路径: E:\path\file.txt 或 E:/path/file.txt
+// Windows 绝对路径: E:\path\file.txt 或 E:/path/file.txt (无空格，空格走引号路径)
+// Unix 绝对路径: /home/user/file.ts
 // 相对路径: src/file.ts 或 ./src/file.ts 或 ../src/file.ts
-// 支持带行号: file.ts:10
+// 引号路径: "C:\path with spaces\file.ts" 或 '/home/user/file.ts'
+// 支持行号: file.ts:10  支持行:列: file.ts:10:20
 const WINDOWS_ABS_PATH = /[A-Za-z]:[\\\/][^\s:*?"<>|\r\n]+/
+const UNIX_ABS_PATH = /\/[^\s:*?"<>|\r\n]+\.[a-zA-Z0-9]+/
 const RELATIVE_PATH = /(?:\.{1,2}[\\\/]|[a-zA-Z0-9_])[a-zA-Z0-9_\-.\\\/]*[a-zA-Z0-9_\-.]+/
-const LINE_NUMBER = /:\d+/
+const QUOTED_PATH = /['"]([^'"\r\n]+?)['"]/
+const LINE_NUMBER = /:\d+(?::\d+)?/
 
-// 组合正则：匹配路径（可选带行号）
+// 组合正则：匹配路径（可选带行号列号）
 const FILE_PATH_REGEX = new RegExp(
-  `(?:${WINDOWS_ABS_PATH.source}|${RELATIVE_PATH.source})(${LINE_NUMBER.source})?`,
+  `(?:${QUOTED_PATH.source}|${WINDOWS_ABS_PATH.source}|${UNIX_ABS_PATH.source}|${RELATIVE_PATH.source})(${LINE_NUMBER.source})?`,
   'g'
 )
 
@@ -55,20 +59,23 @@ export interface TerminalViewHandle {
 
 /**
  * 解析路径文本，提取文件路径和行号
- * @param pathText 原始路径文本（可能包含行号）
+ * @param pathText 原始路径文本（可能带引号、行号:10、行:列:10:20）
  * @param cwd 当前工作目录（用于相对路径）
  * @returns { fullPath, lineNumber } 或 null（如果无效）
  */
 function parseFilePath(pathText: string, cwd: string): { fullPath: string; lineNumber?: number } | null {
-  // 提取行号（如果有）
+  // 提取行号（如果有）:10 或 :10:20（列号解析但不使用，仅防破坏匹配）
   let lineNumber: number | undefined
   let pathPart = pathText
 
-  const lineMatch = pathText.match(/:(\d+)$/)
+  const lineMatch = pathText.match(/:(\d+)(?::(\d+))?$/)
   if (lineMatch) {
     lineNumber = parseInt(lineMatch[1], 10)
     pathPart = pathText.slice(0, pathText.length - lineMatch[0].length)
   }
+
+  // 去除首尾引号（单引号或双引号）
+  pathPart = pathPart.replace(/^['"]|['"]$/g, '')
 
   // 检查扩展名是否支持
   const extMatch = pathPart.match(/\.(?:([a-zA-Z0-9]+)|([a-zA-Z0-9]+\.[a-zA-Z0-9]+))$/)
@@ -78,14 +85,17 @@ function parseFilePath(pathText: string, cwd: string): { fullPath: string; lineN
   if (!ext || !EDITABLE_EXTENSIONS.has(ext.toLowerCase())) return null
 
   // 判断是绝对路径还是相对路径
-  const isAbsolute = /^[A-Za-z]:[\\\/]/.test(pathPart)
+  const isWinAbsolute = /^[A-Za-z]:[\\\/]/.test(pathPart)
+  const isUnixAbsolute = /^\//.test(pathPart)
 
   let fullPath: string
-  if (isAbsolute) {
+  if (isWinAbsolute) {
+    fullPath = pathPart
+  } else if (isUnixAbsolute) {
+    // Unix 绝对路径直接使用（Node fs 能处理 / 分隔符）
     fullPath = pathPart
   } else if (cwd) {
     // 相对路径，拼接 cwd
-    // 处理 ./ 和 ../
     fullPath = cwd.replace(/\\/g, '/') + '/' + pathPart.replace(/\\/g, '/')
   } else {
     return null
@@ -95,6 +105,59 @@ function parseFilePath(pathText: string, cwd: string): { fullPath: string; lineN
   fullPath = fullPath.replace(/\//g, '\\')
 
   return { fullPath, lineNumber }
+}
+
+/**
+ * 判断是否裸文件名（无目录分隔符、无盘符）
+ */
+function isBareFilename(text: string): boolean {
+  return !/[\\\/]/.test(text) && !/^[A-Za-z]:/.test(text)
+}
+
+/**
+ * 解析路径文本并尝试打开文件
+ * - 先用 parseFilePath 解析
+ * - 直接读文件，成功则跳转
+ * - 若失败且原始文本是裸文件名，递归搜索 cwd 子目录
+ * - 搜索唯一匹配则跳转，否则静默失败（不触发 App.tsx ENONET 报错）
+ */
+async function resolveAndOpenFile(
+  rawText: string,
+  cwd: string,
+  onOpenFile: (fullPath: string, lineNumber?: number) => void
+): Promise<boolean> {
+  const parsed = parseFilePath(rawText, cwd)
+  if (!parsed) return false
+
+  // 尝试直接读文件
+  try {
+    const result = await window.api.file.read(parsed.fullPath)
+    if (!result.error) {
+      onOpenFile(parsed.fullPath, parsed.lineNumber)
+      return true
+    }
+  } catch {
+    // 读失败，继续尝试搜索
+  }
+
+  // 直接路径不存在 → 检查是否为裸文件名，递归搜索
+  const cleanText = rawText
+    .replace(/:(\d+)(?::(\d+))?$/, '')
+    .replace(/^['"]|['"]$/g, '')
+
+  if (isBareFilename(cleanText) && cwd) {
+    try {
+      const findResult = await window.api.file.find(cwd, cleanText)
+      if (findResult.matches && findResult.matches.length === 1) {
+        onOpenFile(findResult.matches[0], parsed.lineNumber)
+        return true
+      }
+    } catch {
+      // find 不可用（例如 preload 未更新），静默失败
+    }
+  }
+
+  return false
 }
 
 /**
@@ -206,7 +269,7 @@ class FileLinkProvider implements ILinkProvider {
         range,
         text: matchedText,
         activate: (_event: MouseEvent, _text: string) => {
-          this._onOpenFile(parsed.fullPath, parsed.lineNumber)
+          resolveAndOpenFile(matchedText, this._cwd, this._onOpenFile)
         },
         hover: (_event: MouseEvent, _text: string) => {
           // 可以在这里添加 tooltip 提示
@@ -576,6 +639,35 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         linkProviderRef.current = null
       }
     }
+  }, [sessionCwd, isReady, onOpenFile])
+
+  // 选中文本跳转：mousedown 时若有选中文字且匹配路径正则，则跳转
+  useEffect(() => {
+    if (!terminalRef.current || !isReady || !onOpenFile) return
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const term = xtermRef.current
+      if (!term) return
+
+      const selection = term.getSelection()
+      if (!selection) return
+
+      const trimmed = selection.trim()
+      if (!trimmed) return
+
+      const cwd = sessionCwd || ''
+      const parsed = parseFilePath(trimmed, cwd)
+      if (!parsed) return
+
+      e.preventDefault()
+      e.stopPropagation()
+      term.clearSelection()
+      resolveAndOpenFile(trimmed, cwd, onOpenFile)
+    }
+
+    const el = terminalRef.current
+    el.addEventListener('mousedown', handleMouseDown, true)
+    return () => el.removeEventListener('mousedown', handleMouseDown, true)
   }, [sessionCwd, isReady, onOpenFile])
 
   // Auto-fit on mount and when container resizes (debounced 100ms)

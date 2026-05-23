@@ -1,6 +1,6 @@
 import { ipcMain, shell } from 'electron'
 import { readFile, writeFile, readdir, rename, mkdir, rm } from 'fs/promises'
-import { join, dirname } from 'path'
+import { join, dirname, basename } from 'path'
 import { IPC_CHANNELS, FileNode } from '../shared/types'
 
 export function registerFileHandlers(): void {
@@ -77,6 +77,40 @@ export function registerFileHandlers(): void {
     try {
       shell.showItemInFolder(filePath)
       return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Find files by name recursively (for bare-filename resolution)
+  ipcMain.handle(IPC_CHANNELS.FILE_FIND, async (_event, cwd: string, filename: string) => {
+    const results: string[] = []
+    const maxDepth = 5
+    const maxResults = 50
+
+    async function walk(dir: string, depth: number): Promise<void> {
+      if (depth > maxDepth || results.length >= maxResults) return
+      let entries: any[]
+      try {
+        entries = await readdir(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+      for (const entry of entries) {
+        if (results.length >= maxResults) return
+        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+        const full = join(dir, entry.name)
+        if (entry.isDirectory()) {
+          await walk(full, depth + 1)
+        } else if (entry.name === filename) {
+          results.push(full)
+        }
+      }
+    }
+
+    try {
+      await walk(cwd, 0)
+      return { matches: results }
     } catch (err: any) {
       return { error: err.message }
     }
