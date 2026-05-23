@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 const TerminalView = React.lazy(() => import('./TerminalView'))
 import { TerminalSession } from '@shared/types'
-import { parseCommands } from './DocTree'
+import { parseCommands, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
 
 interface AuxTabProps {
@@ -41,16 +41,12 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
     }
   }, [onOpenFileFromRightTerminal])
 
-  // Load CLAUDE.md commands
+  // Load CLAUDE.md (or AGENTS.md) commands
   const loadClaudeCommands = useCallback(async () => {
     if (!effectiveGitPath) { setCommands([]); return }
-    const mdPath = effectiveGitPath.replace(/\\/g, '/') + '/CLAUDE.md'
-    try {
-      const res: any = await window.api.file.read(mdPath)
-      if (res.error) { setCommands([]); return }
-      const normalized = res.content.replace(/\r\n/g, '\n')
-      setCommands(parseCommands(normalized))
-    } catch { setCommands([]) }
+    const content = await loadMdContent(effectiveGitPath)
+    if (!content) { setCommands([]); return }
+    setCommands(parseCommands(content))
   }, [effectiveGitPath])
 
   useEffect(() => { loadClaudeCommands(); setSelectedCommandIndex(null); hasAutoFocused.current = false }, [effectiveGitPath])

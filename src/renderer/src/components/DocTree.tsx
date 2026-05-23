@@ -71,6 +71,19 @@ function parseDocTree(md: string): DocTreeNode[] {
   return root
 }
 
+async function loadMdContent(basePath: string): Promise<string | null> {
+  const normalizedBase = basePath.replace(/\\/g, '/')
+  const candidates = ['CLAUDE.md', 'AGENTS.md']
+  for (const candidate of candidates) {
+    try {
+      const mdPath = normalizedBase + '/' + candidate
+      const res: any = await window.api.file.read(mdPath)
+      if (res.content) return res.content.replace(/\r\n/g, '\n')
+    } catch {}
+  }
+  return null
+}
+
 function DocTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, workspacePath }: {
   node: DocTreeNode
   depth: number
@@ -140,5 +153,5 @@ function DocTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, workspac
   )
 }
 
-export { parseCommands, parseDocTree, DocTreeItem }
+export { parseCommands, parseDocTree, loadMdContent, DocTreeItem }
 export type { DocTreeNode }

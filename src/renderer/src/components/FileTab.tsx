@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Lightbulb } from 'lucide-react'
 import { FileNode } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
-import { parseDocTree, DocTreeItem, DocTreeNode } from './DocTree'
+import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
 
 interface FileTabProps {
@@ -271,18 +271,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
     }
   }, [workspacePath, loadFileTree])
 
-  // Load CLAUDE.md doc tree
+  // Load CLAUDE.md (or AGENTS.md) doc tree
   const loadClaudeDocTree = useCallback(async () => {
     if (!workspacePath) { setDocTree([]); return }
-    const mdPath = workspacePath.replace(/\\/g, '/') + '/CLAUDE.md'
-    try {
-      const res: any = await window.api.file.read(mdPath)
-      if (res.error) { setDocTree([]); return }
-      const normalized = res.content.replace(/\r\n/g, '\n')
-      const docTreeResult = parseDocTree(normalized)
-      setDocTree(docTreeResult)
-      setExpandedDocDirs(new Set(docTreeResult.filter(n => n.isDir).map(n => n.path)))
-    } catch { setDocTree([]) }
+    const content = await loadMdContent(workspacePath)
+    if (!content) { setDocTree([]); return }
+    const docTreeResult = parseDocTree(content)
+    setDocTree(docTreeResult)
+    setExpandedDocDirs(new Set(docTreeResult.filter(n => n.isDir).map(n => n.path)))
   }, [workspacePath])
 
   useEffect(() => { loadClaudeDocTree() }, [workspacePath])
