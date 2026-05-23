@@ -287,6 +287,8 @@ export default function App() {
       const session = await window.api.terminal.create({ cwd: dirResult.path, shell })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
+      setCenterView('terminal')
+      setDiffFile(null)
     } catch (err) {
       console.error('Failed to create terminal session:', err)
     }
@@ -298,6 +300,8 @@ export default function App() {
       const session = await window.api.terminal.create({ cwd, shell })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
+      setCenterView('terminal')
+      setDiffFile(null)
       return session
     } catch (err) {
       console.error('Failed to create terminal session at path:', err)
@@ -348,6 +352,8 @@ export default function App() {
       const session = await window.api.terminal.create({ cwd, shell })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
+      setCenterView('terminal')
+      setDiffFile(null)
     } catch (err) {
       console.error('Failed to clone terminal session:', err)
     }

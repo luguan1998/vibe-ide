@@ -119,6 +119,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const focusedIndexRef = useRef<number | null>(null)
   useEffect(() => { focusedIndexRef.current = focusedIndex }, [focusedIndex])
+  const navigableItemsRef = useRef(navigableItems)
+  navigableItemsRef.current = navigableItems
 
 
   // 当前高亮的标题栏：仅当 focusedIndex 指向 header 类型时
@@ -539,12 +541,14 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     return () => window.removeEventListener('keydown', handleKey, true)
   }, [navigableItems, onDiffScroll])
 
-  // focusedIndex 落到文件行时自动打开 diff
+  // focusedIndex 落到文件行时自动打开 diff（仅响应用户导航，status 刷新不触发）
   useEffect(() => {
-    if (focusedIndex === null || focusedIndex >= navigableItems.length) return
-    const item = navigableItems[focusedIndex]
+    if (focusedIndex === null) return
+    const items = navigableItemsRef.current
+    if (focusedIndex >= items.length) return
+    const item = items[focusedIndex]
     if (item?.type === 'file') handleFileClick(item.file)
-  }, [focusedIndex, navigableItems, handleFileClick])
+  }, [focusedIndex, handleFileClick])
 
   // Detect conflict markers in staged files
   const hasConflictInStaged = status?.files?.some(f => f.staged && f.status === 'conflicted') ?? false
