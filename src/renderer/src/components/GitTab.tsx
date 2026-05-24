@@ -89,6 +89,14 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [selectedRemote, setSelectedRemote] = useState<string>('')
   const [showPushDropdown, setShowPushDropdown] = useState(false)
   const [stashCount, setStashCount] = useState(0)
+  const [busy, setBusy] = useState(false)
+
+  // Error auto-dismiss after 5 seconds
+  useEffect(() => {
+    if (!error) return
+    const timer = setTimeout(() => setError(null), 5000)
+    return () => clearTimeout(timer)
+  }, [error])
 
   // 可导航项：section 标题栏 + 文件行，从上往下
   type NavItem = { type: 'header'; section: 'staged' | 'unstaged' | 'untracked' } | { type: 'file'; file: GitFileStatus; section: 'staged' | 'unstaged' | 'untracked' } | { type: 'commit' }
@@ -255,61 +263,76 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
   // Stage a file
   const handleStage = useCallback(async (filePath: string) => {
-    await window.api.git.add(filePath)
-    await refreshStatus()
+    setBusy(true)
+    try { await window.api.git.add(filePath); await refreshStatus() }
+    finally { setBusy(false) }
   }, [refreshStatus])
 
   // Unstage a file
   const handleUnstage = useCallback(async (filePath: string) => {
-    await window.api.git.reset(filePath)
-    await refreshStatus()
+    setBusy(true)
+    try { await window.api.git.reset(filePath); await refreshStatus() }
+    finally { setBusy(false) }
   }, [refreshStatus])
 
   // Discard changes (git checkout -- file)
   const handleDiscard = useCallback(async (filePath: string) => {
-    await window.api.git.discard(filePath)
-    await refreshStatus()
+    setBusy(true)
+    try { await window.api.git.discard(filePath); await refreshStatus() }
+    finally { setBusy(false) }
   }, [refreshStatus])
 
   // Delete untracked file
   const handleDeleteFile = useCallback(async (filePath: string) => {
-    const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${filePath}` : filePath
-    await window.api.file.delete(fullPath)
-    await refreshStatus()
+    setBusy(true)
+    try {
+      const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${filePath}` : filePath
+      await window.api.file.delete(fullPath)
+      await refreshStatus()
+    } finally { setBusy(false) }
   }, [refreshStatus, effectiveGitPath])
 
   // Stage all files
   const handleStageAll = useCallback(async (filePaths: string[]) => {
     if (filePaths.length === 0) return
-    await window.api.git.add(filePaths)
-    await refreshStatus()
+    setBusy(true)
+    try { await window.api.git.add(filePaths); await refreshStatus() }
+    finally { setBusy(false) }
   }, [refreshStatus])
 
   // Unstage all files
   const handleUnstageAll = useCallback(async (filePaths: string[]) => {
     if (filePaths.length === 0) return
-    await window.api.git.reset(filePaths)
-    await refreshStatus()
+    setBusy(true)
+    try { await window.api.git.reset(filePaths); await refreshStatus() }
+    finally { setBusy(false) }
   }, [refreshStatus])
 
   // Commit
   const handleCommit = useCallback(async () => {
     if (!commitMessage.trim()) return
-    await window.api.git.commit({ message: commitMessage })
-    setCommitMessage('')
-    await refreshStatus()
-    await refreshLog()
+    setBusy(true)
+    try {
+      await window.api.git.commit({ message: commitMessage })
+      setCommitMessage('')
+      await refreshStatus()
+      await refreshLog()
+    } finally { setBusy(false) }
   }, [commitMessage, refreshStatus, refreshLog])
 
   // Checkout branch
   const handleCheckout = useCallback(async (branch: string) => {
-    await window.api.git.checkout(branch)
-    await refreshBranches()
-    await refreshStatus()
+    setBusy(true)
+    try {
+      await window.api.git.checkout(branch)
+      await refreshBranches()
+      await refreshStatus()
+    } finally { setBusy(false) }
   }, [refreshBranches, refreshStatus])
 
   // Navigate to worktree
   const handleNavigateToWorktree = useCallback(async (branch: string) => {
+    setBusy(true)
     try {
       const result = await window.api.git.getWorktreePath(branch)
       if (result.error) {
@@ -334,7 +357,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       }
     } catch (err: any) {
       setError(err.message)
-    }
+    } finally { setBusy(false) }
   }, [workspacePath, rightTerminalSession, activeSessionId, onCloseRightTerminal, onWorktreeNavChange])
 
   // Return from worktree navigation
@@ -352,6 +375,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   // Delete worktree branch
   const handleDeleteWorktree = useCallback(async (branch: string) => {
     setContextMenu(null)
+    setBusy(true)
     try {
       if (worktreeNav && worktreeNav.worktreePath) {
         const wtListResult = await window.api.git.getWorktreePath(branch)
@@ -368,12 +392,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       }
     } catch (err: any) {
       setError(err.message)
-    }
+    } finally { setBusy(false) }
   }, [worktreeNav, handleBackFromWorktree, refreshBranches, refreshStatus])
 
   // Apply worktree branch changes
   const handleApplyBranch = useCallback(async (branch: string) => {
     setContextMenu(null)
+    setBusy(true)
     try {
       const result = await window.api.git.applyBranch(branch)
       if (result.conflict) {
@@ -392,49 +417,61 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       }
     } catch (err: any) {
       setError(err.message)
-    }
+    } finally { setBusy(false) }
   }, [refreshBranches, refreshStatus])
 
   // Stash
   const handleStash = useCallback(async () => {
-    await window.api.git.stashPush()
-    await refreshStatus()
-    await refreshStashCount()
+    setBusy(true)
+    try {
+      await window.api.git.stashPush()
+      await refreshStatus()
+      await refreshStashCount()
+    } finally { setBusy(false) }
   }, [refreshStatus, refreshStashCount])
 
   // Pop stash
   const handleStashPop = useCallback(async () => {
-    await window.api.git.stashPop()
-    await refreshStatus()
-    await refreshStashCount()
+    setBusy(true)
+    try {
+      await window.api.git.stashPop()
+      await refreshStatus()
+      await refreshStashCount()
+    } finally { setBusy(false) }
   }, [refreshStatus, refreshStashCount])
 
   // Push
   const handlePush = useCallback(async () => {
-    if (selectedRemote) {
-      const parts = selectedRemote.split('/')
-      const remote = parts[0]
-      const branch = parts.slice(1).join('/')
-      await window.api.git.push(remote, branch)
-    } else {
-      await window.api.git.push()
-    }
-    await refreshStatus()
-    await refreshLog()
-    await refreshBranches()
-    setShowPushDropdown(false)
+    setBusy(true)
+    try {
+      if (selectedRemote) {
+        const parts = selectedRemote.split('/')
+        const remote = parts[0]
+        const branch = parts.slice(1).join('/')
+        await window.api.git.push(remote, branch)
+      } else {
+        await window.api.git.push()
+      }
+      await refreshStatus()
+      await refreshLog()
+      await refreshBranches()
+      setShowPushDropdown(false)
+    } finally { setBusy(false) }
   }, [refreshStatus, refreshLog, refreshBranches, selectedRemote])
 
   // Init git repo
   const handleInit = useCallback(async () => {
-    const result = await window.api.git.init()
-    if (result.success) {
-      setError(null)
-      setCurrentGitPath(workspacePath)
-      await refreshStatus()
-      await refreshLog()
-      await refreshBranches()
-    }
+    setBusy(true)
+    try {
+      const result = await window.api.git.init()
+      if (result.success) {
+        setError(null)
+        setCurrentGitPath(workspacePath)
+        await refreshStatus()
+        await refreshLog()
+        await refreshBranches()
+      }
+    } finally { setBusy(false) }
   }, [workspacePath, refreshStatus, refreshLog, refreshBranches])
 
   // Switch git workspace when effective path changes
@@ -594,7 +631,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             {/not a git/i.test(error) && (
               <button
                 onClick={handleInit}
-                className="px-3 py-1 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+                disabled={busy}
+                className="px-3 py-1 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 git init
               </button>
@@ -629,7 +667,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       {stagedExpanded && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleUnstageAll(stagedFiles.map(f => f.path)) }}
-                          className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'staged' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'}`}
+                          disabled={busy}
+                          className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'staged' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'} disabled:opacity-40 disabled:cursor-not-allowed`}
                         >
                           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M9.75 3.5A2.75 2.75 0 0 0 7 6.25v5.19l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V6.25a4.25 4.25 0 0 1 8.5 0v1a.75.75 0 0 1-1.5 0v-1A2.75 2.75 0 0 0 9.75 3.5Z" clipRule="evenodd" /></svg>
                           {t('Clear All')}
@@ -657,7 +696,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     <span className="shrink-0 w-5" />
                     <button
                       onClick={(e) => { e.stopPropagation(); handleUnstage(file.path) }}
-                      className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center"
+                      disabled={busy}
+                      className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center disabled:opacity-40"
                       title={t('Unstage')}
                     >
                       −
@@ -691,7 +731,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       {changesExpanded && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleStageAll(modifiedFiles.map(f => f.path)) }}
-                          className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'unstaged' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'}`}
+                          disabled={busy}
+                          className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'unstaged' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'} disabled:opacity-40 disabled:cursor-not-allowed`}
                         >
                           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
                           {t('Stage All')}
@@ -718,14 +759,16 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     <span className="flex-1" />
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
-                      className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center"
+                      disabled={busy}
+                      className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center disabled:opacity-40"
                       title={t('Stage')}
                     >
                       +
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: 'discard', filePath: file.path, fileName: name }) }}
-                      className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center"
+                      disabled={busy}
+                      className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center disabled:opacity-40"
                       title={t('Discard')}
                     >
                       −
@@ -755,7 +798,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   {untrackedExpanded && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path)) }}
-                      className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'untracked' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'}`}
+                      disabled={busy}
+                      className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'untracked' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'} disabled:opacity-40 disabled:cursor-not-allowed`}
                     >
                       <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
                       {t('Stage All')}
@@ -778,14 +822,16 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     <span className="flex-1" />
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
-                      className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center"
+                      disabled={busy}
+                      className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center disabled:opacity-40"
                       title={t('Stage')}
                     >
                       +
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: 'delete', filePath: file.path, fileName: name }) }}
-                      className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center"
+                      disabled={busy}
+                      className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center disabled:opacity-40"
                       title={t('Delete')}
                     >
                       −
@@ -914,6 +960,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       isOriginalBranch ? 'bg-ide-success/10 text-ide-text' : branch.current ? 'bg-ide-accent/10 text-ide-text' : branch.remote ? 'text-ide-text-muted cursor-not-allowed' : 'text-ide-text hover:bg-ide-hover'
                     }`}
                     onClick={() => {
+                      if (busy) return
                       if (isOriginalBranch) { handleBackFromWorktree(); return }
                       if (branch.current || branch.remote) return
                       if (branch.name.startsWith('worktree-')) {
@@ -965,13 +1012,15 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           <div className="flex gap-2 mb-2">
             <button
               onClick={handleStash}
-              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors"
+              disabled={busy}
+              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Stash
             </button>
             <button
               onClick={handleStashPop}
-              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors"
+              disabled={busy}
+              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Pop Stash{stashCount > 0 ? ` (${stashCount})` : ''}
             </button>
@@ -981,7 +1030,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               <div className="flex">
                 <button
                   onClick={handlePush}
-                  className="flex-1 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-l transition-colors flex items-center justify-center gap-1.5"
+                  disabled={busy}
+                  className="flex-1 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-l transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
                     <line x1="12" y1="19" x2="12" y2="5" />
@@ -991,7 +1041,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowPushDropdown(!showPushDropdown) }}
-                  className="py-1.5 px-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-r border-l border-white/20 transition-colors"
+                  disabled={busy}
+                  className="py-1.5 px-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-r border-l border-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
                     <path d="M4 6l4 4 4-4" />
@@ -1005,7 +1056,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 >
                   <button
                     onClick={handlePush}
-                    className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${!selectedRemote ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text hover:bg-ide-hover'}`}
+                    disabled={busy}
+                    className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${!selectedRemote ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text hover:bg-ide-hover'} disabled:opacity-40`}
                   >
                     origin (default)
                   </button>
@@ -1013,7 +1065,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     <button
                       key={rb.name}
                       onClick={() => { setSelectedRemote(rb.name); handlePush() }}
-                      className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${selectedRemote === rb.name ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text hover:bg-ide-hover'}`}
+                      disabled={busy}
+                      className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${selectedRemote === rb.name ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text hover:bg-ide-hover'} disabled:opacity-40`}
                     >
                       <span className="text-ide-text-muted">{rb.remote}/</span>{rb.branch}
                     </button>
@@ -1027,8 +1080,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 ref={textareaRef}
                 value={commitMessage}
                 onChange={(e) => setCommitMessage(e.target.value)}
+                disabled={busy}
                 placeholder="Commit message..."
-                className={`w-full h-20 text-xs bg-ide-bg border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50 ${focusedCommit ? 'border-ide-accent bg-ide-accent/5' : 'border-ide-border'}`}
+                className={`w-full h-20 text-xs bg-ide-bg border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50 disabled:opacity-40 ${focusedCommit ? 'border-ide-accent bg-ide-accent/5' : 'border-ide-border'}`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.ctrlKey) handleCommit()
                   if (e.key === 'Escape') {
@@ -1049,7 +1103,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               )}
               <button
                 onClick={handleCommit}
-                disabled={!commitMessage.trim() || !status?.files?.some(f => f.staged) || hasConflictInStaged}
+                disabled={busy || !commitMessage.trim() || !status?.files?.some(f => f.staged) || hasConflictInStaged}
                 className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Commit (Ctrl+Enter)
