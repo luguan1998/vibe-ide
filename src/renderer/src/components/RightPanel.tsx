@@ -146,8 +146,8 @@ const RightPanel = React.memo(function RightPanel({
           worktreeNav={worktreeNav}
           onFileSelect={onFileSelect}
           refreshKey={refreshKey}
-          activeSessionId={activeSessionId}
-          rightTerminalSession={rightTerminalSession}
+          activeSessionId={activeSessionId ?? null}
+          rightTerminalSession={rightTerminalSession ?? null}
           onCloseRightTerminal={onCloseRightTerminal}
           onWorktreeNavChange={setSessionWorktreeNav}
           onDiffScroll={onDiffScroll}
@@ -156,8 +156,8 @@ const RightPanel = React.memo(function RightPanel({
 
       {activeSection === 'terminal' && (
         <AuxTab
-          rightTerminalSession={rightTerminalSession}
-          activeSessionId={activeSessionId}
+          rightTerminalSession={rightTerminalSession ?? null}
+          activeSessionId={activeSessionId ?? null}
           effectiveGitPath={effectiveGitPath}
           worktreeNav={worktreeNav}
           onCreateRightTerminal={onCreateRightTerminal}

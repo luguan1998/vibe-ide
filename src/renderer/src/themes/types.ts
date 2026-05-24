@@ -27,7 +27,7 @@ export interface TerminalTheme {
   cursor: string
   cursorAccent: string
   selectionBackground: string
-  fontWeight?: string
+  fontWeight?: 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900'
   allowTransparency?: boolean
   black: string
   red: string

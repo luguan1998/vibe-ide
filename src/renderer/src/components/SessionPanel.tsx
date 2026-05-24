@@ -492,7 +492,14 @@ const SessionPanel = React.memo(function SessionPanel({
                     </svg>
                   </button>
               </div>
-              <div className="text-xs text-ide-text-muted mt-0.5 truncate opacity-70">
+              <div
+                className="text-xs text-ide-text-muted mt-0.5 truncate opacity-70 hover:underline hover:text-ide-accent cursor-pointer"
+                title={t('Open in Explorer')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  window.api.file.openExplorer(session.cwd)
+                }}
+              >
                 {session.cwd}
               </div>
             </div>

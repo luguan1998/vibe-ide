@@ -2,7 +2,6 @@
   "compilerOptions": {
     "baseUrl": ".",
     "composite": true,
-    "ignoreDeprecations": "6.0",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,

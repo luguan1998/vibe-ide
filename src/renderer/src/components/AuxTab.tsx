@@ -27,7 +27,7 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
     } else if (activeSessionId) {
       pendingCommandRef.current = command
       if (worktreeNav) {
-        onCreateRightTerminal?.(activeSessionId, effectiveGitPath)
+        onCreateRightTerminal?.(activeSessionId, effectiveGitPath ?? undefined)
       } else {
         onCreateRightTerminal?.(activeSessionId)
       }

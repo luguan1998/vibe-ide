@@ -46,6 +46,9 @@ declare global {
         showFile: (ref: string, filePath: string) => Promise<any>
         getWorktreePath: (branch: string) => Promise<any>
         applyBranchRetry: (branch: string) => Promise<any>
+        deleteWorktree: (branch: string) => Promise<any>
+        onChanged: (callback: () => void) => any
+        removeChangedListener: (handler?: any) => void
       }
       file: {
         read: (filePath: string) => Promise<any>
@@ -53,6 +56,10 @@ declare global {
         list: (dirPath: string) => Promise<any>
         tree: (dirPath: string, depth?: number) => Promise<any>
         delete: (filePath: string) => Promise<any>
+        rename: (oldPath: string, newPath: string) => Promise<any>
+        createDir: (dirPath: string) => Promise<any>
+        openExplorer: (filePath: string) => Promise<any>
+        find: (cwd: string, filename: string) => Promise<any>
       }
       workspace: {
         open: () => Promise<any>

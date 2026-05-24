@@ -131,7 +131,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   // PageUp/PageDown: 滚动 diff 编辑器一页
   const prevScrollTrigger = useRef(scrollTrigger)
   useEffect(() => {
-    if (scrollTrigger === undefined || prevScrollTrigger.current === scrollTrigger) return
+    if (scrollTrigger === undefined || prevScrollTrigger.current === undefined || prevScrollTrigger.current === scrollTrigger) return
     const delta = scrollTrigger - prevScrollTrigger.current
     prevScrollTrigger.current = scrollTrigger
     try {
