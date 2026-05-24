@@ -181,8 +181,8 @@ const nord: IDETheme = {
     'ide-success': t('#a3be8c'),
     'ide-danger': t('#bf616a'),
     'ide-warning': t('#ebcb8b'),
-    'ide-hover': t('#3b4252'),
-    'ide-active': t('#434c5e'),
+    'ide-hover': t('#434c5e'),
+    'ide-active': t('#4c566a'),
     'scrollbar-track': t('#2e3440'),
     'scrollbar-thumb': t('#4c566a'),
     'scrollbar-thumb-hover': t('#616e88'),
@@ -279,8 +279,8 @@ const solarizedLight: IDETheme = {
     'ide-success': t('#859900'),
     'ide-danger': t('#dc322f'),
     'ide-warning': t('#b58900'),
-    'ide-hover': t('#eee8d5'),
-    'ide-active': t('#e6dfc5'),
+    'ide-hover': t('#e6ddbe'),
+    'ide-active': t('#dbd0ae'),
     'scrollbar-track': t('#fdf6e3'),
     'scrollbar-thumb': t('#d3cbb7'),
     'scrollbar-thumb-hover': t('#93a1a1'),
@@ -466,11 +466,11 @@ const githubLight: IDETheme = {
     'ide-success': t('#1a7f37'),
     'ide-danger': t('#cf222e'),
     'ide-warning': t('#9a6700'),
-    'ide-hover': t('#f3f4f6'),
-    'ide-active': t('#ebeef2'),
+    'ide-hover': t('#eaecf0'),
+    'ide-active': t('#dfe2e7'),
     'scrollbar-track': t('#ffffff'),
-    'scrollbar-thumb': t('#d0d7de'),
-    'scrollbar-thumb-hover': t('#afb8c1'),
+    'scrollbar-thumb': t('#c0c8d0'),
+    'scrollbar-thumb-hover': t('#8b949e'),
     'selection-bg': t('#0969da'),
     'selection-opacity': '0.2',
     'focus-outline': t('#0969da'),
@@ -605,6 +605,73 @@ const miku: IDETheme = {
   titleBar: { color: '#153533', symbolColor: '#5c7a7a', backgroundColor: '#153533' }
 }
 
+// 🎵 Hatsune Miku Light — 初音未来亮色主题
+// 白底绿字亮紫点缀，清新明亮如晨光下的初音
+const mikuLight: IDETheme = {
+  id: 'miku-light',
+  label: 'Hatsune Light',
+  css: {
+    'ide-bg': t('#f9fdfc'),
+    'ide-sidebar': t('#eef7f5'),
+    'ide-panel': t('#f2faf8'),
+    'ide-border': t('#d0e4e0'),
+    'ide-text': t('#1a2a27'),
+    'ide-text-muted': t('#7a9a95'),
+    'ide-accent': t('#39C5BB'),
+    'ide-accent-hover': t('#2db5ab'),
+    'ide-success': t('#39C5BB'),
+    'ide-danger': t('#e05575'),
+    'ide-warning': t('#c88830'),
+    'ide-hover': t('#d2e8e2'),
+    'ide-active': t('#bfdfd6'),
+    'scrollbar-track': t('#f9fdfc'),
+    'scrollbar-thumb': t('#c8ddd9'),
+    'scrollbar-thumb-hover': t('#a0bab5'),
+    'selection-bg': t('#bfa0f0'),
+    'selection-opacity': '0.25',
+    'focus-outline': t('#39C5BB'),
+    'monaco-margin-bg': t('#f9fdfc')
+  },
+  terminal: {
+    background: '#f9fdfc',
+    foreground: '#1a2a27',
+    cursor: '#39C5BB',
+    cursorAccent: '#f9fdfc',
+    selectionBackground: hexToRgba('#bfa0f0', 0.25),
+    black: '#d0e4e0',
+    red: '#e05575',
+    green: '#39C5BB',
+    yellow: '#c88830',
+    blue: '#5b9bd5',
+    magenta: '#b080e0',
+    cyan: '#39C5BB',
+    white: '#1a2a27',
+    brightBlack: '#a0bab5',
+    brightRed: '#f07090',
+    brightGreen: '#5ddbd2',
+    brightYellow: '#e0a040',
+    brightBlue: '#80b8f0',
+    brightMagenta: '#c8a8f0',
+    brightCyan: '#6de0d8',
+    brightWhite: '#0a1a17',
+    fontWeight: '500',
+    allowTransparency: false
+  },
+  monacoTheme: 'vibe-ide-miku-light',
+  monacoRules: [
+    { token: 'comment', foreground: '#7a9a95', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#8b60d0' },
+    { token: 'string', foreground: '#39C5BB' },
+    { token: 'number', foreground: '#c88830' },
+    { token: 'type', foreground: '#2db5ab' },
+    { token: 'function', foreground: '#39C5BB' },
+    { token: 'variable', foreground: '#1a2a27' },
+    { token: 'constant', foreground: '#8b60d0' },
+    { token: 'regexp', foreground: '#e05575' }
+  ],
+  titleBar: { color: '#eef7f5', symbolColor: '#7a9a95', backgroundColor: '#eef7f5' }
+}
+
 const catppuccin: IDETheme = {
   id: 'catppuccin-mocha',
   label: 'Catppuccin',
@@ -667,7 +734,8 @@ export const THEMES: IDETheme[] = [
   githubLight,
   tokyoNight,
   catppuccin,
-  miku
+  miku,
+  mikuLight
 ]
 
 export const DEFAULT_THEME_ID = 'vscode-dark'
