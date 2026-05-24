@@ -95,6 +95,8 @@ const SessionPanel = React.memo(function SessionPanel({
   const [newName, setNewName] = useState('')
   const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; name: string; left: number; top: number } | null>(null)
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cwdHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [cwdLinkSession, setCwdLinkSession] = useState<string | null>(null)
   const themeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const termTypeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -493,11 +495,29 @@ const SessionPanel = React.memo(function SessionPanel({
                   </button>
               </div>
               <div
-                className="text-xs text-ide-text-muted mt-0.5 truncate opacity-70 hover:underline hover:text-ide-accent cursor-pointer"
-                title={t('Open in Explorer')}
+                className={`text-xs mt-0.5 truncate transition-all ${
+                  cwdLinkSession === session.id
+                    ? 'underline text-ide-text cursor-pointer bg-ide-accent/15 rounded px-0.5 -mx-0.5 opacity-100'
+                    : 'text-ide-text-muted opacity-70'
+                }`}
+                title={cwdLinkSession === session.id ? t('Open in Explorer') : undefined}
+                onMouseEnter={() => {
+                  cwdHoverTimerRef.current = setTimeout(() => {
+                    setCwdLinkSession(session.id)
+                  }, 600)
+                }}
+                onMouseLeave={() => {
+                  if (cwdHoverTimerRef.current) {
+                    clearTimeout(cwdHoverTimerRef.current)
+                    cwdHoverTimerRef.current = null
+                  }
+                  setCwdLinkSession(null)
+                }}
                 onClick={(e) => {
-                  e.stopPropagation()
-                  window.api.file.openExplorer(session.cwd)
+                  if (cwdLinkSession === session.id) {
+                    e.stopPropagation()
+                    window.api.file.openExplorer(session.cwd)
+                  }
                 }}
               >
                 {session.cwd}
