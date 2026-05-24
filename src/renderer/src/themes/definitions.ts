@@ -622,8 +622,8 @@ const mikuLight: IDETheme = {
     'ide-success': t('#39C5BB'),
     'ide-danger': t('#e05575'),
     'ide-warning': t('#c88830'),
-    'ide-hover': t('#d2e8e2'),
-    'ide-active': t('#bfdfd6'),
+    'ide-hover': t('#ddece7'),
+    'ide-active': t('#cce5dc'),
     'scrollbar-track': t('#f9fdfc'),
     'scrollbar-thumb': t('#c8ddd9'),
     'scrollbar-thumb-hover': t('#a0bab5'),
@@ -660,14 +660,14 @@ const mikuLight: IDETheme = {
   monacoTheme: 'vibe-ide-miku-light',
   monacoRules: [
     { token: 'comment', foreground: '#7a9a95', fontStyle: 'italic' },
-    { token: 'keyword', foreground: '#8b60d0' },
-    { token: 'string', foreground: '#39C5BB' },
-    { token: 'number', foreground: '#c88830' },
-    { token: 'type', foreground: '#2db5ab' },
-    { token: 'function', foreground: '#39C5BB' },
+    { token: 'keyword', foreground: '#7c3aed' },
+    { token: 'string', foreground: '#059669' },
+    { token: 'number', foreground: '#ca8a04' },
+    { token: 'type', foreground: '#0d9488' },
+    { token: 'function', foreground: '#2563eb' },
     { token: 'variable', foreground: '#1a2a27' },
-    { token: 'constant', foreground: '#8b60d0' },
-    { token: 'regexp', foreground: '#e05575' }
+    { token: 'constant', foreground: '#ea580c' },
+    { token: 'regexp', foreground: '#e11d48' }
   ],
   titleBar: { color: '#eef7f5', symbolColor: '#7a9a95', backgroundColor: '#eef7f5' }
 }
