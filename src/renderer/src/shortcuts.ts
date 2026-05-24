@@ -184,6 +184,11 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'PageUp',
   },
   {
+    id: 'terminal.history',
+    label: 'Command History',
+    defaultKeys: 'Ctrl+KeyH',
+  },
+  {
     id: 'terminal.contextMenu',
     label: 'Terminal Copy/Paste',
     defaultKeys: 'Right-click',

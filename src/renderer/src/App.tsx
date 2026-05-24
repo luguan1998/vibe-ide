@@ -109,6 +109,12 @@ export default function App() {
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
   const [diffScrollTrigger, setDiffScrollTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
+  const [showHistory, setShowHistory] = useState(false)
+  const [historySelectedIndex, setHistorySelectedIndex] = useState(0)
+  const showHistoryRef = useRef(false)
+  const historySelectedIndexRef = useRef(0)
+  const commandHistoryRef = useRef(commandHistory)
+  const historyListRef = useRef<HTMLDivElement>(null)
   const [agentStatus, setAgentStatus] = useState<Record<string, 'running' | 'idle'>>({})
   const [wordWrap, setWordWrap] = useState(() => {
     try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
@@ -173,6 +179,19 @@ export default function App() {
     try { localStorage.setItem('vibe-ide-word-wrap', String(wordWrap)) } catch {}
   }, [wordWrap])
 
+  // Keep refs in sync for use in capture-phase keyboard handlers
+  React.useEffect(() => { showHistoryRef.current = showHistory }, [showHistory])
+  React.useEffect(() => { historySelectedIndexRef.current = historySelectedIndex }, [historySelectedIndex])
+  React.useEffect(() => { commandHistoryRef.current = commandHistory }, [commandHistory])
+
+  // Auto-scroll selected history item into view
+  React.useEffect(() => {
+    if (showHistory && historyListRef.current) {
+      const selected = historyListRef.current.querySelector('[data-history-index]')
+      if (selected) selected.scrollIntoView({ block: 'nearest' })
+    }
+  }, [showHistory, historySelectedIndex])
+
   // Listen for font-adjust IPC from main process (for Ctrl+-/= keys eaten by Chromium)
   React.useEffect(() => {
     const handler = window.api.onFontAdjust((delta: number) => {
@@ -207,6 +226,8 @@ export default function App() {
   const handleCommandEntered = useCallback((sessionId: string, command: string) => {
     setCommandHistory(prev => {
       const existing = prev[sessionId] || []
+      // dedup: skip if same as last command
+      if (existing.length > 0 && existing[existing.length - 1] === command) return prev
       const next = [...existing, command]
       if (next.length > 500) return { ...prev, [sessionId]: next.slice(-500) }
       return { ...prev, [sessionId]: next }
@@ -249,6 +270,19 @@ export default function App() {
         }
       }
 
+      // terminal.history → toggle command history popup
+      if (eventMatchesBinding(e, bindings['terminal.history'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (showHistoryRef.current) {
+          setShowHistory(false)
+        } else if (activeSessionId) {
+          const cmds = commandHistoryRef.current[activeSessionId] || []
+          setHistorySelectedIndex(Math.max(0, cmds.length - 1))
+          setShowHistory(true)
+        }
+      }
+
       // font.increase / font.decrease → adjust font size
       // Also match numpad aliases (NumpadAdd ⇔ Equal, NumpadSubtract ⇔ Minus)
       const increaseMatch =
@@ -268,6 +302,39 @@ export default function App() {
           setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
         } else if (centerView === 'diff') {
           setEditorFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
+        }
+      }
+
+      // History popup navigation (when open, intercept arrow/enter/escape)
+      if (showHistoryRef.current && activeSessionId) {
+        const cmds = commandHistoryRef.current[activeSessionId] || []
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          setShowHistory(false)
+          return
+        }
+        if (e.key === 'ArrowUp' && cmds.length > 0) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          setHistorySelectedIndex(prev => Math.max(0, prev - 1))
+          return
+        }
+        if (e.key === 'ArrowDown' && cmds.length > 0) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          setHistorySelectedIndex(prev => Math.min(cmds.length - 1, prev + 1))
+          return
+        }
+        if (e.key === 'Enter' && cmds.length > 0) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          const idx = historySelectedIndexRef.current
+          if (cmds[idx]) {
+            window.api.terminal.write(activeSessionId, cmds[idx] + '\r')
+          }
+          setShowHistory(false)
+          return
         }
       }
     }
@@ -722,6 +789,45 @@ export default function App() {
           />
         </div>
       </div>
+
+      {/* History Popup Overlay */}
+      {showHistory && activeSessionId && (() => {
+        const cmds = commandHistory[activeSessionId] || []
+        const sessionName = sessions.find(s => s.id === activeSessionId)?.name || activeSessionId
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowHistory(false)}>
+            <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[600px] max-h-[500px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-2 border-b border-ide-border shrink-0">
+                <span className="text-sm font-semibold text-ide-text">{sessionName}</span>
+                <span className="text-xs text-ide-text-muted">{cmds.length} commands</span>
+              </div>
+              <div className="flex-1 overflow-y-auto" ref={historyListRef}>
+                {cmds.length === 0 ? (
+                  <div className="px-4 py-8 text-sm text-ide-text-muted text-center">No commands yet</div>
+                ) : (
+                  cmds.map((cmd, i) => (
+                    <div
+                      key={`hist-${i}`}
+                      data-history-index={i === historySelectedIndex ? i : undefined}
+                      className={`px-4 py-1.5 text-sm font-mono cursor-pointer flex items-center gap-3 ${
+                        i === historySelectedIndex ? 'bg-ide-accent/20 text-ide-text' : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
+                      }`}
+                      onClick={() => {
+                        window.api.terminal.write(activeSessionId, cmd)
+                        setShowHistory(false)
+                      }}
+                      onMouseEnter={() => setHistorySelectedIndex(i)}
+                    >
+                      <span className="text-ide-text-muted shrink-0 w-8 text-right text-xs">{i + 1}</span>
+                      <span className="truncate flex-1" title={cmd}>{cmd}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

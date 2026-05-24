@@ -48,6 +48,9 @@ const ZH_MAP: Record<string, string> = {
   'Panel Tab Right': '右侧标签右移',
   'Panel Tab Left': '右侧标签左移',
   'Terminal Newline': '终端内换行',
+  'Terminal Page Down': '终端向下翻页',
+  'Terminal Page Up': '终端向上翻页',
+  'Command History': '命令历史',
   'Terminal Copy/Paste': '终端右键复制/粘贴',
   'Close Diff / Back': '关闭Diff/返回终端',
 
