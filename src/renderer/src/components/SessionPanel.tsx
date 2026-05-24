@@ -495,12 +495,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   </button>
               </div>
               <div
-                className={`text-xs mt-0.5 truncate transition-all ${
-                  cwdLinkSession === session.id
-                    ? 'underline text-ide-text cursor-pointer bg-ide-accent/15 rounded px-0.5 -mx-0.5 opacity-100'
-                    : 'text-ide-text-muted opacity-70'
-                }`}
-                title={cwdLinkSession === session.id ? t('Open in Explorer') : undefined}
+                className="text-xs mt-0.5"
                 onMouseEnter={() => {
                   cwdHoverTimerRef.current = setTimeout(() => {
                     setCwdLinkSession(session.id)
@@ -513,14 +508,23 @@ const SessionPanel = React.memo(function SessionPanel({
                   }
                   setCwdLinkSession(null)
                 }}
-                onClick={(e) => {
-                  if (cwdLinkSession === session.id) {
-                    e.stopPropagation()
-                    window.api.file.openExplorer(session.cwd)
-                  }
-                }}
               >
-                {session.cwd}
+                <span
+                  className={`inline-block max-w-full truncate transition-all ${
+                    cwdLinkSession === session.id
+                      ? 'underline text-ide-text cursor-pointer bg-ide-accent/15 rounded px-0.5'
+                      : 'text-ide-text-muted opacity-70'
+                  }`}
+                  title={cwdLinkSession === session.id ? t('Open in Explorer') : undefined}
+                  onClick={(e) => {
+                    if (cwdLinkSession === session.id) {
+                      e.stopPropagation()
+                      window.api.file.openExplorer(session.cwd)
+                    }
+                  }}
+                >
+                  {session.cwd}
+                </span>
               </div>
             </div>
           ))
