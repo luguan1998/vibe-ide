@@ -91,7 +91,7 @@ function createWindow(): void {
     titleBarOverlay: {
       color: '#1a1a2e',
       symbolColor: '#8888aa',
-      height: 36
+      height: 34
     },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
