@@ -4,7 +4,7 @@ import { Zap, Coffee, Plus } from 'lucide-react'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
-import { loadFilterRules, saveFilterRules } from './FileTab'
+import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
 
 const SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '🤖', '🐸', '👾', '🎯', '🚀', '⚡', '🌟', '💫', '🌀', '🎭', '🪐', '👻', '🍕', '🎲', '🧩', '🌈', '🦧', '🐉', '🎸']
 
@@ -92,6 +92,12 @@ const SessionPanel = React.memo(function SessionPanel({
       }
     }).catch(() => {})
   }, [])
+
+  // Sync filter rules to git watcher (main process) on mount and when rules change
+  useEffect(() => {
+    window.api.git.setFilterRules(fileFilterRules)
+  }, [fileFilterRules])
+
   const { themes, currentThemeId, setTheme } = useTheme()
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
@@ -710,7 +716,14 @@ const SessionPanel = React.memo(function SessionPanel({
                 onChange={(e) => setFileFilterRulesDraft(e.target.value)}
                 placeholder=".git&#10;node_modules&#10;dist&#10;build"
               />
-              <div className="flex justify-end gap-2 mt-3">
+              <div className="flex justify-between gap-2 mt-3">
+                <button
+                  className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
+                  onClick={() => setFileFilterRulesDraft(DEFAULT_FILTER_RULES.join('\n'))}
+                >
+                  {t('Reset Defaults')}
+                </button>
+                <div className="flex gap-2">
                 <button
                   className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
                   onClick={() => setShowFileFilterRules(false)}
@@ -729,6 +742,7 @@ const SessionPanel = React.memo(function SessionPanel({
                 >
                   {t('Save')}
                 </button>
+                </div>
               </div>
             </div>
           </div>

@@ -9,7 +9,8 @@
     "resolveJsonModule": true,
     "strict": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "downlevelIteration": true
   },
   "include": [
     "src/main/**/*.ts",

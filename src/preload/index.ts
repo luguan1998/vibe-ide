@@ -60,6 +60,7 @@ const api = {
     getWorktreePath: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_WORKTREE_PATH, branch),
     applyBranchRetry: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_APPLY_BRANCH_RETRY, branch),
     deleteWorktree: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DELETE_WORKTREE, branch),
+    setFilterRules: (rules: string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_FILTER_RULES, rules),
     onChanged: (callback: () => void) => {
       const handler = () => callback()
       ipcRenderer.on(IPC_CHANNELS.GIT_CHANGED, handler)

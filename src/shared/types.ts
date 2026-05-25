@@ -34,6 +34,7 @@ export const IPC_CHANNELS = {
   GIT_WORKTREE_PATH: 'git:worktreePath',
   GIT_APPLY_BRANCH_RETRY: 'git:applyBranchRetry',
   GIT_DELETE_WORKTREE: 'git:deleteWorktree',
+  GIT_SET_FILTER_RULES: 'git:setFilterRules',
 
   // File
   FILE_READ: 'file:read',

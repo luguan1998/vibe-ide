@@ -1,6 +1,6 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import simpleGit, { SimpleGit } from 'simple-git'
-import { IPC_CHANNELS, GitStatusResult, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, GitShowResult, GitCommitFile } from '../shared/types'
+import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, GitShowResult, GitCommitFile } from '../shared/types'
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
@@ -18,8 +18,20 @@ function getGit(): SimpleGit {
   return gitInstance
 }
 
-// Skip patterns for file watcher
-const WATCHER_SKIP = /[\\/](\.git|node_modules|\.next|dist|build|out|__pycache__|target|\.cache)[\\/]/
+// Skip patterns for file watcher — base set always skipped for safety
+const BASE_SKIP_PATTERNS = ['.git', '.vscode', 'node_modules', '.next', 'dist', 'build', 'out', '__pycache__', 'target', '.cache']
+let userSkipPatterns: string[] = []
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function buildSkipRegex(): RegExp {
+  const all = [...BASE_SKIP_PATTERNS, ...userSkipPatterns.map(escapeRegex)]
+  return new RegExp(`[\\\\/](${all.join('|')})[\\\\/]`)
+}
+
+let watcherSkipRegex = buildSkipRegex()
 
 const COOLDOWN_MS = 2000  // Minimum gap between notifications
 let lastNotifyTime = 0
@@ -63,7 +75,7 @@ function setupGitWatcher(workspace: string) {
     if (!filename) return
     // Skip .git, node_modules, and other generated dirs
     const normalized = filename.replace(/\\/g, '/')
-    if (WATCHER_SKIP.test('/' + normalized + '/')) return
+    if (watcherSkipRegex.test('/' + normalized + '/')) return
 
     // Debounce + cooldown: coalesce events, prevent notification storms
     if (debounceTimer) clearTimeout(debounceTimer)
@@ -726,6 +738,12 @@ export function registerGitHandlers(): void {
     } catch (err: any) {
       return { error: err.message }
     }
+  })
+
+  // Sync file filter rules from renderer — rebuild watcher skip regex
+  ipcMain.handle(IPC_CHANNELS.GIT_SET_FILTER_RULES, (_event, rules: string[]) => {
+    userSkipPatterns = rules || []
+    watcherSkipRegex = buildSkipRegex()
   })
 
   // Workspace open - changes the git working directory

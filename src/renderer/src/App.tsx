@@ -48,6 +48,7 @@ declare global {
         getWorktreePath: (branch: string) => Promise<any>
         applyBranchRetry: (branch: string) => Promise<any>
         deleteWorktree: (branch: string) => Promise<any>
+        setFilterRules: (rules: string[]) => Promise<any>
         onChanged: (callback: () => void) => any
         removeChangedListener: (handler?: any) => void
       }
