@@ -4,6 +4,7 @@ import { Zap, Coffee, Plus } from 'lucide-react'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
+import { loadFilterRules, saveFilterRules } from './FileTab'
 
 const SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '🤖', '🐸', '👾', '🎯', '🚀', '⚡', '🌟', '💫', '🌀', '🎭', '🪐', '👻', '🍕', '🎲', '🧩', '🌈', '🦧', '🐉', '🎸']
 
@@ -65,6 +66,9 @@ const SessionPanel = React.memo(function SessionPanel({
   focusSettingsTrigger = 0
 }: SessionPanelProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showFileFilterRules, setShowFileFilterRules] = useState(false)
+  const [fileFilterRules, setFileFilterRules] = useState<string[]>(() => loadFilterRules())
+  const [fileFilterRulesDraft, setFileFilterRulesDraft] = useState('')
   const [showConfigMenu, setShowConfigMenu] = useState(false)
   const [showThemeFlyout, setShowThemeFlyout] = useState(false)
   const [showTermTypeFlyout, setShowTermTypeFlyout] = useState(false)
@@ -342,6 +346,19 @@ const SessionPanel = React.memo(function SessionPanel({
                     </div>
                   </div>
                 )}
+                {/* File Filter Rules */}
+                <div className="border-t border-ide-border mt-1 pt-1">
+                  <button
+                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                    onClick={() => {
+                      setFileFilterRulesDraft(fileFilterRules.join('\n'))
+                      setShowFileFilterRules(true)
+                      setShowConfigMenu(false)
+                    }}
+                  >
+                    {t('File Filter Rules')}
+                  </button>
+                </div>
                 {/* Word Wrap toggle */}
                 {onToggleWordWrap && (
                   <div className="border-t border-ide-border mt-1 pt-1">
@@ -647,6 +664,52 @@ const SessionPanel = React.memo(function SessionPanel({
             </div>
             <div className="flex-1 overflow-y-auto">
               <SettingsPanel />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* File Filter Rules Modal */}
+      {showFileFilterRules && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowFileFilterRules(false)}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+              <span className="text-sm font-semibold text-ide-text">{t('File Filter Rules')}</span>
+              <button
+                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                onClick={() => setShowFileFilterRules(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-3">
+              <p className="text-xs text-ide-text-muted mb-2">{t('Skip directories matching these names. .* means all hidden dirs. One per line.')}</p>
+              <textarea
+                className="w-full h-48 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
+                value={fileFilterRulesDraft}
+                onChange={(e) => setFileFilterRulesDraft(e.target.value)}
+                placeholder=".*&#10;node_modules&#10;dist&#10;build"
+              />
+              <div className="flex justify-end gap-2 mt-3">
+                <button
+                  className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
+                  onClick={() => setShowFileFilterRules(false)}
+                >
+                  {t('Cancel')}
+                </button>
+                <button
+                  className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+                  onClick={() => {
+                    const rules = fileFilterRulesDraft.split('\n').map(s => s.trim()).filter(Boolean)
+                    setFileFilterRules(rules)
+                    saveFilterRules(rules)
+                    setShowFileFilterRules(false)
+                    window.dispatchEvent(new CustomEvent('file-filter-rules-changed'))
+                  }}
+                >
+                  {t('Save')}
+                </button>
+              </div>
             </div>
           </div>
         </div>

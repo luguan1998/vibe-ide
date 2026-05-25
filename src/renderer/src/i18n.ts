@@ -56,6 +56,8 @@ const ZH_MAP: Record<string, string> = {
 
   // File Tree
   'File Tree Depth': '文件树深度',
+  'File Filter Rules': '文件过滤规则',
+  'Skip directories matching these names. .* means all hidden dirs. One per line.': '跳过匹配这些名称的目录，.* 表示所有隐藏目录。每行一个。',
 
   // RightPanel Aux
   'Launch Terminal': '启动终端',
@@ -72,6 +74,7 @@ const ZH_MAP: Record<string, string> = {
   'Empty directory': '空目录',
   'No workspace': '无工作目录',
   'Cancel': '取消',
+  'Save': '保存',
   'Confirm': '确认',
   'Delete {fileName}?': '确定删除 {fileName}？',
 

@@ -117,16 +117,16 @@ export function registerFileHandlers(): void {
   })
 
   // Get file tree
-  ipcMain.handle(IPC_CHANNELS.FILE_TREE, async (_event, dirPath: string, depth?: number) => {
+  ipcMain.handle(IPC_CHANNELS.FILE_TREE, async (_event, dirPath: string, depth?: number, skipPatterns?: string[]) => {
     try {
-      return await buildFileTree(dirPath, depth || 3)
+      return await buildFileTree(dirPath, depth || 3, 0, skipPatterns || [])
     } catch (err: any) {
       return { error: err.message }
     }
   })
 }
 
-async function buildFileTree(dirPath: string, maxDepth: number, currentDepth: number = 0): Promise<FileNode[]> {
+async function buildFileTree(dirPath: string, maxDepth: number, currentDepth: number = 0, skipPatterns: string[] = []): Promise<FileNode[]> {
   // 到达最大深度时：仍列出当前目录文件，但不递归子目录
   const entries = await readdir(dirPath, { withFileTypes: true })
   const nodes: FileNode[] = []
@@ -139,9 +139,12 @@ async function buildFileTree(dirPath: string, maxDepth: number, currentDepth: nu
   })
 
   for (const entry of sorted) {
-    // Skip hidden directories and node_modules, but keep dotfiles (.gitignore etc.)
-    if (entry.isDirectory() && entry.name.startsWith('.')) continue
-    if (entry.name === 'node_modules') continue
+    // Skip directories matching user-defined patterns
+    // .* means skip all directories starting with .
+    if (entry.isDirectory()) {
+      if (skipPatterns.includes('.*') && entry.name.startsWith('.')) continue
+      if (skipPatterns.includes(entry.name)) continue
+    }
 
     const fullPath = join(dirPath, entry.name)
     const node: FileNode = {

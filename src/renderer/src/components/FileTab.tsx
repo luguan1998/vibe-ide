@@ -5,6 +5,29 @@ import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
 
+// ── file filter rules ──
+
+const FILTER_RULES_KEY = 'vibe-ide-file-filter-rules'
+
+const DEFAULT_FILTER_RULES = ['.git', 'node_modules', 'dist', 'build', '.next', 'out', '__pycache__', 'target', '.cache']
+
+export function loadFilterRules(): string[] {
+  try {
+    const raw = localStorage.getItem(FILTER_RULES_KEY)
+    if (raw) {
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr) && arr.every((v: any) => typeof v === 'string')) return arr
+    }
+  } catch {}
+  return [...DEFAULT_FILTER_RULES]
+}
+
+export function saveFilterRules(rules: string[]) {
+  try { localStorage.setItem(FILTER_RULES_KEY, JSON.stringify(rules)) } catch {}
+}
+
+// ──
+
 interface FileTabProps {
   workspacePath: string | null
   onOpenFileFromExplorer?: (fullPath: string) => void
@@ -258,7 +281,8 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
   const loadFileTree = useCallback(async () => {
     if (!workspacePath) return
     try {
-      const result = await window.api.file.tree(workspacePath, fileTreeDepth)
+      const skipPatterns = loadFilterRules()
+      const result = await window.api.file.tree(workspacePath, fileTreeDepth, skipPatterns)
       if (!result.error) {
         setFileTree(result)
       }
@@ -270,6 +294,13 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
       loadFileTree()
     }
   }, [workspacePath, loadFileTree])
+
+  // Reload file tree when filter rules change
+  useEffect(() => {
+    const handler = () => loadFileTree()
+    window.addEventListener('file-filter-rules-changed', handler)
+    return () => window.removeEventListener('file-filter-rules-changed', handler)
+  }, [loadFileTree])
 
   // Load CLAUDE.md (or AGENTS.md) doc tree
   const loadClaudeDocTree = useCallback(async () => {

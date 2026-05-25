@@ -54,7 +54,7 @@ declare global {
         read: (filePath: string) => Promise<any>
         write: (filePath: string, content: string) => Promise<any>
         list: (dirPath: string) => Promise<any>
-        tree: (dirPath: string, depth?: number) => Promise<any>
+        tree: (dirPath: string, depth?: number, skipPatterns?: string[]) => Promise<any>
         delete: (filePath: string) => Promise<any>
         rename: (oldPath: string, newPath: string) => Promise<any>
         createDir: (dirPath: string) => Promise<any>
