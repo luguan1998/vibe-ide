@@ -4,6 +4,7 @@ import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
 import { TerminalSession, RenameTerminalResult } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
+import { useI18n } from './i18n'
 import type { TerminalViewHandle } from './components/TerminalView'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
@@ -102,10 +103,25 @@ interface DiffFileState {
 }
 
 export default function App() {
+  const { t } = useI18n()
   const [sessions, setSessions] = useState<TerminalSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [rightTerminalSessions, setRightTerminalSessions] = useState<Record<string, TerminalSession>>({})  // 每个 session 独立的右侧终端
   const [rightPanelWidth, setRightPanelWidth] = useState(380)
+  const rightPanelPrevWidth = useRef(380)
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false)
+
+  const handleToggleRightPanel = useCallback(() => {
+    const delta = rightPanelWidth + 1 // panel + resize handle
+    if (rightPanelCollapsed) {
+      window.resizeBy(delta, 0)
+      setRightPanelCollapsed(false)
+    } else {
+      rightPanelPrevWidth.current = rightPanelWidth
+      setRightPanelCollapsed(true)
+      window.resizeBy(-delta, 0)
+    }
+  }, [rightPanelCollapsed, rightPanelWidth])
   const [leftPanelWidth, setLeftPanelWidth] = useState(240)
   const [isDragging, setIsDragging] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
@@ -696,6 +712,23 @@ export default function App() {
       {/* Title Bar */}
       <div className="titlebar-drag h-9 bg-ide-sidebar border-b border-ide-border flex items-center px-4 select-none shrink-0">
         <span className="text-ide-text-muted text-sm font-medium tracking-wide">Vibe IDE</span>
+        <div className="flex-1" />
+        <button
+          className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
+          style={{ marginRight: 138 }}
+          onClick={handleToggleRightPanel}
+          title={rightPanelCollapsed ? t('Expand Panel') : t('Collapse Panel')}
+        >
+          {rightPanelCollapsed ? (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="size-4">
+              <path fillRule="evenodd" d="M12.78 7.595a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06l2.72-2.72-2.72-2.72a.75.75 0 0 1 1.06-1.06l3.25 3.25Zm-8.25-3.25 3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06l2.72-2.72-2.72-2.72a.75.75 0 0 1 1.06-1.06Z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="size-4">
+              <path fillRule="evenodd" d="M3.22 7.595a.75.75 0 0 0 0 1.06l3.25 3.25a.75.75 0 0 0 1.06-1.06l-2.72-2.72 2.72-2.72a.75.75 0 0 0-1.06-1.06l-3.25 3.25Zm8.25-3.25-3.25 3.25a.75.75 0 0 0 0 1.06l3.25 3.25a.75.75 0 1 0 1.06-1.06l-2.72-2.72 2.72-2.72a.75.75 0 0 0-1.06-1.06Z" clipRule="evenodd" />
+            </svg>
+          )}
+        </button>
       </div>
 
       {/* Main Content - 3 Panels */}
@@ -772,12 +805,15 @@ export default function App() {
         </div>
 
         {/* Right Panel Resize Handle */}
-        <div
-          className="w-1 bg-ide-border hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
-          onMouseDown={handleRightResizeStart}
-        />
+        {!rightPanelCollapsed && (
+          <div
+            className="w-1 bg-ide-border hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
+            onMouseDown={handleRightResizeStart}
+          />
+        )}
 
-        {/* Right Panel: Git Management */}
+        {/* Right Panel */}
+        {rightPanelCollapsed ? null : (
         <div className="shrink-0 flex flex-col bg-ide-sidebar border-l border-ide-border overflow-hidden" style={{ width: rightPanelWidth }}>
           <RightPanel
             workspacePath={activeSessionCwd}
@@ -793,8 +829,10 @@ export default function App() {
             searchFocusTrigger={searchFocusTrigger}
             fileTreeDepth={fileTreeDepth}
             onDiffScroll={handleDiffScroll}
+            onToggleCollapse={handleToggleRightPanel}
           />
         </div>
+        )}
       </div>
 
       {/* History Popup Overlay */}

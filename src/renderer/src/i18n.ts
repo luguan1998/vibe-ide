@@ -60,6 +60,8 @@ const ZH_MAP: Record<string, string> = {
   'Skip directories matching these names. One per line.': '跳过匹配这些名称的目录。每行一个。',
   'Expand All': '全部展开',
   'Collapse All': '全部收缩',
+  'Expand Panel': '展开面板',
+  'Collapse Panel': '收缩面板',
 
   // RightPanel Aux
   'Launch Terminal': '启动终端',

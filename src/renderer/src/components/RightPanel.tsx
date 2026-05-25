@@ -20,6 +20,7 @@ interface RightPanelProps {
   onOpenFileFromExplorer?: (fullPath: string) => void
   fileTreeDepth?: number
   onDiffScroll?: (delta: number) => void
+  onToggleCollapse?: () => void
 }
 
 type GitSection = 'git' | 'terminal' | 'search' | 'file'
@@ -193,6 +194,7 @@ function TabBar({
   visibleTabs,
   onReorder,
   onToggleVisibility,
+  onToggleCollapse,
 }: {
   tabs: GitSection[]
   activeSection: GitSection
@@ -200,6 +202,7 @@ function TabBar({
   visibleTabs: Record<GitSection, boolean>
   onReorder: (fromSection: GitSection, toSection: GitSection) => void
   onToggleVisibility: (s: GitSection) => void
+  onToggleCollapse?: () => void
 }) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [dragOverSection, setDragOverSection] = useState<GitSection | null>(null)
@@ -302,7 +305,8 @@ const RightPanel = React.memo(function RightPanel({
   rightTerminalSession, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
   searchFocusTrigger, onOpenFileFromExplorer,
-  fileTreeDepth = 5, onDiffScroll
+  fileTreeDepth = 5, onDiffScroll,
+  onToggleCollapse
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -394,6 +398,7 @@ const RightPanel = React.memo(function RightPanel({
           visibleTabs={visibleTabs}
           onReorder={handleReorder}
           onToggleVisibility={handleToggleVisibility}
+          onToggleCollapse={onToggleCollapse}
         />
         <div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">
           No active session
@@ -411,6 +416,7 @@ const RightPanel = React.memo(function RightPanel({
         visibleTabs={visibleTabs}
         onReorder={handleReorder}
         onToggleVisibility={handleToggleVisibility}
+        onToggleCollapse={onToggleCollapse}
       />
 
       {activeSection === 'git' && (
