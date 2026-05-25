@@ -683,12 +683,12 @@ const SessionPanel = React.memo(function SessionPanel({
               </button>
             </div>
             <div className="p-3">
-              <p className="text-xs text-ide-text-muted mb-2">{t('Skip directories matching these names. .* means all hidden dirs. One per line.')}</p>
+              <p className="text-xs text-ide-text-muted mb-2">{t('Skip directories matching these names. One per line.')}</p>
               <textarea
                 className="w-full h-48 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
                 value={fileFilterRulesDraft}
                 onChange={(e) => setFileFilterRulesDraft(e.target.value)}
-                placeholder=".*&#10;node_modules&#10;dist&#10;build"
+                placeholder=".git&#10;node_modules&#10;dist&#10;build"
               />
               <div className="flex justify-end gap-2 mt-3">
                 <button

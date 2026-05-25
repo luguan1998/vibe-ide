@@ -83,7 +83,8 @@ export function registerFileHandlers(): void {
   })
 
   // Find files by name recursively (for bare-filename resolution)
-  ipcMain.handle(IPC_CHANNELS.FILE_FIND, async (_event, cwd: string, filename: string) => {
+  ipcMain.handle(IPC_CHANNELS.FILE_FIND, async (_event, cwd: string, filename: string, skipPatterns?: string[]) => {
+    const patterns = skipPatterns || []
     const results: string[] = []
     const maxDepth = 5
     const maxResults = 50
@@ -98,9 +99,9 @@ export function registerFileHandlers(): void {
       }
       for (const entry of entries) {
         if (results.length >= maxResults) return
-        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
         const full = join(dir, entry.name)
         if (entry.isDirectory()) {
+          if (patterns.includes(entry.name)) continue
           await walk(full, depth + 1)
         } else if (entry.name === filename) {
           results.push(full)
@@ -139,12 +140,7 @@ async function buildFileTree(dirPath: string, maxDepth: number, currentDepth: nu
   })
 
   for (const entry of sorted) {
-    // Skip directories matching user-defined patterns
-    // .* means skip all directories starting with .
-    if (entry.isDirectory()) {
-      if (skipPatterns.includes('.*') && entry.name.startsWith('.')) continue
-      if (skipPatterns.includes(entry.name)) continue
-    }
+    if (entry.isDirectory() && skipPatterns.includes(entry.name)) continue
 
     const fullPath = join(dirPath, entry.name)
     const node: FileNode = {

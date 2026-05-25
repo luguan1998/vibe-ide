@@ -173,7 +173,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     try {
       const result = await window.api.git.log(50)
       if (result.error) {
-        setError(result.error)
+        if (!/does not have any commits/.test(result.error)) {
+          setError(result.error)
+        }
       } else {
         setLogs(result)
       }

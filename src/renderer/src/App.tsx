@@ -59,7 +59,7 @@ declare global {
         rename: (oldPath: string, newPath: string) => Promise<any>
         createDir: (dirPath: string) => Promise<any>
         openExplorer: (filePath: string) => Promise<any>
-        find: (cwd: string, filename: string) => Promise<any>
+        find: (cwd: string, filename: string, skipPatterns?: string[]) => Promise<any>
       }
       workspace: {
         open: () => Promise<any>

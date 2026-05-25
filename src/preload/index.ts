@@ -84,7 +84,7 @@ const api = {
     rename: (oldPath: string, newPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_RENAME, oldPath, newPath),
     createDir: (dirPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_CREATE_DIR, dirPath),
     openExplorer: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_OPEN_EXPLORER, filePath),
-    find: (cwd: string, filename: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_FIND, cwd, filename)
+    find: (cwd: string, filename: string, skipPatterns?: string[]) => ipcRenderer.invoke(IPC_CHANNELS.FILE_FIND, cwd, filename, skipPatterns)
   },
 
   // Workspace operations

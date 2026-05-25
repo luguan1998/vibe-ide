@@ -9,7 +9,7 @@ import { useI18n } from '../i18n'
 
 const FILTER_RULES_KEY = 'vibe-ide-file-filter-rules'
 
-const DEFAULT_FILTER_RULES = ['.git', 'node_modules', 'dist', 'build', '.next', 'out', '__pycache__', 'target', '.cache']
+const DEFAULT_FILTER_RULES = ['.git', '.vscode', 'node_modules', 'dist', 'build', '.next', 'out', '__pycache__', 'target', '.cache']
 
 export function loadFilterRules(): string[] {
   try {

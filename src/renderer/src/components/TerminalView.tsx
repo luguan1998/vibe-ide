@@ -8,6 +8,7 @@ import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes'
 import { WebglAddon } from '@xterm/addon-webgl'
 
 import { useTheme } from '../themes'
+import { loadFilterRules } from './FileTab'
 import '@xterm/xterm/css/xterm.css'
 
 // 支持的文件扩展名（可编辑）
@@ -147,7 +148,7 @@ async function resolveAndOpenFile(
 
   if (isBareFilename(cleanText) && cwd) {
     try {
-      const findResult = await window.api.file.find(cwd, cleanText)
+      const findResult = await window.api.file.find(cwd, cleanText, loadFilterRules())
       if (findResult.matches && findResult.matches.length === 1) {
         onOpenFile(findResult.matches[0], parsed.lineNumber)
         return true
