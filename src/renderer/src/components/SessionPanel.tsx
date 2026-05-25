@@ -103,9 +103,28 @@ const SessionPanel = React.memo(function SessionPanel({
   const [cwdLinkSession, setCwdLinkSession] = useState<string | null>(null)
   const themeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const termTypeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const configBtnRef = useRef<HTMLButtonElement>(null)
+  const [configMenuStyle, setConfigMenuStyle] = useState<React.CSSProperties>({})
+  const [flyoutOnLeft, setFlyoutOnLeft] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
+
+  const handleToggleConfig = () => {
+    if (!showConfigMenu && configBtnRef.current) {
+      const rect = configBtnRef.current.getBoundingClientRect()
+      const menuWidth = 192
+      const left = Math.max(4, rect.right - menuWidth)
+      setConfigMenuStyle({
+        position: 'fixed',
+        left,
+        top: rect.bottom + 4,
+        minWidth: menuWidth,
+      })
+      setFlyoutOnLeft((left + menuWidth + 8 + 172) > window.innerWidth)
+    }
+    setShowConfigMenu(!showConfigMenu)
+  }
 
   useEffect(() => {
     if (renaming && inputRef.current) {
@@ -198,12 +217,13 @@ const SessionPanel = React.memo(function SessionPanel({
         <div className="flex items-center gap-1.5">
           <div className="relative config-menu-area">
             <button
+              ref={configBtnRef}
               className={`w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${
                 showConfigMenu
                   ? 'text-ide-accent bg-ide-accent/20'
                   : 'text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white'
               }`}
-              onClick={() => setShowConfigMenu(!showConfigMenu)}
+              onClick={handleToggleConfig}
               title={t('Settings')}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-[13px] h-[13px]">
@@ -212,7 +232,7 @@ const SessionPanel = React.memo(function SessionPanel({
               </svg>
             </button>
             {showConfigMenu && (
-              <div className="absolute right-0 top-full mt-1 w-44 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 config-menu-area">
+              <div style={configMenuStyle} className="bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 config-menu-area">
                 {/* Language toggle */}
                 <div className="inline-flex items-center rounded-md bg-ide-hover overflow-hidden mx-3 my-1.5">
                   <button
@@ -241,7 +261,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   </div>
                   {showThemeFlyout && (
                     <div
-                      className="absolute left-full top-0 ml-1 w-40 bg-ide-bg border border-ide-border rounded shadow-lg py-1 max-h-64 overflow-y-auto"
+                      className={`absolute top-0 ${flyoutOnLeft ? 'right-full mr-1' : 'left-full ml-1'} w-40 bg-ide-bg border border-ide-border rounded shadow-lg py-1 max-h-64 overflow-y-auto`}
                       onMouseEnter={() => {
                         if (themeFlyoutTimerRef.current) clearTimeout(themeFlyoutTimerRef.current)
                       }}
@@ -285,7 +305,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   </div>
                   {showTermTypeFlyout && (
                     <div
-                      className="absolute left-full top-0 ml-1 w-40 bg-ide-bg border border-ide-border rounded shadow-lg py-1"
+                      className={`absolute top-0 ${flyoutOnLeft ? 'right-full mr-1' : 'left-full ml-1'} w-40 bg-ide-bg border border-ide-border rounded shadow-lg py-1`}
                       onMouseEnter={() => {
                         if (termTypeFlyoutTimerRef.current) clearTimeout(termTypeFlyoutTimerRef.current)
                       }}
