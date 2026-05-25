@@ -336,7 +336,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }
 
   return (
-    <div ref={containerRef} className="flex flex-col border-t border-ide-border animate-fade-in">
+    <div ref={containerRef} className="flex flex-col animate-fade-in">
       <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0">
         <div className="flex items-center gap-2 text-sm">
           {onBack && (
