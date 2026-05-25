@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { GrepMatch } from '@shared/types'
+import { useI18n } from '../i18n'
 
 interface SearchPanelProps {
   cwd: string | null
@@ -13,6 +14,8 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
   const [total, setTotal] = useState(0)
   const [truncated, setTruncated] = useState(false)
   const [searching, setSearching] = useState(false)
+  const { t } = useI18n()
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
   const [includePattern, setIncludePattern] = useState('')
   const [regex, setRegex] = useState(false)
@@ -178,19 +181,63 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
           </div>
         )}
 
-        {results.length > 0 && (
+        {results.length > 0 && (() => {
+          const allFiles = Object.keys(groupedResults)
+          const allCollapsed = allFiles.length > 0 && allFiles.every(f => collapsedFiles.has(f))
+          const handleCollapseAll = () => setCollapsedFiles(new Set(allFiles))
+          const handleExpandAll = () => setCollapsedFiles(new Set())
+          const toggleFile = (file: string) => {
+            setCollapsedFiles(prev => {
+              const next = new Set(prev)
+              if (next.has(file)) next.delete(file)
+              else next.add(file)
+              return next
+            })
+          }
+
+          return (
           <>
-            <div className="px-3 py-1.5 text-xs text-ide-text-muted border-b border-ide-border bg-ide-hover/30">
-              {total} match{total !== 1 ? 'es' : ''}
-              {truncated && <span className="text-ide-warning ml-1">(truncated)</span>}
+            <div className="px-3 py-1.5 text-xs text-ide-text-muted border-b border-ide-border bg-ide-hover/30 flex items-center justify-between">
+              <span>
+                {total} match{total !== 1 ? 'es' : ''}
+                {truncated && <span className="text-ide-warning ml-1">(truncated)</span>}
+              </span>
+              <span className="flex gap-1">
+                <button
+                  className="hover:text-ide-text hover:bg-ide-hover px-1 rounded transition-colors"
+                  onClick={handleExpandAll}
+                  title={t('Expand All')}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="size-3.5">
+                    <path fillRule="evenodd" d="M2 2.75A.75.75 0 0 1 2.75 2h9.5a.75.75 0 0 1 0 1.5h-9.5A.75.75 0 0 1 2 2.75ZM2 6.25a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5A.75.75 0 0 1 2 6.25Zm0 3.5A.75.75 0 0 1 2.75 9h3.5a.75.75 0 0 1 0 1.5h-3.5A.75.75 0 0 1 2 9.75ZM14.78 11.47a.75.75 0 0 1 0 1.06l-2.25 2.25a.75.75 0 0 1-1.06 0l-2.25-2.25a.75.75 0 1 1 1.06-1.06l.97.97V6.75a.75.75 0 0 1 1.5 0v5.69l.97-.97a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                <button
+                  className="hover:text-ide-text hover:bg-ide-hover px-1 rounded transition-colors"
+                  onClick={handleCollapseAll}
+                  title={t('Collapse All')}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="size-3.5">
+                    <path fillRule="evenodd" d="M2 2.75A.75.75 0 0 1 2.75 2h9.5a.75.75 0 0 1 0 1.5h-9.5A.75.75 0 0 1 2 2.75ZM2 6.25a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5A.75.75 0 0 1 2 6.25Zm0 3.5A.75.75 0 0 1 2.75 9h3.5a.75.75 0 0 1 0 1.5h-3.5A.75.75 0 0 1 2 9.75ZM9.22 9.53a.75.75 0 0 1 0-1.06l2.25-2.25a.75.75 0 0 1 1.06 0l2.25 2.25a.75.75 0 0 1-1.06 1.06l-.97-.97v5.69a.75.75 0 0 1-1.5 0V8.56l-.97.97a.75.75 0 0 1-1.06 0Z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </span>
             </div>
 
-            {Object.entries(groupedResults).map(([file, fileMatches]) => (
+            {Object.entries(groupedResults).map(([file, fileMatches]) => {
+              const collapsed = collapsedFiles.has(file)
+              return (
               <div key={file} className="border-b border-ide-border/50">
-                <div className="px-3 py-1 text-xs text-ide-accent bg-ide-bg font-mono truncate">
+                <div
+                  className="px-3 py-1 text-xs text-ide-accent bg-ide-bg font-mono truncate cursor-pointer hover:bg-ide-hover flex items-center gap-1"
+                  onClick={() => toggleFile(file)}
+                >
+                  <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3 h-3 shrink-0 transition-transform ${collapsed ? '-rotate-90' : 'rotate-0'}`}>
+                    <path d="M4 6l4 4 4-4" />
+                  </svg>
                   {file} ({fileMatches.length})
                 </div>
-                {fileMatches.map((match, idx) => (
+                {!collapsed && fileMatches.map((match, idx) => (
                   <div
                     key={`${match.file}-${match.line}-${match.column}-${idx}`}
                     className="px-3 py-1 text-sm cursor-pointer hover:bg-ide-hover flex gap-2 items-start"
@@ -205,9 +252,9 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
                   </div>
                 ))}
               </div>
-            ))}
+            )})}
           </>
-        )}
+        )})()}
       </div>
     </div>
   )
