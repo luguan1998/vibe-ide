@@ -100,6 +100,13 @@ const ZH_MAP: Record<string, string> = {
 
   // GitTab - Conflict warning
   'Conflicted files in staged area. Please resolve conflicts before committing.': '暂存区存在冲突文件，请先解决冲突后再提交',
+
+  // Encoding
+  'Search encodings...': '搜索编码...',
+  'Reopen With Encoding': '以编码重新打开',
+  'Save With Encoding': '以编码保存',
+  'active': '当前',
+  'No matching encodings': '无匹配编码',
 }
 
 // ── context ────────────────────────────────────────────────────────

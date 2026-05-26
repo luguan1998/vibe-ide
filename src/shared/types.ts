@@ -39,6 +39,8 @@ export const IPC_CHANNELS = {
   // File
   FILE_READ: 'file:read',
   FILE_WRITE: 'file:write',
+  FILE_READ_ENCODING: 'file:readEncoding',
+  FILE_WRITE_ENCODING: 'file:writeEncoding',
   FILE_LIST: 'file:list',
   FILE_TREE: 'file:tree',
   FILE_DELETE: 'file:delete',

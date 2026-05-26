@@ -2,9 +2,64 @@ import { ipcMain, shell } from 'electron'
 import { readFile, writeFile, readdir, rename, mkdir, rm } from 'fs/promises'
 import { join, dirname, basename } from 'path'
 import { IPC_CHANNELS, FileNode } from '../shared/types'
+import * as iconv from 'iconv-lite'
+import * as jschardet from 'jschardet'
+import { normalizeEncoding, DEFAULT_ENCODING } from '../shared/encodings'
+
+function detectBOM(buffer: Buffer): { encoding?: string; bomLength: number } {
+  if (buffer.length >= 4 && buffer[0] === 0x00 && buffer[1] === 0x00 && buffer[2] === 0xFE && buffer[3] === 0xFF) {
+    return { encoding: 'utf-32be', bomLength: 4 }
+  }
+  if (buffer.length >= 4 && buffer[0] === 0xFF && buffer[1] === 0xFE && buffer[2] === 0x00 && buffer[3] === 0x00) {
+    return { encoding: 'utf-32le', bomLength: 4 }
+  }
+  if (buffer.length >= 2 && buffer[0] === 0xFE && buffer[1] === 0xFF) {
+    return { encoding: 'utf-16be', bomLength: 2 }
+  }
+  if (buffer.length >= 2 && buffer[0] === 0xFF && buffer[1] === 0xFE) {
+    return { encoding: 'utf-16le', bomLength: 2 }
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
+    return { encoding: 'utf-8', bomLength: 3 }
+  }
+  return { bomLength: 0 }
+}
+
+function autoDetectEncoding(buffer: Buffer): { encoding: string; confidence: number; bom: boolean } {
+  const bom = detectBOM(buffer)
+  if (bom.encoding) {
+    return { encoding: bom.encoding, confidence: 1, bom: true }
+  }
+  const result = jschardet.detect(buffer)
+  const encoding = result.encoding ? normalizeEncoding(result.encoding) : DEFAULT_ENCODING
+  return { encoding, confidence: result.confidence || 0, bom: false }
+}
+
+async function readFileWithEncoding(filePath: string, encoding?: string) {
+  const buffer = await readFile(filePath)
+  let targetEncoding: string
+  let confidence = 1
+  let bom = false
+
+  if (encoding) {
+    targetEncoding = normalizeEncoding(encoding)
+  } else {
+    const detected = autoDetectEncoding(buffer)
+    targetEncoding = detected.encoding
+    confidence = detected.confidence
+    bom = detected.bom
+  }
+
+  if (!encoding && confidence < 0.1 && buffer.includes(0x00)) {
+    return { error: 'Binary file detected, cannot read as text', content: '', encoding: '', bom: false, confidence: 0 }
+  }
+
+  const content = iconv.decode(buffer, targetEncoding)
+  return { content, encoding: targetEncoding, bom, confidence }
+}
 
 export function registerFileHandlers(): void {
-  // Read file content
+  // Read file content (legacy, always UTF-8)
   ipcMain.handle(IPC_CHANNELS.FILE_READ, async (_event, filePath: string) => {
     try {
       const content = await readFile(filePath, 'utf-8')
@@ -14,14 +69,37 @@ export function registerFileHandlers(): void {
     }
   })
 
+  // Read file content with encoding detection/support
+  ipcMain.handle(IPC_CHANNELS.FILE_READ_ENCODING, async (_event, filePath: string, encoding?: string) => {
+    try {
+      return await readFileWithEncoding(filePath, encoding)
+    } catch (err: any) {
+      return { error: err.message, content: '', encoding: '', bom: false, confidence: 0 }
+    }
+  })
+
   // Write file content
   ipcMain.handle(IPC_CHANNELS.FILE_WRITE, async (_event, filePath: string, content: string) => {
     try {
-      // Ensure directory exists
       const dir = dirname(filePath)
       const { mkdir } = require('fs/promises')
       await mkdir(dir, { recursive: true })
       await writeFile(filePath, content, 'utf-8')
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Write file content with encoding support
+  ipcMain.handle(IPC_CHANNELS.FILE_WRITE_ENCODING, async (_event, filePath: string, content: string, encoding?: string) => {
+    try {
+      const targetEncoding = encoding ? normalizeEncoding(encoding) : DEFAULT_ENCODING
+      const buffer = iconv.encode(content, targetEncoding)
+      const dir = dirname(filePath)
+      const { mkdir } = require('fs/promises')
+      await mkdir(dir, { recursive: true })
+      await writeFile(filePath, buffer)
       return { success: true }
     } catch (err: any) {
       return { error: err.message }

@@ -79,6 +79,8 @@ const api = {
   file: {
     read: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_READ, filePath),
     write: (filePath: string, content: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_WRITE, filePath, content),
+    readWithEncoding: (filePath: string, encoding?: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_READ_ENCODING, filePath, encoding),
+    writeWithEncoding: (filePath: string, content: string, encoding?: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_WRITE_ENCODING, filePath, content, encoding),
     list: (dirPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_LIST, dirPath),
     tree: (dirPath: string, depth?: number, skipPatterns?: string[]) => ipcRenderer.invoke(IPC_CHANNELS.FILE_TREE, dirPath, depth, skipPatterns),
     delete: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_DELETE, filePath),

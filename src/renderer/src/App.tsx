@@ -55,6 +55,8 @@ declare global {
       file: {
         read: (filePath: string) => Promise<any>
         write: (filePath: string, content: string) => Promise<any>
+        readWithEncoding: (filePath: string, encoding?: string) => Promise<{ content: string; encoding: string; bom: boolean; confidence: number; error?: string }>
+        writeWithEncoding: (filePath: string, content: string, encoding?: string) => Promise<{ success: boolean; error?: string }>
         list: (dirPath: string) => Promise<any>
         tree: (dirPath: string, depth?: number, skipPatterns?: string[]) => Promise<any>
         delete: (filePath: string) => Promise<any>

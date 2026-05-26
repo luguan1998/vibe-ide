@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Editor, DiffEditor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
 import { registerMonacoThemes } from '../themes'
+import { ENCODING_GROUPS, DEFAULT_ENCODING } from '@shared/encodings'
+import { useI18n } from '../i18n'
 
 interface DiffViewerProps {
   filePath: string          // 相对路径（用于 git 操作）
@@ -85,6 +87,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
 
 const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 13, wordWrap = false, scrollTrigger, onBack, onSaved, defaultEdit }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
+  const { t } = useI18n()
 
   const [viewMode, setViewMode] = useState<ViewMode>(defaultEdit ? 'edit' : 'diff')
 
@@ -100,6 +103,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const savedContentRef = useRef('')
   const justLoadedRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const [currentEncoding, setCurrentEncoding] = useState<string>(DEFAULT_ENCODING)
+  const [encodingInfo, setEncodingInfo] = useState<string>('')
+  const [encodingContextMenu, setEncodingContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const contextMenuRef = useRef<HTMLDivElement>(null)
 
   // Editor refs for imperative line jumping
   const diffEditorRef = useRef<any>(null)
@@ -209,14 +216,25 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     loadContents()
   }, [loadContents])
 
-  const loadForEdit = useCallback(async () => {
+  const loadForEdit = useCallback(async (encoding?: string) => {
     try {
-      const result = await window.api.file.read(fullPath)
+      const result = await window.api.file.readWithEncoding(fullPath, encoding)
       if (result.error) {
         setModifiedContent('')
+        if (!encoding) setEncodingInfo(result.error)
       } else {
         setModifiedContent(result.content)
         savedContentRef.current = result.content
+        if (!encoding) {
+          setCurrentEncoding(result.encoding)
+          if (result.bom) {
+            setEncodingInfo(`BOM ${result.encoding.toUpperCase()}`)
+          } else if (result.confidence < 1) {
+            setEncodingInfo(`${Math.round(result.confidence * 100)}%`)
+          } else {
+            setEncodingInfo('')
+          }
+        }
         setIsDirty(false)
         if (lineNumber && lineNumber > 0) {
           setTimeout(() => {
@@ -244,7 +262,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      await window.api.file.write(fullPath, modifiedContent)
+      await window.api.file.writeWithEncoding(fullPath, modifiedContent, currentEncoding)
       if (onSaved) {
         await onSaved(filePath)
       }
@@ -253,7 +271,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     savedContentRef.current = modifiedContent
     setIsDirty(false)
     setSaving(false)
-  }, [fullPath, filePath, modifiedContent, onSaved])
+  }, [fullPath, filePath, modifiedContent, currentEncoding, onSaved])
 
   const handleSaveRef = useRef(handleSave)
   handleSaveRef.current = handleSave
@@ -275,6 +293,59 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [viewMode, onBack, commitHash])
+
+  // Encoding context menu outside-click dismissal
+  useEffect(() => {
+    if (!encodingContextMenu) return
+    const handleClick = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setEncodingContextMenu(null)
+      }
+    }
+    const timer = setTimeout(() => {
+      window.addEventListener('click', handleClick)
+    }, 0)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('click', handleClick)
+    }
+  }, [encodingContextMenu])
+
+  // Reset encoding state when file changes
+  useEffect(() => {
+    setCurrentEncoding(DEFAULT_ENCODING)
+    setEncodingInfo('')
+  }, [fullPath])
+
+  const handleReopenWithEncoding = useCallback(async (encoding: string) => {
+    setEncodingContextMenu(null)
+    setCurrentEncoding(encoding)
+    setEncodingInfo('')
+    setSaving(true)
+    try {
+      const result = await window.api.file.readWithEncoding(fullPath, encoding)
+      if (!result.error) {
+        setModifiedContent(result.content)
+        savedContentRef.current = result.content
+        setIsDirty(false)
+      }
+    } catch {}
+    setSaving(false)
+  }, [fullPath])
+
+  const handleSaveWithEncoding = useCallback(async (encoding: string) => {
+    setEncodingContextMenu(null)
+    setSaving(true)
+    try {
+      await window.api.file.writeWithEncoding(fullPath, modifiedContent, encoding)
+      setCurrentEncoding(encoding)
+      setEncodingInfo('')
+      savedContentRef.current = modifiedContent
+      setIsDirty(false)
+      if (onSaved) await onSaved(filePath)
+    } catch {}
+    setSaving(false)
+  }, [fullPath, filePath, modifiedContent, onSaved])
 
   const getLanguageFromFile = (path: string): string => {
     const ext = path.split('.').pop()?.toLowerCase() || ''
@@ -337,7 +408,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
 
   return (
     <div ref={containerRef} className="flex flex-col animate-fade-in">
-      <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0">
+      <div
+        className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0"
+        onContextMenu={!commitHash ? (e) => { e.preventDefault(); setEncodingContextMenu({ x: e.clientX, y: e.clientY }) } : undefined}
+      >
         <div className="flex items-center gap-2 text-sm">
           {onBack && (
             <button
@@ -362,6 +436,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
 
         <div className="flex items-center gap-2">
           {isDirty && <span className="text-[11px] text-ide-warning font-medium">● 未保存</span>}
+          {currentEncoding !== DEFAULT_ENCODING && (
+            <span className="text-[10px] text-ide-accent font-mono" title={encodingInfo || undefined}>{currentEncoding.toUpperCase()}</span>
+          )}
           {!commitHash && (
         <div className="flex items-center rounded-md bg-ide-hover overflow-hidden">
           <button
@@ -477,6 +554,54 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           />
         )}
       </div>
+
+      {/* Encoding Context Menu */}
+      {encodingContextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[180px] max-h-80 overflow-y-auto"
+          style={{ left: encodingContextMenu.x, top: encodingContextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1 text-[10px] text-ide-text-muted font-semibold uppercase tracking-wider">{t('Reopen With Encoding')}</div>
+          {ENCODING_GROUPS.map(group => (
+            <div key={group.name}>
+              <div className="px-3 py-0.5 text-[10px] text-ide-text-muted">{t(group.name)}</div>
+              {group.encodings.map(enc => (
+                <button
+                  key={enc.value}
+                  onClick={() => handleReopenWithEncoding(enc.value)}
+                  className={`w-full px-3 py-1 text-xs text-left hover:bg-ide-hover transition-colors flex items-center justify-between ${
+                    currentEncoding === enc.value ? 'text-ide-accent' : 'text-ide-text'
+                  }`}
+                >
+                  <span>{enc.label}</span>
+                  {currentEncoding === enc.value && (
+                    <span className="text-[10px] text-ide-accent">✓</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
+          <div className="border-t border-ide-border mt-1 pt-1">
+            <div className="px-3 py-1 text-[10px] text-ide-text-muted font-semibold uppercase tracking-wider">{t('Save With Encoding')}</div>
+            {ENCODING_GROUPS.map(group => (
+              <div key={`save-${group.name}`}>
+                <div className="px-3 py-0.5 text-[10px] text-ide-text-muted">{t(group.name)}</div>
+                {group.encodings.map(enc => (
+                  <button
+                    key={`save-${enc.value}`}
+                    onClick={() => handleSaveWithEncoding(enc.value)}
+                    className="w-full px-3 py-1 text-xs text-left hover:bg-ide-hover transition-colors text-ide-text"
+                  >
+                    {enc.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 })

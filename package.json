@@ -36,6 +36,8 @@
     "@xterm/addon-web-links": "latest",
     "@xterm/addon-webgl": "^0.18.0",
     "@xterm/xterm": "^5.5.0",
+    "iconv-lite": "^0.7.2",
+    "jschardet": "^3.1.4",
     "lucide-react": "^0.469.0",
     "monaco-editor": "^0.52.2",
     "node-pty": "^1.0.0",
