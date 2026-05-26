@@ -98,6 +98,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const [editLoading, setEditLoading] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [diffStats, setDiffStats] = useState<{ additions: number; deletions: number }>({ additions: 0, deletions: 0 })
   const savedContentRef = useRef('')
@@ -251,10 +252,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     } catch (err) {
       setModifiedContent('')
     }
+    setEditLoading(false)
   }, [fullPath])
 
   useEffect(() => {
     if (viewMode === 'edit') {
+      setEditLoading(true)
       loadForEdit()
     }
   }, [viewMode, loadForEdit])
@@ -512,6 +515,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               }
             }}
           />
+        ) : editLoading ? (
+          <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">Loading...</div>
         ) : (
           <Editor
             height="100%"

@@ -54,6 +54,8 @@ const ENCODING_ALIASES: Record<string, string> = {
   'utf8': 'utf-8',
   'utf16le': 'utf-16le',
   'utf16be': 'utf-16be',
+  'ascii': 'utf-8',
+  'us-ascii': 'utf-8',
   'latin1': 'iso-8859-1',
   'latin-1': 'iso-8859-1',
   'shiftjis': 'shift-jis',
