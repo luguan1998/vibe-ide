@@ -27,7 +27,7 @@ function escapeRegex(s: string): string {
 }
 
 function buildSkipRegex(): RegExp {
-  const all = [...BASE_SKIP_PATTERNS, ...userSkipPatterns.map(escapeRegex)]
+  const all = [...new Set([...BASE_SKIP_PATTERNS, ...userSkipPatterns.map(escapeRegex)])]
   return new RegExp(`[\\\\/](${all.join('|')})[\\\\/]`)
 }
 
