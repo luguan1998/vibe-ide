@@ -8,6 +8,30 @@ import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTa
 
 const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '🤖', '🐸', '👾', '🎯', '🚀', '⚡', '🌟', '💫', '🌀', '🎭', '🪐', '👻', '🍕', '🎲', '🧩', '🌈', '🦧', '🐉', '🎸']
 
+const MAX_RECENT_DIRS = 10
+
+function loadRecentDirs(): string[] {
+  try {
+    const raw = localStorage.getItem('vibe-ide-recent-dirs')
+    if (raw) {
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr)) return arr.filter((d: unknown) => typeof d === 'string' && d.length > 0).slice(0, MAX_RECENT_DIRS)
+    }
+  } catch {}
+  return []
+}
+
+function saveRecentDirs(dirs: string[]): void {
+  try { localStorage.setItem('vibe-ide-recent-dirs', JSON.stringify(dirs)) } catch {}
+}
+
+function addRecentDir(dir: string, existing: string[]): string[] {
+  const normalized = dir.replace(/\\/g, '/')
+  const next = [normalized, ...existing.filter(d => d !== normalized)].slice(0, MAX_RECENT_DIRS)
+  saveRecentDirs(next)
+  return next
+}
+
 function loadSessionEmojis(): string[] {
   try {
     const raw = localStorage.getItem('vibe-ide-session-emojis')
@@ -119,6 +143,9 @@ const SessionPanel = React.memo(function SessionPanel({
   const { themes, currentThemeId, setTheme } = useTheme()
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
+  const [emptyAreaMenu, setEmptyAreaMenu] = useState<{ x: number; y: number } | null>(null)
+  const [recentDirs, setRecentDirs] = useState<string[]>(() => loadRecentDirs())
+  const prevSessionIdsRef = useRef<Set<string>>(new Set())
   const [renaming, setRenaming] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
   const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; name: string; left: number; top: number } | null>(null)
@@ -157,8 +184,18 @@ const SessionPanel = React.memo(function SessionPanel({
     }
   }, [renaming])
 
+  // Track new sessions to record their cwd as recent directories
   useEffect(() => {
-    const handleClick = () => setContextMenu(null)
+    for (const s of sessions) {
+      if (!prevSessionIdsRef.current.has(s.id)) {
+        setRecentDirs(prev => addRecentDir(s.cwd, prev))
+      }
+    }
+    prevSessionIdsRef.current = new Set(sessions.map(s => s.id))
+  }, [sessions])
+
+  useEffect(() => {
+    const handleClick = () => { setContextMenu(null); setEmptyAreaMenu(null) }
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
   }, [])
@@ -184,7 +221,13 @@ const SessionPanel = React.memo(function SessionPanel({
 
   const handleContextMenu = (e: React.MouseEvent, sessionId: string) => {
     e.preventDefault()
+    e.stopPropagation()
     setContextMenu({ x: e.clientX, y: e.clientY, sessionId })
+  }
+
+  const handleEmptyAreaContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setEmptyAreaMenu({ x: e.clientX, y: e.clientY })
   }
 
   const handleRename = async () => {
@@ -468,6 +511,7 @@ const SessionPanel = React.memo(function SessionPanel({
             setDropIndex(sessions.length)
           }
         }}
+        onContextMenu={handleEmptyAreaContextMenu}
       >
         {sessions.length === 0 ? (
           <div className="h-full flex items-center justify-center text-ide-text-muted text-sm">
@@ -645,6 +689,47 @@ const SessionPanel = React.memo(function SessionPanel({
           >
             {t('Close')}
           </button>
+        </div>
+      )}
+
+      {/* Empty Area Context Menu — recent directories */}
+      {emptyAreaMenu && (
+        <div
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[200px]"
+          style={{ left: emptyAreaMenu.x, top: emptyAreaMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+            onClick={() => {
+              onCreateSession(termType)
+              setEmptyAreaMenu(null)
+            }}
+          >
+            <Plus size={14} className="text-ide-text-muted" />
+            {t('New Terminal')}
+          </button>
+          {recentDirs.length > 0 && (
+            <>
+              <div className="border-t border-ide-border my-1" />
+              <div className="px-3 py-1 text-[10px] text-ide-text-muted uppercase tracking-wider">{t('Recent Directories')}</div>
+              {recentDirs.map((dir, i) => (
+                <button
+                  key={`${dir}-${i}`}
+                  className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                  onClick={() => {
+                    onCloneSession(dir, termType)
+                    setEmptyAreaMenu(null)
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <span className="truncate">{dir}</span>
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
 

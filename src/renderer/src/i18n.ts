@@ -26,6 +26,7 @@ const ZH_MAP: Record<string, string> = {
   'Word Wrap': '自动换行',
   'Show squiggles': '显示错误提示',
   'New Terminal': '新建终端',
+  'Recent Directories': '最近打开的目录',
   'No sessions yet': '暂无会话',
   'Close Session': '关闭会话',
   'Clone': '克隆',
