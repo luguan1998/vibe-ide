@@ -6,7 +6,22 @@ import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
 
-const SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '🤖', '🐸', '👾', '🎯', '🚀', '⚡', '🌟', '💫', '🌀', '🎭', '🪐', '👻', '🍕', '🎲', '🧩', '🌈', '🦧', '🐉', '🎸']
+const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '🤖', '🐸', '👾', '🎯', '🚀', '⚡', '🌟', '💫', '🌀', '🎭', '🪐', '👻', '🍕', '🎲', '🧩', '🌈', '🦧', '🐉', '🎸']
+
+function loadSessionEmojis(): string[] {
+  try {
+    const raw = localStorage.getItem('vibe-ide-session-emojis')
+    if (raw) {
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr) && arr.length > 0) return arr
+    }
+  } catch {}
+  return [...DEFAULT_SESSION_EMOJIS]
+}
+
+function saveSessionEmojis(emojis: string[]): void {
+  try { localStorage.setItem('vibe-ide-session-emojis', JSON.stringify(emojis)) } catch {}
+}
 
 // 🌀 fallback — IPC 取不到时兜底
 const FALLBACK_SHELLS = [
@@ -22,8 +37,8 @@ function hashId(id: string): number {
   return Math.abs(h)
 }
 
-function getSessionEmoji(id: string): string {
-  return SESSION_EMOJIS[hashId(id) % SESSION_EMOJIS.length]
+function getSessionEmoji(id: string, emojis: string[]): string {
+  return emojis[hashId(id) % emojis.length]
 }
 
 interface SessionPanelProps {
@@ -76,6 +91,9 @@ const SessionPanel = React.memo(function SessionPanel({
     try { return localStorage.getItem('vibe-ide-term-type') || 'pwsh' } catch { return 'pwsh' }
   })
   const [shellOptions, setShellOptions] = useState(FALLBACK_SHELLS)
+  const [sessionEmojis, setSessionEmojis] = useState<string[]>(() => loadSessionEmojis())
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [emojiDraft, setEmojiDraft] = useState('')
 
   // 启动时从主进程获取本机已安装的 shell，过滤选项
   useEffect(() => {
@@ -294,6 +312,19 @@ const SessionPanel = React.memo(function SessionPanel({
                   )}
                 </div>
                 </div>
+                {/* Emoji Text */}
+                <div className="border-t border-ide-border mt-1 pt-1">
+                  <button
+                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                    onClick={() => {
+                      setEmojiDraft(sessionEmojis.join('\n'))
+                      setShowEmojiPicker(true)
+                      setShowConfigMenu(false)
+                    }}
+                  >
+                    {t('Emoji Text')}
+                  </button>
+                </div>
                 <div className="border-t border-ide-border mt-1 pt-1">
                 {/* Shell Type flyout */}
                 <div
@@ -498,7 +529,7 @@ const SessionPanel = React.memo(function SessionPanel({
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-sm shrink-0">{getSessionEmoji(session.id)}</span>
+                  <span className="text-sm shrink-0">{getSessionEmoji(session.id, sessionEmojis)}</span>
                   {renaming === session.id ? (
                     <input
                       ref={inputRef}
@@ -690,6 +721,71 @@ const SessionPanel = React.memo(function SessionPanel({
             </div>
             <div className="flex-1 overflow-y-auto">
               <SettingsPanel />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Emoji Picker Modal */}
+      {showEmojiPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowEmojiPicker(false)}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+              <span className="text-sm font-semibold text-ide-text">{t('Emoji Text')}</span>
+              <button
+                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                onClick={() => setShowEmojiPicker(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-3">
+              <p className="text-xs text-ide-text-muted mb-2">{t('Each session gets a random icon. One per line.')}</p>
+              <div className="flex flex-wrap gap-1 mb-3 bg-ide-hover rounded p-2 min-h-[40px]">
+                {(() => {
+                  const lines = emojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
+                  return lines.length === 0
+                    ? <span className="text-xs text-ide-text-muted py-1">无表情</span>
+                    : lines.map((emoji, i) => (
+                        <span key={i} className="text-lg" title={emoji}>{emoji}</span>
+                      ))
+                })()}
+              </div>
+              <textarea
+                className="w-full h-32 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
+                value={emojiDraft}
+                onChange={(e) => setEmojiDraft(e.target.value)}
+                placeholder={'🔥\n💀\n🗿\n🤡\n👽'}
+              />
+              <div className="flex justify-between gap-2 mt-3">
+                <button
+                  className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
+                  onClick={() => setEmojiDraft(DEFAULT_SESSION_EMOJIS.join('\n'))}
+                >
+                  {t('Reset Defaults')}
+                </button>
+                <div className="flex gap-2">
+                  <button
+                    className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
+                    onClick={() => setShowEmojiPicker(false)}
+                  >
+                    {t('Cancel')}
+                  </button>
+                  <button
+                    className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+                    onClick={() => {
+                      const emojis = emojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
+                      if (emojis.length > 0) {
+                        setSessionEmojis(emojis)
+                        saveSessionEmojis(emojis)
+                      }
+                      setShowEmojiPicker(false)
+                    }}
+                  >
+                    {t('Save')}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

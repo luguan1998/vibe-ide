@@ -57,6 +57,8 @@ const ZH_MAP: Record<string, string> = {
 
   // File Tree
   'File Tree Depth': '文件树深度',
+  'Emoji Text': '会话图标',
+  'Each session gets a random icon. One per line.': '每个 session 随机分配一个表情。每行一个。',
   'File Filter Rules': '文件过滤规则',
   'Skip directories matching these names. One per line.': '跳过匹配这些名称的目录。每行一个。',
   'Expand All': '全部展开',
