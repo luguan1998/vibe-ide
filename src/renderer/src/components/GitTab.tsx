@@ -479,6 +479,15 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   // Switch git workspace when effective path changes
   useEffect(() => {
     if (!effectiveGitPath || effectiveGitPath === currentGitPath) return
+
+    // Clear old git state immediately to prevent stale data from previous session
+    setStatus(null)
+    setLogs([])
+    setBranches([])
+    setError(null)
+    setSelectedFile(null)
+    setDiffContent('')
+
     const switchWorkspace = async () => {
       const result = await window.api.git.setWorkspace(effectiveGitPath)
       if (result.success) {
@@ -627,18 +636,31 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             <p>{message}</p>
           </div>
         )}
-        {error && (
+        {error && !/not a git/i.test(error) && (
           <div className="px-3 py-2 text-sm text-ide-danger bg-ide-danger/10 animate-fade-in">
-            <p className="mb-2">{error}</p>
-            {/not a git/i.test(error) && (
+            <p>{error}</p>
+          </div>
+        )}
+        {error && /not a git/i.test(error) && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center px-4">
+              <div className="mb-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-12 h-12 text-ide-text-muted mx-auto mb-3 opacity-50">
+                  <circle cx="18" cy="18" r="3" />
+                  <circle cx="6" cy="6" r="3" />
+                  <path d="M6 21V9a9 9 0 0 0 9 9" />
+                  <path d="M18 3v12" />
+                </svg>
+                <p className="text-sm text-ide-text-muted">No git repository found in this workspace</p>
+              </div>
               <button
                 onClick={handleInit}
                 disabled={busy}
-                className="px-3 py-1 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 git init
               </button>
-            )}
+            </div>
           </div>
         )}
 
