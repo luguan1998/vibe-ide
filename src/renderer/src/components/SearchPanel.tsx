@@ -105,7 +105,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
   if (!cwd) {
     return (
       <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
-        No active session
+        {t('No active session')}
       </div>
     )
   }
@@ -120,7 +120,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
             type="text"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder="Search in project..."
+            placeholder={t('Search in project...')}
             className="w-full text-sm bg-ide-bg border border-ide-border rounded px-2 py-1.5 pr-8 text-ide-text focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50"
             onKeyDown={(e) => {
               if (e.key === 'Enter') doSearch(query)
@@ -171,13 +171,13 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
 
         {query && !searching && results.length === 0 && !error && (
           <div className="px-3 py-4 text-sm text-ide-text-muted text-center">
-            No results found
+            {t('No results found')}
           </div>
         )}
 
         {!query && (
           <div className="px-3 py-4 text-sm text-ide-text-muted text-center">
-            Type to search files by content
+            {t('Type to search files by content')}
           </div>
         )}
 
@@ -199,8 +199,8 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
           <>
             <div className="px-3 py-1.5 text-xs text-ide-text-muted border-b border-ide-border bg-ide-hover/30 flex items-center justify-between">
               <span>
-                {total} match{total !== 1 ? 'es' : ''}
-                {truncated && <span className="text-ide-warning ml-1">(truncated)</span>}
+                {total} {t('matches')}
+                {truncated && <span className="text-ide-warning ml-1">({t('truncated')})</span>}
               </span>
               <span className="flex gap-1">
                 <button
