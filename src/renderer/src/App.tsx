@@ -132,6 +132,7 @@ export default function App() {
   const [showSquiggles, setShowSquiggles] = useState(false)
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
+  const [rightPanelFocusTrigger, setRightPanelFocusTrigger] = useState(0)
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
   const [diffScrollTrigger, setDiffScrollTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
@@ -316,6 +317,26 @@ export default function App() {
           setActiveSessionId(sessions[next].id)
           setCenterView('terminal')
           setDiffFile(null)
+        }
+      }
+
+      // focus.rightPanel → 聚焦到右侧面板当前 tab
+      if (eventMatchesBinding(e, bindings['focus.rightPanel'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setRightPanelFocusTrigger(k => k + 1)
+      }
+
+      // focus.terminal → 聚焦到中间终端
+      if (eventMatchesBinding(e, bindings['focus.terminal'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (activeSessionId) {
+          setCenterView('terminal')
+          setDiffFile(null)
+          setTimeout(() => {
+            terminalRefs.current[activeSessionId]?.focus()
+          }, 0)
         }
       }
 
@@ -857,6 +878,7 @@ export default function App() {
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
             searchFocusTrigger={searchFocusTrigger}
+            rightPanelFocusTrigger={rightPanelFocusTrigger}
             fileTreeDepth={fileTreeDepth}
             onDiffScroll={handleDiffScroll}
             onToggleCollapse={handleToggleRightPanel}

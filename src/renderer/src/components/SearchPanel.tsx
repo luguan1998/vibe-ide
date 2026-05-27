@@ -38,12 +38,6 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
     }
   }, [focusTrigger])
 
-  // Auto-focus on mount — 切 Tab 进入时组件重新挂载，自动聚焦
-  useEffect(() => {
-    inputRef.current?.focus()
-    inputRef.current?.select()
-  }, [])
-
   // Debounced search
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim() || !cwd) {

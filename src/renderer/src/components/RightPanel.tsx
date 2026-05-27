@@ -17,6 +17,7 @@ interface RightPanelProps {
   onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
   onCloseRightTerminal?: (sessionId: string) => void
   searchFocusTrigger?: number
+  rightPanelFocusTrigger?: number
   onOpenFileFromExplorer?: (fullPath: string) => void
   fileTreeDepth?: number
   onDiffScroll?: (delta: number) => void
@@ -304,7 +305,7 @@ const RightPanel = React.memo(function RightPanel({
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
   rightTerminalSession, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
-  searchFocusTrigger, onOpenFileFromExplorer,
+  searchFocusTrigger, rightPanelFocusTrigger, onOpenFileFromExplorer,
   fileTreeDepth = 5, onDiffScroll,
   onToggleCollapse
 }: RightPanelProps) {
@@ -317,6 +318,43 @@ const RightPanel = React.memo(function RightPanel({
   const effectiveGitPath = worktreeNav?.worktreePath || workspacePath
 
   const visibleList = tabOrder.filter(s => visibleTabs[s])
+
+  // 切 tab 时聚焦到 tab 内容（search tab 需聚焦到输入框）
+  const gitContentRef = useRef<HTMLDivElement>(null)
+  const terminalContentRef = useRef<HTMLDivElement>(null)
+  const searchContentRef = useRef<HTMLDivElement>(null)
+  const fileContentRef = useRef<HTMLDivElement>(null)
+  const sectionRefs: Record<GitSection, React.RefObject<HTMLDivElement>> = {
+    git: gitContentRef,
+    terminal: terminalContentRef,
+    search: searchContentRef,
+    file: fileContentRef,
+  }
+  useEffect(() => {
+    if (activeSection === 'search') {
+      // display:none 的元素无法 focus，需要等 React 将 display 切为 flex 后聚焦 input
+      setTimeout(() => {
+        const input = searchContentRef.current?.querySelector('input') as HTMLInputElement | null
+        input?.focus()
+      })
+    } else {
+      sectionRefs[activeSection]?.current?.focus()
+    }
+  }, [activeSection])
+
+  // Alt+Right → 聚焦当前 active tab 内容
+  useEffect(() => {
+    if (rightPanelFocusTrigger !== undefined && rightPanelFocusTrigger > 0) {
+      if (activeSection === 'search') {
+        setTimeout(() => {
+          const input = searchContentRef.current?.querySelector('input') as HTMLInputElement | null
+          input?.focus()
+        })
+      } else {
+        sectionRefs[activeSection]?.current?.focus()
+      }
+    }
+  }, [rightPanelFocusTrigger, activeSection])
 
   // 切换 visibleTabs 后确保持久化
   const handleToggleVisibility = useCallback((section: GitSection) => {
@@ -419,7 +457,7 @@ const RightPanel = React.memo(function RightPanel({
         onToggleCollapse={onToggleCollapse}
       />
 
-      {activeSection === 'git' && (
+      <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none">
         <GitTab
           workspacePath={workspacePath}
           effectiveGitPath={effectiveGitPath}
@@ -427,14 +465,15 @@ const RightPanel = React.memo(function RightPanel({
           onFileSelect={onFileSelect}
           refreshKey={refreshKey}
           activeSessionId={activeSessionId ?? null}
+          isActive={activeSection === 'git'}
           rightTerminalSession={rightTerminalSession ?? null}
           onCloseRightTerminal={onCloseRightTerminal}
           onWorktreeNavChange={setSessionWorktreeNav}
           onDiffScroll={onDiffScroll}
         />
-      )}
+      </div>
 
-      {activeSection === 'terminal' && (
+      <div ref={terminalContentRef} tabIndex={-1} style={{ display: activeSection === 'terminal' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none">
         <AuxTab
           rightTerminalSession={rightTerminalSession ?? null}
           activeSessionId={activeSessionId ?? null}
@@ -443,9 +482,9 @@ const RightPanel = React.memo(function RightPanel({
           onCreateRightTerminal={onCreateRightTerminal}
           onOpenFileFromRightTerminal={onOpenFileFromRightTerminal}
         />
-      )}
+      </div>
 
-      {activeSection === 'search' && (
+      <div ref={searchContentRef} tabIndex={-1} style={{ display: activeSection === 'search' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none">
         <SearchPanel
           cwd={workspacePath}
           onOpenFile={(fullPath, lineNumber) => {
@@ -455,15 +494,15 @@ const RightPanel = React.memo(function RightPanel({
           }}
           focusTrigger={searchFocusTrigger}
         />
-      )}
+      </div>
 
-      {activeSection === 'file' && (
+      <div ref={fileContentRef} tabIndex={-1} style={{ display: activeSection === 'file' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none">
         <FileTab
           workspacePath={workspacePath}
           onOpenFileFromExplorer={onOpenFileFromExplorer}
           fileTreeDepth={fileTreeDepth}
         />
-      )}
+      </div>
     </div>
   )
 })

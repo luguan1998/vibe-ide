@@ -49,6 +49,8 @@ const ZH_MAP: Record<string, string> = {
   'Font Size Decrease': '字体缩小',
   'Panel Tab Right': '右侧标签右移',
   'Panel Tab Left': '右侧标签左移',
+  'Focus Right Panel': '聚焦到右侧面板',
+  'Focus Terminal': '聚焦到终端',
   'Terminal Newline': '终端内换行',
   'Terminal Page Down': '终端向下翻页',
   'Terminal Page Up': '终端向上翻页',
@@ -90,6 +92,8 @@ const ZH_MAP: Record<string, string> = {
   'Stage': '暂存',
   'Unstage': '取消暂存',
   'Discard': '撤销修改',
+  'Discard All': '全部撤销',
+  'Delete All': '全部删除',
   'Refresh': '刷新',
 
   // GitTab - Stage/Clear all
@@ -98,6 +102,8 @@ const ZH_MAP: Record<string, string> = {
 
   // GitTab - Confirm dialog
   'Discard changes to {fileName}? This cannot be undone.': '确定撤销对 {fileName} 的修改？此操作不可恢复。',
+  'Discard all {count} changes? This cannot be undone.': '确定撤销全部 {count} 个文件的修改？此操作不可恢复。',
+  'Delete all {count} untracked files?': '确定删除全部 {count} 个未跟踪文件？',
 
   // GitTab - Conflict dialog
   'Conflicts detected while merging {branch}': '合并 {branch} 时检测到冲突',
@@ -106,6 +112,34 @@ const ZH_MAP: Record<string, string> = {
 
   // GitTab - Conflict warning
   'Conflicted files in staged area. Please resolve conflicts before committing.': '暂存区存在冲突文件，请先解决冲突后再提交',
+
+  // GitTab - Branch context menu
+  'Merge Changes': '合并更改',
+  'Delete Branch': '删除分支',
+
+  // GitTab - Empty states & messages
+  'No git repository found in this workspace': '当前工作目录未找到 Git 仓库',
+  'No changes detected': '没有检测到更改',
+  'No commits yet': '暂无提交',
+  'No branches': '暂无分支',
+
+  // GitTab - Commit area
+  'Commit message...': '输入提交信息...',
+  'Commit (Ctrl+Enter)': '提交 (Ctrl+Enter)',
+  'Files ({count})': '文件 ({count})',
+
+  // GitTab - Commit context menu
+  'Copy Message': '复制提交信息',
+  'Copy Hash': '复制哈希值',
+
+  // GitTab - Section headers
+  'Staged ({count})': '已暂存 ({count})',
+  'Changes ({count})': '已修改 ({count})',
+  'Untracked ({count})': '未跟踪 ({count})',
+  'Commits ({count})': '日志 ({count})',
+  'Branches ({count})': '分支 ({count})',
+  'main': '主分支',
+  'current': '当前分支',
 
   // SearchPanel
   'No active session': '无活动会话',

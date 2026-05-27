@@ -51,10 +51,7 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
 
   useEffect(() => { loadClaudeCommands(); setSelectedCommandIndex(null); hasAutoFocused.current = false }, [effectiveGitPath])
 
-  // 切到 Aux tab 时抢焦点，否则中间 xterm 的 textarea 拦断键盘事件
-  useEffect(() => { containerRef.current?.focus() }, [])
-
-  // 切到 Aux tab 时自动聚焦第一个命令
+  // 自动聚焦第一个命令
   const hasAutoFocused = useRef(false)
   useEffect(() => {
     if (!hasAutoFocused.current && commands.length > 0) {

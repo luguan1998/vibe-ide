@@ -9,6 +9,7 @@ interface GitTabProps {
   onFileSelect?: (filePath: string, diffContent: string, isStaged: boolean, commitHash?: string, fullPath?: string) => void
   refreshKey?: number
   activeSessionId?: string | null
+  isActive?: boolean
   rightTerminalSession?: TerminalSession | null
   onCloseRightTerminal?: (sessionId: string) => void
   onWorktreeNavChange: (updater: (prev: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => void
@@ -55,7 +56,9 @@ const splitPath = (filePath: string): { name: string; dir: string } => {
   return { name: filePath.slice(idx + 1), dir: filePath.slice(0, idx + 1) }
 }
 
-export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll }: GitTabProps) {
+export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, isActive, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll }: GitTabProps) {
+  const isActiveRef = useRef(isActive)
+  isActiveRef.current = isActive
   const { t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -83,7 +86,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const gitChangedHandlerRef = useRef<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
   const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)
-  const [confirmAction, setConfirmAction] = useState<{ type: string; filePath: string; fileName: string } | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ type: string; filePath?: string; fileName?: string; filePaths?: string[]; count?: number } | null>(null)
   const [conflictApply, setConflictApply] = useState<{ branch: string; message: string } | null>(null)
   const [remoteBranches, setRemoteBranches] = useState<{ name: string; remote: string; branch: string }[]>([])
   const [selectedRemote, setSelectedRemote] = useState<string>('')
@@ -130,6 +133,10 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const navigableItemsRef = useRef(navigableItems)
   navigableItemsRef.current = navigableItems
 
+  // 切 session 或切走 tab 时清除键盘导航高亮
+  useEffect(() => { setFocusedIndex(null) }, [activeSessionId])
+  useEffect(() => { if (!isActive) setFocusedIndex(null) }, [isActive])
+
 
   // 当前高亮的标题栏：仅当 focusedIndex 指向 header 类型时
   const focusedHeaderSection = useMemo(() => {
@@ -159,11 +166,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       const result = await window.api.git.status()
       if (result.error) {
         setError(result.error)
+        setStatus(null)
       } else {
         setStatus(result)
       }
     } catch (err: any) {
       setError(err.message)
+      setStatus(null)
     }
     setLoading(false)
   }, [])
@@ -230,6 +239,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     }
     setLoading(false)
   }, [onFileSelect, effectiveGitPath])
+  const handleFileClickRef = useRef(handleFileClick)
+  handleFileClickRef.current = handleFileClick
 
   // Handle commit click - show expanded files and diff
   const handleCommitClick = useCallback(async (hash: string) => {
@@ -309,6 +320,29 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     try { await window.api.git.reset(filePaths); await refreshStatus() }
     finally { setBusy(false) }
   }, [refreshStatus])
+
+  // Discard all unstaged changes
+  const handleDiscardAll = useCallback(async (filePaths: string[]) => {
+    if (filePaths.length === 0) return
+    setBusy(true)
+    try {
+      for (const p of filePaths) { await window.api.git.discard(p) }
+      await refreshStatus()
+    } finally { setBusy(false) }
+  }, [refreshStatus])
+
+  // Delete all untracked files
+  const handleDeleteAllUntracked = useCallback(async (filePaths: string[]) => {
+    if (filePaths.length === 0) return
+    setBusy(true)
+    try {
+      for (const p of filePaths) {
+        const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${p}` : p
+        await window.api.file.delete(fullPath)
+      }
+      await refreshStatus()
+    } finally { setBusy(false) }
+  }, [refreshStatus, effectiveGitPath])
 
   // Commit
   const handleCommit = useCallback(async () => {
@@ -480,23 +514,24 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   useEffect(() => {
     if (!effectiveGitPath || effectiveGitPath === currentGitPath) return
 
-    // Clear old git state immediately to prevent stale data from previous session
-    setStatus(null)
+    // Clear non-UI-critical state; keep status so commit bar stays visible
     setLogs([])
     setBranches([])
     setError(null)
     setSelectedFile(null)
     setDiffContent('')
+    setLoading(true)
 
     const switchWorkspace = async () => {
       const result = await window.api.git.setWorkspace(effectiveGitPath)
       if (result.success) {
         setCurrentGitPath(effectiveGitPath)
-        refreshStatus()
+        await refreshStatus()
         refreshLog()
         refreshBranches()
         refreshStashCount()
       }
+      setLoading(false)
     }
     switchWorkspace()
   }, [effectiveGitPath])
@@ -551,6 +586,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     const handleKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (!isActiveRef.current) return
 
       if (e.key === 'PageDown' || e.key === 'PageUp') {
         e.preventDefault()
@@ -589,14 +625,15 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     return () => window.removeEventListener('keydown', handleKey, true)
   }, [navigableItems, onDiffScroll])
 
-  // focusedIndex 落到文件行时自动打开 diff（仅响应用户导航，status 刷新不触发）
+  // focusedIndex 落到文件行时自动打开 diff（仅响应用户键盘导航）
   useEffect(() => {
     if (focusedIndex === null) return
+    if (!isActive) return
     const items = navigableItemsRef.current
     if (focusedIndex >= items.length) return
     const item = items[focusedIndex]
-    if (item?.type === 'file') handleFileClick(item.file)
-  }, [focusedIndex, handleFileClick])
+    if (item?.type === 'file') handleFileClickRef.current(item.file)
+  }, [focusedIndex])
 
   // Detect conflict markers in staged files
   const hasConflictInStaged = status?.files?.some(f => f.staged && f.status === 'conflicted') ?? false
@@ -651,7 +688,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   <path d="M6 21V9a9 9 0 0 0 9 9" />
                   <path d="M18 3v12" />
                 </svg>
-                <p className="text-sm text-ide-text-muted">No git repository found in this workspace</p>
+                <p className="text-sm text-ide-text-muted">{t('No git repository found in this workspace')}</p>
               </div>
               <button
                 onClick={handleInit}
@@ -684,7 +721,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                           <rect x="1" y="3" width="22" height="5" />
                           <line x1="10" y1="12" x2="14" y2="12" />
                         </svg>
-                        <span>Staged ({stagedFiles.length})</span>
+                        <span>{t('Staged ({count})').replace('{count}', String(stagedFiles.length))}</span>
                         {stats.additions > 0 && <span className="text-ide-success font-mono">+{stats.additions}</span>}
                         {stats.deletions > 0 && <span className="text-ide-danger font-mono">-{stats.deletions}</span>}
                       </div>
@@ -748,19 +785,29 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                         </svg>
-                        <span>Changes ({modifiedFiles.length})</span>
+                        <span>{t('Changes ({count})').replace('{count}', String(modifiedFiles.length))}</span>
                         {stats.additions > 0 && <span className="text-ide-success font-mono">+{stats.additions}</span>}
                         {stats.deletions > 0 && <span className="text-ide-danger font-mono">-{stats.deletions}</span>}
                       </div>
                       {changesExpanded && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleStageAll(modifiedFiles.map(f => f.path)) }}
-                          disabled={busy}
-                          className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'unstaged' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'} disabled:opacity-40 disabled:cursor-not-allowed`}
-                        >
-                          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
-                          {t('Stage All')}
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: 'discardAll', filePaths: modifiedFiles.map(f => f.path), count: modifiedFiles.length }) }}
+                            disabled={busy}
+                            title={t('Discard All')}
+                            className={`text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center disabled:opacity-40`}
+                          >
+                            −
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStageAll(modifiedFiles.map(f => f.path)) }}
+                            disabled={busy}
+                            className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'unstaged' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'} disabled:opacity-40 disabled:cursor-not-allowed`}
+                          >
+                            <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
+                            {t('Stage All')}
+                          </button>
+                        </div>
                       )}
                     </div>
                   )
@@ -817,17 +864,27 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       <line x1="12" y1="18" x2="12" y2="12" />
                       <line x1="9" y1="15" x2="15" y2="15" />
                     </svg>
-                    <span>Untracked ({status.files.filter(f => f.status === 'untracked').length})</span>
+                    <span>{t('Untracked ({count})').replace('{count}', String(status.files.filter(f => f.status === 'untracked').length))}</span>
                   </div>
                   {untrackedExpanded && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path)) }}
-                      disabled={busy}
-                      className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'untracked' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'} disabled:opacity-40 disabled:cursor-not-allowed`}
-                    >
-                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
-                      {t('Stage All')}
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); const untrackedPaths = status!.files.filter(f => f.status === 'untracked').map(f => f.path); setConfirmAction({ type: 'deleteAll', filePaths: untrackedPaths, count: untrackedPaths.length }) }}
+                        disabled={busy}
+                        title={t('Delete All')}
+                        className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center disabled:opacity-40"
+                      >
+                        −
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path)) }}
+                        disabled={busy}
+                        className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'untracked' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'} disabled:opacity-40 disabled:cursor-not-allowed`}
+                      >
+                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M6.25 12.5A2.75 2.75 0 0 0 9 9.75V4.56L6.78 6.78a.75.75 0 0 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06L10.5 4.56v5.19a4.25 4.25 0 0 1-8.5 0v-1a.75.75 0 0 1 1.5 0v1a2.75 2.75 0 0 0 2.75 2.75Z" clipRule="evenodd" /></svg>
+                        {t('Stage All')}
+                      </button>
+                    </div>
                   )}
                 </div>
                 {untrackedExpanded && status.files.filter(f => f.status === 'untracked').map(file => {
@@ -868,7 +925,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             {/* Clean state */}
             {status && status.clean && (
               <div className="px-2 py-2 text-xs text-ide-text-muted text-center">
-                No changes detected
+                {t('No changes detected')}
               </div>
             )}
           </div>
@@ -887,13 +944,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
-                <span>Commits ({logs.length})</span>
+                <span>{t('Commits ({count})').replace('{count}', String(logs.length))}</span>
               </div>
             </div>
             {logExpanded && (
               <div className="flex flex-col">
                 {logs.length === 0 ? (
-                  <div className="px-2 py-2 text-xs text-ide-text-muted text-center">No commits yet</div>
+                  <div className="px-2 py-2 text-xs text-ide-text-muted text-center">{t('No commits yet')}</div>
                 ) : (
                   logs.map(entry => (
                   <div key={entry.hash}>
@@ -918,7 +975,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     {expandedCommit === entry.hash && (
                       <div className="bg-ide-bg border-b border-ide-border animate-fade-in">
                         <div className="pl-5 pr-2 py-1 text-[11px] text-ide-text-muted uppercase tracking-wider bg-ide-hover/50">
-                          Files ({commitFiles.length})
+                          {t('Files ({count})').replace('{count}', String(commitFiles.length))}
                         </div>
                         {commitFiles.map(file => {
                           const { name, dir } = splitPath(file.path)
@@ -967,13 +1024,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   <circle cx="18" cy="6" r="3" />
                   <path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 0-2 2v2" />
                 </svg>
-                <span>Branches ({branches.length})</span>
+                <span>{t('Branches ({count})').replace('{count}', String(branches.length))}</span>
               </div>
             </div>
             {branchesExpanded && (
             <div className="flex flex-col">
               {branches.length === 0 ? (
-                <div className="px-2 py-2 text-xs text-ide-text-muted text-center">No branches</div>
+                <div className="px-2 py-2 text-xs text-ide-text-muted text-center">{t('No branches')}</div>
               ) : (
                 branches.map(branch => {
                   const isOriginalBranch = worktreeNav && branch.name === worktreeNav.originalBranch
@@ -1016,9 +1073,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       <span className="text-xs">{branch.name}</span>
                     </div>
                     {isOriginalBranch ? (
-                      <span className="text-xs text-ide-success">main</span>
+                      <span className="text-xs text-ide-success">{t('main')}</span>
                     ) : branch.current && (
-                      <span className="text-xs text-ide-accent">current</span>
+                      <span className="text-xs text-ide-accent">{t('current')}</span>
                     )}
                   </div>
                 )})
@@ -1105,7 +1162,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 value={commitMessage}
                 onChange={(e) => setCommitMessage(e.target.value)}
                 disabled={busy}
-                placeholder="Commit message..."
+                placeholder={t('Commit message...')}
                 className={`w-full h-20 text-xs bg-ide-bg border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50 disabled:opacity-40 ${focusedCommit ? 'border-ide-accent bg-ide-accent/5' : 'border-ide-border'}`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.ctrlKey) handleCommit()
@@ -1130,7 +1187,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 disabled={busy || !commitMessage.trim() || !status?.files?.some(f => f.staged) || hasConflictInStaged}
                 className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Commit (Ctrl+Enter)
+                {t('Commit (Ctrl+Enter)')}
               </button>
             </>
           )}
@@ -1174,7 +1231,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               setCommitContextMenu(null)
             }}
           >
-            Copy Message
+            {t('Copy Message')}
           </button>
           <button
             className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
@@ -1183,7 +1240,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               setCommitContextMenu(null)
             }}
           >
-            Copy Hash
+            {t('Copy Hash')}
           </button>
         </div>
       )}
@@ -1194,8 +1251,12 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           <div className="bg-ide-bg border border-ide-border rounded shadow-lg p-4 max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm text-ide-text mb-4">
               {confirmAction.type === 'discard'
-                ? t('Discard changes to {fileName}? This cannot be undone.').replace('{fileName}', confirmAction.fileName)
-                : t('Delete {fileName}?').replace('{fileName}', confirmAction.fileName)
+                ? t('Discard changes to {fileName}? This cannot be undone.').replace('{fileName}', confirmAction.fileName!)
+                : confirmAction.type === 'discardAll'
+                ? t('Discard all {count} changes? This cannot be undone.').replace('{count}', String(confirmAction.count))
+                : confirmAction.type === 'deleteAll'
+                ? t('Delete all {count} untracked files?').replace('{count}', String(confirmAction.count))
+                : t('Delete {fileName}?').replace('{fileName}', confirmAction.fileName!)
               }
             </p>
             <div className="flex justify-end gap-2">
@@ -1208,12 +1269,16 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               <button
                 className="px-3 py-1.5 text-xs bg-ide-danger hover:bg-red-600 text-white rounded"
                 onClick={async () => {
-                  const { type, filePath } = confirmAction
+                  const { type, filePath, filePaths } = confirmAction
                   setConfirmAction(null)
                   if (type === 'discard') {
-                    await handleDiscard(filePath)
+                    await handleDiscard(filePath!)
+                  } else if (type === 'discardAll') {
+                    await handleDiscardAll(filePaths!)
+                  } else if (type === 'deleteAll') {
+                    await handleDeleteAllUntracked(filePaths!)
                   } else {
-                    await handleDeleteFile(filePath)
+                    await handleDeleteFile(filePath!)
                   }
                 }}
               >

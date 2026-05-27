@@ -169,6 +169,16 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Ctrl+ArrowLeft',
   },
   {
+    id: 'focus.rightPanel',
+    label: 'Focus Right Panel',
+    defaultKeys: 'Alt+ArrowRight',
+  },
+  {
+    id: 'focus.terminal',
+    label: 'Focus Terminal',
+    defaultKeys: 'Alt+ArrowLeft',
+  },
+  {
     id: 'terminal.newline',
     label: 'Terminal Newline',
     defaultKeys: 'Shift+Enter',
