@@ -49,6 +49,7 @@ interface TerminalViewProps {
   fontSize?: number
   isAux?: boolean
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
+  onOscTitle?: (sessionId: string, title: string) => void
   newlineShortcut?: string // e.g. "Shift+Enter"
   pageDownShortcut?: string // e.g. "PageDown"
   pageUpShortcut?: string // e.g. "PageUp"
@@ -294,17 +295,31 @@ class FileLinkProvider implements ILinkProvider {
 const DETECTION_DELAY = 2000  // term 启动 2s 后开始检测
 const IDLE_THRESHOLD = 2000   // 2秒无输出 → 判空闲
 const RUNNING_DEBOUNCE = 300  // 300ms 连续输出 → 切忙碌
+// OSC 标题检测正则（模块级常量，避免每次 onData 重新编译）
+// 匹配 OSC 0 (图标+标题) / OSC 1 (图标) / OSC 2 (窗口标题)
+const OSC_TITLE_RE = /\x1b\](0|1|2);([^\x07\x1b]*?)(\x07|\x1b\\)/g
+
 /**
- * 🧘 过滤所有 ANSI escape 序列（CSI/OSC/回退符），只保留纯文本用于判断空闲
+ * 🧘 过滤所有 ANSI escape 序列（CSI/OSC/回退符），同时提取 OSC 标题
+ * 一次正则扫描完成 strip + 标题提取，避免重复遍历
  */
-function stripAnsiEscapes(data: string): string {
-  return data
-    .replace(/\x1b\[[\x20-\x3F]*[\x40-\x7E]/g, '')  // CSI: 全量 (ECMA-48 参数0x20-3F, 终字节0x40-7E)
-    .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, '')  // OSC: 标题/颜色等
+function stripAnsiAndExtractOscTitle(data: string): { clean: string; oscTitle: string | null } {
+  let oscTitle: string | null = null
+  const clean = data
+    .replace(/\x1b\[[\x20-\x3F]*[\x40-\x7E]/g, '')  // CSI
+    .replace(OSC_TITLE_RE, (_m, _code, text) => {
+      if (!oscTitle) oscTitle = text.trim()  // 取第一个 OSC 标题
+      return ''
+    })
     .replace(/[\b\x08]/g, '')                // 回退符
+  return { clean, oscTitle }
 }
 
-const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onAgentStatusChange, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
+function stripAnsiEscapes(data: string): string {
+  return stripAnsiAndExtractOscTitle(data).clean
+}
+
+const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onAgentStatusChange, onOscTitle, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -319,6 +334,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   pageDownShortcutRef.current = pageDownShortcut
   const pageUpShortcutRef = useRef(pageUpShortcut)
   pageUpShortcutRef.current = pageUpShortcut
+  const onOscTitleRef = useRef(onOscTitle)
+  onOscTitleRef.current = onOscTitle
   const detectionReadyRef = useRef(false)    // 1s 延时后才开始检测
   const lastOutputRef = useRef(0)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -546,39 +563,48 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       if (data.id === sessionId && xtermRef.current) {
         xtermRef.current.write(data.data)
 
-        // Agent idle detection (main terminals only)
-        if (!isAux && onAgentStatusChange && detectionReadyRef.current) {
-          const meaningful = stripAnsiEscapes(data.data).trim()
-          if (!meaningful) return
+        // Agent idle detection + OSC title extraction (main terminals only)
+        // 一次 stripAnsiAndExtractOscTitle 同时完成 OSC 标题提取和 ANSI strip，避免重复正则扫描
+        if (!isAux && (onAgentStatusChange || onOscTitleRef.current) && detectionReadyRef.current) {
+          const { clean, oscTitle } = stripAnsiAndExtractOscTitle(data.data)
 
-          lastOutputRef.current = Date.now()
-          const wasIdle = prevStatusRef.current === 'idle'
-
-          // 🌀 累计活动达 RUNNING_DEBOUNCE → running
-          if (wasIdle) {
-            if (activationStartRef.current === 0) {
-              activationStartRef.current = Date.now()
-            }
-            if (Date.now() - activationStartRef.current >= RUNNING_DEBOUNCE) {
-              prevStatusRef.current = 'running'
-              activationStartRef.current = 0
-              onAgentStatusChange(sessionId, 'running')
-            }
+          // OSC 标题 → 通知父组件
+          if (oscTitle && onOscTitleRef.current) {
+            onOscTitleRef.current(sessionId, oscTitle)
           }
 
-          // 🔄 重置静默定时器：停止输出 IDLE_THRESHOLD 后 → idle
-          if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
-          idleTimerRef.current = setTimeout(() => {
-            if (Date.now() - lastOutputRef.current >= IDLE_THRESHOLD) {
-              prevStatusRef.current = 'idle'
-              onAgentStatusChange!(sessionId, 'idle')
+          // Idle 检测
+          if (onAgentStatusChange && clean.trim()) {
+
+            lastOutputRef.current = Date.now()
+            const wasIdle = prevStatusRef.current === 'idle'
+
+            // 🌀 累计活动达 RUNNING_DEBOUNCE → running
+            if (wasIdle) {
+              if (activationStartRef.current === 0) {
+                activationStartRef.current = Date.now()
+              }
+              if (Date.now() - activationStartRef.current >= RUNNING_DEBOUNCE) {
+                prevStatusRef.current = 'running'
+                activationStartRef.current = 0
+                onAgentStatusChange(sessionId, 'running')
+              }
             }
-            if (activationStartRef.current > 0 &&
-                Date.now() - lastOutputRef.current >= IDLE_THRESHOLD + RUNNING_DEBOUNCE) {
-              activationStartRef.current = 0
-            }
-            idleTimerRef.current = null
-          }, IDLE_THRESHOLD)
+
+            // 🔄 重置静默定时器：停止输出 IDLE_THRESHOLD 后 → idle
+            if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+            idleTimerRef.current = setTimeout(() => {
+              if (Date.now() - lastOutputRef.current >= IDLE_THRESHOLD) {
+                prevStatusRef.current = 'idle'
+                onAgentStatusChange!(sessionId, 'idle')
+              }
+              if (activationStartRef.current > 0 &&
+                  Date.now() - lastOutputRef.current >= IDLE_THRESHOLD + RUNNING_DEBOUNCE) {
+                activationStartRef.current = 0
+              }
+              idleTimerRef.current = null
+            }, IDLE_THRESHOLD)
+          }
         }
       }
     })

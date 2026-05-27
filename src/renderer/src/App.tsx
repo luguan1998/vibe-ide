@@ -139,6 +139,9 @@ export default function App() {
   const [historySelectedIndex, setHistorySelectedIndex] = useState(0)
   const showHistoryRef = useRef(false)
   const historySelectedIndexRef = useRef(0)
+  const sessionsRef = useRef(sessions)
+  sessionsRef.current = sessions
+  const manuallyRenamedRef = useRef<Set<string>>(new Set())
   const commandHistoryRef = useRef(commandHistory)
   const historyListRef = useRef<HTMLDivElement>(null)
   const [agentStatus, setAgentStatus] = useState<Record<string, 'running' | 'idle'>>({})
@@ -246,6 +249,26 @@ export default function App() {
       if (prev[sessionId] === status) return prev
       return { ...prev, [sessionId]: status }
     })
+  }, [])
+
+  // OSC 标题变更回调：仅当用户未手动改过名时自动替换
+  const handleOscTitleChange = useCallback(async (sessionId: string, title: string) => {
+    if (manuallyRenamedRef.current.has(sessionId)) return
+
+    // 去掉前缀 spinner/状态字符（CC 思考动画：✻⠐·等），保留正文
+    // braille 区块 U+2800-U+28FF 覆盖所有盲文点字 spinner
+    const clean = title.replace(/^[\s✢✳∗✻✽·\*⠀-⣿]+/, '').trim()
+    if (!clean) return
+
+    // 过滤无意义的 OSC 标题
+    if (/[\\\/]/.test(clean)) return       // 路径类（如 PowerShell 进程路径）
+    const shellNames = ['powershell.exe', 'pwsh.exe', 'cmd.exe', 'bash.exe', 'wsl.exe', 'powershell', 'pwsh', 'cmd', 'bash', 'wsl']
+    if (shellNames.includes(clean.toLowerCase())) return  // shell 已知名
+
+    const result = await window.api.terminal.rename(sessionId, clean)
+    if (result.success && result.session) {
+      setSessions(prev => prev.map(s => s.id === sessionId ? result.session! : s))
+    }
   }, [])
 
   // Track terminal commands per session
@@ -501,6 +524,7 @@ export default function App() {
 
   // Rename a terminal session
   const handleRenameSession = useCallback(async (id: string, newName: string) => {
+    manuallyRenamedRef.current.add(id)
     const result = await window.api.terminal.rename(id, newName)
     if (result.success && result.session) {
       setSessions(prev => prev.map(s => s.id === id ? result.session! : s))
@@ -800,7 +824,7 @@ export default function App() {
                   className="flex-1 flex flex-col overflow-hidden"
                   style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
                 >
-                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} />
+                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
                 </div>
               ))}
             </Suspense>
@@ -845,9 +869,8 @@ export default function App() {
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowHistory(false)}>
             <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[600px] max-h-[500px] flex flex-col" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-4 py-2 border-b border-ide-border shrink-0">
-                <span className="text-sm font-semibold text-ide-text">{sessionName}</span>
-                <span className="text-xs text-ide-text-muted">{cmds.length} commands</span>
+              <div className="flex items-center justify-center px-4 py-2.5 border-b border-ide-border shrink-0 bg-ide-sidebar">
+                <span className="text-sm font-semibold text-ide-text truncate">{sessionName}</span>
               </div>
               <div className="flex-1 overflow-y-auto" ref={historyListRef}>
                 {cmds.length === 0 ? (

@@ -530,6 +530,7 @@ const SessionPanel = React.memo(function SessionPanel({
                     : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
               } ${dragIndex === index ? 'opacity-40' : ''} ${dropIndex === index && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
               onClick={() => onSwitchSession(session.id)}
+              onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
               onContextMenu={(e) => handleContextMenu(e, session.id)}
               onMouseEnter={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect()
@@ -736,7 +737,7 @@ const SessionPanel = React.memo(function SessionPanel({
       {/* History Hover Popover */}
       {hoverPreview && (() => {
         const cmds = commandHistory[hoverPreview.sessionId] || []
-        const displayed = cmds.slice(-20)
+        const displayed = cmds.slice(-30)
         return (
           <div
             className="fixed z-50 bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-80 max-h-64 flex flex-col"
@@ -753,6 +754,9 @@ const SessionPanel = React.memo(function SessionPanel({
               }, 300)
             }}
           >
+            <div className="flex items-center px-3 py-1 border-b border-ide-border shrink-0 bg-ide-sidebar">
+              <span className="text-xs font-semibold text-ide-text truncate">{hoverPreview.name}</span>
+            </div>
             <div className="flex-1 overflow-y-auto py-1">
               {cmds.length === 0 ? (
                 <div className="px-3 py-4 text-xs text-ide-text-muted text-center">
