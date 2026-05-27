@@ -79,7 +79,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [currentGitPath, setCurrentGitPath] = useState<string | null>(null)
+  const pendingGitPathRef = useRef<string | null>(null)
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   const [commitDiff, setCommitDiff] = useState<string>('')
@@ -502,7 +502,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       const result = await window.api.git.init()
       if (result.success) {
         setError(null)
-        setCurrentGitPath(workspacePath)
+        pendingGitPathRef.current = workspacePath
         await refreshStatus()
         await refreshLog()
         await refreshBranches()
@@ -512,9 +512,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
   // Switch git workspace when effective path changes
   useEffect(() => {
-    if (!effectiveGitPath || effectiveGitPath === currentGitPath) return
+    if (!effectiveGitPath || pendingGitPathRef.current === effectiveGitPath) return
 
-    // Clear non-UI-critical state; keep status so commit bar stays visible
+    pendingGitPathRef.current = effectiveGitPath
+    const targetPath = effectiveGitPath
+
     setLogs([])
     setBranches([])
     setError(null)
@@ -523,9 +525,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     setLoading(true)
 
     const switchWorkspace = async () => {
-      const result = await window.api.git.setWorkspace(effectiveGitPath)
+      const result = await window.api.git.setWorkspace(targetPath)
+      if (pendingGitPathRef.current !== targetPath) return
       if (result.success) {
-        setCurrentGitPath(effectiveGitPath)
         await refreshStatus()
         refreshLog()
         refreshBranches()
