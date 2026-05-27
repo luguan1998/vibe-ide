@@ -524,7 +524,10 @@ export default function App() {
 
   // Rename a terminal session
   const handleRenameSession = useCallback(async (id: string, newName: string) => {
-    manuallyRenamedRef.current.add(id)
+    const oldSession = sessionsRef.current.find(s => s.id === id)
+    if (oldSession && oldSession.name !== newName) {
+      manuallyRenamedRef.current.add(id)
+    }
     const result = await window.api.terminal.rename(id, newName)
     if (result.success && result.session) {
       setSessions(prev => prev.map(s => s.id === id ? result.session! : s))
