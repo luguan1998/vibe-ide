@@ -22,9 +22,13 @@ function parseCommands(md: string): Array<{ command: string; comment: string }> 
     for (const line of match[1].split('\n')) {
       const trimmed = line.trim()
       if (!trimmed) continue
+      // 跳过注释行
+      if (/^\s*(\/\/|#)/.test(trimmed)) continue
       const hashIdx = trimmed.indexOf('#')
       if (hashIdx >= 0) {
-        result.push({ command: trimmed.slice(0, hashIdx).trim(), comment: trimmed.slice(hashIdx + 1).trim() })
+        const cmd = trimmed.slice(0, hashIdx).trim()
+        if (!cmd) continue
+        result.push({ command: cmd, comment: trimmed.slice(hashIdx + 1).trim() })
       } else {
         result.push({ command: trimmed, comment: '' })
       }
