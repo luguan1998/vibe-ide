@@ -102,7 +102,7 @@ function DocTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, workspac
   return (
     <>
       <div
-        className={`pr-2 py-0.5 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none ${!node.isDir ? 'hover:text-ide-accent' : ''}`}
+        className={`pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 select-none ${!node.isDir ? 'hover:text-ide-accent' : ''}`}
         style={{ paddingLeft }}
         onClick={() => {
           if (node.isDir) { onToggle(node.path); return }
@@ -137,9 +137,9 @@ function DocTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, workspac
             )
           })()
         )}
-        <span className="text-[11px] truncate text-ide-text">{node.name}</span>
+        <span className="text-xs truncate text-ide-text">{node.name}</span>
         {node.comment && (
-          <span className="text-[10px] text-ide-text-muted/60 truncate ml-2">{node.comment}</span>
+          <span className="text-[11px] text-ide-accent truncate ml-2">{node.comment}</span>
         )}
       </div>
       {node.isDir && isExpanded && node.children.map(child => (

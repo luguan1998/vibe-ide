@@ -275,6 +275,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
   const [confirmAction, setConfirmAction] = useState<{ type: string; filePath: string; fileName: string } | null>(null)
   const [docTree, setDocTree] = useState<DocTreeNode[]>([])
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
+  const [archExpanded, setArchExpanded] = useState(true)
   const { t } = useI18n()
 
   // Load file tree
@@ -459,11 +460,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
       </div>
       {docTree.length > 0 && (
         <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '45%', overflowY: 'auto' }}>
-          <div className="px-2 py-1 text-[10px] text-ide-text-muted uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1">
-            <Lightbulb size={12} className="text-ide-text-muted" />
+          <div
+            className={`px-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none ${archExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
+            onClick={() => setArchExpanded(!archExpanded)}
+          >
+            <Lightbulb size={12} className={archExpanded ? 'text-ide-warning' : 'text-ide-text-muted'} />
             <span>arch</span>
           </div>
-          {docTree.map(node => (
+          {archExpanded && docTree.map(node => (
             <DocTreeItem
               key={node.path}
               node={node}

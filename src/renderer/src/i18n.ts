@@ -86,6 +86,12 @@ const ZH_MAP: Record<string, string> = {
   'Confirm': '确认',
   'Delete {fileName}?': '确定删除 {fileName}？',
 
+  // GitTab - Stage/Unstage/Discard tooltips
+  'Stage': '暂存',
+  'Unstage': '取消暂存',
+  'Discard': '撤销修改',
+  'Refresh': '刷新',
+
   // GitTab - Stage/Clear all
   'Stage All': '全部暂存',
   'Clear All': '全部取消',
