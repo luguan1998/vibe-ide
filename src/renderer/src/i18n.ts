@@ -132,12 +132,8 @@ const ZH_MAP: Record<string, string> = {
   'Copy Message': '复制提交信息',
   'Copy Hash': '复制哈希值',
 
-  // GitTab - Section headers
-  'Staged ({count})': '已暂存 ({count})',
-  'Changes ({count})': '已修改 ({count})',
-  'Untracked ({count})': '未跟踪 ({count})',
-  'Commits ({count})': '日志 ({count})',
-  'Branches ({count})': '分支 ({count})',
+  // GitTab - Section headers (keep English)
+
   'main': '主分支',
   'current': '当前分支',
 
