@@ -210,6 +210,25 @@ function extractShellCommand(line: string): string | null {
 }
 
 /**
+ * 将行字符串中的字符索引映射到 terminal buffer 的 cell 位置（1-based）
+ * 正确处理 CJK 宽字符（width=2 占 2 cell）和 width=0 的尾随 cell
+ */
+function mapStringIndexToCell(line: import('@xterm/xterm').IBufferLine, stringIndex: number): number {
+  let cellX = 0
+  let strIdx = 0
+  for (let i = 0; i < line.length && strIdx <= stringIndex; i++) {
+    const cell = line.getCell(i)
+    if (!cell) continue
+    const width = cell.getWidth()
+    if (width === 0) continue
+    if (strIdx === stringIndex) return cellX + 1
+    strIdx += cell.getChars().length || 1
+    cellX += width
+  }
+  return cellX + 1
+}
+
+/**
  * 自定义链接提供者，用于检测文件路径并提供点击跳转
  */
 class FileLinkProvider implements ILinkProvider {
@@ -258,9 +277,8 @@ class FileLinkProvider implements ILinkProvider {
       const parsed = parseFilePath(matchedText, this._cwd)
       if (!parsed) continue
 
-      // 计算在 terminal buffer 中的位置
-      const startX = startIndex + 1  // xterm 使用 1-based
-      const endX = startIndex + matchedText.length
+      const startX = mapStringIndexToCell(line, startIndex)
+      const endX = mapStringIndexToCell(line, startIndex + matchedText.length)
 
       const range: IBufferRange = {
         start: { x: startX, y: y },
