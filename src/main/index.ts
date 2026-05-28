@@ -229,6 +229,9 @@ app.whenReady().then(() => {
     }
   })
 
+  // App version
+  ipcMain.handle(IPC_CHANNELS.APP_VERSION, () => app.getVersion())
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

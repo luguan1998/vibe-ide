@@ -105,6 +105,7 @@ const SessionPanel = React.memo(function SessionPanel({
   focusSettingsTrigger = 0
 }: SessionPanelProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [appVersion, setAppVersion] = useState('')
   const [showFileFilterRules, setShowFileFilterRules] = useState(false)
   const [fileFilterRules, setFileFilterRules] = useState<string[]>(() => loadFilterRules())
   const [fileFilterRulesDraft, setFileFilterRulesDraft] = useState('')
@@ -219,6 +220,8 @@ const SessionPanel = React.memo(function SessionPanel({
     }
   }, [focusSettingsTrigger])
 
+  useEffect(() => { window.api.appVersion().then(setAppVersion).catch(() => {}) }, [])
+
   const handleContextMenu = (e: React.MouseEvent, sessionId: string) => {
     e.preventDefault()
     e.stopPropagation()
@@ -301,15 +304,20 @@ const SessionPanel = React.memo(function SessionPanel({
             {showConfigMenu && (
               <div style={configMenuStyle} className="bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 config-menu-area">
                 {/* Language toggle */}
-                <div className="inline-flex items-center rounded-md bg-ide-hover overflow-hidden mx-3 my-1.5">
-                  <button
-                    className={`px-2 py-1 text-[11px] transition-colors ${lang === 'zh' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
-                    onClick={() => setLang('zh')}
-                  >中</button>
-                  <button
-                    className={`px-2 py-1 text-[11px] transition-colors ${lang === 'en' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
-                    onClick={() => setLang('en')}
-                  >EN</button>
+                <div className="flex items-center justify-between mx-3 my-1.5">
+                  <div className="inline-flex items-center rounded-md bg-ide-hover overflow-hidden">
+                    <button
+                      className={`px-2 py-1 text-[11px] transition-colors ${lang === 'zh' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                      onClick={() => setLang('zh')}
+                    >中</button>
+                    <button
+                      className={`px-2 py-1 text-[11px] transition-colors ${lang === 'en' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                      onClick={() => setLang('en')}
+                    >EN</button>
+                  </div>
+                  {appVersion && (
+                    <span className="text-[11px] text-ide-text-muted/60">v{appVersion}</span>
+                  )}
                 </div>
                 <div className="border-t border-ide-border mt-1 pt-1">
                 {/* Theme flyout */}

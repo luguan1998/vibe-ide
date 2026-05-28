@@ -1,3 +1,5 @@
+import iconUrl from './icon.ico'
+
 import React, { useState, useCallback, lazy, Suspense, useRef, useEffect } from 'react'
 import SessionPanel from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
@@ -82,6 +84,7 @@ declare global {
       theme: {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
       }
+      appVersion: () => Promise<string>
       onFontAdjust: (callback: (delta: number) => void) => any
       removeFontAdjustListener: (handler?: any) => void
       onFocusSettings: (callback: () => void) => any
@@ -760,6 +763,7 @@ export default function App() {
     <div className="h-full w-full flex flex-col bg-ide-bg">
       {/* Title Bar */}
       <div className="titlebar-drag h-9 bg-ide-sidebar border-b border-ide-border flex items-center px-4 select-none shrink-0">
+        <img src={iconUrl} className="w-[18px] h-[18px] mr-1.5 shrink-0 -ml-1" alt="" />
         <span className="text-ide-text-muted text-sm font-medium tracking-wide">Vibe IDE</span>
         <div className="flex-1" />
         <button

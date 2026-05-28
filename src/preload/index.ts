@@ -149,7 +149,10 @@ const api = {
   theme: {
     setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) =>
       ipcRenderer.send(IPC_CHANNELS.TITLE_BAR_UPDATE, options)
-  }
+  },
+
+  // App
+  appVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_VERSION) as Promise<string>
 
 }
 
