@@ -69,7 +69,7 @@ interface SessionPanelProps {
   sessions: TerminalSession[]
   activeSessionId: string | null
   onCreateSession: (shell?: string) => void
-  onCloneSession: (cwd: string, shell?: string) => void
+  onCloneSession: (parentId: string | null, cwd: string, shell?: string) => void
   onSwitchSession: (id: string) => void
   onCloseSession: (id: string) => void
   onRenameSession?: (id: string, newName: string) => Promise<void>
@@ -665,7 +665,7 @@ const SessionPanel = React.memo(function SessionPanel({
             onClick={() => {
               const session = sessions.find(s => s.id === contextMenu.sessionId)
               if (session) {
-                onCloneSession(session.cwd, session.shell)
+                onCloneSession(session.id, session.cwd, session.shell)
               }
               setContextMenu(null)
             }}
@@ -719,7 +719,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   key={`${dir}-${i}`}
                   className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
                   onClick={() => {
-                    onCloneSession(dir, termType)
+                    onCloneSession(null, dir, termType)
                     setEmptyAreaMenu(null)
                   }}
                 >

@@ -483,11 +483,18 @@ export default function App() {
     }
   }, [handleCreateSessionAt])
 
-  // Clone a terminal session (same cwd)
-  const handleCloneSession = useCallback(async (cwd: string, shell?: string) => {
+  // Clone a terminal session (same cwd), insert below parent
+  const handleCloneSession = useCallback(async (parentId: string | null, cwd: string, shell?: string) => {
     try {
       const session = await window.api.terminal.create({ cwd, shell })
-      setSessions(prev => [...prev, session])
+      setSessions(prev => {
+        if (parentId == null) return [...prev, session]
+        const parentIndex = prev.findIndex(s => s.id === parentId)
+        if (parentIndex === -1) return [...prev, session]
+        const next = [...prev]
+        next.splice(parentIndex + 1, 0, session)
+        return next
+      })
       setActiveSessionId(session.id)
       setCenterView('terminal')
       setDiffFile(null)
