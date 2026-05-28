@@ -17,7 +17,7 @@ interface RightPanelProps {
   onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
   onCloseRightTerminal?: (sessionId: string) => void
   searchFocusTrigger?: number
-  rightPanelFocusTrigger?: number
+
   onOpenFileFromExplorer?: (fullPath: string) => void
   fileTreeDepth?: number
   onDiffScroll?: (delta: number) => void
@@ -305,7 +305,7 @@ const RightPanel = React.memo(function RightPanel({
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
   rightTerminalSession, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
-  searchFocusTrigger, rightPanelFocusTrigger, onOpenFileFromExplorer,
+  searchFocusTrigger, onOpenFileFromExplorer,
   fileTreeDepth = 5, onDiffScroll,
   onToggleCollapse
 }: RightPanelProps) {
@@ -332,29 +332,14 @@ const RightPanel = React.memo(function RightPanel({
   }
   useEffect(() => {
     if (activeSection === 'search') {
-      // display:none 的元素无法 focus，需要等 React 将 display 切为 flex 后聚焦 input
       setTimeout(() => {
         const input = searchContentRef.current?.querySelector('input') as HTMLInputElement | null
         input?.focus()
       })
     } else {
-      sectionRefs[activeSection]?.current?.focus()
+      sectionRefs[activeSection]?.current?.focus({ preventScroll: true })
     }
   }, [activeSection])
-
-  // Alt+Right → 聚焦当前 active tab 内容
-  useEffect(() => {
-    if (rightPanelFocusTrigger !== undefined && rightPanelFocusTrigger > 0) {
-      if (activeSection === 'search') {
-        setTimeout(() => {
-          const input = searchContentRef.current?.querySelector('input') as HTMLInputElement | null
-          input?.focus()
-        })
-      } else {
-        sectionRefs[activeSection]?.current?.focus()
-      }
-    }
-  }, [rightPanelFocusTrigger, activeSection])
 
   // 切换 visibleTabs 后确保持久化
   const handleToggleVisibility = useCallback((section: GitSection) => {
@@ -481,6 +466,7 @@ const RightPanel = React.memo(function RightPanel({
           worktreeNav={worktreeNav}
           onCreateRightTerminal={onCreateRightTerminal}
           onOpenFileFromRightTerminal={onOpenFileFromRightTerminal}
+          isActive={activeSection === 'terminal'}
         />
       </div>
 

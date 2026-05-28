@@ -589,6 +589,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
       if (!isActiveRef.current) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
 
       if (e.key === 'PageDown' || e.key === 'PageUp') {
         e.preventDefault()

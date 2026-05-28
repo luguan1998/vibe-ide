@@ -11,14 +11,17 @@ interface AuxTabProps {
   worktreeNav: { originalPath: string; worktreePath: string; originalBranch: string } | null
   onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
+  isActive?: boolean
 }
 
-export default function AuxTab({ rightTerminalSession, activeSessionId, effectiveGitPath, worktreeNav, onCreateRightTerminal, onOpenFileFromRightTerminal }: AuxTabProps) {
+export default function AuxTab({ rightTerminalSession, activeSessionId, effectiveGitPath, worktreeNav, onCreateRightTerminal, onOpenFileFromRightTerminal, isActive }: AuxTabProps) {
   const [commands, setCommands] = useState<Array<{ command: string; comment: string }>>([])
   const [selectedCommandIndex, setSelectedCommandIndex] = useState<number | null>(null)
   const pendingCommandRef = useRef<string | null>(null)
   const selectedCommandIndexRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const isActiveRef = useRef(isActive)
+  isActiveRef.current = isActive
   const { t } = useI18n()
 
   const handleRunCommand = useCallback((command: string) => {
@@ -51,6 +54,10 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
 
   useEffect(() => { loadClaudeCommands(); setSelectedCommandIndex(null); hasAutoFocused.current = false }, [effectiveGitPath])
 
+  // 切 session 或切走 tab 时清除键盘导航高亮
+  useEffect(() => { setSelectedCommandIndex(null) }, [activeSessionId])
+  useEffect(() => { if (!isActive) { setSelectedCommandIndex(null); hasAutoFocused.current = false } }, [isActive])
+
   // 自动聚焦第一个命令
   const hasAutoFocused = useRef(false)
   useEffect(() => {
@@ -68,6 +75,8 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
     const handleKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (!isActiveRef.current) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
 
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         if (commands.length === 0) return

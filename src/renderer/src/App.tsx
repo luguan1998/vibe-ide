@@ -132,7 +132,7 @@ export default function App() {
   const [showSquiggles, setShowSquiggles] = useState(false)
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
-  const [rightPanelFocusTrigger, setRightPanelFocusTrigger] = useState(0)
+
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
   const [diffScrollTrigger, setDiffScrollTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
@@ -298,47 +298,38 @@ export default function App() {
         }
       }
 
-      // terminal.next / terminal.prev → switch terminal session
+      // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
       if (eventMatchesBinding(e, bindings['terminal.next'])) {
         e.preventDefault()
+        e.stopImmediatePropagation()
+        ;(document.activeElement as HTMLElement)?.blur()
         const idx = sessions.findIndex(s => s.id === activeSessionId)
         const next = (idx + 1) % sessions.length
         if (sessions[next]) {
           setActiveSessionId(sessions[next].id)
           setCenterView('terminal')
           setDiffFile(null)
+          setTimeout(() => {
+            terminalRefs.current[sessions[next].id]?.focus()
+          }, 0)
         }
       }
       if (eventMatchesBinding(e, bindings['terminal.prev'])) {
         e.preventDefault()
+        e.stopImmediatePropagation()
+        ;(document.activeElement as HTMLElement)?.blur()
         const idx = sessions.findIndex(s => s.id === activeSessionId)
         const next = (idx - 1 + sessions.length) % sessions.length
         if (sessions[next]) {
           setActiveSessionId(sessions[next].id)
           setCenterView('terminal')
           setDiffFile(null)
-        }
-      }
-
-      // focus.rightPanel → 聚焦到右侧面板当前 tab
-      if (eventMatchesBinding(e, bindings['focus.rightPanel'])) {
-        e.preventDefault()
-        e.stopImmediatePropagation()
-        setRightPanelFocusTrigger(k => k + 1)
-      }
-
-      // focus.terminal → 聚焦到中间终端
-      if (eventMatchesBinding(e, bindings['focus.terminal'])) {
-        e.preventDefault()
-        e.stopImmediatePropagation()
-        if (activeSessionId) {
-          setCenterView('terminal')
-          setDiffFile(null)
           setTimeout(() => {
-            terminalRefs.current[activeSessionId]?.focus()
+            terminalRefs.current[sessions[next].id]?.focus()
           }, 0)
         }
       }
+
 
       // terminal.history → toggle command history popup
       if (eventMatchesBinding(e, bindings['terminal.history'])) {
@@ -885,7 +876,7 @@ export default function App() {
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
             searchFocusTrigger={searchFocusTrigger}
-            rightPanelFocusTrigger={rightPanelFocusTrigger}
+
             fileTreeDepth={fileTreeDepth}
             onDiffScroll={handleDiffScroll}
             onToggleCollapse={handleToggleRightPanel}

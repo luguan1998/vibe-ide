@@ -1,10 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-Vibe IDE — an Electron-based desktop IDE with native terminal, git management, file diff/edit, content search, and session management. Built with electron-vite, React, TypeScript, and Tailwind CSS.
+Vibe IDE — Electron-based desktop IDE with native terminal, git, file diff/edit, content search, and session management. Built with electron-vite, React, TypeScript, Tailwind CSS.
 
 ## UI Coding Rules
 
@@ -13,137 +9,78 @@ Vibe IDE — an Electron-based desktop IDE with native terminal, git management,
 3. **细节照抄** — 圆点、图标、颜色等视觉细节照搬模板写法，不变种（如 `style={{ backgroundColor: rgb(...) }}` 不改为 `var(--xxx)`）
 4. **遍历交互态** — 改完后脑中过一遍 hover/选中/空态/中英文/分隔线覆盖范围
 5. **信息不过二** — 同一份数据出现两次以上，立刻抽共享常量，不种重复因
-6. **禁用同步弹窗** — 严禁使用 `confirm()`、`prompt()`、`alert()` 等同步阻塞式浏览器原生弹窗，会导致终端状态机异常。确认/输入类交互统一使用项目已有的异步 Modal 模式（参考 `confirmAction` 状态 + fixed 定位弹窗，或内联 `<input>` 编辑）
-7. **被调先于主调** — `const` 声明（含 `useCallback`）不提升，被调函数必须在调用方之前定义。新增 `useCallback` 时先检查是否有其他 callback 引用它，若有则放在引用者上方。违反会触发 `ReferenceError: Cannot access 'xxx' before initialization`
+6. **禁用同步弹窗** — 严禁使用 `confirm()`、`prompt()`、`alert()` 等同步阻塞式浏览器原生弹窗。确认/输入类交互统一使用异步 Modal 模式（参考 `confirmAction` 状态 + fixed 定位弹窗，或内联 `<input>` 编辑）
+7. **被调先于主调** — `const` 声明（含 `useCallback`）不提升，被调函数必须在调用方之前定义。违反会触发 `ReferenceError: Cannot access 'xxx' before initialization`
 
 ## Commands
 
-### Development (start the app)
 ```bash
-npm install        # First time: install dependencies (node-pty requires native build tools)
-npm run dev        # Start dev mode with hot reload (launches Electron window)
-```
-
-### Build
-```bash
-npm run build      # Compile all layers (main, preload, renderer) to ./out/
-npm run build:win  # Package win exe to ./out/
-npm run preview    # Run the built app from ./out/ (no hot reload)
+npm run dev        # Start dev with hot reload
+npm run build      # Compile all layers to ./out/
+npm run build:win  # Package win exe
 npm test           # test
-```
-
-### version
-```bash
-npm version patch   # 0.1.0 → 0.1.1  修bug                                                  
-npm version minor   # 0.1.0 → 0.2.0  新功能                                                 
-npm version major   # 0.1.0 → 1.0.0  破坏性变更
+npm version patch  # 0.1.0 → 0.1.1  修bug
+npm version minor  # 0.1.0 → 0.2.0  新功能
 ```
 
 ## Architecture
-
-### Electron multi-process structure (electron-vite)
-
-The app follows standard Electron separation with electron-vite managing builds:
 
 ```
 src/
 ├── main/                         # 主进程 (Node.js)
 │   ├── index.ts                  # 应用生命周期、窗口管理、IPC 注册
 │   ├── pty.ts                    # node-pty 终端会话管理
-│   ├── git.ts                    # simple-git 版本控制操作
+│   ├── git.ts                    # simple-git 版本控制
 │   ├── file.ts                   # 文件系统读写、目录树
 │   └── search.ts                 # ripgrep 内容搜索
 ├── preload/
-│   └── index.ts                  # contextBridge 桥接层
-├── renderer/
-│   ├── index.html                # 入口 HTML
-│   └── src/
-│       ├── main.tsx              # React 挂载入口
-│       ├── App.tsx               # 三栏布局、会话管理、全局状态
-│       ├── styles/
-│       │   └── globals.css       # Tailwind 基础 + CSS 变量 + 自定义动画
-│       ├── components/
-│       │   ├── SessionPanel.tsx  # 左侧会话列表面板
-│       │   ├── TerminalView.tsx  # xterm.js 终端视图
-│       │   ├── DiffViewer.tsx    # Monaco 代码编辑器/Diff 视图
-│       │   ├── RightPanel.tsx    # 右侧多 tab 面板（编排器）
-│       │   ├── GitTab.tsx        # Git tab：版本控制
-│       │   ├── AuxTab.tsx        # Aux tab：辅助终端 + CLAUDE.md 命令
-│       │   ├── FileTab.tsx       # File tab：文件浏览器 + arch 目录树
-│       │   ├── FileIcons.tsx     # 共享：文件类型图标映射
-│       │   ├── DocTree.tsx       # 共享：CLAUDE.md 解析 + 文档树
-│       │   └── SearchPanel.tsx   # Search tab：文件内容搜索
-│       └── themes/
-│           ├── types.ts          # 主题类型定义
-│           ├── definitions.ts    # 11 套主题配色
-│           ├── monaco-themes.ts  # Monaco 编辑器主题注册
-│           ├── context.tsx       # 主题 Context Provider
-│           └── index.ts          # 导出聚合
-└── shared/
-    └── types.ts                  # IPC 通道常量 + 跨层类型定义
+│   └── index.ts                  # contextBridge 桥接层 (5 命名空间: terminal/git/file/workspace/search)
+├── renderer/src/
+│   ├── main.tsx                  # React 挂载入口
+│   ├── App.tsx                   # 三栏布局、会话管理、全局快捷键
+│   ├── shortcuts.ts              # 快捷键定义注册
+│   ├── styles/globals.css        # Tailwind + CSS 变量 + 自定义动画
+│   ├── components/
+│   │   ├── SessionPanel.tsx      # 左侧会话列表
+│   │   ├── TerminalView.tsx      # xterm.js 终端 (中栏)
+│   │   ├── DiffViewer.tsx        # Monaco 编辑器/Diff (中栏)
+│   │   ├── RightPanel.tsx        # 右侧多 tab 面板（编排器）
+│   │   ├── GitTab.tsx            # Git 版本控制
+│   │   ├── AuxTab.tsx            # 辅助终端 + CLAUDE.md 命令
+│   │   ├── FileTab.tsx           # 文件浏览器
+│   │   ├── SearchPanel.tsx       # 文件内容搜索
+│   │   ├── FileIcons.tsx         # 文件类型图标映射
+│   │   └── DocTree.tsx           # CLAUDE.md 解析 + 文档树
+│   └── themes/                   # 11 套主题配色 + Monaco 主题 + Context
+└── shared/types.ts               # IPC 通道常量 + 跨层类型定义
 ```
 
-### Main process (`src/main/`)
+**IPC 频道**（`src/shared/types.ts`）：pty（create/write/resize/rename/close/data/exit）、git（setWorkspace/status/log/diff/add/reset/commit/branches/checkout/stash/init/show/changed）、file（read/write/list/tree）、workspace（open/current/pickDir）、search（grep）
 
-| File | Role |
-|------|------|
-| `index.ts` | 窗口管理、IPC 注册 |
-| `pty.ts` | node-pty 终端会话 |
-| `git.ts` | simple-git 版本控制 |
-| `file.ts` | 文件系统读写 |
-| `search.ts` | ripgrep 内容搜索 |
+**关键依赖：** `node-pty`（external from Rollup）、`@xterm/xterm`、`@monaco-editor/react`、`simple-git`、`electron-updater`
 
-### Preload (`src/preload/index.ts`)
+**路径别名：** `@renderer/*` → `src/renderer/src/*`、`@shared/*` → `src/shared/*`
 
-`contextBridge.exposeInMainWorld('api', ...)` 暴露 `window.api`（5 命名空间: terminal / git / file / workspace / search）。
+## Session Independence
 
-### Renderer (`src/renderer/src/`)
+Each terminal session owns its RightPanel/GitTab state independently — **no global singletons in renderer state.**
 
-| 组件 | 位置 | 职责 |
-|------|------|------|
-| `App.tsx` | 根 | 三栏布局 + 全局状态 |
-| `SessionPanel.tsx` | 左侧栏 | session 列表管理 |
-| `TerminalView.tsx` | 中间 | xterm.js 终端 |
-| `DiffViewer.tsx` | 中间 | Monaco 编辑器/Diff |
-| `RightPanel.tsx` | 右侧栏 | 多 tab 编排器（Git/Aux/Search/File） |
-| `GitTab.tsx` | 右侧栏 | Git 版本控制 |
-| `AuxTab.tsx` | 右侧栏 | 辅助终端 + CLAUDE.md 命令 |
-| `FileTab.tsx` | 右侧栏 | 文件浏览器 + arch 目录树 |
-| `SearchPanel.tsx` | 右侧栏 | 文件内容搜索 |
-
-### IPC 频道 (`src/shared/types.ts`)
-
-所有 renderer→main 通信走 Electron IPC，分 5 组：
-
-- **pty:** create, write, resize, rename, close, data(on), exit(on)
-- **git:** setWorkspace, status, log, diff, add, reset, commit, branches, checkout, stashList, stashPush, stashPop, init, show, changed(on)
-- **file:** read, write, list, tree
-- **workspace:** open, current, pickDir
-- **search:** grep
-
-### Key config
-
-- `electron.vite.config.ts` — `node-pty` is explicitly external from Rollup bundling; main uses `externalizeDepsPlugin()`; renderer uses `@vitejs/plugin-react` with `@renderer` and `@shared` path aliases
-- `tsconfig.web.json` — defines path aliases `@renderer/*` → `src/renderer/src/*`, `@shared/*` → `src/shared/*`; jsx: react-jsx
-- `tsconfig.node.json` — covers main/preload/shared (no path aliases); moduleResolution: bundler
-- Tailwind theme — custom `ide-*` color palette:
-  - `ide-bg`: `#1a1a2e`, `ide-sidebar`: `#16213e`, `ide-panel`: `#0f3460`
-  - `ide-accent`: `#7c3aed`, `ide-success`: `#10b981`, `ide-danger`: `#ef4444`, `ide-warning`: `#f59e0b`
-  - `ide-hover` / `ide-active` for interaction states
-- CSS — custom scrollbar (3px, rounded, dark), xterm padding, Monaco margin override, titlebar drag regions (`-webkit-app-region`), purple selection highlight (30% opacity), focus visible outline (2px purple), `animate-fade-in` keyframes
-
-### Key dependencies
-
-- **Runtime:** `@monaco-editor/react` + `monaco-editor` (code editor/diff), `@xterm/xterm` + addons (terminal), `node-pty` (native PTY), `simple-git` (git), `react` 18, `lucide-react` (icons), `electron-updater` (auto-update)
-- **Build:** `electron-vite`, `electron-builder` (packaging), `tailwindcss`, `typescript`
-
-## Architecture Constraint: Session Independence
-
-Each terminal session must own its RightPanel/GitTab state independently — **no global singletons in renderer state.**
-
-- RightPanel/GitTab state tied to the active session (worktree navigation, git paths) **must** be keyed by `activeSessionId` (e.g. `Record<string, ...>`), never a single value.
-- The main-process `git.ts` uses a global `gitInstance` + `currentWorkspace`. The renderer compensates by calling `git.setWorkspace()` reactively via `useEffect` on the per-session effective path.
+- RightPanel/GitTab state tied to active session **must** be keyed by `activeSessionId` (e.g. `Record<string, ...>`), never a single value.
+- The main-process `git.ts` uses a global `gitInstance` + `currentWorkspace`. The renderer compensates via `git.setWorkspace()` in `useEffect` on the per-session effective path.
 - Do NOT rely on `workspacePath` prop changes alone to detect session switches — two sessions can share the same cwd.
-- Avoid implicit side-effects from `useEffect` for session-switch behaviors (e.g. closing terminals). Call handlers explicitly when the user performs an action.
 
-`node-pty` is a native module that requires C++ build tools. On Windows, ensure `node-gyp` prerequisites are installed (Visual Studio Build Tools with C++ workload, or `windows-build-tools` npm package). It's externalized from the Vite bundle and loaded at runtime.
+## Navigation & Focus Design
+
+| 快捷键 | 行为 |
+|--------|------|
+| `Ctrl+ArrowLeft/Right` | 切换右侧 panel tab 并聚焦新 tab（Git/Aux→容器，Search→input） |
+| `Ctrl+ArrowUp/Down` | blur 右侧 panel → 切换 session → 聚焦新终端 |
+| `Ctrl+F` | 切到 Search tab 并聚焦输入框 |
+
+**规则：**
+
+1. 切 tab 聚焦用 `focus({ preventScroll: true })`，避免浏览器滚动干扰内部容器
+2. 各 tab 键盘导航 idx 独立（`focusedIndex` / `selectedCommandIndex`），切 tab 或切 session 时必须复位为 `null`
+3. tab 内全局 `keydown` 监听器（`window.addEventListener('keydown', ..., true)`）必须检查 `isActiveRef.current` 和修饰键（`e.ctrlKey/e.metaKey/e.altKey`），非活动 tab 或有修饰键时直接 return
+
+**实现位置：** `App.tsx`（全局快捷键 + session 切换）、`RightPanel.tsx`（tab 切换聚焦）、`GitTab.tsx`（文件列表导航）、`AuxTab.tsx`（命令列表导航）
