@@ -32,6 +32,7 @@ interface FileTabProps {
   workspacePath: string | null
   onOpenFileFromExplorer?: (fullPath: string) => void
   fileTreeDepth: number
+  refreshKey?: number
 }
 
 // Workspace-root inline input (new file/folder at root level)
@@ -267,7 +268,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTreeDepth }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTreeDepth, refreshKey }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -302,6 +303,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
     window.addEventListener('file-filter-rules-changed', handler)
     return () => window.removeEventListener('file-filter-rules-changed', handler)
   }, [loadFileTree])
+
+  // Reload when manual refresh triggered
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      loadFileTree()
+      loadClaudeDocTree()
+    }
+  }, [refreshKey])
 
   // Load CLAUDE.md (or AGENTS.md) doc tree
   const loadClaudeDocTree = useCallback(async () => {

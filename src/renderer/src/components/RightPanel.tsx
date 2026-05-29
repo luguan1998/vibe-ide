@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { RotateCw } from 'lucide-react'
 import SearchPanel from './SearchPanel'
 import GitTab from './GitTab'
 import AuxTab from './AuxTab'
@@ -196,6 +197,7 @@ function TabBar({
   onReorder,
   onToggleVisibility,
   onToggleCollapse,
+  onRefreshFile,
 }: {
   tabs: GitSection[]
   activeSection: GitSection
@@ -204,6 +206,7 @@ function TabBar({
   onReorder: (fromSection: GitSection, toSection: GitSection) => void
   onToggleVisibility: (s: GitSection) => void
   onToggleCollapse?: () => void
+  onRefreshFile?: () => void
 }) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [dragOverSection, setDragOverSection] = useState<GitSection | null>(null)
@@ -260,6 +263,15 @@ function TabBar({
       <span className="text-xs font-semibold text-ide-text tracking-wide uppercase select-none">
         {TAB_DEFS[activeSection].label}
       </span>
+      {activeSection === 'file' && onRefreshFile && (
+        <button
+          className="ml-1.5 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+          onClick={onRefreshFile}
+          title="Refresh file tree"
+        >
+          <RotateCw size={12} />
+        </button>
+      )}
       <div className="flex-1" />
       <div className="flex items-center gap-0.5">
         {tabs.map(section => {
@@ -313,6 +325,7 @@ const RightPanel = React.memo(function RightPanel({
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
   const [visibleTabs, setVisibleTabs] = useState<Record<GitSection, boolean>>(loadVisibleTabs)
   const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
+  const [fileRefreshKey, setFileRefreshKey] = useState(0)
 
   const worktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
   const effectiveGitPath = worktreeNav?.worktreePath || workspacePath
@@ -422,6 +435,7 @@ const RightPanel = React.memo(function RightPanel({
           onReorder={handleReorder}
           onToggleVisibility={handleToggleVisibility}
           onToggleCollapse={onToggleCollapse}
+          onRefreshFile={() => setFileRefreshKey(k => k + 1)}
         />
         <div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">
           No active session
@@ -440,6 +454,7 @@ const RightPanel = React.memo(function RightPanel({
         onReorder={handleReorder}
         onToggleVisibility={handleToggleVisibility}
         onToggleCollapse={onToggleCollapse}
+        onRefreshFile={() => setFileRefreshKey(k => k + 1)}
       />
 
       <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none">
@@ -487,6 +502,7 @@ const RightPanel = React.memo(function RightPanel({
           workspacePath={workspacePath}
           onOpenFileFromExplorer={onOpenFileFromExplorer}
           fileTreeDepth={fileTreeDepth}
+          refreshKey={fileRefreshKey}
         />
       </div>
     </div>
