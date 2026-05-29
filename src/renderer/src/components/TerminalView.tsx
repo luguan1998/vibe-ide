@@ -76,8 +76,12 @@ function parseFilePath(pathText: string, cwd: string): { fullPath: string; lineN
     pathPart = pathText.slice(0, pathText.length - lineMatch[0].length)
   }
 
-  // 去除首尾引号（单引号或双引号）
-  pathPart = pathPart.replace(/^['"]|['"]$/g, '')
+  // 去除首尾引号（含中英文半全角：'' "" ＂＇ "" ''）
+  pathPart = pathPart.replace(/^['‘’＇"“”＂]|['‘’＇"“”＂]$/g, '')
+
+  // 剥离尾部标点（终端输出中常紧跟文件路径后，导致扩展名检测失败）
+  // 覆盖半角: , ; : ! ? ) ] } > .  全角: 。 ， 、 ； ： ！ ？ ） ］ ｝ 》 〉 】 」 』
+  pathPart = pathPart.replace(/[,;:!?\)\]\}>\.。，、；：！？）］｝》〉】」』]+$/g, '')
 
   // 检查扩展名是否支持
   const extMatch = pathPart.match(/\.(?:([a-zA-Z0-9]+)|([a-zA-Z0-9]+\.[a-zA-Z0-9]+))$/)
@@ -126,7 +130,8 @@ function isBareFilename(text: string): boolean {
 async function resolveAndOpenFile(
   rawText: string,
   cwd: string,
-  onOpenFile: (fullPath: string, lineNumber?: number) => void
+  onOpenFile: (fullPath: string, lineNumber?: number) => void,
+  onMultipleMatches?: (matches: string[], lineNumber?: number) => void
 ): Promise<boolean> {
   const parsed = parseFilePath(rawText, cwd)
   if (!parsed) return false
@@ -143,16 +148,21 @@ async function resolveAndOpenFile(
   }
 
   // 直接路径不存在 → 检查是否为裸文件名，递归搜索
-  const cleanText = rawText
-    .replace(/:(\d+)(?::(\d+))?$/, '')
-    .replace(/^['"]|['"]$/g, '')
+  // 从 parseFilePath 已清理的 fullPath 中提取文件名，避免 rawText 尾部标点干扰搜索
+  const cleanFileName = parsed.fullPath.split(/[\\\/]/).pop() || ''
 
-  if (isBareFilename(cleanText) && cwd) {
+  if (isBareFilename(cleanFileName) && cwd) {
     try {
-      const findResult = await window.api.file.find(cwd, cleanText, loadFilterRules())
-      if (findResult.matches && findResult.matches.length === 1) {
-        onOpenFile(findResult.matches[0], parsed.lineNumber)
-        return true
+      const findResult = await window.api.file.find(cwd, cleanFileName, loadFilterRules())
+      if (findResult.matches) {
+        if (findResult.matches.length === 1) {
+          onOpenFile(findResult.matches[0], parsed.lineNumber)
+          return true
+        }
+        if (findResult.matches.length >= 2) {
+          onMultipleMatches?.(findResult.matches, parsed.lineNumber)
+          return true
+        }
       }
     } catch {
       // find 不可用（例如 preload 未更新），静默失败
@@ -235,15 +245,18 @@ class FileLinkProvider implements ILinkProvider {
   private _terminal: Terminal
   private _cwd: string
   private _onOpenFile: (fullPath: string, lineNumber?: number) => void
+  private _onShowFilePicker?: (matches: string[], lineNumber?: number) => void
 
   constructor(
     terminal: Terminal,
     cwd: string,
-    onOpenFile: (fullPath: string, lineNumber?: number) => void
+    onOpenFile: (fullPath: string, lineNumber?: number) => void,
+    onShowFilePicker?: (matches: string[], lineNumber?: number) => void
   ) {
     this._terminal = terminal
     this._cwd = cwd
     this._onOpenFile = onOpenFile
+    this._onShowFilePicker = onShowFilePicker
   }
 
   provideLinks(y: number, callback: (links: ILink[] | undefined) => void): void {
@@ -289,7 +302,7 @@ class FileLinkProvider implements ILinkProvider {
         range,
         text: matchedText,
         activate: (_event: MouseEvent, _text: string) => {
-          resolveAndOpenFile(matchedText, this._cwd, this._onOpenFile)
+          resolveAndOpenFile(matchedText, this._cwd, this._onOpenFile, this._onShowFilePicker)
         },
         hover: (_event: MouseEvent, _text: string) => {
           // 可以在这里添加 tooltip 提示
@@ -354,6 +367,15 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   pageUpShortcutRef.current = pageUpShortcut
   const onOscTitleRef = useRef(onOscTitle)
   onOscTitleRef.current = onOscTitle
+  // File picker modal — ref ensures fresh callback without effect re-runs
+  const [filePicker, setFilePicker] = useState<{
+    matches: string[]
+    lineNumber?: number
+  } | null>(null)
+  const filePickerRef = useRef<((matches: string[], lineNumber?: number) => void) | null>(null)
+  filePickerRef.current = (matches: string[], lineNumber?: number) => {
+    setFilePicker({ matches: matches.slice(0, 10), lineNumber })
+  }
   const detectionReadyRef = useRef(false)    // 1s 延时后才开始检测
   const lastOutputRef = useRef(0)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -674,7 +696,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     const provider = new FileLinkProvider(
       xtermRef.current,
       sessionCwd || '',
-      onOpenFile
+      onOpenFile,
+      filePickerRef.current ?? undefined
     )
     linkProviderRef.current = xtermRef.current.registerLinkProvider(provider)
 
@@ -707,13 +730,26 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       e.preventDefault()
       e.stopPropagation()
       term.clearSelection()
-      resolveAndOpenFile(trimmed, cwd, onOpenFile)
+      resolveAndOpenFile(trimmed, cwd, onOpenFile, filePickerRef.current ?? undefined)
     }
 
     const el = terminalRef.current
     el.addEventListener('mousedown', handleMouseDown, true)
     return () => el.removeEventListener('mousedown', handleMouseDown, true)
   }, [sessionCwd, isReady, onOpenFile])
+
+  // Escape 键关闭文件选择器（capture 阶段拦截，防止 Esc 传递到终端）
+  useEffect(() => {
+    if (!filePicker) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
+        setFilePicker(null)
+      }
+    }
+    document.addEventListener('keydown', handleKey, true)
+    return () => document.removeEventListener('keydown', handleKey, true)
+  }, [filePicker])
 
   // Auto-fit on mount and when container resizes (debounced 100ms)
   useEffect(() => {
@@ -800,6 +836,55 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       >
         <div ref={terminalRef} className="h-full" />
       </div>
+
+      {/* File Picker Modal — 多文件匹配选择器 */}
+      {filePicker && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setFilePicker(null)}
+        >
+          <div
+            className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[500px] max-h-[400px] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-ide-border shrink-0 flex items-center justify-between">
+              <span className="text-sm font-medium text-ide-text">
+                {filePicker.matches.length} 个匹配文件
+              </span>
+              <button
+                className="text-ide-text-muted hover:text-ide-text text-lg leading-none w-5 h-5 flex items-center justify-center rounded hover:bg-ide-hover"
+                onClick={() => setFilePicker(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {filePicker.matches.map((fullPath) => {
+                const cwdNorm = (sessionCwd || '').replace(/\\/g, '/')
+                const pathNorm = fullPath.replace(/\\/g, '/')
+                const relativePath = cwdNorm
+                  ? pathNorm.startsWith(cwdNorm)
+                    ? pathNorm.slice(cwdNorm.length).replace(/^\//, '')
+                    : pathNorm
+                  : pathNorm
+                return (
+                  <button
+                    key={fullPath}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-ide-hover transition-colors"
+                    onClick={() => {
+                      if (onOpenFile) onOpenFile(fullPath, filePicker.lineNumber)
+                      setFilePicker(null)
+                    }}
+                  >
+                    <div className="text-sm text-ide-text truncate">{relativePath}</div>
+                    <div className="text-xs text-ide-text-muted truncate mt-0.5">{fullPath}</div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }))
