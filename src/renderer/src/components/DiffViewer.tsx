@@ -358,6 +358,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       'ts': 'typescript',
       'tsx': 'typescript',
       'js': 'javascript',
+      'mjs': 'javascript',
       'jsx': 'javascript',
       'vue': 'html',
       'py': 'python',
