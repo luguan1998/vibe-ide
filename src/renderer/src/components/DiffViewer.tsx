@@ -5,6 +5,7 @@ import { registerMonacoThemes } from '../themes'
 import { ENCODING_GROUPS, DEFAULT_ENCODING } from '@shared/encodings'
 import { useI18n } from '../i18n'
 import { registerJSXSupport } from '../languages/jsx-tokens'
+import { registerPythonSupport } from '../languages/python-tokens'
 
 interface DiffViewerProps {
   filePath: string          // 相对路径（用于 git 操作）
@@ -398,6 +399,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const configureMonaco = (monaco: any) => {
     registerMonacoThemes(monaco)
     registerJSXSupport(monaco)
+    registerPythonSupport(monaco)
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
       target: monaco.languages.typescript.ScriptTarget.ES2020,
       allowNonTsExtensions: true,
