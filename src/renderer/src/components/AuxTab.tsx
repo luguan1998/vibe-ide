@@ -44,15 +44,27 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
     }
   }, [onOpenFileFromRightTerminal])
 
-  // Load CLAUDE.md (or AGENTS.md) commands
-  const loadClaudeCommands = useCallback(async () => {
-    if (!effectiveGitPath) { setCommands([]); return }
-    const content = await loadMdContent(effectiveGitPath)
-    if (!content) { setCommands([]); return }
-    setCommands(parseCommands(content))
-  }, [effectiveGitPath])
+  // Load CLAUDE.md (or AGENTS.md) commands（复用 GitTab pendingPathRef 防 stale 模式）
+  const pendingPathRef = useRef<string | null>(null)
 
-  useEffect(() => { loadClaudeCommands(); setSelectedCommandIndex(null); hasAutoFocused.current = false }, [effectiveGitPath])
+  useEffect(() => {
+    const targetPath = effectiveGitPath
+    pendingPathRef.current = targetPath
+    setSelectedCommandIndex(null)
+    hasAutoFocused.current = false
+
+    const load = async () => {
+      if (!targetPath) {
+        if (pendingPathRef.current === targetPath) setCommands([])
+        return
+      }
+      const content = await loadMdContent(targetPath)
+      if (pendingPathRef.current !== targetPath) return
+      if (!content) { setCommands([]); return }
+      setCommands(parseCommands(content))
+    }
+    load()
+  }, [effectiveGitPath])
 
   // 切 session 或切走 tab 时清除键盘导航高亮
   useEffect(() => { setSelectedCommandIndex(null) }, [activeSessionId])

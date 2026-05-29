@@ -68,6 +68,7 @@ Each terminal session owns its RightPanel/GitTab state independently — **no gl
 - RightPanel/GitTab state tied to active session **must** be keyed by `activeSessionId` (e.g. `Record<string, ...>`), never a single value.
 - The main-process `git.ts` uses a global `gitInstance` + `currentWorkspace`. The renderer compensates via `git.setWorkspace()` in `useEffect` on the per-session effective path.
 - Do NOT rely on `workspacePath` prop changes alone to detect session switches — two sessions can share the same cwd.
+- **`pendingPathRef` 防 stale 模式**：异步加载路径相关数据（git status、CLAUDE.md commands）时，`await` 后必须对比 `pendingPathRef.current !== targetPath`，路径已变则丢弃结果。参考 `GitTab.tsx:513-539`、`AuxTab.tsx:47-67`。
 
 ## Navigation & Focus Design
 
