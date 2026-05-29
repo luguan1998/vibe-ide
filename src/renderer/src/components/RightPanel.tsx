@@ -485,7 +485,7 @@ const RightPanel = React.memo(function RightPanel({
         />
       </div>
 
-      <div ref={searchContentRef} tabIndex={-1} style={{ display: activeSection === 'search' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none">
+      <div ref={searchContentRef} tabIndex={-1} style={{ display: activeSection === 'search' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden">
         <SearchPanel
           cwd={workspacePath}
           onOpenFile={(fullPath, lineNumber) => {
@@ -497,7 +497,7 @@ const RightPanel = React.memo(function RightPanel({
         />
       </div>
 
-      <div ref={fileContentRef} tabIndex={-1} style={{ display: activeSection === 'file' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none">
+      <div ref={fileContentRef} tabIndex={-1} style={{ display: activeSection === 'file' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden">
         <FileTab
           workspacePath={workspacePath}
           onOpenFileFromExplorer={onOpenFileFromExplorer}

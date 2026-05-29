@@ -86,7 +86,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions, deletions }
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 13, wordWrap = false, scrollTrigger, onBack, onSaved, defaultEdit }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, onBack, onSaved, defaultEdit }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 

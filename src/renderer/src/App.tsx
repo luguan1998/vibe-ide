@@ -179,8 +179,8 @@ export default function App() {
   const [editorFontSize, setEditorFontSize] = useState(() => {
     try {
       const v = localStorage.getItem('vibe-ide-editor-font-size')
-      return v ? Math.max(8, Math.min(30, Number(v))) : 13
-    } catch { return 13 }
+      return v ? Math.max(8, Math.min(30, Number(v))) : 14
+    } catch { return 14 }
   })
   const centerViewRef = React.useRef<CenterView>('terminal')
 
