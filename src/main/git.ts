@@ -159,47 +159,56 @@ export function registerGitHandlers(): void {
     try {
       const git = getGit()
 
-      const diffStat: Record<string, { additions: number; deletions: number }> = {}
-      try {
-        const diffNumstat = await git.diff(['--numstat'])
-        for (const line of diffNumstat.split('\n')) {
-          if (line.includes('\t')) {
-            const parts = line.split('\t')
-            const addPart = parts[0].trim()
-            const delPart = parts[1].trim()
-            const filePath = parts[2]?.trim() || ''
-            if (filePath) {
-              diffStat[filePath] = {
-                additions: addPart === '-' ? 0 : parseInt(addPart) || 0,
-                deletions: delPart === '-' ? 0 : parseInt(delPart) || 0
-              }
-            }
-          }
-        }
-      } catch {
-      }
-
-      const stagedDiffStat: Record<string, { additions: number; deletions: number }> = {}
-      try {
-        const stagedNumstat = await git.diff(['--cached', '--numstat'])
-        for (const line of stagedNumstat.split('\n')) {
-          if (line.includes('\t')) {
-            const parts = line.split('\t')
-            const addPart = parts[0].trim()
-            const delPart = parts[1].trim()
-            const filePath = parts[2]?.trim() || ''
-            if (filePath) {
-              stagedDiffStat[filePath] = {
-                additions: addPart === '-' ? 0 : parseInt(addPart) || 0,
-                deletions: delPart === '-' ? 0 : parseInt(delPart) || 0
-              }
-            }
-          }
-        }
-      } catch {
-      }
-
       const statusShort = await git.status(['-s'])
+
+      // 检查是否有非 untracked 的变更，无则跳过两次 diff --numstat
+      const hasTrackedChanges = statusShort.files.some(
+        f => f.index !== '?' || f.working_dir !== '?'
+      )
+
+      const diffStat: Record<string, { additions: number; deletions: number }> = {}
+      const stagedDiffStat: Record<string, { additions: number; deletions: number }> = {}
+
+      if (hasTrackedChanges) {
+        try {
+          const diffNumstat = await git.diff(['--numstat'])
+          for (const line of diffNumstat.split('\n')) {
+            if (line.includes('\t')) {
+              const parts = line.split('\t')
+              const addPart = parts[0].trim()
+              const delPart = parts[1].trim()
+              const filePath = parts[2]?.trim() || ''
+              if (filePath) {
+                diffStat[filePath] = {
+                  additions: addPart === '-' ? 0 : parseInt(addPart) || 0,
+                  deletions: delPart === '-' ? 0 : parseInt(delPart) || 0
+                }
+              }
+            }
+          }
+        } catch {
+        }
+
+        try {
+          const stagedNumstat = await git.diff(['--cached', '--numstat'])
+          for (const line of stagedNumstat.split('\n')) {
+            if (line.includes('\t')) {
+              const parts = line.split('\t')
+              const addPart = parts[0].trim()
+              const delPart = parts[1].trim()
+              const filePath = parts[2]?.trim() || ''
+              if (filePath) {
+                stagedDiffStat[filePath] = {
+                  additions: addPart === '-' ? 0 : parseInt(addPart) || 0,
+                  deletions: delPart === '-' ? 0 : parseInt(delPart) || 0
+                }
+              }
+            }
+          }
+        } catch {
+        }
+      }
+
       const stagedFiles: GitFileStatus[] = []
       const unstagedFiles: GitFileStatus[] = []
       const untrackedFiles: GitFileStatus[] = []
@@ -257,15 +266,22 @@ export function registerGitHandlers(): void {
         } catch {}
       }
 
+      const MAX_STATUS_FILES = 5000
+      const allFiles = [...stagedFiles, ...unstagedFiles, ...untrackedFiles]
+      const totalFiles = allFiles.length
+      const truncated = totalFiles > MAX_STATUS_FILES
+
       const result: GitStatusResult = {
-        files: [...stagedFiles, ...unstagedFiles, ...untrackedFiles],
+        files: truncated ? allFiles.slice(0, MAX_STATUS_FILES) : allFiles,
         branch: statusShort.current || '',
         ahead: statusShort.ahead,
         behind: statusShort.behind,
         staged: stagedFiles.length,
         unstaged: unstagedFiles.length,
         untracked: untrackedFiles.length,
-        clean: stagedFiles.length === 0 && unstagedFiles.length === 0 && untrackedFiles.length === 0
+        clean: stagedFiles.length === 0 && unstagedFiles.length === 0 && untrackedFiles.length === 0,
+        truncated,
+        totalFiles
       }
       return result
     } catch (err: any) {

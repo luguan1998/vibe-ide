@@ -70,6 +70,17 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [status, setStatus] = useState<GitStatusResult | null>(null)
   const statusRef = useRef(status)
   statusRef.current = status
+
+  // 大列表默认折叠（阈值 500），仅首次触发，后续由用户手动控制
+  const largeSectionCollapsedRef = useRef(false)
+  const LARGE_SECTION = 500
+  useEffect(() => {
+    if (largeSectionCollapsedRef.current || !status) return
+    largeSectionCollapsedRef.current = true
+    if (status.untracked > LARGE_SECTION) setUntrackedExpanded(false)
+    if (status.unstaged > LARGE_SECTION) setChangesExpanded(false)
+    if (status.staged > LARGE_SECTION) setStagedExpanded(false)
+  }, [status])
   const [logs, setLogs] = useState<GitLogEntry[]>([])
   const [branches, setBranches] = useState<GitBranch[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -724,7 +735,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                           <rect x="1" y="3" width="22" height="5" />
                           <line x1="10" y1="12" x2="14" y2="12" />
                         </svg>
-                        <span>{t('Staged ({count})').replace('{count}', String(stagedFiles.length))}</span>
+                        <span>{status?.truncated && status.staged > stagedFiles.length
+                          ? `${t('Staged ({count})').replace('{count}', String(stagedFiles.length))} / ${status.staged}`
+                          : t('Staged ({count})').replace('{count}', String(stagedFiles.length))}</span>
                         {stats.additions > 0 && <span className="text-ide-success font-mono">+{stats.additions}</span>}
                         {stats.deletions > 0 && <span className="text-ide-danger font-mono">-{stats.deletions}</span>}
                       </div>
@@ -788,7 +801,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                         </svg>
-                        <span>{t('Changes ({count})').replace('{count}', String(modifiedFiles.length))}</span>
+                        <span>{status?.truncated && status.unstaged > modifiedFiles.length
+                          ? `${t('Changes ({count})').replace('{count}', String(modifiedFiles.length))} / ${status.unstaged}`
+                          : t('Changes ({count})').replace('{count}', String(modifiedFiles.length))}</span>
                         {stats.additions > 0 && <span className="text-ide-success font-mono">+{stats.additions}</span>}
                         {stats.deletions > 0 && <span className="text-ide-danger font-mono">-{stats.deletions}</span>}
                       </div>
@@ -867,7 +882,12 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       <line x1="12" y1="18" x2="12" y2="12" />
                       <line x1="9" y1="15" x2="15" y2="15" />
                     </svg>
-                    <span>{t('Untracked ({count})').replace('{count}', String(status.files.filter(f => f.status === 'untracked').length))}</span>
+                    <span>{(() => {
+                      const shown = status.files.filter(f => f.status === 'untracked').length
+                      return status.truncated && status.untracked > shown
+                        ? `${t('Untracked ({count})').replace('{count}', String(shown))} / ${status.untracked}`
+                        : t('Untracked ({count})').replace('{count}', String(shown))
+                    })()}</span>
                   </div>
                   {untrackedExpanded && (
                     <div className="flex items-center gap-1">

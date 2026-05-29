@@ -161,6 +161,8 @@ export interface GitStatusResult {
   unstaged: number
   untracked: number
   clean: boolean
+  truncated: boolean
+  totalFiles: number
 }
 
 export interface CommitOptions {
