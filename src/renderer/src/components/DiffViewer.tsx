@@ -355,44 +355,112 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const getLanguageFromFile = (path: string): string => {
     const ext = path.split('.').pop()?.toLowerCase() || ''
     const langMap: Record<string, string> = {
+      // JavaScript/TypeScript
       'ts': 'typescript',
       'tsx': 'typescript',
+      'mts': 'typescript',
+      'cts': 'typescript',
       'js': 'javascript',
       'mjs': 'javascript',
+      'cjs': 'javascript',
       'jsx': 'javascript',
-      'vue': 'html',
+      // Python
       'py': 'python',
+      'pyw': 'python',
+      // Rust / Go / Java / Kotlin
       'rs': 'rust',
       'go': 'go',
       'java': 'java',
+      'kt': 'kotlin',
+      'kts': 'kotlin',
+      // C / C++ / C#
       'c': 'c',
       'cpp': 'cpp',
       'h': 'c',
       'hpp': 'cpp',
       'cs': 'csharp',
+      'csx': 'csharp',
+      'cake': 'csharp',
+      // Ruby / PHP / Swift / Dart
       'rb': 'ruby',
       'php': 'php',
       'swift': 'swift',
-      'kt': 'kotlin',
+      'dart': 'dart',
+      // Scala / Clojure / F# / Julia / Elixir
+      'scala': 'scala',
+      'sc': 'scala',
+      'sbt': 'scala',
+      'clj': 'clojure',
+      'cljs': 'clojure',
+      'cljc': 'clojure',
+      'edn': 'clojure',
+      'fs': 'fsharp',
+      'fsx': 'fsharp',
+      'jl': 'julia',
+      'ex': 'elixir',
+      'exs': 'elixir',
+      // Perl / Lua / R / CoffeeScript
+      'pl': 'perl',
+      'pm': 'perl',
+      'lua': 'lua',
+      'r': 'r',
+      'coffee': 'coffeescript',
+      // Solidity / Protobuf
+      'sol': 'sol',
+      'proto': 'protobuf',
+      // JSON / YAML / TOML / XML
       'json': 'json',
+      'lock': 'json',
       'yaml': 'yaml',
       'yml': 'yaml',
       'toml': 'toml',
       'xml': 'xml',
+      // HTML / Vue / Razor
       'html': 'html',
       'htm': 'html',
+      'vue': 'html',
+      'cshtml': 'razor',
+      // CSS / SCSS / Less
       'css': 'css',
       'scss': 'scss',
       'less': 'less',
+      // Markdown / MDX
       'md': 'markdown',
+      'mdx': 'mdx',
+      // SQL
       'sql': 'sql',
+      // Shell / Batch / PowerShell
       'sh': 'shell',
       'bash': 'shell',
+      'bat': 'bat',
+      'cmd': 'bat',
+      'ps1': 'powershell',
+      'psm1': 'powershell',
+      'psd1': 'powershell',
+      // Docker / Terraform / INI
       'dockerfile': 'dockerfile',
+      'tf': 'hcl',
+      'tfvars': 'hcl',
+      'ini': 'ini',
+      'properties': 'ini',
+      // GraphQL
+      'graphql': 'graphql',
+      'gql': 'graphql',
+      // Templates
+      'handlebars': 'handlebars',
+      'hbs': 'handlebars',
+      'pug': 'pug',
+      'jade': 'pug',
+      'twig': 'twig',
+      // Hardware
+      'sv': 'systemverilog',
+      'svh': 'systemverilog',
+      'v': 'verilog',
+      'vh': 'verilog',
+      // Plain text (no highlighting)
       'gitignore': 'plaintext',
       'env': 'plaintext',
-      'txt': 'plaintext',
-      'lock': 'json'
+      'txt': 'plaintext'
     }
     return langMap[ext] || 'plaintext'
   }
