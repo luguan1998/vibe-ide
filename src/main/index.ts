@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
 import { join, resolve } from 'path'
 import { statSync, existsSync } from 'fs'
 import { createHash } from 'crypto'
+import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers, cleanupTerminals } from './pty'
 import { registerGitHandlers, cleanupGitWatcher } from './git'
@@ -235,6 +236,19 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+
+  // Warm up Windows COM file dialog — first call to IFileOpenDialog loads
+  // shell extensions (OneDrive, Dropbox, etc.) and can take 1-5s cold.
+  // Pre-instantiating the WinForms dialog class forces this init in the
+  // background so the real showOpenDialog call is instant.
+  if (process.platform === 'win32') {
+    setTimeout(() => {
+      exec(
+        'powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms"',
+        () => {} // fire-and-forget
+      )
+    }, 3000)
+  }
 })
 
 app.on('before-quit', () => {
