@@ -4,6 +4,7 @@ import { useTheme } from '../themes'
 import { registerMonacoThemes } from '../themes'
 import { ENCODING_GROUPS, DEFAULT_ENCODING } from '@shared/encodings'
 import { useI18n } from '../i18n'
+import { registerJSXSupport } from '../languages/jsx-tokens'
 
 interface DiffViewerProps {
   filePath: string          // 相对路径（用于 git 操作）
@@ -357,6 +358,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       'tsx': 'typescript',
       'js': 'javascript',
       'jsx': 'javascript',
+      'vue': 'html',
       'py': 'python',
       'rs': 'rust',
       'go': 'go',
@@ -395,6 +397,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
 
   const configureMonaco = (monaco: any) => {
     registerMonacoThemes(monaco)
+    registerJSXSupport(monaco)
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
       target: monaco.languages.typescript.ScriptTarget.ES2020,
       allowNonTsExtensions: true,
@@ -404,6 +407,19 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       noEmit: true
     })
     monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: !showSquiggles,
+      noSyntaxValidation: !showSquiggles
+    })
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      allowNonTsExtensions: true,
+      allowJs: true,
+      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+      module: monaco.languages.typescript.ModuleKind.CommonJS,
+      jsx: monaco.languages.typescript.JsxEmit.React,
+      noEmit: true
+    })
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
       noSemanticValidation: !showSquiggles,
       noSyntaxValidation: !showSquiggles
     })
