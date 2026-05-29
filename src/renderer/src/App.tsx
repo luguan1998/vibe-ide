@@ -151,6 +151,9 @@ export default function App() {
   const [wordWrap, setWordWrap] = useState(() => {
     try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
   })
+  const [autoUtf8, setAutoUtf8] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-auto-utf8') !== 'false' } catch { return true }
+  })
 
   const [fileTreeDepth, setFileTreeDepth] = useState(() => {
     try {
@@ -210,6 +213,9 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-word-wrap', String(wordWrap)) } catch {}
   }, [wordWrap])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-auto-utf8', String(autoUtf8)) } catch {}
+  }, [autoUtf8])
 
   // Keep refs in sync for use in capture-phase keyboard handlers
   React.useEffect(() => { showHistoryRef.current = showHistory }, [showHistory])
@@ -414,7 +420,7 @@ export default function App() {
     try {
       const dirResult = await window.api.workspace.pickDir()
       if (dirResult.canceled) return
-      const session = await window.api.terminal.create({ cwd: dirResult.path, shell })
+      const session = await window.api.terminal.create({ cwd: dirResult.path, shell, autoUtf8 })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
       setCenterView('terminal')
@@ -422,12 +428,12 @@ export default function App() {
     } catch (err) {
       console.error('Failed to create terminal session:', err)
     }
-  }, [])
+  }, [autoUtf8])
 
   // Create a terminal session at a specific path (no directory picker)
   const handleCreateSessionAt = useCallback(async (cwd: string, shell?: string) => {
     try {
-      const session = await window.api.terminal.create({ cwd, shell })
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8 })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
       setCenterView('terminal')
@@ -437,7 +443,7 @@ export default function App() {
       console.error('Failed to create terminal session at path:', err)
       return null
     }
-  }, [])
+  }, [autoUtf8])
 
   // Listen for startup:openPath IPC from main process (CLI argument or second instance)
   React.useEffect(() => {
@@ -479,7 +485,7 @@ export default function App() {
   // Clone a terminal session (same cwd), insert below parent
   const handleCloneSession = useCallback(async (parentId: string | null, cwd: string, shell?: string) => {
     try {
-      const session = await window.api.terminal.create({ cwd, shell })
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8 })
       setSessions(prev => {
         if (parentId == null) return [...prev, session]
         const parentIndex = prev.findIndex(s => s.id === parentId)
@@ -494,7 +500,7 @@ export default function App() {
     } catch (err) {
       console.error('Failed to clone terminal session:', err)
     }
-  }, [])
+  }, [autoUtf8])
 
   // Switch active session
   const handleSwitchSession = useCallback((id: string) => {
@@ -690,12 +696,12 @@ export default function App() {
     try {
       // 🌀 从 localStorage 读取用户选择的 shell 类型
       const shell = (() => { try { return localStorage.getItem('vibe-ide-term-type') || undefined } catch { return undefined } })()
-      const term = await window.api.terminal.create({ cwd, shell })
+      const term = await window.api.terminal.create({ cwd, shell, autoUtf8 })
       setRightTerminalSessions(prev => ({ ...prev, [sessionId]: term }))
     } catch (err) {
       console.error('Failed to create right terminal:', err)
     }
-  }, [rightTerminalSessions, sessions])
+  }, [rightTerminalSessions, sessions, autoUtf8])
 
   // 关闭右侧终端
   const handleCloseRightTerminal = useCallback(async (sessionId: string) => {
@@ -802,6 +808,8 @@ export default function App() {
             onToggleSquiggles={setShowSquiggles}
             wordWrap={wordWrap}
             onToggleWordWrap={setWordWrap}
+            autoUtf8={autoUtf8}
+            onToggleAutoUtf8={setAutoUtf8}
             fileTreeDepth={fileTreeDepth}
             onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}

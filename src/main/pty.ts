@@ -124,8 +124,9 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
 
       terminals.set(id, { pty: ptyProcess, session })
 
-      // 缓冲启动阶段输出，丢弃启动 banner
-      let startupDone = false
+      // 启动初始化（可通过 autoUtf8 设置关闭）
+      const doStartupInit = options.autoUtf8 !== false
+      let startupDone = !doStartupInit
 
       ptyProcess.onData((data: string) => {
         if (!startupDone) return
@@ -134,32 +135,33 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
         }
       })
 
-      // 延迟后：停止缓冲 → IPC 直清 xterm.js → Clear-Host 兜底
-      setTimeout(() => {
-        const managed = terminals.get(id)
-        if (!managed) return
+      if (doStartupInit) {
+        // 延迟后：停止缓冲 → IPC 直清 xterm.js → chcp + Clear-Host 兜底
+        setTimeout(() => {
+          const managed = terminals.get(id)
+          if (!managed) return
 
-        startupDone = true
+          startupDone = true
 
-        // IPC 直清 xterm.js（绕过 shell，无命令回显）
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, {
-            id,
-            data: '\x1b[2J\x1b[3J\x1b[H'
-          })
-        }
+          // IPC 直清 xterm.js（绕过 shell，无命令回显）
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, {
+              id,
+              data: '\x1b[2J\x1b[3J\x1b[H'
+            })
+          }
 
-        // Shell-specific 启动初始化
-        const shellName = shell.toLowerCase()
-        if (shellName.includes('powershell') || shellName.includes('pwsh')) {
-          managed.pty.write('chcp 65001 >$null\r')
-          managed.pty.write('Clear-Host\r')
-        } else if (shellName.includes('cmd')) {
-          managed.pty.write('chcp 65001 >nul\r')
-          managed.pty.write('cls\r')
-        }
-        // git-bash / wsl: ANSI clear 已足够，无需额外命令
-      }, 600)
+          const shellName = shell.toLowerCase()
+          if (shellName.includes('powershell') || shellName.includes('pwsh')) {
+            managed.pty.write('chcp 65001 >$null\r')
+            managed.pty.write('Clear-Host\r')
+          } else if (shellName.includes('cmd')) {
+            managed.pty.write('chcp 65001 >nul\r')
+            managed.pty.write('cls\r')
+          }
+          // git-bash / wsl: ANSI clear 已足够，无需额外命令
+        }, 600)
+      }
 
       // Handle terminal exit
       ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {

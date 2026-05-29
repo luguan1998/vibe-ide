@@ -80,6 +80,8 @@ interface SessionPanelProps {
   onToggleSquiggles?: (value: boolean) => void
   wordWrap?: boolean
   onToggleWordWrap?: (value: boolean) => void
+  autoUtf8?: boolean
+  onToggleAutoUtf8?: (value: boolean) => void
   fileTreeDepth?: number
   onChangeFileTreeDepth?: (delta: number) => void
   focusSettingsTrigger?: number
@@ -100,6 +102,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onToggleSquiggles,
   wordWrap = false,
   onToggleWordWrap,
+  autoUtf8 = true,
+  onToggleAutoUtf8,
   fileTreeDepth = 5,
   onChangeFileTreeDepth,
   focusSettingsTrigger = 0
@@ -478,6 +482,20 @@ const SessionPanel = React.memo(function SessionPanel({
                         className="accent-ide-accent"
                       />
                       {t('Word Wrap')}
+                    </label>
+                  </div>
+                )}
+                {/* Auto UTF-8 toggle */}
+                {onToggleAutoUtf8 && (
+                  <div className="border-t border-ide-border mt-1 pt-1">
+                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={autoUtf8}
+                        onChange={(e) => onToggleAutoUtf8(e.target.checked)}
+                        className="accent-ide-accent"
+                      />
+                      {t('Auto UTF-8')}
                     </label>
                   </div>
                 )}
