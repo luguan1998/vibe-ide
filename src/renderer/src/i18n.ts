@@ -36,6 +36,9 @@ const ZH_MAP: Record<string, string> = {
   'History': '历史',
   'No commands yet': '暂无命令',
   'Copy': '复制',
+  'Auto Approve': '自动确认',
+  'Auto Approve: ON': '自动确认：开',
+  'Auto Approve: OFF': '自动确认：关',
 
   // SettingsPanel
   'Press keys...': '按按键...',

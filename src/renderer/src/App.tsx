@@ -18,6 +18,7 @@ declare global {
         rename(id: string, newName: string): Promise<RenameTerminalResult>
         create: (options?: { cwd?: string; name?: string; shell?: string }) => Promise<TerminalSession>
         getShells: () => Promise<{ value: string; label: string }[]>
+        setAutoApprove: (id: string, cwd: string, enabled: boolean) => Promise<{ success: boolean }>
         write: (id: string, data: string) => void
         resize: (id: string, cols: number, rows: number) => void
         close: (id: string) => Promise<boolean>
@@ -148,6 +149,7 @@ export default function App() {
   const commandHistoryRef = useRef(commandHistory)
   const historyListRef = useRef<HTMLDivElement>(null)
   const [agentStatus, setAgentStatus] = useState<Record<string, 'running' | 'idle'>>({})
+  const [autoApproveSessions, setAutoApproveSessions] = useState<Record<string, boolean>>({})
   const [wordWrap, setWordWrap] = useState(() => {
     try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
   })
@@ -257,6 +259,20 @@ export default function App() {
     setAgentStatus(prev => {
       if (prev[sessionId] === status) return prev
       return { ...prev, [sessionId]: status }
+    })
+  }, [])
+
+  const handleToggleAutoApprove = useCallback(async (sessionId: string, cwd: string) => {
+    setAutoApproveSessions(prev => {
+      const next = !prev[sessionId]
+      window.api.terminal.setAutoApprove(sessionId, cwd, next)
+      const updated = { ...prev }
+      if (next) {
+        updated[sessionId] = true
+      } else {
+        delete updated[sessionId]
+      }
+      return updated
     })
   }, [])
 
@@ -520,6 +536,11 @@ export default function App() {
       return next
     })
     setAgentStatus(prev => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setAutoApproveSessions(prev => {
       const next = { ...prev }
       delete next[id]
       return next
@@ -804,6 +825,8 @@ export default function App() {
             onReorderSessions={handleReorderSessions}
             commandHistory={commandHistory}
             agentStatus={agentStatus}
+            autoApproveSessions={autoApproveSessions}
+            onToggleAutoApprove={handleToggleAutoApprove}
             showSquiggles={showSquiggles}
             onToggleSquiggles={setShowSquiggles}
             wordWrap={wordWrap}

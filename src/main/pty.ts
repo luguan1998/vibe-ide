@@ -1,5 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { existsSync } from 'fs'
+import { readFile, writeFile, mkdir, unlink } from 'fs/promises'
+import { join } from 'path'
 import * as pty from 'node-pty'
 import { IPC_CHANNELS, CreateTerminalOptions, TerminalSession } from '../shared/types'
 
@@ -9,7 +11,50 @@ interface ManagedPty {
 }
 
 const terminals = new Map<string, ManagedPty>()
+const autoApproveRefs = new Map<string, Set<string>>() // cwd → Set<sessionId>
 let mainWindow: BrowserWindow | null = null
+
+const AUTO_APPROVE_HOOK = {
+  matcher: '*',
+  hooks: [{
+    type: 'command',
+    command: 'node -e "console.log(JSON.stringify({hookSpecificOutput:{hookEventName:\'PermissionRequest\',decision:{behavior:\'allow\'}}}))"'
+  }]
+}
+
+async function syncConfig(have: boolean, filePath: string, set: (o: any) => void, has: (o: any) => boolean, mkdirPath?: string): Promise<void> {
+  let obj: any = {}
+  try { obj = JSON.parse(await readFile(filePath, 'utf-8')) } catch {}
+
+  if (have) {
+    set(obj)
+    if (mkdirPath) await mkdir(mkdirPath, { recursive: true })
+    await writeFile(filePath, JSON.stringify(obj, null, 2) + '\n')
+  } else if (has(obj)) {
+    if (Object.keys(obj).length === 0) {
+      try { await unlink(filePath) } catch {}
+    } else {
+      await writeFile(filePath, JSON.stringify(obj, null, 2) + '\n')
+    }
+  }
+}
+
+async function syncAutoApproveHook(cwd: string): Promise<void> {
+  const have = (autoApproveRefs.get(cwd)?.size ?? 0) > 0
+
+  await syncConfig(have,
+    join(cwd, '.claude', 'settings.json'),
+    o => { if (!o.hooks) o.hooks = {}; o.hooks.PermissionRequest = [AUTO_APPROVE_HOOK] },
+    o => { if (!o.hooks?.PermissionRequest) return false; delete o.hooks.PermissionRequest; if (Object.keys(o.hooks).length === 0) delete o.hooks; return true },
+    join(cwd, '.claude')
+  )
+
+  await syncConfig(have,
+    join(cwd, 'opencode.json'),
+    o => { o.yolo = true },
+    o => { if (!('yolo' in o)) return false; delete o.yolo; return true }
+  )
+}
 
 // 🌀 诸法皆空，shell 亦如是 — 按名取径，不执一相
 function resolveShell(shellType?: string): { shell: string; args: string[] } {
@@ -195,11 +240,19 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
   })
 
   // Close terminal
-  ipcMain.handle(IPC_CHANNELS.PTY_CLOSE, (_event, id: string) => {
+  ipcMain.handle(IPC_CHANNELS.PTY_CLOSE, async (_event, id: string) => {
     const managed = terminals.get(id)
     if (managed) {
+      const { cwd } = managed.session
       managed.pty.kill()
       terminals.delete(id)
+      // Clean up auto-approve reference counting
+      const refSet = autoApproveRefs.get(cwd)
+      if (refSet) {
+        refSet.delete(id)
+        if (refSet.size === 0) autoApproveRefs.delete(cwd)
+        await syncAutoApproveHook(cwd)
+      }
       return true
     }
     return false
@@ -214,6 +267,25 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
     }
     return { error: 'Session not found' }
   })
+
+  // Toggle auto-approve hook for a session
+  ipcMain.handle(IPC_CHANNELS.PTY_SET_AUTO_APPROVE, async (_event, { id, cwd, enabled }: { id: string; cwd: string; enabled: boolean }) => {
+    let refSet = autoApproveRefs.get(cwd)
+    if (enabled) {
+      if (!refSet) {
+        refSet = new Set()
+        autoApproveRefs.set(cwd, refSet)
+      }
+      refSet.add(id)
+    } else {
+      if (refSet) {
+        refSet.delete(id)
+        if (refSet.size === 0) autoApproveRefs.delete(cwd)
+      }
+    }
+    await syncAutoApproveHook(cwd)
+    return { success: true }
+  })
 }
 
 // Clean up all terminals on app quit
@@ -222,4 +294,5 @@ export function cleanupTerminals(): void {
     managed.pty.kill()
   }
   terminals.clear()
+  autoApproveRefs.clear()
 }

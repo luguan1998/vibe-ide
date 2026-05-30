@@ -10,6 +10,8 @@ const api = {
     close: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.PTY_CLOSE, id),
     rename: (id: string, newName: string) => ipcRenderer.invoke(IPC_CHANNELS.PTY_RENAME, id, newName),
     getShells: () => ipcRenderer.invoke(IPC_CHANNELS.PTY_GET_SHELLS),
+    setAutoApprove: (id: string, cwd: string, enabled: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PTY_SET_AUTO_APPROVE, { id, cwd, enabled }),
     onData: (callback: (data: { id: string; data: string }) => void) => {
       const handler = (_event: any, data: any) => callback(data)
       ipcRenderer.on(IPC_CHANNELS.PTY_DATA, handler)

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { TerminalSession } from '@shared/types'
-import { Zap, Coffee, Plus } from 'lucide-react'
+import { Zap, Coffee, Plus, Shield, ShieldCheck } from 'lucide-react'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
@@ -76,6 +76,8 @@ interface SessionPanelProps {
   onReorderSessions?: (fromIndex: number, toIndex: number) => void
   commandHistory?: Record<string, string[]>
   agentStatus?: Record<string, 'running' | 'idle'>
+  autoApproveSessions?: Record<string, boolean>
+  onToggleAutoApprove?: (sessionId: string, cwd: string) => void
   showSquiggles?: boolean
   onToggleSquiggles?: (value: boolean) => void
   wordWrap?: boolean
@@ -98,6 +100,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onReorderSessions,
   commandHistory = {},
   agentStatus = {},
+  autoApproveSessions = {},
+  onToggleAutoApprove,
   showSquiggles = false,
   onToggleSquiggles,
   wordWrap = false,
@@ -600,7 +604,7 @@ const SessionPanel = React.memo(function SessionPanel({
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-sm shrink-0">{getSessionEmoji(session.id, sessionEmojis)}</span>
+                  <span className={`text-sm shrink-0 w-[18px] h-[18px] flex items-center justify-center rounded ${session.id !== activeSessionId && agentStatus[session.id] === 'running' ? 'bg-ide-accent/30 animate-pulse' : ''}`}>{getSessionEmoji(session.id, sessionEmojis)}</span>
                   {renaming === session.id ? (
                     <input
                       ref={inputRef}
@@ -621,10 +625,24 @@ const SessionPanel = React.memo(function SessionPanel({
                   ) : (
                     <span className="text-sm truncate">{session.name}</span>
                   )}
-                  {session.id !== activeSessionId && agentStatus[session.id] === 'running' && (
-                    <span className="text-[10px] text-ide-accent animate-march ml-0.5 shrink-0 font-mono font-bold">&gt;&gt;</span>
-                  )}
                 </div>
+                <div className="flex items-center">
+                {onToggleAutoApprove && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onToggleAutoApprove(session.id, session.cwd)
+                    }}
+                    className={`w-5 h-5 rounded transition-all shrink-0 flex items-center justify-center ${
+                      autoApproveSessions[session.id]
+                        ? 'text-ide-accent opacity-100'
+                        : 'text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white'
+                    }`}
+                    title={autoApproveSessions[session.id] ? t('Auto Approve: ON') : t('Auto Approve: OFF')}
+                  >
+                    {autoApproveSessions[session.id] ? <ShieldCheck size={13} /> : <Shield size={13} />}
+                  </button>
+                )}
                 <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -638,6 +656,7 @@ const SessionPanel = React.memo(function SessionPanel({
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                   </button>
+                </div>
               </div>
               <div
                 className="text-xs mt-0.5"
@@ -686,6 +705,23 @@ const SessionPanel = React.memo(function SessionPanel({
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
+          {onToggleAutoApprove && (() => {
+            const session = sessions.find(s => s.id === contextMenu.sessionId)
+            const isOn = session ? autoApproveSessions[session.id] : false
+            return (
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                onClick={() => {
+                  if (session) onToggleAutoApprove(session.id, session.cwd)
+                  setContextMenu(null)
+                }}
+              >
+                {isOn ? <ShieldCheck size={14} className="text-ide-accent" /> : <Shield size={14} className="text-ide-text-muted" />}
+                <span>{t('Auto Approve')}</span>
+                {isOn && <span className="ml-auto text-ide-accent text-xs">✓</span>}
+              </button>
+            )
+          })()}
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover"
             onClick={() => {

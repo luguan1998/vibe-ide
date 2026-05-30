@@ -92,6 +92,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const { t } = useI18n()
 
   const [viewMode, setViewMode] = useState<ViewMode>(defaultEdit ? 'edit' : 'diff')
+  const viewModeRef = useRef(viewMode)
+  viewModeRef.current = viewMode
 
   // Reset viewMode when file changes
   useEffect(() => {
@@ -286,7 +288,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       // Only handle keys when visible (not display:none)
       if (!containerRef.current?.offsetParent) return
       if (e.ctrlKey && e.key === 's') {
-        if (commitHash) return
+        if (commitHash && viewModeRef.current === 'diff') return
         e.preventDefault()
         handleSaveRef.current()
       }
@@ -515,7 +517,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             </button>
           )}
           <span className="text-ide-text font-medium truncate max-w-md">{filePath}</span>
-          {(diffStats.additions > 0 || diffStats.deletions > 0) && (
+          {viewMode === 'diff' && (diffStats.additions > 0 || diffStats.deletions > 0) && (
             <div className="flex items-center gap-1 text-xs shrink-0">
               {diffStats.additions > 0 && <span className="text-ide-success font-mono">+{diffStats.additions}</span>}
               {diffStats.deletions > 0 && <span className="text-ide-danger font-mono">-{diffStats.deletions}</span>}
@@ -529,7 +531,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           {currentEncoding !== DEFAULT_ENCODING && (
             <span className="text-[10px] text-ide-accent font-mono" title={encodingInfo || undefined}>{currentEncoding.toUpperCase()}</span>
           )}
-          {!commitHash && (
         <div className="flex items-center rounded-md bg-ide-hover overflow-hidden">
           <button
             onClick={() => setViewMode('diff')}
@@ -548,7 +549,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             Edit
           </button>
         </div>
-          )}
         </div>
       </div>
 
