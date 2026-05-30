@@ -681,7 +681,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       )}
 
       {/* Content */}
-      <div ref={containerRef} tabIndex={-1} className="flex-1 overflow-y-auto flex flex-col outline-none focus:outline-none focus:ring-0">
+      <div ref={containerRef} tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto flex flex-col outline-none focus:outline-none focus:ring-0">
         {message && (
           <div className="px-3 py-2 text-sm text-ide-accent bg-ide-accent/10 animate-fade-in">
             <p>{message}</p>

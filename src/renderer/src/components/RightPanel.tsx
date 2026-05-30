@@ -457,7 +457,7 @@ const RightPanel = React.memo(function RightPanel({
         onRefreshFile={() => setFileRefreshKey(k => k + 1)}
       />
 
-      <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none">
+      <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <GitTab
           workspacePath={workspacePath}
           effectiveGitPath={effectiveGitPath}
