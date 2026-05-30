@@ -281,7 +281,7 @@ const SessionPanel = React.memo(function SessionPanel({
             }`}
             title={t('running')}
           >
-            <Zap size={13} className="shrink-0" />
+            <Zap size={13} className={`shrink-0 ${stats.running > 0 ? 'animate-zap-glow' : ''}`} />
             <span className="text-xs font-bold font-mono">{stats.running}</span>
           </span>
           <span
@@ -556,7 +556,7 @@ const SessionPanel = React.memo(function SessionPanel({
                 session.id === activeSessionId
                   ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
                   : agentStatus[session.id] === 'running'
-                    ? 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text border-l-[3px] border-ide-accent/60 animate-border-pulse'
+                    ? 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text border-l-[3px] border-ide-accent/60'
                     : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
               } ${dragIndex === index ? 'opacity-40' : ''} ${dropIndex === index && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
               onClick={() => onSwitchSession(session.id)}
@@ -604,7 +604,7 @@ const SessionPanel = React.memo(function SessionPanel({
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className={`text-[12px] shrink-0 w-[16px] h-[16px] flex items-center justify-center rounded-full ${session.id !== activeSessionId && agentStatus[session.id] === 'running' ? 'animate-running-pulse' : ''}`}>{getSessionEmoji(session.id, sessionEmojis)}</span>
+                  <span className={`text-[12px] shrink-0 w-[16px] h-[16px] flex items-center justify-center rounded-full ${session.id !== activeSessionId && agentStatus[session.id] === 'running' ? 'animate-aura-glow' : ''}`}>{getSessionEmoji(session.id, sessionEmojis)}</span>
                   {renaming === session.id ? (
                     <input
                       ref={inputRef}
@@ -623,7 +623,7 @@ const SessionPanel = React.memo(function SessionPanel({
                       className="bg-ide-bg border border-ide-accent rounded px-1 text-sm text-ide-text outline-none w-24"
                     />
                   ) : (
-                    <span className="text-sm truncate">{session.name}</span>
+                    <span className={`text-sm truncate ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}>{session.name}</span>
                   )}
                 </div>
                 <div className="flex items-center">
