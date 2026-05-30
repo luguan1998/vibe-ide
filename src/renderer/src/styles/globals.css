@@ -127,3 +127,17 @@ html, body, #root {
   animation: marchRight 0.8s ease-in-out infinite;
   display: inline-block;
 }
+
+@keyframes runningPulse {
+  0%, 100% { background-color: rgb(var(--ide-accent) / 0.15); }
+  50% { background-color: rgb(var(--ide-accent) / 0.5); }
+}
+
+.animate-running-pulse {
+  animation: runningPulse 1s ease-in-out infinite;
+}
+
+.animate-march {
+  animation: marchRight 0.8s ease-in-out infinite;
+  display: inline-block;
+}

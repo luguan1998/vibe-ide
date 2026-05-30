@@ -604,7 +604,7 @@ const SessionPanel = React.memo(function SessionPanel({
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className={`text-sm shrink-0 w-[18px] h-[18px] flex items-center justify-center rounded ${session.id !== activeSessionId && agentStatus[session.id] === 'running' ? 'bg-ide-accent/30 animate-pulse' : ''}`}>{getSessionEmoji(session.id, sessionEmojis)}</span>
+                  <span className={`text-[12px] shrink-0 w-[16px] h-[16px] flex items-center justify-center rounded-full ${session.id !== activeSessionId && agentStatus[session.id] === 'running' ? 'animate-running-pulse' : ''}`}>{getSessionEmoji(session.id, sessionEmojis)}</span>
                   {renaming === session.id ? (
                     <input
                       ref={inputRef}
