@@ -14,6 +14,7 @@ interface GitTabProps {
   onCloseRightTerminal?: (sessionId: string) => void
   onWorktreeNavChange: (updater: (prev: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => void
   onDiffScroll?: (delta: number) => void
+  onNavigateToFile?: (filePath: string) => void
 }
 
 const getStatusIcon = (file: GitFileStatus): string => {
@@ -56,7 +57,7 @@ const splitPath = (filePath: string): { name: string; dir: string } => {
   return { name: filePath.slice(idx + 1), dir: filePath.slice(0, idx + 1) }
 }
 
-export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, isActive, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll }: GitTabProps) {
+export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, isActive, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll, onNavigateToFile }: GitTabProps) {
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
   const { t } = useI18n()
@@ -97,6 +98,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const gitChangedHandlerRef = useRef<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
   const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)
+  const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; filePath: string; fullPath: string } | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ type: string; filePath?: string; fileName?: string; filePaths?: string[]; count?: number } | null>(null)
   const [conflictApply, setConflictApply] = useState<{ branch: string; message: string } | null>(null)
   const [remoteBranches, setRemoteBranches] = useState<{ name: string; remote: string; branch: string }[]>([])
@@ -570,7 +572,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
   // Dismiss context menus on outside click
   useEffect(() => {
-    const handleClick = () => { setContextMenu(null); setCommitContextMenu(null) }
+    const handleClick = () => { setContextMenu(null); setCommitContextMenu(null); setFileContextMenu(null) }
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
   }, [])
@@ -763,6 +765,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       focusedFileKey === `staged:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
                     onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'staged' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}` : file.path
+                      setFileContextMenu({ x: e.clientX, y: e.clientY, filePath: file.path, fullPath })
+                    }}
                   >
                     <span className={`font-bold ${getStatusColor(file)} w-3.5 text-center shrink-0`}>
                       {getStatusIcon(file)}
@@ -839,6 +846,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       focusedFileKey === `unstaged:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
                     onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'unstaged' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}` : file.path
+                      setFileContextMenu({ x: e.clientX, y: e.clientY, filePath: file.path, fullPath })
+                    }}
                   >
                     <span className={`font-bold ${getStatusColor(file)} w-3.5 text-center shrink-0`}>
                       {getStatusIcon(file)}
@@ -919,6 +931,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       focusedFileKey === `untracked:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
                     onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'untracked' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}` : file.path
+                      setFileContextMenu({ x: e.clientX, y: e.clientY, filePath: file.path, fullPath })
+                    }}
                   >
                     <span className="font-bold text-ide-text-muted w-3.5 text-center shrink-0">U</span>
                     <span className="shrink-0 text-[11px]">{name}</span>
@@ -1264,6 +1281,36 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             }}
           >
             {t('Copy Hash')}
+          </button>
+        </div>
+      )}
+
+      {/* Context Menu for file rows */}
+      {fileContextMenu && (
+        <div
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50"
+          style={{ left: fileContextMenu.x, top: fileContextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {onNavigateToFile && (
+            <button
+              className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+              onClick={() => {
+                onNavigateToFile(fileContextMenu.fullPath)
+                setFileContextMenu(null)
+              }}
+            >
+              {t('Open in File Panel')}
+            </button>
+          )}
+          <button
+            className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+            onClick={() => {
+              window.api.file.openExplorer(fileContextMenu.fullPath)
+              setFileContextMenu(null)
+            }}
+          >
+            {t('Open Containing Folder')}
           </button>
         </div>
       )}

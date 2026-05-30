@@ -23,6 +23,8 @@ interface RightPanelProps {
   fileTreeDepth?: number
   onDiffScroll?: (delta: number) => void
   onToggleCollapse?: () => void
+  navigateToFilePayload?: { trigger: number; filePath: string } | null
+  onNavigateToFile?: (filePath: string) => void
 }
 
 type GitSection = 'git' | 'terminal' | 'search' | 'file'
@@ -312,14 +314,15 @@ function TabBar({
   )
 }
 
-const RightPanel = React.memo(function RightPanel({
+function RightPanel({
   workspacePath, onFileSelect, refreshKey,
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
   rightTerminalSession, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
   searchFocusTrigger, onOpenFileFromExplorer,
   fileTreeDepth = 5, onDiffScroll,
-  onToggleCollapse
+  onToggleCollapse,
+  navigateToFilePayload, onNavigateToFile
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -417,6 +420,19 @@ const RightPanel = React.memo(function RightPanel({
     }
   }, [searchFocusTrigger])
 
+  // navigateToFilePayload → 切换到 File 面板
+  useEffect(() => {
+    if (navigateToFilePayload && navigateToFilePayload.trigger > 0) {
+      setVisibleTabs(prev => {
+        if (prev['file']) return prev
+        const next = { ...prev, file: true }
+        saveVisibleTabs(next)
+        return next
+      })
+      setActiveSection('file')
+    }
+  }, [navigateToFilePayload])
+
   // 确保 activeSection 始终可见（处理隐藏当前 tab 的情况）
   useEffect(() => {
     if (!visibleTabs[activeSection] && visibleList.length > 0) {
@@ -470,6 +486,7 @@ const RightPanel = React.memo(function RightPanel({
           onCloseRightTerminal={onCloseRightTerminal}
           onWorktreeNavChange={setSessionWorktreeNav}
           onDiffScroll={onDiffScroll}
+          onNavigateToFile={onNavigateToFile}
         />
       </div>
 
@@ -503,10 +520,11 @@ const RightPanel = React.memo(function RightPanel({
           onOpenFileFromExplorer={onOpenFileFromExplorer}
           fileTreeDepth={fileTreeDepth}
           refreshKey={fileRefreshKey}
+          navigateToFile={navigateToFilePayload}
         />
       </div>
     </div>
   )
-})
+}
 
 export default RightPanel

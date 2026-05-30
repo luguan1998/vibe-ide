@@ -33,6 +33,7 @@ interface FileTabProps {
   onOpenFileFromExplorer?: (fullPath: string) => void
   fileTreeDepth: number
   refreshKey?: number
+  navigateToFile?: { trigger: number; filePath: string } | null
 }
 
 // Workspace-root inline input (new file/folder at root level)
@@ -88,8 +89,13 @@ function RootInput({ editingState, onEditSubmit, onEditCancel, t }: {
   )
 }
 
+// Normalize path separators for cross-platform comparison
+function norm(p: string): string {
+  return p.replace(/\\/g, '/')
+}
+
 // File tree item component
-function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel }: {
+function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath }: {
   node: FileNode
   depth: number
   expandedDirs: Set<string>
@@ -99,10 +105,11 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   editingState: { type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null
   onEditSubmit: (value: string) => void
   onEditCancel: () => void
+  highlightedFilePath: string | null
 }) {
   const { t } = useI18n()
   const isDir = node.type === 'directory'
-  const isExpanded = expandedDirs.has(node.path)
+  const isExpanded = expandedDirs.has(norm(node.path))
   const paddingLeft = 12 + depth * 16
   const isRenaming = editingState?.type === 'rename' && editingState.nodePath === node.path
   const isCreating = editingState && editingState.nodePath === node.path && (editingState.type === 'newFile' || editingState.type === 'newFolder')
@@ -144,10 +151,11 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   return (
     <>
       <div
-        className="pr-2 py-0.5 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none"
+        className={`pr-2 py-0.5 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none ${highlightedFilePath === norm(node.path) ? 'bg-ide-accent/20' : ''}`}
         style={{ paddingLeft }}
         onClick={handleClick}
         onContextMenu={(e) => { if (!isRenaming && !isCreating) onContextMenu(e, node) }}
+        data-file-highlighted={highlightedFilePath === norm(node.path) ? 'true' : undefined}
       >
         {isDir ? (
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 text-ide-text-muted transition-transform shrink-0 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>
@@ -260,6 +268,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
               editingState={editingState}
               onEditSubmit={onEditSubmit}
               onEditCancel={onEditCancel}
+              highlightedFilePath={highlightedFilePath}
             />
           ))}
         </>
@@ -268,12 +277,13 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTreeDepth, refreshKey }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTreeDepth, refreshKey, navigateToFile }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
   const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; node: FileNode } | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ type: string; filePath: string; fileName: string } | null>(null)
+  const [highlightedFilePath, setHighlightedFilePath] = useState<string | null>(null)
   const [docTree, setDocTree] = useState<DocTreeNode[]>([])
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
   const [archExpanded, setArchExpanded] = useState(true)
@@ -326,13 +336,58 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
 
   // Toggle directory expand
   const toggleDir = useCallback((path: string) => {
+    const n = norm(path)
     setExpandedDirs(prev => {
       const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
+      if (next.has(n)) next.delete(n)
+      else next.add(n)
       return next
     })
   }, [])
+
+  // Handle navigateToFile prop
+  const navTriggerRef = useRef<number>(0)
+  useEffect(() => {
+    if (!navigateToFile || !workspacePath) return
+    if (navigateToFile.trigger === navTriggerRef.current) return
+    navTriggerRef.current = navigateToFile.trigger
+
+    const normalizedWs = norm(workspacePath).replace(/\/$/, '')
+    const normalizedTarget = norm(navigateToFile.filePath)
+
+    if (!normalizedTarget.startsWith(normalizedWs)) return
+
+    const relPath = normalizedTarget.slice(normalizedWs.length).replace(/^\//, '')
+    const segments = relPath.split('/')
+    const dirPaths: string[] = []
+    for (let i = 0; i < segments.length - 1; i++) {
+      dirPaths.push(normalizedWs + '/' + segments.slice(0, i + 1).join('/'))
+    }
+
+    setExpandedDirs(prev => {
+      const next = new Set(prev)
+      dirPaths.forEach(p => next.add(p))
+      return next
+    })
+    setHighlightedFilePath(normalizedTarget)
+  }, [navigateToFile, workspacePath])
+
+  // Scroll highlighted file into view after it appears in the DOM
+  useEffect(() => {
+    if (!highlightedFilePath) return
+    const tryScroll = () => {
+      const el = document.querySelector('[data-file-highlighted="true"]')
+      if (el) {
+        el.scrollIntoView({ block: 'nearest' })
+        return true
+      }
+      return false
+    }
+    if (!tryScroll()) {
+      const id = setTimeout(() => { if (!tryScroll()) setTimeout(tryScroll, 100) }, 50)
+      return () => clearTimeout(id)
+    }
+  }, [highlightedFilePath])
 
   // Dismiss context menus on outside click
   useEffect(() => {
@@ -354,13 +409,13 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
 
   const handleNewFile = useCallback((dirNode: FileNode) => {
     setFileContextMenu(null)
-    setExpandedDirs(prev => { const next = new Set(prev); next.add(dirNode.path); return next })
+    setExpandedDirs(prev => { const next = new Set(prev); next.add(norm(dirNode.path)); return next })
     setEditingState({ type: 'newFile', nodePath: dirNode.path })
   }, [])
 
   const handleNewFolder = useCallback((dirNode: FileNode) => {
     setFileContextMenu(null)
-    setExpandedDirs(prev => { const next = new Set(prev); next.add(dirNode.path); return next })
+    setExpandedDirs(prev => { const next = new Set(prev); next.add(norm(dirNode.path)); return next })
     setEditingState({ type: 'newFolder', nodePath: dirNode.path })
   }, [])
 
@@ -381,7 +436,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
           return
         }
         setEditingState(null)
-        setExpandedDirs(prev => { const next = new Set(prev); next.delete(nodePath); return next })
+        setExpandedDirs(prev => { const next = new Set(prev); next.delete(norm(nodePath)); return next })
         await loadFileTree()
         break
       }
@@ -462,6 +517,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
                 editingState={editingState}
                 onEditSubmit={handleEditSubmit}
                 onEditCancel={handleEditCancel}
+                highlightedFilePath={highlightedFilePath}
               />
             ))}
           </div>

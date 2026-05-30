@@ -132,6 +132,10 @@ const ZH_MAP: Record<string, string> = {
   'Commit (Ctrl+Enter)': '提交 (Ctrl+Enter)',
   'Files ({count})': '文件 ({count})',
 
+  // GitTab - File context menu
+  'Open in File Panel': '在 File 面板中打开',
+  'Open Containing Folder': '打开文件所在位置',
+
   // GitTab - Commit context menu
   'Copy Message': '复制提交信息',
   'Copy Hash': '复制哈希值',

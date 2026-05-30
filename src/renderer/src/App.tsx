@@ -135,6 +135,7 @@ export default function App() {
   const [showSquiggles, setShowSquiggles] = useState(false)
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
+  const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
 
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
   const [diffScrollTrigger, setDiffScrollTrigger] = useState(0)
@@ -637,6 +638,10 @@ export default function App() {
     setDiffScrollTrigger(prev => prev + delta)
   }, [])
 
+  const handleNavigateToFile = useCallback((filePath: string) => {
+    setNavigateToFilePayload({ trigger: Date.now(), filePath })
+  }, [])
+
   const handleBackToTerminal = useCallback(() => {
     setCenterView('terminal')
     setDiffFile(null)
@@ -910,6 +915,8 @@ export default function App() {
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
             searchFocusTrigger={searchFocusTrigger}
+            navigateToFilePayload={navigateToFilePayload}
+            onNavigateToFile={handleNavigateToFile}
 
             fileTreeDepth={fileTreeDepth}
             onDiffScroll={handleDiffScroll}
