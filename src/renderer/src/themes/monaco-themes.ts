@@ -73,7 +73,9 @@ export function registerMonacoThemes(monaco: any): void {
         'diffEditor.insertedTextBackground': success + '20',
         'diffEditor.removedTextBackground': danger + '20',
         'diffEditor.insertedLineBackground': success + '15',
-        'diffEditor.removedLineBackground': danger + '15'
+        'diffEditor.removedLineBackground': danger + '15',
+        'sash.hoverBorder': 'transparent',
+        'focusBorder': bg
       }
     })
   }

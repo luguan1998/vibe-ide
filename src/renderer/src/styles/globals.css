@@ -69,6 +69,22 @@ html, body, #root {
   background-color: rgb(var(--monaco-margin-bg)) !important;
 }
 
+/* Monaco diff: 去掉中间蓝线 — sash ::before + 编辑器 focus outline */
+.monaco-diff-editor .monaco-sash::before {
+  background: transparent !important;
+}
+.monaco-diff-editor .monaco-editor:focus {
+  outline: none !important;
+}
+.monaco-diff-editor .synthetic-focus {
+  outline: none !important;
+}
+
+/* Monaco diff: 撤销按钮常显，不依赖 hover */
+.monaco-diff-editor .gutter .gutterItem {
+  opacity: 1 !important;
+}
+
 /* 禁用 Monaco 所有 hover tooltip */
 .monaco-hover,
 .workbench-hover,
