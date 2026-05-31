@@ -74,6 +74,7 @@ export function registerMonacoThemes(monaco: any): void {
         'diffEditor.removedTextBackground': danger + '20',
         'diffEditor.insertedLineBackground': success + '15',
         'diffEditor.removedLineBackground': danger + '15',
+        'diffEditor.border': border,
         'sash.hoverBorder': 'transparent',
         'focusBorder': bg
       }

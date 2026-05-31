@@ -80,9 +80,10 @@ html, body, #root {
   outline: none !important;
 }
 
-/* Monaco diff: 撤销按钮常显，不依赖 hover */
-.monaco-diff-editor .gutter .gutterItem {
-  opacity: 1 !important;
+/* Monaco diff: gutter 分隔线 */
+.monaco-diff-editor .gutter {
+  outline: 1px solid rgb(var(--ide-border));
+  outline-offset: -1px;
 }
 
 /* 禁用 Monaco 所有 hover tooltip */
