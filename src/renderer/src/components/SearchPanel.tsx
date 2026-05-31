@@ -8,6 +8,61 @@ interface SearchPanelProps {
   focusTrigger?: number
 }
 
+function trimToMatch(content: string, column: number): { text: string; head: boolean; tail: boolean } {
+  const MATCH_BEFORE = 30
+  const MAX_LEN = 150
+
+  const matchIdx = column - 1
+  const start = Math.max(0, matchIdx - MATCH_BEFORE)
+  const end = Math.min(content.length, start + MAX_LEN)
+
+  return {
+    text: content.slice(start, end),
+    head: start > 0,
+    tail: end < content.length
+  }
+}
+
+function highlightMatches(text: string, query: string, regex: boolean, caseSensitive: boolean): React.ReactNode {
+  if (!query || !text) return text
+
+  let pattern: RegExp
+  try {
+    if (regex) {
+      pattern = new RegExp(query, caseSensitive ? 'g' : 'gi')
+    } else {
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      pattern = new RegExp(escaped, caseSensitive ? 'g' : 'gi')
+    }
+  } catch {
+    return text
+  }
+
+  const result: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  pattern.lastIndex = 0
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      result.push(text.slice(lastIndex, match.index))
+    }
+    result.push(
+      <mark key={match.index} className="bg-ide-accent/25 text-ide-text rounded-sm">
+        {match[0]}
+      </mark>
+    )
+    lastIndex = match.index + match[0].length
+    if (match[0].length === 0) pattern.lastIndex++
+  }
+
+  if (lastIndex < text.length) {
+    result.push(text.slice(lastIndex))
+  }
+
+  return result.length > 0 ? <>{result}</> : text
+}
+
 export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPanelProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<GrepMatch[]>([])
@@ -240,8 +295,17 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
                     <span className="text-xs text-ide-text-muted font-mono shrink-0 mt-0.5">
                       {match.line}
                     </span>
-                    <span className="text-ide-text font-mono text-xs truncate">
-                      {match.content}
+                    <span className="text-ide-text font-mono text-xs overflow-hidden whitespace-nowrap">
+                      {(() => {
+                        const { text: trimmed, head, tail } = trimToMatch(match.content, match.column)
+                        return (
+                          <>
+                            {head && <span className="text-ide-text-muted/50">...</span>}
+                            {highlightMatches(trimmed, query, regex, caseSensitive)}
+                            {tail && <span className="text-ide-text-muted/50">...</span>}
+                          </>
+                        )
+                      })()}
                     </span>
                   </div>
                 ))}
