@@ -362,7 +362,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   </div>
                   {showThemeFlyout && (
                     <div
-                      className={`absolute top-0 ${flyoutOnLeft ? 'right-full mr-1' : 'left-full ml-1'} w-40 bg-ide-bg border border-ide-border rounded shadow-lg py-1 max-h-64 overflow-y-auto`}
+                      className={`absolute top-0 ${flyoutOnLeft ? 'right-full mr-1' : 'left-full ml-1'} w-44 bg-ide-bg border border-ide-border rounded shadow-lg py-1 max-h-64 overflow-y-auto`}
                       onMouseEnter={() => {
                         if (themeFlyoutTimerRef.current) clearTimeout(themeFlyoutTimerRef.current)
                       }}
