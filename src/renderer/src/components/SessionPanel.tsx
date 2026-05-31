@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { TerminalSession } from '@shared/types'
-import { Zap, Coffee, Plus, Shield, ShieldCheck } from 'lucide-react'
+import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X } from 'lucide-react'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
@@ -705,6 +705,19 @@ const SessionPanel = React.memo(function SessionPanel({
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+            onClick={() => {
+              const session = sessions.find(s => s.id === contextMenu.sessionId)
+              if (session) {
+                onCloneSession(session.id, session.cwd, session.shell)
+              }
+              setContextMenu(null)
+            }}
+          >
+            <Copy size={14} className="text-ide-text-muted" />
+            <span>{t('Clone')}</span>
+          </button>
           {onToggleAutoApprove && (() => {
             const session = sessions.find(s => s.id === contextMenu.sessionId)
             const isOn = session ? autoApproveSessions[session.id] : false
@@ -723,34 +736,24 @@ const SessionPanel = React.memo(function SessionPanel({
             )
           })()}
           <button
-            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover"
-            onClick={() => {
-              const session = sessions.find(s => s.id === contextMenu.sessionId)
-              if (session) {
-                onCloneSession(session.id, session.cwd, session.shell)
-              }
-              setContextMenu(null)
-            }}
-          >
-            {t('Clone')}
-          </button>
-          <button
-            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover"
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
             onClick={() => {
               const session = sessions.find(s => s.id === contextMenu.sessionId)
               if (session) startRename(session)
             }}
           >
-            {t('Rename')}
+            <Pencil size={14} className="text-ide-text-muted" />
+            <span>{t('Rename')}</span>
           </button>
           <button
-            className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover"
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover flex items-center gap-2"
             onClick={() => {
               onCloseSession(contextMenu.sessionId)
               setContextMenu(null)
             }}
           >
-            {t('Close')}
+            <X size={14} className="text-ide-danger" />
+            <span>{t('Close')}</span>
           </button>
         </div>
       )}
