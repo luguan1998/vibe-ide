@@ -106,6 +106,7 @@ interface DiffFileState {
   commitHash?: string       // 查看历史 commit 时的 commit hash
   lineNumber?: number       // 跳转到指定行
   showSquiggles?: boolean
+  revision: number          // 递增以强制 DiffViewer 重新加载内容
 }
 
 export default function App() {
@@ -132,6 +133,7 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
+  const diffRevisionRef = useRef(0)
   const [showSquiggles, setShowSquiggles] = useState(false)
   const [pollingEnabled, setPollingEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-polling') === '1' } catch { return false }
@@ -562,7 +564,8 @@ export default function App() {
                 fullPath: data.path,
                 diffContent: '',
                 isStaged: false,
-                defaultEdit: true
+                defaultEdit: true,
+                revision: ++diffRevisionRef.current
               })
               setCenterView('diff')
             }
@@ -708,7 +711,7 @@ export default function App() {
 
   const handleFileSelect = useCallback((filePath: string, diffContent: string, isStaged: boolean, commitHash?: string, resolvedFullPath?: string) => {
     const fullPath = resolvedFullPath || (activeSessionCwd ? `${activeSessionCwd}/${filePath}` : filePath)
-    setDiffFile({ filePath, fullPath, diffContent, isStaged, commitHash })
+    setDiffFile({ filePath, fullPath, diffContent, isStaged, commitHash, revision: ++diffRevisionRef.current })
     setCenterView('diff')
   }, [activeSessionCwd])
 
@@ -752,7 +755,8 @@ export default function App() {
         diffContent: '',
         isStaged: false,
         lineNumber,
-        defaultEdit: true
+        defaultEdit: true,
+        revision: ++diffRevisionRef.current
       })
       setCenterView('diff')
     } catch (err) {
@@ -783,7 +787,8 @@ export default function App() {
         fullPath,
         diffContent: '',  // 直接打开编辑，不是 diff 视图
         isStaged: false,
-        lineNumber
+        lineNumber,
+        revision: ++diffRevisionRef.current
       })
       setCenterView('diff')
     } catch (err) {
@@ -839,7 +844,8 @@ export default function App() {
         diffContent: '',
         isStaged: false,
         defaultEdit: true,
-        lineNumber
+        lineNumber,
+        revision: ++diffRevisionRef.current
       })
       setCenterView('diff')
     } catch (err) {
@@ -859,7 +865,8 @@ export default function App() {
         fullPath,
         diffContent: '',
         isStaged: false,
-        defaultEdit: true
+        defaultEdit: true,
+        revision: ++diffRevisionRef.current
       })
       setCenterView('diff')
     } catch (err) {
@@ -946,6 +953,7 @@ export default function App() {
                 commitHash={diffFile.commitHash}
                 showSquiggles={showSquiggles}
                 lineNumber={diffFile.lineNumber}
+                revision={diffFile.revision}
                 onBack={handleBackToTerminal}
                 onSaved={handleRefreshGit}
                 defaultEdit={diffFile.defaultEdit}

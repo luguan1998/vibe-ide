@@ -18,6 +18,7 @@ interface DiffViewerProps {
   fontSize?: number         // 编辑器字体大小
   wordWrap?: boolean        // 是否自动换行
   scrollTrigger?: number    // PageUp/PageDown 触发滚动，变化时滚动一页
+  revision?: number         // 递增以强制重新加载内容
   onBack?: () => void
   onSaved?: (path: string) => Promise<void>
   defaultEdit?: boolean
@@ -87,7 +88,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions, deletions }
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, onBack, onSaved, defaultEdit }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -215,7 +216,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       setModifiedContent('')
       setDiffStats({ additions: 0, deletions: 0 })
     }
-  }, [filePath, fullPath, isStaged, commitHash, diffContent])
+  }, [filePath, fullPath, isStaged, commitHash, diffContent, revision])
 
   useEffect(() => {
     loadContents()

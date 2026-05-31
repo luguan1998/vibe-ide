@@ -52,7 +52,7 @@ async function syncAutoApproveHook(cwd: string): Promise<void> {
   await syncConfig(have,
     join(cwd, 'opencode.json'),
     o => { o.permission = 'allow' },
-    o => { if (o.permission !== 'allow') return false; delete o.permission; return true }
+    o => { if (o.permission !== 'allow') return false; delete o.permission; if (o.$schema) delete o.$schema; return true }
   )
 }
 
