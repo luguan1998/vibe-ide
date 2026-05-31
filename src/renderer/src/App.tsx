@@ -166,6 +166,7 @@ export default function App() {
   const historyListRef = useRef<HTMLDivElement>(null)
   const [agentStatus, setAgentStatus] = useState<Record<string, 'running' | 'idle'>>({})
   const [autoApproveSessions, setAutoApproveSessions] = useState<Record<string, boolean>>({})
+  const [focusedPanel, setFocusedPanel] = useState<'term' | 'right' | null>(null)
   const [wordWrap, setWordWrap] = useState(() => {
     try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
   })
@@ -209,6 +210,52 @@ export default function App() {
 
   // Terminal refs for focus management (keyed by sessionId)
   const terminalRefs = useRef<Record<string, TerminalViewHandle>>({})
+  const rightPanelRef = useRef<HTMLDivElement>(null)
+  const flashPanelRef = useRef<'term' | 'right' | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingBlurRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Flash focus indicator on panel switch, auto-hide after 1.5s
+  const triggerFlash = useCallback((panel: 'term' | 'right') => {
+    if (flashPanelRef.current === panel) return
+    flashPanelRef.current = panel
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    setFocusedPanel(panel)
+    flashTimerRef.current = setTimeout(() => {
+      setFocusedPanel(null)
+      flashTimerRef.current = null
+    }, 600)
+  }, [])
+
+  const handleCenterFocus = useCallback(() => {
+    if (pendingBlurRef.current) {
+      clearTimeout(pendingBlurRef.current)
+      pendingBlurRef.current = null
+    }
+    triggerFlash('term')
+  }, [triggerFlash])
+
+  const handleCenterBlur = useCallback(() => {
+    pendingBlurRef.current = setTimeout(() => {
+      flashPanelRef.current = null
+      pendingBlurRef.current = null
+    }, 0)
+  }, [])
+
+  const handleRightFocus = useCallback(() => {
+    if (pendingBlurRef.current) {
+      clearTimeout(pendingBlurRef.current)
+      pendingBlurRef.current = null
+    }
+    triggerFlash('right')
+  }, [triggerFlash])
+
+  const handleRightBlur = useCallback(() => {
+    pendingBlurRef.current = setTimeout(() => {
+      flashPanelRef.current = null
+      pendingBlurRef.current = null
+    }, 0)
+  }, [])
 
   // Focus terminal when switching sessions or returning from diff
   useEffect(() => {
@@ -436,6 +483,22 @@ export default function App() {
           }
           setShowHistory(false)
           return
+        }
+      }
+
+      // Escape: return focus to terminal from right panel (non-editable areas only)
+      if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        const active = document.activeElement as HTMLElement | null
+        if (active && rightPanelRef.current?.contains(active) && centerView !== 'diff') {
+          const tag = active.tagName
+          if (tag !== 'TEXTAREA' && tag !== 'INPUT' && tag !== 'SELECT') {
+            e.preventDefault()
+            e.stopImmediatePropagation()
+            active.blur()
+            if (activeSessionId) {
+              setTimeout(() => terminalRefs.current[activeSessionId]?.focus(), 0)
+            }
+          }
         }
       }
     }
@@ -868,7 +931,10 @@ export default function App() {
         />
 
         {/* Center Panel: Terminal or Diff — all three blocks always mounted, toggled via display */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-ide-bg">
+        <div className="flex-1 flex flex-col overflow-hidden bg-ide-bg focus-frame"
+          data-focused={focusedPanel === 'term' ? 'true' : undefined}
+          onFocus={handleCenterFocus}
+          onBlur={handleCenterBlur}>
           {/* Diff */}
           <div className="flex-1 flex flex-col overflow-hidden" style={{ display: centerView === 'diff' && diffFile ? 'flex' : 'none' }}>
             {diffFile && (
@@ -919,7 +985,12 @@ export default function App() {
 
         {/* Right Panel */}
         {rightPanelCollapsed ? null : (
-        <div className="shrink-0 flex flex-col bg-ide-sidebar border-l border-ide-border overflow-hidden" style={{ width: rightPanelWidth }}>
+        <div ref={rightPanelRef}
+          className="shrink-0 flex flex-col bg-ide-sidebar border-l border-ide-border overflow-hidden focus-frame"
+          style={{ width: rightPanelWidth }}
+          data-focused={focusedPanel === 'right' ? 'true' : undefined}
+          onFocus={handleRightFocus}
+          onBlur={handleRightBlur}>
           <RightPanel
             workspacePath={activeSessionCwd}
             activeSessionId={activeSessionId}
