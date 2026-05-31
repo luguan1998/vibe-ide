@@ -1052,6 +1052,18 @@ export default function App() {
                     >
                       <span className="text-ide-text-muted shrink-0 w-8 text-right text-xs">{i + 1}</span>
                       <span className="truncate flex-1" title={cmd}>{cmd}</span>
+                      <button
+                        className="shrink-0 text-ide-text-muted/40 hover:text-ide-text transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigator.clipboard.writeText(cmd)
+                        }}
+                        title="Copy"
+                      >
+                        <svg viewBox="0 0 16 16" fill="currentColor" className="size-3.5">
+                          <path fillRule="evenodd" d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2Zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6ZM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2Z" clipRule="evenodd" />
+                        </svg>
+                      </button>
                     </div>
                   ))
                 )}
