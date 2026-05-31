@@ -80,6 +80,8 @@ interface SessionPanelProps {
   onToggleAutoApprove?: (sessionId: string, cwd: string) => void
   showSquiggles?: boolean
   onToggleSquiggles?: (value: boolean) => void
+  pollingEnabled?: boolean
+  onTogglePolling?: (value: boolean) => void
   wordWrap?: boolean
   onToggleWordWrap?: (value: boolean) => void
   autoUtf8?: boolean
@@ -104,6 +106,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onToggleAutoApprove,
   showSquiggles = false,
   onToggleSquiggles,
+  pollingEnabled = false,
+  onTogglePolling,
   wordWrap = false,
   onToggleWordWrap,
   autoUtf8 = true,
@@ -503,7 +507,7 @@ const SessionPanel = React.memo(function SessionPanel({
                     </label>
                   </div>
                 )}
-                {/* Squiggles at bottom */}
+                {/* Squiggles */}
                 {onToggleSquiggles && (
                   <div className="border-t border-ide-border mt-1 pt-1">
                     <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover cursor-pointer">
@@ -514,6 +518,20 @@ const SessionPanel = React.memo(function SessionPanel({
                         className="accent-ide-accent"
                       />
                       {t('Show squiggles')}
+                    </label>
+                  </div>
+                )}
+                {/* Polling toggle */}
+                {onTogglePolling && (
+                  <div className="border-t border-ide-border mt-1 pt-1">
+                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={pollingEnabled}
+                        onChange={(e) => onTogglePolling(e.target.checked)}
+                        className="accent-ide-accent"
+                      />
+                      {t('Polling Refresh Git/File')}
                     </label>
                   </div>
                 )}
@@ -701,7 +719,7 @@ const SessionPanel = React.memo(function SessionPanel({
       {/* Context Menu */}
       {contextMenu && (
         <div
-          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50"
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[160px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >

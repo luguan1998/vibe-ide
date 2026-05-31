@@ -133,7 +133,22 @@ export default function App() {
   const [centerView, setCenterView] = useState<CenterView>('terminal')
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
   const [showSquiggles, setShowSquiggles] = useState(false)
+  const [pollingEnabled, setPollingEnabled] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-polling') === '1' } catch { return false }
+  })
+  const [pollingTick, setPollingTick] = useState(0)
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
+
+  // Polling timer: auto-refresh git + file every 6s
+  useEffect(() => {
+    if (!pollingEnabled) return
+    const id = setInterval(() => {
+      setGitRefreshKey(k => k + 1)
+      setPollingTick(k => k + 1)
+    }, 6000)
+    return () => clearInterval(id)
+  }, [pollingEnabled])
+
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
 
@@ -834,6 +849,8 @@ export default function App() {
             onToggleAutoApprove={handleToggleAutoApprove}
             showSquiggles={showSquiggles}
             onToggleSquiggles={setShowSquiggles}
+            pollingEnabled={pollingEnabled}
+            onTogglePolling={(v) => { setPollingEnabled(v); try { localStorage.setItem('vibe-ide-polling', v ? '1' : '0') } catch {} }}
             wordWrap={wordWrap}
             onToggleWordWrap={setWordWrap}
             autoUtf8={autoUtf8}
@@ -908,6 +925,7 @@ export default function App() {
             activeSessionId={activeSessionId}
             onFileSelect={handleFileSelect}
             refreshKey={gitRefreshKey}
+            pollingTick={pollingTick}
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
             onOpenFileFromSearch={handleOpenFileFromSearch}
             onOpenFileFromExplorer={handleOpenFileFromExplorer}

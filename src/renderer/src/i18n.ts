@@ -25,6 +25,7 @@ const ZH_MAP: Record<string, string> = {
   'Keyboard Shortcuts': '键盘快捷键',
   'Word Wrap': '自动换行',
   'Auto UTF-8': '自动切 UTF8',
+  'Polling Refresh Git/File': '轮询刷新 Git/File',
   'Show squiggles': '显示错误提示',
   'New Terminal': '新建终端',
   'Recent Directories': '最近打开的目录',

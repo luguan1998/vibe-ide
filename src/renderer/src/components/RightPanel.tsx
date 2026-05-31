@@ -11,6 +11,7 @@ interface RightPanelProps {
   workspacePath: string | null
   onFileSelect?: (filePath: string, diffContent: string, isStaged: boolean, commitHash?: string, fullPath?: string) => void
   refreshKey?: number
+  pollingTick?: number
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
   onOpenFileFromSearch?: (fullPath: string, lineNumber?: number) => void
   rightTerminalSession?: TerminalSession | null
@@ -315,7 +316,7 @@ function TabBar({
 }
 
 function RightPanel({
-  workspacePath, onFileSelect, refreshKey,
+  workspacePath, onFileSelect, refreshKey, pollingTick,
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
   rightTerminalSession, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
@@ -329,6 +330,13 @@ function RightPanel({
   const [visibleTabs, setVisibleTabs] = useState<Record<GitSection, boolean>>(loadVisibleTabs)
   const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
   const [fileRefreshKey, setFileRefreshKey] = useState(0)
+
+  // Polling tick triggers file tree refresh
+  useEffect(() => {
+    if (pollingTick !== undefined && pollingTick > 0) {
+      setFileRefreshKey(k => k + 1)
+    }
+  }, [pollingTick])
 
   const worktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
   const effectiveGitPath = worktreeNav?.worktreePath || workspacePath
