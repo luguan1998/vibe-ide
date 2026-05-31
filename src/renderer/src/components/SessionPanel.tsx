@@ -131,6 +131,7 @@ const SessionPanel = React.memo(function SessionPanel({
   const [sessionEmojis, setSessionEmojis] = useState<string[]>(() => loadSessionEmojis())
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [emojiDraft, setEmojiDraft] = useState('')
+  const [showOtherOptions, setShowOtherOptions] = useState(false)
 
   // 启动时从主进程获取本机已安装的 shell，过滤选项
   useEffect(() => {
@@ -224,6 +225,19 @@ const SessionPanel = React.memo(function SessionPanel({
     document.addEventListener('click', handleClick, true)
     return () => document.removeEventListener('click', handleClick, true)
   }, [showConfigMenu])
+
+  // ESC handler for Other Options modal (capture phase per CLAUDE.md rule #8)
+  useEffect(() => {
+    if (!showOtherOptions) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
+        setShowOtherOptions(false)
+      }
+    }
+    document.addEventListener('keydown', handler, true)
+    return () => document.removeEventListener('keydown', handler, true)
+  }, [showOtherOptions])
 
   // Menu → Settings → Keyboard Shortcuts opens the shortcuts modal
   useEffect(() => {
@@ -479,60 +493,15 @@ const SessionPanel = React.memo(function SessionPanel({
                     {t('File Filter Rules')}
                   </button>
                 </div>
-                {/* Word Wrap toggle */}
-                {onToggleWordWrap && (
+                {/* Other Options */}
+                {(onToggleWordWrap || onToggleAutoUtf8 || onToggleSquiggles || onTogglePolling) && (
                   <div className="border-t border-ide-border mt-1 pt-1">
-                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={wordWrap}
-                        onChange={(e) => onToggleWordWrap(e.target.checked)}
-                        className="accent-ide-accent"
-                      />
-                      {t('Word Wrap')}
-                    </label>
-                  </div>
-                )}
-                {/* Auto UTF-8 toggle */}
-                {onToggleAutoUtf8 && (
-                  <div className="border-t border-ide-border mt-1 pt-1">
-                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={autoUtf8}
-                        onChange={(e) => onToggleAutoUtf8(e.target.checked)}
-                        className="accent-ide-accent"
-                      />
-                      {t('Auto UTF-8')}
-                    </label>
-                  </div>
-                )}
-                {/* Squiggles */}
-                {onToggleSquiggles && (
-                  <div className="border-t border-ide-border mt-1 pt-1">
-                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={showSquiggles}
-                        onChange={(e) => onToggleSquiggles(e.target.checked)}
-                        className="accent-ide-accent"
-                      />
-                      {t('Show squiggles')}
-                    </label>
-                  </div>
-                )}
-                {/* Polling toggle */}
-                {onTogglePolling && (
-                  <div className="border-t border-ide-border mt-1 pt-1">
-                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={pollingEnabled}
-                        onChange={(e) => onTogglePolling(e.target.checked)}
-                        className="accent-ide-accent"
-                      />
-                      {t('Polling Refresh Git/File')}
-                    </label>
+                    <button
+                      className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                      onClick={() => { setShowOtherOptions(true); setShowConfigMenu(false) }}
+                    >
+                      {t('Other Options…')}
+                    </button>
                   </div>
                 )}
               </div>
@@ -1012,6 +981,62 @@ const SessionPanel = React.memo(function SessionPanel({
                 </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Other Options Modal */}
+      {/* Other Options Modal */}
+      {showOtherOptions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowOtherOptions(false)}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[400px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+              <span className="text-sm font-semibold text-ide-text">{t('Other Options…')}</span>
+              <button
+                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                onClick={() => setShowOtherOptions(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4 flex flex-col gap-4">
+              {onToggleWordWrap && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={wordWrap} onChange={(e) => onToggleWordWrap(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('Word Wrap')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Auto-wrap long lines in diff/editor. Recommended: off')}</p>
+                </label>
+              )}
+              {onToggleAutoUtf8 && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={autoUtf8} onChange={(e) => onToggleAutoUtf8(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('Auto UTF-8')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Run chcp 65001 on terminal start to set UTF-8 encoding')}</p>
+                </label>
+              )}
+              {onToggleSquiggles && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={showSquiggles} onChange={(e) => onToggleSquiggles(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('Show squiggles')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Show LSP diagnostics in diff/editor. Recommended: off (basic highlighting is sufficient, this feature is incomplete)')}</p>
+                </label>
+              )}
+              {onTogglePolling && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={pollingEnabled} onChange={(e) => onTogglePolling(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('Polling Refresh Git/File')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Poll git and file tree every 6s. Recommended: off (only for network drives where file watching is unreliable)')}</p>
+                </label>
+              )}
             </div>
           </div>
         </div>
