@@ -175,6 +175,9 @@ export default function App() {
   const [autoUtf8, setAutoUtf8] = useState(() => {
     try { return localStorage.getItem('vibe-ide-auto-utf8') !== 'false' } catch { return true }
   })
+  const [inlineDiff, setInlineDiff] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-inline-diff') === 'true' } catch { return false }
+  })
 
   const [fileTreeDepth, setFileTreeDepth] = useState(() => {
     try {
@@ -283,6 +286,9 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-auto-utf8', String(autoUtf8)) } catch {}
   }, [autoUtf8])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-inline-diff', String(inlineDiff)) } catch {}
+  }, [inlineDiff])
 
   // Keep refs in sync for use in capture-phase keyboard handlers
   React.useEffect(() => { showHistoryRef.current = showHistory }, [showHistory])
@@ -925,6 +931,8 @@ export default function App() {
             onToggleWordWrap={setWordWrap}
             autoUtf8={autoUtf8}
             onToggleAutoUtf8={setAutoUtf8}
+            inlineDiff={inlineDiff}
+            onToggleInlineDiff={setInlineDiff}
             fileTreeDepth={fileTreeDepth}
             onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}
@@ -960,6 +968,7 @@ export default function App() {
                 defaultEdit={diffFile.defaultEdit}
                 fontSize={editorFontSize}
                 wordWrap={wordWrap}
+                inlineDiff={inlineDiff}
                 scrollTrigger={diffScrollTrigger}
               />
             )}

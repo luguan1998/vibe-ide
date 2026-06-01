@@ -96,6 +96,11 @@ html, body, #root {
   position: absolute;
 }
 
+/* Monaco diff: 撤销按钮 - 用圆形 discard 图案替换横向 arrowRight */
+.monaco-diff-editor .gutter .gutterItem .codicon-arrow-right::before {
+  content: "\eae2" !important;  /* codicon-discard 圆形撤销 */
+}
+
 /* Monaco diff: 隐藏"隐藏未修改行"的折叠提示表格 */
 .monaco-diff-editor .diff-hidden-lines-table .top,
 .monaco-diff-editor .diff-hidden-lines-table .bottom {

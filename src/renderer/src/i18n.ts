@@ -32,6 +32,8 @@ const ZH_MAP: Record<string, string> = {
   'Show LSP diagnostics in diff/editor. Recommended: off (basic highlighting is sufficient, this feature is incomplete)': 'diff/edit 界面显示 lsp 错误，建议关闭（基本语法提示已有，此功能不完善）',
   'Poll git and file tree every 6s. Recommended: off (only for network drives where file watching is unreliable)': '仅在网盘等远程场景无法监控文件变化的场景建议开启，建议关闭',
   'Show squiggles': '显示错误提示',
+  'Force Inline Diff': '强制内联 Diff',
+  'Force inline diff mode (revert button uses circular icon). Recommended: off (side-by-side reads better)': '强制使用内联 diff 模式（撤销按钮呈圆形）。建议关闭（side-by-side 更易读）',
   'New Terminal': '新建终端',
   'Recent Directories': '最近打开的目录',
   'No sessions yet': '暂无会话',

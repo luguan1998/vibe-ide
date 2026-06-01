@@ -86,6 +86,8 @@ interface SessionPanelProps {
   onToggleWordWrap?: (value: boolean) => void
   autoUtf8?: boolean
   onToggleAutoUtf8?: (value: boolean) => void
+  inlineDiff?: boolean
+  onToggleInlineDiff?: (value: boolean) => void
   fileTreeDepth?: number
   onChangeFileTreeDepth?: (delta: number) => void
   focusSettingsTrigger?: number
@@ -112,6 +114,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onToggleWordWrap,
   autoUtf8 = true,
   onToggleAutoUtf8,
+  inlineDiff = false,
+  onToggleInlineDiff,
   fileTreeDepth = 5,
   onChangeFileTreeDepth,
   focusSettingsTrigger = 0
@@ -494,7 +498,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   </button>
                 </div>
                 {/* Other Options */}
-                {(onToggleWordWrap || onToggleAutoUtf8 || onToggleSquiggles || onTogglePolling) && (
+                {(onToggleWordWrap || onToggleAutoUtf8 || onToggleSquiggles || onTogglePolling || onToggleInlineDiff) && (
                   <div className="border-t border-ide-border mt-1 pt-1">
                     <button
                       className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
@@ -1035,6 +1039,15 @@ const SessionPanel = React.memo(function SessionPanel({
                     <span className="text-xs text-ide-text">{t('Polling Refresh Git/File')}</span>
                   </div>
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Poll git and file tree every 6s. Recommended: off (only for network drives where file watching is unreliable)')}</p>
+                </label>
+              )}
+              {onToggleInlineDiff && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={inlineDiff} onChange={(e) => onToggleInlineDiff(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('Force Inline Diff')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Force inline diff mode (revert button uses circular icon). Recommended: off (side-by-side reads better)')}</p>
                 </label>
               )}
             </div>

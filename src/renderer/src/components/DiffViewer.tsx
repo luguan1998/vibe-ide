@@ -22,6 +22,7 @@ interface DiffViewerProps {
   onBack?: () => void
   onSaved?: (path: string) => Promise<void>
   defaultEdit?: boolean
+  inlineDiff?: boolean      // 强制内联 diff 模式
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -88,7 +89,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions, deletions }
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -608,7 +609,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             original={originalContent}
             modified={modifiedContent}
             options={{
-              renderSideBySide: true,
+              renderSideBySide: !inlineDiff,
               readOnly: !!commitHash,
               minimap: { enabled: false },
               scrollBeyondLastLine: false,
