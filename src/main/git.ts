@@ -756,6 +756,17 @@ export function registerGitHandlers(): void {
     }
   })
 
+  // Delete a local branch
+  ipcMain.handle(IPC_CHANNELS.GIT_DELETE_BRANCH, async (_event, branch: string) => {
+    const git = getGit()
+    try {
+      await git.raw(['branch', '-D', branch])
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
   // Sync file filter rules from renderer — rebuild watcher skip regex
   ipcMain.handle(IPC_CHANNELS.GIT_SET_FILTER_RULES, (_event, rules: string[]) => {
     userSkipPatterns = rules || []

@@ -444,6 +444,23 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     } finally { setBusy(false) }
   }, [worktreeNav, handleBackFromWorktree, refreshBranches, refreshStatus])
 
+  // Delete a regular local branch
+  const handleDeleteBranch = useCallback(async (branch: string) => {
+    setContextMenu(null)
+    setBusy(true)
+    try {
+      const result = await window.api.git.deleteBranch(branch)
+      if (result.error) {
+        setError(result.error)
+      } else {
+        await refreshBranches()
+        await refreshStatus()
+      }
+    } catch (err: any) {
+      setError(err.message)
+    } finally { setBusy(false) }
+  }, [refreshBranches, refreshStatus])
+
   // Apply worktree branch changes
   const handleApplyBranch = useCallback(async (branch: string) => {
     setContextMenu(null)
@@ -1091,10 +1108,10 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       }
                     }}
                     onContextMenu={(e) => {
-                      if (branch.name.startsWith('worktree-')) {
-                        e.preventDefault()
-                        setContextMenu({ x: e.clientX, y: e.clientY, branchName: branch.name })
-                      }
+                      if (branch.remote) return
+                      if (branch.current && !branch.name.startsWith('worktree-')) return
+                      e.preventDefault()
+                      setContextMenu({ x: e.clientX, y: e.clientY, branchName: branch.name })
                     }}
                   >
                     <div className="flex items-center gap-1">
@@ -1234,27 +1251,31 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         </div>
       )}
 
-      {/* Context Menu for worktree branches */}
-      {contextMenu && (
+      {/* Context Menu for branches */}
+      {contextMenu && (() => {
+        const isWorktree = contextMenu.branchName.startsWith('worktree-')
+        return (
         <div
           className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
-            onClick={() => handleApplyBranch(contextMenu.branchName)}
-          >
-            {t('Merge Changes')}
-          </button>
+          {isWorktree && (
+            <button
+              className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+              onClick={() => handleApplyBranch(contextMenu.branchName)}
+            >
+              {t('Merge Changes')}
+            </button>
+          )}
           <button
             className="w-full px-3 py-1.5 text-left text-xs text-ide-danger hover:bg-ide-hover whitespace-nowrap"
-            onClick={() => handleDeleteWorktree(contextMenu.branchName)}
+            onClick={() => isWorktree ? handleDeleteWorktree(contextMenu.branchName) : handleDeleteBranch(contextMenu.branchName)}
           >
             {t('Delete Branch')}
           </button>
         </div>
-      )}
+        )})()}
 
       {/* Context Menu for commit entries */}
       {commitContextMenu && (
