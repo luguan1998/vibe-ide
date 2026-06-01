@@ -607,8 +607,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             theme={currentTheme.monacoTheme}
             original={originalContent}
             modified={modifiedContent}
-            keepCurrentOriginalModel={true}
-            keepCurrentModifiedModel={true}
             options={{
               renderSideBySide: true,
               readOnly: !!commitHash,
