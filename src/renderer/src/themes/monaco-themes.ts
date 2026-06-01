@@ -75,8 +75,11 @@ export function registerMonacoThemes(monaco: any): void {
         'diffEditor.insertedLineBackground': success + '15',
         'diffEditor.removedLineBackground': danger + '15',
         'diffEditor.border': border,
-        'sash.hoverBorder': 'transparent',
-        'focusBorder': bg
+        'diffEditorGutter.insertedLineBackground': success + '25',
+        'diffEditorGutter.removedLineBackground': danger + '25',
+        'diffEditorOverviewRuler.insertedForeground': success + '80',
+        'diffEditorOverviewRuler.removedForeground': danger + '80',
+        'diffEditor.diagonalFill': border + '0D',
       }
     })
   }

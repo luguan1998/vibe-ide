@@ -118,6 +118,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const diffEditorRef = useRef<any>(null)
   const editEditorRef = useRef<any>(null)
 
+  // PageDown/PageUp 双击跳 diff 区块追踪
+  const pageKeyRef = useRef<{ key: string; time: number; timer: ReturnType<typeof setTimeout> | null }>({ key: '', time: 0, timer: null })
+
   // Jump to lineNumber whenever it changes (handles both mount and prop updates)
   useEffect(() => {
     if (!lineNumber || lineNumber <= 0) return
@@ -300,7 +303,50 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [viewMode, onBack, commitHash])
+  }, [onBack, commitHash])
+
+  // PageDown/PageUp 双击 / Ctrl+PageDown/PageUp 跳 diff 区块（对齐 VS Code）
+  useEffect(() => {
+    const handlePageNav = (e: KeyboardEvent) => {
+      if (!containerRef.current?.offsetParent) return
+      if (viewModeRef.current !== 'diff') return
+      if (e.key !== 'PageDown' && e.key !== 'PageUp') return
+
+      const dir = e.key === 'PageDown' ? 'next' : 'previous'
+
+      // Ctrl+PageDown/PageUp: 直接跳转
+      if (e.ctrlKey) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        try { diffEditorRef.current?.goToDiff(dir) } catch {}
+        return
+      }
+
+      // 双击跳转
+      const now = Date.now()
+      const ref = pageKeyRef.current
+      if (ref.key === e.key && now - ref.time < 400) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (ref.timer) clearTimeout(ref.timer)
+        ref.key = ''
+        ref.time = 0
+        ref.timer = null
+        try { diffEditorRef.current?.goToDiff(dir) } catch {}
+      } else {
+        if (ref.timer) clearTimeout(ref.timer)
+        ref.key = e.key
+        ref.time = now
+        ref.timer = setTimeout(() => {
+          ref.key = ''
+          ref.time = 0
+          ref.timer = null
+        }, 400)
+      }
+    }
+    document.addEventListener('keydown', handlePageNav, true)
+    return () => document.removeEventListener('keydown', handlePageNav, true)
+  }, [])
 
   // Encoding context menu outside-click dismissal
   useEffect(() => {
@@ -572,6 +618,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               lineNumbers: 'on',
               wordWrap: wordWrap ? 'on' : 'off',
               renderIndicators: true,
+              originalEditable: false,
+              renderOverviewRuler: true,
+              ignoreTrimWhitespace: true,
+              diffAlgorithm: 'advanced',
               scrollbar: {
                 verticalScrollbarSize: 5,
                 horizontalScrollbarSize: 10,

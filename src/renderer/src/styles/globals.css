@@ -86,6 +86,23 @@ html, body, #root {
   outline-offset: -1px;
 }
 
+/* Monaco diff: 撤销箭头 absolute 定位，参考 VS Code #213584 */
+.monaco-diff-editor .gutter .gutterItem > div {
+  position: absolute;
+}
+
+/* Monaco diff: 隐藏"隐藏未修改行"的折叠提示表格 */
+.monaco-diff-editor .diff-hidden-lines-table .top,
+.monaco-diff-editor .diff-hidden-lines-table .bottom {
+  display: none;
+}
+
+/* Monaco diff: 隐藏左边原始编辑器纵向滚动条 + overview ruler */
+.monaco-diff-editor .editor.original .scrollbar.vertical,
+.monaco-diff-editor .editor.original .decorationsOverviewRuler {
+  display: none !important;
+}
+
 /* 禁用 Monaco 所有 hover tooltip */
 .monaco-hover,
 .workbench-hover,
