@@ -230,6 +230,32 @@ const SessionPanel = React.memo(function SessionPanel({
     return () => document.removeEventListener('click', handleClick, true)
   }, [showConfigMenu])
 
+  // Settings menu: auto-close when mouse leaves the menu area (incl. submenus)
+  useEffect(() => {
+    if (!showConfigMenu) return
+    let closeTimer: ReturnType<typeof setTimeout> | null = null
+    const isInMenuArea = (el: EventTarget | null) =>
+      !!(el as HTMLElement | null)?.closest('.config-menu-area')
+    const handleMouseOut = (e: MouseEvent) => {
+      if (isInMenuArea(e.target) && !isInMenuArea(e.relatedTarget)) {
+        if (closeTimer) clearTimeout(closeTimer)
+        closeTimer = setTimeout(() => setShowConfigMenu(false), 200)
+      }
+    }
+    const handleMouseOver = (e: MouseEvent) => {
+      if (isInMenuArea(e.target)) {
+        if (closeTimer) { clearTimeout(closeTimer); closeTimer = null }
+      }
+    }
+    document.addEventListener('mouseout', handleMouseOut, true)
+    document.addEventListener('mouseover', handleMouseOver, true)
+    return () => {
+      document.removeEventListener('mouseout', handleMouseOut, true)
+      document.removeEventListener('mouseover', handleMouseOver, true)
+      if (closeTimer) clearTimeout(closeTimer)
+    }
+  }, [showConfigMenu])
+
   // ESC handler for Other Options modal (capture phase per CLAUDE.md rule #8)
   useEffect(() => {
     if (!showOtherOptions) return
