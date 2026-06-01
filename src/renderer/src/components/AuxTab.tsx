@@ -164,7 +164,7 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
       </div>
       {commands.length > 0 && (
         <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '40%', overflowY: 'auto' }}>
-          <div className={`px-2 py-1 text-[10px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm ${selectedCommandIndex !== null ? 'text-ide-accent' : 'text-ide-text-muted'}`}>
+          <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-ide-accent sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm border-b border-ide-border">
             {t('Commands')}
           </div>
           {commands.map((cmd, i) => (

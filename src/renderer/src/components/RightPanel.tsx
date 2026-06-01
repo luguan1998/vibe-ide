@@ -498,7 +498,7 @@ function RightPanel({
         />
       </div>
 
-      <div ref={terminalContentRef} tabIndex={-1} style={{ display: activeSection === 'terminal' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none">
+      <div ref={terminalContentRef} tabIndex={-1} style={{ display: activeSection === 'terminal' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <AuxTab
           rightTerminalSession={rightTerminalSession ?? null}
           activeSessionId={activeSessionId ?? null}

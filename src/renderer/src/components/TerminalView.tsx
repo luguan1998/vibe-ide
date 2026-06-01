@@ -535,18 +535,23 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       }
     })
 
-    // Handle resize
+    // Handle resize — double rAF ensures layout is settled before measuring
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null
     const onResize = () => {
-      if (fitAddonRef.current && xtermRef.current) {
-        try {
-          const rect = terminalRef.current?.getBoundingClientRect()
-          if (!rect || rect.width === 0 || rect.height === 0) return
-          fitAddonRef.current.fit()
-          window.api.terminal.resize(sessionId, xtermRef.current.cols, xtermRef.current.rows)
-        } catch (e) {
-          // Ignore fit errors during resize
+      if (resizeTimer) clearTimeout(resizeTimer)
+      resizeTimer = setTimeout(() => {
+        if (fitAddonRef.current && xtermRef.current) {
+          try {
+            const rect = terminalRef.current?.getBoundingClientRect()
+            if (!rect || rect.width === 0 || rect.height === 0) return
+            fitAddonRef.current.fit()
+            window.api.terminal.resize(sessionId, xtermRef.current.cols, xtermRef.current.rows)
+          } catch (e) {
+            // Ignore fit errors during resize
+          }
         }
-      }
+        resizeTimer = null
+      }, 300)
     }
 
     window.addEventListener('resize', onResize)
@@ -554,6 +559,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     return () => {
       terminalRef.current?.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('resize', onResize)
+      if (resizeTimer) clearTimeout(resizeTimer)
       if (textareaEl) {
         textareaEl.removeEventListener('focus', onTextareaFocus)
         textareaEl.removeEventListener('blur', onTextareaBlur)
@@ -829,12 +835,14 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         </div>
       )}
 
-      {/* Terminal container: outer for visual spacing, inner for precise FitAddon measurement */}
+      {/* flex-col + flex-1 ensures terminalRef is sized by flex, not by xterm.js content.
+          h-full resolves to auto when parent is a flex item without explicit height,
+          making terminalRef content-sized → xterm.js stale canvas height prevents shrinking. */}
       <div
-        className="flex-1 overflow-hidden pt-1"
+        className="flex-1 overflow-hidden pt-1 flex flex-col"
         onContextMenu={handleContextMenu}
       >
-        <div ref={terminalRef} className="h-full" />
+        <div ref={terminalRef} className="flex-1 min-h-0" />
       </div>
 
       {/* File Picker Modal — 多文件匹配选择器 */}
