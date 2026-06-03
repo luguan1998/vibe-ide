@@ -438,6 +438,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       const webglAddon = new WebglAddon()
       webglAddon.onContextLoss(() => {
         webglAddon.dispose()
+        term.refresh(0, term.rows - 1)
       })
       term.loadAddon(webglAddon)
     } catch {
