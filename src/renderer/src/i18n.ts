@@ -161,6 +161,18 @@ const ZH_MAP: Record<string, string> = {
   'truncated': '已截断',
   'matches': '条结果',
 
+  // Custom Commands
+  'Custom Command': '自定义命令',
+  'Command Name': '命令名称',
+  'Command': '命令',
+  'Edit Custom Command': '编辑自定义命令',
+  'New Custom Command': '新建自定义命令',
+  'Enter command name': '输入命令名称',
+  'Enter command to execute': '输入要执行的命令',
+  'Edit': '编辑',
+  'Execute': '执行',
+  'No custom commands': '暂无自定义命令',
+
   // Encoding
   'Search encodings...': '搜索编码...',
   'Reopen With Encoding': '以编码重新打开',

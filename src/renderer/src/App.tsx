@@ -613,6 +613,14 @@ export default function App() {
     setDiffFile(null)
   }, [])
 
+  // Execute a custom command in the active terminal
+  const handleExecuteCommand = useCallback((command: string) => {
+    if (activeSessionId) {
+      const normalized = command.replace(/\r\n/g, '\n').replace(/\n/g, '\r')
+      window.api.terminal.write(activeSessionId, normalized + '\r')
+    }
+  }, [activeSessionId])
+
   // Close a terminal session
   const handleCloseSession = useCallback(async (id: string) => {
     await window.api.terminal.close(id)
@@ -936,6 +944,7 @@ export default function App() {
             fileTreeDepth={fileTreeDepth}
             onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}
+            onExecuteCommand={handleExecuteCommand}
           />
         </div>
 
