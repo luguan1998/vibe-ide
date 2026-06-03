@@ -5,6 +5,13 @@ import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
 
+// File clipboard for cut/copy/paste
+interface FileClipboard {
+  path: string
+  name: string
+  operation: 'copy' | 'cut'
+}
+
 // ── file filter rules ──
 
 const FILTER_RULES_KEY = 'vibe-ide-file-filter-rules'
@@ -287,6 +294,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
   const [docTree, setDocTree] = useState<DocTreeNode[]>([])
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
   const [archExpanded, setArchExpanded] = useState(true)
+  const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(null)
   const { t } = useI18n()
 
   // Load file tree
@@ -476,6 +484,33 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
     await window.api.file.openExplorer(node.path)
   }, [])
 
+  const handleCut = useCallback((node: FileNode) => {
+    setFileContextMenu(null)
+    setFileClipboard({ path: node.path, name: node.name, operation: 'cut' })
+  }, [])
+
+  const handleCopy = useCallback((node: FileNode) => {
+    setFileContextMenu(null)
+    setFileClipboard({ path: node.path, name: node.name, operation: 'copy' })
+  }, [])
+
+  const handlePaste = useCallback(async (destDir: string) => {
+    setFileContextMenu(null)
+    if (!fileClipboard) return
+    const sep = fileClipboard.path.includes('\\') ? '\\' : '/'
+    const destPath = destDir + sep + fileClipboard.name
+    let result: { error?: string }
+    if (fileClipboard.operation === 'cut') {
+      result = await window.api.file.move(fileClipboard.path, destPath)
+    } else {
+      result = await window.api.file.copy(fileClipboard.path, destPath)
+    }
+    if (!result.error) {
+      setFileClipboard(null)
+      await loadFileTree()
+    }
+  }, [fileClipboard, loadFileTree])
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div
@@ -604,7 +639,31 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
               >
                 {t('New Folder')}
               </button>
-              {!isRoot && <div className="border-t border-ide-border my-1" />}
+              {(fileClipboard || !isRoot) && <div className="border-t border-ide-border my-1" />}
+              {fileClipboard && (
+                <button
+                  className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                  onClick={() => handlePaste(fileContextMenu.node.path)}
+                >
+                  {t('Paste')} ({fileClipboard.operation === 'cut' ? t('Move') : t('Copy')}: {fileClipboard.name})
+                </button>
+              )}
+              {!isRoot && (
+                <>
+                  <button
+                    className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                    onClick={() => handleCut(fileContextMenu.node)}
+                  >
+                    {t('Cut')}
+                  </button>
+                  <button
+                    className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                    onClick={() => handleCopy(fileContextMenu.node)}
+                  >
+                    {t('Copy')}
+                  </button>
+                </>
+              )}
             </>
           ) : (
             <>
@@ -615,10 +674,23 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
                 {t('Open in Explorer')}
               </button>
               <div className="border-t border-ide-border my-1" />
+              <button
+                className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                onClick={() => handleCut(fileContextMenu.node)}
+              >
+                {t('Cut')}
+              </button>
+              <button
+                className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                onClick={() => handleCopy(fileContextMenu.node)}
+              >
+                {t('Copy')}
+              </button>
             </>
           )}
           {!isRoot && (
             <>
+              <div className="border-t border-ide-border my-1" />
               <button
                 className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
                 onClick={() => handleFileRename(fileContextMenu.node)}

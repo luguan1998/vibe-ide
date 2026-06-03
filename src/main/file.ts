@@ -1,5 +1,5 @@
 import { ipcMain, shell } from 'electron'
-import { readFile, writeFile, readdir, rename, mkdir, rm } from 'fs/promises'
+import { readFile, writeFile, readdir, rename, mkdir, rm, cp } from 'fs/promises'
 import { join, dirname, basename } from 'path'
 import { IPC_CHANNELS, FileNode } from '../shared/types'
 import * as iconv from 'iconv-lite'
@@ -144,6 +144,26 @@ export function registerFileHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.FILE_CREATE_DIR, async (_event, dirPath: string) => {
     try {
       await mkdir(dirPath, { recursive: true })
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Copy file or directory recursively
+  ipcMain.handle(IPC_CHANNELS.FILE_COPY, async (_event, srcPath: string, destPath: string) => {
+    try {
+      await cp(srcPath, destPath, { recursive: true })
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Move (cut) file or directory
+  ipcMain.handle(IPC_CHANNELS.FILE_MOVE, async (_event, srcPath: string, destPath: string) => {
+    try {
+      await rename(srcPath, destPath)
       return { success: true }
     } catch (err: any) {
       return { error: err.message }

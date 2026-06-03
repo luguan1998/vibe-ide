@@ -49,6 +49,8 @@ export const IPC_CHANNELS = {
   FILE_RENAME: 'file:rename',
   FILE_CREATE_DIR: 'file:createDir',
   FILE_OPEN_EXPLORER: 'file:openExplorer',
+  FILE_COPY: 'file:copy',
+  FILE_MOVE: 'file:move',
   FILE_FIND: 'file:find',
 
   // Workspace

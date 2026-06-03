@@ -90,6 +90,8 @@ const api = {
     rename: (oldPath: string, newPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_RENAME, oldPath, newPath),
     createDir: (dirPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_CREATE_DIR, dirPath),
     openExplorer: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_OPEN_EXPLORER, filePath),
+    copy: (srcPath: string, destPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_COPY, srcPath, destPath),
+    move: (srcPath: string, destPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_MOVE, srcPath, destPath),
     find: (cwd: string, filename: string, skipPatterns?: string[]) => ipcRenderer.invoke(IPC_CHANNELS.FILE_FIND, cwd, filename, skipPatterns)
   },
 
