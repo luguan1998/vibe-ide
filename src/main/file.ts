@@ -153,7 +153,7 @@ export function registerFileHandlers(): void {
   // Open file in system explorer
   ipcMain.handle(IPC_CHANNELS.FILE_OPEN_EXPLORER, async (_event, filePath: string) => {
     try {
-      shell.showItemInFolder(filePath)
+      shell.openPath(filePath)
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
