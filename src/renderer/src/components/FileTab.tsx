@@ -41,6 +41,7 @@ interface FileTabProps {
   fileTreeDepth: number
   refreshKey?: number
   navigateToFile?: { trigger: number; filePath: string } | null
+  onRefresh?: () => void
 }
 
 // Workspace-root inline input (new file/folder at root level)
@@ -284,7 +285,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTreeDepth, refreshKey, navigateToFile }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTreeDepth, refreshKey, navigateToFile, onRefresh }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -513,6 +514,38 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      {workspacePath && (
+        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            <span className="text-sm text-ide-text font-medium truncate">
+              {workspacePath.split(/[\\/]/).pop()}
+            </span>
+          </div>
+          <button
+            className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
+            onClick={() => setExpandedDirs(new Set())}
+            title={t('Collapse All')}
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor" className="size-3.5">
+              <path fillRule="evenodd" d="M2 2.75A.75.75 0 0 1 2.75 2h9.5a.75.75 0 0 1 0 1.5h-9.5A.75.75 0 0 1 2 2.75ZM2 6.25a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5A.75.75 0 0 1 2 6.25Zm0 3.5A.75.75 0 0 1 2.75 9h3.5a.75.75 0 0 1 0 1.5h-3.5A.75.75 0 0 1 2 9.75ZM9.22 9.53a.75.75 0 0 1 0-1.06l2.25-2.25a.75.75 0 0 1 1.06 0l2.25 2.25a.75.75 0 0 1-1.06 1.06l-.97-.97v5.69a.75.75 0 0 1-1.5 0V8.56l-.97.97a.75.75 0 0 1-1.06 0Z" clipRule="evenodd" />
+            </svg>
+          </button>
+          {onRefresh && (
+            <button
+              className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
+              onClick={onRefresh}
+              title={t('Refresh')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
       <div
         className="flex-1 min-h-0 overflow-y-auto"
         onContextMenu={(e) => {
@@ -661,6 +694,17 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
                     onClick={() => handleCopy(fileContextMenu.node)}
                   >
                     {t('Copy')}
+                  </button>
+                </>
+              )}
+              {isRoot && onRefresh && (
+                <>
+                  <div className="border-t border-ide-border my-1" />
+                  <button
+                    className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                    onClick={() => { onRefresh(); setFileContextMenu(null) }}
+                  >
+                    {t('Refresh')}
                   </button>
                 </>
               )}

@@ -1,5 +1,6 @@
 import { ipcMain, shell } from 'electron'
 import { readFile, writeFile, readdir, rename, mkdir, rm, cp } from 'fs/promises'
+import { statSync } from 'fs'
 import { join, dirname, basename } from 'path'
 import { IPC_CHANNELS, FileNode } from '../shared/types'
 import * as iconv from 'iconv-lite'
@@ -173,7 +174,11 @@ export function registerFileHandlers(): void {
   // Open file in system explorer
   ipcMain.handle(IPC_CHANNELS.FILE_OPEN_EXPLORER, async (_event, filePath: string) => {
     try {
-      shell.openPath(filePath)
+      if (statSync(filePath).isDirectory()) {
+        shell.openPath(filePath)
+      } else {
+        shell.showItemInFolder(filePath)
+      }
       return { success: true }
     } catch (err: any) {
       return { error: err.message }

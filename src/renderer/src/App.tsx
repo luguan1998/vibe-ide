@@ -178,6 +178,9 @@ export default function App() {
   const [inlineDiff, setInlineDiff] = useState(() => {
     try { return localStorage.getItem('vibe-ide-inline-diff') === 'true' } catch { return false }
   })
+  const [capsuleTabs, setCapsuleTabs] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-capsule-tabs') !== 'false' } catch { return true }
+  })
 
   const [fileTreeDepth, setFileTreeDepth] = useState(() => {
     try {
@@ -289,6 +292,9 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-inline-diff', String(inlineDiff)) } catch {}
   }, [inlineDiff])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-capsule-tabs', String(capsuleTabs)) } catch {}
+  }, [capsuleTabs])
 
   // Keep refs in sync for use in capture-phase keyboard handlers
   React.useEffect(() => { showHistoryRef.current = showHistory }, [showHistory])
@@ -941,6 +947,8 @@ export default function App() {
             onToggleAutoUtf8={setAutoUtf8}
             inlineDiff={inlineDiff}
             onToggleInlineDiff={setInlineDiff}
+            capsuleTabs={capsuleTabs}
+            onToggleCapsuleTabs={setCapsuleTabs}
             fileTreeDepth={fileTreeDepth}
             onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}
@@ -1037,6 +1045,8 @@ export default function App() {
             fileTreeDepth={fileTreeDepth}
             onDiffScroll={handleDiffScroll}
             onToggleCollapse={handleToggleRightPanel}
+            capsuleTabs={capsuleTabs}
+            onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
           />
         </div>
         )}

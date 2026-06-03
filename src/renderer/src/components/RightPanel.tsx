@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useI18n } from '../i18n'
 
 import SearchPanel from './SearchPanel'
 import GitTab from './GitTab'
@@ -24,6 +25,8 @@ interface RightPanelProps {
   fileTreeDepth?: number
   onDiffScroll?: (delta: number) => void
   onToggleCollapse?: () => void
+  capsuleTabs?: boolean
+  onToggleCapsuleTabs?: () => void
   navigateToFilePayload?: { trigger: number; filePath: string } | null
   onNavigateToFile?: (filePath: string) => void
 }
@@ -114,13 +117,17 @@ function saveVisibleTabs(v: Record<GitSection, boolean>) {
 // ── Context Menu ──
 
 function ContextMenu({
-  x, y, visibleTabs, onToggle, onClose
+  x, y, visibleTabs, onToggle, onClose,
+  capsuleTabs, onToggleCapsuleTabs,
 }: {
   x: number; y: number;
   visibleTabs: Record<GitSection, boolean>;
   onToggle: (s: GitSection) => void;
   onClose: () => void;
+  capsuleTabs?: boolean;
+  onToggleCapsuleTabs?: () => void;
 }) {
+  const { t } = useI18n()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -186,6 +193,26 @@ function ContextMenu({
           </button>
         )
       })})()}
+      {onToggleCapsuleTabs && (
+        <>
+          <div className="border-t border-ide-border my-1" />
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover transition-colors"
+            onClick={() => onToggleCapsuleTabs()}
+          >
+            <span className="w-4 h-4 flex items-center justify-center text-ide-text">
+              {capsuleTabs ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-30" />
+              )}
+            </span>
+            <span>{t('Capsule Tabs')}</span>
+          </button>
+        </>
+      )}
     </div>
   )
 }
@@ -200,7 +227,8 @@ function TabBar({
   onReorder,
   onToggleVisibility,
   onToggleCollapse,
-  onRefreshFile,
+  capsuleTabs = true,
+  onToggleCapsuleTabs,
 }: {
   tabs: GitSection[]
   activeSection: GitSection
@@ -209,7 +237,8 @@ function TabBar({
   onReorder: (fromSection: GitSection, toSection: GitSection) => void
   onToggleVisibility: (s: GitSection) => void
   onToggleCollapse?: () => void
-  onRefreshFile?: () => void
+  capsuleTabs?: boolean
+  onToggleCapsuleTabs?: () => void
 }) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [dragOverSection, setDragOverSection] = useState<GitSection | null>(null)
@@ -263,46 +292,68 @@ function TabBar({
 
   return (
     <div className="h-10 flex items-center shrink-0 px-3 border-b border-ide-border" onContextMenu={handleContextMenu}>
-      <span className="text-xs font-semibold text-ide-text tracking-wide uppercase select-none">
-        {TAB_DEFS[activeSection].label}
-      </span>
-      {activeSection === 'file' && onRefreshFile && (
-        <button
-          className="ml-1.5 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
-          onClick={onRefreshFile}
-          title="Refresh file tree"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-          </svg>
-        </button>
+      {capsuleTabs ? (
+        <>
+          <div className="flex-1" />
+          <div className="flex items-center rounded-lg bg-ide-hover p-0.5">
+            {tabs.map(section => {
+              const active = section === activeSection
+              return (
+                <button
+                  key={section}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                    active ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text'
+                  } ${dragOverSection === section ? 'ring-1 ring-ide-accent' : ''}`}
+                  onClick={() => onSelect(section)}
+                  title={TAB_DEFS[section].label}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, section)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => handleDragOver(e, section)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, section)}
+                  ref={(el) => { if (el) (el as any).__section = section }}
+                >
+                  {TAB_DEFS[section].icon}
+                  <span>{TAB_DEFS[section].label}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex-1" />
+        </>
+      ) : (
+        <>
+          <span className="text-xs font-semibold text-ide-text tracking-wide uppercase select-none">
+            {TAB_DEFS[activeSection].label}
+          </span>
+          <div className="flex-1" />
+          <div className="flex items-center gap-0.5">
+            {tabs.map(section => {
+              const active = section === activeSection
+              return (
+                <button
+                  key={section}
+                  className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+                    active ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+                  } ${dragOverSection === section ? 'ring-1 ring-ide-accent bg-ide-accent/10' : ''}`}
+                  onClick={() => onSelect(section)}
+                  title={TAB_DEFS[section].label}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, section)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => handleDragOver(e, section)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, section)}
+                  ref={(el) => { if (el) (el as any).__section = section }}
+                >
+                  {TAB_DEFS[section].icon}
+                </button>
+              )
+            })}
+          </div>
+        </>
       )}
-      <div className="flex-1" />
-      <div className="flex items-center gap-0.5">
-        {tabs.map(section => {
-          const active = section === activeSection
-          return (
-            <button
-              key={section}
-              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
-                active ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-              } ${dragOverSection === section ? 'ring-1 ring-ide-accent bg-ide-accent/10' : ''}`}
-              onClick={() => onSelect(section)}
-              title={TAB_DEFS[section].label}
-              draggable
-              onDragStart={(e) => handleDragStart(e, section)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => handleDragOver(e, section)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, section)}
-              // 给 DOM 打标记，用于 dragLeave 判断
-              ref={(el) => { if (el) (el as any).__section = section }}
-            >
-              {TAB_DEFS[section].icon}
-            </button>
-          )
-        })}
-      </div>
 
       {contextMenu && (
         <ContextMenu
@@ -311,6 +362,8 @@ function TabBar({
           visibleTabs={visibleTabs}
           onToggle={onToggleVisibility}
           onClose={() => setContextMenu(null)}
+          capsuleTabs={capsuleTabs}
+          onToggleCapsuleTabs={onToggleCapsuleTabs}
         />
       )}
     </div>
@@ -325,6 +378,8 @@ function RightPanel({
   searchFocusTrigger, onOpenFileFromExplorer,
   fileTreeDepth = 5, onDiffScroll,
   onToggleCollapse,
+  capsuleTabs = true,
+  onToggleCapsuleTabs,
   navigateToFilePayload, onNavigateToFile
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
@@ -461,7 +516,8 @@ function RightPanel({
           onReorder={handleReorder}
           onToggleVisibility={handleToggleVisibility}
           onToggleCollapse={onToggleCollapse}
-          onRefreshFile={() => setFileRefreshKey(k => k + 1)}
+          capsuleTabs={capsuleTabs}
+          onToggleCapsuleTabs={onToggleCapsuleTabs}
         />
         <div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">
           No active session
@@ -480,7 +536,8 @@ function RightPanel({
         onReorder={handleReorder}
         onToggleVisibility={handleToggleVisibility}
         onToggleCollapse={onToggleCollapse}
-        onRefreshFile={() => setFileRefreshKey(k => k + 1)}
+        capsuleTabs={capsuleTabs}
+        onToggleCapsuleTabs={onToggleCapsuleTabs}
       />
 
       <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
@@ -531,6 +588,7 @@ function RightPanel({
           fileTreeDepth={fileTreeDepth}
           refreshKey={fileRefreshKey}
           navigateToFile={navigateToFilePayload}
+          onRefresh={() => setFileRefreshKey(k => k + 1)}
         />
       </div>
     </div>

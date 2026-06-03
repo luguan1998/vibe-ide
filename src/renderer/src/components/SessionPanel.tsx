@@ -109,6 +109,8 @@ interface SessionPanelProps {
   onToggleAutoUtf8?: (value: boolean) => void
   inlineDiff?: boolean
   onToggleInlineDiff?: (value: boolean) => void
+  capsuleTabs?: boolean
+  onToggleCapsuleTabs?: (value: boolean) => void
   fileTreeDepth?: number
   onChangeFileTreeDepth?: (delta: number) => void
   focusSettingsTrigger?: number
@@ -138,6 +140,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onToggleAutoUtf8,
   inlineDiff = false,
   onToggleInlineDiff,
+  capsuleTabs = true,
+  onToggleCapsuleTabs,
   fileTreeDepth = 5,
   onChangeFileTreeDepth,
   focusSettingsTrigger = 0,
@@ -1243,6 +1247,15 @@ const SessionPanel = React.memo(function SessionPanel({
                     <span className="text-xs text-ide-text">{t('Force Inline Diff')}</span>
                   </div>
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Force inline diff mode (revert button uses circular icon). Recommended: off (side-by-side reads better)')}</p>
+                </label>
+              )}
+              {onToggleCapsuleTabs && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={capsuleTabs} onChange={(e) => onToggleCapsuleTabs(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('Capsule Tabs')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Use capsule-style tab bar instead of icon buttons.')}</p>
                 </label>
               )}
             </div>

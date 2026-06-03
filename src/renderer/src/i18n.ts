@@ -85,7 +85,7 @@ const ZH_MAP: Record<string, string> = {
   'Collapse Panel': '收缩面板',
 
   // RightPanel Aux
-  'Launch Terminal': '启动终端',
+  'Launch Terminal': '启动辅助终端',
   'Please select a workspace first': '请先选择工作目录',
   'Commands': 'Commands',
 
@@ -110,6 +110,8 @@ const ZH_MAP: Record<string, string> = {
   'Discard All': '全部撤销',
   'Delete All': '全部删除',
   'Refresh': '刷新',
+  'Capsule Tabs': '胶囊选项卡',
+  'Use capsule-style tab bar instead of icon buttons.': '使用胶囊风格选项卡替代方形图标按钮。',
 
   // GitTab - Stage/Clear all
   'Stage All': '全部暂存',
