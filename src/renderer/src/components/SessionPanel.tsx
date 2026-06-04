@@ -362,8 +362,9 @@ const SessionPanel = React.memo(function SessionPanel({
 
   const handleSaveCustomCommand = () => {
     const name = customCmdName.trim()
-    const command = customCmdCommand.trim()
-    if (!name || !command) return
+    const rawCommand = customCmdCommand.replace(/\r\n/g, '\n')
+    if (!name || !rawCommand.trim()) return
+    const command = rawCommand
     if (editingCustomCmd) {
       setCustomCommands(prev => {
         const next = prev.map(c => c.id === editingCustomCmd.id ? { ...c, name, command } : c)

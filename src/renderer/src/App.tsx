@@ -631,8 +631,8 @@ export default function App() {
   // Execute a custom command in the active terminal
   const handleExecuteCommand = useCallback((command: string) => {
     if (activeSessionId) {
-      const normalized = command.replace(/\r\n/g, '\n').replace(/\n/g, '\r')
-      window.api.terminal.write(activeSessionId, normalized + '\r')
+      const normalized = command.replace(/\r\n/g, '\n')
+      window.api.terminal.write(activeSessionId, normalized.replace(/\n/g, '\r'))
     }
   }, [activeSessionId])
 
