@@ -841,6 +841,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           making terminalRef content-sized → xterm.js stale canvas height prevents shrinking. */}
       <div
         className="flex-1 overflow-hidden pt-1 flex flex-col"
+        style={isAux ? { backgroundColor: currentTheme.terminal.background } : undefined}
         onContextMenu={handleContextMenu}
       >
         <div ref={terminalRef} className="flex-1 min-h-0" />
