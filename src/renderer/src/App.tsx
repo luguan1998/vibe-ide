@@ -913,7 +913,7 @@ export default function App() {
         <div className="flex-1" />
         <button
           className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
-          style={{ marginRight: 138 }}
+          style={{ marginRight: 134 }}
           onClick={handleToggleRightPanel}
           title={rightPanelCollapsed ? t('Expand Panel') : t('Collapse Panel')}
         >
