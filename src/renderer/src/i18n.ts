@@ -165,6 +165,17 @@ const ZH_MAP: Record<string, string> = {
   'Type to search files by content': '输入关键字搜索文件内容',
   'truncated': '已截断',
   'matches': '条结果',
+  'Replace with...': '替换为...',
+  'Replace All': '全部替换',
+  'Confirm Replace': '确认替换',
+  'Replace': '替换',
+  'matches in': '条结果，分布在',
+  'files': '个文件',
+  'files.': '个文件中。',
+  'Replaced {n} occurrences in {m} files': '在 {m} 个文件中替换了 {n} 处',
+  'Exclude from replace': '排除此文件',
+  'from': '来自',
+  'total': '总计',
 
   // Custom Commands
   'Custom Command': '自定义命令',

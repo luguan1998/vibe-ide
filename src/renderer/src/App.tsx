@@ -80,6 +80,15 @@ declare global {
           caseSensitive?: boolean
           include?: string
         }) => Promise<any>
+        replace: (options: {
+          query: string
+          replacement: string
+          cwd: string
+          regex?: boolean
+          caseSensitive?: boolean
+          include?: string
+          excludeFiles?: string[]
+        }) => Promise<{ filesModified: number; totalReplacements: number; errors: string[] }>
       }
       theme: {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void

@@ -60,6 +60,7 @@ export const IPC_CHANNELS = {
 
   // Search
   SEARCH_GREP: 'search:grep',
+  SEARCH_REPLACE: 'search:replace',
 
   // Theme
   TITLE_BAR_UPDATE: 'titlebar:update',
@@ -203,4 +204,20 @@ export interface GrepSearchResult {
   matches: GrepMatch[]
   total: number
   truncated: boolean
+}
+
+export interface ReplaceOptions {
+  query: string
+  replacement: string
+  cwd: string
+  regex?: boolean
+  caseSensitive?: boolean
+  include?: string
+  excludeFiles?: string[]
+}
+
+export interface ReplaceResult {
+  filesModified: number
+  totalReplacements: number
+  errors: string[]
 }

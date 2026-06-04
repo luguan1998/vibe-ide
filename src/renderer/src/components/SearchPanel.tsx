@@ -63,6 +63,65 @@ function highlightMatches(text: string, query: string, regex: boolean, caseSensi
   return result.length > 0 ? <>{result}</> : text
 }
 
+interface ReplaceConfirmModalProps {
+  query: string
+  replacement: string
+  total: number
+  uniqueFiles: number
+  onConfirm: () => void
+  onClose: () => void
+}
+
+function ReplaceConfirmModal({ query, replacement, total, uniqueFiles, onConfirm, onClose }: ReplaceConfirmModalProps) {
+  const { t } = useI18n()
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
+        onClose()
+      }
+      if (e.key === 'Enter') {
+        e.stopImmediatePropagation()
+        onConfirm()
+      }
+    }
+    document.addEventListener('keydown', handleKey, true)
+    return () => document.removeEventListener('keydown', handleKey, true)
+  }, [onClose, onConfirm])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onClick={onClose}
+    >
+      <div className="bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl p-5 max-w-sm w-full mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-sm text-ide-text mb-1 font-medium">{t('Confirm Replace')}</p>
+        <p className="text-xs text-ide-text-muted mb-4">
+          {t('Replace')} <span className="text-ide-accent font-mono">{query}</span> → <span className="text-ide-accent font-mono">{replacement}</span>
+          <br />
+          {total} {t('matches in')} {uniqueFiles} {t('files')}.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            className="text-xs px-3 py-1.5 rounded bg-ide-hover text-ide-text hover:bg-ide-border transition-colors"
+            onClick={onClose}
+          >
+            {t('Cancel')}
+          </button>
+          <button
+            className="text-xs px-3 py-1.5 rounded bg-ide-accent text-white hover:brightness-110 transition-colors"
+            onClick={onConfirm}
+          >
+            {t('Replace All')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPanelProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<GrepMatch[]>([])
@@ -75,6 +134,11 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
   const [includePattern, setIncludePattern] = useState('')
   const [regex, setRegex] = useState(false)
   const [caseSensitive, setCaseSensitive] = useState(false)
+  const [replacement, setReplacement] = useState('')
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false)
+  const [replaceResult, setReplaceResult] = useState<{ filesModified: number; totalReplacements: number; errors: string[] } | null>(null)
+  const [replacing, setReplacing] = useState(false)
+  const [excludedFiles, setExcludedFiles] = useState<Set<string>>(new Set())
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -104,6 +168,8 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
 
     setSearching(true)
     setError(null)
+    setReplaceResult(null)
+    setExcludedFiles(new Set())
     try {
       const result = await window.api.search.grep({
         query: q,
@@ -141,15 +207,45 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
     onOpenFile(match.fullPath, match.line)
   }, [onOpenFile])
 
-  // Group results by file
+  // Group results by file (excluding excluded files)
   const groupedResults = React.useMemo(() => {
     const groups: Record<string, GrepMatch[]> = {}
     for (const m of results) {
+      if (excludedFiles.has(m.fullPath)) continue
       if (!groups[m.file]) groups[m.file] = []
       groups[m.file].push(m)
     }
     return groups
-  }, [results])
+  }, [results, excludedFiles])
+
+  // Total visible matches (excluding excluded files)
+  const visibleTotal = React.useMemo(() => {
+    return results.filter(m => !excludedFiles.has(m.fullPath)).length
+  }, [results, excludedFiles])
+
+  const handleReplaceAll = useCallback(async () => {
+    if (!query.trim() || !cwd || visibleTotal === 0) return
+
+    setShowReplaceConfirm(false)
+    setReplacing(true)
+    setReplaceResult(null)
+    try {
+      const result = await window.api.search.replace({
+        query,
+        replacement,
+        cwd,
+        regex,
+        caseSensitive,
+        include: includePattern || undefined,
+        excludeFiles: excludedFiles.size > 0 ? [...excludedFiles] : undefined
+      })
+      setReplaceResult(result)
+      doSearch(query)
+    } catch (err: any) {
+      setReplaceResult({ filesModified: 0, totalReplacements: 0, errors: [err.message || 'Replace failed'] })
+    }
+    setReplacing(false)
+  }, [query, replacement, cwd, regex, caseSensitive, includePattern, visibleTotal, excludedFiles, doSearch])
 
   if (!cwd) {
     return (
@@ -210,12 +306,66 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
             className="flex-1 text-xs bg-ide-bg border border-ide-border rounded px-1.5 py-0.5 text-ide-text-muted focus:border-ide-accent focus:outline-none"
           />
         </div>
+
+        {/* Replace */}
+        <div className="flex gap-2 mt-1.5 items-center">
+          <input
+            type="text"
+            value={replacement}
+            onChange={(e) => setReplacement(e.target.value)}
+            placeholder={t('Replace with...')}
+            className="flex-1 text-xs bg-ide-bg border border-ide-border rounded px-1.5 py-0.5 text-ide-text focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && visibleTotal > 0 && replacement) {
+                setShowReplaceConfirm(true)
+              }
+            }}
+          />
+          <button
+            className="text-xs px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+            disabled={!query.trim() || visibleTotal === 0 || !replacement || replacing}
+            onClick={() => setShowReplaceConfirm(true)}
+          >
+            {replacing ? (
+              <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin mx-1" />
+            ) : (
+              t('Replace All')
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Replace confirmation modal */}
+      {showReplaceConfirm && (
+        <ReplaceConfirmModal
+          query={query}
+          replacement={replacement}
+          total={visibleTotal}
+          uniqueFiles={Object.keys(groupedResults).length}
+          onConfirm={handleReplaceAll}
+          onClose={() => setShowReplaceConfirm(false)}
+        />
+      )}
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto">
         {error && (
           <div className="px-3 py-2 text-sm text-ide-danger bg-ide-danger/10">{error}</div>
+        )}
+
+        {replaceResult && (
+          <div className={`px-3 py-2 text-sm border-b border-ide-border ${
+            replaceResult.errors.length > 0 ? 'text-ide-warning bg-ide-warning/10' : 'text-ide-accent bg-ide-accent/10'
+          }`}>
+            {replaceResult.filesModified > 0
+              ? t('Replaced {n} occurrences in {m} files').replace('{n}', String(replaceResult.totalReplacements)).replace('{m}', String(replaceResult.filesModified))
+              : t('No results found')}
+            {replaceResult.errors.length > 0 && (
+              <div className="text-xs mt-1 text-ide-danger">
+                {replaceResult.errors.map((err, i) => <div key={i}>{err}</div>)}
+              </div>
+            )}
+          </div>
         )}
 
         {query && !searching && results.length === 0 && !error && (
@@ -248,7 +398,8 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
           <>
             <div className="px-3 py-1.5 text-xs text-ide-text-muted border-b border-ide-border bg-ide-hover/30 flex items-center justify-between">
               <span>
-                {total} {t('matches')}
+                {visibleTotal} {t('matches')}
+                {excludedFiles.size > 0 && <span className="text-ide-text-muted/50 ml-1">({t('from')} {total} {t('total')})</span>}
                 {truncated && <span className="text-ide-warning ml-1">({t('truncated')})</span>}
               </span>
               <span className="flex gap-1">
@@ -285,6 +436,22 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
                     <path d="M4 6l4 4 4-4" />
                   </svg>
                   {file} ({fileMatches.length})
+                  <button
+                    className="ml-auto w-4 h-4 flex items-center justify-center rounded hover:bg-ide-danger/20 hover:text-ide-danger text-ide-text-muted/50 shrink-0 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setExcludedFiles(prev => {
+                        const next = new Set(prev)
+                        next.add(fileMatches[0]?.fullPath || file)
+                        return next
+                      })
+                    }}
+                    title={t('Exclude from replace')}
+                  >
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+                      <path fillRule="evenodd" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                    </svg>
+                  </button>
                 </div>
                 {!collapsed && fileMatches.map((match, idx) => (
                   <div

@@ -105,7 +105,9 @@ const api = {
   // Search operations
   search: {
     grep: (options: { query: string; cwd: string; regex?: boolean; caseSensitive?: boolean; include?: string }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GREP, options)
+      ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GREP, options),
+    replace: (options: { query: string; replacement: string; cwd: string; regex?: boolean; caseSensitive?: boolean; include?: string; excludeFiles?: string[] }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SEARCH_REPLACE, options)
   },
 
   // Font size adjustment (pushed from main process for Ctrl+-/= that Chromium eats)

@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron'
 import { spawn } from 'child_process'
-import { readFile, readdir, stat } from 'fs/promises'
+import { readFile, writeFile, readdir, stat } from 'fs/promises'
 import { join, relative } from 'path'
-import { IPC_CHANNELS, GrepSearchResult, GrepMatch } from '../shared/types'
+import { IPC_CHANNELS, GrepSearchResult, GrepMatch, ReplaceResult } from '../shared/types'
 
 const MAX_RESULTS = 200
 const MAX_FILE_SIZE = 1024 * 1024 // 1MB
@@ -28,6 +28,23 @@ export function registerSearchHandlers(): void {
     } catch {
       return await nodeSearch(query, cwd, { regex, caseSensitive, include })
     }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SEARCH_REPLACE, async (_event, options: {
+    query: string
+    replacement: string
+    cwd: string
+    regex?: boolean
+    caseSensitive?: boolean
+    include?: string
+  }): Promise<ReplaceResult> => {
+    const { query, replacement, cwd, regex, caseSensitive, include } = options
+
+    if (!query || !cwd) {
+      return { filesModified: 0, totalReplacements: 0, errors: [] }
+    }
+
+    return await replaceInFiles(query, replacement, cwd, { regex, caseSensitive, include, excludeFiles: options.excludeFiles })
   })
 }
 
@@ -236,4 +253,55 @@ async function nodeSearch(query: string, cwd: string, opts: {
     total,
     truncated: total > MAX_RESULTS
   }
+}
+
+function buildReplacePattern(query: string, regex: boolean, caseSensitive: boolean): RegExp {
+  if (regex) {
+    return new RegExp(query, caseSensitive ? 'gm' : 'gim')
+  }
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(escaped, caseSensitive ? 'gm' : 'gim')
+}
+
+async function replaceInFiles(
+  query: string,
+  replacement: string,
+  cwd: string,
+  opts: { regex?: boolean; caseSensitive?: boolean; include?: string; excludeFiles?: string[] }
+): Promise<ReplaceResult> {
+  const errors: string[] = []
+  let filesModified = 0
+  let totalReplacements = 0
+
+  // First, find all matching files
+  let searchResult: GrepSearchResult
+  try {
+    searchResult = await rgSearch(query, cwd, opts)
+  } catch {
+    searchResult = await nodeSearch(query, cwd, opts)
+  }
+
+  // Deduplicate files and filter out excluded
+  const excludeSet = new Set(opts.excludeFiles || [])
+  const files = [...new Set(searchResult.matches.map(m => m.fullPath))]
+    .filter(f => !excludeSet.has(f))
+
+  const pattern = buildReplacePattern(query, !!opts.regex, !!opts.caseSensitive)
+
+  for (const fullPath of files) {
+    try {
+      const content = await readFile(fullPath, 'utf-8')
+      const replaced = content.replace(pattern, replacement)
+      if (replaced !== content) {
+        const changes = (content.match(pattern) || []).length
+        await writeFile(fullPath, replaced, 'utf-8')
+        filesModified++
+        totalReplacements += changes
+      }
+    } catch (err: any) {
+      errors.push(`${fullPath}: ${err.message || 'Unknown error'}`)
+    }
+  }
+
+  return { filesModified, totalReplacements, errors }
 }
