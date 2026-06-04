@@ -971,19 +971,40 @@ const SessionPanel = React.memo(function SessionPanel({
               <div className="border-t border-ide-border my-1" />
               <div className="px-3 py-1 text-[10px] text-ide-text-muted uppercase tracking-wider">{t('Recent Directories')}</div>
               {recentDirs.map((dir, i) => (
-                <button
+                <div
                   key={`${dir}-${i}`}
-                  className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                  onClick={() => {
-                    onCloneSession(null, dir, termType)
-                    setEmptyAreaMenu(null)
-                  }}
+                  className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2 group"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                  </svg>
-                  <span className="truncate">{dir}</span>
-                </button>
+                  <button
+                    className="flex items-center gap-2 truncate flex-1 cursor-pointer bg-transparent border-none text-inherit text-sm p-0"
+                    onClick={() => {
+                      onCloneSession(null, dir, termType)
+                      setEmptyAreaMenu(null)
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <span className="truncate">{dir}</span>
+                  </button>
+                  <button
+                    className="opacity-0 group-hover:opacity-100 w-4 h-4 rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center shrink-0 transition-all -mr-1"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setRecentDirs(prev => {
+                        const next = prev.filter((_, idx) => idx !== i)
+                        saveRecentDirs(next)
+                        return next
+                      })
+                    }}
+                    title={t('Remove')}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
               ))}
             </>
           )}
