@@ -11,7 +11,7 @@ interface DocTreeNode {
 function parseCommands(md: string): Array<{ command: string; comment: string }> {
   const result: Array<{ command: string; comment: string }> = []
   const normalized = md.replace(/\r\n/g, '\n')
-  const startMatch = normalized.match(/^## (?:Commands|命令)\s*$/im)
+  const startMatch = normalized.match(/^## .*(?:Commands|命令)/im)
   if (!startMatch || startMatch.index === undefined) return result
   const rest = normalized.slice(startMatch.index + startMatch[0].length)
   const nextH2 = rest.search(/\n## /)
