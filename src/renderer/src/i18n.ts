@@ -184,6 +184,9 @@ const ZH_MAP: Record<string, string> = {
   'Save With Encoding': '以编码保存',
   'active': '当前',
   'No matching encodings': '无匹配编码',
+
+  // DiffViewer
+  'Force Open': '强行打开',
 }
 
 // ── context ────────────────────────────────────────────────────────

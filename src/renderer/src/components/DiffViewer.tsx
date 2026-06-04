@@ -112,6 +112,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const containerRef = useRef<HTMLDivElement>(null)
   const [currentEncoding, setCurrentEncoding] = useState<string>(DEFAULT_ENCODING)
   const [encodingInfo, setEncodingInfo] = useState<string>('')
+  const [unreadableReason, setUnreadableReason] = useState<string>('')
   const [encodingContextMenu, setEncodingContextMenu] = useState<{ x: number; y: number } | null>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
 
@@ -226,15 +227,21 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     loadContents()
   }, [loadContents])
 
-  const loadForEdit = useCallback(async (encoding?: string) => {
+  const loadForEdit = useCallback(async (encoding?: string, forceOpen?: boolean) => {
     try {
-      const result = await window.api.file.readWithEncoding(fullPath, encoding)
+      const result = await window.api.file.readWithEncoding(fullPath, encoding, forceOpen)
       if (result.error) {
         setModifiedContent('')
-        if (!encoding) setEncodingInfo(result.error)
+        if (forceOpen) {
+          setUnreadableReason('')
+          setEncodingInfo(result.error)
+        } else {
+          setUnreadableReason(result.error)
+        }
       } else {
         setModifiedContent(result.content)
         savedContentRef.current = result.content
+        setUnreadableReason('')
         if (!encoding) {
           setCurrentEncoding(result.encoding)
           if (result.bom) {
@@ -260,6 +267,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       }
     } catch (err) {
       setModifiedContent('')
+      setUnreadableReason('Failed to read file')
     }
     setEditLoading(false)
   }, [fullPath])
@@ -370,6 +378,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   useEffect(() => {
     setCurrentEncoding(DEFAULT_ENCODING)
     setEncodingInfo('')
+    setUnreadableReason('')
   }, [fullPath])
 
   const handleReopenWithEncoding = useCallback(async (encoding: string) => {
@@ -387,6 +396,11 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     } catch {}
     setSaving(false)
   }, [fullPath])
+
+  const handleForceOpen = useCallback(async () => {
+    setEditLoading(true)
+    await loadForEdit(undefined, true)
+  }, [loadForEdit])
 
   const handleSaveWithEncoding = useCallback(async (encoding: string) => {
     setEncodingContextMenu(null)
@@ -579,6 +593,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           {currentEncoding !== DEFAULT_ENCODING && (
             <span className="text-[10px] text-ide-accent font-mono" title={encodingInfo || undefined}>{currentEncoding.toUpperCase()}</span>
           )}
+        {!unreadableReason && (
         <div className="flex items-center rounded-md bg-ide-hover overflow-hidden">
           <button
             onClick={() => setViewMode('diff')}
@@ -597,6 +612,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             Edit
           </button>
         </div>
+        )}
         </div>
       </div>
 
@@ -654,6 +670,16 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           />
         ) : editLoading ? (
           <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">Loading...</div>
+        ) : unreadableReason ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 text-ide-text-muted">
+            <span className="text-sm">{unreadableReason}</span>
+            <button
+              onClick={handleForceOpen}
+              className="px-4 py-1.5 text-xs rounded bg-ide-accent text-white hover:brightness-110 transition-colors"
+            >
+              {t('Force Open')}
+            </button>
+          </div>
         ) : (
           <Editor
             height="100%"

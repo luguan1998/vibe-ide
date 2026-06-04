@@ -1,11 +1,31 @@
 import { ipcMain, shell } from 'electron'
-import { readFile, writeFile, readdir, rename, mkdir, rm, cp } from 'fs/promises'
+import { readFile, writeFile, readdir, rename, mkdir, rm, cp, stat } from 'fs/promises'
 import { statSync } from 'fs'
-import { join, dirname, basename } from 'path'
+import { join, dirname, basename, extname } from 'path'
 import { IPC_CHANNELS, FileNode } from '../shared/types'
 import * as iconv from 'iconv-lite'
 import * as jschardet from 'jschardet'
 import { normalizeEncoding, DEFAULT_ENCODING } from '../shared/encodings'
+
+const BINARY_EXTENSIONS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'tiff', 'tif', 'psd', 'heic', 'heif', 'avif',
+  'mp3', 'wav', 'ogg', 'flac', 'aac', 'wma', 'm4a', 'opus',
+  'mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', 'm4v',
+  'zip', 'tar', 'gz', 'bz2', 'xz', '7z', 'rar', 'zst', 'lz4',
+  'ttf', 'otf', 'woff', 'woff2', 'eot',
+  'exe', 'dll', 'so', 'dylib', 'obj', 'o', 'class', 'pyc', 'pyo', 'wasm', 'bin', 'out',
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+  'db', 'sqlite', 'sqlite3', 'mdb',
+  'iso', 'img', 'dmg', 'ipa', 'apk', 'aab',
+  'lib', 'a', 'dex', 'elf',
+])
+
+const MAX_EDIT_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+
+function isBinaryByExtension(filePath: string): boolean {
+  const ext = extname(filePath).toLowerCase().replace(/^\./, '')
+  return BINARY_EXTENSIONS.has(ext)
+}
 
 function detectBOM(buffer: Buffer): { encoding?: string; bomLength: number } {
   if (buffer.length >= 4 && buffer[0] === 0x00 && buffer[1] === 0x00 && buffer[2] === 0xFE && buffer[3] === 0xFF) {
@@ -36,7 +56,23 @@ function autoDetectEncoding(buffer: Buffer): { encoding: string; confidence: num
   return { encoding, confidence: result.confidence || 0, bom: false }
 }
 
-async function readFileWithEncoding(filePath: string, encoding?: string) {
+async function readFileWithEncoding(filePath: string, encoding?: string, forceOpen?: boolean) {
+  // Pre-read checks (skipped when user forces open)
+  if (!forceOpen) {
+    if (isBinaryByExtension(filePath)) {
+      return { error: 'Cannot display binary file', content: '', encoding: '', bom: false, confidence: 0 }
+    }
+    try {
+      const st = await stat(filePath)
+      if (st.size > MAX_EDIT_FILE_SIZE) {
+        const mb = (st.size / (1024 * 1024)).toFixed(1)
+        return { error: `File too large (${mb} MB), cannot display`, content: '', encoding: '', bom: false, confidence: 0 }
+      }
+    } catch {
+      return { error: 'File not found or inaccessible', content: '', encoding: '', bom: false, confidence: 0 }
+    }
+  }
+
   const buffer = await readFile(filePath)
   let targetEncoding: string
   let confidence = 1
@@ -51,8 +87,8 @@ async function readFileWithEncoding(filePath: string, encoding?: string) {
     bom = detected.bom
   }
 
-  if (!encoding && confidence < 0.1 && buffer.includes(0x00)) {
-    return { error: 'Binary file detected, cannot read as text', content: '', encoding: '', bom: false, confidence: 0 }
+  if (!forceOpen && !encoding && confidence < 0.1 && buffer.includes(0x00)) {
+    return { error: 'Cannot display binary file', content: '', encoding: '', bom: false, confidence: 0 }
   }
 
   const content = iconv.decode(buffer, targetEncoding)
@@ -71,9 +107,9 @@ export function registerFileHandlers(): void {
   })
 
   // Read file content with encoding detection/support
-  ipcMain.handle(IPC_CHANNELS.FILE_READ_ENCODING, async (_event, filePath: string, encoding?: string) => {
+  ipcMain.handle(IPC_CHANNELS.FILE_READ_ENCODING, async (_event, filePath: string, encoding?: string, forceOpen?: boolean) => {
     try {
-      return await readFileWithEncoding(filePath, encoding)
+      return await readFileWithEncoding(filePath, encoding, forceOpen)
     } catch (err: any) {
       return { error: err.message, content: '', encoding: '', bom: false, confidence: 0 }
     }

@@ -69,7 +69,7 @@ function RootInput({ editingState, onEditSubmit, onEditCancel, t }: {
 
   return (
     <div className="flex flex-col py-1">
-      <div className="pr-2 py-0.5 text-xs flex items-center gap-0.5 bg-ide-accent/10" style={{ paddingLeft: 12 }}>
+      <div className="pr-2 py-0.5 text-xs flex items-center gap-0.5 bg-ide-accent/10" style={{ paddingLeft: 16 }}>
         <span className="w-3 shrink-0" />
         {editingState.type === 'newFolder' ? (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
@@ -89,7 +89,7 @@ function RootInput({ editingState, onEditSubmit, onEditCancel, t }: {
         />
       </div>
       {editingState?.error && (
-        <div style={{ paddingLeft: 12 }} className="py-0.5 text-[11px] text-ide-danger">
+        <div style={{ paddingLeft: 16 }} className="py-0.5 text-[11px] text-ide-danger">
           {editingState.error}
         </div>
       )}
@@ -118,7 +118,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   const { t } = useI18n()
   const isDir = node.type === 'directory'
   const isExpanded = expandedDirs.has(norm(node.path))
-  const paddingLeft = 12 + depth * 16
+  const paddingLeft = 16 + depth * 16
   const isRenaming = editingState?.type === 'rename' && editingState.nodePath === node.path
   const isCreating = editingState && editingState.nodePath === node.path && (editingState.type === 'newFile' || editingState.type === 'newFolder')
   const inputRef = React.useRef<HTMLInputElement>(null)
@@ -238,7 +238,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
           {isCreating && (
             <div
               className="pr-2 py-0.5 text-xs flex items-center gap-0.5 bg-ide-accent/10"
-              style={{ paddingLeft: 12 + (depth + 1) * 16 }}
+              style={{ paddingLeft: 16 + (depth + 1) * 16 }}
             >
               <span className="w-3 shrink-0" />
               {editingState!.type === 'newFolder' ? (
@@ -260,7 +260,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
             </div>
           )}
           {isCreating && editingState?.error && (
-            <div style={{ paddingLeft: 12 + (depth + 1) * 16 }} className="py-0.5 text-[11px] text-ide-danger">
+            <div style={{ paddingLeft: 16 + (depth + 1) * 16 }} className="py-0.5 text-[11px] text-ide-danger">
               {editingState.error}
             </div>
           )}
@@ -594,7 +594,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
       {docTree.length > 0 && (
         <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '45%', overflowY: 'auto' }}>
           <div
-            className={`px-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none ${archExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
+            className={`px-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border ${archExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
             onClick={() => setArchExpanded(!archExpanded)}
           >
             <Lightbulb size={12} className={archExpanded ? 'text-ide-warning' : 'text-ide-text-muted'} />
