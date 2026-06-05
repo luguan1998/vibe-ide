@@ -196,6 +196,16 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     readonly: true,
   },
   {
+    id: 'navigate.back',
+    label: 'Navigate Back',
+    defaultKeys: 'Alt+ArrowLeft',
+  },
+  {
+    id: 'navigate.forward',
+    label: 'Navigate Forward',
+    defaultKeys: 'Alt+ArrowRight',
+  },
+  {
     id: 'diff.close',
     label: 'Close Diff / Back',
     defaultKeys: 'Escape',

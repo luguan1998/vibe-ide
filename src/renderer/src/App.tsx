@@ -3,6 +3,7 @@ import React, { useState, useCallback, lazy, Suspense, useRef, useEffect } from 
 import SessionPanel from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
+import NavBar from './components/NavBar'
 import { TerminalSession, RenameTerminalResult } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
 import { useI18n } from './i18n'
@@ -228,6 +229,22 @@ export default function App() {
   // Terminal refs for focus management (keyed by sessionId)
   const terminalRefs = useRef<Record<string, TerminalViewHandle>>({})
   const rightPanelRef = useRef<HTMLDivElement>(null)
+  // Navigation history for Alt+Left/Right cursor position jumps
+  interface CursorHistoryEntry { fullPath: string; line: number; column: number }
+  const navHistoryRef = useRef<CursorHistoryEntry[]>([])
+  const navIndexRef = useRef(-1)
+  const cursorRef = useRef<CursorHistoryEntry | null>(null)
+  const diffFileRef = useRef(diffFile)
+  diffFileRef.current = diffFile
+  // Nav bar state
+  const [navBarVisible, setNavBarVisible] = useState(false)
+  const [navBarIndex, setNavBarIndex] = useState(0)
+  const navBarVisibleRef = useRef(false)
+  const navBarIndexRef = useRef(0)
+  const navBarCwdRef = useRef<string | null>(null)
+  const navBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  navBarVisibleRef.current = navBarVisible
+  navBarIndexRef.current = navBarIndex
   const flashPanelRef = useRef<'term' | 'right' | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingBlurRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -273,6 +290,22 @@ export default function App() {
       pendingBlurRef.current = null
     }, 0)
   }, [])
+
+  function pushNavHistory() {
+    const pos = cursorRef.current
+    const df = diffFileRef.current
+    if (!pos || !df || pos.fullPath !== df.fullPath) return
+    const hist = navHistoryRef.current
+    const idx = navIndexRef.current
+    if (idx >= 0 && idx < hist.length && hist[idx].fullPath === pos.fullPath) {
+      hist[idx] = { fullPath: pos.fullPath, line: pos.line, column: pos.column }
+      return
+    }
+    hist.splice(idx + 1)
+    hist.push({ fullPath: pos.fullPath, line: pos.line, column: pos.column })
+    while (hist.length > 50) hist.shift()
+    navIndexRef.current = hist.length - 1
+  }
 
   // Focus terminal when switching sessions or returning from diff
   useEffect(() => {
@@ -399,6 +432,64 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const bindings = getShortcuts()
 
+      // ── Alt keydown: start long-press timer to show nav bar ──
+      if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        if (centerView === 'diff' && diffFile && !navBarVisibleRef.current) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          if (navBarTimerRef.current) clearTimeout(navBarTimerRef.current)
+          navBarTimerRef.current = setTimeout(() => {
+            navBarTimerRef.current = null
+            if (centerViewRef.current !== 'diff') return
+            pushNavHistory()
+            const idx = navIndexRef.current
+            if (idx >= 0 && idx < navHistoryRef.current.length) {
+              navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
+              navBarVisibleRef.current = true
+              navBarIndexRef.current = idx
+              setNavBarVisible(true)
+              setNavBarIndex(idx)
+            }
+          }, 150)
+          return
+        }
+      }
+
+      // ── nav bar mode: intercept all Alt combos, Left/Right moves selection ──
+      if (navBarVisibleRef.current) {
+        if (e.key === 'ArrowLeft' && e.altKey) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          setNavBarIndex(prev => {
+            const len = navHistoryRef.current.length
+            return prev <= 0 ? len - 1 : prev - 1
+          })
+          return
+        }
+        if (e.key === 'ArrowRight' && e.altKey) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          setNavBarIndex(prev => {
+            const len = navHistoryRef.current.length
+            return prev >= len - 1 ? 0 : prev + 1
+          })
+          return
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
+          setNavBarVisible(false)
+          return
+        }
+        // Block all other Alt combos while bar is visible
+        if (e.altKey) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          return
+        }
+      }
+
       // search.focus → focus search in right panel
       if (eventMatchesBinding(e, bindings['search.focus'])) {
         if (centerView !== 'diff') {
@@ -509,6 +600,27 @@ export default function App() {
         }
       }
 
+      // navigate.back / navigate.forward — show nav bar (commit on Alt release)
+      if (centerView === 'diff' && diffFile && !navBarVisibleRef.current) {
+        const isBack = eventMatchesBinding(e, bindings['navigate.back'])
+        const isForward = eventMatchesBinding(e, bindings['navigate.forward'])
+        if (isBack || isForward) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
+          pushNavHistory()
+          const delta = isBack ? -1 : 1
+          const startIdx = navIndexRef.current + delta
+          const hist = navHistoryRef.current
+          if (startIdx >= 0 && startIdx < hist.length) {
+            navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
+            setNavBarIndex(startIdx)
+            setNavBarVisible(true)
+          }
+          return
+        }
+      }
+
       // Escape: return focus to terminal from right panel (non-editable areas only)
       if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         const active = document.activeElement as HTMLElement | null
@@ -529,6 +641,41 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [centerView, sessions, activeSessionId])
+
+  // Alt keyup → commit nav bar selection
+  React.useEffect(() => {
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key !== 'Alt') {
+        // If timer is pending and user released Alt before 300ms, cancel
+        if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
+        return
+      }
+      if (!navBarVisibleRef.current) return
+      const idx = navBarIndexRef.current
+      const hist = navHistoryRef.current
+      if (idx >= 0 && idx < hist.length) {
+        const entry = hist[idx]
+        navIndexRef.current = idx
+        const cwd = navBarCwdRef.current
+        let filePath = entry.fullPath
+        if (cwd && entry.fullPath.startsWith(cwd)) {
+          filePath = entry.fullPath.slice(cwd.length).replace(/^[\\\/]+/, '')
+        }
+        setDiffFile({
+          filePath,
+          fullPath: entry.fullPath,
+          diffContent: '',
+          isStaged: false,
+          defaultEdit: true,
+          lineNumber: entry.line,
+          revision: ++diffRevisionRef.current
+        })
+      }
+      setNavBarVisible(false)
+    }
+    window.addEventListener('keyup', handleKeyUp)
+    return () => window.removeEventListener('keyup', handleKeyUp)
+  }, [])
 
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
@@ -573,6 +720,7 @@ export default function App() {
         const parentDir = data.path.replace(/[/\\][^/\\]*$/, '') || data.path
         const session = await handleCreateSessionAt(parentDir)
         if (session) {
+          pushNavHistory()
           try {
             const result = await window.api.file.read(data.path)
             if (!result.error) {
@@ -739,6 +887,7 @@ export default function App() {
   }, [leftPanelWidth])
 
   const handleFileSelect = useCallback((filePath: string, diffContent: string, isStaged: boolean, commitHash?: string, resolvedFullPath?: string) => {
+    pushNavHistory()
     const fullPath = resolvedFullPath || (activeSessionCwd ? `${activeSessionCwd}/${filePath}` : filePath)
     setDiffFile({ filePath, fullPath, diffContent, isStaged, commitHash, revision: ++diffRevisionRef.current })
     setCenterView('diff')
@@ -753,6 +902,7 @@ export default function App() {
   }, [])
 
   const handleBackToTerminal = useCallback((selection?: { startLine: number; endLine: number }) => {
+    pushNavHistory()
     // 如果有选区，注入 @filepath:startLine:endLine 到终端
     if (selection && diffFile && activeSessionId) {
       let relPath = diffFile.fullPath
@@ -772,6 +922,7 @@ export default function App() {
 
   // 处理从中间终端点击文件路径打开文件
   const handleOpenFileFromTerminal = useCallback(async (fullPath: string, lineNumber?: number) => {
+    pushNavHistory()
     try {
       // 读取文件内容
       const result = await window.api.file.read(fullPath)
@@ -804,6 +955,7 @@ export default function App() {
 
   // 处理从右侧终端点击文件路径打开文件 - 直接切换到 edit 模式
   const handleOpenFileFromRightTerminal = useCallback(async (fullPath: string, lineNumber?: number) => {
+    pushNavHistory()
     try {
       // 读取文件内容
       const result = await window.api.file.read(fullPath)
@@ -864,6 +1016,7 @@ export default function App() {
 
   // 处理从搜索面板打开文件
   const handleOpenFileFromSearch = useCallback(async (fullPath: string, lineNumber?: number) => {
+    pushNavHistory()
     try {
       const result = await window.api.file.read(fullPath)
       if (result.error) {
@@ -893,6 +1046,7 @@ export default function App() {
 
   // 处理从文件浏览器打开文件 — 默认 edit 模式
   const handleOpenFileFromExplorer = useCallback(async (fullPath: string) => {
+    pushNavHistory()
     try {
       let filePath = fullPath
       if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
@@ -1005,6 +1159,7 @@ export default function App() {
                 wordWrap={wordWrap}
                 inlineDiff={inlineDiff}
                 scrollTrigger={diffScrollTrigger}
+                cursorRef={cursorRef}
               />
             )}
           </div>
@@ -1119,6 +1274,13 @@ export default function App() {
           </div>
         )
       })()}
+
+      {/* Nav Bar — Alt+Left/Right file switcher */}
+      <NavBar
+        entries={navHistoryRef.current}
+        selectedIndex={navBarIndex}
+        visible={navBarVisible}
+      />
     </div>
   )
 }

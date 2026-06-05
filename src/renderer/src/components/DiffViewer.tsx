@@ -23,6 +23,7 @@ interface DiffViewerProps {
   onSaved?: (path: string) => Promise<void>
   defaultEdit?: boolean
   inlineDiff?: boolean      // 强制内联 diff 模式
+  cursorRef?: React.MutableRefObject<{ fullPath: string; line: number; column: number } | null>
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -89,7 +90,7 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions, deletions }
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -134,6 +135,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         if (ln > 0) {
           modifiedEditor.revealLineInCenter(ln)
           modifiedEditor.setPosition({ lineNumber: ln, column: 1 })
+          if (cursorRef) cursorRef.current = { fullPath, line: ln, column: 1 }
         }
       } else if (viewMode === 'edit' && editEditorRef.current) {
         const count = editEditorRef.current.getModel()?.getLineCount() || 0
@@ -141,6 +143,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         if (ln > 0) {
           editEditorRef.current.revealLineInCenter(ln)
           editEditorRef.current.setPosition({ lineNumber: ln, column: 1 })
+          if (cursorRef) cursorRef.current = { fullPath, line: ln, column: 1 }
         }
       }
     } catch {}
@@ -677,6 +680,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             onMount={(editor) => {
               diffEditorRef.current = editor
               const modifiedEditor = editor.getModifiedEditor()
+              modifiedEditor.onDidChangeCursorPosition((e: any) => {
+                if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
+              })
               modifiedEditor.onDidChangeModelContent(() => {
                 const val = modifiedEditor.getValue()
                 setModifiedContent(val)
@@ -738,6 +744,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             beforeMount={configureMonaco}
             onMount={(editor) => {
               editEditorRef.current = editor
+              editor.onDidChangeCursorPosition((e: any) => {
+                if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
+              })
               if (lineNumber && lineNumber > 0) {
                 try {
                   const count = editor.getModel()?.getLineCount() || 0

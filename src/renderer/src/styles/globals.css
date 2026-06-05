@@ -234,3 +234,12 @@ html, body, #root {
 .focus-frame[data-focused='true']::before {
   opacity: 1;
 }
+
+@keyframes slideUp {
+  from { transform: translate(-50%, 12px); opacity: 0; }
+  to   { transform: translate(-50%, 0); opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.15s ease-out;
+}
