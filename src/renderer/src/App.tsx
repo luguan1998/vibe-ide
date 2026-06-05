@@ -752,10 +752,19 @@ export default function App() {
     setNavigateToFilePayload({ trigger: Date.now(), filePath })
   }, [])
 
-  const handleBackToTerminal = useCallback(() => {
+  const handleBackToTerminal = useCallback((selection?: { startLine: number; endLine: number }) => {
+    // 如果有选区，注入 @filepath:startLine:endLine 到终端
+    if (selection && diffFile && activeSessionId) {
+      let relPath = diffFile.fullPath
+      if (activeSessionCwd && relPath.startsWith(activeSessionCwd)) {
+        relPath = relPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
+      }
+      relPath = relPath.replace(/\\/g, '/')
+      window.api.terminal.write(activeSessionId, `@${relPath}:${selection.startLine}:${selection.endLine} `)
+    }
     setCenterView('terminal')
     setDiffFile(null)
-  }, [])
+  }, [diffFile, activeSessionId, activeSessionCwd])
 
   const handleRefreshGit = useCallback(async () => {
     setGitRefreshKey(k => k + 1)

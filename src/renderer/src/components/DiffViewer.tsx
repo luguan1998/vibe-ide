@@ -19,7 +19,7 @@ interface DiffViewerProps {
   wordWrap?: boolean        // 是否自动换行
   scrollTrigger?: number    // PageUp/PageDown 触发滚动，变化时滚动一页
   revision?: number         // 递增以强制重新加载内容
-  onBack?: () => void
+  onBack?: (selection?: { startLine: number; endLine: number }) => void
   onSaved?: (path: string) => Promise<void>
   defaultEdit?: boolean
   inlineDiff?: boolean      // 强制内联 diff 模式
@@ -305,14 +305,32 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         e.preventDefault()
         handleSaveRef.current()
       }
-      if (e.key === 'Escape' && onBack) {
-        e.preventDefault()
-        onBack()
-      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onBack, commitHash])
+
+  // Escape 必须在 capture 阶段拦截，否则 Monaco 会先清掉选区
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !onBack) return
+      if (!containerRef.current?.offsetParent) return
+      e.preventDefault()
+      let sel: { startLine: number; endLine: number } | undefined
+      try {
+        const editor = viewModeRef.current === 'edit'
+          ? editEditorRef.current
+          : diffEditorRef.current?.getModifiedEditor()
+        const range = editor?.getSelection()
+        if (range && !range.isEmpty()) {
+          sel = { startLine: range.startLineNumber, endLine: range.endLineNumber }
+        }
+      } catch {}
+      onBack(sel)
+    }
+    window.addEventListener('keydown', handleEsc, true)
+    return () => window.removeEventListener('keydown', handleEsc, true)
+  }, [onBack])
 
   // PageDown/PageUp 双击 / Ctrl+PageDown/PageUp 跳 diff 区块（对齐 VS Code）
   useEffect(() => {
@@ -569,7 +587,19 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         <div className="flex items-center gap-2 text-sm">
           {onBack && (
             <button
-              onClick={onBack}
+              onClick={() => {
+                let sel: { startLine: number; endLine: number } | undefined
+                try {
+                  const editor = viewModeRef.current === 'edit'
+                    ? editEditorRef.current
+                    : diffEditorRef.current?.getModifiedEditor()
+                  const range = editor?.getSelection()
+                  if (range && !range.isEmpty()) {
+                    sel = { startLine: range.startLineNumber, endLine: range.endLineNumber }
+                  }
+                } catch {}
+                onBack(sel)
+              }}
               className="w-6 h-6 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors"
               title="Esc"
             >
