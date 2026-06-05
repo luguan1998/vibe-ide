@@ -291,20 +291,35 @@ export default function App() {
     }, 0)
   }, [])
 
-  function pushNavHistory() {
+  function pushNavHistory(truncate = true) {
     const pos = cursorRef.current
     const df = diffFileRef.current
     if (!pos || !df || pos.fullPath !== df.fullPath) return
     const hist = navHistoryRef.current
     const idx = navIndexRef.current
-    if (idx >= 0 && idx < hist.length && hist[idx].fullPath === pos.fullPath) {
-      hist[idx] = { fullPath: pos.fullPath, line: pos.line, column: pos.column }
-      return
+
+    if (truncate) {
+      // File-open: LRU dedup + truncate forward
+      for (let i = hist.length - 1; i >= 0; i--) {
+        if (hist[i].fullPath === pos.fullPath) {
+          hist.splice(i, 1)
+          if (i <= navIndexRef.current) navIndexRef.current--
+        }
+      }
+      const newIdx = navIndexRef.current
+      hist.splice(newIdx + 1)
+      hist.push({ fullPath: pos.fullPath, line: pos.line, column: pos.column })
+      while (hist.length > 50) hist.shift()
+      navIndexRef.current = hist.length - 1
+    } else {
+      // Alt navigation: save position, update in place if same file at current index
+      if (idx >= 0 && idx < hist.length && hist[idx].fullPath === pos.fullPath) {
+        hist[idx] = { fullPath: pos.fullPath, line: pos.line, column: pos.column }
+        return
+      }
+      hist.push({ fullPath: pos.fullPath, line: pos.line, column: pos.column })
+      navIndexRef.current = hist.length - 1
     }
-    hist.splice(idx + 1)
-    hist.push({ fullPath: pos.fullPath, line: pos.line, column: pos.column })
-    while (hist.length > 50) hist.shift()
-    navIndexRef.current = hist.length - 1
   }
 
   // Focus terminal when switching sessions or returning from diff
@@ -434,14 +449,13 @@ export default function App() {
 
       // ── Alt keydown: start long-press timer to show nav bar ──
       if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        if (centerView === 'diff' && diffFile && !navBarVisibleRef.current) {
+        if (!navBarVisibleRef.current && navHistoryRef.current.length > 0) {
           e.preventDefault()
           e.stopImmediatePropagation()
           if (navBarTimerRef.current) clearTimeout(navBarTimerRef.current)
           navBarTimerRef.current = setTimeout(() => {
             navBarTimerRef.current = null
-            if (centerViewRef.current !== 'diff') return
-            pushNavHistory()
+            if (centerViewRef.current === 'diff') pushNavHistory(false)
             const idx = navIndexRef.current
             if (idx >= 0 && idx < navHistoryRef.current.length) {
               navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
@@ -601,14 +615,14 @@ export default function App() {
       }
 
       // navigate.back / navigate.forward — show nav bar (commit on Alt release)
-      if (centerView === 'diff' && diffFile && !navBarVisibleRef.current) {
+      if (!navBarVisibleRef.current && navHistoryRef.current.length > 0) {
         const isBack = eventMatchesBinding(e, bindings['navigate.back'])
         const isForward = eventMatchesBinding(e, bindings['navigate.forward'])
         if (isBack || isForward) {
           e.preventDefault()
           e.stopImmediatePropagation()
           if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
-          pushNavHistory()
+          if (centerViewRef.current === 'diff') pushNavHistory(false)
           const delta = isBack ? -1 : 1
           const startIdx = navIndexRef.current + delta
           const hist = navHistoryRef.current
@@ -670,6 +684,7 @@ export default function App() {
           lineNumber: entry.line,
           revision: ++diffRevisionRef.current
         })
+        setCenterView('diff')
       }
       setNavBarVisible(false)
     }
@@ -910,7 +925,7 @@ export default function App() {
         relPath = relPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
       }
       relPath = relPath.replace(/\\/g, '/')
-      window.api.terminal.write(activeSessionId, `@${relPath}:${selection.startLine}:${selection.endLine} `)
+      window.api.terminal.write(activeSessionId, `@${relPath}:${selection.startLine} `)
     }
     setCenterView('terminal')
     setDiffFile(null)
