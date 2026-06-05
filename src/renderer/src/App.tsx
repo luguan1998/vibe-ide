@@ -309,7 +309,7 @@ export default function App() {
       const newIdx = navIndexRef.current
       hist.splice(newIdx + 1)
       hist.push({ fullPath: pos.fullPath, line: pos.line, column: pos.column })
-      while (hist.length > 50) hist.shift()
+      while (hist.length > 10) hist.shift()
       navIndexRef.current = hist.length - 1
     } else {
       // Alt navigation: save position, update in place if same file at current index
@@ -318,6 +318,7 @@ export default function App() {
         return
       }
       hist.push({ fullPath: pos.fullPath, line: pos.line, column: pos.column })
+      while (hist.length > 10) { hist.shift(); navIndexRef.current-- }
       navIndexRef.current = hist.length - 1
     }
   }
