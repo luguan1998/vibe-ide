@@ -318,11 +318,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     } finally { setBusy(false) }
   }, [refreshStatus, effectiveGitPath])
 
-  // Stage all files
-  const handleStageAll = useCallback(async (filePaths: string[]) => {
-    if (filePaths.length === 0) return
+  // Stage all files — accepts string sentinels ('-u' / '.') for fast bulk staging, or file path arrays
+  const handleStageAll = useCallback(async (files: string | string[]) => {
+    if (Array.isArray(files) && files.length === 0) return
     setBusy(true)
-    try { await window.api.git.add(filePaths); await refreshStatus() }
+    try { await window.api.git.add(files); await refreshStatus() }
     finally { setBusy(false) }
   }, [refreshStatus])
 
@@ -643,9 +643,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           if (item.section === 'staged') {
             handleUnstageAll(files.filter(f => f.staged).map(f => f.path))
           } else if (item.section === 'unstaged') {
-            handleStageAll(files.filter(f => !f.staged && f.status !== 'untracked').map(f => f.path))
+            handleStageAll('-u')
           } else if (item.section === 'untracked') {
-            handleStageAll(files.filter(f => f.status === 'untracked').map(f => f.path))
+            const untrackedPaths = files.filter(f => f.status === 'untracked').map(f => f.path)
+            const hasUnstaged = files.some(f => !f.staged && f.status !== 'untracked')
+            handleStageAll(hasUnstaged ? untrackedPaths : '.')
           }
         } else if (item?.type === 'commit') {
           e.preventDefault()
@@ -842,7 +844,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                             −
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleStageAll(modifiedFiles.map(f => f.path)) }}
+                            onClick={(e) => { e.stopPropagation(); handleStageAll('-u') }}
                             disabled={busy}
                             className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'unstaged' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'} disabled:opacity-40 disabled:cursor-not-allowed`}
                           >
@@ -929,7 +931,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                         −
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleStageAll(status!.files.filter(f => f.status === 'untracked').map(f => f.path)) }}
+                        onClick={(e) => { e.stopPropagation(); handleStageAll(status!.unstaged === 0 ? '.' : status!.files.filter(f => f.status === 'untracked').map(f => f.path)) }}
                         disabled={busy}
                         className={`text-[11px] font-normal normal-case px-2 py-0.5 rounded border transition-colors inline-flex items-center gap-1 ${focusedHeaderSection === 'untracked' ? 'text-ide-accent border-ide-accent' : 'text-ide-text-muted border-ide-border hover:text-ide-text hover:bg-ide-hover'} disabled:opacity-40 disabled:cursor-not-allowed`}
                       >

@@ -258,7 +258,15 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_ADD, async (_event, files: string | string[]) => {
     try {
       const git = getGit()
-      await git.add(files)
+      if (files === '.') {
+        await git.raw(['add', '.'])
+      } else if (files === '-u') {
+        await git.raw(['add', '-u'])
+      } else if (Array.isArray(files) && files.length > 0) {
+        await git.raw(['add', '--', ...files])
+      } else if (typeof files === 'string') {
+        await git.raw(['add', '--', files])
+      }
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
