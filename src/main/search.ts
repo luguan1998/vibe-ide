@@ -37,14 +37,15 @@ export function registerSearchHandlers(): void {
     regex?: boolean
     caseSensitive?: boolean
     include?: string
+    excludeFiles?: string[]
   }): Promise<ReplaceResult> => {
-    const { query, replacement, cwd, regex, caseSensitive, include } = options
+    const { query, replacement, cwd, regex, caseSensitive, include, excludeFiles } = options
 
     if (!query || !cwd) {
       return { filesModified: 0, totalReplacements: 0, errors: [] }
     }
 
-    return await replaceInFiles(query, replacement, cwd, { regex, caseSensitive, include, excludeFiles: options.excludeFiles })
+    return await replaceInFiles(query, replacement, cwd, { regex, caseSensitive, include, excludeFiles })
   })
 }
 

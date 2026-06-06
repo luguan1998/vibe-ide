@@ -63,19 +63,7 @@ const api = {
     applyBranchRetry: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_APPLY_BRANCH_RETRY, branch),
     deleteWorktree: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DELETE_WORKTREE, branch),
     deleteBranch: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DELETE_BRANCH, branch),
-    setFilterRules: (rules: string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_FILTER_RULES, rules),
-    onChanged: (callback: () => void) => {
-      const handler = () => callback()
-      ipcRenderer.on(IPC_CHANNELS.FS_CHANGED, handler)
-      return handler
-    },
-    removeChangedListener: (handler?: any) => {
-      if (handler) {
-        ipcRenderer.removeListener(IPC_CHANNELS.FS_CHANGED, handler)
-      } else {
-        ipcRenderer.removeAllListeners(IPC_CHANNELS.FS_CHANGED)
-      }
-    }
+    setFilterRules: (rules: string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_FILTER_RULES, rules)
   },
 
   // File operations

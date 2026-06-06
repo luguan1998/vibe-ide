@@ -17,7 +17,7 @@ declare global {
     api: {
       terminal: {
         rename(id: string, newName: string): Promise<RenameTerminalResult>
-        create: (options?: { cwd?: string; name?: string; shell?: string }) => Promise<TerminalSession>
+        create: (options?: { cwd?: string; name?: string; shell?: string; autoUtf8?: boolean }) => Promise<TerminalSession>
         getShells: () => Promise<{ value: string; label: string }[]>
         setAutoApprove: (id: string, cwd: string, enabled: boolean) => Promise<{ success: boolean }>
         write: (id: string, data: string) => void
@@ -51,14 +51,13 @@ declare global {
         getWorktreePath: (branch: string) => Promise<any>
         applyBranchRetry: (branch: string) => Promise<any>
         deleteWorktree: (branch: string) => Promise<any>
+        deleteBranch: (branch: string) => Promise<any>
         setFilterRules: (rules: string[]) => Promise<any>
-        onChanged: (callback: () => void) => any
-        removeChangedListener: (handler?: any) => void
       }
       file: {
         read: (filePath: string) => Promise<any>
         write: (filePath: string, content: string) => Promise<any>
-        readWithEncoding: (filePath: string, encoding?: string) => Promise<{ content: string; encoding: string; bom: boolean; confidence: number; error?: string }>
+        readWithEncoding: (filePath: string, encoding?: string, forceOpen?: boolean) => Promise<{ content: string; encoding: string; bom: boolean; confidence: number; error?: string }>
         writeWithEncoding: (filePath: string, content: string, encoding?: string) => Promise<{ success: boolean; error?: string }>
         list: (dirPath: string) => Promise<any>
         tree: (dirPath: string, depth?: number, skipPatterns?: string[]) => Promise<any>
@@ -66,7 +65,11 @@ declare global {
         rename: (oldPath: string, newPath: string) => Promise<any>
         createDir: (dirPath: string) => Promise<any>
         openExplorer: (filePath: string) => Promise<any>
+        copy: (srcPath: string, destPath: string) => Promise<any>
+        move: (srcPath: string, destPath: string) => Promise<any>
         find: (cwd: string, filename: string, skipPatterns?: string[]) => Promise<any>
+        onChanged: (callback: () => void) => any
+        removeChangedListener: (handler?: any) => void
       }
       workspace: {
         open: () => Promise<any>

@@ -237,7 +237,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
         regex,
         caseSensitive,
         include: includePattern || undefined,
-        excludeFiles: excludedFiles.size > 0 ? [...excludedFiles] : undefined
+        excludeFiles: excludedFiles.size > 0 ? Array.from(excludedFiles) : undefined
       })
       setReplaceResult(result)
       doSearch(query)

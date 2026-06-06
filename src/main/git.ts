@@ -62,7 +62,9 @@ function mapStatus(raw: string, index: string): GitStatusResult {
     staged: stagedCount,
     unstaged: unstagedCount,
     untracked: untrackedCount,
-    clean: files.length === 0
+    clean: files.length === 0,
+    truncated: false,
+    totalFiles: files.length
   }
 }
 
