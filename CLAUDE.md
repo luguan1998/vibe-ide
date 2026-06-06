@@ -12,6 +12,7 @@ Vibe IDE — Electron-based desktop IDE with native terminal, git, file diff/edi
 6. **禁用同步弹窗** — 严禁使用 `confirm()`、`prompt()`、`alert()` 等同步阻塞式浏览器原生弹窗。确认/输入类交互统一使用异步 Modal 模式（参考 `confirmAction` 状态 + fixed 定位弹窗，或内联 `<input>` 编辑）
 7. **被调先于主调** — `const` 声明（含 `useCallback`）不提升，被调函数必须在调用方之前定义。违反会触发 `ReferenceError: Cannot access 'xxx' before initialization`
 8. **Modal 按键拦截用 capture** — Modal 的 Escape/Enter 等键盘监听必须用 `document.addEventListener('keydown', handler, true)`（捕获阶段），并在 handler 中调用 `e.stopImmediatePropagation()`。原因：xterm.js 终端会消费键盘事件，冒泡阶段监听时终端已先收到按键，导致 Modal 关闭的同时终端也被影响。清理时 `removeEventListener` 同样要传 `true`。参考 `TerminalView.tsx:741-749`
+9. **Caps Lock 安全** — 字母键判断必须 `.toLowerCase()`：`e.key.toLowerCase() === 's'`，不得直接 `e.key === 's'`。Caps Lock 时 `e.key` 为大写，直接比较会漏匹配
 
 ## Commands
 
