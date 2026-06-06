@@ -570,8 +570,15 @@ export function registerGitHandlers(): void {
     try {
       const git = getGit()
 
+      // 获取 show 格式的消息头，%P 父 hash 为空即 root commit，无额外 IPC
+      const showOutput = await git.show([hash, '--format=%H%n%P%n%s%n%an%n%ad%n', '--date=iso', '--no-patch'])
+      const lines = showOutput.trimEnd().split('\n')
+      const isRoot = lines[1] === ''
+
       // 用 --name-status 获取可靠的文件状态 (A/D/M/R)
-      const nameStatusOutput = await git.diff([`${hash}^`, hash, '--name-status'])
+      const nameStatusOutput = isRoot
+        ? await git.raw(['diff-tree', '--root', '--name-status', hash])
+        : await git.diff([`${hash}^`, hash, '--name-status'])
       const statusMap = new Map<string, GitCommitFile['status']>()
       const statusLines = nameStatusOutput ? nameStatusOutput.split('\n').filter(Boolean) : []
       for (const line of statusLines) {
@@ -588,7 +595,9 @@ export function registerGitHandlers(): void {
       }
 
       // 用 --numstat 获取每文件增删行数（不依赖于 --stat 解析）
-      const numstatOutput = await git.diff([`${hash}^`, hash, '--numstat'])
+      const numstatOutput = isRoot
+        ? await git.raw(['diff-tree', '--root', '--numstat', hash])
+        : await git.diff([`${hash}^`, hash, '--numstat'])
       const statMap = new Map<string, { additions: number; deletions: number }>()
       const numstatLines = numstatOutput ? numstatOutput.split('\n').filter(Boolean) : []
       for (const line of numstatLines) {
@@ -600,9 +609,6 @@ export function registerGitHandlers(): void {
         statMap.set(filePath, { additions: adds, deletions: dels })
       }
 
-      // 获取show格式的消息头
-      const showOutput = await git.show([hash, '--format=%H%n%s%n%an%n%ad%n', '--date=iso', '--no-patch'])
-
       const result: GitShowResult = {
         hash: '',
         message: '',
@@ -612,11 +618,10 @@ export function registerGitHandlers(): void {
         diff: ''
       }
 
-      const lines = showOutput.split('\n').filter(Boolean)
       if (lines[0]) result.hash = lines[0]
-      if (lines[1]) result.message = lines[1]
-      if (lines[2]) result.author = lines[2]
-      if (lines[3]) result.date = lines[3]
+      if (lines[2]) result.message = lines[2]
+      if (lines[3]) result.author = lines[3]
+      if (lines[4]) result.date = lines[4]
 
       // 合并 status 和 stat 信息
       const allPaths = new Set([...statusMap.keys(), ...statMap.keys()])
@@ -629,7 +634,9 @@ export function registerGitHandlers(): void {
         let additions = stat.additions
         let deletions = stat.deletions
         try {
-          fileDiff = await git.diff([`${hash}^`, hash, '--', filePath])
+          fileDiff = isRoot
+            ? await git.raw(['diff-tree', '--root', '-p', hash, '--', filePath])
+            : await git.diff([`${hash}^`, hash, '--', filePath])
           if (!statMap.has(filePath)) {
             // 如果 numstat 没有该文件，手动计数
             for (const diffLine of fileDiff.split('\n')) {
