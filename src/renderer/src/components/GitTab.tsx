@@ -93,9 +93,10 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [message, setMessage] = useState<string | null>(null)
   const pendingGitPathRef = useRef<string | null>(null)
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
+  const [commitIsRoot, setCommitIsRoot] = useState(false)
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
+  const [commitFileCount, setCommitFileCount] = useState(0)
   const [commitDiff, setCommitDiff] = useState<string>('')
-  const [commitTruncated, setCommitTruncated] = useState(false)
   const fsChangedHandlerRef = useRef<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
   const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)
@@ -260,9 +261,10 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const handleCommitClick = useCallback(async (hash: string) => {
     if (expandedCommit === hash) {
       setExpandedCommit(null)
+      setCommitIsRoot(false)
       setCommitFiles([])
+      setCommitFileCount(0)
       setCommitDiff('')
-      setCommitTruncated(false)
       return
     }
     setLoading(true)
@@ -272,9 +274,10 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         setError(result.error)
       } else {
         setExpandedCommit(hash)
+        setCommitIsRoot(result.isRoot || false)
         setCommitFiles(result.files || [])
+        setCommitFileCount(result.fileCount || result.files?.length || 0)
         setCommitDiff(result.diff || '')
-        setCommitTruncated(result.truncated || false)
       }
     } catch (err: any) {
       setError(err.message)
@@ -282,13 +285,23 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     setLoading(false)
   }, [expandedCommit])
 
-  // Handle commit file click - show diff in main view
+  // Handle commit file click - load diff on demand, then show in main view
   const handleCommitFileClick = useCallback(async (file: GitCommitFile) => {
-    if (!file.diff || !onFileSelect) return
-    const filePath = file.path
-    setSelectedFile(filePath)
-    onFileSelect(filePath, file.diff, false, expandedCommit!)
-  }, [onFileSelect, expandedCommit])
+    if (!onFileSelect || !expandedCommit) return
+    setSelectedFile(file.path)
+    setLoading(true)
+    try {
+      const result = await window.api.git.diffCommitFile(expandedCommit, file.path, commitIsRoot)
+      const diff = result.error ? '' : (result.diff || '')
+      const resolvedFullPath = effectiveGitPath
+        ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}`
+        : ''
+      onFileSelect(file.path, diff, false, expandedCommit, resolvedFullPath)
+    } catch {
+      onFileSelect(file.path, '', false, expandedCommit)
+    }
+    setLoading(false)
+  }, [onFileSelect, expandedCommit, commitIsRoot, effectiveGitPath])
 
   // Stage a file
   const handleStage = useCallback(async (filePath: string) => {
@@ -1036,23 +1049,21 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     </div>
                     {expandedCommit === entry.hash && (() => {
                       const MAX_RENDER_FILES = 200
+                      const totalCount = commitFileCount || commitFiles.length
                       const displayFiles = commitFiles.slice(0, MAX_RENDER_FILES)
-                      const renderTruncated = commitFiles.length - MAX_RENDER_FILES
+                      const renderTruncated = totalCount - MAX_RENDER_FILES
                       return (
                       <div className="bg-ide-bg border-b border-ide-border animate-fade-in">
                         <div className="pl-5 pr-2 py-1 text-[11px] text-ide-text-muted uppercase tracking-wider bg-ide-hover/50">
-                          {t('Files ({count})').replace('{count}', String(commitFiles.length))}
-                          {commitTruncated && <span className="ml-1 normal-case tracking-normal text-ide-warning">({t('Diffs skipped')})</span>}
+                          {t('Files ({count})').replace('{count}', String(totalCount))}
                         </div>
                         {displayFiles.map(file => {
                           const { name, dir } = splitPath(file.path)
-                          const hasDiff = !!file.diff
                           return (
                           <div
                             key={file.path}
-                            className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${!hasDiff ? 'opacity-60' : ''}`}
-                            onClick={() => hasDiff ? handleCommitFileClick(file) : undefined}
-                            title={!hasDiff ? t('Diff not loaded (commit too large)') : undefined}
+                            className="pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1"
+                            onClick={() => handleCommitFileClick(file)}
                           >
                             <span className={`text-xs font-bold w-3.5 text-center shrink-0 ${
                               file.status === 'added' ? 'text-ide-success' :

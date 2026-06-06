@@ -59,6 +59,7 @@ const api = {
     init: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_INIT),
     show: (hash: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW, hash),
     showFile: (ref: string, filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW_FILE, ref, filePath),
+    diffCommitFile: (hash: string, filePath: string, isRoot: boolean) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DIFF_COMMIT_FILE, hash, filePath, isRoot),
     getWorktreePath: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_WORKTREE_PATH, branch),
     applyBranchRetry: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_APPLY_BRANCH_RETRY, branch),
     deleteWorktree: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DELETE_WORKTREE, branch),

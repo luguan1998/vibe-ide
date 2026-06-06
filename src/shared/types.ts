@@ -30,6 +30,7 @@ export const IPC_CHANNELS = {
   GIT_INIT: 'git:init',
   GIT_SHOW: 'git:show',
   GIT_SHOW_FILE: 'git:showFile',
+  GIT_DIFF_COMMIT_FILE: 'git:diffCommitFile',
   GIT_DISCARD: 'git:discard',
   GIT_REMOTE_BRANCHES: 'git:remoteBranches',
   GIT_WORKTREE_PATH: 'git:worktreePath',
@@ -139,8 +140,10 @@ export interface GitShowResult {
   author: string
   date: string
   files: GitCommitFile[]
+  fileCount?: number
   diff?: string
   truncated?: boolean
+  isRoot?: boolean
 }
 
 export interface GitDiffResult {

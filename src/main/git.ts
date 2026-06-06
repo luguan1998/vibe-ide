@@ -627,40 +627,38 @@ export function registerGitHandlers(): void {
       if (lines[2]) result.message = lines[2]
       if (lines[3]) result.author = lines[3]
       if (lines[4]) result.date = lines[4]
+      result.isRoot = isRoot
 
-      // 合并 status 和 stat 信息，先构建基础文件列表
-      const allPaths = new Set([...statusMap.keys(), ...statMap.keys()])
-      const MAX_COMMIT_FILES = 100
+      // 合并 status 和 stat 信息构建文件列表（diff 在点击文件时按需加载）
+      const allPaths = [...new Set([...statusMap.keys(), ...statMap.keys()])]
+      const MAX_COMMIT_FILES = 500
+      const truncated = allPaths.length > MAX_COMMIT_FILES
+      const displayPaths = truncated ? allPaths.slice(0, MAX_COMMIT_FILES) : allPaths
       const files: GitCommitFile[] = []
-      for (const filePath of allPaths) {
+      for (const filePath of displayPaths) {
         const status = statusMap.get(filePath) || 'modified'
         const stat = statMap.get(filePath) || { additions: 0, deletions: 0 }
         files.push({ path: filePath, status, additions: stat.additions, deletions: stat.deletions })
       }
 
-      // 仅对中小型 commit 获取逐文件 diff（避免数百个 git 命令卡死）
-      if (files.length <= MAX_COMMIT_FILES) {
-        for (const file of files) {
-          try {
-            file.diff = isRoot
-              ? await git.raw(['diff-tree', '--root', '-p', hash, '--', file.path])
-              : await git.diff([`${hash}^`, hash, '--', file.path])
-            if (!statMap.has(file.path)) {
-              for (const diffLine of file.diff!.split('\n')) {
-                if (diffLine.startsWith('+') && !diffLine.startsWith('+++')) file.additions++
-                else if (diffLine.startsWith('-') && !diffLine.startsWith('---')) file.deletions++
-              }
-            }
-          } catch {
-            file.diff = ''
-          }
-        }
-      }
-
       result.files = files
-      result.truncated = files.length > MAX_COMMIT_FILES
+      result.fileCount = allPaths.length
+      result.truncated = truncated
 
       return result
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Git diff single file in a commit — 按需加载，避免展开 commit 时逐文件跑 git diff
+  ipcMain.handle(IPC_CHANNELS.GIT_DIFF_COMMIT_FILE, async (_event, hash: string, filePath: string, isRoot: boolean) => {
+    try {
+      const git = getGit()
+      const diff = isRoot
+        ? await git.raw(['diff-tree', '--root', '-p', hash, '--', filePath])
+        : await git.diff([`${hash}^`, hash, '--', filePath])
+      return { diff }
     } catch (err: any) {
       return { error: err.message }
     }
