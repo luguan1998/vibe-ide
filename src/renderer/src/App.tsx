@@ -246,6 +246,7 @@ export default function App() {
   const navBarIndexRef = useRef(0)
   const navBarCwdRef = useRef<string | null>(null)
   const navBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const navBarCancelledRef = useRef(false)
   navBarVisibleRef.current = navBarVisible
   navBarIndexRef.current = navBarIndex
   const flashPanelRef = useRef<'term' | 'right' | null>(null)
@@ -453,6 +454,7 @@ export default function App() {
 
       // ── Alt keydown: start long-press timer to show nav bar ──
       if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        navBarCancelledRef.current = false
         if (!navBarVisibleRef.current && navHistoryRef.current.length > 0) {
           e.preventDefault()
           e.stopImmediatePropagation()
@@ -464,6 +466,7 @@ export default function App() {
             if (idx >= 0 && idx < navHistoryRef.current.length) {
               navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
               navBarVisibleRef.current = true
+              navBarCancelledRef.current = false
               navBarIndexRef.current = idx
               setNavBarVisible(true)
               setNavBarIndex(idx)
@@ -471,6 +474,13 @@ export default function App() {
           }, 150)
           return
         }
+      }
+
+      // ── Alt+non-Arrow while timer running: cancel timer, mark cancelled ──
+      if (navBarTimerRef.current && e.altKey && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+        clearTimeout(navBarTimerRef.current)
+        navBarTimerRef.current = null
+        navBarCancelledRef.current = true
       }
 
       // ── nav bar mode: intercept all Alt combos, Left/Right moves selection ──
@@ -500,10 +510,11 @@ export default function App() {
           setNavBarVisible(false)
           return
         }
-        // Block all other Alt combos while bar is visible
+        // Dismiss bar on any non-Arrow Alt key, let original behavior through
         if (e.altKey) {
-          e.preventDefault()
-          e.stopImmediatePropagation()
+          navBarVisibleRef.current = false
+          navBarCancelledRef.current = true
+          setNavBarVisible(false)
           return
         }
       }
@@ -632,6 +643,8 @@ export default function App() {
           const hist = navHistoryRef.current
           if (startIdx >= 0 && startIdx < hist.length) {
             navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
+            navBarVisibleRef.current = true
+            navBarCancelledRef.current = false
             setNavBarIndex(startIdx)
             setNavBarVisible(true)
           }
@@ -669,6 +682,7 @@ export default function App() {
         return
       }
       if (!navBarVisibleRef.current) return
+      if (navBarCancelledRef.current) { setNavBarVisible(false); return }
       const idx = navBarIndexRef.current
       const hist = navHistoryRef.current
       if (idx >= 0 && idx < hist.length) {
