@@ -37,7 +37,10 @@ function loadSessionEmojis(): string[] {
     const raw = localStorage.getItem('vibe-ide-session-emojis')
     if (raw) {
       const arr = JSON.parse(raw)
-      if (Array.isArray(arr) && arr.length > 0) return arr
+      if (Array.isArray(arr)) {
+        const valid = arr.filter((v: unknown) => typeof v === 'string')
+        if (valid.length > 0) return valid
+      }
     }
   } catch {}
   return [...DEFAULT_SESSION_EMOJIS]
@@ -54,6 +57,7 @@ const FALLBACK_SHELLS = [
 ]
 
 function hashId(id: string): number {
+  if (!id) return 0
   let h = 0
   for (let i = 0; i < id.length; i++) {
     h = (h * 31 + id.charCodeAt(i)) | 0
@@ -76,7 +80,7 @@ function loadCustomCommands(): CustomCommand[] {
     const raw = localStorage.getItem('vibe-ide-custom-commands')
     if (raw) {
       const arr = JSON.parse(raw)
-      if (Array.isArray(arr)) return arr.filter((c: unknown) => c && typeof c === 'object' && 'id' in (c as object) && 'name' in (c as object) && 'command' in (c as object))
+      if (Array.isArray(arr)) return arr.filter((c: unknown) => c && typeof c === 'object' && typeof (c as any).id === 'string' && typeof (c as any).name === 'string' && typeof (c as any).command === 'string')
     }
   } catch {}
   return []

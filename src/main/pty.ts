@@ -219,12 +219,14 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
       return session
     } catch (err: any) {
       console.error('Failed to create PTY:', err)
-      return { error: err.message }
+      throw err
     }
   })
 
   // Write data to terminal
-  ipcMain.on(IPC_CHANNELS.PTY_WRITE, (_event, { id, data }: { id: string; data: string }) => {
+  ipcMain.on(IPC_CHANNELS.PTY_WRITE, (_event, payload: { id: string; data: string }) => {
+    if (!payload || typeof payload.id !== 'string') return
+    const { id, data } = payload
     const managed = terminals.get(id)
     if (managed) {
       managed.pty.write(data)
@@ -232,7 +234,9 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
   })
 
   // Resize terminal
-  ipcMain.on(IPC_CHANNELS.PTY_RESIZE, (_event, { id, cols, rows }: { id: string; cols: number; rows: number }) => {
+  ipcMain.on(IPC_CHANNELS.PTY_RESIZE, (_event, payload: { id: string; cols: number; rows: number }) => {
+    if (!payload || typeof payload.id !== 'string') return
+    const { id, cols, rows } = payload
     const managed = terminals.get(id)
     if (managed) {
       managed.pty.resize(cols, rows)
@@ -269,7 +273,9 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
   })
 
   // Toggle auto-approve hook for a session
-  ipcMain.handle(IPC_CHANNELS.PTY_SET_AUTO_APPROVE, async (_event, { id, cwd, enabled }: { id: string; cwd: string; enabled: boolean }) => {
+  ipcMain.handle(IPC_CHANNELS.PTY_SET_AUTO_APPROVE, async (_event, payload: { id: string; cwd: string; enabled: boolean }) => {
+    if (!payload || typeof payload.id !== 'string' || typeof payload.cwd !== 'string') return
+    const { id, cwd, enabled } = payload
     let refSet = autoApproveRefs.get(cwd)
     if (enabled) {
       if (!refSet) {

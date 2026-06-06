@@ -228,6 +228,7 @@ export function getShortcuts(): Record<string, string> {
     if (raw) {
       const overrides = JSON.parse(raw) as Record<string, string>
       for (const [id, keys] of Object.entries(overrides)) {
+        if (typeof keys !== 'string') continue
         if (map[id] !== undefined) map[id] = keys
       }
     }

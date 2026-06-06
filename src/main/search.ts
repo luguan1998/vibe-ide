@@ -16,7 +16,7 @@ export function registerSearchHandlers(): void {
     caseSensitive?: boolean
     include?: string
   }): Promise<GrepSearchResult> => {
-    const { query, cwd, regex, caseSensitive, include } = options
+    const { query, cwd, regex, caseSensitive, include } = options || {}
 
     if (!query || !cwd) {
       return { matches: [], total: 0, truncated: false }
@@ -39,7 +39,7 @@ export function registerSearchHandlers(): void {
     include?: string
     excludeFiles?: string[]
   }): Promise<ReplaceResult> => {
-    const { query, replacement, cwd, regex, caseSensitive, include, excludeFiles } = options
+    const { query, replacement, cwd, regex, caseSensitive, include, excludeFiles } = options || {}
 
     if (!query || !cwd) {
       return { filesModified: 0, totalReplacements: 0, errors: [] }

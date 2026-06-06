@@ -601,10 +601,10 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   useEffect(() => {
     if (status && workspacePath) {
       window.api.git.remoteBranches().then(result => {
-        if (!result.error) {
+        if (result && !result.error) {
           setRemoteBranches(result)
         }
-      })
+      }).catch(() => {})
     }
   }, [status, workspacePath])
 
@@ -742,7 +742,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         {status && (
           <div className="flex flex-col">
             {/* Staged Changes */}
-            {status && status.files.filter(f => f.staged).length > 0 && (
+            {status?.files?.filter(f => f.staged).length > 0 && (
               <div className="border-b border-ide-border">
                 {(() => {
                   const stagedFiles = status.files.filter(f => f.staged)
@@ -814,7 +814,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             )}
 
             {/* Unstaged Changes */}
-            {status && status.files.filter(f => !f.staged && f.status !== 'untracked').length > 0 && (
+            {status?.files?.filter(f => !f.staged && f.status !== 'untracked').length > 0 && (
               <div className="border-b border-ide-border">
                 {(() => {
                   const modifiedFiles = status.files.filter(f => !f.staged && f.status !== 'untracked')
@@ -902,7 +902,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             )}
 
             {/* Untracked Files */}
-            {status && status.files.filter(f => f.status === 'untracked').length > 0 && (
+            {status?.files?.filter(f => f.status === 'untracked').length > 0 && (
               <div className="border-b border-ide-border">
                 <div
                   className={`pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between ${focusedHeaderSection === 'untracked' ? 'bg-ide-accent/10' : ''}`}

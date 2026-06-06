@@ -71,10 +71,15 @@ function mapStatus(raw: string, index: string): GitStatusResult {
 export function registerGitHandlers(): void {
   // Set git workspace path — switches git instance to a new directory
   ipcMain.handle(IPC_CHANNELS.GIT_SET_WORKSPACE, async (_event, path: string) => {
-    currentWorkspace = path
-    gitInstance = simpleGit(currentWorkspace)
-    startWatching(path)
-    return { success: true, path: currentWorkspace }
+    if (typeof path !== 'string' || !path) return { error: 'Invalid workspace path' }
+    try {
+      currentWorkspace = path
+      gitInstance = simpleGit(currentWorkspace)
+      startWatching(path)
+      return { success: true, path: currentWorkspace }
+    } catch (err: any) {
+      return { error: err.message || 'Failed to set workspace' }
+    }
   })
 
   // Get git status
