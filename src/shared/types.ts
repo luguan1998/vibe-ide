@@ -140,6 +140,7 @@ export interface GitShowResult {
   date: string
   files: GitCommitFile[]
   diff?: string
+  truncated?: boolean
 }
 
 export interface GitDiffResult {

@@ -146,6 +146,9 @@ const ZH_MAP: Record<string, string> = {
   'Commit message...': '输入提交信息...',
   'Commit (Ctrl+Enter)': '提交 (Ctrl+Enter)',
   'Files ({count})': '文件 ({count})',
+  'Diffs skipped': '文件过多，已跳过内容展示',
+  'Diff not loaded (commit too large)': '文件数目过多，跳过具体内容展示',
+  'more files': '更多文件',
 
   // GitTab - File context menu
   'Open in File Panel': '在 File 面板中打开',

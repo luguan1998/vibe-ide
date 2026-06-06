@@ -95,6 +95,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   const [commitDiff, setCommitDiff] = useState<string>('')
+  const [commitTruncated, setCommitTruncated] = useState(false)
   const fsChangedHandlerRef = useRef<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
   const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)
@@ -261,6 +262,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       setExpandedCommit(null)
       setCommitFiles([])
       setCommitDiff('')
+      setCommitTruncated(false)
       return
     }
     setLoading(true)
@@ -272,6 +274,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         setExpandedCommit(hash)
         setCommitFiles(result.files || [])
         setCommitDiff(result.diff || '')
+        setCommitTruncated(result.truncated || false)
       }
     } catch (err: any) {
       setError(err.message)
@@ -1031,18 +1034,25 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                         {entry.refs && <span className="text-ide-warning">{entry.refs}</span>}
                       </div>
                     </div>
-                    {expandedCommit === entry.hash && (
+                    {expandedCommit === entry.hash && (() => {
+                      const MAX_RENDER_FILES = 200
+                      const displayFiles = commitFiles.slice(0, MAX_RENDER_FILES)
+                      const renderTruncated = commitFiles.length - MAX_RENDER_FILES
+                      return (
                       <div className="bg-ide-bg border-b border-ide-border animate-fade-in">
                         <div className="pl-5 pr-2 py-1 text-[11px] text-ide-text-muted uppercase tracking-wider bg-ide-hover/50">
                           {t('Files ({count})').replace('{count}', String(commitFiles.length))}
+                          {commitTruncated && <span className="ml-1 normal-case tracking-normal text-ide-warning">({t('Diffs skipped')})</span>}
                         </div>
-                        {commitFiles.map(file => {
+                        {displayFiles.map(file => {
                           const { name, dir } = splitPath(file.path)
+                          const hasDiff = !!file.diff
                           return (
                           <div
                             key={file.path}
-                            className="pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1"
-                            onClick={() => handleCommitFileClick(file)}
+                            className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${!hasDiff ? 'opacity-60' : ''}`}
+                            onClick={() => hasDiff ? handleCommitFileClick(file) : undefined}
+                            title={!hasDiff ? t('Diff not loaded (commit too large)') : undefined}
                           >
                             <span className={`text-xs font-bold w-3.5 text-center shrink-0 ${
                               file.status === 'added' ? 'text-ide-success' :
@@ -1060,8 +1070,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                             </span>
                           </div>
                         )})}
+                        {renderTruncated > 0 && (
+                          <div className="pl-5 pr-2 py-1 text-xs text-ide-text-muted bg-ide-hover/30 text-center">
+                            + {renderTruncated} {t('more files')}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    )})()}
                   </div>
                 ))
               )}
