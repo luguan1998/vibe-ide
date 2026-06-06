@@ -75,6 +75,19 @@ export const IPC_CHANNELS = {
   // Startup
   STARTUP_OPEN_PATH: 'startup:openPath',
 
+  // CodeGraph
+  CODE_SET_WORKSPACE: 'code:setWorkspace',
+  CODE_IS_INITIALIZED: 'code:isInitialized',
+  CODE_INIT: 'code:init',
+  CODE_SEARCH_NODES: 'code:searchNodes',
+  CODE_GET_NODE: 'code:getNode',
+  CODE_GET_NODES_IN_FILE: 'code:getNodesInFile',
+  CODE_GET_CALLERS: 'code:getCallers',
+  CODE_GET_CALLEES: 'code:getCallees',
+  CODE_FIND_USAGES: 'code:findUsages',
+  CODE_IS_INDEXING: 'code:isIndexing',
+  CODE_CLOSE: 'code:close',
+
   // App
   APP_VERSION: 'app:version'
 } as const
@@ -224,4 +237,16 @@ export interface ReplaceResult {
   filesModified: number
   totalReplacements: number
   errors: string[]
+}
+
+// CodeGraph types
+export interface CodeSymbol {
+  id: string
+  name: string
+  kind: string
+  filePath: string
+  line: number
+  column: number
+  signature?: string
+  parentName?: string
 }

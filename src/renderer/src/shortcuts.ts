@@ -211,6 +211,11 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Escape',
     readonly: true,
   },
+  {
+    id: 'code.focus',
+    label: 'Focus Symbol Search',
+    defaultKeys: 'Ctrl+KeyT',
+  },
 ]
 
 const STORAGE_KEY = 'vibe-ide-keybindings'

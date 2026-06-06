@@ -94,6 +94,19 @@ declare global {
           excludeFiles?: string[]
         }) => Promise<{ filesModified: number; totalReplacements: number; errors: string[] }>
       }
+      code: {
+        setWorkspace: (root: string) => Promise<{ success: boolean; error?: string }>
+        isInitialized: (root: string) => Promise<{ initialized: boolean; error?: string }>
+        init: (root: string) => Promise<{ success: boolean; error?: string }>
+        searchNodes: (query: string, opts?: { limit?: number; kinds?: string[] }) => Promise<{ nodes: import('@shared/types').CodeSymbol[]; total: number; error?: string }>
+        getNode: (id: string) => Promise<{ node?: import('@shared/types').CodeSymbol; error?: string }>
+        getNodesInFile: (filePath: string) => Promise<{ nodes: import('@shared/types').CodeSymbol[]; error?: string }>
+        getCallers: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
+        getCallees: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
+        findUsages: (id: string) => Promise<{ nodes: any[]; error?: string }>
+        isIndexing: () => Promise<{ isIndexing: boolean; error?: string }>
+        close: () => Promise<{ success: boolean }>
+      }
       theme: {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
       }
@@ -165,6 +178,7 @@ export default function App() {
   }, [pollingEnabled])
 
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
+  const [codeFocusTrigger, setCodeFocusTrigger] = useState(0)
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
 
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
@@ -533,6 +547,15 @@ export default function App() {
           e.preventDefault()
           e.stopImmediatePropagation()
           setSearchFocusTrigger(k => k + 1)
+        }
+      }
+
+      // code.focus → focus symbol search in right panel
+      if (eventMatchesBinding(e, bindings['code.focus'])) {
+        if (centerView !== 'diff') {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          setCodeFocusTrigger(k => k + 1)
         }
       }
 
@@ -1282,6 +1305,7 @@ export default function App() {
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
             searchFocusTrigger={searchFocusTrigger}
+            codeFocusTrigger={codeFocusTrigger}
             navigateToFilePayload={navigateToFilePayload}
             onNavigateToFile={handleNavigateToFile}
 

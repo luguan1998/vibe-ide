@@ -5,6 +5,7 @@ import SearchPanel from './SearchPanel'
 import GitTab from './GitTab'
 import AuxTab from './AuxTab'
 import FileTab from './FileTab'
+import CodeTab from './CodeTab'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { TerminalSession } from '@shared/types'
 
@@ -20,6 +21,7 @@ interface RightPanelProps {
   onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
   onCloseRightTerminal?: (sessionId: string) => void
   searchFocusTrigger?: number
+  codeFocusTrigger?: number
 
   onOpenFileFromExplorer?: (fullPath: string) => void
   fileTreeDepth?: number
@@ -31,9 +33,9 @@ interface RightPanelProps {
   onNavigateToFile?: (filePath: string) => void
 }
 
-type GitSection = 'git' | 'terminal' | 'search' | 'file'
+type GitSection = 'git' | 'terminal' | 'search' | 'file' | 'code'
 
-const ALL_SECTIONS: GitSection[] = ['file', 'git', 'terminal', 'search']
+const ALL_SECTIONS: GitSection[] = ['file', 'git', 'terminal', 'search', 'code']
 
 const TAB_DEFS: Record<GitSection, { label: string; icon: React.ReactNode }> = {
   git: {
@@ -73,6 +75,15 @@ const TAB_DEFS: Record<GitSection, { label: string; icon: React.ReactNode }> = {
       </svg>
     ),
   },
+  code: {
+    label: 'Symbol',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+        <polyline points="16 18 22 12 16 6" />
+        <polyline points="8 6 2 12 8 18" />
+      </svg>
+    ),
+  },
 }
 
 // ── localStorage helpers ──
@@ -82,7 +93,7 @@ function loadTabOrder(): GitSection[] {
     const raw = localStorage.getItem('vibe-ide-right-tab-order')
     if (raw) {
       const arr = JSON.parse(raw) as GitSection[]
-      if (Array.isArray(arr) && arr.length === 4 && ALL_SECTIONS.every(s => arr.includes(s))) return arr
+      if (Array.isArray(arr) && arr.length === 5 && ALL_SECTIONS.every(s => arr.includes(s))) return arr
     }
   } catch {}
   return [...ALL_SECTIONS]
@@ -106,7 +117,7 @@ function loadVisibleTabs(): Record<GitSection, boolean> {
       return result
     }
   } catch {}
-  return { git: true, terminal: true, file: true, search: true }
+  return { git: true, terminal: true, file: true, search: true, code: true }
 }
 
 function saveVisibleTabs(v: Record<GitSection, boolean>) {
@@ -374,7 +385,7 @@ function RightPanel({
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
   rightTerminalSession, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
-  searchFocusTrigger, onOpenFileFromExplorer,
+  searchFocusTrigger, codeFocusTrigger, onOpenFileFromExplorer,
   fileTreeDepth = 5, onDiffScroll,
   onToggleCollapse,
   capsuleTabs = true,
@@ -404,11 +415,13 @@ function RightPanel({
   const terminalContentRef = useRef<HTMLDivElement>(null)
   const searchContentRef = useRef<HTMLDivElement>(null)
   const fileContentRef = useRef<HTMLDivElement>(null)
+  const codeContentRef = useRef<HTMLDivElement>(null)
   const sectionRefs: Record<GitSection, React.RefObject<HTMLDivElement>> = {
     git: gitContentRef,
     terminal: terminalContentRef,
     search: searchContentRef,
     file: fileContentRef,
+    code: codeContentRef,
   }
   useEffect(() => {
     if (activeSection === 'search') {
@@ -483,6 +496,19 @@ function RightPanel({
       setActiveSection('search')
     }
   }, [searchFocusTrigger])
+
+  // Ctrl+T → 切换到符号面板；若隐藏则自动显示
+  useEffect(() => {
+    if (codeFocusTrigger !== undefined && codeFocusTrigger > 0) {
+      setVisibleTabs(prev => {
+        if (prev['code']) return prev
+        const next = { ...prev, code: true }
+        saveVisibleTabs(next)
+        return next
+      })
+      setActiveSection('code')
+    }
+  }, [codeFocusTrigger])
 
   // navigateToFilePayload → 切换到 File 面板
   useEffect(() => {
@@ -588,6 +614,15 @@ function RightPanel({
           refreshKey={fileRefreshKey}
           navigateToFile={navigateToFilePayload}
           onRefresh={() => setFileRefreshKey(k => k + 1)}
+        />
+      </div>
+
+      <div ref={codeContentRef} tabIndex={-1} style={{ display: activeSection === 'code' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none overflow-hidden">
+        <CodeTab
+          workspacePath={workspacePath}
+          isActive={activeSection === 'code'}
+          onNavigateToFile={onNavigateToFile}
+          onOpenFile={onOpenFileFromSearch}
         />
       </div>
     </div>

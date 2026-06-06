@@ -9,6 +9,7 @@ import { registerGitHandlers } from './git'
 import { stopWatching } from './watcher'
 import { registerFileHandlers } from './file'
 import { registerSearchHandlers } from './search'
+import { registerCodeGraphHandlers, closeCodeGraph } from './codegraph'
 import { IPC_CHANNELS } from '../shared/types'
 
 // Derive a path-specific instance lock so different exe copies run concurrently
@@ -16,9 +17,6 @@ import { IPC_CHANNELS } from '../shared/types'
 const exePath = app.getPath('exe')
 const exeHash = createHash('md5').update(exePath).digest('hex').slice(0, 8)
 app.name = `vibe-ide-${exeHash}`
-
-// Fix GPU cache permission issue on Windows (must be after app.name so userData is correct)
-app.setPath('cache', join(app.getPath('userData'), 'Cache'))
 
 let mainWindow: BrowserWindow | null = null
 
@@ -181,6 +179,7 @@ app.whenReady().then(() => {
   registerGitHandlers()
   registerFileHandlers()
   registerSearchHandlers()
+  registerCodeGraphHandlers()
 
   createWindow()
 
@@ -260,6 +259,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   cleanupTerminals()
   stopWatching()
+  closeCodeGraph()
 })
 
 app.on('window-all-closed', () => {
