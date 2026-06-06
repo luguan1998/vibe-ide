@@ -303,7 +303,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle keys when visible (not display:none)
       if (!containerRef.current?.offsetParent) return
-      if (e.ctrlKey && e.key === 's') {
+      if (e.ctrlKey && e.key.toLowerCase() === 's') {
         if (commitHash && viewModeRef.current === 'diff') return
         e.preventDefault()
         handleSaveRef.current()

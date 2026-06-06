@@ -501,7 +501,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         }
         // 缓冲区不足一屏 → 不做拦截，让 xterm 把 \x1b[5~ 发给 PTY
       }
-      if (e.key === 'c' && e.ctrlKey && !e.metaKey) {
+      if (e.key.toLowerCase() === 'c' && e.ctrlKey && !e.metaKey) {
         const sel = term.getSelection()
         if (sel) {
           e.preventDefault()
