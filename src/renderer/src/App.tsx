@@ -194,6 +194,11 @@ export default function App() {
   const [capsuleTabs, setCapsuleTabs] = useState(() => {
     try { return localStorage.getItem('vibe-ide-capsule-tabs') !== 'false' } catch { return true }
   })
+  const [escAutoAt, setEscAutoAt] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-esc-auto-at') === 'true' } catch { return false }
+  })
+  const escAutoAtRef = useRef(escAutoAt)
+  escAutoAtRef.current = escAutoAt
 
   const [fileTreeDepth, setFileTreeDepth] = useState(() => {
     try {
@@ -357,6 +362,9 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-capsule-tabs', String(capsuleTabs)) } catch {}
   }, [capsuleTabs])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-esc-auto-at', String(escAutoAt)) } catch {}
+  }, [escAutoAt])
 
   // Keep refs in sync for use in capture-phase keyboard handlers
   React.useEffect(() => { showHistoryRef.current = showHistory }, [showHistory])
@@ -963,8 +971,8 @@ export default function App() {
 
   const handleBackToTerminal = useCallback((selection?: { startLine: number; endLine: number }) => {
     pushNavHistory()
-    // 如果有选区，注入 @filepath:startLine:endLine 到终端
-    if (selection && diffFile && activeSessionId) {
+    // 如果有选区且用户开启了 esc-auto-at，注入 @filepath:startLine:endLine 到终端
+    if (escAutoAtRef.current && selection && diffFile && activeSessionId) {
       let relPath = diffFile.fullPath
       if (activeSessionCwd && relPath.startsWith(activeSessionCwd)) {
         relPath = relPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
@@ -1181,6 +1189,8 @@ export default function App() {
             onToggleInlineDiff={setInlineDiff}
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={setCapsuleTabs}
+            escAutoAt={escAutoAt}
+            onToggleEscAutoAt={setEscAutoAt}
             fileTreeDepth={fileTreeDepth}
             onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}

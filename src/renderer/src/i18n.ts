@@ -112,6 +112,8 @@ const ZH_MAP: Record<string, string> = {
   'Refresh': '刷新',
   'Capsule Tabs': '胶囊选项卡',
   'Use capsule-style tab bar instead of icon buttons.': '使用胶囊风格选项卡替代方形图标按钮。',
+  'ESC Auto @ Selection': 'ESC 自动 @ 选中行',
+  'When pressing ESC in diff view with text selected, auto-insert @filepath:line into the terminal.': '在 diff 界面选中文字后按 ESC，自动将 @文件路径:行号 输入到终端。',
 
   // GitTab - Stage/Clear all
   'Stage All': '全部暂存',

@@ -111,6 +111,8 @@ interface SessionPanelProps {
   onToggleInlineDiff?: (value: boolean) => void
   capsuleTabs?: boolean
   onToggleCapsuleTabs?: (value: boolean) => void
+  escAutoAt?: boolean
+  onToggleEscAutoAt?: (value: boolean) => void
   fileTreeDepth?: number
   onChangeFileTreeDepth?: (delta: number) => void
   focusSettingsTrigger?: number
@@ -142,6 +144,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onToggleInlineDiff,
   capsuleTabs = true,
   onToggleCapsuleTabs,
+  escAutoAt = false,
+  onToggleEscAutoAt,
   fileTreeDepth = 5,
   onChangeFileTreeDepth,
   focusSettingsTrigger = 0,
@@ -1278,6 +1282,15 @@ const SessionPanel = React.memo(function SessionPanel({
                     <span className="text-xs text-ide-text">{t('Capsule Tabs')}</span>
                   </div>
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Use capsule-style tab bar instead of icon buttons.')}</p>
+                </label>
+              )}
+              {onToggleEscAutoAt && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={escAutoAt} onChange={(e) => onToggleEscAutoAt(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('ESC Auto @ Selection')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('When pressing ESC in diff view with text selected, auto-insert @filepath:line into the terminal.')}</p>
                 </label>
               )}
             </div>
