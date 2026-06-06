@@ -10,9 +10,10 @@ interface NavBarProps {
   entries: CursorHistoryEntry[]
   selectedIndex: number
   visible: boolean
+  onSelect: (index: number) => void
 }
 
-const NavBar = React.memo(function NavBar({ entries, selectedIndex, visible }: NavBarProps) {
+const NavBar = React.memo(function NavBar({ entries, selectedIndex, visible, onSelect }: NavBarProps) {
   if (!visible || entries.length === 0) return null
 
   return (
@@ -27,11 +28,15 @@ const NavBar = React.memo(function NavBar({ entries, selectedIndex, visible }: N
                 <span className="mx-0.5 text-[10px] text-ide-text-muted/25 select-none">|</span>
               )}
               <span
-                className={`px-2 py-1 rounded text-xs whitespace-nowrap transition-colors select-none ${
+                className={`px-2 py-1 rounded text-xs whitespace-nowrap transition-colors cursor-pointer ${
                   isSelected
                     ? 'bg-ide-accent text-white'
-                    : 'text-ide-text-muted'
+                    : 'text-ide-text-muted hover:bg-ide-accent/20'
                 }`}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onSelect(i)
+                }}
               >
                 {name}
               </span>

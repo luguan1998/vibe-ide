@@ -696,6 +696,33 @@ export default function App() {
     return () => window.removeEventListener('keyup', handleKeyUp)
   }, [])
 
+  // NavBar click → navigate to file (same as Alt keyup commit)
+  const handleNavBarSelect = useCallback((idx: number) => {
+    if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
+    navBarVisibleRef.current = false
+    setNavBarVisible(false)
+    const hist = navHistoryRef.current
+    if (idx >= 0 && idx < hist.length) {
+      const entry = hist[idx]
+      navIndexRef.current = idx
+      const cwd = navBarCwdRef.current
+      let filePath = entry.fullPath
+      if (cwd && entry.fullPath.startsWith(cwd)) {
+        filePath = entry.fullPath.slice(cwd.length).replace(/^[\\\/]+/, '')
+      }
+      setDiffFile({
+        filePath,
+        fullPath: entry.fullPath,
+        diffContent: '',
+        isStaged: false,
+        defaultEdit: true,
+        lineNumber: entry.line,
+        revision: ++diffRevisionRef.current
+      })
+      setCenterView('diff')
+    }
+  }, [])
+
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
 
@@ -1299,6 +1326,7 @@ export default function App() {
         entries={navHistoryRef.current}
         selectedIndex={navBarIndex}
         visible={navBarVisible}
+        onSelect={handleNavBarSelect}
       />
     </div>
   )
