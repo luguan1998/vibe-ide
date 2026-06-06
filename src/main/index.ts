@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu, screen } from 'electron'
 import { join, resolve } from 'path'
 import { statSync, existsSync } from 'fs'
 import { createHash } from 'crypto'
@@ -103,6 +103,12 @@ function createWindow(): void {
     },
     backgroundColor: '#1a1a2e'
   })
+
+  // Center window within the work area (excludes taskbar) on first launch
+  const workArea = screen.getPrimaryDisplay().workArea
+  const x = Math.round(workArea.x + (workArea.width - 1400) / 2)
+  const y = Math.round(workArea.y + (workArea.height - 900) / 2)
+  mainWindow.setBounds({ x, y, width: 1400, height: 900 })
 
   mainWindow.on('ready-to-show', () => {
     mainWindow!.show()
