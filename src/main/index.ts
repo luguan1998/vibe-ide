@@ -5,7 +5,8 @@ import { createHash } from 'crypto'
 import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers, cleanupTerminals } from './pty'
-import { registerGitHandlers, cleanupGitWatcher } from './git'
+import { registerGitHandlers } from './git'
+import { stopWatching } from './watcher'
 import { registerFileHandlers } from './file'
 import { registerSearchHandlers } from './search'
 import { IPC_CHANNELS } from '../shared/types'
@@ -253,7 +254,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   cleanupTerminals()
-  cleanupGitWatcher()
+  stopWatching()
 })
 
 app.on('window-all-closed', () => {

@@ -331,6 +331,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
     }
   }, [refreshKey])
 
+  // Reload when filesystem changes (file watcher push from main process)
+  useEffect(() => {
+    const handler = window.api.file.onChanged(() => {
+      loadFileTree()
+    })
+    return () => { window.api.file.removeChangedListener(handler) }
+  }, [loadFileTree])
+
   // Load CLAUDE.md (or AGENTS.md) doc tree
   const loadClaudeDocTree = useCallback(async () => {
     if (!workspacePath) { setDocTree([]); return }

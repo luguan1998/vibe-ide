@@ -66,14 +66,14 @@ const api = {
     setFilterRules: (rules: string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_FILTER_RULES, rules),
     onChanged: (callback: () => void) => {
       const handler = () => callback()
-      ipcRenderer.on(IPC_CHANNELS.GIT_CHANGED, handler)
+      ipcRenderer.on(IPC_CHANNELS.FS_CHANGED, handler)
       return handler
     },
     removeChangedListener: (handler?: any) => {
       if (handler) {
-        ipcRenderer.removeListener(IPC_CHANNELS.GIT_CHANGED, handler)
+        ipcRenderer.removeListener(IPC_CHANNELS.FS_CHANGED, handler)
       } else {
-        ipcRenderer.removeAllListeners(IPC_CHANNELS.GIT_CHANGED)
+        ipcRenderer.removeAllListeners(IPC_CHANNELS.FS_CHANGED)
       }
     }
   },
@@ -92,7 +92,19 @@ const api = {
     openExplorer: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_OPEN_EXPLORER, filePath),
     copy: (srcPath: string, destPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_COPY, srcPath, destPath),
     move: (srcPath: string, destPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_MOVE, srcPath, destPath),
-    find: (cwd: string, filename: string, skipPatterns?: string[]) => ipcRenderer.invoke(IPC_CHANNELS.FILE_FIND, cwd, filename, skipPatterns)
+    find: (cwd: string, filename: string, skipPatterns?: string[]) => ipcRenderer.invoke(IPC_CHANNELS.FILE_FIND, cwd, filename, skipPatterns),
+    onChanged: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on(IPC_CHANNELS.FS_CHANGED, handler)
+      return handler
+    },
+    removeChangedListener: (handler?: any) => {
+      if (handler) {
+        ipcRenderer.removeListener(IPC_CHANNELS.FS_CHANGED, handler)
+      } else {
+        ipcRenderer.removeAllListeners(IPC_CHANNELS.FS_CHANGED)
+      }
+    }
   },
 
   // Workspace operations

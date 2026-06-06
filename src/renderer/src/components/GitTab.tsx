@@ -95,7 +95,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   const [commitDiff, setCommitDiff] = useState<string>('')
-  const gitChangedHandlerRef = useRef<any>(null)
+  const fsChangedHandlerRef = useRef<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
   const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)
   const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; filePath: string; fullPath: string } | null>(null)
@@ -575,15 +575,15 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     }
   }, [refreshKey])
 
-  // Listen for git:changed events from file watcher
+  // Listen for fs:changed events from file watcher
   useEffect(() => {
-    gitChangedHandlerRef.current = window.api.git.onChanged(() => {
+    fsChangedHandlerRef.current = window.api.file.onChanged(() => {
       refreshStatus()
       if (logExpanded) refreshLog()
     })
 
     return () => {
-      window.api.git.removeChangedListener(gitChangedHandlerRef.current)
+      window.api.file.removeChangedListener(fsChangedHandlerRef.current)
     }
   }, [logExpanded])
 
