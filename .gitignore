@@ -9,3 +9,5 @@ out/
 .gitnexus/
 __pycache__/
 *.pyc
+.codegraph
+.mcp.json
