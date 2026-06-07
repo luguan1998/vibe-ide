@@ -10,7 +10,7 @@ const KIND_COLORS: Record<string, string> = {
 }
 const NODE_W = 180
 const NODE_H = 30
-const RANK_SEP = 80
+const RANK_SEP = 30
 const NODE_SEP = 8
 const MONACO_FONT = "'Cascadia Code', 'Fira Code', 'Cascadia Mono', Consolas, 'Courier New', monospace"
 
@@ -88,11 +88,17 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
   // Dagre layout
   const positions = useMemo(() => layoutGraph(nodes, edges), [nodes, edges])
 
-  // Center on focal
+  // Center on focal — debounced: wait for async caller/callee data to settle
   const hasCentered = useRef(false)
+  const centerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    const pos = positions.get(focalNode.id)
-    if (pos && !hasCentered.current) { hasCentered.current = true; setViewBox({ x: pos.x, y: pos.y, scale: 1 }) }
+    if (centerTimer.current) clearTimeout(centerTimer.current)
+    centerTimer.current = setTimeout(() => {
+      centerTimer.current = null
+      const pos = positions.get(focalNode.id)
+      if (pos && !hasCentered.current) { hasCentered.current = true; setViewBox({ x: pos.x, y: pos.y, scale: 1 }) }
+    }, 150)
+    return () => { if (centerTimer.current) clearTimeout(centerTimer.current) }
   }, [positions, focalNode.id])
   useEffect(() => { hasCentered.current = false }, [focalNode.id])
 
@@ -107,12 +113,12 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
   }, [nodes, positions])
 
   // ── Expand (direction: 'callers' | 'callees') ──
-  const expand = useCallback(async (nodeId: string, dir: 'callers' | 'callees') => {
+  const expand = useCallback(async (nodeId: string, dir: 'callers' | 'callees', depth: number = 1) => {
     const key = dir === 'callers' ? 'callersExpanded' : 'calleesExpanded'
     setNodes(prev => { const next = new Map(prev); const n = next.get(nodeId); if (n) next.set(nodeId, { ...n, [key]: true }); return next })
     setLoadingNodes(prev => new Set(prev).add(nodeId))
     try {
-      const res = await (dir === 'callers' ? window.api.code.getCallers(nodeId, 1) : window.api.code.getCallees(nodeId, 1))
+      const res = await (dir === 'callers' ? window.api.code.getCallers(nodeId, depth) : window.api.code.getCallees(nodeId, depth))
       setNodes(prev => {
         const next = new Map(prev)
         for (const item of (res.nodes || [])) {
@@ -124,7 +130,8 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
       const newEdges: GraphEdge[] = []
       for (const item of (res.nodes || [])) {
         const n = item.node; if (!n) continue
-        const edge = dir === 'callers' ? { from: n.id, to: nodeId } : { from: nodeId, to: n.id }
+        // Use edge.source/target from the API to handle multi-level chains correctly
+        const edge = item.edge ? { from: item.edge.source, to: item.edge.target } : (dir === 'callers' ? { from: n.id, to: nodeId } : { from: nodeId, to: n.id })
         if (!edgesRef.current.some(e => e.from === edge.from && e.to === edge.to)) newEdges.push(edge)
       }
       if (newEdges.length) setEdges(prev => [...prev, ...newEdges])
@@ -158,12 +165,12 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
   const hasCallers = useCallback((nodeId: string) => edges.some(e => e.to === nodeId), [edges])
   const hasCallees = useCallback((nodeId: string) => edges.some(e => e.from === nodeId), [edges])
 
-  // Init
+  // Init — default to showing callers 3 levels deep, callees 1 level
   useEffect(() => {
     setNodes(new Map([[focalNode.id, { id: focalNode.id, name: focalNode.name, kind: focalNode.kind, filePath: focalNode.filePath, line: focalNode.line, column: focalNode.column, x: 0, y: 0, callersExpanded: false, calleesExpanded: false }]]))
     setEdges([])
     setDraggedNodes(new Set())
-    expand(focalNode.id, 'callers')
+    expand(focalNode.id, 'callers', 3)
     expand(focalNode.id, 'callees')
   }, [focalNode.id]) // eslint-disable-line react-hooks/exhaustive-deps
 

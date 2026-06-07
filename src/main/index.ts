@@ -256,14 +256,19 @@ app.whenReady().then(() => {
 
 })
 
-app.on('before-quit', () => {
+function cleanupAndExit(): void {
   cleanupTerminals()
   stopWatching()
   closeCodeGraph()
+}
+
+app.on('before-quit', () => {
+  cleanupAndExit()
 })
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
+    cleanupAndExit()
+    app.exit()
   }
 })
