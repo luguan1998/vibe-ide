@@ -75,6 +75,7 @@ const ZH_MAP: Record<string, string> = {
   'Navigate Back': '导航后退',
   'Navigate Forward': '导航前进',
   'Open Code Graph Search': '打开代码图搜索',
+  'Search Terminal': '终端内搜索',
 
   // File Tree
   'File Tree Depth': '文件树深度',

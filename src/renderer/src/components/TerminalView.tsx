@@ -3,9 +3,10 @@ import { Terminal, ILinkProvider, ILink, IBufferRange } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { ClipboardAddon } from '@xterm/addon-clipboard'
-import { eventMatchesBinding } from '../shortcuts'
+import { eventMatchesBinding, getShortcuts } from '../shortcuts'
 import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes'
 import { WebglAddon } from '@xterm/addon-webgl'
+import { SearchAddon } from '@xterm/addon-search'
 
 import { useTheme } from '../themes'
 import { loadFilterRules } from './FileTab'
@@ -354,6 +355,10 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const searchAddonRef = useRef<SearchAddon | null>(null)
+  const searchDecoRef = useRef<any>({})
+  const [searchState, setSearchState] = useState<{ visible: boolean; query: string } | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const dataHandlerRef = useRef<any>(null)
   const exitHandlerRef = useRef<any>(null)
   const linkProviderRef = useRef<any>(null)
@@ -424,11 +429,14 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     })
     const clipboardAddon = new ClipboardAddon()
     const unicodeGraphemesAddon = new UnicodeGraphemesAddon()
+    const searchAddon = new SearchAddon()
+    searchAddonRef.current = searchAddon
 
     term.loadAddon(fitAddon)
     term.loadAddon(webLinksAddon)
     term.loadAddon(clipboardAddon)
     term.loadAddon(unicodeGraphemesAddon)
+    term.loadAddon(searchAddon)
 
     // WebGL 渲染器（与 VSCode 终端策略一致）。
     // 主进程已配置 ANGLE/D3D11 硬件加速 + ignore-gpu-blocklist，
@@ -473,6 +481,23 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     // Custom key bindings: newline (configurable), Ctrl+C → copy selection
     // Must use DOM capture to intercept before xterm.js's internal handlers
     const onKeyDown = (e: KeyboardEvent) => {
+      // Terminal search bar: Escape closes it, Alt+F toggles it
+      if (searchState?.visible) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          searchAddon.clearDecorations()
+          setSearchState(null)
+          return
+        }
+      }
+      const bindings = getShortcuts()
+      if (eventMatchesBinding(e, bindings['terminal.search'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setSearchState(prev => prev?.visible ? (searchAddon.clearDecorations(), null) : { visible: true, query: '' })
+        return
+      }
       if (eventMatchesBinding(e, newlineShortcutRef.current)) {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -584,6 +609,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       if (el) el.style.backgroundColor = currentTheme.terminal.background
     }
   }, [currentTheme])
+
 
   // Update font size dynamically without recreating terminal
   useEffect(() => {
@@ -826,6 +852,33 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     }
   }, [sessionId])
 
+  useEffect(() => {
+    if (searchState?.visible) requestAnimationFrame(() => searchInputRef.current?.focus())
+  }, [searchState?.visible])
+
+  // Sync search highlight colors to current theme
+  useEffect(() => {
+    const sel = currentTheme.terminal.selectionBackground || 'rgba(124,58,237,0.3)'
+    const hex = sel.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*/, (_: string, r: string, g: string, b: string) =>
+      '#' + [r, g, b].map(x => parseInt(x).toString(16).padStart(2, '0')).join('')
+    )
+    const cursor = currentTheme.terminal.cursor || '#7c3aed'
+    searchDecoRef.current = {
+      matchBackground: hex,
+      matchBorder: cursor + '66',
+      matchOverviewRuler: hex,
+      activeMatchBackground: cursor,
+      activeMatchBorder: cursor,
+      activeMatchColorOverviewRuler: cursor,
+    }
+  }, [currentTheme])
+
+  const doSearch = useCallback((query: string) => {
+    const addon = searchAddonRef.current
+    if (!addon || !query) { addon?.clearDecorations(); return }
+    addon.findNext(query, { incremental: true, decorations: searchDecoRef.current })
+  }, [])
+
   return (
     <div className="flex flex-col h-full">
       {/* Terminal tab header - 可选显示 */}
@@ -840,11 +893,29 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           h-full resolves to auto when parent is a flex item without explicit height,
           making terminalRef content-sized → xterm.js stale canvas height prevents shrinking. */}
       <div
-        className="flex-1 overflow-hidden pt-1 flex flex-col"
+        className="flex-1 overflow-hidden pt-1 flex flex-col relative"
         style={isAux ? { backgroundColor: currentTheme.terminal.background } : undefined}
         onContextMenu={handleContextMenu}
       >
         <div ref={terminalRef} className="flex-1 min-h-0" />
+
+        {/* Terminal search bar */}
+        {searchState?.visible && (
+          <div className="absolute bottom-2 right-4 flex items-center gap-1.5 bg-ide-sidebar border border-ide-border rounded-md shadow-lg px-2 py-1 z-10">
+            <svg viewBox="0 0 14 14" fill="currentColor" className="w-3 h-3 text-ide-text-muted/50 shrink-0">
+              <path d="M5.5 0a5.5 5.5 0 014.38 8.82l3.65 3.65a.5.5 0 01-.7.71l-3.66-3.66A5.5 5.5 0 115.5 0zm0 1a4.5 4.5 0 100 9 4.5 4.5 0 000-9z"/>
+            </svg>
+            <input ref={searchInputRef} type="text" value={searchState.query}
+              onChange={e => { setSearchState({ visible: true, query: e.target.value }); doSearch(e.target.value) }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); if (e.shiftKey) searchAddonRef.current?.findPrevious(searchState.query, { decorations: searchDecoRef.current }); else searchAddonRef.current?.findNext(searchState.query, { decorations: searchDecoRef.current }) }
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); searchAddonRef.current?.clearDecorations(); setSearchState(null) }
+              }}
+              placeholder="Search terminal..."
+              className="bg-transparent text-xs text-ide-text outline-none w-40 placeholder:text-ide-text-muted/40" />
+            <span className="text-[10px] text-ide-text-muted/40 whitespace-nowrap">Enter ↓ Shift+Enter ↑ Esc ×</span>
+          </div>
+        )}
       </div>
 
       {/* File Picker Modal — 多文件匹配选择器 */}

@@ -211,6 +211,11 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Alt+KeyK',
   },
   {
+    id: 'terminal.search',
+    label: 'Search Terminal',
+    defaultKeys: 'Alt+KeyF',
+  },
+  {
     id: 'diff.close',
     label: 'Close Diff / Back',
     defaultKeys: 'Escape',
