@@ -9,7 +9,8 @@
     "preview": "electron-vite preview",
     "test": "node --test --test-reporter=spec test/**/*.test.mjs",
     "start": "electron-vite preview",
-    "build:win": "npm run build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win --x64 && node -e \"var s=['register-context-menu.bat','unregister-context-menu.bat'];s.forEach(function(f){require('fs').copyFileSync('build/'+f,'dist/win-unpacked/'+f)})\" && node scripts/set-icon.js && node scripts/zip-win.js"
+    "build:win": "npm run build && node scripts/patch-codegraph.js && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win --x64 && node -e \"var s=['register-context-menu.bat','unregister-context-menu.bat'];s.forEach(function(f){require('fs').copyFileSync('build/'+f,'dist/win-unpacked/'+f)})\" && node scripts/set-icon.js && node scripts/zip-win.js",
+    "postinstall": "node scripts/patch-codegraph.js"
   },
   "build": {
     "appId": "com.vibe-ide",
@@ -25,7 +26,13 @@
       "signAndEditExecutable": false
     },
     "nodeGypRebuild": false,
-    "npmRebuild": false
+    "npmRebuild": false,
+    "extraResources": [
+      {
+        "from": "node_modules/@colbymchenry/codegraph-win32-x64/lib/node_modules",
+        "to": "codegraph-platform-deps"
+      }
+    ]
   },
   "dependencies": {
     "@colbymchenry/codegraph": "0.9.9",
@@ -47,7 +54,14 @@
     "node-pty": "^1.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "simple-git": "^3.27.0"
+    "simple-git": "^3.27.0",
+    "chokidar": "^4.0.3",
+    "commander": "^14.0.2",
+    "ignore": "^7.0.5",
+    "jsonc-parser": "^3.3.1",
+    "picomatch": "^4.0.3",
+    "tree-sitter-wasms": "^0.1.11",
+    "web-tree-sitter": "^0.25.3"
   },
   "devDependencies": {
     "@types/react": "^18.3.18",
