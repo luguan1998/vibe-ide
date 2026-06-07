@@ -109,6 +109,10 @@ declare global {
         getCallGraph: (id: string, depth?: number) => Promise<{ nodes: any[]; edges: any[]; error?: string }>
         isIndexing: () => Promise<{ isIndexing: boolean; error?: string }>
         close: () => Promise<{ success: boolean }>
+        getStats: () => Promise<any>
+        getWatching: () => Promise<{ watching: boolean; pendingFiles: any[]; error?: string }>
+        onProgress: (callback: (progress: any) => void) => any
+        removeProgressListener: (handler?: any) => void
       }
       theme: {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
@@ -183,7 +187,8 @@ export default function App() {
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
   const [showCodeSearch, setShowCodeSearch] = useState(false)
-  const codeSearchFocusRef = useRef(false)
+  const callGraphRef = useRef<any>(null); callGraphRef.current = callGraphFocalNode
+  const showCodeSearchRef = useRef(false); showCodeSearchRef.current = showCodeSearch
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
 
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
@@ -271,6 +276,7 @@ export default function App() {
   const navBarCwdRef = useRef<string | null>(null)
   const navBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const navBarCancelledRef = useRef(false)
+  const navBarUsedRef = useRef(false)  // true when user actually navigated with arrows
   navBarVisibleRef.current = navBarVisible
   navBarIndexRef.current = navBarIndex
   const flashPanelRef = useRef<'term' | 'right' | null>(null)
@@ -495,6 +501,7 @@ export default function App() {
               navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
               navBarVisibleRef.current = true
               navBarCancelledRef.current = false
+              navBarUsedRef.current = false
               navBarIndexRef.current = idx
               setNavBarVisible(true)
               setNavBarIndex(idx)
@@ -516,6 +523,7 @@ export default function App() {
         if (e.key === 'ArrowLeft' && e.altKey) {
           e.preventDefault()
           e.stopImmediatePropagation()
+          navBarUsedRef.current = true
           setNavBarIndex(prev => {
             const len = navHistoryRef.current.length
             return prev <= 0 ? len - 1 : prev - 1
@@ -525,6 +533,7 @@ export default function App() {
         if (e.key === 'ArrowRight' && e.altKey) {
           e.preventDefault()
           e.stopImmediatePropagation()
+          navBarUsedRef.current = true
           setNavBarIndex(prev => {
             const len = navHistoryRef.current.length
             return prev >= len - 1 ? 0 : prev + 1
@@ -687,8 +696,18 @@ export default function App() {
         }
       }
 
-      // Escape: return focus to terminal from right panel (non-editable areas only)
+      // Escape priority: call graph → code search → focus return
       if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        if (callGraphRef.current) {
+          e.preventDefault(); e.stopImmediatePropagation()
+          setCallGraphFocalNode(null)
+          return
+        }
+        if (showCodeSearchRef.current) {
+          e.preventDefault(); e.stopImmediatePropagation()
+          setShowCodeSearch(false)
+          return
+        }
         const active = document.activeElement as HTMLElement | null
         if (active && rightPanelRef.current?.contains(active) && centerView !== 'diff') {
           const tag = active.tagName
@@ -716,11 +735,11 @@ export default function App() {
         if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
         return
       }
-      // Dismiss code search on Alt release (unless input is focused)
-      if (!codeSearchFocusRef.current) setShowCodeSearch(false)
+      // CodeSearch handles its own Alt-release dismiss logic internally
 
       if (!navBarVisibleRef.current) return
       if (navBarCancelledRef.current) { setNavBarVisible(false); return }
+      if (!navBarUsedRef.current) { setNavBarVisible(false); return }
       const idx = navBarIndexRef.current
       const hist = navHistoryRef.current
       if (idx >= 0 && idx < hist.length) {
@@ -1406,7 +1425,6 @@ export default function App() {
           workspacePath={activeSessionCwd}
           onClose={() => setShowCodeSearch(false)}
           onSelectNode={(node) => setCallGraphFocalNode(node)}
-          onFocusChange={(f) => { codeSearchFocusRef.current = f }}
         />
       )}
     </div>

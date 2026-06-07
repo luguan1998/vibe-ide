@@ -88,6 +88,9 @@ export const IPC_CHANNELS = {
   CODE_GET_CALL_GRAPH: 'code:getCallGraph',
   CODE_IS_INDEXING: 'code:isIndexing',
   CODE_CLOSE: 'code:close',
+  CODE_PROGRESS: 'code:progress',           // push: init/index progress
+  CODE_GET_STATS: 'code:getStats',
+  CODE_GET_WATCHING: 'code:getWatching',
 
   // App
   APP_VERSION: 'app:version'

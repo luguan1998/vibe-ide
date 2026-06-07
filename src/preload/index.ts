@@ -176,6 +176,17 @@ const api = {
     getCallGraph: (id: string, depth?: number) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_CALL_GRAPH, id, depth),
     isIndexing: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_IS_INDEXING),
     close: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_CLOSE),
+    getStats: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_STATS),
+    getWatching: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_WATCHING),
+    onProgress: (callback: (progress: any) => void) => {
+      const handler = (_event: any, progress: any) => callback(progress)
+      ipcRenderer.on(IPC_CHANNELS.CODE_PROGRESS, handler)
+      return handler
+    },
+    removeProgressListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.CODE_PROGRESS, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.CODE_PROGRESS)
+    },
   },
 
 }
