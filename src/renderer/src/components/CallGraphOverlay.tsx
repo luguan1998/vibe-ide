@@ -68,6 +68,8 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [iconHoveredNode, setIconHoveredNode] = useState<string | null>(null)
   const [tooltipNode, setTooltipNode] = useState<string | null>(null)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
+  const ctxMenuRef = useRef<HTMLDivElement>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleNodeEnter = useCallback((nodeId: string) => {
@@ -161,6 +163,25 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
     setDraggedNodes(prev => { const next = new Set(prev); for (const id of prev) { if (!reachable.has(id)) next.delete(id) } return next })
   }, [focalNode.id])
 
+  // ── Delete node ──
+  const deleteNode = useCallback((nodeId: string) => {
+    if (nodeId === focalNode.id) return
+    const newEdges = edgesRef.current.filter(e => e.from !== nodeId && e.to !== nodeId)
+    // BFS from focal to find orphaned nodes
+    const adj = new Map<string, string[]>()
+    for (const e of newEdges) {
+      if (!adj.has(e.from)) adj.set(e.from, []); adj.get(e.from)!.push(e.to)
+      if (!adj.has(e.to)) adj.set(e.to, []); adj.get(e.to)!.push(e.from)
+    }
+    const reachable = new Set<string>()
+    const q = [focalNode.id]
+    while (q.length) { const id = q.shift()!; if (reachable.has(id)) continue; reachable.add(id); for (const nb of (adj.get(id) || [])) { if (!reachable.has(nb)) q.push(nb) } }
+    setNodes(prev => { const next = new Map(prev); next.delete(nodeId); for (const id of prev.keys()) { if (!reachable.has(id)) next.delete(id) } return next })
+    setEdges(newEdges)
+    setDraggedNodes(prev => { const next = new Set(prev); next.delete(nodeId); for (const id of prev) { if (!reachable.has(id)) next.delete(id) } return next })
+    setCtxMenu(null)
+  }, [focalNode.id])
+
   // Has callers/callees
   const hasCallers = useCallback((nodeId: string) => edges.some(e => e.to === nodeId), [edges])
   const hasCallees = useCallback((nodeId: string) => edges.some(e => e.from === nodeId), [edges])
@@ -181,6 +202,23 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
     svg.addEventListener('wheel', h, { passive: false })
     return () => svg.removeEventListener('wheel', h)
   }, [])
+
+  // Context menu dismiss
+  useEffect(() => {
+    if (!ctxMenu) return
+    const mm = (e: MouseEvent) => {
+      if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target as Node)) setCtxMenu(null)
+    }
+    const timer = setTimeout(() => document.addEventListener('mousedown', mm), 0)
+    return () => { clearTimeout(timer); document.removeEventListener('mousedown', mm) }
+  }, [ctxMenu])
+
+  useEffect(() => {
+    if (!ctxMenu) return
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null) }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [ctxMenu])
 
   const screenToSvg = useCallback((cx: number, cy: number) => {
     const svg = svgRef.current; if (!svg) return { x: cx, y: cy }
@@ -243,8 +281,8 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
               const color = getKindColor(gn.kind)
               const name = gn.name.length > 20 ? gn.name.slice(0, 18) + '…' : gn.name
               const loading = loadingNodes.has(gn.id)
-              const canLeft = isFocal || hasCallers(gn.id)
-              const canRight = isFocal || hasCallees(gn.id)
+              const canLeft = true
+              const canRight = true
               const callersActive = gn.callersExpanded && hasCallers(gn.id)
               const isHovered = hoveredNode === gn.id
               const isIconHovered = iconHoveredNode === gn.id
@@ -255,6 +293,7 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
                 <g key={gn.id} transform={`translate(${p.x - NODE_W / 2},${p.y - NODE_H / 2})`} className="cursor-pointer"
                   onMouseDown={(e) => { e.stopPropagation(); if (e.button === 0) dragStartPos.current = { x: e.clientX, y: e.clientY, nodeId: gn.id } }}
                   onClick={() => onJumpToFile(gn.filePath, gn.line)}
+                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!isFocal) setCtxMenu({ x: e.clientX, y: e.clientY, nodeId: gn.id }) }}
                   onMouseEnter={() => handleNodeEnter(gn.id)} onMouseLeave={handleNodeLeave}>
                   <rect x={0} y={0} width={NODE_W} height={NODE_H} rx={7} ry={7}
                     fill={isFocal ? `${color}20` : '#1a1a2ecc'} stroke={isFocal ? color : '#444'} strokeWidth={isFocal ? 2 : 1.2} opacity={0.92}/>
@@ -313,6 +352,28 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
             })()}
           </svg>
         </div>
+
+        {/* Context Menu */}
+        {ctxMenu && (
+          <div
+            ref={ctxMenuRef}
+            style={{ position: 'fixed', left: Math.min(ctxMenu.x, window.innerWidth - 140), top: Math.min(ctxMenu.y, window.innerHeight - 60), zIndex: 100 }}
+            className="bg-ide-sidebar border border-ide-border rounded-md shadow-2xl py-1 min-w-[120px]"
+          >
+            <button
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-ide-hover transition-colors"
+              onClick={() => deleteNode(ctxMenu.nodeId)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-3.5 h-3.5">
+                <path d="M3 5h10M5 5v9a1 1 0 001 1h4a1 1 0 001-1V5M7 5V3a1 1 0 011-1h1a1 1 0 011 1v2" strokeLinecap="round" strokeLinejoin="round"/>
+                <line x1="6" y1="8" x2="6" y2="12" strokeLinecap="round" opacity={0.6}/>
+                <line x1="8" y1="8" x2="8" y2="12" strokeLinecap="round" opacity={0.6}/>
+                <line x1="10" y1="8" x2="10" y2="12" strokeLinecap="round" opacity={0.6}/>
+              </svg>
+              Delete
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
