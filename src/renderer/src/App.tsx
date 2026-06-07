@@ -4,6 +4,8 @@ import SessionPanel from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
 import NavBar from './components/NavBar'
+import CallGraphOverlay from './components/CallGraphOverlay'
+import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { TerminalSession, RenameTerminalResult } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
 import { useI18n } from './i18n'
@@ -104,6 +106,7 @@ declare global {
         getCallers: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
         getCallees: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
         findUsages: (id: string) => Promise<{ nodes: any[]; error?: string }>
+        getCallGraph: (id: string, depth?: number) => Promise<{ nodes: any[]; edges: any[]; error?: string }>
         isIndexing: () => Promise<{ isIndexing: boolean; error?: string }>
         close: () => Promise<{ success: boolean }>
       }
@@ -178,7 +181,9 @@ export default function App() {
   }, [pollingEnabled])
 
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
-  const [codeFocusTrigger, setCodeFocusTrigger] = useState(0)
+  const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
+  const [showCodeSearch, setShowCodeSearch] = useState(false)
+  const codeSearchFocusRef = useRef(false)
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
 
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
@@ -474,15 +479,16 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const bindings = getShortcuts()
 
-      // ── Alt keydown: start long-press timer to show nav bar ──
+      // ── Alt keydown: start long-press timer to show code search (and nav bar if history) ──
       if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         navBarCancelledRef.current = false
-        if (!navBarVisibleRef.current && navHistoryRef.current.length > 0) {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-          if (navBarTimerRef.current) clearTimeout(navBarTimerRef.current)
-          navBarTimerRef.current = setTimeout(() => {
-            navBarTimerRef.current = null
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (navBarTimerRef.current) clearTimeout(navBarTimerRef.current)
+        navBarTimerRef.current = setTimeout(() => {
+          navBarTimerRef.current = null
+          setShowCodeSearch(true)
+          if (navHistoryRef.current.length > 0) {
             if (centerViewRef.current === 'diff') pushNavHistory(false)
             const idx = navIndexRef.current
             if (idx >= 0 && idx < navHistoryRef.current.length) {
@@ -493,9 +499,9 @@ export default function App() {
               setNavBarVisible(true)
               setNavBarIndex(idx)
             }
-          }, 150)
-          return
-        }
+          }
+        }, 150)
+        return
       }
 
       // ── Alt+non-Arrow while timer running: cancel timer, mark cancelled ──
@@ -550,13 +556,11 @@ export default function App() {
         }
       }
 
-      // code.focus → focus symbol search in right panel
+      // code.focus → show code symbol search overlay
       if (eventMatchesBinding(e, bindings['code.focus'])) {
-        if (centerView !== 'diff') {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-          setCodeFocusTrigger(k => k + 1)
-        }
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setShowCodeSearch(true)
       }
 
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
@@ -712,6 +716,9 @@ export default function App() {
         if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
         return
       }
+      // Dismiss code search on Alt release (unless input is focused)
+      if (!codeSearchFocusRef.current) setShowCodeSearch(false)
+
       if (!navBarVisibleRef.current) return
       if (navBarCancelledRef.current) { setNavBarVisible(false); return }
       const idx = navBarIndexRef.current
@@ -1305,7 +1312,6 @@ export default function App() {
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
             searchFocusTrigger={searchFocusTrigger}
-            codeFocusTrigger={codeFocusTrigger}
             navigateToFilePayload={navigateToFilePayload}
             onNavigateToFile={handleNavigateToFile}
 
@@ -1376,6 +1382,33 @@ export default function App() {
         visible={navBarVisible}
         onSelect={handleNavBarSelect}
       />
+
+      {/* Call Graph Overlay — rendered at App level like NavBar to stay on top */}
+      {callGraphFocalNode && (
+        <CallGraphOverlay
+          focalNode={callGraphFocalNode}
+          onClose={() => setCallGraphFocalNode(null)}
+          onJumpToFile={(filePath, line) => {
+            const cwd = activeSessionCwd
+            if (!cwd) return
+            const sep = cwd.includes('\\') ? '\\' : '/'
+            const absPath = filePath.startsWith('/') || filePath.includes(':')
+              ? filePath
+              : cwd + sep + filePath.replace(/\//g, sep)
+            handleOpenFileFromSearch(absPath, line)
+          }}
+        />
+      )}
+
+      {/* CodeGraph Search — Alt-triggered center overlay */}
+      {showCodeSearch && (
+        <CodeGraphSearch
+          workspacePath={activeSessionCwd}
+          onClose={() => setShowCodeSearch(false)}
+          onSelectNode={(node) => setCallGraphFocalNode(node)}
+          onFocusChange={(f) => { codeSearchFocusRef.current = f }}
+        />
+      )}
     </div>
   )
 }

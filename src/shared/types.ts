@@ -85,6 +85,7 @@ export const IPC_CHANNELS = {
   CODE_GET_CALLERS: 'code:getCallers',
   CODE_GET_CALLEES: 'code:getCallees',
   CODE_FIND_USAGES: 'code:findUsages',
+  CODE_GET_CALL_GRAPH: 'code:getCallGraph',
   CODE_IS_INDEXING: 'code:isIndexing',
   CODE_CLOSE: 'code:close',
 

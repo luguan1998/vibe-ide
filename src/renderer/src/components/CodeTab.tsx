@@ -6,6 +6,7 @@ interface CodeTabProps {
   isActive?: boolean
   onNavigateToFile?: (filePath: string) => void
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  onShowCallGraph?: (node: CodeSymbol) => void
 }
 
 type CodeTabStatus = 'loading' | 'not-initialized' | 'indexing' | 'ready' | 'error'
@@ -25,7 +26,7 @@ function getKindColor(kind: string): string {
   return KIND_COLORS[kind] || 'text-ide-text-muted'
 }
 
-function CodeTab({ workspacePath, isActive, onNavigateToFile, onOpenFile }: CodeTabProps) {
+function CodeTab({ workspacePath, isActive, onNavigateToFile, onOpenFile, onShowCallGraph }: CodeTabProps) {
   const [status, setStatus] = useState<CodeTabStatus>('loading')
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -270,12 +271,20 @@ function CodeTab({ workspacePath, isActive, onNavigateToFile, onOpenFile }: Code
           {selectedNode.signature && (
             <div className="text-xs text-ide-text-muted/70 mt-0.5 truncate font-mono">{selectedNode.signature}</div>
           )}
-          <button
-            onClick={() => handleJumpToDefinition(selectedNode)}
-            className="mt-2 text-xs px-2 py-1 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 transition-colors w-full"
-          >
-            Jump to Definition
-          </button>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={() => handleJumpToDefinition(selectedNode)}
+              className="text-xs px-2 py-1 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 transition-colors flex-1"
+            >
+              Jump to Definition
+            </button>
+            <button
+              onClick={() => onShowCallGraph?.(selectedNode!)}
+              className="text-xs px-2 py-1 rounded bg-ide-text-muted/10 text-ide-text-muted hover:text-ide-text hover:bg-ide-text-muted/20 transition-colors"
+            >
+              Call Graph
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">

@@ -122,6 +122,23 @@ export function registerCodeGraphHandlers(): void {
     }
   })
 
+  ipcMain.handle(IPC_CHANNELS.CODE_GET_CALL_GRAPH, async (_event, id: string, depth?: number) => {
+    if (!cg) return { error: 'CodeGraph not initialized', nodes: [], edges: [] }
+    try {
+      const sub = cg.getCallGraph(id, depth || 4)
+      const nodes: any[] = []
+      if (sub.nodes) {
+        sub.nodes.forEach((n: any) => nodes.push(normalizeNode(n)))
+      }
+      const edges = (sub.edges || []).map((e: any) => ({
+        fromNodeId: e.fromNodeId, toNodeId: e.toNodeId, kind: e.kind
+      }))
+      return { nodes, edges }
+    } catch (err: any) {
+      return { error: err.message, nodes: [], edges: [] }
+    }
+  })
+
   ipcMain.handle(IPC_CHANNELS.CODE_FIND_USAGES, async (_event, id: string) => {
     if (!cg) return { error: 'CodeGraph not initialized', nodes: [] }
     try {

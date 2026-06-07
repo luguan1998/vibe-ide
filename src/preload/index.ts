@@ -173,6 +173,7 @@ const api = {
     getCallers: (id: string, maxDepth?: number) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_CALLERS, id, maxDepth),
     getCallees: (id: string, maxDepth?: number) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_CALLEES, id, maxDepth),
     findUsages: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_FIND_USAGES, id),
+    getCallGraph: (id: string, depth?: number) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_CALL_GRAPH, id, depth),
     isIndexing: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_IS_INDEXING),
     close: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_CLOSE),
   },
