@@ -34,19 +34,17 @@ interface Props {
   workspacePath: string | null
   onClose: () => void
   onSelectNode: (node: CodeSymbol) => void
+  onActivated?: () => void
 }
 
 type Status = 'loading' | 'not-initialized' | 'indexing' | 'ready' | 'error'
 
-function CodeGraphSearch({ workspacePath, onClose, onSelectNode }: Props) {
+function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated }: Props) {
   const [status, setStatus] = useState<Status>('loading')
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<CodeSymbol[]>([])
   const [searching, setSearching] = useState(false)
-  const [isFocused, setIsFocused] = useState(false)
-  const interactedRef = useRef(false)
-  const altPressedWhileVisibleRef = useRef(false)
   const [progress, setProgress] = useState<{ phase: string; current: number; total: number } | null>(null)
   const [stats, setStats] = useState<any>(null)
   const [filters, setFilters] = useState<string[]>(loadFilters)
@@ -109,8 +107,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode }: Props) {
     return () => clearInterval(id)
   }, [status])
 
-  // Auto-focus
-  useEffect(() => { if (status === 'ready') setTimeout(() => inputRef.current?.focus(), 50) }, [status])
+  // No auto-focus — user must click to activate (so Alt-release can dismiss)
 
   // Progress listener during init
   const handleInit = useCallback(async () => {
@@ -149,25 +146,6 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode }: Props) {
 
   useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current) }, [])
 
-  // Alt keydown while visible: track so keyup can dismiss (long-press to close, matching NavBar)
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.key === 'Alt') altPressedWhileVisibleRef.current = true
-    }
-    const up = (e: KeyboardEvent) => {
-      if (e.key === 'Alt') {
-        if (altPressedWhileVisibleRef.current && !interactedRef.current && !isFocused) onClose()
-        altPressedWhileVisibleRef.current = false
-      }
-    }
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => {
-      window.removeEventListener('keydown', down)
-      window.removeEventListener('keyup', up)
-    }
-  }, [onClose, isFocused])
-
   const applyFilters = useCallback(() => {
     const list = filterText.split(',').map(s => s.trim()).filter(Boolean)
     setFilters(list)
@@ -186,14 +164,14 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode }: Props) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-text-muted/50 shrink-0">
               <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
             </svg>
-            <input ref={inputRef} type="text" value={query} onChange={e => { interactedRef.current = true; handleChange(e.target.value) }}
-              onFocus={() => setIsFocused(true)} onBlur={() => setIsFocused(false)}
+            <input ref={inputRef} type="text" value={query} onChange={e => handleChange(e.target.value)}
+              onFocus={() => onActivated?.()}
               placeholder={status === 'not-initialized' ? 'Not initialized — click Init' : status === 'indexing' ? 'Indexing...' : status === 'loading' ? 'Loading...' : 'Search symbols...'}
               disabled={status !== 'ready'}
               className="flex-1 bg-transparent text-sm text-ide-text outline-none focus:outline-none ring-0 focus:ring-0 placeholder:text-ide-text-muted/30" />
             {searching && <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin shrink-0" />}
             {status === 'not-initialized' && (
-              <button onClick={() => { interactedRef.current = true; handleInit() }} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 shrink-0">Init</button>
+              <button onClick={() => { onActivated?.(); handleInit() }} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 shrink-0">Init</button>
             )}
             <button onClick={() => { setShowFilters(!showFilters); if (!showFilters) setFilterText(filters.join(', ')) }}
               className="text-ide-text-muted/30 hover:text-ide-text-muted/60 transition-colors shrink-0" title="Filters">

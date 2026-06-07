@@ -113,7 +113,9 @@ function createWindow(): void {
   })
 
   mainWindow.on('closed', () => {
+    cleanupAndExit()
     mainWindow = null
+    if (process.platform !== 'darwin') app.exit()
   })
 
   // Open DevTools in dev mode for debugging

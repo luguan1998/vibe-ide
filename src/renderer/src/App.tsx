@@ -184,6 +184,7 @@ export default function App() {
   const [showCodeSearch, setShowCodeSearch] = useState(false)
   const callGraphRef = useRef<any>(null); callGraphRef.current = callGraphFocalNode
   const showCodeSearchRef = useRef(false); showCodeSearchRef.current = showCodeSearch
+  const codeSearchActivatedRef = useRef(false)
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
 
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
@@ -488,6 +489,7 @@ export default function App() {
         if (navBarTimerRef.current) clearTimeout(navBarTimerRef.current)
         navBarTimerRef.current = setTimeout(() => {
           navBarTimerRef.current = null
+          codeSearchActivatedRef.current = false
           setShowCodeSearch(true)
           if (navHistoryRef.current.length > 0) {
             if (centerViewRef.current === 'diff') pushNavHistory(false)
@@ -723,7 +725,10 @@ export default function App() {
         if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
         return
       }
-      // CodeSearch handles its own Alt-release dismiss logic internally
+      // Dismiss CodeGraphSearch on Alt release if not activated (clicked/focused)
+      if (showCodeSearchRef.current && !codeSearchActivatedRef.current) {
+        setShowCodeSearch(false)
+      }
 
       if (!navBarVisibleRef.current) return
       if (navBarCancelledRef.current) { setNavBarVisible(false); return }
@@ -1413,6 +1418,7 @@ export default function App() {
           workspacePath={activeSessionCwd}
           onClose={() => setShowCodeSearch(false)}
           onSelectNode={(node) => setCallGraphFocalNode(node)}
+          onActivated={() => { codeSearchActivatedRef.current = true }}
         />
       )}
     </div>
