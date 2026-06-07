@@ -182,6 +182,7 @@ export default function App() {
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
   const [showCodeSearch, setShowCodeSearch] = useState(false)
+  const [codeSearchFocusTrigger, setCodeSearchFocusTrigger] = useState(0)
   const callGraphRef = useRef<any>(null); callGraphRef.current = callGraphFocalNode
   const showCodeSearchRef = useRef(false); showCodeSearchRef.current = showCodeSearch
   const codeSearchActivatedRef = useRef(false)
@@ -551,6 +552,16 @@ export default function App() {
           setNavBarVisible(false)
           return
         }
+      }
+
+      // codegraph.open → open CodeGraph search and focus input
+      if (eventMatchesBinding(e, bindings['codegraph.open'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        codeSearchActivatedRef.current = true
+        setShowCodeSearch(true)
+        setCodeSearchFocusTrigger(k => k + 1)
+        return
       }
 
       // search.focus → focus search in right panel
@@ -1419,6 +1430,7 @@ export default function App() {
           onClose={() => setShowCodeSearch(false)}
           onSelectNode={(node) => setCallGraphFocalNode(node)}
           onActivated={() => { codeSearchActivatedRef.current = true }}
+          focusTrigger={codeSearchFocusTrigger}
         />
       )}
     </div>

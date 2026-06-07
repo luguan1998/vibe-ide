@@ -72,6 +72,9 @@ const ZH_MAP: Record<string, string> = {
   'Command History': '命令历史',
   'Terminal Copy/Paste': '终端右键复制/粘贴',
   'Close Diff / Back': '关闭Diff/返回终端',
+  'Navigate Back': '导航后退',
+  'Navigate Forward': '导航前进',
+  'Open Code Graph Search': '打开代码图搜索',
 
   // File Tree
   'File Tree Depth': '文件树深度',

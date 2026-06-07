@@ -206,6 +206,11 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Alt+ArrowRight',
   },
   {
+    id: 'codegraph.open',
+    label: 'Open Code Graph Search',
+    defaultKeys: 'Alt+KeyK',
+  },
+  {
     id: 'diff.close',
     label: 'Close Diff / Back',
     defaultKeys: 'Escape',

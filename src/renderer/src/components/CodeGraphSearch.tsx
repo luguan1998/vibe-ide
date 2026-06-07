@@ -35,11 +35,12 @@ interface Props {
   onClose: () => void
   onSelectNode: (node: CodeSymbol) => void
   onActivated?: () => void
+  focusTrigger?: number
 }
 
 type Status = 'loading' | 'not-initialized' | 'indexing' | 'ready' | 'error'
 
-function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated }: Props) {
+function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, focusTrigger }: Props) {
   const [status, setStatus] = useState<Status>('loading')
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -107,7 +108,12 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated }: 
     return () => clearInterval(id)
   }, [status])
 
-  // No auto-focus — user must click to activate (so Alt-release can dismiss)
+  // Focus triggered externally (e.g. Alt+K shortcut)
+  useEffect(() => {
+    if (focusTrigger !== undefined && focusTrigger > 0) {
+      requestAnimationFrame(() => inputRef.current?.focus())
+    }
+  }, [focusTrigger])
 
   // Progress listener during init
   const handleInit = useCallback(async () => {
@@ -140,9 +146,10 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated }: 
 
   const handleChange = useCallback((v: string) => {
     setQuery(v)
+    if (status !== 'ready') return
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => doSearch(v), 250)
-  }, [doSearch])
+  }, [doSearch, status])
 
   useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current) }, [])
 
@@ -167,8 +174,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated }: 
             <input ref={inputRef} type="text" value={query} onChange={e => handleChange(e.target.value)}
               onFocus={() => onActivated?.()}
               placeholder={status === 'not-initialized' ? 'Not initialized — click Init' : status === 'indexing' ? 'Indexing...' : status === 'loading' ? 'Loading...' : 'Search symbols...'}
-              disabled={status !== 'ready'}
-              className="flex-1 bg-transparent text-sm text-ide-text outline-none focus:outline-none ring-0 focus:ring-0 placeholder:text-ide-text-muted/30" />
+              className={`flex-1 bg-transparent text-sm outline-none focus:outline-none ring-0 focus:ring-0 placeholder:text-ide-text-muted/30 ${status !== 'ready' ? 'text-ide-text-muted/40' : 'text-ide-text'}`} />
             {searching && <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin shrink-0" />}
             {status === 'not-initialized' && (
               <button onClick={() => { onActivated?.(); handleInit() }} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 shrink-0">Init</button>
