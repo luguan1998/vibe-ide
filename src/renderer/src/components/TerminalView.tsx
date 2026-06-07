@@ -357,7 +357,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   const fitAddonRef = useRef<FitAddon | null>(null)
   const searchAddonRef = useRef<SearchAddon | null>(null)
   const searchDecoRef = useRef<any>({})
-  const [searchState, setSearchState] = useState<{ visible: boolean; query: string } | null>(null)
+  const [searchState, setSearchState] = useState<{ visible: boolean; query: string; index: number; count: number } | null>(null)
+  const searchStateRef = useRef(searchState)
+  searchStateRef.current = searchState
   const searchInputRef = useRef<HTMLInputElement>(null)
   const dataHandlerRef = useRef<any>(null)
   const exitHandlerRef = useRef<any>(null)
@@ -431,6 +433,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     const unicodeGraphemesAddon = new UnicodeGraphemesAddon()
     const searchAddon = new SearchAddon()
     searchAddonRef.current = searchAddon
+    const searchResultDisposer = searchAddon.onDidChangeResults((r: { resultIndex: number; resultCount: number }) => {
+      setSearchState(prev => prev ? { ...prev, index: r.resultIndex, count: r.resultCount } : prev)
+    })
 
     term.loadAddon(fitAddon)
     term.loadAddon(webLinksAddon)
@@ -482,7 +487,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     // Must use DOM capture to intercept before xterm.js's internal handlers
     const onKeyDown = (e: KeyboardEvent) => {
       // Terminal search bar: Escape closes it, Alt+F toggles it
-      if (searchState?.visible) {
+      if (searchStateRef.current?.visible) {
         if (e.key === 'Escape') {
           e.preventDefault()
           e.stopImmediatePropagation()
@@ -495,7 +500,12 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       if (eventMatchesBinding(e, bindings['terminal.search'])) {
         e.preventDefault()
         e.stopImmediatePropagation()
-        setSearchState(prev => prev?.visible ? (searchAddon.clearDecorations(), null) : { visible: true, query: '' })
+        if (searchStateRef.current?.visible) {
+          searchAddon.clearDecorations()
+          setSearchState(null)
+        } else {
+          setSearchState({ visible: true, query: '', index: 0, count: 0 })
+        }
         return
       }
       if (eventMatchesBinding(e, newlineShortcutRef.current)) {
@@ -592,9 +602,11 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       }
       window.removeEventListener('blur', onWindowBlur)
       window.removeEventListener('focus', onWindowFocus)
+      searchResultDisposer.dispose()
       term.dispose()
       xtermRef.current = null
       fitAddonRef.current = null
+      searchAddonRef.current = null
       setIsReady(false)
     }
   }, []) // Initialize once
@@ -899,21 +911,42 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       >
         <div ref={terminalRef} className="flex-1 min-h-0" />
 
-        {/* Terminal search bar */}
+        {/* Terminal search bar — VSCode-style */}
         {searchState?.visible && (
-          <div className="absolute bottom-2 right-4 flex items-center gap-1.5 bg-ide-sidebar border border-ide-border rounded-md shadow-lg px-2 py-1 z-10">
-            <svg viewBox="0 0 14 14" fill="currentColor" className="w-3 h-3 text-ide-text-muted/50 shrink-0">
-              <path d="M5.5 0a5.5 5.5 0 014.38 8.82l3.65 3.65a.5.5 0 01-.7.71l-3.66-3.66A5.5 5.5 0 115.5 0zm0 1a4.5 4.5 0 100 9 4.5 4.5 0 000-9z"/>
-            </svg>
-            <input ref={searchInputRef} type="text" value={searchState.query}
-              onChange={e => { setSearchState({ visible: true, query: e.target.value }); doSearch(e.target.value) }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); if (e.shiftKey) searchAddonRef.current?.findPrevious(searchState.query, { decorations: searchDecoRef.current }); else searchAddonRef.current?.findNext(searchState.query, { decorations: searchDecoRef.current }) }
-                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); searchAddonRef.current?.clearDecorations(); setSearchState(null) }
-              }}
-              placeholder="Search terminal..."
-              className="bg-transparent text-xs text-ide-text outline-none w-40 placeholder:text-ide-text-muted/40" />
-            <span className="text-[10px] text-ide-text-muted/40 whitespace-nowrap">Enter ↓ Shift+Enter ↑ Esc ×</span>
+          <div className="absolute top-2 right-3 flex items-center border border-ide-border rounded shadow-md z-10"
+            style={{ backgroundColor: currentTheme.terminal.background }}>
+            <div className="flex items-center gap-1 px-2 py-0.5">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 text-ide-text-muted/50 shrink-0">
+                <circle cx="6.5" cy="6.5" r="5"/><path d="M10.5 10.5l4 4" strokeLinecap="round"/>
+              </svg>
+              <input ref={searchInputRef} type="text" value={searchState.query}
+                onChange={e => { setSearchState(prev => prev ? { ...prev, query: e.target.value } : null); doSearch(e.target.value) }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); if (e.shiftKey) searchAddonRef.current?.findPrevious(searchState.query, { decorations: searchDecoRef.current }); else searchAddonRef.current?.findNext(searchState.query, { decorations: searchDecoRef.current }) }
+                  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); searchAddonRef.current?.clearDecorations(); setSearchState(null) }
+                }}
+                placeholder="Find"
+                className="bg-transparent text-[13px] text-ide-text outline-none w-44 placeholder:text-ide-text-muted/40" />
+            </div>
+            {searchState.count > 0 && (
+              <span className="text-[11px] text-ide-text-muted/50 tabular-nums shrink-0 mr-1">
+                {searchState.resultIndex >= 0 ? searchState.resultIndex + 1 : '?'} of {searchState.count}
+              </span>
+            )}
+            <div className="flex items-center border-l border-ide-border/60 pl-0.5 pr-1 gap-0.5 py-0.5">
+              <button className="w-5 h-5 flex items-center justify-center rounded text-ide-text-muted/40 hover:text-ide-text hover:bg-ide-hover/60 transition-colors shrink-0"
+                onClick={() => searchAddonRef.current?.findPrevious(searchState.query, { decorations: searchDecoRef.current })} title="Previous Match">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5"><polyline points="11 10 7 6 11 2"/></svg>
+              </button>
+              <button className="w-5 h-5 flex items-center justify-center rounded text-ide-text-muted/40 hover:text-ide-text hover:bg-ide-hover/60 transition-colors shrink-0"
+                onClick={() => searchAddonRef.current?.findNext(searchState.query, { decorations: searchDecoRef.current })} title="Next Match">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5"><polyline points="5 2 9 6 5 10"/></svg>
+              </button>
+              <button className="w-5 h-5 flex items-center justify-center rounded text-ide-text-muted/40 hover:text-ide-text hover:bg-ide-hover/60 transition-colors shrink-0"
+                onClick={() => { searchAddonRef.current?.clearDecorations(); setSearchState(null) }} title="Close">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3"><path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z"/></svg>
+              </button>
+            </div>
           </div>
         )}
       </div>
