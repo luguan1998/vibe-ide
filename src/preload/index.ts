@@ -168,16 +168,11 @@ const api = {
     isInitialized: (root: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_IS_INITIALIZED, root),
     init: (root: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_INIT, root),
     searchNodes: (query: string, opts?: any) => ipcRenderer.invoke(IPC_CHANNELS.CODE_SEARCH_NODES, query, opts),
-    getNode: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_NODE, id),
-    getNodesInFile: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_NODES_IN_FILE, filePath),
     getCallers: (id: string, maxDepth?: number) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_CALLERS, id, maxDepth),
     getCallees: (id: string, maxDepth?: number) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_CALLEES, id, maxDepth),
-    findUsages: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_FIND_USAGES, id),
     getCallGraph: (id: string, depth?: number) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_CALL_GRAPH, id, depth),
     isIndexing: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_IS_INDEXING),
-    close: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_CLOSE),
     getStats: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_STATS),
-    getWatching: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_WATCHING),
     onProgress: (callback: (progress: any) => void) => {
       const handler = (_event: any, progress: any) => callback(progress)
       ipcRenderer.on(IPC_CHANNELS.CODE_PROGRESS, handler)

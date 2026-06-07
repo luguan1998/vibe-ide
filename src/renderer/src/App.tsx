@@ -101,16 +101,11 @@ declare global {
         isInitialized: (root: string) => Promise<{ initialized: boolean; error?: string }>
         init: (root: string) => Promise<{ success: boolean; error?: string }>
         searchNodes: (query: string, opts?: { limit?: number; kinds?: string[] }) => Promise<{ nodes: import('@shared/types').CodeSymbol[]; total: number; error?: string }>
-        getNode: (id: string) => Promise<{ node?: import('@shared/types').CodeSymbol; error?: string }>
-        getNodesInFile: (filePath: string) => Promise<{ nodes: import('@shared/types').CodeSymbol[]; error?: string }>
         getCallers: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
         getCallees: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
-        findUsages: (id: string) => Promise<{ nodes: any[]; error?: string }>
         getCallGraph: (id: string, depth?: number) => Promise<{ nodes: any[]; edges: any[]; error?: string }>
         isIndexing: () => Promise<{ isIndexing: boolean; error?: string }>
-        close: () => Promise<{ success: boolean }>
         getStats: () => Promise<any>
-        getWatching: () => Promise<{ watching: boolean; pendingFiles: any[]; error?: string }>
         onProgress: (callback: (progress: any) => void) => any
         removeProgressListener: (handler?: any) => void
       }
@@ -507,7 +502,7 @@ export default function App() {
               setNavBarIndex(idx)
             }
           }
-        }, 150)
+        }, 300)
         return
       }
 
@@ -563,13 +558,6 @@ export default function App() {
           e.stopImmediatePropagation()
           setSearchFocusTrigger(k => k + 1)
         }
-      }
-
-      // code.focus → show code symbol search overlay
-      if (eventMatchesBinding(e, bindings['code.focus'])) {
-        e.preventDefault()
-        e.stopImmediatePropagation()
-        setShowCodeSearch(true)
       }
 
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal

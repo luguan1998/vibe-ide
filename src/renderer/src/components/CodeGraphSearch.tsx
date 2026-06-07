@@ -46,6 +46,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode }: Props) {
   const [searching, setSearching] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
   const interactedRef = useRef(false)
+  const altPressedWhileVisibleRef = useRef(false)
   const [progress, setProgress] = useState<{ phase: string; current: number; total: number } | null>(null)
   const [stats, setStats] = useState<any>(null)
   const [filters, setFilters] = useState<string[]>(loadFilters)
@@ -148,13 +149,23 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode }: Props) {
 
   useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current) }, [])
 
-  // Alt release: close only if not interacted and not focused
+  // Alt keydown while visible: track so keyup can dismiss (long-press to close, matching NavBar)
   useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === 'Alt' && !interactedRef.current && !isFocused) onClose()
+    const down = (e: KeyboardEvent) => {
+      if (e.key === 'Alt') altPressedWhileVisibleRef.current = true
     }
-    window.addEventListener('keyup', h)
-    return () => window.removeEventListener('keyup', h)
+    const up = (e: KeyboardEvent) => {
+      if (e.key === 'Alt') {
+        if (altPressedWhileVisibleRef.current && !interactedRef.current && !isFocused) onClose()
+        altPressedWhileVisibleRef.current = false
+      }
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+    }
   }, [onClose, isFocused])
 
   const applyFilters = useCallback(() => {
@@ -266,4 +277,4 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode }: Props) {
   )
 }
 
-export { CodeGraphSearch, KIND_COLORS, getKindColor }
+export { CodeGraphSearch }

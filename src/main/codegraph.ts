@@ -57,7 +57,6 @@ function normalizeNode(n: any): any {
     endLine: n.endLine,
     endColumn: n.endColumn,
     signature: n.signature,
-    parentName: n.parentName,
     language: n.language,
     visibility: n.visibility,
     isExported: n.isExported,
@@ -128,26 +127,6 @@ export function registerCodeGraphHandlers(): void {
     }
   })
 
-  ipcMain.handle(IPC_CHANNELS.CODE_GET_NODE, async (_event, id: string) => {
-    if (!cg) return { error: 'CodeGraph not initialized' }
-    try {
-      const node = cg.getNode(id)
-      return { node: normalizeNode(node) }
-    } catch (err: any) {
-      return { error: err.message }
-    }
-  })
-
-  ipcMain.handle(IPC_CHANNELS.CODE_GET_NODES_IN_FILE, async (_event, filePath: string) => {
-    if (!cg) return { error: 'CodeGraph not initialized', nodes: [] }
-    try {
-      const nodes = cg.getNodesInFile(filePath)
-      return { nodes: (nodes || []).map(normalizeNode) }
-    } catch (err: any) {
-      return { error: err.message, nodes: [] }
-    }
-  })
-
   ipcMain.handle(IPC_CHANNELS.CODE_GET_CALLERS, async (_event, id: string, maxDepth?: number) => {
     if (!cg) return { error: 'CodeGraph not initialized', nodes: [] }
     try {
@@ -185,16 +164,6 @@ export function registerCodeGraphHandlers(): void {
     }
   })
 
-  ipcMain.handle(IPC_CHANNELS.CODE_FIND_USAGES, async (_event, id: string) => {
-    if (!cg) return { error: 'CodeGraph not initialized', nodes: [] }
-    try {
-      const usages = cg.findUsages(id)
-      return { nodes: (usages || []).map((item: any) => ({ ...item, node: normalizeNode(item.node) })) }
-    } catch (err: any) {
-      return { error: err.message, nodes: [] }
-    }
-  })
-
   ipcMain.handle(IPC_CHANNELS.CODE_IS_INDEXING, async () => {
     if (!cg) return { isIndexing: false }
     try {
@@ -213,23 +182,6 @@ export function registerCodeGraphHandlers(): void {
     }
   })
 
-  ipcMain.handle(IPC_CHANNELS.CODE_GET_WATCHING, async () => {
-    if (!cg) return { watching: false, pendingFiles: [] }
-    try {
-      return { watching: cg.isWatching(), pendingFiles: cg.getPendingFiles() }
-    } catch (err: any) {
-      return { watching: false, pendingFiles: [], error: err.message }
-    }
-  })
-
-  ipcMain.handle(IPC_CHANNELS.CODE_CLOSE, async () => {
-    if (cg) {
-      cg.close()
-      cg = null
-      currentWorkspace = null
-    }
-    return { success: true }
-  })
 }
 
 export function closeCodeGraph(): void {
