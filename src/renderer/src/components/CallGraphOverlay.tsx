@@ -63,14 +63,14 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set())
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, scale: 1 })
   const [dragging, setDragging] = useState<string | null>(null)
-  const [panning, setPanning] = useState<{ sx: number; sy: number; vx: number; vy: number } | null>(null)
+  const [rightPanning, setRightPanning] = useState<{ sx: number; sy: number; vx: number; vy: number } | null>(null)
   const [draggedNodes, setDraggedNodes] = useState<Set<string>>(new Set())
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [iconHoveredNode, setIconHoveredNode] = useState<string | null>(null)
   const [tooltipNode, setTooltipNode] = useState<string | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
-  const ctxMenuRef = useRef<HTMLDivElement>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ctxMenuRef = useRef<HTMLDivElement>(null)
 
   const handleNodeEnter = useCallback((nodeId: string) => {
     setHoveredNode(nodeId)
@@ -86,6 +86,7 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
   const svgRef = useRef<SVGSVGElement>(null)
   const nodesRef = useRef(nodes); nodesRef.current = nodes
   const edgesRef = useRef(edges); edgesRef.current = edges
+  const viewBoxRef = useRef(viewBox); viewBoxRef.current = viewBox
 
   // Dagre layout
   const positions = useMemo(() => layoutGraph(nodes, edges), [nodes, edges])
@@ -163,11 +164,10 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
     setDraggedNodes(prev => { const next = new Set(prev); for (const id of prev) { if (!reachable.has(id)) next.delete(id) } return next })
   }, [focalNode.id])
 
-  // ── Delete node ──
+  // ── Delete node (focal → close overlay) ──
   const deleteNode = useCallback((nodeId: string) => {
-    if (nodeId === focalNode.id) return
+    if (nodeId === focalNode.id) { onClose(); return }
     const newEdges = edgesRef.current.filter(e => e.from !== nodeId && e.to !== nodeId)
-    // BFS from focal to find orphaned nodes
     const adj = new Map<string, string[]>()
     for (const e of newEdges) {
       if (!adj.has(e.from)) adj.set(e.from, []); adj.get(e.from)!.push(e.to)
@@ -180,7 +180,7 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
     setEdges(newEdges)
     setDraggedNodes(prev => { const next = new Set(prev); next.delete(nodeId); for (const id of prev) { if (!reachable.has(id)) next.delete(id) } return next })
     setCtxMenu(null)
-  }, [focalNode.id])
+  }, [focalNode.id, onClose])
 
   // Has callers/callees
   const hasCallers = useCallback((nodeId: string) => edges.some(e => e.to === nodeId), [edges])
@@ -226,9 +226,13 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
     return { x: (cx - r.left - r.width / 2) / viewBox.scale + viewBox.x, y: (cy - r.top - r.height / 2) / viewBox.scale + viewBox.y }
   }, [viewBox])
 
-  // Mouse
+  // Mouse: left-drag nodes, right-pan view
   useEffect(() => {
     const mm = (e: MouseEvent) => {
+      if (rightPanning) {
+        setViewBox(p => ({ ...p, x: rightPanning.vx - (e.clientX - rightPanning.sx) / p.scale, y: rightPanning.vy - (e.clientY - rightPanning.sy) / p.scale }))
+        return
+      }
       if (!dragging && dragStartPos.current) {
         const dx = e.clientX - dragStartPos.current.x, dy = e.clientY - dragStartPos.current.y
         if (Math.abs(dx) > 4 || Math.abs(dy) > 4) setDragging(dragStartPos.current.nodeId)
@@ -238,12 +242,39 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
         setNodes(prev => { const next = new Map(prev); const n = next.get(dragging); if (n) next.set(dragging, { ...n, x: sp.x, y: sp.y }); return next })
         setDraggedNodes(prev => new Set(prev).add(dragging))
       }
-      if (panning) setViewBox(p => ({ ...p, x: panning.vx - (e.clientX - panning.sx) / p.scale, y: panning.vy - (e.clientY - panning.sy) / p.scale }))
     }
-    const mu = () => { setDragging(null); setPanning(null); dragStartPos.current = null }
+    const mu = (e: MouseEvent) => {
+      if (e.button === 0) { setDragging(null); dragStartPos.current = null }
+      if (e.button === 2) { setRightPanning(null); setDragging(null); dragStartPos.current = null }
+    }
     window.addEventListener('mousemove', mm); window.addEventListener('mouseup', mu)
     return () => { window.removeEventListener('mousemove', mm); window.removeEventListener('mouseup', mu) }
-  }, [dragging, panning, screenToSvg])
+  }, [dragging, rightPanning, screenToSvg])
+
+  // Right-click: node → context menu, background → start panning (capture phase)
+  useEffect(() => {
+    const onRightDown = (e: MouseEvent) => {
+      if (e.button !== 2) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      const svg = svgRef.current
+      if (svg && svg.contains(e.target as Node)) {
+        let el = e.target as Element | null
+        while (el && el !== svg) {
+          const nid = el.getAttribute('data-node-id')
+          if (nid) { setCtxMenu({ x: e.clientX, y: e.clientY, nodeId: nid }); return }
+          el = el.parentElement
+        }
+      }
+      setCtxMenu(null)
+      const vb = viewBoxRef.current
+      setRightPanning({ sx: e.clientX, sy: e.clientY, vx: vb.x, vy: vb.y })
+    }
+    const onCtxMenu = (e: Event) => { e.preventDefault(); e.stopImmediatePropagation() }
+    document.addEventListener('mousedown', onRightDown, true)
+    document.addEventListener('contextmenu', onCtxMenu, true)
+    return () => { document.removeEventListener('mousedown', onRightDown, true); document.removeEventListener('contextmenu', onCtxMenu, true) }
+  }, [])
 
   const getPos = (gn: GraphNode & { dx: number; dy: number }) => ({
     x: draggedNodes.has(gn.id) ? gn.x : gn.dx,
@@ -255,16 +286,17 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
   const svgH = Math.max(800, (allP.length ? Math.max(...allP.map(p => p.y)) - Math.min(...allP.map(p => p.y)) : 0) + 200)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
+      style={{ pointerEvents: rightPanning ? 'auto' : 'none', cursor: rightPanning ? 'grabbing' : 'default' }}>
       <div className="relative flex flex-col" style={{ width: '100vw', height: '100vh' }}>
-        <button onClick={onClose} className="absolute top-3 right-3 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/30 text-ide-text-muted/50 hover:text-ide-text hover:bg-black/50 transition-colors">
+        <button onClick={onClose} style={{ pointerEvents: 'auto' }} className="absolute top-3 right-3 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/30 text-ide-text-muted/50 hover:text-ide-text hover:bg-black/50 transition-colors">
           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
         </button>
         <div className="flex-1 overflow-hidden">
           <svg ref={svgRef}
             viewBox={`${viewBox.x - svgW / 2 / viewBox.scale} ${viewBox.y - svgH / 2 / viewBox.scale} ${svgW / viewBox.scale} ${svgH / viewBox.scale}`}
             className="w-full h-full"
-            onMouseDown={(e) => { if (e.button === 0 && e.target === svgRef.current) setPanning({ sx: e.clientX, sy: e.clientY, vx: viewBox.x, vy: viewBox.y }) }}>
+            style={{ pointerEvents: rightPanning ? 'auto' : 'none' }}>
             <defs>
               <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#555"/></marker>
             </defs>
@@ -290,10 +322,9 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
               const iconBg = callersActive ? (showTrash ? '#fff1' : `${color}18`) : isIconHovered ? `${color}10` : 'transparent'
               const iconStroke = callersActive ? (showTrash ? '#f88' : `${color}40`) : 'transparent'
               return (
-                <g key={gn.id} transform={`translate(${p.x - NODE_W / 2},${p.y - NODE_H / 2})`} className="cursor-pointer"
+                <g key={gn.id} data-node-id={gn.id} transform={`translate(${p.x - NODE_W / 2},${p.y - NODE_H / 2})`} style={{ pointerEvents: 'auto' }}
                   onMouseDown={(e) => { e.stopPropagation(); if (e.button === 0) dragStartPos.current = { x: e.clientX, y: e.clientY, nodeId: gn.id } }}
                   onClick={() => onJumpToFile(gn.filePath, gn.line)}
-                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!isFocal) setCtxMenu({ x: e.clientX, y: e.clientY, nodeId: gn.id }) }}
                   onMouseEnter={() => handleNodeEnter(gn.id)} onMouseLeave={handleNodeLeave}>
                   <rect x={0} y={0} width={NODE_W} height={NODE_H} rx={7} ry={7}
                     fill={isFocal ? `${color}20` : '#1a1a2ecc'} stroke={isFocal ? color : '#444'} strokeWidth={isFocal ? 2 : 1.2} opacity={0.92}/>
@@ -355,22 +386,17 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
 
         {/* Context Menu */}
         {ctxMenu && (
-          <div
-            ref={ctxMenuRef}
-            style={{ position: 'fixed', left: Math.min(ctxMenu.x, window.innerWidth - 140), top: Math.min(ctxMenu.y, window.innerHeight - 60), zIndex: 100 }}
-            className="bg-ide-sidebar border border-ide-border rounded-md shadow-2xl py-1 min-w-[120px]"
-          >
-            <button
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-ide-hover transition-colors"
-              onClick={() => deleteNode(ctxMenu.nodeId)}
-            >
+          <div ref={ctxMenuRef} style={{ position: 'fixed', pointerEvents: 'auto', left: Math.min(ctxMenu.x, window.innerWidth - 140), top: Math.min(ctxMenu.y, window.innerHeight - 60), zIndex: 100 }}
+            className="bg-ide-sidebar border border-ide-border rounded-md shadow-2xl py-1 min-w-[120px]">
+            <button className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-ide-hover transition-colors"
+              onClick={() => deleteNode(ctxMenu.nodeId)}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-3.5 h-3.5">
                 <path d="M3 5h10M5 5v9a1 1 0 001 1h4a1 1 0 001-1V5M7 5V3a1 1 0 011-1h1a1 1 0 011 1v2" strokeLinecap="round" strokeLinejoin="round"/>
                 <line x1="6" y1="8" x2="6" y2="12" strokeLinecap="round" opacity={0.6}/>
                 <line x1="8" y1="8" x2="8" y2="12" strokeLinecap="round" opacity={0.6}/>
                 <line x1="10" y1="8" x2="10" y2="12" strokeLinecap="round" opacity={0.6}/>
               </svg>
-              Delete
+              {ctxMenu.nodeId === focalNode.id ? 'Exit' : 'Delete'}
             </button>
           </div>
         )}
