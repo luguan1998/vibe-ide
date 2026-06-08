@@ -415,7 +415,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       lineHeight: 1.0,
       cursorBlink: false,
       cursorStyle: 'bar',
-      scrollback: 10000,
+      scrollback: isAux ? 500 : 10000,
       allowTransparency: currentTheme.terminal.allowTransparency ?? true,
       allowProposedApi: true,
       windowsMode: true,
@@ -425,25 +425,29 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     })
 
     const fitAddon = new FitAddon()
-    // 🙏 覆盖默认 handleLink：原实现先 window.open() 再设 location.href，
-    // 导致 Electron 的 setWindowOpenHandler 截获 about:blank 而丢弃真实 URL。
-    // 此处直接 window.open(uri, '_blank')，让主进程 shell.openExternal 拿到正确链接。
-    const webLinksAddon = new WebLinksAddon((_event, uri) => {
-      window.open(uri, '_blank')
-    })
-    const clipboardAddon = new ClipboardAddon()
-    const unicodeGraphemesAddon = new UnicodeGraphemesAddon()
-    const searchAddon = new SearchAddon()
-    searchAddonRef.current = searchAddon
-    const searchResultDisposer = searchAddon.onDidChangeResults((r: { resultIndex: number; resultCount: number }) => {
-      setSearchState(prev => prev ? { ...prev, index: r.resultIndex, count: r.resultCount } : prev)
-    })
-
     term.loadAddon(fitAddon)
-    term.loadAddon(webLinksAddon)
+
+    const clipboardAddon = new ClipboardAddon()
     term.loadAddon(clipboardAddon)
+
+    const unicodeGraphemesAddon = new UnicodeGraphemesAddon()
     term.loadAddon(unicodeGraphemesAddon)
-    term.loadAddon(searchAddon)
+
+    // aux terminal skips URL linking, search, and file-path linking — saves CPU & memory
+    let searchResultDisposer: { dispose(): void } | null = null
+    if (!isAux) {
+      const webLinksAddon = new WebLinksAddon((_event, uri) => {
+        window.open(uri, '_blank')
+      })
+      term.loadAddon(webLinksAddon)
+
+      const searchAddon = new SearchAddon()
+      searchAddonRef.current = searchAddon
+      searchResultDisposer = searchAddon.onDidChangeResults((r: { resultIndex: number; resultCount: number }) => {
+        setSearchState(prev => prev ? { ...prev, index: r.resultIndex, count: r.resultCount } : prev)
+      })
+      term.loadAddon(searchAddon)
+    }
 
     term.open(terminalRef.current)
     fitAddon.fit()
@@ -473,22 +477,22 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     // Custom key bindings: newline (configurable), Ctrl+C → copy selection
     // Must use DOM capture to intercept before xterm.js's internal handlers
     const onKeyDown = (e: KeyboardEvent) => {
-      // Terminal search bar: Escape closes it, Alt+F toggles it
-      if (searchStateRef.current?.visible) {
+      // Terminal search bar: Escape closes it, Alt+F toggles it (skip for aux)
+      if (!isAux && searchStateRef.current?.visible) {
         if (e.key === 'Escape') {
           e.preventDefault()
           e.stopImmediatePropagation()
-          searchAddon.clearDecorations()
+          searchAddonRef.current?.clearDecorations()
           setSearchState(null)
           return
         }
       }
       const bindings = getShortcuts()
-      if (eventMatchesBinding(e, bindings['terminal.search'])) {
+      if (!isAux && eventMatchesBinding(e, bindings['terminal.search'])) {
         e.preventDefault()
         e.stopImmediatePropagation()
         if (searchStateRef.current?.visible) {
-          searchAddon.clearDecorations()
+          searchAddonRef.current?.clearDecorations()
           setSearchState(null)
         } else {
           setSearchState({ visible: true, query: '', index: 0, count: 0 })
@@ -589,7 +593,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       }
       window.removeEventListener('blur', onWindowBlur)
       window.removeEventListener('focus', onWindowFocus)
-      searchResultDisposer.dispose()
+      searchResultDisposer?.dispose?.()
       if (webglAddonRef.current) {
         try { webglAddonRef.current.dispose() } catch {}
         webglAddonRef.current = null
@@ -753,9 +757,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     }
   }, [sessionId, isReady])
 
-  // Register file link provider when terminal is ready
+  // Register file link provider when terminal is ready (skip for aux)
   useEffect(() => {
-    if (!xtermRef.current || !isReady || !onOpenFile) return
+    if (!xtermRef.current || !isReady || !onOpenFile || isAux) return
 
     // 清理之前的 link provider
     if (linkProviderRef.current) {
