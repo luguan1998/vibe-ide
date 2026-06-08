@@ -224,13 +224,13 @@ export default function App() {
   const [fileTreeDepth, setFileTreeDepth] = useState(() => {
     try {
       const v = localStorage.getItem('vibe-ide-file-tree-depth')
-      return v ? Math.max(1, Math.min(8, Number(v))) : 5
+      return v ? Math.max(1, Math.min(12, Number(v))) : 5
     } catch { return 3 }
   })
 
   const handleFileTreeDepthChange = useCallback((delta: number) => {
     setFileTreeDepth(prev => {
-      const next = Math.max(1, Math.min(8, prev + delta))
+      const next = Math.max(1, Math.min(12, prev + delta))
       try { localStorage.setItem('vibe-ide-file-tree-depth', String(next)) } catch {}
       return next
     })
