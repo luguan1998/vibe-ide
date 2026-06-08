@@ -53,6 +53,7 @@ export const IPC_CHANNELS = {
   FILE_COPY: 'file:copy',
   FILE_MOVE: 'file:move',
   FILE_FIND: 'file:find',
+  FILE_READ_BASE64: 'file:readBase64',
 
   // Workspace
   WORKSPACE_OPEN: 'workspace:open',

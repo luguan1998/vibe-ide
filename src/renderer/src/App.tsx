@@ -3,6 +3,7 @@ import React, { useState, useCallback, lazy, Suspense, useRef, useEffect } from 
 import SessionPanel from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
+import MarkdownPreview from './components/MarkdownPreview'
 import NavBar from './components/NavBar'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
@@ -123,7 +124,7 @@ declare global {
   }
 }
 
-type CenterView = 'terminal' | 'diff'
+type CenterView = 'terminal' | 'diff' | 'markdown'
 
 interface DiffFileState {
   defaultEdit?: boolean
@@ -161,6 +162,7 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
+  const [markdownFile, setMarkdownFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const diffRevisionRef = useRef(0)
   const [showSquiggles, setShowSquiggles] = useState(false)
   const [pollingEnabled, setPollingEnabled] = useState(() => {
@@ -636,7 +638,7 @@ export default function App() {
         const delta = decreaseMatch ? -1 : 1
         if (centerView === 'terminal') {
           setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
-        } else if (centerView === 'diff') {
+        } else if (centerView === 'diff' || centerView === 'markdown') {
           setEditorFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
         }
       }
@@ -1187,6 +1189,17 @@ export default function App() {
     }
   }, [activeSessionCwd])
 
+  const handlePreviewMarkdown = useCallback((fullPath: string, fileName: string) => {
+    pushNavHistory()
+    setMarkdownFile({ fullPath, fileName })
+    setCenterView('markdown')
+  }, [])
+
+  const handleBackFromMarkdown = useCallback(() => {
+    setCenterView('terminal')
+    setMarkdownFile(null)
+  }, [])
+
 
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
@@ -1286,12 +1299,23 @@ export default function App() {
               />
             )}
           </div>
+          {/* Markdown Preview */}
+          <div className="flex-1 flex flex-col overflow-hidden" style={{ display: centerView === 'markdown' && markdownFile ? 'flex' : 'none' }}>
+            {markdownFile && (
+              <MarkdownPreview
+                key={markdownFile.fullPath}
+                fullPath={markdownFile.fullPath}
+                fileName={markdownFile.fileName}
+                onBack={handleBackFromMarkdown}
+              />
+            )}
+          </div>
           {/* Empty state */}
-          <div className="flex-1 flex items-center justify-center text-ide-text-muted" style={{ display: !(centerView === 'diff' && diffFile) && sessions.length === 0 ? 'flex' : 'none' }}>
+          <div className="flex-1 flex items-center justify-center text-ide-text-muted" style={{ display: !(centerView === 'diff' && diffFile) && !(centerView === 'markdown' && markdownFile) && sessions.length === 0 ? 'flex' : 'none' }}>
             No active terminal session. Create one to start.
           </div>
           {/* Terminal sessions */}
-          <div className="flex-1 flex flex-col overflow-hidden" style={{ display: !(centerView === 'diff' && diffFile) && sessions.length > 0 ? 'flex' : 'none' }}>
+          <div className="flex-1 flex flex-col overflow-hidden" style={{ display: !(centerView === 'diff' && diffFile) && !(centerView === 'markdown' && markdownFile) && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => (
                 <div
@@ -1331,6 +1355,7 @@ export default function App() {
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
             onOpenFileFromSearch={handleOpenFileFromSearch}
             onOpenFileFromExplorer={handleOpenFileFromExplorer}
+            onPreviewMarkdown={handlePreviewMarkdown}
             rightTerminalSession={activeSessionId ? rightTerminalSessions[activeSessionId] : undefined}
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}

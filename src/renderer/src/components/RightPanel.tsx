@@ -22,6 +22,7 @@ interface RightPanelProps {
   searchFocusTrigger?: number
 
   onOpenFileFromExplorer?: (fullPath: string) => void
+  onPreviewMarkdown?: (fullPath: string, fileName: string) => void
   fileTreeDepth?: number
   onDiffScroll?: (delta: number) => void
   onToggleCollapse?: () => void
@@ -375,7 +376,7 @@ function RightPanel({
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
   rightTerminalSession, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
-  searchFocusTrigger, onOpenFileFromExplorer,
+  searchFocusTrigger, onOpenFileFromExplorer, onPreviewMarkdown,
   fileTreeDepth = 5, onDiffScroll,
   onToggleCollapse,
   capsuleTabs = true,
@@ -587,6 +588,7 @@ function RightPanel({
         <FileTab
           workspacePath={workspacePath}
           onOpenFileFromExplorer={onOpenFileFromExplorer}
+          onPreviewMarkdown={onPreviewMarkdown}
           fileTreeDepth={fileTreeDepth}
           refreshKey={fileRefreshKey}
           navigateToFile={navigateToFilePayload}

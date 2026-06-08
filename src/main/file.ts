@@ -115,6 +115,24 @@ export function registerFileHandlers(): void {
     }
   })
 
+  // Read file as base64 data URL (for local images in markdown preview)
+  ipcMain.handle(IPC_CHANNELS.FILE_READ_BASE64, async (_event, filePath: string) => {
+    try {
+      const buffer = await readFile(filePath)
+      const ext = extname(filePath).toLowerCase()
+      const mimeMap: Record<string, string> = {
+        '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif', '.svg': 'image/svg+xml', '.webp': 'image/webp',
+        '.bmp': 'image/bmp', '.ico': 'image/x-icon', '.avif': 'image/avif',
+      }
+      const mime = mimeMap[ext] || 'application/octet-stream'
+      const base64 = buffer.toString('base64')
+      return { dataUrl: `data:${mime};base64,${base64}` }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
   // Write file content
   ipcMain.handle(IPC_CHANNELS.FILE_WRITE, async (_event, filePath: string, content: string) => {
     try {

@@ -82,6 +82,7 @@ const api = {
     copy: (srcPath: string, destPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_COPY, srcPath, destPath),
     move: (srcPath: string, destPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_MOVE, srcPath, destPath),
     find: (cwd: string, filename: string, skipPatterns?: string[]) => ipcRenderer.invoke(IPC_CHANNELS.FILE_FIND, cwd, filename, skipPatterns),
+    readBase64: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_READ_BASE64, filePath),
     onChanged: (callback: () => void) => {
       const handler = () => callback()
       ipcRenderer.on(IPC_CHANNELS.FS_CHANGED, handler)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Lightbulb } from 'lucide-react'
+import { Lightbulb, Eye } from 'lucide-react'
 import { FileNode } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
@@ -38,6 +38,7 @@ export function saveFilterRules(rules: string[]) {
 interface FileTabProps {
   workspacePath: string | null
   onOpenFileFromExplorer?: (fullPath: string) => void
+  onPreviewMarkdown?: (fullPath: string, fileName: string) => void
   fileTreeDepth: number
   refreshKey?: number
   navigateToFile?: { trigger: number; filePath: string } | null
@@ -103,7 +104,7 @@ function norm(p: string): string {
 }
 
 // File tree item component
-function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath }: {
+function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown }: {
   node: FileNode
   depth: number
   expandedDirs: Set<string>
@@ -114,6 +115,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   onEditSubmit: (value: string) => void
   onEditCancel: () => void
   highlightedFilePath: string | null
+  onPreviewMarkdown?: (fullPath: string, fileName: string) => void
 }) {
   const { t } = useI18n()
   const isDir = node.type === 'directory'
@@ -159,7 +161,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   return (
     <>
       <div
-        className={`pr-2 py-0.5 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none ${highlightedFilePath === norm(node.path) ? 'bg-ide-accent/20' : ''}`}
+        className={`group pr-2 py-0.5 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none ${highlightedFilePath === norm(node.path) ? 'bg-ide-accent/20' : ''}`}
         style={{ paddingLeft }}
         onClick={handleClick}
         onContextMenu={(e) => { if (!isRenaming && !isCreating) onContextMenu(e, node) }}
@@ -225,7 +227,21 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <span className="truncate text-ide-text">{node.name}</span>
+          <>
+            <span className="truncate text-ide-text">{node.name}</span>
+            {!isDir && node.name.toLowerCase().endsWith('.md') && onPreviewMarkdown && (
+              <button
+                className="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPreviewMarkdown(node.path, node.name)
+                }}
+                title="Preview Markdown"
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </>
         )}
       </div>
       {isRenaming && editingState?.error && (
@@ -277,6 +293,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
               onEditSubmit={onEditSubmit}
               onEditCancel={onEditCancel}
               highlightedFilePath={highlightedFilePath}
+              onPreviewMarkdown={onPreviewMarkdown}
             />
           ))}
         </>
@@ -285,7 +302,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTreeDepth, refreshKey, navigateToFile, onRefresh }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onPreviewMarkdown, fileTreeDepth, refreshKey, navigateToFile, onRefresh }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -594,6 +611,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, fileTre
                 onEditSubmit={handleEditSubmit}
                 onEditCancel={handleEditCancel}
                 highlightedFilePath={highlightedFilePath}
+                onPreviewMarkdown={onPreviewMarkdown}
               />
             ))}
           </div>
