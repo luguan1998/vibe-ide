@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { spawn } from 'child_process'
 import { join, dirname } from 'path'
 import { IPC_CHANNELS } from '../shared/types'
+import * as jsoncParser from 'jsonc-parser'
 
 let cg: any = null
 let currentWorkspace: string | null = null
@@ -282,9 +283,68 @@ export function registerCodeGraphHandlers(): void {
 
 ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], workspacePath: string) => {
     try {
-      const targetFlag = targets.length > 0 ? targets.join(',') : 'none'
-      const r = await runCodeGraphCli(['install', '--target', targetFlag, '--location', 'local', '--yes'], undefined, workspacePath)
-      if (!r.success) return { success: false, error: r.error || 'install mcp failed' }
+      const fs = require('fs')
+      const bundleDir = resolvePlatformBundle()
+      const bundledNode = join(bundleDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
+      const cliEntry = join(bundleDir, 'lib/dist/bin/codegraph.js')
+      // Claude Code config: { type: 'stdio', command: node, args: [...] }
+      const claudeConfig = {
+        type: 'stdio',
+        command: bundledNode,
+        args: ['--liftoff-only', cliEntry, 'serve', '--mcp'],
+      }
+      // Opencode config: { type: 'local', command: [...], enabled: true }
+      const opencodeConfig = {
+        type: 'local',
+        command: [bundledNode, '--liftoff-only', cliEntry, 'serve', '--mcp'],
+        enabled: true,
+      }
+      const errors: string[] = []
+
+      for (const target of targets) {
+        if (target === 'claude') {
+          const file = join(workspacePath, '.mcp.json')
+          let existing: any = {}
+          if (fs.existsSync(file)) {
+            try { existing = JSON.parse(fs.readFileSync(file, 'utf-8')) } catch { existing = {} }
+          }
+          if (!existing.mcpServers) existing.mcpServers = {}
+          existing.mcpServers.codegraph = claudeConfig
+          fs.writeFileSync(file, JSON.stringify(existing, null, 2))
+        } else if (target === 'opencode') {
+          // local config file: opencode.json or opencode.jsonc
+          const jsoncPath = join(workspacePath, 'opencode.jsonc')
+          const jsonPath = join(workspacePath, 'opencode.json')
+          let file = fs.existsSync(jsoncPath) ? jsoncPath : (fs.existsSync(jsonPath) ? jsonPath : jsoncPath)
+          let text = ''
+          if (fs.existsSync(file)) {
+            text = fs.readFileSync(file, 'utf-8')
+          }
+          if (!text.trim()) {
+            text = '{\n  "$schema": "https://opencode.ai/config.json"\n}\n'
+          }
+          // Use jsonc-parser to preserve comments and formatting
+          const edits = jsoncParser.modify(text, ['mcp', 'codegraph'], opencodeConfig, {
+            formattingOptions: { tabSize: 2, insertSpaces: true, eol: '\n' },
+          })
+          text = jsoncParser.applyEdits(text, edits)
+          // Ensure $schema exists
+          const config = jsoncParser.parse(text, undefined, { allowTrailingComma: true })
+          if (!config.$schema) {
+            const schemaEdits = jsoncParser.modify(text, ['$schema'], 'https://opencode.ai/config.json', {
+              formattingOptions: { tabSize: 2, insertSpaces: true, eol: '\n' },
+            })
+            text = jsoncParser.applyEdits(text, schemaEdits)
+          }
+          fs.writeFileSync(file, text)
+        } else {
+          // Other targets: still use CLI install (they may need global install or different format)
+          const r = await runCodeGraphCli(['install', '--target', target, '--location', 'local', '--yes'], undefined, workspacePath)
+          if (!r.success) errors.push(`${target}: ${r.error || 'install mcp failed'}`)
+        }
+      }
+
+      if (errors.length > 0) return { success: false, error: errors.join('; ') }
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.message }

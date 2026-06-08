@@ -219,7 +219,6 @@ const ZH_MAP: Record<string, string> = {
   'No symbols found': '未找到符号',
   'symbols': '个符号',
   'edges': '条边',
-  'files': '个文件',
   'filters': '个过滤',
   'Recent': '最近',
   'Init': '初始化',
