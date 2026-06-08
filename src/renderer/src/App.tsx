@@ -185,9 +185,10 @@ export default function App() {
 
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
+  const callGraphFocalNodeRef = useRef<any>(null); callGraphFocalNodeRef.current = callGraphFocalNode
   const [showCodeSearch, setShowCodeSearch] = useState(false)
   const [codeSearchFocusTrigger, setCodeSearchFocusTrigger] = useState(0)
-  const callGraphRef = useRef<any>(null); callGraphRef.current = callGraphFocalNode
+
   const showCodeSearchRef = useRef(false); showCodeSearchRef.current = showCodeSearch
   const codeSearchActivatedRef = useRef(false)
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
@@ -703,7 +704,7 @@ export default function App() {
 
       // Escape priority: call graph → code search → focus return
       if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
-        if (callGraphRef.current) {
+        if (callGraphFocalNodeRef.current) {
           e.preventDefault(); e.stopImmediatePropagation()
           setCallGraphFocalNode(null)
           return
