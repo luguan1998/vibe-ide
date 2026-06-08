@@ -121,6 +121,26 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const diffEditorRef = useRef<any>(null)
   const editEditorRef = useRef<any>(null)
 
+  // Dispose Monaco editors before unmount to prevent "TextModel got disposed before DiffEditorWidget model got reset"
+  // Use useLayoutEffect so cleanup runs before @monaco-editor/react's useEffect cleanup
+  React.useLayoutEffect(() => {
+    return () => {
+      // DiffEditor widget must be disposed before its models are disposed
+      if (diffEditorRef.current) {
+        try {
+          diffEditorRef.current.dispose?.()
+        } catch {}
+        diffEditorRef.current = null
+      }
+      if (editEditorRef.current) {
+        try {
+          editEditorRef.current.dispose?.()
+        } catch {}
+        editEditorRef.current = null
+      }
+    }
+  }, [])
+
   // PageDown/PageUp 双击跳 diff 区块追踪
   const pageKeyRef = useRef<{ key: string; time: number; timer: ReturnType<typeof setTimeout> | null }>({ key: '', time: 0, timer: null })
 

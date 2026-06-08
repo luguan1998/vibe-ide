@@ -1276,8 +1276,8 @@ export default function App() {
           onFocus={handleCenterFocus}
           onBlur={handleCenterBlur}>
           {/* Diff */}
-          <div className="flex-1 flex flex-col overflow-hidden" style={{ display: centerView === 'diff' && diffFile ? 'flex' : 'none' }}>
-            {diffFile && (
+          {centerView === 'diff' && diffFile && (
+            <div className="flex-1 flex flex-col overflow-hidden">
               <DiffViewer
                 key={`${diffFile.fullPath}-${diffFile.commitHash || 'working'}`}
                 filePath={diffFile.filePath}
@@ -1297,25 +1297,27 @@ export default function App() {
                 scrollTrigger={diffScrollTrigger}
                 cursorRef={cursorRef}
               />
-            )}
-          </div>
+            </div>
+          )}
           {/* Markdown Preview */}
-          <div className="flex-1 flex flex-col overflow-hidden" style={{ display: centerView === 'markdown' && markdownFile ? 'flex' : 'none' }}>
-            {markdownFile && (
+          {centerView === 'markdown' && markdownFile && (
+            <div className="flex-1 flex flex-col overflow-hidden">
               <MarkdownPreview
                 key={markdownFile.fullPath}
                 fullPath={markdownFile.fullPath}
                 fileName={markdownFile.fileName}
                 onBack={handleBackFromMarkdown}
               />
-            )}
-          </div>
+            </div>
+          )}
           {/* Empty state */}
-          <div className="flex-1 flex items-center justify-center text-ide-text-muted" style={{ display: !(centerView === 'diff' && diffFile) && !(centerView === 'markdown' && markdownFile) && sessions.length === 0 ? 'flex' : 'none' }}>
-            No active terminal session. Create one to start.
-          </div>
+          {centerView === 'terminal' && sessions.length === 0 && (
+            <div className="flex-1 flex items-center justify-center text-ide-text-muted">
+              No active terminal session. Create one to start.
+            </div>
+          )}
           {/* Terminal sessions */}
-          <div className="flex-1 flex flex-col overflow-hidden" style={{ display: !(centerView === 'diff' && diffFile) && !(centerView === 'markdown' && markdownFile) && sessions.length > 0 ? 'flex' : 'none' }}>
+          <div className="flex-1 flex flex-col overflow-hidden" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => (
                 <div
@@ -1323,7 +1325,7 @@ export default function App() {
                   className="flex-1 flex flex-col overflow-hidden"
                   style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
                 >
-                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
+                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} isActive={session.id === activeSessionId} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
                 </div>
               ))}
             </Suspense>

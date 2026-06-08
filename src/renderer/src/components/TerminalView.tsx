@@ -49,6 +49,7 @@ interface TerminalViewProps {
   showHeader?: boolean
   fontSize?: number
   isAux?: boolean
+  isActive?: boolean
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   onOscTitle?: (sessionId: string, title: string) => void
   newlineShortcut?: string // e.g. "Shift+Enter"
@@ -351,11 +352,12 @@ function stripAnsiEscapes(data: string): string {
   return stripAnsiAndExtractOscTitle(data).clean
 }
 
-const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, onAgentStatusChange, onOscTitle, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
+const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, isActive = true, onAgentStatusChange, onOscTitle, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const searchAddonRef = useRef<SearchAddon | null>(null)
+  const webglAddonRef = useRef<WebglAddon | null>(null)
   const searchDecoRef = useRef<any>({})
   const [searchState, setSearchState] = useState<{ visible: boolean; query: string; index: number; count: number } | null>(null)
   const searchStateRef = useRef(searchState)
@@ -413,7 +415,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       lineHeight: 1.0,
       cursorBlink: false,
       cursorStyle: 'bar',
-      scrollback: 50000,
+      scrollback: 10000,
       allowTransparency: currentTheme.terminal.allowTransparency ?? true,
       allowProposedApi: true,
       windowsMode: true,
@@ -442,21 +444,6 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     term.loadAddon(clipboardAddon)
     term.loadAddon(unicodeGraphemesAddon)
     term.loadAddon(searchAddon)
-
-    // WebGL 渲染器（与 VSCode 终端策略一致）。
-    // 主进程已配置 ANGLE/D3D11 硬件加速 + ignore-gpu-blocklist，
-    // 软件 GPU 回退已被禁用。若硬件 GPU 确实不可用，context 创建
-    // 会抛异常，catch 回退到内置 DOM 渲染器。
-    try {
-      const webglAddon = new WebglAddon()
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose()
-        term.refresh(0, term.rows - 1)
-      })
-      term.loadAddon(webglAddon)
-    } catch {
-      // WebGL2 不可用，回退到 DOM 渲染器
-    }
 
     term.open(terminalRef.current)
     fitAddon.fit()
@@ -603,6 +590,10 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       window.removeEventListener('blur', onWindowBlur)
       window.removeEventListener('focus', onWindowFocus)
       searchResultDisposer.dispose()
+      if (webglAddonRef.current) {
+        try { webglAddonRef.current.dispose() } catch {}
+        webglAddonRef.current = null
+      }
       term.dispose()
       xtermRef.current = null
       fitAddonRef.current = null
@@ -621,6 +612,40 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       if (el) el.style.backgroundColor = currentTheme.terminal.background
     }
   }, [currentTheme])
+
+  // WebGL addon lifecycle: only load when active, dispose when inactive.
+  // This limits GPU resource usage to one WebGL context at a time.
+  useEffect(() => {
+    const term = xtermRef.current
+    if (!term || !isReady) return
+
+    if (isActive && !webglAddonRef.current) {
+      try {
+        const webglAddon = new WebglAddon()
+        webglAddon.onContextLoss(() => {
+          webglAddon.dispose()
+          webglAddonRef.current = null
+          term.refresh(0, term.rows - 1)
+        })
+        term.loadAddon(webglAddon)
+        webglAddonRef.current = webglAddon
+        // WebGL renderer needs a fresh fit after canvas is created
+        try { fitAddonRef.current?.fit() } catch {}
+      } catch {}
+    } else if (!isActive && webglAddonRef.current) {
+      try {
+        webglAddonRef.current.dispose()
+      } catch {}
+      webglAddonRef.current = null
+    }
+
+    return () => {
+      if (webglAddonRef.current) {
+        try { webglAddonRef.current.dispose() } catch {}
+        webglAddonRef.current = null
+      }
+    }
+  }, [isActive, isReady])
 
 
   // Update font size dynamically without recreating terminal

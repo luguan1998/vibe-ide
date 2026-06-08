@@ -22,6 +22,7 @@ let mainWindow: BrowserWindow | null = null
 
 // Fix Windows permission issues
 app.commandLine.appendSwitch('no-sandbox')
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096')
 
 // 强制 ANGLE 使用 D3D11 硬件加速，禁用软件渲染回退。
 // 软件 WebGL (SwiftShader/llvmpipe) 会导致每次 gl.bufferData 全走 CPU，
