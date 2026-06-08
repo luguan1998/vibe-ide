@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { CodeSymbol } from '@shared/types'
+import { useI18n } from '../i18n'
 
 const AGENT_TARGETS = [
   { id: 'claude', label: 'Claude Code' },
@@ -72,6 +73,7 @@ interface Props {
 type Status = 'loading' | 'not-initialized' | 'indexing' | 'ready' | 'error'
 
 function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, focusTrigger }: Props) {
+  const { t } = useI18n()
   const [status, setStatus] = useState<Status>('loading')
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -89,6 +91,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
   const [mcpTargets, setMcpTargets] = useState<string[]>(['claude'])
   const [mcpInstalling, setMcpInstalling] = useState(false)
   const [mcpResult, setMcpResult] = useState<{ success: boolean; error?: string } | null>(null)
+  const [initting, setInitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingPathRef = useRef<string | null>(null)
@@ -160,20 +163,30 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
   const handleInit = useCallback(async () => {
     if (!workspacePath) return
     setStatus('loading')
+    setInitting(true)
     setProgress(null)
     const progressHandler = window.api.code.onProgress((p: any) => setProgress(p))
     try {
       const r = await window.api.code.init(workspacePath)
-      if (r.error) { setStatus('error'); setError(r.error); return }
+      if (r.error === 'cancelled') { setStatus('not-initialized'); setInitting(false); setProgress(null); return }
+      if (r.error) { setStatus('error'); setError(r.error); setInitting(false); return }
       setStatus('ready')
+      setInitting(false)
       try {
         const s = await window.api.code.getStats()
         if (!s.error) setStats(s)
       } catch {}
-    } catch (err: any) { setStatus('error'); setError(err.message) }
+    } catch (err: any) { setStatus('error'); setError(err.message); setInitting(false) }
     window.api.code.removeProgressListener(progressHandler)
     setProgress(null)
   }, [workspacePath])
+
+  const handleCancelInit = useCallback(async () => {
+    await window.api.code.cancelInit()
+    setStatus('not-initialized')
+    setInitting(false)
+    setProgress(null)
+  }, [])
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim() || status !== 'ready') { setResults([]); return }
@@ -204,6 +217,39 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
   const pct = progress && progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
 
   return (
+    <>
+      {/* Full-screen lock overlay during init */}
+      {initting && (
+        <div className="fixed inset-0 z-[60] bg-ide-bg/70 flex items-center justify-center">
+          <div className="bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl p-6 flex flex-col items-center gap-4" style={{ minWidth: 360, maxWidth: 440 }}>
+            <div className="text-sm font-semibold text-ide-text">{t('Initializing CodeGraph...')}</div>
+            {progress && (
+              <>
+                <div className="w-full">
+                  <div className="flex items-center justify-between text-[10px] text-ide-text-muted/60 mb-1.5">
+                    <span>{progress.phase || 'indexing'}</span>
+                    <span>{progress.current}/{progress.total}</span>
+                  </div>
+                  <div className="h-2 bg-ide-hover rounded-full overflow-hidden">
+                    <div className="h-full bg-ide-accent rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              </>
+            )}
+            {!progress && (
+              <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin" />
+            )}
+            <button onClick={handleCancelInit}
+              className="text-xs px-3 py-1.5 rounded bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors">
+              {t('Cancel Init')}
+            </button>
+            <div className="text-[10px] text-ide-text-muted/40 text-center leading-relaxed max-w-[320px]">
+              {t('Slow? Add folders like {ex1}, {ex2}, {ex3} to your {ignore} or {gitignore} to skip indexing them.')
+                .replace('{ex1}', 'tests/**').replace('{ex2}', 'docs/**').replace('{ex3}', 'vendor/**').replace('{ignore}', '.codegraphignore').replace('{gitignore}', '.gitignore')}
+            </div>
+          </div>
+        </div>
+      )}
     <div className="fixed inset-x-0 top-[8%] z-50 flex justify-center pointer-events-none">
       <div className="pointer-events-auto flex flex-col items-center" style={{ minWidth: 480, maxWidth: 680, width: '46vw' }}>
         <div className="w-full bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl overflow-hidden">
@@ -220,18 +266,18 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
                   }
                   onActivated?.()
                 }}
-              placeholder={status === 'not-initialized' ? 'Not initialized — click Init' : status === 'indexing' ? 'Indexing...' : status === 'loading' ? 'Loading...' : 'Search symbols...'}
+              placeholder={status === 'not-initialized' ? t('Not initialized — click Init') : status === 'indexing' ? t('Indexing...') : status === 'loading' ? t('Loading...') : t('Search symbols...')}
               className={`flex-1 bg-transparent text-sm outline-none focus:outline-none ring-0 focus:ring-0 placeholder:text-ide-text-muted/30 ${status !== 'ready' ? 'text-ide-text-muted/40' : 'text-ide-text'}`} />
             {searching && <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin shrink-0" />}
             {status === 'not-initialized' && (
-              <button onClick={() => { onActivated?.(); handleInit() }} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 shrink-0">Init</button>
+              <button onClick={() => { onActivated?.(); handleInit() }} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 shrink-0">{t('Init')}</button>
             )}
             <button onClick={() => { setShowFilters(!showFilters); if (!showFilters) setFilterText(filters.join(', ')) }}
               className="text-ide-text-muted/30 hover:text-ide-text-muted/60 transition-colors shrink-0" title="Filters">
               <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M1.5 2h13l-5 5.5V12l-3 1.5V7.5L1.5 2z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
             </button>
             <button onClick={() => { setShowMcpConfig(!showMcpConfig); setShowFilters(false); setMcpResult(null) }}
-              className={`text-ide-text-muted/30 hover:text-ide-text-muted/60 transition-colors shrink-0 ${showMcpConfig ? 'text-ide-accent' : ''}`} title="Configure MCP">
+              className={`text-ide-text-muted/30 hover:text-ide-text-muted/60 transition-colors shrink-0 ${showMcpConfig ? 'text-ide-accent' : ''}`} title={t('Configure MCP')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 0 9-9"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
           </div>
@@ -269,12 +315,12 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
           {/* Filter config */}
           {showFilters && (
             <div className="border-t border-ide-border px-3 py-2">
-              <div className="text-[10px] text-ide-text-muted/50 mb-1.5">Exclude patterns (glob, comma-separated)</div>
+              <div className="text-[10px] text-ide-text-muted/50 mb-1.5">{t('Exclude patterns (glob, comma-separated)')}</div>
               <div className="flex gap-1.5">
                 <input value={filterText} onChange={e => setFilterText(e.target.value)}
                   className="flex-1 bg-ide-bg border border-ide-border rounded px-2 py-1 text-xs text-ide-text outline-none focus:border-ide-accent"
                   onKeyDown={e => { if (e.key === 'Enter') applyFilters() }} />
-                <button onClick={applyFilters} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25">Apply</button>
+                <button onClick={applyFilters} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25">{t('Apply')}</button>
               </div>
             </div>
           )}
@@ -282,7 +328,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
           {/* MCP agent config */}
           {showMcpConfig && (
             <div className="border-t border-ide-border px-3 py-2">
-              <div className="text-[10px] text-ide-text-muted/50 mb-1.5">Configure CodeGraph MCP for agents</div>
+              <div className="text-[10px] text-ide-text-muted/50 mb-1.5">{t('Configure CodeGraph MCP for agents')}</div>
               <div className="flex flex-wrap gap-x-2 gap-y-1 mb-2">
                 {AGENT_TARGETS.map(t => {
                   const checked = mcpTargets.includes(t.id)
@@ -308,11 +354,11 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
                     setMcpInstalling(false)
                   }}
                   className={`text-[11px] px-2 py-0.5 rounded shrink-0 ${mcpInstalling || mcpTargets.length === 0 ? 'bg-ide-accent/10 text-ide-accent/40 cursor-not-allowed' : 'bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25'}`}>
-                  {mcpInstalling ? 'Installing...' : 'Install'}
+                  {mcpInstalling ? t('Installing...') : t('Install')}
                 </button>
                 {mcpResult && (
                   <span className={`text-[10px] ${mcpResult.success ? 'text-ide-accent' : 'text-ide-danger'}`}>
-                    {mcpResult.success ? 'Done' : mcpResult.error}
+                    {mcpResult.success ? t('Done') : mcpResult.error}
                   </span>
                 )}
               </div>
@@ -322,17 +368,17 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
           {/* Stats bar */}
           {stats && status === 'ready' && (
             <div className="border-t border-ide-border/50 px-3 py-1 flex items-center gap-3 text-[10px] text-ide-text-muted/30">
-              {stats.totalNodes != null && <span>{stats.totalNodes.toLocaleString()} symbols</span>}
-              {stats.totalEdges != null && <span>{stats.totalEdges.toLocaleString()} edges</span>}
-              {stats.totalFiles != null && <span>{stats.totalFiles.toLocaleString()} files</span>}
-              {filters.length > 0 && <span className="ml-auto">{filters.length} filters</span>}
+              {stats.totalNodes != null && <span>{stats.totalNodes.toLocaleString()} {t('symbols')}</span>}
+              {stats.totalEdges != null && <span>{stats.totalEdges.toLocaleString()} {t('edges')}</span>}
+              {stats.totalFiles != null && <span>{stats.totalFiles.toLocaleString()} {t('files')}</span>}
+              {filters.length > 0 && <span className="ml-auto">{filters.length} {t('filters')}</span>}
             </div>
           )}
 
           {/* Recent nodes (when input empty and activated) */}
           {activated && recentNodes.length > 0 && !query.trim() && (
             <div className="border-t border-ide-border max-h-64 overflow-y-auto">
-              <div className="px-3 py-1 text-[10px] text-ide-text-muted/40">Recent</div>
+              <div className="px-3 py-1 text-[10px] text-ide-text-muted/40">{t('Recent')}</div>
               {recentNodes.map((entry, i) => (
                 <div key={entry.node.id || i}
                   className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-ide-hover transition-colors"
@@ -360,12 +406,13 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
             </div>
           )}
           {query.trim() && !searching && results.length === 0 && status === 'ready' && (
-            <div className="border-t border-ide-border px-3 py-3 text-xs text-ide-text-muted/40 text-center">No symbols found</div>
+            <div className="border-t border-ide-border px-3 py-3 text-xs text-ide-text-muted/40 text-center">{t('No symbols found')}</div>
           )}
           {error && <div className="border-t border-ide-border px-3 py-2 text-xs text-ide-danger/80">{error}</div>}
         </div>
       </div>
     </div>
+    </>
   )
 }
 

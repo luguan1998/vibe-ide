@@ -207,6 +207,29 @@ const ZH_MAP: Record<string, string> = {
 
   // DiffViewer
   'Force Open': '强行打开',
+
+  // CodeGraphSearch
+  'Initializing CodeGraph...': '正在初始化代码图...',
+  'Cancel Init': '取消初始化',
+  'Slow? Add folders like {ex1}, {ex2}, {ex3} to your {ignore} or {gitignore} to skip indexing them.': '速度慢？将 {ex1}、{ex2}、{ex3} 等文件夹加入 {ignore} 或 {gitignore} 可跳过索引。',
+  'Not initialized — click Init': '未初始化 — 点击 Init',
+  'Indexing...': '正在索引...',
+  'Loading...': '加载中...',
+  'Search symbols...': '搜索符号...',
+  'No symbols found': '未找到符号',
+  'symbols': '个符号',
+  'edges': '条边',
+  'files': '个文件',
+  'filters': '个过滤',
+  'Recent': '最近',
+  'Init': '初始化',
+  'Install': '安装',
+  'Installing...': '安装中...',
+  'Done': '完成',
+  'Configure MCP': '配置 MCP',
+  'Configure CodeGraph MCP for agents': '配置 CodeGraph MCP for Agent',
+  'Exclude patterns (glob, comma-separated)': '排除模式（glob，逗号分隔）',
+  'Apply': '应用',
 }
 
 // ── context ────────────────────────────────────────────────────────

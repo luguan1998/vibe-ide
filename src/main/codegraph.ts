@@ -6,6 +6,8 @@ import { IPC_CHANNELS } from '../shared/types'
 let cg: any = null
 let currentWorkspace: string | null = null
 let CodeGraphClass: any = null
+let initProc: any = null
+let initCancelled = false
 
 async function getCodeGraph(): Promise<any> {
   if (!CodeGraphClass) {
@@ -87,7 +89,7 @@ function ensureCliDeps(bundleDir: string): void {
   } catch { /* dev mode — resourcesPath not available */ }
 }
 
-function runCodeGraphCli(args: string[], onProgress?: (p: any) => void, cwd?: string): Promise<{ success: boolean; error?: string }> {
+function runCodeGraphCli(args: string[], onProgress?: (p: any) => void, cwd?: string, isInit?: boolean): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
     const bundleDir = resolvePlatformBundle()
     const bundledNode = join(bundleDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
@@ -97,6 +99,7 @@ function runCodeGraphCli(args: string[], onProgress?: (p: any) => void, cwd?: st
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd,
     })
+    if (isInit) initProc = proc
     let stderr = ''
     let outBuf = ''
     proc.stdout?.on('data', (d: Buffer) => {
@@ -115,10 +118,12 @@ function runCodeGraphCli(args: string[], onProgress?: (p: any) => void, cwd?: st
     })
     proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
     proc.on('close', (code) => {
-      if (code === 0) resolve({ success: true })
+      if (isInit) initProc = null
+      if (initCancelled) resolve({ success: false, error: 'cancelled' })
+      else if (code === 0) resolve({ success: true })
       else resolve({ success: false, error: stderr || `exit ${code}` })
     })
-    proc.on('error', (err) => resolve({ success: false, error: err.message }))
+    proc.on('error', (err) => { if (isInit) initProc = null; resolve({ success: false, error: err.message }) })
   })
 }
 
@@ -180,11 +185,14 @@ export function registerCodeGraphHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CODE_INIT, async (event, root: string) => {
     try {
       if (cg) { cg.close(); cg = null; currentWorkspace = null }
-      // Use the bundled Node 24 CLI to init + index — avoids Electron V8 Zone OOM
+      initCancelled = false
+      initProc = null
       const push = (p: any) => { try { event.sender.send(IPC_CHANNELS.CODE_PROGRESS, p) } catch {} }
-      const r1 = await runCodeGraphCli(['init', root, '--verbose'], push)
+      const r1 = await runCodeGraphCli(['init', root, '--verbose'], push, undefined, true)
+      if (initCancelled) return { error: 'cancelled' }
       if (!r1.success) return { error: r1.error || 'init failed' }
-      const r2 = await runCodeGraphCli(['index', root, '--verbose'], push)
+      const r2 = await runCodeGraphCli(['index', root, '--verbose'], push, undefined, true)
+      if (initCancelled) return { error: 'cancelled' }
       if (!r2.success) return { error: r2.error || 'index failed' }
       // Open in-process for subsequent queries
       const CG = await getCodeGraph()
@@ -195,6 +203,15 @@ export function registerCodeGraphHandlers(): void {
     } catch (err: any) {
       return { error: err.message }
     }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.CODE_CANCEL_INIT, async () => {
+    if (initProc) {
+      initCancelled = true
+      try { initProc.kill() } catch {}
+      initProc = null
+    }
+    return { cancelled: true }
   })
 
   ipcMain.handle(IPC_CHANNELS.CODE_SEARCH_NODES, async (_event, query: string, opts?: { limit?: number; kinds?: string[]; excludePatterns?: string[] }) => {
