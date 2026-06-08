@@ -586,7 +586,7 @@ const SessionPanel = React.memo(function SessionPanel({
                         <span className="text-center font-mono text-ide-accent font-bold text-xs leading-none">{fileTreeDepth}</span>
                         <button
                           className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
-                          disabled={fileTreeDepth >= 8}
+                          disabled={fileTreeDepth >= 12}
                           onClick={(e) => { e.stopPropagation(); onChangeFileTreeDepth(1) }}
                         >{'>'}</button>
                       </div>
