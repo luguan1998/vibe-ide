@@ -86,6 +86,7 @@ export const IPC_CHANNELS = {
   CODE_IS_INDEXING: 'code:isIndexing',
   CODE_PROGRESS: 'code:progress',           // push: init/index progress
   CODE_GET_STATS: 'code:getStats',
+  CODE_INSTALL_MCP: 'code:installMcp',
 
   // App
   APP_VERSION: 'app:version'

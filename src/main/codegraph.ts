@@ -87,7 +87,7 @@ function ensureCliDeps(bundleDir: string): void {
   } catch { /* dev mode — resourcesPath not available */ }
 }
 
-function runCodeGraphCli(args: string[], onProgress?: (p: any) => void): Promise<{ success: boolean; error?: string }> {
+function runCodeGraphCli(args: string[], onProgress?: (p: any) => void, cwd?: string): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
     const bundleDir = resolvePlatformBundle()
     const bundledNode = join(bundleDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
@@ -95,6 +95,7 @@ function runCodeGraphCli(args: string[], onProgress?: (p: any) => void): Promise
     ensureCliDeps(bundleDir)
     const proc = spawn(bundledNode, ['--liftoff-only', cliEntry, ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
+      cwd,
     })
     let stderr = ''
     let outBuf = ''
@@ -259,6 +260,17 @@ export function registerCodeGraphHandlers(): void {
       return cg.getStats()
     } catch (err: any) {
       return { error: err.message }
+    }
+  })
+
+ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], workspacePath: string) => {
+    try {
+      const targetFlag = targets.length > 0 ? targets.join(',') : 'none'
+      const r = await runCodeGraphCli(['install', '--target', targetFlag, '--location', 'local', '--yes'], undefined, workspacePath)
+      if (!r.success) return { success: false, error: r.error || 'install mcp failed' }
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
     }
   })
 

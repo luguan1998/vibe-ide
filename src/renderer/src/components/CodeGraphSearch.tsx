@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { CodeSymbol } from '@shared/types'
 
+const AGENT_TARGETS = [
+  { id: 'claude', label: 'Claude Code' },
+  { id: 'cursor', label: 'Cursor' },
+  { id: 'codex', label: 'Codex CLI' },
+  { id: 'opencode', label: 'opencode' },
+  { id: 'hermes', label: 'Hermes Agent' },
+  { id: 'gemini', label: 'Gemini CLI' },
+  { id: 'kiro', label: 'Kiro' },
+] as const
+
 const KIND_COLORS: Record<string, string> = {
   function: '#facc15', method: '#facc15',
   class: '#60a5fa', interface: '#4ade80',
@@ -8,6 +18,26 @@ const KIND_COLORS: Record<string, string> = {
   type: '#2dd4bf', component: '#f472b6',
 }
 function getKindColor(kind: string): string { return KIND_COLORS[kind] || '#888' }
+
+const KIND_OPTIONS = [
+  { kind: 'function', label: 'Fn' },
+  { kind: 'method', label: 'Me' },
+  { kind: 'class', label: 'Cl' },
+  { kind: 'interface', label: 'If' },
+  { kind: 'component', label: 'Co' },
+  { kind: 'variable', label: 'Va' },
+  { kind: 'constant', label: 'Ct' },
+  { kind: 'type_alias', label: 'Ty' },
+]
+const KINDS_KEY = 'vibe-ide-codegraph-kinds'
+const DEFAULT_KINDS = KIND_OPTIONS.map(o => o.kind)
+
+function loadKinds(): string[] {
+  try { const raw = localStorage.getItem(KINDS_KEY); return raw ? JSON.parse(raw) : DEFAULT_KINDS } catch { return DEFAULT_KINDS }
+}
+function saveKinds(kinds: string[]) {
+  try { localStorage.setItem(KINDS_KEY, JSON.stringify(kinds)) } catch {}
+}
 
 interface RecentEntry { node: CodeSymbol; workspace: string }
 const recentCache: RecentEntry[] = []
@@ -52,8 +82,13 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
   const [filters, setFilters] = useState<string[]>(loadFilters)
   const [showFilters, setShowFilters] = useState(false)
   const [filterText, setFilterText] = useState('')
+  const [selectedKinds, setSelectedKinds] = useState<string[]>(loadKinds)
   const [activated, setActivated] = useState(false)
   const [recentNodes, setRecentNodes] = useState<RecentEntry[]>(() => [])
+  const [showMcpConfig, setShowMcpConfig] = useState(false)
+  const [mcpTargets, setMcpTargets] = useState<string[]>(['claude'])
+  const [mcpInstalling, setMcpInstalling] = useState(false)
+  const [mcpResult, setMcpResult] = useState<{ success: boolean; error?: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingPathRef = useRef<string | null>(null)
@@ -69,7 +104,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
     setProgress(null)
     setStats(null)
     setActivated(false)
-    setRecentNodes(recentCache.filter(e => e.workspace === workspacePath))
+    setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind)))
 
     const init = async () => {
       const target = workspacePath
@@ -116,7 +151,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
   useEffect(() => {
     if (focusTrigger !== undefined && focusTrigger > 0) {
       setActivated(true)
-      if (workspacePath) setRecentNodes(recentCache.filter(e => e.workspace === workspacePath))
+      if (workspacePath) setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind)))
       requestAnimationFrame(() => inputRef.current?.focus())
     }
   }, [focusTrigger, workspacePath])
@@ -144,11 +179,11 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
     if (!q.trim() || status !== 'ready') { setResults([]); return }
     setSearching(true)
     try {
-      const r = await window.api.code.searchNodes(q.trim(), { limit: 50, excludePatterns: filters })
+      const r = await window.api.code.searchNodes(q.trim(), { limit: 50, excludePatterns: filters, kinds: selectedKinds })
       setResults(r.error ? [] : r.nodes || [])
     } catch { setResults([]) }
     setSearching(false)
-  }, [status, filters])
+  }, [status, filters, selectedKinds])
 
   const handleChange = useCallback((v: string) => {
     setQuery(v)
@@ -181,7 +216,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
               onFocus={() => {
                   if (!activated) {
                     setActivated(true)
-                    if (workspacePath) setRecentNodes(recentCache.filter(e => e.workspace === workspacePath))
+                    if (workspacePath) setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind)))
                   }
                   onActivated?.()
                 }}
@@ -195,9 +230,30 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
               className="text-ide-text-muted/30 hover:text-ide-text-muted/60 transition-colors shrink-0" title="Filters">
               <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M1.5 2h13l-5 5.5V12l-3 1.5V7.5L1.5 2z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
             </button>
+            <button onClick={() => { setShowMcpConfig(!showMcpConfig); setShowFilters(false); setMcpResult(null) }}
+              className={`text-ide-text-muted/30 hover:text-ide-text-muted/60 transition-colors shrink-0 ${showMcpConfig ? 'text-ide-accent' : ''}`} title="Configure MCP">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 0 9-9"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
           </div>
 
-          {/* Progress bar */}
+          {/* Kind filter row */}
+          <div className="border-t border-ide-border/50 px-3 py-1 flex items-center gap-1">
+            {KIND_OPTIONS.map(o => {
+              const active = selectedKinds.includes(o.kind)
+              return (
+                <button key={o.kind}
+                  onClick={() => {
+                    const next = active ? selectedKinds.filter(k => k !== o.kind) : [...selectedKinds, o.kind]
+                    setSelectedKinds(next)
+                    saveKinds(next)
+                  }}
+                  className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${active ? 'text-ide-text font-bold' : 'text-ide-text-muted/30 hover:text-ide-text-muted/60'}`}
+                  style={{ backgroundColor: active ? getKindColor(o.kind) + '20' : 'transparent' }}>
+                  <span style={{ color: active ? getKindColor(o.kind) : undefined }}>{o.label}</span>
+                </button>
+              )
+            })}
+          </div>
           {progress && (
             <div className="border-t border-ide-border px-3 py-1.5">
               <div className="flex items-center gap-2 text-[10px] text-ide-text-muted/60 mb-1">
@@ -223,6 +279,46 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
             </div>
           )}
 
+          {/* MCP agent config */}
+          {showMcpConfig && (
+            <div className="border-t border-ide-border px-3 py-2">
+              <div className="text-[10px] text-ide-text-muted/50 mb-1.5">Configure CodeGraph MCP for agents</div>
+              <div className="flex flex-wrap gap-x-2 gap-y-1 mb-2">
+                {AGENT_TARGETS.map(t => {
+                  const checked = mcpTargets.includes(t.id)
+                  return (
+                    <label key={t.id} className="flex items-center gap-1 cursor-pointer text-[11px] text-ide-text-muted hover:text-ide-text">
+                      <input type="checkbox" checked={checked} onChange={() => {
+                        setMcpTargets(prev => checked ? prev.filter(id => id !== t.id) : [...prev, t.id])
+                        setMcpResult(null)
+                      }} className="accent-ide-accent w-3 h-3" />
+                      {t.label}
+                    </label>
+                  )
+                })}
+              </div>
+              <div className="flex items-center gap-2">
+                <button disabled={mcpInstalling || mcpTargets.length === 0}
+                  onClick={async () => {
+                    setMcpInstalling(true); setMcpResult(null)
+                    try {
+                      const r = await window.api.code.installMcp(mcpTargets, workspacePath || '')
+                      setMcpResult(r)
+                    } catch (err: any) { setMcpResult({ success: false, error: err.message }) }
+                    setMcpInstalling(false)
+                  }}
+                  className={`text-[11px] px-2 py-0.5 rounded shrink-0 ${mcpInstalling || mcpTargets.length === 0 ? 'bg-ide-accent/10 text-ide-accent/40 cursor-not-allowed' : 'bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25'}`}>
+                  {mcpInstalling ? 'Installing...' : 'Install'}
+                </button>
+                {mcpResult && (
+                  <span className={`text-[10px] ${mcpResult.success ? 'text-ide-accent' : 'text-ide-danger'}`}>
+                    {mcpResult.success ? 'Done' : mcpResult.error}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Stats bar */}
           {stats && status === 'ready' && (
             <div className="border-t border-ide-border/50 px-3 py-1 flex items-center gap-3 text-[10px] text-ide-text-muted/30">
@@ -240,7 +336,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
               {recentNodes.map((entry, i) => (
                 <div key={entry.node.id || i}
                   className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-ide-hover transition-colors"
-                  onClick={() => { addRecent(entry.node, entry.workspace); setRecentNodes(recentCache.filter(e => e.workspace === workspacePath)); onSelectNode(entry.node); onClose() }}>
+                  onClick={() => { addRecent(entry.node, entry.workspace); setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind))); onSelectNode(entry.node); onClose() }}>
                   <span className="text-[10px] font-bold uppercase w-12 shrink-0" style={{ color: getKindColor(entry.node.kind) }}>{entry.node.kind}</span>
                   <span className="text-sm text-ide-text truncate">{entry.node.name}</span>
                   <span className="text-[10px] text-ide-text-muted/40 truncate ml-auto">{entry.node.filePath.replace(/^.*[/\\]/, '')}:{entry.node.line}</span>
@@ -255,7 +351,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
               {results.map((node, i) => (
                 <div key={node.id || i}
                   className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-ide-hover transition-colors"
-                  onClick={() => { addRecent(node, workspacePath || ''); setRecentNodes(recentCache.filter(e => e.workspace === workspacePath)); onSelectNode(node); onClose() }}>
+                  onClick={() => { addRecent(node, workspacePath || ''); setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind))); onSelectNode(node); onClose() }}>
                   <span className="text-[10px] font-bold uppercase w-12 shrink-0" style={{ color: getKindColor(node.kind) }}>{node.kind}</span>
                   <span className="text-sm text-ide-text truncate">{node.name}</span>
                   <span className="text-[10px] text-ide-text-muted/40 truncate ml-auto">{node.filePath.replace(/^.*[/\\]/, '')}:{node.line}</span>

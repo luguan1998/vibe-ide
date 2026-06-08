@@ -173,6 +173,7 @@ const api = {
     getCallGraph: (id: string, depth?: number) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_CALL_GRAPH, id, depth),
     isIndexing: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_IS_INDEXING),
     getStats: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_STATS),
+    installMcp: (targets: string[], workspacePath: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_INSTALL_MCP, targets, workspacePath),
     onProgress: (callback: (progress: any) => void) => {
       const handler = (_event: any, progress: any) => callback(progress)
       ipcRenderer.on(IPC_CHANNELS.CODE_PROGRESS, handler)
