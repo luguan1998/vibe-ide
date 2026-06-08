@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { spawn } from 'child_process'
-import { join, dirname, delimiter } from 'path'
+import { join, dirname } from 'path'
 import { IPC_CHANNELS } from '../shared/types'
 
 let cg: any = null
@@ -25,50 +25,76 @@ async function getCodeGraph(): Promise<any> {
 // Resolve the platform bundle directory. In dev, the bundle is at the top-level
 // node_modules (npm hoisted). In the packaged app, electron-builder nests it
 // inside the parent codegraph package's node_modules/.
+// When asarUnpack is used, files live in app.asar.unpacked/ — __dirname still
+// resolves to app.asar/..., so we must check the .unpacked equivalent first.
 function resolvePlatformBundle(): string {
   const pkgName = 'codegraph-' + process.platform + '-' + process.arch
+  const fs = require('fs')
+
+  // Helper: if a path is inside app.asar, also check app.asar.unpacked
+  function tryPath(dir: string): boolean {
+    if (fs.existsSync(dir)) return true
+    const unpacked = dir.replace('app.asar', 'app.asar.unpacked')
+    return unpacked !== dir && fs.existsSync(unpacked)
+  }
+  function resolvePath(dir: string): string {
+    const unpacked = dir.replace('app.asar', 'app.asar.unpacked')
+    if (unpacked !== dir && fs.existsSync(unpacked)) return unpacked
+    return dir
+  }
 
   // Try top-level layout first (dev mode)
   const flatDir = join(__dirname, '../../node_modules/@colbymchenry', pkgName)
-  try { if (require('fs').existsSync(flatDir)) return flatDir } catch {}
+  if (tryPath(flatDir)) return resolvePath(flatDir)
 
   // Try nested layout (packaged app)
   const nestedDir = join(__dirname, '../../node_modules/@colbymchenry/codegraph/node_modules/@colbymchenry', pkgName)
-  try { if (require('fs').existsSync(nestedDir)) return nestedDir } catch {}
+  if (tryPath(nestedDir)) return resolvePath(nestedDir)
 
   // Last resort: use require.resolve from within the @colbymchenry/codegraph context
   try {
     const codegraphMain = require.resolve('@colbymchenry/codegraph/package.json')
     const nested = join(dirname(codegraphMain), 'node_modules/@colbymchenry', pkgName)
-    if (require('fs').existsSync(nested)) return nested
+    if (tryPath(nested)) return resolvePath(nested)
   } catch {}
 
   return flatDir // fall back to dev layout even if it doesn't exist
 }
 
-function getPlatformPaths(): { bundledNode: string; cliEntry: string } {
-  const bundleDir = resolvePlatformBundle()
-  return {
-    bundledNode: join(bundleDir, process.platform === 'win32' ? 'node.exe' : 'bin/node'),
-    cliEntry: join(bundleDir, 'lib/dist/bin/codegraph.js'),
-  }
+let cliDepsRestored = false
+
+/** Ensure ESM deps (web-tree-sitter etc) are physically present under lib/node_modules/.
+ *  NODE_PATH is useless for ESM imports, so the deps must be on disk where the
+ *  import resolver can walk up from the CLI entry and find them. */
+function ensureCliDeps(bundleDir: string): void {
+  if (cliDepsRestored) return
+  const libNM = join(bundleDir, 'lib', 'node_modules')
+  const fs = require('fs')
+  // Already present — nothing to do
+  if (fs.existsSync(join(libNM, 'web-tree-sitter'))) { cliDepsRestored = true; return }
+  // Packaged app: copy from extraResources/codegraph-platform-deps
+  try {
+    const src = join(process.resourcesPath, 'codegraph-platform-deps')
+    if (fs.existsSync(src) && fs.existsSync(join(src, 'web-tree-sitter'))) {
+      fs.mkdirSync(libNM, { recursive: true })
+      for (const entry of fs.readdirSync(src)) {
+        if (!fs.existsSync(join(libNM, entry))) {
+          fs.cpSync(join(src, entry), join(libNM, entry), { recursive: true })
+        }
+      }
+      cliDepsRestored = true
+    }
+  } catch { /* dev mode — resourcesPath not available */ }
 }
 
 function runCodeGraphCli(args: string[], onProgress?: (p: any) => void): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
-    const { bundledNode, cliEntry } = getPlatformPaths()
-    // Make extraResources deps available to the bundled Node (which doesn't have asar support)
-    const env: Record<string, string> = {}
-    for (const key of Object.keys(process.env)) {
-      if (process.env[key] !== undefined) env[key] = process.env[key]!
-    }
-    try {
-      const extraDeps = join(process.resourcesPath, 'codegraph-platform-deps')
-      env.NODE_PATH = env.NODE_PATH ? extraDeps + delimiter + env.NODE_PATH : extraDeps
-    } catch { /* process.resourcesPath not available in dev (not packaged) */ }
+    const bundleDir = resolvePlatformBundle()
+    const bundledNode = join(bundleDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
+    const cliEntry = join(bundleDir, 'lib/dist/bin/codegraph.js')
+    ensureCliDeps(bundleDir)
     const proc = spawn(bundledNode, ['--liftoff-only', cliEntry, ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env,
     })
     let stderr = ''
     let outBuf = ''
