@@ -4,6 +4,7 @@ import SessionPanel from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
 import MarkdownPreview from './components/MarkdownPreview'
+import ImagePreview from './components/ImagePreview'
 import NavBar from './components/NavBar'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
@@ -124,7 +125,7 @@ declare global {
   }
 }
 
-type CenterView = 'terminal' | 'diff' | 'markdown'
+type CenterView = 'terminal' | 'diff' | 'markdown' | 'image'
 
 interface DiffFileState {
   defaultEdit?: boolean
@@ -163,6 +164,7 @@ export default function App() {
   const [centerView, setCenterView] = useState<CenterView>('terminal')
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
   const [markdownFile, setMarkdownFile] = useState<{ fullPath: string; fileName: string } | null>(null)
+  const [imageFile, setImageFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const diffRevisionRef = useRef(0)
   const [showSquiggles, setShowSquiggles] = useState(false)
   const [pollingEnabled, setPollingEnabled] = useState(() => {
@@ -638,7 +640,7 @@ export default function App() {
         const delta = decreaseMatch ? -1 : 1
         if (centerView === 'terminal') {
           setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
-        } else if (centerView === 'diff' || centerView === 'markdown') {
+        } else if (centerView === 'diff' || centerView === 'markdown' || centerView === 'image') {
           setEditorFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
         }
       }
@@ -1200,6 +1202,17 @@ export default function App() {
     setMarkdownFile(null)
   }, [])
 
+  const handlePreviewImage = useCallback((fullPath: string, fileName: string) => {
+    pushNavHistory()
+    setImageFile({ fullPath, fileName })
+    setCenterView('image')
+  }, [])
+
+  const handleBackFromImage = useCallback(() => {
+    setCenterView('terminal')
+    setImageFile(null)
+  }, [])
+
 
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
@@ -1310,6 +1323,17 @@ export default function App() {
               />
             </div>
           )}
+          {/* Image Preview */}
+          {centerView === 'image' && imageFile && (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <ImagePreview
+                key={imageFile.fullPath}
+                fullPath={imageFile.fullPath}
+                fileName={imageFile.fileName}
+                onBack={handleBackFromImage}
+              />
+            </div>
+          )}
           {/* Empty state */}
           {centerView === 'terminal' && sessions.length === 0 && (
             <div className="flex-1 flex items-center justify-center text-ide-text-muted">
@@ -1358,6 +1382,7 @@ export default function App() {
             onOpenFileFromSearch={handleOpenFileFromSearch}
             onOpenFileFromExplorer={handleOpenFileFromExplorer}
             onPreviewMarkdown={handlePreviewMarkdown}
+            onPreviewImage={handlePreviewImage}
             rightTerminalSession={activeSessionId ? rightTerminalSessions[activeSessionId] : undefined}
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}

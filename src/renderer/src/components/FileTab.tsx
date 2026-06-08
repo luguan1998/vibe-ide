@@ -39,6 +39,7 @@ interface FileTabProps {
   workspacePath: string | null
   onOpenFileFromExplorer?: (fullPath: string) => void
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
+  onPreviewImage?: (fullPath: string, fileName: string) => void
   fileTreeDepth: number
   refreshKey?: number
   navigateToFile?: { trigger: number; filePath: string } | null
@@ -104,7 +105,7 @@ function norm(p: string): string {
 }
 
 // File tree item component
-function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown }: {
+function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage }: {
   node: FileNode
   depth: number
   expandedDirs: Set<string>
@@ -116,6 +117,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   onEditCancel: () => void
   highlightedFilePath: string | null
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
+  onPreviewImage?: (fullPath: string, fileName: string) => void
 }) {
   const { t } = useI18n()
   const isDir = node.type === 'directory'
@@ -241,6 +243,18 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                 <Eye className="w-3.5 h-3.5" />
               </button>
             )}
+            {!isDir && getFileInfo(node.name).kind === 'image' && onPreviewImage && (
+              <button
+                className="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPreviewImage(node.path, node.name)
+                }}
+                title="Preview Image"
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+            )}
           </>
         )}
       </div>
@@ -294,6 +308,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
               onEditCancel={onEditCancel}
               highlightedFilePath={highlightedFilePath}
               onPreviewMarkdown={onPreviewMarkdown}
+              onPreviewImage={onPreviewImage}
             />
           ))}
         </>
@@ -302,7 +317,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onPreviewMarkdown, fileTreeDepth, refreshKey, navigateToFile, onRefresh }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onPreviewMarkdown, onPreviewImage, fileTreeDepth, refreshKey, navigateToFile, onRefresh }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -612,6 +627,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onPrevi
                 onEditCancel={handleEditCancel}
                 highlightedFilePath={highlightedFilePath}
                 onPreviewMarkdown={onPreviewMarkdown}
+                onPreviewImage={onPreviewImage}
               />
             ))}
           </div>

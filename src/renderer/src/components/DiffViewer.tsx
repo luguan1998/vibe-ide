@@ -90,6 +90,18 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions, deletions }
 }
 
+function FilePathDisplay({ filePath }: { filePath: string }) {
+  const lastSep = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
+  const dirPart = lastSep >= 0 ? filePath.substring(0, lastSep + 1) : ''
+  const namePart = lastSep >= 0 ? filePath.substring(lastSep + 1) : filePath
+  return (
+    <span className="truncate">
+      {dirPart && <span className="text-ide-text-muted/50">{dirPart}</span>}
+      <span className="text-ide-text font-medium">{namePart}</span>
+    </span>
+  )
+}
+
 const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
@@ -631,14 +643,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               </svg>
             </button>
           )}
-          <span className="text-ide-text font-medium truncate max-w-md">{filePath}</span>
+          <FilePathDisplay filePath={filePath} />
           {viewMode === 'diff' && (diffStats.additions > 0 || diffStats.deletions > 0) && (
             <div className="flex items-center gap-1 text-xs shrink-0">
               {diffStats.additions > 0 && <span className="text-ide-success font-mono">+{diffStats.additions}</span>}
               {diffStats.deletions > 0 && <span className="text-ide-danger font-mono">-{diffStats.deletions}</span>}
             </div>
           )}
-          {isStaged && <span className="text-xs text-ide-success">staged</span>}
         </div>
 
         <div className="flex items-center gap-2">
