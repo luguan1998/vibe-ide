@@ -88,6 +88,8 @@ export const IPC_CHANNELS = {
   CODE_CANCEL_INIT: 'code:cancelInit',       // cancel ongoing init/index
   CODE_GET_STATS: 'code:getStats',
   CODE_INSTALL_MCP: 'code:installMcp',
+  CODE_FIND_RELEVANT_CONTEXT: 'code:findRelevantContext',
+  CODE_GET_NODE_CODE: 'code:getNodeCode',
 
   // App
   APP_VERSION: 'app:version'

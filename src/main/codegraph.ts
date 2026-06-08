@@ -255,7 +255,7 @@ export function registerCodeGraphHandlers(): void {
         sub.nodes.forEach((n: any) => nodes.push(normalizeNode(n)))
       }
       const edges = (sub.edges || []).map((e: any) => ({
-        fromNodeId: e.fromNodeId, toNodeId: e.toNodeId, kind: e.kind
+        source: e.source, target: e.target, kind: e.kind
       }))
       return { nodes, edges }
     } catch (err: any) {
@@ -348,6 +348,36 @@ ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], 
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.CODE_FIND_RELEVANT_CONTEXT, async (_event, query: string, opts?: any) => {
+    if (!cg) return { error: 'Not initialized', nodes: [], edges: [], roots: [], confidence: undefined }
+    try {
+      const subgraph = await cg.findRelevantContext(query, {
+        searchLimit: opts?.searchLimit ?? 10,
+        traversalDepth: opts?.traversalDepth ?? 2,
+        maxNodes: opts?.maxNodes ?? 30,
+      })
+      const nodes: any[] = []
+      if (subgraph.nodes) subgraph.nodes.forEach((n: any) => nodes.push(normalizeNode(n)))
+      const edges = (subgraph.edges || []).map((e: any) => ({
+        source: e.source, target: e.target, kind: e.kind,
+        provenance: e.provenance, line: e.line, column: e.column,
+      }))
+      return { nodes, edges, roots: subgraph.roots || [], confidence: subgraph.confidence }
+    } catch (err: any) {
+      return { error: err.message, nodes: [], edges: [], roots: [], confidence: undefined }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.CODE_GET_NODE_CODE, async (_event, nodeId: string) => {
+    if (!cg) return { error: 'Not initialized', code: null }
+    try {
+      const code = await cg.getCode(nodeId)
+      return { code }
+    } catch (err: any) {
+      return { error: err.message, code: null }
     }
   })
 

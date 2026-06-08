@@ -1,6 +1,18 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { GrepMatch } from '@shared/types'
+import { GrepMatch, CodeSymbol } from '@shared/types'
 import { useI18n } from '../i18n'
+
+const KIND_COLORS: Record<string, string> = {
+  function: '#facc15', method: '#facc15',
+  class: '#60a5fa', interface: '#4ade80',
+  variable: '#c084fc', constant: '#fb923c',
+  type: '#2dd4bf', component: '#f472b6',
+}
+function getKindColor(kind: string): string { return KIND_COLORS[kind] || '#888' }
+
+const MODE_KEY = 'vibe-ide-search-mode'
+function loadMode(): 'grep' | 'smart' { try { return (localStorage.getItem(MODE_KEY) || 'grep') as 'grep' | 'smart' } catch { return 'grep' } }
+function saveMode(m: string) { try { localStorage.setItem(MODE_KEY, m) } catch {} }
 
 interface SearchPanelProps {
   cwd: string | null
@@ -139,6 +151,11 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
   const [replaceResult, setReplaceResult] = useState<{ filesModified: number; totalReplacements: number; errors: string[] } | null>(null)
   const [replacing, setReplacing] = useState(false)
   const [excludedFiles, setExcludedFiles] = useState<Set<string>>(new Set())
+  const [mode, setMode] = useState<'grep' | 'smart'>(loadMode)
+  const [cgReady, setCgReady] = useState(false)
+  const [smartResults, setSmartResults] = useState<CodeSymbol[]>([])
+  const [smartRoots, setSmartRoots] = useState<Set<string>>(new Set())
+  const [smartConfidence, setSmartConfidence] = useState<'high' | 'low' | undefined>(undefined)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -156,6 +173,40 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
       inputRef.current.select()
     }
   }, [focusTrigger])
+
+  // Check if CodeGraph is initialized for this workspace
+  useEffect(() => {
+    if (!cwd) { setCgReady(false); return }
+    window.api.code.isInitialized(cwd).then(r => {
+      if (r.initialized && !r.error) {
+        window.api.code.setWorkspace(cwd).then(o => {
+          setCgReady(!o.error)
+        })
+      } else {
+        setCgReady(false)
+      }
+    }).catch(() => setCgReady(false))
+  }, [cwd])
+
+  // Smart mode search using findRelevantContext
+  const doSmartSearch = useCallback(async (q: string) => {
+    if (!q.trim() || !cwd) {
+      setSmartResults([]); setSmartRoots(new Set()); setSmartConfidence(undefined); return
+    }
+    setSearching(true); setError(null)
+    try {
+      const r = await window.api.code.findRelevantContext(q.trim(), { searchLimit: 10, traversalDepth: 2, maxNodes: 30 })
+      if (r.error) { setSmartResults([]); setSmartRoots(new Set()); setSmartConfidence(undefined); setError(r.error) }
+      else {
+        const rootSet = new Set(r.roots || [])
+        const sorted = (r.nodes || []).sort((a: any, b: any) =>
+          (rootSet.has(a.id) ? 0 : 1) - (rootSet.has(b.id) ? 0 : 1)
+        )
+        setSmartResults(sorted); setSmartRoots(rootSet); setSmartConfidence(r.confidence)
+      }
+    } catch { setSmartResults([]); setSmartRoots(new Set()); setSmartConfidence(undefined) }
+    setSearching(false)
+  }, [cwd])
 
   // Debounced search
   const doSearch = useCallback(async (q: string) => {
@@ -192,8 +243,11 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
   const handleQueryChange = useCallback((value: string) => {
     setQuery(value)
     if (searchTimer.current) clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(() => doSearch(value), 300)
-  }, [doSearch])
+    // Smart mode: only search on Enter, not on keystroke
+    if (mode === 'grep') {
+      searchTimer.current = setTimeout(() => doSearch(value), 300)
+    }
+  }, [doSearch, mode])
 
   // Re-search when options change
   useEffect(() => {
@@ -265,20 +319,37 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
             type="text"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder={t('Search in project...')}
-            className="w-full text-sm bg-ide-bg border border-ide-border rounded px-2 py-1.5 pr-8 text-ide-text focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50"
+            placeholder={mode === 'smart' ? t('描述后按 Enter 搜索...') : t('Search in project...')}
+            className={`w-full text-sm bg-ide-bg border border-ide-border rounded px-2 py-1.5 text-ide-text focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50 ${cgReady ? 'pr-16' : 'pr-8'}`}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') doSearch(query)
+              if (e.key === 'Enter') {
+                if (mode === 'smart') doSmartSearch(query)
+                else doSearch(query)
+              }
             }}
           />
           {searching && (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+            <div className={`absolute top-1/2 -translate-y-1/2 ${cgReady ? 'right-8' : 'right-2'}`}>
               <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin" />
             </div>
           )}
+          {cgReady && (
+            <button
+              onClick={() => {
+                if (mode === 'smart') { setMode('grep'); saveMode('grep'); setSmartResults([]); setSmartRoots(new Set()); setSmartConfidence(undefined) }
+                else { setMode('smart'); saveMode('smart') }
+              }}
+              className={`absolute right-2 top-1/2 -translate-y-1/2 shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${mode === 'smart' ? 'text-ide-accent bg-ide-accent/15' : 'text-ide-text-muted/30 hover:text-ide-text-muted/60'}`}
+              title={mode === 'smart' ? t('智能模式（点击切换为文本搜索）') : t('文本搜索（点击切换为智能模式）')}
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                <path d="M8 1a4.5 4.5 0 0 0-3 7.83V11a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8.83A4.5 4.5 0 0 0 8 1zM5.5 7.42A3 3 0 1 1 10.5 7.42l-.5.41V10H6V7.83l-.5-.41zM6 12h4v1H6z"/>
+              </svg>
+            </button>
+          )}
         </div>
 
-        {/* Options */}
+        {mode === 'grep' && (
         <div className="flex gap-2 mt-1.5 items-center">
           <label className="flex items-center gap-1 text-xs text-ide-text-muted cursor-pointer">
             <input
@@ -306,8 +377,9 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
             className="flex-1 text-xs bg-ide-bg border border-ide-border rounded px-1.5 py-0.5 text-ide-text-muted focus:border-ide-accent focus:outline-none"
           />
         </div>
+        )}
 
-        {/* Replace */}
+        {mode === 'grep' && (
         <div className="flex gap-2 mt-1.5 items-center">
           <input
             type="text"
@@ -333,6 +405,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
             )}
           </button>
         </div>
+        )}
       </div>
 
       {/* Replace confirmation modal */}
@@ -368,19 +441,65 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
           </div>
         )}
 
-        {query && !searching && results.length === 0 && !error && (
+        {mode === 'grep' && query && !searching && results.length === 0 && !error && (
           <div className="px-3 py-4 text-sm text-ide-text-muted text-center">
             {t('No results found')}
           </div>
         )}
 
-        {!query && (
+        {mode === 'smart' && query && !searching && smartResults.length === 0 && !error && (
+          <div className="px-3 py-4 text-sm text-ide-text-muted text-center">
+            {t('未找到相关上下文')}
+          </div>
+        )}
+
+        {mode === 'grep' && !query && (
           <div className="px-3 py-4 text-sm text-ide-text-muted text-center">
             {t('Type to search files by content')}
           </div>
         )}
 
-        {results.length > 0 && (() => {
+        {mode === 'smart' && !query && (
+          <div className="px-3 py-4 text-sm text-ide-text-muted text-center">
+            {t('描述后按 Enter 搜索')}
+          </div>
+        )}
+
+        {/* Smart mode results */}
+        {mode === 'smart' && smartResults.length > 0 && query.trim() && (() => {
+          return (
+            <>
+              <div className="px-3 py-1.5 text-xs text-ide-text-muted border-b border-ide-border bg-ide-hover/30 flex items-center justify-between">
+                <span>{smartResults.length} {t('symbols')}</span>
+                {smartConfidence === 'high' && <span className="text-ide-accent/70">{t('高置信度')}</span>}
+                {smartConfidence === 'low' && <span className="text-ide-warning">{t('低置信度')}</span>}
+              </div>
+              {smartResults.map((node, i) => {
+                const isRoot = smartRoots.has(node.id)
+                return (
+                  <div key={node.id || i}
+                    className="px-3 py-1.5 text-sm cursor-pointer hover:bg-ide-hover transition-colors flex items-center gap-2"
+                    onClick={() => {
+                      const cwdVal = cwd || ''
+                      const sep = cwdVal.includes('\\') ? '\\' : '/'
+                      const absPath = node.filePath.startsWith('/') || node.filePath.includes(':')
+                        ? node.filePath
+                        : cwdVal + sep + node.filePath.replace(/\//g, sep)
+                      onOpenFile(absPath, node.line)
+                    }}>
+                    <span className="text-[10px] font-bold uppercase w-10 shrink-0" style={{ color: getKindColor(node.kind) }}>{node.kind.slice(0, 2)}</span>
+                    <span className="text-ide-text truncate">{node.name}</span>
+                    {isRoot && <span className="text-[9px] px-1 py-px rounded bg-ide-accent/10 text-ide-accent/70 shrink-0">root</span>}
+                    <span className="text-xs text-ide-text-muted/40 truncate ml-auto">{node.filePath.replace(/^.*[/\\]/, '')}:{node.line}</span>
+                  </div>
+                )
+              })}
+            </>
+          )
+        })()}
+
+        {/* Grep mode results */}
+        {mode === 'grep' && results.length > 0 && (() => {
           const allFiles = Object.keys(groupedResults)
           const allCollapsed = allFiles.length > 0 && allFiles.every(f => collapsedFiles.has(f))
           const handleCollapseAll = () => setCollapsedFiles(new Set(allFiles))
