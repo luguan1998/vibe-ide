@@ -9,12 +9,13 @@ const KIND_COLORS: Record<string, string> = {
 }
 function getKindColor(kind: string): string { return KIND_COLORS[kind] || '#888' }
 
-const recentCache: CodeSymbol[] = []
+interface RecentEntry { node: CodeSymbol; workspace: string }
+const recentCache: RecentEntry[] = []
 
-function addRecent(node: CodeSymbol) {
-  const idx = recentCache.findIndex(n => n.id === node.id)
+function addRecent(node: CodeSymbol, workspace: string) {
+  const idx = recentCache.findIndex(n => n.node.id === node.id)
   if (idx >= 0) recentCache.splice(idx, 1)
-  recentCache.unshift(node)
+  recentCache.unshift({ node, workspace })
   if (recentCache.length > 10) recentCache.length = 10
 }
 
@@ -51,7 +52,8 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
   const [filters, setFilters] = useState<string[]>(loadFilters)
   const [showFilters, setShowFilters] = useState(false)
   const [filterText, setFilterText] = useState('')
-  const [recentNodes, setRecentNodes] = useState<CodeSymbol[]>(() => recentCache.filter(Boolean))
+  const [activated, setActivated] = useState(false)
+  const [recentNodes, setRecentNodes] = useState<RecentEntry[]>(() => [])
   const inputRef = useRef<HTMLInputElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingPathRef = useRef<string | null>(null)
@@ -66,6 +68,8 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
     setError(null)
     setProgress(null)
     setStats(null)
+    setActivated(false)
+    setRecentNodes(recentCache.filter(e => e.workspace === workspacePath))
 
     const init = async () => {
       const target = workspacePath
@@ -108,12 +112,14 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
     return () => clearInterval(id)
   }, [status])
 
-  // Focus triggered externally (e.g. Alt+K shortcut)
+  // Focus triggered externally (e.g. Alt+K shortcut) → activate and show recent
   useEffect(() => {
     if (focusTrigger !== undefined && focusTrigger > 0) {
+      setActivated(true)
+      if (workspacePath) setRecentNodes(recentCache.filter(e => e.workspace === workspacePath))
       requestAnimationFrame(() => inputRef.current?.focus())
     }
-  }, [focusTrigger])
+  }, [focusTrigger, workspacePath])
 
   // Progress listener during init
   const handleInit = useCallback(async () => {
@@ -172,7 +178,13 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
               <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
             </svg>
             <input ref={inputRef} type="text" value={query} onChange={e => handleChange(e.target.value)}
-              onFocus={() => onActivated?.()}
+              onFocus={() => {
+                  if (!activated) {
+                    setActivated(true)
+                    if (workspacePath) setRecentNodes(recentCache.filter(e => e.workspace === workspacePath))
+                  }
+                  onActivated?.()
+                }}
               placeholder={status === 'not-initialized' ? 'Not initialized — click Init' : status === 'indexing' ? 'Indexing...' : status === 'loading' ? 'Loading...' : 'Search symbols...'}
               className={`flex-1 bg-transparent text-sm outline-none focus:outline-none ring-0 focus:ring-0 placeholder:text-ide-text-muted/30 ${status !== 'ready' ? 'text-ide-text-muted/40' : 'text-ide-text'}`} />
             {searching && <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin shrink-0" />}
@@ -221,17 +233,17 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
             </div>
           )}
 
-          {/* Recent nodes (when input empty) */}
-          {recentNodes.length > 0 && !query.trim() && (
+          {/* Recent nodes (when input empty and activated) */}
+          {activated && recentNodes.length > 0 && !query.trim() && (
             <div className="border-t border-ide-border max-h-64 overflow-y-auto">
               <div className="px-3 py-1 text-[10px] text-ide-text-muted/40">Recent</div>
-              {recentNodes.map((node, i) => (
-                <div key={node.id || i}
+              {recentNodes.map((entry, i) => (
+                <div key={entry.node.id || i}
                   className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-ide-hover transition-colors"
-                  onClick={() => { addRecent(node); setRecentNodes([...recentCache]); onSelectNode(node); onClose() }}>
-                  <span className="text-[10px] font-bold uppercase w-12 shrink-0" style={{ color: getKindColor(node.kind) }}>{node.kind}</span>
-                  <span className="text-sm text-ide-text truncate">{node.name}</span>
-                  <span className="text-[10px] text-ide-text-muted/40 truncate ml-auto">{node.filePath.replace(/^.*[/\\]/, '')}:{node.line}</span>
+                  onClick={() => { addRecent(entry.node, entry.workspace); setRecentNodes(recentCache.filter(e => e.workspace === workspacePath)); onSelectNode(entry.node); onClose() }}>
+                  <span className="text-[10px] font-bold uppercase w-12 shrink-0" style={{ color: getKindColor(entry.node.kind) }}>{entry.node.kind}</span>
+                  <span className="text-sm text-ide-text truncate">{entry.node.name}</span>
+                  <span className="text-[10px] text-ide-text-muted/40 truncate ml-auto">{entry.node.filePath.replace(/^.*[/\\]/, '')}:{entry.node.line}</span>
                 </div>
               ))}
             </div>
@@ -243,7 +255,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
               {results.map((node, i) => (
                 <div key={node.id || i}
                   className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-ide-hover transition-colors"
-                  onClick={() => { addRecent(node); setRecentNodes([...recentCache]); onSelectNode(node); onClose() }}>
+                  onClick={() => { addRecent(node, workspacePath || ''); setRecentNodes(recentCache.filter(e => e.workspace === workspacePath)); onSelectNode(node); onClose() }}>
                   <span className="text-[10px] font-bold uppercase w-12 shrink-0" style={{ color: getKindColor(node.kind) }}>{node.kind}</span>
                   <span className="text-sm text-ide-text truncate">{node.name}</span>
                   <span className="text-[10px] text-ide-text-muted/40 truncate ml-auto">{node.filePath.replace(/^.*[/\\]/, '')}:{node.line}</span>
