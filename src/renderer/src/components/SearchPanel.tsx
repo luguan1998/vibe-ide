@@ -18,6 +18,7 @@ interface SearchPanelProps {
   cwd: string | null
   onOpenFile: (fullPath: string, lineNumber?: number) => void
   focusTrigger?: number
+  onExploreNode?: (node: CodeSymbol) => void
 }
 
 function trimToMatch(content: string, column: number): { text: string; head: boolean; tail: boolean } {
@@ -134,7 +135,7 @@ function ReplaceConfirmModal({ query, replacement, total, uniqueFiles, onConfirm
   )
 }
 
-export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPanelProps) {
+export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNode }: SearchPanelProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<GrepMatch[]>([])
   const [total, setTotal] = useState(0)
@@ -156,8 +157,22 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
   const [smartResults, setSmartResults] = useState<CodeSymbol[]>([])
   const [smartRoots, setSmartRoots] = useState<Set<string>>(new Set())
   const [smartConfidence, setSmartConfidence] = useState<'high' | 'low' | undefined>(undefined)
+  const [smartCtxMenu, setSmartCtxMenu] = useState<{ x: number; y: number; node: CodeSymbol } | null>(null)
+  const smartCtxMenuRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Smart context menu dismiss
+  useEffect(() => {
+    if (!smartCtxMenu) return
+    const mm = (e: MouseEvent) => {
+      if (smartCtxMenuRef.current && !smartCtxMenuRef.current.contains(e.target as Node)) setSmartCtxMenu(null)
+    }
+    const timer = setTimeout(() => document.addEventListener('mousedown', mm), 0)
+    const kh = (e: KeyboardEvent) => { if (e.key === 'Escape') setSmartCtxMenu(null) }
+    window.addEventListener('keydown', kh)
+    return () => { clearTimeout(timer); document.removeEventListener('mousedown', mm); window.removeEventListener('keydown', kh) }
+  }, [smartCtxMenu])
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -486,6 +501,11 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
                         ? node.filePath
                         : cwdVal + sep + node.filePath.replace(/\//g, sep)
                       onOpenFile(absPath, node.line)
+                    }}
+                    onContextMenu={(e) => {
+                      if (!onExploreNode) return
+                      e.preventDefault()
+                      setSmartCtxMenu({ x: e.clientX, y: e.clientY, node })
                     }}>
                     <span className="text-[10px] font-bold uppercase w-10 shrink-0" style={{ color: getKindColor(node.kind) }}>{node.kind.slice(0, 2)}</span>
                     <span className="text-ide-text truncate">{node.name}</span>
@@ -494,6 +514,20 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger }: SearchPan
                   </div>
                 )
               })}
+              {smartCtxMenu && (
+                <div ref={smartCtxMenuRef}
+                  style={{ position: 'fixed', left: Math.min(smartCtxMenu.x, window.innerWidth - 160), top: Math.min(smartCtxMenu.y, window.innerHeight - 50), zIndex: 100 }}
+                  className="bg-ide-sidebar border border-ide-border rounded-md shadow-2xl py-1 min-w-[120px]">
+                  <button
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-accent hover:bg-ide-hover transition-colors"
+                    onClick={() => { onExploreNode?.(smartCtxMenu.node); setSmartCtxMenu(null) }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 shrink-0">
+                      <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+                    </svg>
+                    {t('展开')}
+                  </button>
+                </div>
+              )}
             </>
           )
         })()}

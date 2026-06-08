@@ -29,6 +29,7 @@ interface RightPanelProps {
   onToggleCapsuleTabs?: () => void
   navigateToFilePayload?: { trigger: number; filePath: string } | null
   onNavigateToFile?: (filePath: string) => void
+  onExploreNode?: (node: any) => void
 }
 
 type GitSection = 'git' | 'terminal' | 'search' | 'file'
@@ -380,6 +381,7 @@ function RightPanel({
   capsuleTabs = true,
   onToggleCapsuleTabs,
   navigateToFilePayload, onNavigateToFile,
+  onExploreNode,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -577,6 +579,7 @@ function RightPanel({
             }
           }}
           focusTrigger={searchFocusTrigger}
+          onExploreNode={onExploreNode}
         />
       </div>
 

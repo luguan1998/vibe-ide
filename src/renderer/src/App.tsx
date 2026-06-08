@@ -1337,6 +1337,7 @@ export default function App() {
             searchFocusTrigger={searchFocusTrigger}
             navigateToFilePayload={navigateToFilePayload}
             onNavigateToFile={handleNavigateToFile}
+            onExploreNode={(node) => setCallGraphFocalNode(node)}
 
             fileTreeDepth={fileTreeDepth}
             onDiffScroll={handleDiffScroll}
