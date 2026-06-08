@@ -289,7 +289,7 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
       style={{ pointerEvents: rightPanning ? 'auto' : 'none', cursor: rightPanning ? 'grabbing' : 'default' }}>
       <div className="relative flex flex-col" style={{ width: '100vw', height: '100vh' }}>
-        <button onClick={onClose} style={{ pointerEvents: 'auto' }} className="absolute top-3 right-3 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/30 text-ide-text-muted/50 hover:text-ide-text hover:bg-black/50 transition-colors">
+        <button onClick={onClose} style={{ pointerEvents: 'auto' }} className="absolute top-11 right-3 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/30 text-ide-text-muted/50 hover:text-ide-text hover:bg-black/50 transition-colors">
           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
         </button>
         <div className="flex-1 overflow-hidden">
