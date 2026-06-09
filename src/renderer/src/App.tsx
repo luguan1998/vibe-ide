@@ -957,6 +957,8 @@ export default function App() {
   // Close a terminal session
   const handleCloseSession = useCallback(async (id: string) => {
     await window.api.terminal.close(id)
+    // 清理 terminalRefs 中已关闭 session 的 handle 引用
+    delete terminalRefs.current[id]
     setSessions(prev => prev.filter(s => s.id !== id))
     // 清理该 session 的命令历史和 agent 状态
     setCommandHistory(prev => {
