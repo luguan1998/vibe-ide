@@ -687,6 +687,41 @@ export default function App() {
         }
       }
 
+      // view.togglePreview — Ctrl+L: toggle diff/edit ↔ markdown preview
+      if (eventMatchesBinding(e, bindings['view.togglePreview'])) {
+        if (centerView === 'markdown' && markdownFile) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          const fp = markdownFile.fullPath
+          let filePath = fp
+          if (activeSessionCwd && fp.startsWith(activeSessionCwd)) {
+            filePath = fp.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
+          }
+          setDiffFile({
+            filePath,
+            fullPath: fp,
+            diffContent: '',
+            isStaged: false,
+            defaultEdit: true,
+            revision: ++diffRevisionRef.current
+          })
+          setCenterView('diff')
+          setMarkdownFile(null)
+          return
+        } else if (centerView === 'diff' && diffFile) {
+          const ext = diffFile.filePath.split('.').pop()?.toLowerCase() || diffFile.fullPath.split('.').pop()?.toLowerCase() || ''
+          if (['md', 'mdx', 'markdown'].includes(ext)) {
+            e.preventDefault()
+            e.stopImmediatePropagation()
+            const fileName = diffFile.fullPath.replace(/[\\/]/g, '/').split('/').pop() || diffFile.filePath
+            setMarkdownFile({ fullPath: diffFile.fullPath, fileName })
+            setCenterView('markdown')
+            setDiffFile(null)
+            return
+          }
+        }
+      }
+
       // navigate.back / navigate.forward — show nav bar (commit on Alt release)
       if (!navBarVisibleRef.current && navHistoryRef.current.length > 0) {
         const isBack = eventMatchesBinding(e, bindings['navigate.back'])

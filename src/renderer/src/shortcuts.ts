@@ -61,6 +61,7 @@ const CODE_TO_LABEL: Record<string, string> = {
   Digit7: '7',
   Digit8: '8',
   Digit9: '9',
+  KeyL: 'L',
 }
 
 const LABEL_TO_CODE: Record<string, string> = Object.fromEntries(
@@ -220,6 +221,11 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     label: 'Close Diff / Back',
     defaultKeys: 'Escape',
     readonly: true,
+  },
+  {
+    id: 'view.togglePreview',
+    label: 'Toggle Preview / Edit',
+    defaultKeys: 'Ctrl+KeyL',
   },
 ]
 
