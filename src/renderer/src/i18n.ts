@@ -215,6 +215,7 @@ const ZH_MAP: Record<string, string> = {
   'Not initialized — click Init': '未初始化 — 点击 Init',
   'Indexing...': '正在索引...',
   'Loading...': '加载中...',
+  'No outline': '无大纲',
   'Search symbols...': '搜索符号...',
   'No symbols found': '未找到符号',
   'symbols': '个符号',

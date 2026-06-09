@@ -8,6 +8,19 @@ interface MarkdownPreviewProps {
   fullPath: string
   fileName: string
   onBack?: () => void
+  scrollToHeading?: string
+}
+
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9一-鿿]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function extractText(children: React.ReactNode): string {
+  if (typeof children === 'string') return children
+  if (typeof children === 'number') return String(children)
+  if (Array.isArray(children)) return children.map(extractText).join('')
+  if (React.isValidElement(children) && children.props.children) return extractText(children.props.children)
+  return ''
 }
 
 function resolveImagePath(src: string, mdFullPath: string): string | null {
@@ -29,7 +42,8 @@ function resolveImagePath(src: string, mdFullPath: string): string | null {
 const MarkdownPreview = React.memo(function MarkdownPreview({
   fullPath,
   fileName,
-  onBack
+  onBack,
+  scrollToHeading
 }: MarkdownPreviewProps) {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
@@ -48,6 +62,14 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
       window.open(href, '_blank')
     }
   }, [])
+
+  // Scroll to heading when outline triggers navigation
+  useEffect(() => {
+    if (!scrollToHeading || !contentRef.current) return
+    const id = slugify(scrollToHeading)
+    const el = contentRef.current.querySelector(`[id="${id}"]`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [scrollToHeading])
 
   useEffect(() => {
     let cancelled = false
@@ -135,6 +157,12 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
           <div className="md-preview max-w-4xl mx-auto" ref={contentRef}>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
               ...getMarkdownCodeOverrides(),
+              h1: ({ children }) => { const text = extractText(children); return <h1 id={slugify(text)}>{children}</h1> },
+              h2: ({ children }) => { const text = extractText(children); return <h2 id={slugify(text)}>{children}</h2> },
+              h3: ({ children }) => { const text = extractText(children); return <h3 id={slugify(text)}>{children}</h3> },
+              h4: ({ children }) => { const text = extractText(children); return <h4 id={slugify(text)}>{children}</h4> },
+              h5: ({ children }) => { const text = extractText(children); return <h5 id={slugify(text)}>{children}</h5> },
+              h6: ({ children }) => { const text = extractText(children); return <h6 id={slugify(text)}>{children}</h6> },
               a: ({ href, children, ...props }) => <a href={href} onClick={handleLinkClick} {...props}>{children}</a>,
               img: ({ src, alt, ...props }) => {
                 const [imgSrc, setImgSrc] = useState(src)

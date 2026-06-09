@@ -93,6 +93,7 @@ function saveCustomCommands(cmds: CustomCommand[]): void {
 interface SessionPanelProps {
   sessions: TerminalSession[]
   activeSessionId: string | null
+  compact?: boolean
   onCreateSession: (shell?: string) => void
   onCloneSession: (parentId: string | null, cwd: string, shell?: string, name?: string) => void
   onSwitchSession: (id: string) => void
@@ -126,6 +127,7 @@ interface SessionPanelProps {
 const SessionPanel = React.memo(function SessionPanel({
   sessions,
   activeSessionId,
+  compact,
   onCreateSession,
   onCloneSession,
   onSwitchSession,
@@ -400,7 +402,7 @@ const SessionPanel = React.memo(function SessionPanel({
   }, [sessions, agentStatus])
 
   return (
-    <div className="flex flex-col h-full">
+    <div className={`flex flex-col${compact ? '' : ' h-full'}`}>
       {/* Header + Dashboard merged */}
       <div className="h-10 px-3 flex items-center justify-between border-b border-ide-border shrink-0">
         <div className="flex items-center gap-1.5">

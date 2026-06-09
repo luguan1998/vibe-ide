@@ -1,20 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import dagre from 'dagre'
 import { CodeSymbol } from '@shared/types'
+import { getKindColorHex } from '../utils/kindColors'
 
-const KIND_COLORS: Record<string, string> = {
-  function: '#facc15', method: '#facc15',
-  class: '#60a5fa', interface: '#4ade80',
-  variable: '#c084fc', constant: '#fb923c',
-  type: '#2dd4bf', component: '#f472b6',
-}
 const NODE_W = 180
 const NODE_H = 30
 const RANK_SEP = 30
 const NODE_SEP = 8
 const MONACO_FONT = "'Cascadia Code', 'Fira Code', 'Cascadia Mono', Consolas, 'Courier New', monospace"
-
-function getKindColor(kind: string): string { return KIND_COLORS[kind] || '#888' }
 
 function kindIconPaths(kind: string, color: string) {
   const t: Record<string, React.ReactNode> = {
@@ -310,7 +303,7 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
             {Array.from(displayNodes.values()).map(gn => {
               const isFocal = gn.id === focalNode.id
               const p = getPos(gn)
-              const color = getKindColor(gn.kind)
+              const color = getKindColorHex(gn.kind)
               const name = gn.name.length > 20 ? gn.name.slice(0, 18) + '…' : gn.name
               const loading = loadingNodes.has(gn.id)
               const canLeft = true

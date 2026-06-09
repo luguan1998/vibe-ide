@@ -215,11 +215,16 @@ export function registerCodeGraphHandlers(): void {
     return { cancelled: true }
   })
 
-  ipcMain.handle(IPC_CHANNELS.CODE_SEARCH_NODES, async (_event, query: string, opts?: { limit?: number; kinds?: string[]; excludePatterns?: string[] }) => {
+  ipcMain.handle(IPC_CHANNELS.CODE_SEARCH_NODES, async (_event, query: string, opts?: { limit?: number; kinds?: string[]; excludePatterns?: string[]; filePath?: string }) => {
     if (!cg) return { error: 'CodeGraph not initialized', nodes: [], total: 0 }
     try {
-      const results = cg.searchNodes(query, opts)
-      const nodes = (results || []).slice(0, opts?.limit || 200).map((r: any) => normalizeNode(r.node || r))
+      const searchOpts = { ...opts }
+      if (opts?.filePath) delete searchOpts.filePath
+      const results = cg.searchNodes(query, searchOpts)
+      let nodes = (results || []).slice(0, opts?.limit || 200).map((r: any) => normalizeNode(r.node || r))
+      if (opts?.filePath) {
+        nodes = nodes.filter(n => n.filePath === opts.filePath)
+      }
       return { nodes, total: nodes.length }
     } catch (err: any) {
       return { error: err.message, nodes: [], total: 0 }

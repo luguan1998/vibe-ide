@@ -5,6 +5,7 @@ import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
 import MarkdownPreview from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
+import OutlinePanel from './components/OutlinePanel'
 import NavBar from './components/NavBar'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
@@ -103,7 +104,7 @@ declare global {
         setWorkspace: (root: string) => Promise<{ success: boolean; error?: string }>
         isInitialized: (root: string) => Promise<{ initialized: boolean; error?: string }>
         init: (root: string) => Promise<{ success: boolean; error?: string }>
-        searchNodes: (query: string, opts?: { limit?: number; kinds?: string[] }) => Promise<{ nodes: import('@shared/types').CodeSymbol[]; total: number; error?: string }>
+        searchNodes: (query: string, opts?: { limit?: number; kinds?: string[]; filePath?: string }) => Promise<{ nodes: import('@shared/types').CodeSymbol[]; total: number; error?: string }>
         getCallers: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
         getCallees: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
         getCallGraph: (id: string, depth?: number) => Promise<{ nodes: any[]; edges: any[]; error?: string }>
@@ -1054,6 +1055,21 @@ export default function App() {
     setGitRefreshKey(k => k + 1)
   }, [])
 
+  const handleOutlineNavigate = useCallback((line: number, headingName?: string) => {
+    if (centerView === 'diff' && diffFile) {
+      setDiffFile(prev => prev ? { ...prev, lineNumber: line } : prev)
+      setOutlineScrollTrigger(prev => prev + 1) // force lineNumber effect re-fire
+    }
+    if (centerView === 'markdown' && headingName) {
+      setMdScrollHeading(headingName)
+    }
+  }, [centerView, diffFile])
+
+  const [mdScrollHeading, setMdScrollHeading] = useState<string | undefined>(undefined)
+  const [outlineScrollTrigger, setOutlineScrollTrigger] = useState(0)
+
+  const showOutline = (centerView === 'diff' && diffFile) || (centerView === 'markdown' && markdownFile)
+
   // 处理从中间终端点击文件路径打开文件
   const handleOpenFileFromTerminal = useCallback(async (fullPath: string, lineNumber?: number) => {
     pushNavHistory()
@@ -1250,12 +1266,15 @@ export default function App() {
 
       {/* Main Content - 3 Panels */}
       <div className="flex flex-1 overflow-hidden" style={{ cursor: isDragging ? 'col-resize' : 'default' }}>
-        {/* Left Panel: Terminal Session Management */}
+        {/* Left Panel: Session + Outline */}
         <div className="shrink-0 flex flex-col bg-ide-sidebar border-r border-ide-border" style={{ width: leftPanelWidth }}>
-          <SessionPanel
-            sessions={sessions}
-            activeSessionId={activeSessionId}
-            onCreateSession={handleCreateSession}
+          {/* SessionPanel wrapper: constrained height when outline present */}
+          <div className={showOutline ? 'shrink-0 overflow-y-auto' : 'flex-1 overflow-hidden'} style={showOutline ? { maxHeight: '40%' } : undefined}>
+            <SessionPanel
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              compact={showOutline}
+              onCreateSession={handleCreateSession}
             onCloneSession={handleCloneSession}
             onSwitchSession={handleSwitchSession}
             onCloseSession={handleCloseSession}
@@ -1284,6 +1303,28 @@ export default function App() {
             focusSettingsTrigger={focusSettingsTrigger}
             onExecuteCommand={handleExecuteCommand}
           />
+          </div>
+          {/* Outline: show when center is viewing a file */}
+          {centerView === 'diff' && diffFile && (
+            <div className="border-t border-ide-border flex-1 overflow-hidden min-h-0">
+              <OutlinePanel
+                key={diffFile.fullPath}
+                filePath={diffFile.filePath}
+                fullPath={diffFile.fullPath}
+                onNavigate={handleOutlineNavigate}
+              />
+            </div>
+          )}
+          {centerView === 'markdown' && markdownFile && (
+            <div className="border-t border-ide-border flex-1 overflow-hidden min-h-0">
+              <OutlinePanel
+                key={markdownFile.fullPath}
+                filePath={markdownFile.fileName}
+                fullPath={markdownFile.fullPath}
+                onNavigate={handleOutlineNavigate}
+              />
+            </div>
+          )}
         </div>
 
         {/* Left Panel Resize Handle */}
@@ -1329,6 +1370,7 @@ export default function App() {
                 fullPath={markdownFile.fullPath}
                 fileName={markdownFile.fileName}
                 onBack={handleBackFromMarkdown}
+                scrollToHeading={mdScrollHeading}
               />
             </div>
           )}

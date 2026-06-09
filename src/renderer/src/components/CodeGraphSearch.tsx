@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { CodeSymbol } from '@shared/types'
 import { useI18n } from '../i18n'
+import { getKindStyle } from '../utils/kindColors'
 
 const AGENT_TARGETS = [
   { id: 'claude', label: 'Claude Code' },
@@ -11,14 +12,6 @@ const AGENT_TARGETS = [
   { id: 'gemini', label: 'Gemini CLI' },
   { id: 'kiro', label: 'Kiro' },
 ] as const
-
-const KIND_COLORS: Record<string, string> = {
-  function: '#facc15', method: '#facc15',
-  class: '#60a5fa', interface: '#4ade80',
-  variable: '#c084fc', constant: '#fb923c',
-  type: '#2dd4bf', component: '#f472b6',
-}
-function getKindColor(kind: string): string { return KIND_COLORS[kind] || '#888' }
 
 const KIND_OPTIONS = [
   { kind: 'function', label: 'Fn' },
@@ -368,8 +361,8 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
                     saveKinds(next)
                   }}
                   className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${active ? 'text-ide-text font-bold' : 'text-ide-text-muted/30 hover:text-ide-text-muted/60'}`}
-                  style={{ backgroundColor: active ? getKindColor(o.kind) + '20' : 'transparent' }}>
-                  <span style={{ color: active ? getKindColor(o.kind) : undefined }}>{o.label}</span>
+                  style={{ backgroundColor: active ? getKindStyle(o.kind).backgroundColor : 'transparent' }}>
+                  <span style={{ color: active ? getKindStyle(o.kind).color : undefined }}>{o.label}</span>
                 </button>
               )
             })}
@@ -457,7 +450,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
                 <div key={entry.node.id || i} data-idx={i}
                   className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-ide-hover transition-colors ${selectedIndex === i ? 'bg-ide-hover' : ''}`}
                   onClick={() => { addRecent(entry.node, entry.workspace); setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind))); onSelectNode(entry.node); onClose() }}>
-                  <span className="text-[10px] font-bold uppercase w-12 shrink-0" style={{ color: getKindColor(entry.node.kind) }}>{entry.node.kind}</span>
+                  <span className="text-[10px] font-bold uppercase w-12 shrink-0" style={{ color: getKindStyle(entry.node.kind).color }}>{entry.node.kind}</span>
                   <span className="text-sm text-ide-text truncate">{entry.node.name}</span>
                   <span className="text-[10px] text-ide-text-muted/40 truncate ml-auto">{entry.node.filePath.replace(/^.*[/\\]/, '')}:{entry.node.line}</span>
                 </div>
@@ -472,7 +465,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
                 <div key={node.id || i} data-idx={i}
                   className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-ide-hover transition-colors ${selectedIndex === i ? 'bg-ide-hover' : ''}`}
                   onClick={() => { addRecent(node, workspacePath || ''); setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind))); onSelectNode(node); onClose() }}>
-                  <span className="text-[10px] font-bold uppercase w-12 shrink-0" style={{ color: getKindColor(node.kind) }}>{node.kind}</span>
+                  <span className="text-[10px] font-bold uppercase w-12 shrink-0" style={{ color: getKindStyle(node.kind).color }}>{node.kind}</span>
                   <span className="text-sm text-ide-text truncate">{node.name}</span>
                   <span className="text-[10px] text-ide-text-muted/40 truncate ml-auto">{node.filePath.replace(/^.*[/\\]/, '')}:{node.line}</span>
                 </div>

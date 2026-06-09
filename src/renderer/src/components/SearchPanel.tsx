@@ -1,14 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { GrepMatch, CodeSymbol } from '@shared/types'
 import { useI18n } from '../i18n'
-
-const KIND_COLORS: Record<string, string> = {
-  function: '#facc15', method: '#facc15',
-  class: '#60a5fa', interface: '#4ade80',
-  variable: '#c084fc', constant: '#fb923c',
-  type: '#2dd4bf', component: '#f472b6',
-}
-function getKindColor(kind: string): string { return KIND_COLORS[kind] || '#888' }
+import { getKindStyle } from '../utils/kindColors'
 
 const MODE_KEY = 'vibe-ide-search-mode'
 function loadMode(): 'grep' | 'smart' { try { return (localStorage.getItem(MODE_KEY) || 'grep') as 'grep' | 'smart' } catch { return 'grep' } }
@@ -507,7 +500,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
                       e.preventDefault()
                       setSmartCtxMenu({ x: e.clientX, y: e.clientY, node })
                     }}>
-                    <span className="text-[10px] font-bold uppercase w-10 shrink-0" style={{ color: getKindColor(node.kind) }}>{node.kind.slice(0, 2)}</span>
+                    <span className="text-[10px] font-bold uppercase w-10 shrink-0" style={{ color: getKindStyle(node.kind).color }}>{node.kind.slice(0, 2)}</span>
                     <span className="text-ide-text truncate">{node.name}</span>
                     {isRoot && <span className="text-[9px] px-1 py-px rounded bg-ide-accent/10 text-ide-accent/70 shrink-0">root</span>}
                     <span className="text-xs text-ide-text-muted/40 truncate ml-auto">{node.filePath.replace(/^.*[/\\]/, '')}:{node.line}</span>
