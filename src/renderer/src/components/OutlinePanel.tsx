@@ -51,7 +51,7 @@ function getLanguageId(filePath: string): string {
 
 function parseMarkdownOutline(content: string): OutlineItem[] {
   const headings: OutlineItem[] = []
-  const lines = content.split('\n')
+  const lines = content.split(/\r?\n/)
   let inFenced = false      // inside ``` or ~~~ block
   let fenceChar = ''        // ` or ~
   let fenceLen = 0          // opening fence length (3+)
@@ -115,7 +115,7 @@ const BLOCK_KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'return', 'throw
 
 function parseCodeOutline(content: string, lang: string): OutlineItem[] {
   const items: OutlineItem[] = []
-  const lines = content.split('\n')
+  const lines = content.split(/\r?\n/)
 
   let currentClass: OutlineItem | null = null
 
