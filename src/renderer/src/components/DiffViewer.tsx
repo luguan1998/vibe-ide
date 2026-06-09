@@ -6,6 +6,7 @@ import { ENCODING_GROUPS, DEFAULT_ENCODING } from '@shared/encodings'
 import { useI18n } from '../i18n'
 import { registerJSXSupport } from '../languages/jsx-tokens'
 import { registerPythonSupport } from '../languages/python-tokens'
+import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 
 interface DiffViewerProps {
   filePath: string          // 相对路径（用于 git 操作）
@@ -94,10 +95,13 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   const lastSep = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
   const dirPart = lastSep >= 0 ? filePath.substring(0, lastSep + 1) : ''
   const namePart = lastSep >= 0 ? filePath.substring(lastSep + 1) : filePath
+  const info = getFileInfo(namePart)
   return (
-    <span className="truncate">
-      {dirPart && <span className="text-ide-text-muted/50">{dirPart}</span>}
+    <span className="truncate flex items-center gap-1.5">
+      <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
+        dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
       <span className="text-ide-text font-medium">{namePart}</span>
+      {dirPart && <span className="text-[11px] text-ide-text-muted/50">{dirPart}</span>}
     </span>
   )
 }

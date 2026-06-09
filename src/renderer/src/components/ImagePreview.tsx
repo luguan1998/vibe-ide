@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 
 interface ImagePreviewProps {
   fullPath: string
@@ -55,7 +56,7 @@ const ImagePreview = React.memo(function ImagePreview({
       return (
         <div className="flex flex-col h-full animate-fade-in">
           <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0">
-            <div className="flex items-center text-sm min-w-0">
+            <div className="flex items-center gap-1.5 text-sm min-w-0">
               {onBack && (
                 <button
                   onClick={onBack}
@@ -67,8 +68,8 @@ const ImagePreview = React.memo(function ImagePreview({
                   </svg>
                 </button>
               )}
-              {dirPart && <span className="text-ide-text-muted/50">{dirPart}</span>}
-              <span className="text-ide-text font-medium">{namePart}</span>
+              {(() => { const info = getFileInfo(namePart); return <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`} dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />; })()}
+              <span className="text-ide-text font-medium">{namePart}</span>{dirPart && <span className="text-[11px] text-ide-text-muted/50"> {dirPart}</span>}
             </div>
             <div className="flex items-center rounded-md bg-ide-hover overflow-hidden shrink-0">
               <span className="px-2.5 py-1 text-xs bg-ide-accent/15 text-ide-accent">View</span>
