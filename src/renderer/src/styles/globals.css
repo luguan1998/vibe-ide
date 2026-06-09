@@ -284,10 +284,10 @@ html, body, #root {
 }
 .md-code-block code { background: none; padding: 0; border: none; border-radius: 0; font-size: inherit; color: rgb(var(--ide-text)); }
 .md-code-lang {
-  position: absolute; top: 0; right: 0; z-index: 1;
-  padding: 2px 8px; font-size: 11px; line-height: 1;
-  background-color: rgba(var(--ide-accent), 0.15);
-  color: rgb(var(--ide-accent)); border-radius: 0 6px 0 4px;
+  position: absolute; top: 8px; right: 8px; z-index: 1;
+  padding: 2px 10px; font-size: 11px; line-height: 1.4;
+  background-color: rgb(var(--ide-accent) / 0.2);
+  color: rgb(var(--ide-accent)); border-radius: 10px;
   font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 }
 .md-preview code {
