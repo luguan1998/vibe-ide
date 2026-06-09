@@ -942,7 +942,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
         {/* Terminal search bar — VSCode-style */}
         {searchState?.visible && (
-          <div className="absolute top-2 right-3 flex items-center border border-ide-border rounded shadow-md z-10"
+          <div className="absolute top-2 right-3 flex items-center border border-ide-border/60 rounded shadow-md z-10"
             style={{ backgroundColor: currentTheme.terminal.background }}>
             <div className="flex items-center gap-1 px-2 py-0.5">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 text-ide-text-muted/50 shrink-0">
@@ -954,7 +954,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
                   if (e.key === 'Enter') { e.preventDefault(); if (e.shiftKey) searchAddonRef.current?.findPrevious(searchState.query, { decorations: searchDecoRef.current }); else searchAddonRef.current?.findNext(searchState.query, { decorations: searchDecoRef.current }) }
                   if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); searchAddonRef.current?.clearDecorations(); setSearchState(null) }
                 }}
-                placeholder="Find"
+                placeholder="Crunched"
                 className="bg-transparent text-[13px] text-ide-text outline-none w-44 placeholder:text-ide-text-muted/40" />
             </div>
             {searchState.count > 0 && (
