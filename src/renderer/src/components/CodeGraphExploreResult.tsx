@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
 
 interface Props {
   query: string
@@ -55,7 +56,7 @@ function CodeGraphExploreResult({ query, content, onClose }: Props) {
         {/* Content */}
         <div className="flex-1 overflow-auto p-6 bg-ide-bg">
           <div className="md-preview max-w-4xl mx-auto" ref={contentRef}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownCodeOverrides()}>
               {content}
             </ReactMarkdown>
           </div>

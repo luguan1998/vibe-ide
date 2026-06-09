@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
+
 
 interface MarkdownPreviewProps {
   fullPath: string
@@ -132,6 +134,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
         {!loading && !error && (
           <div className="md-preview max-w-4xl mx-auto" ref={contentRef}>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+              ...getMarkdownCodeOverrides(),
               a: ({ href, children, ...props }) => <a href={href} onClick={handleLinkClick} {...props}>{children}</a>,
               img: ({ src, alt, ...props }) => {
                 const [imgSrc, setImgSrc] = useState(src)
