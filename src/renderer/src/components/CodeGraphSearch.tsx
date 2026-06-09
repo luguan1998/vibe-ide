@@ -67,13 +67,15 @@ interface Props {
   onClose: () => void
   onSelectNode: (node: CodeSymbol) => void
   onActivated?: () => void
+  onExploreResult?: (result: { query: string; content: string }) => void
   focusTrigger?: number
 }
 
 type Status = 'loading' | 'not-initialized' | 'indexing' | 'ready' | 'error'
 
-function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, focusTrigger }: Props) {
+function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, onExploreResult, focusTrigger }: Props) {
   const { t } = useI18n()
+  const [exploreLoading, setExploreLoading] = useState(false)
   const [status, setStatus] = useState<Status>('loading')
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -255,9 +257,6 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
         <div className="w-full bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl overflow-hidden">
           {/* Search row */}
           <div className="flex items-center gap-2 px-3 h-10">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-text-muted/50 shrink-0">
-              <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
-            </svg>
             <input ref={inputRef} type="text" value={query} onChange={e => handleChange(e.target.value)}
               onFocus={() => {
                   if (!activated) {
@@ -266,9 +265,25 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, fo
                   }
                   onActivated?.()
                 }}
-              placeholder={status === 'not-initialized' ? t('Not initialized — click Init') : status === 'indexing' ? t('Indexing...') : status === 'loading' ? t('Loading...') : t('Search symbols...')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && query.trim() && status === 'ready') {
+                  e.preventDefault()
+                  setExploreLoading(true)
+                  window.api.code.explore(query.trim(), { maxFiles: 12 }).then((r: any) => {
+                    setExploreLoading(false)
+                    if (r.error) { setError(r.error); return }
+                    if (r.content && onExploreResult) {
+                      onExploreResult({ query: query.trim(), content: r.content })
+                    }
+                  }).catch((err: any) => {
+                    setExploreLoading(false)
+                    setError(err.message)
+                  })
+                }
+              }}
+              placeholder={status === 'not-initialized' ? t('Not initialized — click Init') : status === 'indexing' ? t('Indexing...') : status === 'loading' ? t('Loading...') : t('Search symbols... (Enter to explore)')}
               className={`flex-1 bg-transparent text-sm outline-none focus:outline-none ring-0 focus:ring-0 placeholder:text-ide-text-muted/30 ${status !== 'ready' ? 'text-ide-text-muted/40' : 'text-ide-text'}`} />
-            {searching && <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin shrink-0" />}
+            {(searching || exploreLoading) && <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin shrink-0" />}
             {status === 'not-initialized' && (
               <button onClick={() => { onActivated?.(); handleInit() }} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 shrink-0">{t('Init')}</button>
             )}

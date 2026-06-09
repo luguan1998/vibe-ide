@@ -8,6 +8,7 @@ import ImagePreview from './components/ImagePreview'
 import NavBar from './components/NavBar'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
+import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { TerminalSession, RenameTerminalResult } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
 import { useI18n } from './i18n'
@@ -188,6 +189,7 @@ export default function App() {
   const callGraphFocalNodeRef = useRef<any>(null); callGraphFocalNodeRef.current = callGraphFocalNode
   const [showCodeSearch, setShowCodeSearch] = useState(false)
   const [codeSearchFocusTrigger, setCodeSearchFocusTrigger] = useState(0)
+  const [exploreResult, setExploreResult] = useState<{ query: string; content: string } | null>(null)
 
   const showCodeSearchRef = useRef(false); showCodeSearchRef.current = showCodeSearch
   const codeSearchActivatedRef = useRef(false)
@@ -1484,7 +1486,16 @@ export default function App() {
           onClose={() => setShowCodeSearch(false)}
           onSelectNode={(node) => setCallGraphFocalNode(node)}
           onActivated={() => { codeSearchActivatedRef.current = true }}
+          onExploreResult={(result) => { setExploreResult(result); setShowCodeSearch(false) }}
           focusTrigger={codeSearchFocusTrigger}
+        />
+      )}
+      {/* CodeGraph Explore Result — MD-rendered popup */}
+      {exploreResult && (
+        <CodeGraphExploreResult
+          query={exploreResult.query}
+          content={exploreResult.content}
+          onClose={() => setExploreResult(null)}
         />
       )}
     </div>

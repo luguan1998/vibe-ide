@@ -178,6 +178,7 @@ const api = {
     installMcp: (targets: string[], workspacePath: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_INSTALL_MCP, targets, workspacePath),
     findRelevantContext: (query: string, opts?: any) => ipcRenderer.invoke(IPC_CHANNELS.CODE_FIND_RELEVANT_CONTEXT, query, opts),
     getNodeCode: (nodeId: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_NODE_CODE, nodeId),
+    explore: (query: string, opts?: any) => ipcRenderer.invoke(IPC_CHANNELS.CODE_EXPLORE, query, opts),
     onProgress: (callback: (progress: any) => void) => {
       const handler = (_event: any, progress: any) => callback(progress)
       ipcRenderer.on(IPC_CHANNELS.CODE_PROGRESS, handler)

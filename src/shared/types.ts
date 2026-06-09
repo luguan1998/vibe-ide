@@ -91,6 +91,7 @@ export const IPC_CHANNELS = {
   CODE_INSTALL_MCP: 'code:installMcp',
   CODE_FIND_RELEVANT_CONTEXT: 'code:findRelevantContext',
   CODE_GET_NODE_CODE: 'code:getNodeCode',
+  CODE_EXPLORE: 'code:explore',
 
   // App
   APP_VERSION: 'app:version'

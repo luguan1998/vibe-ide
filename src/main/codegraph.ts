@@ -381,6 +381,23 @@ ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], 
     }
   })
 
+  ipcMain.handle(IPC_CHANNELS.CODE_EXPLORE, async (_event, query: string, opts?: { maxFiles?: number }) => {
+    if (!cg) return { error: 'Not initialized', content: '' }
+    try {
+      const bundleDir = resolvePlatformBundle()
+      const { ToolHandler } = require(join(bundleDir, 'lib/dist/mcp/tools.js'))
+      const handler = new ToolHandler(cg)
+      const result = await handler.handleExplore({ query, maxFiles: opts?.maxFiles ?? 12 })
+      const text = result.content?.[0]?.text || ''
+      // 去掉 MCP 截断提示（IDE 浮窗不受 25K inline 限制）
+      const marker = '... (output truncated to budget; the source above is complete and verbatim'
+      const clean = text.includes(marker) ? text.slice(0, text.indexOf(marker)).trimEnd() : text
+      return { content: clean }
+    } catch (err: any) {
+      return { error: err.message, content: '' }
+    }
+  })
+
 }
 
 export function closeCodeGraph(): void {
