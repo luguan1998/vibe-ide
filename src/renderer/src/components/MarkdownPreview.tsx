@@ -50,7 +50,6 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const localImageCache = useRef<Record<string, string>>({})
 
   const handleLinkClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
@@ -76,7 +75,6 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
     let cancelled = false
     setLoading(true)
     setError(null)
-    localImageCache.current = {}
     window.api.file.read(fullPath).then((result: any) => {
       if (cancelled) return
       if (result.error) {
@@ -107,18 +105,13 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
     return () => window.removeEventListener('keydown', handler, true)
   }, [onBack])
 
-  const handleImgLoad = useCallback(async (src: string, setSrc: (url: string) => void) => {
+  const handleImgLoad = useCallback((src: string, setSrc: (url: string) => void) => {
     const absPath = resolveImagePath(src, fullPath)
-    if (!absPath) return // external/data URL — leave as-is
-    const cache = localImageCache.current
-    if (cache[absPath]) { setSrc(cache[absPath]); return }
-    try {
-      const result = await window.api.file.readBase64(absPath)
-      if (result.dataUrl) {
-        cache[absPath] = result.dataUrl
-        setSrc(result.dataUrl)
-      }
-    } catch {}
+    if (!absPath) return
+    const sep = absPath.includes('\\') ? '\\' : '/'
+    const parts = absPath.split(sep)
+    const fileUrl = 'file:///' + parts.map(p => encodeURIComponent(p)).join('/')
+    setSrc(fileUrl)
   }, [fullPath])
 
   const lastSep = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'))

@@ -6,6 +6,7 @@ import * as jsoncParser from 'jsonc-parser'
 
 let cg: any = null
 let currentWorkspace: string | null = null
+let cgEnabled = true
 let CodeGraphClass: any = null
 let initProc: any = null
 let initCancelled = false
@@ -148,6 +149,7 @@ function normalizeNode(n: any): any {
 }
 
 async function ensureOpen(root: string): Promise<{ success: boolean; error?: string }> {
+  if (!cgEnabled) return { success: false, error: 'DISABLED' }
   try {
     if (cg && currentWorkspace === root) return { success: true }
     if (cg) {
@@ -172,6 +174,17 @@ export function registerCodeGraphHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CODE_SET_WORKSPACE, async (_event, root: string) => {
     if (typeof root !== 'string' || !root) return { error: 'Invalid workspace path' }
     return await ensureOpen(root)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.CODE_SET_ENABLED, async (_event, enabled: boolean) => {
+    cgEnabled = enabled
+    if (!enabled && cg) {
+      try { cg.watchStop?.() } catch {}
+      cg.close()
+      cg = null
+      currentWorkspace = null
+    }
+    return { enabled: cgEnabled }
   })
 
   ipcMain.handle(IPC_CHANNELS.CODE_IS_INITIALIZED, async (_event, root: string) => {

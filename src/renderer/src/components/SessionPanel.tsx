@@ -112,6 +112,8 @@ interface SessionPanelProps {
   onToggleWordWrap?: (value: boolean) => void
   autoUtf8?: boolean
   onToggleAutoUtf8?: (value: boolean) => void
+  cgEnabled?: boolean
+  onToggleCgEnabled?: (value: boolean) => void
   inlineDiff?: boolean
   onToggleInlineDiff?: (value: boolean) => void
   capsuleTabs?: boolean
@@ -146,6 +148,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onToggleWordWrap,
   autoUtf8 = true,
   onToggleAutoUtf8,
+  cgEnabled = true,
+  onToggleCgEnabled,
   inlineDiff = false,
   onToggleInlineDiff,
   capsuleTabs = true,
@@ -1252,6 +1256,15 @@ const SessionPanel = React.memo(function SessionPanel({
                     <span className="text-xs text-ide-text">{t('Auto UTF-8')}</span>
                   </div>
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Run chcp 65001 on terminal start to set UTF-8 encoding')}</p>
+                </label>
+              )}
+              {onToggleCgEnabled && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={cgEnabled} onChange={(e) => onToggleCgEnabled(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('CodeGraph')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Code symbol indexing for smart search. Disable to free ~170MB main process memory.')}</p>
                 </label>
               )}
               {onToggleSquiggles && (

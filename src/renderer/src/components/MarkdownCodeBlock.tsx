@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { loader } from '@monaco-editor/react'
 import { useTheme } from '@renderer/themes/context'
-import { registerMonacoThemes } from '@renderer/themes/monaco-themes'
+import { getMonaco } from '@renderer/utils/monacoSingleton'
 
 const LANG_MAP: Record<string, string> = {
   js: 'javascript', ts: 'typescript', py: 'python', sh: 'shell',
@@ -34,10 +33,8 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
 
   useEffect(() => {
     let cancelled = false
-    loader.init().then(monaco => {
+    getMonaco().then(monaco => {
       if (cancelled) return
-      registerMonacoThemes(monaco)
-      monaco.editor.setTheme(theme.monacoTheme)
       monacoRef.current = monaco
       monaco.editor.colorize(code, monacoLang, {}).then(h => {
         if (!cancelled) setHtml(h)

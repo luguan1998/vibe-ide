@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { getKindStyle } from '../utils/kindColors'
 import { useI18n } from '../i18n'
 
@@ -52,14 +52,13 @@ function getLanguageId(filePath: string): string {
 function parseMarkdownOutline(content: string): OutlineItem[] {
   const headings: OutlineItem[] = []
   const lines = content.split(/\r?\n/)
-  let inFenced = false      // inside ``` or ~~~ block
-  let fenceChar = ''        // ` or ~
-  let fenceLen = 0          // opening fence length (3+)
+  let inFenced = false
+  let fenceChar = ''
+  let fenceLen = 0
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
 
-    // Track fenced code block boundaries
     if (!inFenced) {
       const fence = line.match(/^(`{3,}|~{3,})/)
       if (fence) {
@@ -69,7 +68,6 @@ function parseMarkdownOutline(content: string): OutlineItem[] {
         continue
       }
     } else {
-      // Closing fence: same char, same or longer length, optional trailing spaces
       if (line.match(new RegExp(`^${fenceChar}{${fenceLen},}\\s*$`))) {
         inFenced = false
       }
@@ -83,16 +81,14 @@ function parseMarkdownOutline(content: string): OutlineItem[] {
     }
   }
 
-  // Build tree: nest headings by level
   const root: OutlineItem[] = []
-  const stack: OutlineItem[] = [] // stack[i] = current parent at depth i+1
+  const stack: OutlineItem[] = []
   for (const h of headings) {
     const level = parseInt(h.kind.split('-')[1])
-    // Pop stack until we find a parent whose level < current
     while (stack.length > 0 && parseInt(stack[stack.length - 1].kind.split('-')[1]) >= level) {
       stack.pop()
     }
-    h.children = [] // reserve for future nesting
+    h.children = []
     if (stack.length === 0) {
       root.push(h)
     } else {
@@ -101,7 +97,6 @@ function parseMarkdownOutline(content: string): OutlineItem[] {
     stack.push(h)
   }
 
-  // Remove empty children arrays (leaf headings)
   function cleanEmpty(item: OutlineItem) {
     if (item.children && item.children.length === 0) delete item.children
     else item.children?.forEach(cleanEmpty)
@@ -158,7 +153,7 @@ function parseCodeOutline(content: string, lang: string): OutlineItem[] {
       // method inside class (indented, but use raw line to detect indentation)
       if (currentClass) {
         const rawLine = lines[i]
-        if (!rawLine.match(/^\s{2,}/)) continue // must be indented
+        if (!rawLine.match(/^\s{2,}/)) continue
         const trimmedMethod = rawLine.trim()
         if (trimmedMethod.startsWith('//') || trimmedMethod.startsWith('*') || trimmedMethod.startsWith('/*')) continue
         const methodMatch = trimmedMethod.match(/^(?:async\s+)?(\w+)\s*\(/)
@@ -182,8 +177,6 @@ function parseCodeOutline(content: string, lang: string): OutlineItem[] {
       }
       const fnMatch = line.match(/^(async\s+)?def\s+(\w+)/)
       if (fnMatch) {
-        const isMethod = currentClass && !line.startsWith('def ') && lines[i - 1]?.trim() !== '' && lines[i - 1]?.trim().startsWith('@') || (i > 0 && lines[i - 1]?.trim() === '')
-        // Simple heuristic: if indented, it's inside the class
         if (currentClass && line.startsWith('  ') || line.startsWith('\t')) {
           currentClass.children!.push({ name: fnMatch[2], kind: 'method', line: i + 1 })
         } else {
@@ -249,6 +242,44 @@ function parseCodeOutline(content: string, lang: string): OutlineItem[] {
   return items
 }
 
+// Collect all unique kinds from outline items (recursive)
+function collectKinds(items: OutlineItem[]): string[] {
+  const kinds = new Set<string>()
+  function walk(list: OutlineItem[]) {
+    for (const item of list) {
+      kinds.add(item.kind)
+      if (item.children) walk(item.children)
+    }
+  }
+  walk(items)
+  // Sort: function/method first, then class/interface, then rest alphabetically
+  const order = ['function', 'method', 'class', 'interface', 'type_alias', 'enum', 'constant', 'variable', 'property', 'module', 'component']
+  const sorted = [...kinds].sort((a, b) => {
+    const ai = order.indexOf(a), bi = order.indexOf(b)
+    if (ai >= 0 && bi >= 0) return ai - bi
+    if (ai >= 0) return -1
+    if (bi >= 0) return 1
+    return a.localeCompare(b)
+  })
+  return sorted
+}
+
+// Filter outline tree: keep items whose kind is in filter, or have descendants in filter
+function filterItems(items: OutlineItem[], kinds: Set<string>): OutlineItem[] {
+  if (kinds.size === 0) return items
+  function filter(list: OutlineItem[]): OutlineItem[] {
+    const out: OutlineItem[] = []
+    for (const item of list) {
+      const childMatch = item.children ? filter(item.children) : []
+      if (kinds.has(item.kind) || childMatch.length > 0) {
+        out.push({ ...item, children: childMatch.length > 0 ? childMatch : item.children && kinds.has(item.kind) ? item.children : undefined })
+      }
+    }
+    return out
+  }
+  return filter(items)
+}
+
 function HeadingBadge({ level }: { level: number }) {
   return (
     <span className="text-[10px] font-bold leading-none shrink-0 select-none"
@@ -258,12 +289,13 @@ function HeadingBadge({ level }: { level: number }) {
   )
 }
 
-function OutlineItemRow({ item, depth, collapsedSet, onToggle, onNavigate }: {
+function OutlineItemRow({ item, depth, collapsedSet, onToggle, onNavigate, isMd }: {
   item: OutlineItem
   depth: number
   collapsedSet: Set<string>
   onToggle: (key: string) => void
   onNavigate: (line: number, headingName?: string) => void
+  isMd: boolean
 }) {
   const hasChildren = item.children && item.children.length > 0
   const isHeading = item.kind.startsWith('heading-')
@@ -275,7 +307,7 @@ function OutlineItemRow({ item, depth, collapsedSet, onToggle, onNavigate }: {
     <>
       <div
         className="flex items-center gap-1 px-1 py-0.5 cursor-pointer hover:bg-ide-hover rounded group"
-        style={{ paddingLeft: `${4 + depth * 12}px` }}
+        style={{ paddingLeft: isMd ? 4 : `${4 + depth * 12}px` }}
         onClick={() => onNavigate(item.line, isHeading ? item.name : undefined)}
       >
         {hasChildren && (
@@ -310,6 +342,7 @@ function OutlineItemRow({ item, depth, collapsedSet, onToggle, onNavigate }: {
           collapsedSet={collapsedSet}
           onToggle={onToggle}
           onNavigate={onNavigate}
+          isMd={isMd}
         />
       ))}
     </>
@@ -326,6 +359,14 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, onNavigate
   const md = isMarkdown(filePath)
   const code = !md && isCode(filePath)
   const lang = code ? getLanguageId(filePath) : 'unknown'
+
+  // Kind filter: only for code files, default only 'function' active
+  const [kindFilter, setKindFilter] = useState<Set<string>>(new Set(['function']))
+
+  // Reset filter when file changes
+  useEffect(() => {
+    setKindFilter(new Set(['function']))
+  }, [fullPath])
 
   useEffect(() => {
     if (!md && !code) {
@@ -363,6 +404,26 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, onNavigate
     onNavigate(line, headingName)
   }, [onNavigate])
 
+  // Available kinds from parsed items (code mode only)
+  const availableKinds = useMemo(() => collectKinds(items), [items])
+
+  // Filtered items
+  const filteredItems = useMemo(
+    () => code ? filterItems(items, kindFilter) : items,
+    [code, items, kindFilter]
+  )
+
+  const handleToggleKind = useCallback((kind: string) => {
+    setKindFilter(prev => {
+      const next = new Set(prev)
+      if (next.has(kind)) next.delete(kind)
+      else next.add(kind)
+      // Don't allow empty filter — at least one kind must be active
+      if (next.size === 0) return prev
+      return next
+    })
+  }, [])
+
   const fileName = filePath.replace(/[\\/]/g, '/').split('/').pop() || filePath
 
   return (
@@ -382,10 +443,10 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, onNavigate
         {loading && (
           <div className="px-2 py-4 text-xs text-ide-text-muted text-center">{t('Loading...')}</div>
         )}
-        {!loading && items.length === 0 && (
+        {!loading && filteredItems.length === 0 && (
           <div className="px-2 py-4 text-xs text-ide-text-muted text-center">{t('No outline')}</div>
         )}
-        {!loading && items.map(item => (
+        {!loading && filteredItems.map(item => (
           <OutlineItemRow
             key={`${item.kind}:${item.name}:${item.line}`}
             item={item}
@@ -393,9 +454,32 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, onNavigate
             collapsedSet={collapsedSet}
             onToggle={handleToggle}
             onNavigate={handleNavigate}
+            isMd={md}
           />
         ))}
       </div>
+
+      {/* Kind filter bar (code mode only) */}
+      {code && !loading && availableKinds.length > 0 && (
+        <div className="px-2 py-1.5 border-t border-ide-border shrink-0 flex items-center gap-1 flex-wrap">
+          {availableKinds.map(kind => {
+            const active = kindFilter.has(kind)
+            return (
+              <button
+                key={kind}
+                onClick={() => handleToggleKind(kind)}
+                className={`text-[10px] font-bold leading-none px-1.5 py-0.5 rounded transition-colors ${
+                  active
+                    ? 'bg-ide-accent/20 text-ide-accent'
+                    : 'text-ide-text-muted/40 hover:text-ide-text-muted'
+                }`}
+              >
+                {getKindLabel(kind)}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 })

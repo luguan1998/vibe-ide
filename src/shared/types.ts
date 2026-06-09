@@ -92,6 +92,7 @@ export const IPC_CHANNELS = {
   CODE_FIND_RELEVANT_CONTEXT: 'code:findRelevantContext',
   CODE_GET_NODE_CODE: 'code:getNodeCode',
   CODE_EXPLORE: 'code:explore',
+  CODE_SET_ENABLED: 'code:setEnabled',
 
   // App
   APP_VERSION: 'app:version'

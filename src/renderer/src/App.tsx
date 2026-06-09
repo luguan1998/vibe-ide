@@ -112,6 +112,7 @@ declare global {
         getStats: () => Promise<any>
         onProgress: (callback: (progress: any) => void) => any
         removeProgressListener: (handler?: any) => void
+        setEnabled: (enabled: boolean) => Promise<{ enabled: boolean }>
       }
       theme: {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
@@ -233,6 +234,10 @@ export default function App() {
   })
   const escAutoAtRef = useRef(escAutoAt)
   escAutoAtRef.current = escAutoAt
+
+  const [cgEnabled, setCgEnabled] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-cg-enabled') !== '0' } catch { return true }
+  })
 
   const [fileTreeDepth, setFileTreeDepth] = useState(() => {
     try {
@@ -391,6 +396,10 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-auto-utf8', String(autoUtf8)) } catch {}
   }, [autoUtf8])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-cg-enabled', cgEnabled ? '1' : '0') } catch {}
+    window.api.code.setEnabled(cgEnabled)
+  }, [cgEnabled])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-inline-diff', String(inlineDiff)) } catch {}
   }, [inlineDiff])
@@ -1326,6 +1335,8 @@ export default function App() {
             onToggleWordWrap={setWordWrap}
             autoUtf8={autoUtf8}
             onToggleAutoUtf8={setAutoUtf8}
+            cgEnabled={cgEnabled}
+            onToggleCgEnabled={setCgEnabled}
             inlineDiff={inlineDiff}
             onToggleInlineDiff={setInlineDiff}
             capsuleTabs={capsuleTabs}
