@@ -17,6 +17,11 @@ function CodeGraphExploreResult({ query, content, onClose }: Props) {
         e.preventDefault()
         e.stopImmediatePropagation()
         onClose()
+      } else if (e.key === 'PageUp' || e.key === 'PageDown') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const el = contentRef.current?.parentElement // overflow-auto container
+        if (el) el.scrollBy({ top: e.key === 'PageUp' ? -el.clientHeight * 0.85 : el.clientHeight * 0.85 })
       }
     }
     document.addEventListener('keydown', handler, true)
