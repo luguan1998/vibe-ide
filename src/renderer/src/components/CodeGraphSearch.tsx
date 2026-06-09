@@ -94,9 +94,14 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
   const [mcpInstalling, setMcpInstalling] = useState(false)
   const [mcpResult, setMcpResult] = useState<{ success: boolean; error?: string } | null>(null)
   const [initting, setInitting] = useState(false)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingPathRef = useRef<string | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  const selectableItems = query.trim() ? results : (activated && recentNodes.length > 0 ? recentNodes.map(e => e.node) : [])
+  const selectedItem = selectedIndex >= 0 && selectedIndex < selectableItems.length ? selectableItems[selectedIndex] : null
 
   // Init on workspace change
   useEffect(() => {
@@ -191,8 +196,9 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
   }, [])
 
   const doSearch = useCallback(async (q: string) => {
-    if (!q.trim() || status !== 'ready') { setResults([]); return }
+    if (!q.trim() || status !== 'ready') { setResults([]); setSelectedIndex(-1); return }
     setSearching(true)
+    setSelectedIndex(-1)
     try {
       const r = await window.api.code.searchNodes(q.trim(), { limit: 50, excludePatterns: filters, kinds: selectedKinds })
       setResults(r.error ? [] : r.nodes || [])
@@ -202,12 +208,21 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
 
   const handleChange = useCallback((v: string) => {
     setQuery(v)
+    setSelectedIndex(-1)
     if (status !== 'ready') return
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => doSearch(v), 250)
   }, [doSearch, status])
 
   useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current) }, [])
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (selectedIndex < 0 || !listRef.current) return
+    const items = listRef.current.querySelectorAll('[data-idx]')
+    const el = items[selectedIndex] as HTMLElement | undefined
+    if (el) el.scrollIntoView({ block: 'nearest' })
+  }, [selectedIndex])
 
   const applyFilters = useCallback(() => {
     const list = filterText.split(',').map(s => s.trim()).filter(Boolean)
@@ -266,19 +281,38 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
                   onActivated?.()
                 }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && query.trim() && status === 'ready') {
+                if (e.key === 'ArrowDown') {
                   e.preventDefault()
-                  setExploreLoading(true)
-                  window.api.code.explore(query.trim(), { maxFiles: 12 }).then((r: any) => {
-                    setExploreLoading(false)
-                    if (r.error) { setError(r.error); return }
-                    if (r.content && onExploreResult) {
-                      onExploreResult({ query: query.trim(), content: r.content })
-                    }
-                  }).catch((err: any) => {
-                    setExploreLoading(false)
-                    setError(err.message)
-                  })
+                  setSelectedIndex(prev => prev < selectableItems.length - 1 ? prev + 1 : prev)
+                  return
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setSelectedIndex(prev => prev > 0 ? prev - 1 : -1)
+                  return
+                }
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (selectedItem) {
+                    addRecent(selectedItem, workspacePath || '')
+                    setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind)))
+                    onSelectNode(selectedItem)
+                    onClose()
+                    return
+                  }
+                  if (query.trim() && status === 'ready') {
+                    setExploreLoading(true)
+                    window.api.code.explore(query.trim(), { maxFiles: 12 }).then((r: any) => {
+                      setExploreLoading(false)
+                      if (r.error) { setError(r.error); return }
+                      if (r.content && onExploreResult) {
+                        onExploreResult({ query: query.trim(), content: r.content })
+                      }
+                    }).catch((err: any) => {
+                      setExploreLoading(false)
+                      setError(err.message)
+                    })
+                  }
                 }
               }}
               placeholder={status === 'not-initialized' ? t('Not initialized — click Init') : status === 'indexing' ? t('Indexing...') : status === 'loading' ? t('Loading...') : t('Search symbols... (Enter to explore)')}
@@ -392,11 +426,11 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
 
           {/* Recent nodes (when input empty and activated) */}
           {activated && recentNodes.length > 0 && !query.trim() && (
-            <div className="border-t border-ide-border max-h-64 overflow-y-auto">
+            <div ref={listRef} className="border-t border-ide-border max-h-64 overflow-y-auto">
               <div className="px-3 py-1 text-[10px] text-ide-text-muted/40">{t('Recent')}</div>
               {recentNodes.map((entry, i) => (
-                <div key={entry.node.id || i}
-                  className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-ide-hover transition-colors"
+                <div key={entry.node.id || i} data-idx={i}
+                  className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-ide-hover transition-colors ${selectedIndex === i ? 'bg-ide-hover' : ''}`}
                   onClick={() => { addRecent(entry.node, entry.workspace); setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind))); onSelectNode(entry.node); onClose() }}>
                   <span className="text-[10px] font-bold uppercase w-12 shrink-0" style={{ color: getKindColor(entry.node.kind) }}>{entry.node.kind}</span>
                   <span className="text-sm text-ide-text truncate">{entry.node.name}</span>
@@ -408,10 +442,10 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
 
           {/* Results */}
           {results.length > 0 && query.trim() && (
-            <div className="border-t border-ide-border max-h-64 overflow-y-auto">
+            <div ref={listRef} className="border-t border-ide-border max-h-64 overflow-y-auto">
               {results.map((node, i) => (
-                <div key={node.id || i}
-                  className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-ide-hover transition-colors"
+                <div key={node.id || i} data-idx={i}
+                  className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-ide-hover transition-colors ${selectedIndex === i ? 'bg-ide-hover' : ''}`}
                   onClick={() => { addRecent(node, workspacePath || ''); setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind))); onSelectNode(node); onClose() }}>
                   <span className="text-[10px] font-bold uppercase w-12 shrink-0" style={{ color: getKindColor(node.kind) }}>{node.kind}</span>
                   <span className="text-sm text-ide-text truncate">{node.name}</span>
