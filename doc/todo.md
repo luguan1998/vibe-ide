@@ -1,4 +1,5 @@
 [x] undo 不精准
-[] codegraph 监听机制
+[x] codegraph 监听机制归一，取消因为设置了不可运行cp
 [] 右键粘贴 所有输入框
-[] alt 搜索栏未消失
+[x] alt 搜索栏未消失
+[] 同名title md跳转不准
