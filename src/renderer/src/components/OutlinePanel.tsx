@@ -307,7 +307,7 @@ function OutlineItemRow({ item, depth, collapsedSet, onToggle, onNavigate, isMd 
     <>
       <div
         className="flex items-center gap-1 px-1 py-0.5 cursor-pointer hover:bg-ide-hover rounded group"
-        style={{ paddingLeft: isMd ? 4 : `${4 + depth * 12}px` }}
+        style={{ paddingLeft: isMd ? `${4 + depth * 14}px` : `${4 + depth * 12}px` }}
         onClick={() => onNavigate(item.line, isHeading ? item.name : undefined)}
       >
         {hasChildren && (
@@ -321,16 +321,16 @@ function OutlineItemRow({ item, depth, collapsedSet, onToggle, onNavigate, isMd 
           </button>
         )}
         {!hasChildren && <span className="w-4 shrink-0" />}
-        {isHeading ? (
+        {isHeading && !isMd ? (
           <HeadingBadge level={headingLevel} />
-        ) : (
+        ) : !isHeading ? (
           <span
             className="text-[10px] font-bold leading-none px-0.5 rounded shrink-0"
             style={getKindStyle(item.kind)}
           >
             {getKindLabel(item.kind)}
           </span>
-        )}
+        ) : null}
         <span className="text-xs text-ide-text truncate flex-1">{item.name}</span>
         <span className="text-[10px] text-ide-text-muted/50 shrink-0 group-hover:text-ide-text-muted">{item.line}</span>
       </div>

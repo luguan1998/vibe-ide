@@ -25,6 +25,8 @@ const ZH_MAP: Record<string, string> = {
   'Keyboard Shortcuts': '键盘快捷键',
   'Word Wrap': '自动换行',
   'Auto UTF-8': '自动切 UTF-8',
+  'CodeGraph': '代码图谱',
+  'Code symbol indexing for smart search. Disable to free ~170MB main process memory.': '代码符号索引，用于智能搜索。关闭可释放主进程约 170MB 内存。',
   'Polling Refresh Git/File': '轮询刷新 Git/File',
   'Other Options…': '其他选项…',
   'Auto-wrap long lines in diff/editor. Recommended: off': 'diff/edit 界面是否自动换行，建议关闭',
