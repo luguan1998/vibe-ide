@@ -100,8 +100,17 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
   const pendingPathRef = useRef<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const selectableItems = query.trim() ? results : (activated && recentNodes.length > 0 ? recentNodes.map(e => e.node) : [])
+  const selectableItems = query.trim() ? results : recentNodes.map(e => e.node)
   const selectedItem = selectedIndex >= 0 && selectedIndex < selectableItems.length ? selectableItems[selectedIndex] : null
+
+  const activate = useCallback(() => {
+    if (activated) return
+    setActivated(true)
+    onActivated?.()
+    if (workspacePath) setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind)))
+    // Two-frame delay: first frame lets React commit DOM, second frame ensures xterm.js won't steal focus
+    requestAnimationFrame(() => requestAnimationFrame(() => inputRef.current?.focus()))
+  }, [activated, workspacePath, selectedKinds, onActivated])
 
   // Init on workspace change
   useEffect(() => {
@@ -132,7 +141,6 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
         if (pendingPathRef.current !== target) return
         if (idx.error) { setStatus('error'); setError(idx.error); return }
 
-        // Load stats
         try {
           const s = await window.api.code.getStats()
           if (!s.error) setStats(s)
@@ -157,16 +165,11 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
     return () => clearInterval(id)
   }, [status])
 
-  // Focus triggered externally (e.g. Alt+K shortcut) → activate and show recent
+  // Focus triggered externally (Alt+K) → activate
   useEffect(() => {
-    if (focusTrigger !== undefined && focusTrigger > 0) {
-      setActivated(true)
-      if (workspacePath) setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind)))
-      requestAnimationFrame(() => inputRef.current?.focus())
-    }
-  }, [focusTrigger, workspacePath])
+    if (focusTrigger !== undefined && focusTrigger > 0) activate()
+  }, [focusTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Progress listener during init
   const handleInit = useCallback(async () => {
     if (!workspacePath) return
     setStatus('loading')
@@ -216,7 +219,6 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
 
   useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current) }, [])
 
-  // Scroll selected item into view
   useEffect(() => {
     if (selectedIndex < 0 || !listRef.current) return
     const items = listRef.current.querySelectorAll('[data-idx]')
@@ -233,53 +235,76 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
 
   const pct = progress && progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
 
-  return (
-    <>
-      {/* Full-screen lock overlay during init */}
-      {initting && (
-        <div className="fixed inset-0 z-[60] bg-ide-bg/70 flex items-center justify-center">
-          <div className="bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl p-6 flex flex-col items-center gap-4" style={{ minWidth: 360, maxWidth: 440 }}>
-            <div className="text-sm font-semibold text-ide-text">{t('Initializing CodeGraph...')}</div>
-            {progress && (
-              <>
-                <div className="w-full">
-                  <div className="flex items-center justify-between text-[10px] text-ide-text-muted/60 mb-1.5">
-                    <span>{progress.phase || 'indexing'}</span>
-                    <span>{progress.current}/{progress.total}</span>
-                  </div>
-                  <div className="h-2 bg-ide-hover rounded-full overflow-hidden">
-                    <div className="h-full bg-ide-accent rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              </>
-            )}
-            {!progress && (
-              <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin" />
-            )}
-            <button onClick={handleCancelInit}
-              className="text-xs px-3 py-1.5 rounded bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors">
-              {t('Cancel Init')}
-            </button>
-            <div className="text-[10px] text-ide-text-muted/40 text-center leading-relaxed max-w-[320px]">
-              {t('Slow? Add folders like {ex1}, {ex2}, {ex3} to your {ignore} or {gitignore} to skip indexing them.')
-                .replace('{ex1}', 'tests/**').replace('{ex2}', 'docs/**').replace('{ex3}', 'vendor/**').replace('{ignore}', '.codegraphignore').replace('{gitignore}', '.gitignore')}
+  // Init overlay (shared between peek & activated)
+  const initOverlay = initting && (
+    <div className="fixed inset-0 z-[60] bg-ide-bg/70 flex items-center justify-center">
+      <div className="bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl p-6 flex flex-col items-center gap-4" style={{ minWidth: 360, maxWidth: 440 }}>
+        <div className="text-sm font-semibold text-ide-text">{t('Initializing CodeGraph...')}</div>
+        {progress && (
+          <div className="w-full">
+            <div className="flex items-center justify-between text-[10px] text-ide-text-muted/60 mb-1.5">
+              <span>{progress.phase || 'indexing'}</span>
+              <span>{progress.current}/{progress.total}</span>
             </div>
+            <div className="h-2 bg-ide-hover rounded-full overflow-hidden">
+              <div className="h-full bg-ide-accent rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )}
+        {!progress && <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin" />}
+        <button onClick={handleCancelInit} className="text-xs px-3 py-1.5 rounded bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors">{t('Cancel Init')}</button>
+        <div className="text-[10px] text-ide-text-muted/40 text-center leading-relaxed max-w-[320px]">
+          {t('Slow? Add folders like {ex1}, {ex2}, {ex3} to your {ignore} or {gitignore} to skip indexing them.')
+            .replace('{ex1}', 'tests/**').replace('{ex2}', 'docs/**').replace('{ex3}', 'vendor/**').replace('{ignore}', '.codegraphignore').replace('{gitignore}', '.gitignore')}
+        </div>
+      </div>
+    </div>
+  )
+
+  const panelWrapper = (inner: React.ReactNode) => (
+    <div className="fixed inset-x-0 top-[8%] z-50 flex justify-center pointer-events-none">
+      <div className="pointer-events-auto flex flex-col items-center" style={{ minWidth: 480, maxWidth: 680, width: '46vw' }}>
+        {inner}
+      </div>
+    </div>
+  )
+
+  // ── Peek mode ──
+  if (!activated) return (
+    <>
+      {initOverlay}
+      {panelWrapper(
+        <div className="w-full bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl overflow-hidden"
+          onClick={activate} style={{ opacity: 0.7 }}>
+          <div className="flex items-center gap-2 px-3 h-10">
+            <input readOnly placeholder={t('Hold Alt to peek, click or Alt+K to search')}
+              className="flex-1 bg-transparent text-sm outline-none text-ide-text-muted/40 placeholder:text-ide-text-muted/30" />
+            {status === 'not-initialized' && (
+              <button onClick={() => { activate(); handleInit() }} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 shrink-0">{t('Init')}</button>
+            )}
           </div>
         </div>
       )}
-    <div className="fixed inset-x-0 top-[8%] z-50 flex justify-center pointer-events-none">
-      <div className="pointer-events-auto flex flex-col items-center" style={{ minWidth: 480, maxWidth: 680, width: '46vw' }}>
+    </>
+  )
+
+  // ── Activated mode ──
+  const placeholder = status === 'not-initialized'
+    ? t('Not initialized — click Init')
+    : status === 'indexing'
+      ? t('Indexing...')
+      : status === 'loading'
+        ? t('Loading...')
+        : t('Search symbols... (Enter to explore)')
+
+  return (
+    <>
+      {initOverlay}
+      {panelWrapper(
         <div className="w-full bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl overflow-hidden">
           {/* Search row */}
           <div className="flex items-center gap-2 px-3 h-10">
             <input ref={inputRef} type="text" value={query} onChange={e => handleChange(e.target.value)}
-              onFocus={() => {
-                  if (!activated) {
-                    setActivated(true)
-                    if (workspacePath) setRecentNodes(recentCache.filter(e => e.workspace === workspacePath && selectedKinds.includes(e.node.kind)))
-                  }
-                  onActivated?.()
-                }}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowDown') {
                   e.preventDefault()
@@ -315,11 +340,11 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
                   }
                 }
               }}
-              placeholder={status === 'not-initialized' ? t('Not initialized — click Init') : status === 'indexing' ? t('Indexing...') : status === 'loading' ? t('Loading...') : t('Search symbols... (Enter to explore)')}
+              placeholder={placeholder}
               className={`flex-1 bg-transparent text-sm outline-none focus:outline-none ring-0 focus:ring-0 placeholder:text-ide-text-muted/30 ${status !== 'ready' ? 'text-ide-text-muted/40' : 'text-ide-text'}`} />
             {(searching || exploreLoading) && <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin shrink-0" />}
             {status === 'not-initialized' && (
-              <button onClick={() => { onActivated?.(); handleInit() }} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 shrink-0">{t('Init')}</button>
+              <button onClick={handleInit} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 shrink-0">{t('Init')}</button>
             )}
             <button onClick={() => { setShowFilters(!showFilters); if (!showFilters) setFilterText(filters.join(', ')) }}
               className="text-ide-text-muted/30 hover:text-ide-text-muted/60 transition-colors shrink-0" title="Filters">
@@ -424,8 +449,8 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
             </div>
           )}
 
-          {/* Recent nodes (when input empty and activated) */}
-          {activated && recentNodes.length > 0 && !query.trim() && (
+          {/* Recent nodes (when input empty) */}
+          {recentNodes.length > 0 && !query.trim() && (
             <div ref={listRef} className="border-t border-ide-border max-h-64 overflow-y-auto">
               <div className="px-3 py-1 text-[10px] text-ide-text-muted/40">{t('Recent')}</div>
               {recentNodes.map((entry, i) => (
@@ -459,8 +484,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onActivated, on
           )}
           {error && <div className="border-t border-ide-border px-3 py-2 text-xs text-ide-danger/80">{error}</div>}
         </div>
-      </div>
-    </div>
+      )}
     </>
   )
 }

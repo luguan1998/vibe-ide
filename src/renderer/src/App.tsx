@@ -193,6 +193,11 @@ export default function App() {
 
   const showCodeSearchRef = useRef(false); showCodeSearchRef.current = showCodeSearch
   const codeSearchActivatedRef = useRef(false)
+  const closeCodeSearch = useCallback(() => {
+    setShowCodeSearch(false)
+    codeSearchActivatedRef.current = false
+    setCodeSearchFocusTrigger(0)
+  }, [])
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
 
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
@@ -713,7 +718,7 @@ export default function App() {
         }
         if (showCodeSearchRef.current) {
           e.preventDefault(); e.stopImmediatePropagation()
-          setShowCodeSearch(false)
+          closeCodeSearch()
           return
         }
         const active = document.activeElement as HTMLElement | null
@@ -739,13 +744,14 @@ export default function App() {
   React.useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key !== 'Alt') {
-        // If timer is pending and user released Alt before 300ms, cancel
         if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
         return
       }
+      // Alt released: cancel pending timer (short tap should not trigger overlay)
+      if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
       // Dismiss CodeGraphSearch on Alt release if not activated (clicked/focused)
       if (showCodeSearchRef.current && !codeSearchActivatedRef.current) {
-        setShowCodeSearch(false)
+        closeCodeSearch()
       }
 
       if (!navBarVisibleRef.current) return
@@ -1483,10 +1489,10 @@ export default function App() {
       {showCodeSearch && (
         <CodeGraphSearch
           workspacePath={activeSessionCwd}
-          onClose={() => setShowCodeSearch(false)}
+          onClose={closeCodeSearch}
           onSelectNode={(node) => setCallGraphFocalNode(node)}
           onActivated={() => { codeSearchActivatedRef.current = true }}
-          onExploreResult={(result) => { setExploreResult(result); setShowCodeSearch(false) }}
+          onExploreResult={(result) => { setExploreResult(result); closeCodeSearch() }}
           focusTrigger={codeSearchFocusTrigger}
         />
       )}
