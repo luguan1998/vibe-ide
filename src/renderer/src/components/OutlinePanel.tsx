@@ -363,7 +363,7 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, onNavigate
     onNavigate(line, headingName)
   }, [onNavigate])
 
-  const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || filePath
+  const fileName = filePath.replace(/[\\/]/g, '/').split('/').pop() || filePath
 
   return (
     <div className="flex flex-col h-full">

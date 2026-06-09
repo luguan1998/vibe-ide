@@ -1068,8 +1068,6 @@ export default function App() {
   const [mdScrollHeading, setMdScrollHeading] = useState<string | undefined>(undefined)
   const [outlineScrollTrigger, setOutlineScrollTrigger] = useState(0)
 
-  const showOutline = (centerView === 'diff' && diffFile) || (centerView === 'markdown' && markdownFile)
-
   // 处理从中间终端点击文件路径打开文件
   const handleOpenFileFromTerminal = useCallback(async (fullPath: string, lineNumber?: number) => {
     pushNavHistory()
@@ -1267,13 +1265,12 @@ export default function App() {
       {/* Main Content - 3 Panels */}
       <div className="flex flex-1 overflow-hidden" style={{ cursor: isDragging ? 'col-resize' : 'default' }}>
         {/* Left Panel: Session + Outline */}
-        <div className="shrink-0 flex flex-col bg-ide-sidebar border-r border-ide-border" style={{ width: leftPanelWidth }}>
-          {/* SessionPanel wrapper: constrained height when outline present */}
-          <div className={showOutline ? 'shrink-0 overflow-y-auto' : 'flex-1 overflow-hidden'} style={showOutline ? { maxHeight: '40%' } : undefined}>
+        <div className="shrink-0 flex flex-col bg-ide-sidebar border-r border-ide-border relative" style={{ width: leftPanelWidth }}>
+          {/* SessionPanel: always full height */}
+          <div className="flex-1 overflow-hidden">
             <SessionPanel
               sessions={sessions}
               activeSessionId={activeSessionId}
-              compact={showOutline}
               onCreateSession={handleCreateSession}
             onCloneSession={handleCloneSession}
             onSwitchSession={handleSwitchSession}
@@ -1304,9 +1301,9 @@ export default function App() {
             onExecuteCommand={handleExecuteCommand}
           />
           </div>
-          {/* Outline: show when center is viewing a file */}
+          {/* Outline: overlay covering entire left panel below title bar */}
           {centerView === 'diff' && diffFile && (
-            <div className="border-t border-ide-border flex-1 overflow-hidden min-h-0">
+            <div className="absolute left-0 right-0 bottom-0 bg-ide-sidebar z-10" style={{ top: 40 }}>
               <OutlinePanel
                 key={diffFile.fullPath}
                 filePath={diffFile.filePath}
@@ -1316,7 +1313,7 @@ export default function App() {
             </div>
           )}
           {centerView === 'markdown' && markdownFile && (
-            <div className="border-t border-ide-border flex-1 overflow-hidden min-h-0">
+            <div className="absolute left-0 right-0 bottom-0 bg-ide-sidebar z-10" style={{ top: 40 }}>
               <OutlinePanel
                 key={markdownFile.fullPath}
                 filePath={markdownFile.fileName}
