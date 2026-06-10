@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 
 interface ImagePreviewProps {
@@ -7,36 +7,19 @@ interface ImagePreviewProps {
   onBack?: () => void
 }
 
+function toFileUrl(localPath: string): string {
+  const sep = localPath.includes('\\') ? '\\' : '/'
+  const parts = localPath.split(sep)
+  return 'file:///' + parts.map(p => encodeURIComponent(p)).join('/')
+}
+
 const ImagePreview = React.memo(function ImagePreview({
   fullPath,
   fileName,
   onBack
 }: ImagePreviewProps) {
-  const [imgSrc, setImgSrc] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [imgSrc] = useState(() => toFileUrl(fullPath))
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    window.api.file.readBase64(fullPath).then((result: any) => {
-      if (cancelled) return
-      if (result.error) {
-        setError(result.error)
-        setImgSrc(null)
-      } else {
-        setImgSrc(result.dataUrl)
-      }
-      setLoading(false)
-    }).catch((err: any) => {
-      if (!cancelled) {
-        setError(String(err))
-        setLoading(false)
-      }
-    })
-    return () => { cancelled = true }
-  }, [fullPath])
 
   useEffect(() => {
     if (!onBack) return
@@ -77,17 +60,15 @@ const ImagePreview = React.memo(function ImagePreview({
           </div>
 
       <div className="flex-1 overflow-auto flex items-center justify-center p-6 bg-ide-bg">
-        {loading && (
-          <div className="flex items-center justify-center h-32 text-ide-text-muted">Loading...</div>
-        )}
         {error && (
           <div className="flex items-center justify-center h-32 text-ide-danger">{error}</div>
         )}
-        {!loading && !error && imgSrc && (
+        {!error && (
           <img
             src={imgSrc}
             alt={fileName}
             className="max-w-full max-h-full object-contain"
+            onError={() => setError('Failed to load image')}
           />
         )}
       </div>

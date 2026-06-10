@@ -25,6 +25,31 @@ function mapLanguage(lang: string): string {
   return LANG_MAP[lang] || lang
 }
 
+// Concurrency limiter: max 2 simultaneous colorize calls
+const MAX_CONCURRENT = 2
+let running = 0
+const queue: (() => void)[] = []
+
+function enqueue(task: () => void): () => void {
+  let cancelled = false
+  const run = () => { if (!cancelled) task() }
+  if (running < MAX_CONCURRENT) {
+    running++
+    run()
+  } else {
+    queue.push(run)
+  }
+  return () => { cancelled = true }
+}
+
+function colorizeDone() {
+  running--
+  if (queue.length > 0) {
+    running++
+    queue.shift()!()
+  }
+}
+
 function CodeBlock({ language, code }: { language: string; code: string }) {
   const { theme } = useTheme()
   const [html, setHtml] = useState<string | null>(null)
@@ -32,23 +57,24 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   const monacoLang = mapLanguage(language)
 
   useEffect(() => {
-    let cancelled = false
+    let cancel = () => {}
     getMonaco().then(monaco => {
-      if (cancelled) return
       monacoRef.current = monaco
-      monaco.editor.colorize(code, monacoLang, {}).then(h => {
-        if (!cancelled) setHtml(h)
+      cancel = enqueue(() => {
+        monaco.editor.colorize(code, monacoLang, {}).then((h: string) => {
+          colorizeDone()
+          setHtml(h)
+        }).catch(colorizeDone)
       })
     })
-    return () => { cancelled = true }
+    return () => { cancel() }
   }, [code, monacoLang])
 
   useEffect(() => {
     const monaco = monacoRef.current
     if (!monaco) return
-    monaco.editor.setTheme(theme.monacoTheme)
-    monaco.editor.colorize(code, monacoLang, {}).then(h => setHtml(h))
-  }, [theme.monacoTheme])
+    monaco.editor.colorize(code, monacoLang, {}).then((h: string) => setHtml(h))
+  }, [theme.monacoTheme, code, monacoLang])
 
   return (
     <div className="md-code-block">
