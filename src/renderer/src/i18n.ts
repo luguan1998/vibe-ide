@@ -92,7 +92,7 @@ const ZH_MAP: Record<string, string> = {
   'Collapse Panel': '收缩面板',
 
   // RightPanel Aux
-  'Launch Terminal': '启动辅助终端',
+  'Launch Terminal': '启动终端',
   'Please select a workspace first': '请先选择工作目录',
   'Commands': 'Commands',
 
