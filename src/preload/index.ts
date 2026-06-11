@@ -163,6 +163,11 @@ const api = {
   // App
   appVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_VERSION) as Promise<string>,
 
+  // Perf
+  perf: {
+    snapshot: () => ipcRenderer.invoke(IPC_CHANNELS.PERF_SNAPSHOT)
+  },
+
   // CodeGraph operations
   code: {
     setWorkspace: (root: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_SET_WORKSPACE, root),

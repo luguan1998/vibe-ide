@@ -94,6 +94,9 @@ export const IPC_CHANNELS = {
   CODE_EXPLORE: 'code:explore',
   CODE_SET_ENABLED: 'code:setEnabled',
 
+  // Perf
+  PERF_SNAPSHOT: 'perf:snapshot',
+
   // App
   APP_VERSION: 'app:version'
 } as const

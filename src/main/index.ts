@@ -24,6 +24,12 @@ let mainWindow: BrowserWindow | null = null
 app.commandLine.appendSwitch('no-sandbox')
 // app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096')
 
+// 测试模式下启用精确内存信息，供 performance.memory 采集渲染进程 JSHeap
+// 生产环境不加：对 GC 有微小额外开销，且粗略值对日常运行够用
+if (process.argv.includes('--enable-precise-memory-info')) {
+  app.commandLine.appendSwitch('enable-precise-memory-info')
+}
+
 // 强制 ANGLE 使用 D3D11 硬件加速，禁用软件渲染回退。
 // 软件 WebGL (SwiftShader/llvmpipe) 会导致每次 gl.bufferData 全走 CPU，
 // 终端流式输出时 CPU 直接拉满。若硬件 GPU 确实不可用，WebGL 上下文
@@ -253,6 +259,14 @@ app.whenReady().then(() => {
 
   // App version
   ipcMain.handle(IPC_CHANNELS.APP_VERSION, () => app.getVersion())
+
+  // Perf snapshot — returns per-process memory + CPU usage
+  ipcMain.handle(IPC_CHANNELS.PERF_SNAPSHOT, () => ({
+    memory: process.memoryUsage(),
+    cpu: process.cpuUsage(),
+    appMetrics: app.getAppMetrics(),
+    timestamp: Date.now()
+  }))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

@@ -118,6 +118,7 @@ declare global {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
       }
       appVersion: () => Promise<string>
+      perf: { snapshot: () => Promise<any> }
       onFontAdjust: (callback: (delta: number) => void) => any
       removeFontAdjustListener: (handler?: any) => void
       onFocusSettings: (callback: () => void) => any
@@ -125,7 +126,7 @@ declare global {
       onStartupOpenPath: (callback: (data: { type: 'directory' | 'file'; path: string }) => void) => any
       removeStartupOpenPathListener: (handler?: any) => void
     }
-  }
+      }
 }
 
 type CenterView = 'terminal' | 'diff' | 'markdown' | 'image'
@@ -1598,4 +1599,5 @@ export default function App() {
       )}
     </div>
   )
-}
+
+  }

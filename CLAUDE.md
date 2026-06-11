@@ -21,6 +21,7 @@ npm run dev        # Start dev with hot reload
 npm run build      # Compile all layers to ./out/
 npm run build:win  # Package win exe
 npm test           # test
+npm run test:perf  # 性能测试：自动 build + 启动 + 快速文件切换 + 采集 CPU/内存 + 关闭
 npm version patch  # 0.1.0 → 0.1.1  修bug
 npm version minor  # 0.1.0 → 0.2.0  新功能
 ```
