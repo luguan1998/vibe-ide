@@ -61,7 +61,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
     getMonaco().then(monaco => {
       monacoRef.current = monaco
       cancel = enqueue(() => {
-        monaco.editor.colorize(code, monacoLang, {}).then((h: string) => {
+        monaco.editor.colorize(code, monacoLang, { theme: theme.monacoTheme }).then((h: string) => {
           colorizeDone()
           setHtml(h)
         }).catch(colorizeDone)
@@ -73,7 +73,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   useEffect(() => {
     const monaco = monacoRef.current
     if (!monaco) return
-    monaco.editor.colorize(code, monacoLang, {}).then((h: string) => setHtml(h))
+    monaco.editor.colorize(code, monacoLang, { theme: theme.monacoTheme }).then((h: string) => setHtml(h))
   }, [theme.monacoTheme, code, monacoLang])
 
   return (
