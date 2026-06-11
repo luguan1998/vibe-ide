@@ -235,6 +235,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       setDiffStats(stats)
       savedContentRef.current = modified
       setIsDirty(false)
+      if (onContentLoaded) onContentLoaded(modified)
       // Jump to line after content loads (onMount fires too early)
       if (lineNumber && lineNumber > 0) {
         setTimeout(() => {

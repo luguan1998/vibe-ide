@@ -175,7 +175,7 @@ const nord: IDETheme = {
     'ide-panel': t('#434c5e'),
     'ide-border': t('#4c566a'),
     'ide-text': t('#d8dee9'),
-    'ide-text-muted': t('#616e88'),
+    'ide-text-muted': t('#9aa5b4'),
     'ide-accent': t('#88c0d0'),
     'ide-accent-hover': t('#81a1c1'),
     'ide-success': t('#a3be8c'),
@@ -212,7 +212,7 @@ const nord: IDETheme = {
     { token: 'constant', foreground: '#b48ead' },
     { token: 'regexp', foreground: '#ebcb8b' }
   ],
-  titleBar: { color: '#3b4252', symbolColor: '#616e88', backgroundColor: '#3b4252' }
+  titleBar: { color: '#3b4252', symbolColor: '#9aa5b4', backgroundColor: '#3b4252' }
 }
 
 const solarizedDark: IDETheme = {

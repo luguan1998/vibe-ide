@@ -6,14 +6,15 @@ Vibe IDE — Electron-based desktop IDE with native terminal, git, file diff/edi
 
 1. **抄骨不凭记** — 凡言"跟XX一样"，先 Read 模板代码，类名逐个对照，不得凭记忆自创
 2. **同级同骨架** — 同级菜单/列表项，容器结构（padding/margin/分隔线）必须一致，写完 grep 同类 className 验证
-3. **细节照抄** — 圆点、图标、颜色等视觉细节照搬模板写法，不变种（如 `style={{ backgroundColor: rgb(...) }}` 不改为 `var(--xxx)`）
-4. **遍历交互态** — 改完后脑中过一遍 hover/选中/空态/中英文/分隔线覆盖范围
-5. **信息不过二** — 同一份数据出现两次以上，立刻抽共享常量，不种重复因
-6. **禁用同步弹窗** — 严禁使用 `confirm()`、`prompt()`、`alert()` 等同步阻塞式浏览器原生弹窗。确认/输入类交互统一使用异步 Modal 模式（参考 `confirmAction` 状态 + fixed 定位弹窗，或内联 `<input>` 编辑）
-7. **被调先于主调** — `const` 声明（含 `useCallback`）不提升，被调函数必须在调用方之前定义。违反会触发 `ReferenceError: Cannot access 'xxx' before initialization`
-8. **Modal/Overlay 按键拦截用 capture + stopImmediatePropagation** — Modal 的 Escape/Enter 等键盘监听必须用捕获阶段（`addEventListener('keydown', handler, true)`），并在 handler 中调用 `e.stopImmediatePropagation()`。原因：xterm.js 终端会消费键盘事件，冒泡阶段监听时终端已先收到按键，导致 Modal 关闭的同时终端也被影响。清理时 `removeEventListener` 同样要传 `true`。参考 `TerminalView.tsx:741-749`
-9. **ESC 分层消费** — capture 阶段按 z-index 从上到下：z-50 overlay → NavBar → preview → 右侧 panel blur → 终端搜索。上层消费后必须 `stopImmediatePropagation()`；preview handler 也必须加，否则 ESC 泄漏到 Monaco/xterm 引发副作用。右侧 panel blur 只在 `centerView === 'terminal'` 时生效（`App.tsx:772`），preview 模式下 ESC 交给 preview handler
-10. **Caps Lock 安全** — 字母键判断必须 `.toLowerCase()`：`e.key.toLowerCase() === 's'`，不得直接 `e.key === 's'`。Caps Lock 时 `e.key` 为大写，直接比较会漏匹配
+3. **细节照抄** — 圆点、图标等视觉细节照搬模板写法，不变种
+4. **颜色用主题色** — 新增颜色用 `var(--ide-xxx)` 或 Tailwind token `text-ide-xxx` / `bg-ide-xxx`，不硬编码 `rgb()` / `#hex`
+5. **遍历交互态** — 改完后脑中过一遍 hover/选中/空态/中英文/分隔线覆盖范围
+6. **信息不过二** — 同一份数据出现两次以上，立刻抽共享常量，不种重复因
+7. **禁用同步弹窗** — 严禁使用 `confirm()`、`prompt()`、`alert()` 等同步阻塞式浏览器原生弹窗。确认/输入类交互统一使用异步 Modal 模式（参考 `confirmAction` 状态 + fixed 定位弹窗，或内联 `<input>` 编辑）
+8. **被调先于主调** — `const` 声明（含 `useCallback`）不提升，被调函数必须在调用方之前定义。违反会触发 `ReferenceError: Cannot access 'xxx' before initialization`
+9. **Modal/Overlay 按键拦截用 capture + stopImmediatePropagation** — Modal 的 Escape/Enter 等键盘监听必须用捕获阶段（`addEventListener('keydown', handler, true)`），并在 handler 中调用 `e.stopImmediatePropagation()`。原因：xterm.js 终端会消费键盘事件，冒泡阶段监听时终端已先收到按键，导致 Modal 关闭的同时终端也被影响。清理时 `removeEventListener` 同样要传 `true`。参考 `TerminalView.tsx:741-749`
+10. **ESC 分层消费** — capture 阶段按 z-index 从上到下：z-50 overlay → NavBar → preview → 右侧 panel blur → 终端搜索。上层消费后必须 `stopImmediatePropagation()`；preview handler 也必须加，否则 ESC 泄漏到 Monaco/xterm 引发副作用。右侧 panel blur 只在 `centerView === 'terminal'` 时生效（`App.tsx:772`），preview 模式下 ESC 交给 preview handler
+11. **Caps Lock 安全** — 字母键判断必须 `.toLowerCase()`：`e.key.toLowerCase() === 's'`，不得直接 `e.key === 's'`。Caps Lock 时 `e.key` 为大写，直接比较会漏匹配
 
 ## Commands
 

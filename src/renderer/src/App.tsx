@@ -168,6 +168,8 @@ export default function App() {
   const [centerView, setCenterView] = useState<CenterView>('terminal')
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
   const [currentFileContent, setCurrentFileContent] = useState<string>('')  // DiffViewer 回传，供 OutlinePanel 省 IPC
+  // 文件切换时清空 stale content，防止新 OutlinePanel 拿到上一个文件的内容
+  useEffect(() => { setCurrentFileContent('') }, [diffFile?.fullPath])
   const [markdownFile, setMarkdownFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const [imageFile, setImageFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const diffRevisionRef = useRef(0)
