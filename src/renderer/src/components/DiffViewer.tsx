@@ -367,6 +367,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           sel = { startLine: range.startLineNumber, endLine: range.endLineNumber }
         }
       } catch {}
+      e.stopImmediatePropagation()
       onBack(sel)
     }
     window.addEventListener('keydown', handleEsc, true)

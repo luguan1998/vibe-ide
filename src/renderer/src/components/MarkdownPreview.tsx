@@ -98,6 +98,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
+        e.stopImmediatePropagation()
         onBack()
       }
     }

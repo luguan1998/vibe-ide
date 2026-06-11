@@ -26,6 +26,7 @@ const ImagePreview = React.memo(function ImagePreview({
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
+        e.stopImmediatePropagation()
         onBack()
       }
     }

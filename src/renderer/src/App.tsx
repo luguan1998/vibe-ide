@@ -769,7 +769,7 @@ export default function App() {
           return
         }
         const active = document.activeElement as HTMLElement | null
-        if (active && rightPanelRef.current?.contains(active) && centerView !== 'diff') {
+        if (active && rightPanelRef.current?.contains(active) && centerView === 'terminal') {
           const tag = active.tagName
           if (tag !== 'TEXTAREA' && tag !== 'INPUT' && tag !== 'SELECT') {
             e.preventDefault()
