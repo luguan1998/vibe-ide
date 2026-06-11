@@ -6,6 +6,7 @@ import App from './App'
 import { ThemeProvider } from './themes'
 import { I18nProvider } from './i18n'
 import ErrorBoundary from './components/ErrorBoundary'
+import { getMonaco } from './utils/monacoSingleton'
 import './styles/globals.css'
 
 // Workers for Monaco Editor (electron-vite handles ?worker imports)
@@ -39,6 +40,9 @@ window.MonacoEnvironment = {
 
 // 直接使用打包进 bundle 的 monaco 实例，不走 CDN / 动态脚本注入
 loader.config({ monaco })
+
+// 启动时注册主题+tokenizer，全局只跑一次
+getMonaco()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

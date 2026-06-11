@@ -6,6 +6,7 @@ interface OutlinePanelProps {
   filePath: string
   fullPath: string
   content?: string  // 从 DiffViewer 直接传入，省 IPC file.read
+  hasExternalProvider?: boolean  // true = DiffViewer 会通过 content prop 传入内容，不需要自己读
   onNavigate: (line: number, headingName?: string) => void
 }
 
@@ -437,7 +438,7 @@ function OutlineItemRow({ item, depth, collapsedSet, onToggle, onNavigate, isMd 
   )
 }
 
-export default React.memo(function OutlinePanel({ filePath, fullPath, content, onNavigate }: OutlinePanelProps) {
+export default React.memo(function OutlinePanel({ filePath, fullPath, content, hasExternalProvider, onNavigate }: OutlinePanelProps) {
   const { t } = useI18n()
   const [items, setItems] = useState<OutlineItem[]>([])
   const [collapsedSet, setCollapsedSet] = useState<Set<string>>(new Set())
@@ -480,6 +481,10 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, content, o
         setItems(parseCodeOutline(content, lang, kinds!))
       }
       setLoading(false)
+    } else if (hasExternalProvider) {
+      // Wait for external provider (DiffViewer's onContentLoaded) — no duplicate file.read
+      setLoading(true)
+      setItems([])
     } else {
       window.api.file.read(fullPath).then(result => {
         if (pendingRef.current !== fullPath) return

@@ -1359,6 +1359,7 @@ export default function App() {
                 filePath={diffFile.filePath}
                 fullPath={diffFile.fullPath}
                 content={currentFileContent}
+                hasExternalProvider={true}
                 onNavigate={handleOutlineNavigate}
               />
             </div>
