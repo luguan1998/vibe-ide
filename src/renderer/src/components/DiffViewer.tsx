@@ -25,6 +25,7 @@ interface DiffViewerProps {
   defaultEdit?: boolean
   inlineDiff?: boolean      // 强制内联 diff 模式
   cursorRef?: React.MutableRefObject<{ fullPath: string; line: number; column: number } | null>
+  onContentLoaded?: (content: string) => void  // 回传文件内容给父组件（供 OutlinePanel 使用）
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -106,7 +107,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -263,8 +264,11 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }, [filePath, fullPath, isStaged, commitHash, diffContent, revision])
 
   useEffect(() => {
+    // edit 模式 + 无 diffContent（从文件浏览器直接打开）→ 不需要 diff 版本
+    // loadForEdit 的 useEffect[viewMode] 会负责加载文件内容
+    if (viewMode === 'edit' && !diffContent) return
     loadContents()
-  }, [loadContents])
+  }, [loadContents, viewMode, diffContent])
 
   const loadForEdit = useCallback(async (encoding?: string, forceOpen?: boolean) => {
     try {
@@ -292,6 +296,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           }
         }
         setIsDirty(false)
+        if (onContentLoaded) onContentLoaded(result.content)
         if (lineNumber && lineNumber > 0) {
           setTimeout(() => {
             try {

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { getKindStyle } from '../utils/kindColors'
 import { useI18n } from '../i18n'
 
 interface OutlinePanelProps {
   filePath: string
   fullPath: string
+  content?: string  // 从 DiffViewer 直接传入，省 IPC file.read
   onNavigate: (line: number, headingName?: string) => void
 }
 
@@ -105,181 +106,268 @@ function parseMarkdownOutline(content: string): OutlineItem[] {
   return root
 }
 
-// Code outline regex parser
+// Code outline regex parser — 惰性正则：按 kinds 预建 pattern 表，循环外过滤，循环内只遍历小表
 const BLOCK_KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'return', 'throw', 'new', 'try', 'catch', 'else', 'do', 'case', 'break', 'continue', 'delete', 'typeof', 'instanceof', 'void', 'await', 'yield', 'super', 'import', 'from'])
 
-function parseCodeOutline(content: string, lang: string): OutlineItem[] {
-  const items: OutlineItem[] = []
-  const lines = content.split(/\r?\n/)
+type PatternEntry = {
+  regex: RegExp
+  resolve: (m: RegExpMatchArray, lineIdx: number, rawLine: string) => OutlineItem | { item: OutlineItem; classCtx: true; push: boolean } | null
+}
 
+// ── TS/JS pattern builder ──
+function buildTSPatterns(kinds: Set<string>): PatternEntry[] {
+  const needMethod = kinds.has('method')
+  const trackClass = kinds.has('class') || kinds.has('interface') || kinds.has('enum') || needMethod
+  const patterns: PatternEntry[] = []
+
+  if (trackClass) {
+    patterns.push({
+      regex: /^(export\s+)?(default\s+)?(abstract\s+)?(class|interface|enum)\s+(\w+)/,
+      resolve: (m, i, _raw) => {
+        const kind = m[4] as string
+        const item: OutlineItem = { name: m[5], kind, line: i + 1, children: [] }
+        return { item, classCtx: true, push: kinds.has(kind) }
+      }
+    })
+  }
+  if (kinds.has('type_alias')) {
+    patterns.push({
+      regex: /^(export\s+)?type\s+(\w+)\s*=/,
+      resolve: (m, i) => ({ name: m[2], kind: 'type_alias', line: i + 1 })
+    })
+  }
+  if (kinds.has('function')) {
+    patterns.push({
+      regex: /^(export\s+)?(async\s+)?function\s+(\w+)/,
+      resolve: (m, i) => ({ name: m[3], kind: 'function', line: i + 1 })
+    })
+  }
+  // const → arrow function / constant 共用一条正则，resolve 内分流
+  if (kinds.has('function') || kinds.has('constant')) {
+    patterns.push({
+      regex: /^(export\s+)?const\s+(\w+)\s*=\s*(async\s+)?\(?/,
+      resolve: (m, i, rawLine) => {
+        const isArrowFn = rawLine.includes('=>') || /\)\s*:\s*\w+\s*=>/.test(rawLine)
+        if (isArrowFn && kinds.has('function')) {
+          return { name: m[2], kind: 'function', line: i + 1 }
+        }
+        if (!isArrowFn && kinds.has('constant')) {
+          return { name: m[2], kind: 'constant', line: i + 1 }
+        }
+        return null
+      }
+    })
+  }
+  return patterns
+}
+
+// ── Python pattern builder ──
+function buildPythonPatterns(kinds: Set<string>): PatternEntry[] {
+  const needMethod = kinds.has('method')
+  const trackClass = kinds.has('class') || needMethod
+  const patterns: PatternEntry[] = []
+
+  if (trackClass) {
+    patterns.push({
+      regex: /^class\s+(\w+)/,
+      resolve: (m, i, _raw) => {
+        const item: OutlineItem = { name: m[1], kind: 'class', line: i + 1, children: [] }
+        return { item, classCtx: true, push: kinds.has('class') }
+      }
+    })
+  }
+  if (kinds.has('function') || kinds.has('method')) {
+    patterns.push({
+      regex: /^(async\s+)?def\s+(\w+)/,
+      resolve: (m, i, rawLine) => {
+        const isMethod = rawLine.startsWith('  ') || rawLine.startsWith('\t')
+        if (isMethod && kinds.has('method')) {
+          return { name: m[2], kind: 'method', line: i + 1 }  // 独立推入，class 不在 kinds 时 method 不挂 children
+        }
+        if (!isMethod && kinds.has('function')) {
+          return { name: m[2], kind: 'function', line: i + 1 }
+        }
+        return null
+      }
+    })
+  }
+  return patterns
+}
+
+// ── Go pattern builder ──
+function buildGoPatterns(kinds: Set<string>): PatternEntry[] {
+  const needMethod = kinds.has('method')
+  const trackClass = kinds.has('class') || kinds.has('interface') || needMethod
+  const patterns: PatternEntry[] = []
+
+  if (trackClass) {
+    patterns.push({
+      regex: /^type\s+(\w+)\s+(struct|interface)/,
+      resolve: (m, i, _raw) => {
+        const kind = m[2] === 'struct' ? 'class' : 'interface'
+        const item: OutlineItem = { name: m[1], kind, line: i + 1, children: [] }
+        return { item, classCtx: true, push: kinds.has(kind) }
+      }
+    })
+  }
+  if (kinds.has('function') || kinds.has('method')) {
+    patterns.push({
+      regex: /^func\s+(?:\(\w+\s+\*?\w+\)\s+)?(\w+)/,
+      resolve: (m, i, _raw) => ({ name: m[1], kind: 'function', line: i + 1 })
+      // method 判断需要 currentClass 上下文，在主循环里处理
+    })
+  }
+  return patterns
+}
+
+// ── Rust pattern builder ──
+function buildRustPatterns(kinds: Set<string>): PatternEntry[] {
+  const needMethod = kinds.has('method')
+  const trackClass = kinds.has('class') || kinds.has('interface') || needMethod
+  const patterns: PatternEntry[] = []
+
+  if (trackClass) {
+    patterns.push({
+      regex: /^(pub\s+)?struct\s+(\w+)/,
+      resolve: (m, i, _raw) => {
+        const item: OutlineItem = { name: m[2], kind: 'class', line: i + 1, children: [] }
+        return { item, classCtx: true, push: kinds.has('class') }
+      }
+    })
+    patterns.push({
+      regex: /^(pub\s+)?trait\s+(\w+)/,
+      resolve: (m, i, _raw) => {
+        const item: OutlineItem = { name: m[2], kind: 'interface', line: i + 1, children: [] }
+        return { item, classCtx: true, push: kinds.has('interface') }
+      }
+    })
+  }
+  if (kinds.has('enum')) {
+    patterns.push({
+      regex: /^(pub\s+)?enum\s+(\w+)/,
+      resolve: (m, i) => ({ name: m[2], kind: 'enum', line: i + 1 })
+    })
+  }
+  if (kinds.has('function')) {
+    patterns.push({
+      regex: /^(pub\s+)?(async\s+)?fn\s+(\w+)/,
+      resolve: (m, i) => ({ name: m[3], kind: 'function', line: i + 1 })
+    })
+  }
+  return patterns
+}
+
+// ── Generic pattern builder ──
+function buildGenericPatterns(kinds: Set<string>): PatternEntry[] {
+  const patterns: PatternEntry[] = []
+  if (kinds.has('class') || kinds.has('interface')) {
+    patterns.push({
+      regex: /^(class|interface|struct)\s+(\w+)/,
+      resolve: (m, i, _raw) => {
+        const kind = m[1] === 'interface' ? 'interface' : 'class'
+        const item: OutlineItem = { name: m[2], kind, line: i + 1, children: [] }
+        return { item, classCtx: true, push: kinds.has(kind) }
+      }
+    })
+  }
+  if (kinds.has('function')) {
+    patterns.push({
+      regex: /^(function|def|fn|func)\s+(\w+)/,
+      resolve: (m, i) => ({ name: m[2], kind: 'function', line: i + 1 })
+    })
+  }
+  return patterns
+}
+
+function parseCodeOutline(content: string, lang: string, kinds: Set<string>): OutlineItem[] {
+  const lines = content.split(/\r?\n/)
+  const items: OutlineItem[] = []
   let currentClass: OutlineItem | null = null
+  const needMethod = kinds.has('method')
+  const showClassInTree = kinds.has('class') || kinds.has('interface') || kinds.has('enum')
+
+  // 循环外一次性按 kinds 预建 pattern 表
+  let patterns: PatternEntry[]
+  if (lang === 'typescript' || lang === 'javascript') {
+    patterns = buildTSPatterns(kinds)
+  } else if (lang === 'python') {
+    patterns = buildPythonPatterns(kinds)
+  } else if (lang === 'go') {
+    patterns = buildGoPatterns(kinds)
+  } else if (lang === 'rust') {
+    patterns = buildRustPatterns(kinds)
+  } else {
+    patterns = buildGenericPatterns(kinds)
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
 
-    if (lang === 'typescript' || lang === 'javascript') {
-      // class/interface/enum/type
-      const classMatch = line.match(/^(export\s+)?(default\s+)?(abstract\s+)?(class|interface|enum)\s+(\w+)/)
-      if (classMatch) {
-        currentClass = { name: classMatch[5], kind: classMatch[4], line: i + 1, children: [] }
-        items.push(currentClass)
-        continue
-      }
-      const typeMatch = line.match(/^(export\s+)?type\s+(\w+)\s*=/)
-      if (typeMatch) {
+    let matched = false
+    for (const p of patterns) {
+      const m = line.match(p.regex)
+      if (!m) continue
+      matched = true
+      const result = p.resolve(m, i, lines[i])
+      if (!result) continue
+
+      if (result && 'classCtx' in result) {
+        currentClass = result.item as OutlineItem
+        if (result.push) items.push(currentClass)
+      } else {
         currentClass = null
-        items.push({ name: typeMatch[2], kind: 'type_alias', line: i + 1 })
-        continue
+        items.push(result as OutlineItem)
       }
-      // function
-      const fnMatch = line.match(/^(export\s+)?(async\s+)?function\s+(\w+)/)
-      if (fnMatch) {
-        currentClass = null
-        items.push({ name: fnMatch[3], kind: 'function', line: i + 1 })
-        continue
-      }
-      // arrow function / const
-      const constMatch = line.match(/^(export\s+)?const\s+(\w+)\s*=\s*(async\s+)?\(?/)
-      if (constMatch) {
-        const isFn = line.includes('=>') || line.match(/\)\s*:\s*\w+\s*=>/)
-        if (isFn) {
-          items.push({ name: constMatch[2], kind: 'function', line: i + 1 })
-        } else {
-          items.push({ name: constMatch[2], kind: 'constant', line: i + 1 })
-        }
-        currentClass = null
-        continue
-      }
-      // method inside class (indented, but use raw line to detect indentation)
-      if (currentClass) {
-        const rawLine = lines[i]
-        if (!rawLine.match(/^\s{2,}/)) continue
-        const trimmedMethod = rawLine.trim()
-        if (trimmedMethod.startsWith('//') || trimmedMethod.startsWith('*') || trimmedMethod.startsWith('/*')) continue
-        const methodMatch = trimmedMethod.match(/^(?:async\s+)?(\w+)\s*\(/)
-        if (methodMatch && !BLOCK_KEYWORDS.has(methodMatch[1])) {
-          if (['constructor', 'get', 'set', 'static', 'public', 'private', 'protected'].includes(methodMatch[1])) {
-            const realMethod = trimmedMethod.match(/^(?:async\s+)?(?:get|set|static|public|private|protected)\s+(\w+)\s*\(/)
-            if (realMethod && !BLOCK_KEYWORDS.has(realMethod[1])) {
-              currentClass.children!.push({ name: realMethod[1], kind: 'method', line: i + 1 })
-            }
+      break
+    }
+
+    // TS/JS method detection — 只在 needMethod=true 且有 classCtx 时触发
+    if (!matched && needMethod && (lang === 'typescript' || lang === 'javascript') && currentClass) {
+      const rawLine = lines[i]
+      if (!rawLine.match(/^\s{2,}/)) continue
+      const trimmed = rawLine.trim()
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue
+      const mm = trimmed.match(/^(?:async\s+)?(\w+)\s*\(/)
+      if (mm && !BLOCK_KEYWORDS.has(mm[1])) {
+        const methodName = ['constructor', 'get', 'set', 'static', 'public', 'private', 'protected'].includes(mm[1])
+          ? (trimmed.match(/^(?:async\s+)?(?:get|set|static|public|private|protected)\s+(\w+)\s*\(/)?.[1])
+          : mm[1]
+        if (methodName && !BLOCK_KEYWORDS.has(methodName)) {
+          const methodItem = { name: methodName, kind: 'method', line: i + 1 }
+          if (showClassInTree) {
+            currentClass.children!.push(methodItem)
           } else {
-            currentClass.children!.push({ name: methodMatch[1], kind: 'method', line: i + 1 })
+            items.push(methodItem)
           }
         }
-      }
-    } else if (lang === 'python') {
-      const classMatch = line.match(/^class\s+(\w+)/)
-      if (classMatch) {
-        currentClass = { name: classMatch[1], kind: 'class', line: i + 1, children: [] }
-        items.push(currentClass)
-        continue
-      }
-      const fnMatch = line.match(/^(async\s+)?def\s+(\w+)/)
-      if (fnMatch) {
-        if (currentClass && line.startsWith('  ') || line.startsWith('\t')) {
-          currentClass.children!.push({ name: fnMatch[2], kind: 'method', line: i + 1 })
-        } else {
-          currentClass = null
-          items.push({ name: fnMatch[2], kind: 'function', line: i + 1 })
-        }
-      }
-    } else if (lang === 'go') {
-      const typeMatch = line.match(/^type\s+(\w+)\s+(struct|interface)/)
-      if (typeMatch) {
-        currentClass = { name: typeMatch[1], kind: typeMatch[2] === 'struct' ? 'class' : 'interface', line: i + 1, children: [] }
-        items.push(currentClass)
-        continue
-      }
-      const fnMatch = line.match(/^func\s+(?:\(\w+\s+\*?\w+\)\s+)?(\w+)/)
-      if (fnMatch) {
-        if (currentClass && line.includes(`*${currentClass.name}`) || line.includes(`${currentClass.name})`)) {
-          currentClass.children!.push({ name: fnMatch[1], kind: 'method', line: i + 1 })
-        } else {
-          currentClass = null
-          items.push({ name: fnMatch[1], kind: 'function', line: i + 1 })
-        }
-      }
-    } else if (lang === 'rust') {
-      const structMatch = line.match(/^(pub\s+)?struct\s+(\w+)/)
-      if (structMatch) {
-        currentClass = { name: structMatch[2], kind: 'class', line: i + 1, children: [] }
-        items.push(currentClass)
-        continue
-      }
-      const enumMatch = line.match(/^(pub\s+)?enum\s+(\w+)/)
-      if (enumMatch) {
-        currentClass = null
-        items.push({ name: enumMatch[2], kind: 'enum', line: i + 1 })
-        continue
-      }
-      const traitMatch = line.match(/^(pub\s+)?trait\s+(\w+)/)
-      if (traitMatch) {
-        currentClass = { name: traitMatch[2], kind: 'interface', line: i + 1, children: [] }
-        items.push(currentClass)
-        continue
-      }
-      const fnMatch = line.match(/^(pub\s+)?(async\s+)?fn\s+(\w+)/)
-      if (fnMatch) {
-        items.push({ name: fnMatch[3], kind: 'function', line: i + 1 })
-        currentClass = null
-      }
-    } else {
-      // Generic: try to catch class/function patterns
-      const classMatch = line.match(/^(class|interface|struct)\s+(\w+)/)
-      if (classMatch) {
-        currentClass = { name: classMatch[2], kind: classMatch[1] === 'interface' ? 'interface' : 'class', line: i + 1, children: [] }
-        items.push(currentClass)
-        continue
-      }
-      const fnMatch = line.match(/^(function|def|fn|func)\s+(\w+)/)
-      if (fnMatch) {
-        items.push({ name: fnMatch[2], kind: 'function', line: i + 1 })
-        currentClass = null
       }
     }
   }
   return items
 }
 
-// Collect all unique kinds from outline items (recursive)
-function collectKinds(items: OutlineItem[]): string[] {
-  const kinds = new Set<string>()
-  function walk(list: OutlineItem[]) {
-    for (const item of list) {
-      kinds.add(item.kind)
-      if (item.children) walk(item.children)
-    }
-  }
-  walk(items)
-  // Sort: function/method first, then class/interface, then rest alphabetically
-  const order = ['function', 'method', 'class', 'interface', 'type_alias', 'enum', 'constant', 'variable', 'property', 'module', 'component']
-  const sorted = [...kinds].sort((a, b) => {
-    const ai = order.indexOf(a), bi = order.indexOf(b)
-    if (ai >= 0 && bi >= 0) return ai - bi
-    if (ai >= 0) return -1
-    if (bi >= 0) return 1
-    return a.localeCompare(b)
-  })
-  return sorted
+const LANG_KINDS: Record<string, string[]> = {
+  typescript: ['function', 'method', 'class', 'interface', 'enum', 'type_alias', 'constant'],
+  javascript: ['function', 'method', 'class', 'interface', 'enum', 'type_alias', 'constant'],
+  python: ['function', 'method', 'class'],
+  go: ['function', 'method', 'class', 'interface'],
+  rust: ['function', 'method', 'class', 'interface', 'enum'],
+  csharp: ['function', 'method', 'class', 'interface', 'enum'],
+  cpp: ['function', 'method', 'class', 'interface', 'enum'],
+  c: ['function', 'method', 'class', 'interface', 'enum'],
+  java: ['function', 'method', 'class', 'interface', 'enum'],
+  ruby: ['function', 'method', 'class'],
+  php: ['function', 'method', 'class', 'interface'],
+  swift: ['function', 'method', 'class', 'interface', 'enum'],
+  kotlin: ['function', 'method', 'class', 'interface', 'enum'],
+  scala: ['function', 'method', 'class', 'interface'],
+  vue: ['function', 'method', 'class', 'interface', 'enum', 'type_alias', 'constant'],
+  svelte: ['function', 'method', 'class', 'interface', 'enum', 'type_alias', 'constant'],
+  unknown: ['function', 'method', 'class', 'interface'],
 }
+const KIND_ORDER = ['function', 'method', 'class', 'interface', 'type_alias', 'enum', 'constant', 'variable', 'property', 'module', 'component']
 
 // Filter outline tree: keep items whose kind is in filter, or have descendants in filter
-function filterItems(items: OutlineItem[], kinds: Set<string>): OutlineItem[] {
-  if (kinds.size === 0) return items
-  function filter(list: OutlineItem[]): OutlineItem[] {
-    const out: OutlineItem[] = []
-    for (const item of list) {
-      const childMatch = item.children ? filter(item.children) : []
-      if (kinds.has(item.kind) || childMatch.length > 0) {
-        out.push({ ...item, children: childMatch.length > 0 ? childMatch : item.children && kinds.has(item.kind) ? item.children : undefined })
-      }
-    }
-    return out
-  }
-  return filter(items)
-}
-
 function HeadingBadge({ level }: { level: number }) {
   return (
     <span className="text-[10px] font-bold leading-none shrink-0 select-none"
@@ -349,7 +437,7 @@ function OutlineItemRow({ item, depth, collapsedSet, onToggle, onNavigate, isMd 
   )
 }
 
-export default React.memo(function OutlinePanel({ filePath, fullPath, onNavigate }: OutlinePanelProps) {
+export default React.memo(function OutlinePanel({ filePath, fullPath, content, onNavigate }: OutlinePanelProps) {
   const { t } = useI18n()
   const [items, setItems] = useState<OutlineItem[]>([])
   const [collapsedSet, setCollapsedSet] = useState<Set<string>>(new Set())
@@ -361,13 +449,18 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, onNavigate
   const lang = code ? getLanguageId(filePath) : 'unknown'
 
   // Kind filter: only for code files, default only 'function' active
-  const [kindFilter, setKindFilter] = useState<Set<string>>(new Set(['function']))
+  const kindFilterRef = useRef(new Set(['function']))
 
-  // Reset filter when file changes
+  // Reset filter when file changes (code only)
   useEffect(() => {
-    setKindFilter(new Set(['function']))
+    kindFilterRef.current = new Set(['function'])
+    setKindFilterDisplay(new Set(['function']))
   }, [fullPath])
 
+  // Separate display state to drive the filter bar buttons
+  const [kindFilterDisplay, setKindFilterDisplay] = useState<Set<string>>(new Set(['function']))
+
+  // Load outline content (Markdown always full, Code uses kindFilter)
   useEffect(() => {
     if (!md && !code) {
       setLoading(false)
@@ -378,18 +471,35 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, onNavigate
     setLoading(true)
     setItems([])
 
-    window.api.file.read(fullPath).then(result => {
-      if (pendingRef.current !== fullPath) return
-      if (result.error) { setLoading(false); return }
-      const content = result.content
+    const kinds = code ? kindFilterRef.current : undefined
+
+    if (content) {
       if (md) {
         setItems(parseMarkdownOutline(content))
       } else {
-        setItems(parseCodeOutline(content, lang))
+        setItems(parseCodeOutline(content, lang, kinds!))
       }
       setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [fullPath, md, code, lang])
+    } else {
+      window.api.file.read(fullPath).then(result => {
+        if (pendingRef.current !== fullPath) return
+        if (result.error) { setLoading(false); return }
+        const c = result.content
+        if (md) {
+          setItems(parseMarkdownOutline(c))
+        } else {
+          setItems(parseCodeOutline(c, lang, kinds!))
+        }
+        setLoading(false)
+      }).catch(() => setLoading(false))
+    }
+  }, [fullPath, md, code, lang, content])
+
+  // Re-parse code outline when kindFilter changes (separate effect, not in the main load effect)
+  useEffect(() => {
+    if (!code || !content) return
+    setItems(parseCodeOutline(content, lang, kindFilterRef.current))
+  }, [kindFilterDisplay, code, content, lang])
 
   const handleToggle = useCallback((key: string) => {
     setCollapsedSet(prev => {
@@ -404,24 +514,16 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, onNavigate
     onNavigate(line, headingName)
   }, [onNavigate])
 
-  // Available kinds from parsed items (code mode only)
-  const availableKinds = useMemo(() => collectKinds(items), [items])
-
-  // Filtered items
-  const filteredItems = useMemo(
-    () => code ? filterItems(items, kindFilter) : items,
-    [code, items, kindFilter]
-  )
+  // Available kinds for this language (code mode only)
+  const availableKinds = code ? (LANG_KINDS[lang] || LANG_KINDS.unknown) : []
 
   const handleToggleKind = useCallback((kind: string) => {
-    setKindFilter(prev => {
-      const next = new Set(prev)
-      if (next.has(kind)) next.delete(kind)
-      else next.add(kind)
-      // Don't allow empty filter — at least one kind must be active
-      if (next.size === 0) return prev
-      return next
-    })
+    const next = new Set(kindFilterRef.current)
+    if (next.has(kind)) next.delete(kind)
+    else next.add(kind)
+    if (next.size === 0) return  // Don't allow empty filter
+    kindFilterRef.current = next
+    setKindFilterDisplay(next)  // trigger re-parse via the kindFilter effect
   }, [])
 
   const fileName = filePath.replace(/[\\/]/g, '/').split('/').pop() || filePath
@@ -443,10 +545,10 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, onNavigate
         {loading && (
           <div className="px-2 py-4 text-xs text-ide-text-muted text-center">{t('Loading...')}</div>
         )}
-        {!loading && filteredItems.length === 0 && (
+        {!loading && items.length === 0 && (
           <div className="px-2 py-4 text-xs text-ide-text-muted text-center">{t('No outline')}</div>
         )}
-        {!loading && filteredItems.map(item => (
+        {!loading && items.map(item => (
           <OutlineItemRow
             key={`${item.kind}:${item.name}:${item.line}`}
             item={item}
@@ -463,7 +565,7 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, onNavigate
       {code && !loading && availableKinds.length > 0 && (
         <div className="px-2 py-1.5 border-t border-ide-border shrink-0 flex items-center gap-1 flex-wrap">
           {availableKinds.map(kind => {
-            const active = kindFilter.has(kind)
+            const active = kindFilterDisplay.has(kind)
             return (
               <button
                 key={kind}

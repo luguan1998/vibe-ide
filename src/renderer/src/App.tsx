@@ -166,6 +166,7 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
+  const [currentFileContent, setCurrentFileContent] = useState<string>('')  // DiffViewer 回传，供 OutlinePanel 省 IPC
   const [markdownFile, setMarkdownFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const [imageFile, setImageFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const diffRevisionRef = useRef(0)
@@ -1095,6 +1096,7 @@ export default function App() {
     }
     setCenterView('terminal')
     setDiffFile(null)
+    setCurrentFileContent('')
   }, [diffFile, activeSessionId, activeSessionCwd])
 
   const handleRefreshGit = useCallback(async () => {
@@ -1356,6 +1358,7 @@ export default function App() {
                 key={diffFile.fullPath}
                 filePath={diffFile.filePath}
                 fullPath={diffFile.fullPath}
+                content={currentFileContent}
                 onNavigate={handleOutlineNavigate}
               />
             </div>
@@ -1404,6 +1407,7 @@ export default function App() {
                 inlineDiff={inlineDiff}
                 scrollTrigger={diffScrollTrigger}
                 cursorRef={cursorRef}
+                onContentLoaded={setCurrentFileContent}
               />
             </div>
           )}
