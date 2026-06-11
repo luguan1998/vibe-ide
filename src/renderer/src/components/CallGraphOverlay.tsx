@@ -2,12 +2,29 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import dagre from 'dagre'
 import { CodeSymbol } from '@shared/types'
 import { getKindColorHex } from '../utils/kindColors'
+import { useTheme } from '../themes/context'
 
-const NODE_W = 180
-const NODE_H = 30
-const RANK_SEP = 30
-const NODE_SEP = 8
+const NODE_W = 160
+const NODE_H = 28
+const RANK_SEP = 24
+const NODE_SEP = 6
 const MONACO_FONT = "'Cascadia Code', 'Fira Code', 'Cascadia Mono', Consolas, 'Courier New', monospace"
+
+/** Read CSS variable "R G B" triplet → { r, g, b, hex } */
+function cssRgb(varName: string): { r: number; g: number; b: number; hex: string } {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
+  const parts = raw.split(/\s+/)
+  if (parts.length >= 3) {
+    const r = parseInt(parts[0]), g = parseInt(parts[1]), b = parseInt(parts[2])
+    if (!isNaN(r) && !isNaN(g) && !isNaN(b))
+      return { r, g, b, hex: '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('') }
+  }
+  const hex = raw.startsWith('#') ? raw : '#888888'
+  return { r: 136, g: 136, b: 136, hex }
+}
+
+/** Read CSS variable "R G B" triplet → hex string */
+function cssRgbToHex(varName: string): string { return cssRgb(varName).hex }
 
 function kindIconPaths(kind: string, color: string) {
   const t: Record<string, React.ReactNode> = {
@@ -51,6 +68,18 @@ function layoutGraph(nodes: Map<string, GraphNode>, edges: GraphEdge[]) {
 }
 
 function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlayProps) {
+  const { currentThemeId } = useTheme()
+  const th = useMemo(() => {
+    const accent = cssRgb('--ide-accent')
+    const sidebar = cssRgbToHex('--ide-sidebar')
+    const border = cssRgbToHex('--ide-border')
+    const textMuted = cssRgbToHex('--ide-text-muted')
+    return {
+      accent, sidebar, border, textMuted,
+      accentRgba: (opacity: number) => `rgba(${accent.r},${accent.g},${accent.b},${opacity})`,
+    }
+  }, [currentThemeId])
+
   const [nodes, setNodes] = useState<Map<string, GraphNode>>(new Map())
   const [edges, setEdges] = useState<GraphEdge[]>([])
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set())
@@ -291,19 +320,22 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
             className="w-full h-full"
             style={{ pointerEvents: rightPanning ? 'auto' : 'none' }}>
             <defs>
-              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#555"/></marker>
+              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill={th.accent.hex} opacity={0.6}/></marker>
+              <filter id="focal-glow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor={th.accent.hex} floodOpacity="0.35"/>
+              </filter>
             </defs>
             {edges.map((e, i) => {
               const fn = displayNodes.get(e.from), tn = displayNodes.get(e.to)
               if (!fn || !tn) return null
               const fp = getPos(fn), tp = getPos(tn)
               const x1 = fp.x + NODE_W / 2, x2 = tp.x - NODE_W / 2, midX = (x1 + x2) / 2
-              return <path key={`e${i}`} d={`M${x1},${fp.y} C${midX},${fp.y} ${midX},${tp.y} ${x2},${tp.y}`} fill="none" stroke="#555" strokeWidth={1.4} markerEnd="url(#arrowhead)" opacity={0.55}/>
+              return <path key={`e${i}`} d={`M${x1},${fp.y} C${midX},${fp.y} ${midX},${tp.y} ${x2},${tp.y}`} fill="none" stroke={th.accent.hex} strokeWidth={1.5} markerEnd="url(#arrowhead)" opacity={0.35}/>
             })}
             {Array.from(displayNodes.values()).map(gn => {
               const isFocal = gn.id === focalNode.id
               const p = getPos(gn)
-              const color = getKindColorHex(gn.kind)
+              const kindColor = getKindColorHex(gn.kind)
               const name = gn.name.length > 20 ? gn.name.slice(0, 18) + '…' : gn.name
               const loading = loadingNodes.has(gn.id)
               const canLeft = true
@@ -312,24 +344,23 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
               const isHovered = hoveredNode === gn.id
               const isIconHovered = iconHoveredNode === gn.id
               const showTrash = callersActive && isIconHovered
-              const iconBg = callersActive ? (showTrash ? '#fff1' : `${color}18`) : isIconHovered ? `${color}10` : 'transparent'
-              const iconStroke = callersActive ? (showTrash ? '#f88' : `${color}40`) : 'transparent'
               return (
                 <g key={gn.id} data-node-id={gn.id} transform={`translate(${p.x - NODE_W / 2},${p.y - NODE_H / 2})`} style={{ pointerEvents: 'auto' }}
                   onMouseDown={(e) => { e.stopPropagation(); if (e.button === 0) dragStartPos.current = { x: e.clientX, y: e.clientY, nodeId: gn.id } }}
                   onClick={() => onJumpToFile(gn.filePath, gn.line)}
                   onMouseEnter={() => handleNodeEnter(gn.id)} onMouseLeave={handleNodeLeave}>
-                  <rect x={0} y={0} width={NODE_W} height={NODE_H} rx={7} ry={7}
-                    fill={isFocal ? `${color}20` : '#1a1a2ecc'} stroke={isFocal ? color : '#444'} strokeWidth={isFocal ? 2 : 1.2} opacity={0.92}/>
+                  <rect x={0} y={0} width={NODE_W} height={NODE_H} rx={5} ry={5}
+                    fill={isFocal ? th.accentRgba(0.2) : th.sidebar} stroke={isFocal ? th.accent.hex : th.accentRgba(0.4)} strokeWidth={isFocal ? 2 : 1.2}
+                    filter={isFocal ? 'url(#focal-glow)' : undefined}/>
                   {loading
-                    ? <text x={NODE_W/2} y={NODE_H/2+4} fill="#888" fontSize={11} textAnchor="middle" fontFamily={MONACO_FONT}>loading...</text>
+                    ? <text x={NODE_W/2} y={NODE_H/2+4} fill={th.textMuted} fontSize={11} textAnchor="middle" fontFamily={MONACO_FONT}>loading...</text>
                     : <>
                         {/* Left: kind icon doubles as caller expand/collapse */}
                         {!loading && canLeft ? (
                           <g onClick={(e) => { e.stopPropagation(); callersActive ? collapse(gn.id, 'callers') : expand(gn.id, 'callers') }}
                             onMouseEnter={() => setIconHoveredNode(gn.id)} onMouseLeave={() => setIconHoveredNode(null)}
                             className={`cursor-pointer ${callersActive && !isIconHovered ? '' : (isIconHovered ? 'text-ide-accent' : 'text-ide-accent/70')}`}>
-                            <rect x={5} y={5} width={20} height={20} rx={4} ry={4} fill={iconBg} stroke={iconStroke} strokeWidth={isIconHovered ? 1.2 : 1}/>
+                            <rect x={3} y={3} width={22} height={22} rx={3} fill="transparent"/>
                             {showTrash ? (
                               <svg x={7} y={6} width={16} height={18} viewBox="0 0 16 16">
                                 <path d="M3 5h10M5 5v9a1 1 0 001 1h4a1 1 0 001-1V5M7 5V3a1 1 0 011-1h1a1 1 0 011 1v2" fill="none" stroke="#f88" strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round"/>
@@ -339,19 +370,20 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
                               </svg>
                             ) : (
                               <svg x={5} y={5} width={20} height={20} viewBox="0 0 16 16" opacity={callersActive ? 1 : isIconHovered ? 1 : 0.7}>
-                                {kindIconPaths(gn.kind, callersActive ? color : 'currentColor')}
+                                {kindIconPaths(gn.kind, callersActive ? kindColor : 'currentColor')}
                               </svg>
                             )}
                           </g>
                         ) : (
-                          <svg x={6} y={7} width={14} height={14} viewBox="0 0 16 16" opacity={0.35}>{kindIconPaths(gn.kind, color)}</svg>
+                          <svg x={6} y={7} width={14} height={14} viewBox="0 0 16 16" opacity={0.35}>{kindIconPaths(gn.kind, kindColor)}</svg>
                         )}
-                        <text x={loading ? NODE_W/2 : 30} y={20} fill="#c8c8d0" fontSize={11} fontFamily={MONACO_FONT} textAnchor={loading ? 'middle' : 'start'}>{name}</text>
+                        <text x={loading ? NODE_W/2 : 28} y={18} fill={isFocal ? '#fff' : '#d0d0dc'} fontSize={11.5} fontFamily={MONACO_FONT} textAnchor={loading ? 'middle' : 'start'} fontWeight={isFocal ? 600 : 400}>{name}</text>
                         {/* Right: callees +/- */}
                         {!loading && canRight && (
-                          <g onClick={(e) => { e.stopPropagation(); gn.calleesExpanded ? collapse(gn.id, 'callees') : expand(gn.id, 'callees') }}>
-                            <rect x={NODE_W - 20} y={0} width={20} height={NODE_H} rx={7} ry={7} fill="transparent"/>
-                            <text x={NODE_W - 10} y={16} fill="#888" fontSize={gn.calleesExpanded ? 14 : 13} textAnchor="middle" fontFamily={MONACO_FONT} fontWeight="bold" style={{ pointerEvents: 'none' }}>{gn.calleesExpanded ? '−' : '+'}</text>
+                          <g onClick={(e) => { e.stopPropagation(); gn.calleesExpanded ? collapse(gn.id, 'callees') : expand(gn.id, 'callees') }}
+                            style={{ cursor: 'pointer' }}>
+                            <rect x={NODE_W - 16} y={0} width={16} height={NODE_H} fill="transparent"/>
+                            <text x={NODE_W - 8} y={14} fill={gn.calleesExpanded ? th.accent.hex : th.accentRgba(0.6)} fontSize={gn.calleesExpanded ? 14 : 13} textAnchor="middle" fontFamily={MONACO_FONT} fontWeight="bold" style={{ pointerEvents: 'none' }}>{gn.calleesExpanded ? '−' : '+'}</text>
                           </g>
                         )}
                       </>
@@ -369,8 +401,8 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
               const tw = label.length * 6.5 + 16
               return (
                 <g transform={`translate(${tp.x - tw/2},${tp.y + NODE_H/2 + 5})`} style={{ pointerEvents: 'none' }}>
-                  <rect x={0} y={0} width={tw} height={18} rx={4} ry={4} fill="#111" stroke="#444" strokeWidth={1} opacity={0.95}/>
-                  <text x={tw/2} y={12} fill="#aaa" fontSize={10} fontFamily={MONACO_FONT} textAnchor="middle">{label}</text>
+                  <rect x={0} y={0} width={tw} height={18} rx={4} ry={4} fill={th.sidebar} stroke={th.accentRgba(0.5)} strokeWidth={1}/>
+                  <text x={tw/2} y={12} fill="#bbb" fontSize={10} fontFamily={MONACO_FONT} textAnchor="middle">{label}</text>
                 </g>
               )
             })()}

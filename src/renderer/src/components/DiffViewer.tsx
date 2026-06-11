@@ -23,6 +23,7 @@ interface DiffViewerProps {
   inlineDiff?: boolean      // 强制内联 diff 模式
   cursorRef?: React.MutableRefObject<{ fullPath: string; line: number; column: number } | null>
   onContentLoaded?: (content: string) => void  // 回传文件内容给父组件（供 OutlinePanel 使用）
+  onOpenCallGraph?: (word: string) => void     // 右键菜单 → 打开 call graph
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -104,7 +105,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded, onOpenCallGraph }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -139,6 +140,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   // Use useLayoutEffect so cleanup runs before @monaco-editor/react's useEffect cleanup
   React.useLayoutEffect(() => {
     return () => {
+      // Dispose call-graph actions before disposing editors
+      try {
+        diffEditorRef.current?.getModifiedEditor()?._callGraphActionDisposable?.dispose?.()
+      } catch {}
+      try {
+        editEditorRef.current?._callGraphActionDisposable?.dispose?.()
+      } catch {}
       // DiffEditor widget must be disposed before its models are disposed
       if (diffEditorRef.current) {
         try {
@@ -337,6 +345,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
 
   const handleSaveRef = useRef(handleSave)
   handleSaveRef.current = handleSave
+  const onOpenCallGraphRef = useRef(onOpenCallGraph)
+  onOpenCallGraphRef.current = onOpenCallGraph
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -738,6 +748,25 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                   }
                 } catch {}
               }
+              ;(modifiedEditor as any)._callGraphActionDisposable = modifiedEditor.addAction({
+                id: 'open-call-graph',
+                label: t('Open Call Graph'),
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.5,
+                run: (ed: any) => {
+                  let word: string | undefined
+                  const sel = ed.getSelection()
+                  if (sel && !sel.isEmpty()) {
+                    word = ed.getModel()?.getValueInRange(sel)
+                  } else {
+                    const pos = ed.getPosition()
+                    if (pos) word = ed.getModel()?.getWordAtPosition(pos)?.word
+                  }
+                  if (word && onOpenCallGraphRef.current) {
+                    onOpenCallGraphRef.current(word)
+                  }
+                }
+              })
             }}
           />
         ) : editLoading ? (
@@ -792,6 +821,25 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                   }
                 } catch {}
               }
+              ;(editor as any)._callGraphActionDisposable = editor.addAction({
+                id: 'open-call-graph',
+                label: t('Open Call Graph'),
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.5,
+                run: (ed: any) => {
+                  let word: string | undefined
+                  const sel = ed.getSelection()
+                  if (sel && !sel.isEmpty()) {
+                    word = ed.getModel()?.getValueInRange(sel)
+                  } else {
+                    const pos = ed.getPosition()
+                    if (pos) word = ed.getModel()?.getWordAtPosition(pos)?.word
+                  }
+                  if (word && onOpenCallGraphRef.current) {
+                    onOpenCallGraphRef.current(word)
+                  }
+                }
+              })
             }}
           />
         )}
