@@ -210,6 +210,7 @@ const ZH_MAP: Record<string, string> = {
 
   // DiffViewer
   'Force Open': '强行打开',
+  'Open Call Graph': '查看调用图',
 
   // CodeGraphSearch
   'Initializing CodeGraph...': '正在初始化代码图...',

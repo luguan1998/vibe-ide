@@ -191,6 +191,14 @@ export default function App() {
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
   const callGraphFocalNodeRef = useRef<any>(null); callGraphFocalNodeRef.current = callGraphFocalNode
+  const handleOpenCallGraphFromEditor = useCallback(async (word: string) => {
+    try {
+      const r = await window.api.code.searchNodes(word, { limit: 10, kinds: ['function', 'method', 'constructor'] })
+      if (r.error || !r.nodes.length) return
+      const exact = r.nodes.find(n => n.name === word)
+      setCallGraphFocalNode(exact || r.nodes[0])
+    } catch {}
+  }, [])
   const [showCodeSearch, setShowCodeSearch] = useState(false)
   const [codeSearchFocusTrigger, setCodeSearchFocusTrigger] = useState(0)
   const [exploreResult, setExploreResult] = useState<{ query: string; content: string } | null>(null)
@@ -1410,6 +1418,7 @@ export default function App() {
                 scrollTrigger={diffScrollTrigger}
                 cursorRef={cursorRef}
                 onContentLoaded={setCurrentFileContent}
+                onOpenCallGraph={handleOpenCallGraphFromEditor}
               />
             </div>
           )}
@@ -1584,6 +1593,16 @@ export default function App() {
           workspacePath={activeSessionCwd}
           onClose={closeCodeSearch}
           onSelectNode={(node) => setCallGraphFocalNode(node)}
+          onJumpTo={(node) => {
+            const cwd = activeSessionCwd
+            if (!cwd) return
+            const sep = cwd.includes('\\') ? '\\' : '/'
+            const filePath = node.filePath
+            const absPath = filePath.startsWith('/') || filePath.includes(':')
+              ? filePath
+              : cwd + sep + filePath.replace(/\//g, sep)
+            handleOpenFileFromSearch(absPath, node.line)
+          }}
           onActivated={() => { codeSearchActivatedRef.current = true }}
           onExploreResult={(result) => { setExploreResult(result); closeCodeSearch() }}
           focusTrigger={codeSearchFocusTrigger}
