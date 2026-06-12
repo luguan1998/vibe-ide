@@ -1,6 +1,6 @@
 {
   "name": "vibe-ide",
-  "version": "0.5.4",
+  "version": "0.6.0",
   "description": "A vibe coding IDE with terminal session management, native terminal, and git management",
   "main": "./out/main/index.js",
   "scripts": {
