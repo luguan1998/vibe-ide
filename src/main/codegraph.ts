@@ -1,15 +1,30 @@
 import { ipcMain } from 'electron'
 import { spawn } from 'child_process'
 import { join, dirname } from 'path'
+import * as fs from 'fs'
 import { IPC_CHANNELS } from '../shared/types'
 import * as jsoncParser from 'jsonc-parser'
 
 let cg: any = null
 let currentWorkspace: string | null = null
+let initWorkspace: string | null = null
 let cgEnabled = true
 let CodeGraphClass: any = null
 let initProc: any = null
 let initCancelled = false
+
+/** Delete the .codegraph directory to clean up partial/corrupted index data */
+function cleanupCodeGraphDir(root: string): void {
+  const dir = join(root, '.codegraph')
+  try {
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true })
+      console.log('[codegraph] cleaned up partial index:', dir)
+    }
+  } catch (err: any) {
+    console.error('[codegraph] cleanup failed:', err.message)
+  }
+}
 
 async function getCodeGraph(): Promise<any> {
   if (!CodeGraphClass) {
@@ -33,7 +48,6 @@ async function getCodeGraph(): Promise<any> {
 // resolves to app.asar/..., so we must check the .unpacked equivalent first.
 function resolvePlatformBundle(): string {
   const pkgName = 'codegraph-' + process.platform + '-' + process.arch
-  const fs = require('fs')
 
   // Helper: if a path is inside app.asar, also check app.asar.unpacked
   function tryPath(dir: string): boolean {
@@ -73,7 +87,6 @@ let cliDepsRestored = false
 function ensureCliDeps(bundleDir: string): void {
   if (cliDepsRestored) return
   const libNM = join(bundleDir, 'lib', 'node_modules')
-  const fs = require('fs')
   // Already present — nothing to do
   if (fs.existsSync(join(libNM, 'web-tree-sitter'))) { cliDepsRestored = true; return }
   // Packaged app: copy from extraResources/codegraph-platform-deps
@@ -153,6 +166,7 @@ async function ensureOpen(root: string): Promise<{ success: boolean; error?: str
   try {
     if (cg && currentWorkspace === root) return { success: true }
     if (cg) {
+      try { cg.watchStop?.() } catch {}
       cg.close()
       cg = null
       currentWorkspace = null
@@ -166,6 +180,10 @@ async function ensureOpen(root: string): Promise<{ success: boolean; error?: str
     try { cg.watch() } catch { /* watcher may not be available */ }
     return { success: true }
   } catch (err: any) {
+    // Open failed — likely corrupted index, clean up so next init starts fresh
+    cleanupCodeGraphDir(root)
+    cg = null
+    currentWorkspace = null
     return { success: false, error: err.message }
   }
 }
@@ -200,21 +218,25 @@ export function registerCodeGraphHandlers(): void {
     try {
       if (cg) { cg.close(); cg = null; currentWorkspace = null }
       initCancelled = false
+      initWorkspace = root
       initProc = null
       const push = (p: any) => { try { event.sender.send(IPC_CHANNELS.CODE_PROGRESS, p) } catch {} }
       const r1 = await runCodeGraphCli(['init', root, '--verbose'], push, undefined, true)
-      if (initCancelled) return { error: 'cancelled' }
-      if (!r1.success) return { error: r1.error || 'init failed' }
+      if (initCancelled) { cleanupCodeGraphDir(root); initWorkspace = null; return { error: 'cancelled' } }
+      if (!r1.success) { cleanupCodeGraphDir(root); initWorkspace = null; return { error: r1.error || 'init failed' } }
       const r2 = await runCodeGraphCli(['index', root, '--verbose'], push, undefined, true)
-      if (initCancelled) return { error: 'cancelled' }
-      if (!r2.success) return { error: r2.error || 'index failed' }
+      if (initCancelled) { cleanupCodeGraphDir(root); initWorkspace = null; return { error: 'cancelled' } }
+      if (!r2.success) { cleanupCodeGraphDir(root); initWorkspace = null; return { error: r2.error || 'index failed' } }
       // Open in-process for subsequent queries
       const CG = await getCodeGraph()
       cg = await CG.open(root)
       currentWorkspace = root
+      initWorkspace = null
       try { cg.watch() } catch {}
       return { success: true }
     } catch (err: any) {
+      cleanupCodeGraphDir(root)
+      initWorkspace = null
       return { error: err.message }
     }
   })
@@ -222,9 +244,27 @@ export function registerCodeGraphHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CODE_CANCEL_INIT, async () => {
     if (initProc) {
       initCancelled = true
-      try { initProc.kill() } catch {}
+      try {
+        // On Windows, force-kill the entire process tree (CLI may spawn tree-sitter workers)
+        if (process.platform === 'win32' && initProc.pid) {
+          spawn('taskkill', ['/pid', String(initProc.pid), '/f', '/t'], { stdio: 'ignore' })
+        } else {
+          initProc.kill('SIGKILL')
+        }
+      } catch {}
       initProc = null
     }
+    // Reset in-process state
+    if (cg) {
+      try { cg.watchStop?.() } catch {}
+      try { cg.close() } catch {}
+      cg = null
+      currentWorkspace = null
+    }
+    // Clean up partial index data so next attempt starts fresh
+    const ws = initWorkspace || currentWorkspace
+    if (ws) cleanupCodeGraphDir(ws)
+    initWorkspace = null
     return { cancelled: true }
   })
 
@@ -420,6 +460,7 @@ ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], 
 
 export function closeCodeGraph(): void {
   if (cg) {
+    try { cg.watchStop?.() } catch {}
     cg.close()
     cg = null
     currentWorkspace = null

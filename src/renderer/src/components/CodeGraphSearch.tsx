@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { CodeSymbol } from '@shared/types'
 import { useI18n } from '../i18n'
 import { getKindStyle } from '../utils/kindColors'
@@ -43,16 +43,94 @@ function addRecent(node: CodeSymbol, workspace: string) {
   if (recentCache.length > 10) recentCache.length = 10
 }
 
-const FILTERS_KEY = 'vibe-ide-codegraph-filters'
+const DEFAULT_EXCLUDES = ['node_modules', '.git', 'dist', 'build', '.next', 'out', '.vscode', '__pycache__', 'target', '.cache']
 
-function loadFilters(): string[] {
+async function readGitignoreExcludedFolders(workspacePath: string): Promise<string[]> {
   try {
-    const raw = localStorage.getItem(FILTERS_KEY)
-    return raw ? JSON.parse(raw) : ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**', '**/.next/**']
-  } catch { return [] }
+    const content = await window.api.file.read(`${workspacePath}/.gitignore`)
+    if (typeof content !== 'string') return DEFAULT_EXCLUDES
+    const lines = content.split(/\r?\n/)
+    const folders: string[] = []
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      // Match patterns like "folderName/", "folderName/**", "/folderName"
+      const folderMatch = trimmed.replace(/^\/+/, '').replace(/\/$/, '').replace(/\*+$/, '')
+      if (folderMatch && !folderMatch.includes('/')) folders.push(folderMatch)
+    }
+    // Merge with defaults
+    const merged = [...DEFAULT_EXCLUDES]
+    for (const f of folders) {
+      if (!merged.includes(f)) merged.push(f)
+    }
+    return merged
+  } catch { return DEFAULT_EXCLUDES }
 }
-function saveFilters(filters: string[]) {
-  try { localStorage.setItem(FILTERS_KEY, JSON.stringify(filters)) } catch {}
+
+async function writeGitignoreExcludeFolder(workspacePath: string, folderName: string) {
+  try {
+    const r = await window.api.file.read(`${workspacePath}/.gitignore`)
+    if (typeof r !== 'string') return // file doesn't exist or read failed — don't create/overwrite
+    const content = r
+    // Only add if not already present (any form)
+    if (content.split(/\r?\n/).some(l => {
+      const t = l.trim()
+      return t === `${folderName}/` || t === `${folderName}/**` || t === folderName || t === `/${folderName}/` || t === `/${folderName}`
+    })) return
+    // Append with marker comment so we can identify our own lines on restore
+    const appended = content + `\n# vibe-ide-codegraph\n${folderName}/\n`
+    await window.api.file.write(`${workspacePath}/.gitignore`, appended)
+  } catch {}
+}
+
+async function writeGitignoreRestoreFolder(workspacePath: string, folderName: string) {
+  try {
+    const r = await window.api.file.read(`${workspacePath}/.gitignore`)
+    if (typeof r !== 'string') return
+    const content = r
+    // Remove only our own marker block: "# vibe-ide-codegraph" followed by the folder line(s)
+    const lines = content.split(/\r?\n/)
+    const result: string[] = []
+    let skipBlock = false
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trim() === '# vibe-ide-codegraph') {
+        // Check if the next non-empty line matches this folder
+        let j = i + 1
+        while (j < lines.length && lines[j].trim() === '') j++
+        if (j < lines.length) {
+          const nextTrimmed = lines[j].trim()
+          if (nextTrimmed === `${folderName}/` || nextTrimmed === `${folderName}/**` || nextTrimmed === folderName || nextTrimmed === `/${folderName}/` || nextTrimmed === `/${folderName}`) {
+            skipBlock = true
+            result.push(lines[i]) // keep marker, might have other folders below
+            continue
+          }
+        }
+      }
+      if (skipBlock) {
+        const trimmed = lines[i].trim()
+        if (trimmed === `${folderName}/` || trimmed === `${folderName}/**` || trimmed === folderName || trimmed === `/${folderName}/` || trimmed === `/${folderName}`) {
+          continue // skip this folder's line
+        }
+        // If we hit another non-folder line, the block for this folder is done
+        skipBlock = false
+      }
+      result.push(lines[i])
+    }
+    // Clean up: remove marker line if no folder lines remain after it
+    const final: string[] = []
+    for (let i = 0; i < result.length; i++) {
+      if (result[i].trim() === '# vibe-ide-codegraph') {
+        // Check if next non-empty line is a folder pattern we added
+        let j = i + 1
+        while (j < result.length && result[j].trim() === '') j++
+        if (j >= result.length || result[j].trim() === '' || result[j].trim().startsWith('#')) {
+          continue // remove orphan marker
+        }
+      }
+      final.push(result[i])
+    }
+    await window.api.file.write(`${workspacePath}/.gitignore`, final.join('\n'))
+  } catch {}
 }
 
 interface Props {
@@ -77,9 +155,9 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
   const [searching, setSearching] = useState(false)
   const [progress, setProgress] = useState<{ phase: string; current: number; total: number } | null>(null)
   const [stats, setStats] = useState<any>(null)
-  const [filters, setFilters] = useState<string[]>(loadFilters)
-  const [showFilters, setShowFilters] = useState(false)
-  const [filterText, setFilterText] = useState('')
+  const [folders, setFolders] = useState<string[]>([])
+  const [excludedFolders, setExcludedFolders] = useState<string[]>(DEFAULT_EXCLUDES)
+  const [showFolderFilter, setShowFolderFilter] = useState(false)
   const [selectedKinds, setSelectedKinds] = useState<string[]>(loadKinds)
   const [activated, setActivated] = useState(false)
   const [recentNodes, setRecentNodes] = useState<RecentEntry[]>(() => [])
@@ -94,6 +172,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
   const pendingPathRef = useRef<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
+  const filters = useMemo(() => excludedFolders.map(f => `**/${f}/**`), [excludedFolders])
   const selectableItems = query.trim() ? results : recentNodes.map(e => e.node)
   const selectedItem = selectedIndex >= 0 && selectedIndex < selectableItems.length ? selectableItems[selectedIndex] : null
 
@@ -122,6 +201,19 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
     const init = async () => {
       const target = workspacePath
       try {
+        // Load folder list and excluded folders from .gitignore
+        const listResult = await window.api.file.list(target)
+        if (pendingPathRef.current !== target) return
+        if (!listResult.error) {
+          const dirNames = (listResult as Array<{ name: string; path: string; type: string }>)
+            .filter(e => e.type === 'directory' && !DEFAULT_EXCLUDES.includes(e.name))
+            .map(e => e.name)
+          setFolders(dirNames)
+        }
+        const excluded = await readGitignoreExcludedFolders(target)
+        if (pendingPathRef.current !== target) return
+        setExcludedFolders(excluded)
+
         const r = await window.api.code.isInitialized(target)
         if (pendingPathRef.current !== target) return
         if (r.error) { setStatus('error'); setError(r.error); return }
@@ -220,13 +312,6 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
     if (el) el.scrollIntoView({ block: 'nearest' })
   }, [selectedIndex])
 
-  const applyFilters = useCallback(() => {
-    const list = filterText.split(',').map(s => s.trim()).filter(Boolean)
-    setFilters(list)
-    saveFilters(list)
-    setShowFilters(false)
-  }, [filterText])
-
   const pct = progress && progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
 
   // Init overlay (shared between peek & activated)
@@ -247,9 +332,9 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
         )}
         {!progress && <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin" />}
         <button onClick={handleCancelInit} className="text-xs px-3 py-1.5 rounded bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors">{t('Cancel Init')}</button>
-        <div className="text-[10px] text-ide-text-muted/40 text-center leading-relaxed max-w-[320px]">
-          {t('Slow? Add folders like {ex1}, {ex2}, {ex3} to your {ignore} or {gitignore} to skip indexing them.')
-            .replace('{ex1}', 'tests/**').replace('{ex2}', 'docs/**').replace('{ex3}', 'vendor/**').replace('{ignore}', '.codegraphignore').replace('{gitignore}', '.gitignore')}
+        <div className="text-[10px] text-ide-text-muted/80 text-center leading-relaxed max-w-[320px]">
+          {t('Slow? Add folders like {ex1}, {ex2}, {ex3} to your {gitignore} to skip indexing them.')
+            .replace('{ex1}', 'tests/**').replace('{ex2}', 'docs/**').replace('{ex3}', 'vendor/**').replace('{gitignore}', '.gitignore')}
         </div>
       </div>
     </div>
@@ -272,9 +357,9 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
           onClick={activate} style={{ opacity: 0.7 }}>
           <div className="flex items-center gap-2 px-3 h-10">
             <input readOnly placeholder={t('Hold Alt to peek, click or Alt+K to search')}
-              className="flex-1 bg-transparent text-sm outline-none text-ide-text-muted/40 placeholder:text-ide-text-muted/30" />
+              className="flex-1 bg-transparent text-sm outline-none text-ide-text placeholder:text-ide-text/50" />
             {status === 'not-initialized' && (
-              <button onClick={() => { activate(); handleInit() }} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 shrink-0">{t('Init')}</button>
+              <button onClick={() => { activate(); handleInit() }} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/25 text-ide-accent hover:bg-ide-accent/40 shrink-0">{t('Init')}</button>
             )}
           </div>
         </div>
@@ -335,17 +420,17 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
                 }
               }}
               placeholder={placeholder}
-              className={`flex-1 bg-transparent text-sm outline-none focus:outline-none ring-0 focus:ring-0 placeholder:text-ide-text-muted/30 ${status !== 'ready' ? 'text-ide-text-muted/40' : 'text-ide-text'}`} />
+              className={`flex-1 bg-transparent text-sm outline-none focus:outline-none ring-0 focus:ring-0 placeholder:text-ide-text/50 ${status !== 'ready' ? 'text-ide-text/60' : 'text-ide-text'}`} />
             {(searching || exploreLoading) && <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin shrink-0" />}
             {status === 'not-initialized' && (
-              <button onClick={handleInit} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 shrink-0">{t('Init')}</button>
+              <button onClick={handleInit} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/25 text-ide-accent hover:bg-ide-accent/40 shrink-0">{t('Init')}</button>
             )}
-            <button onClick={() => { setShowFilters(!showFilters); if (!showFilters) setFilterText(filters.join(', ')) }}
-              className="text-ide-text-muted/30 hover:text-ide-text-muted/60 transition-colors shrink-0" title="Filters">
+            <button onClick={() => setShowFolderFilter(!showFolderFilter)}
+              className={`text-ide-text/50 hover:text-ide-text transition-colors shrink-0 ${showFolderFilter ? 'text-ide-accent' : ''}`} title={t('Exclude folders')}>
               <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M1.5 2h13l-5 5.5V12l-3 1.5V7.5L1.5 2z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
             </button>
-                        <button onClick={() => { setShowMcpConfig(!showMcpConfig); setShowFilters(false); setMcpResult(null) }}
-              className={`text-ide-text-muted/30 hover:text-ide-text-muted/60 transition-colors shrink-0 ${showMcpConfig ? 'text-ide-accent' : ''}`} title={t('Configure MCP')}>
+                        <button onClick={() => { setShowMcpConfig(!showMcpConfig); setShowFolderFilter(false); setMcpResult(null) }}
+              className={`text-ide-text/50 hover:text-ide-text transition-colors shrink-0 ${showMcpConfig ? 'text-ide-accent' : ''}`} title={t('Configure MCP')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 0 9-9"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
           </div>
@@ -361,7 +446,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
                     setSelectedKinds(next)
                     saveKinds(next)
                   }}
-                  className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${active ? 'text-ide-text font-bold' : 'text-ide-text-muted/30 hover:text-ide-text-muted/60'}`}
+                  className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${active ? 'text-ide-text font-bold' : 'text-ide-text/50 hover:text-ide-text'}`}
                   style={{ backgroundColor: active ? getKindStyle(o.kind).backgroundColor : 'transparent' }}>
                   <span style={{ color: active ? getKindStyle(o.kind).color : undefined }}>{o.label}</span>
                 </button>
@@ -380,15 +465,54 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
             </div>
           )}
 
-          {/* Filter config */}
-          {showFilters && (
+          {/* Folder exclude chips */}
+          {showFolderFilter && (
             <div className="border-t border-ide-border px-3 py-2">
-              <div className="text-[10px] text-ide-text-muted/50 mb-1.5">{t('Exclude patterns (glob, comma-separated)')}</div>
-              <div className="flex gap-1.5">
-                <input value={filterText} onChange={e => setFilterText(e.target.value)}
-                  className="flex-1 bg-ide-bg border border-ide-border rounded px-2 py-1 text-xs text-ide-text outline-none focus:border-ide-accent"
-                  onKeyDown={e => { if (e.key === 'Enter') applyFilters() }} />
-                <button onClick={applyFilters} className="text-[11px] px-2 py-0.5 rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25">{t('Apply')}</button>
+              <div className="text-[10px] text-ide-text-muted/80 mb-1.5">{t('Exclude folders')}</div>
+              <div className="flex flex-wrap gap-1.5">
+                {DEFAULT_EXCLUDES.filter(f => f !== '.git').map(folder => {
+                  const excluded = excludedFolders.includes(folder)
+                  return (
+                    <button key={folder}
+                      onClick={() => {
+                        if (excluded) return
+                        const next = [...excludedFolders, folder]
+                        setExcludedFolders(next)
+                        if (workspacePath) writeGitignoreExcludeFolder(workspacePath, folder)
+                      }}
+                      className={`text-[11px] px-1.5 py-0.5 rounded border transition-colors ${excluded ? 'text-ide-text-muted/40 border-ide-border/30 opacity-40 line-through cursor-default' : 'text-ide-text-muted/70 border-ide-border/50 hover:border-ide-accent/50 hover:text-ide-text'}`}
+                      style={{ textDecoration: excluded ? 'line-through' : undefined }}
+                      disabled={excluded}
+                    >{folder}</button>
+                  )
+                })}
+                {folders.map(folder => {
+                  const excluded = excludedFolders.includes(folder)
+                  return (
+                    <button key={folder}
+                      onClick={() => {
+                        if (excluded) {
+                          const next = excludedFolders.filter(f => f !== folder)
+                          setExcludedFolders(next)
+                          if (workspacePath) writeGitignoreRestoreFolder(workspacePath, folder)
+                        } else {
+                          const next = [...excludedFolders, folder]
+                          setExcludedFolders(next)
+                          if (workspacePath) writeGitignoreExcludeFolder(workspacePath, folder)
+                        }
+                      }}
+                      className={`text-[11px] px-1.5 py-0.5 rounded border transition-colors ${excluded ? 'text-ide-text-muted/40 border-ide-border/30 line-through' : 'text-ide-text-muted/70 border-ide-border/50 hover:border-ide-accent/50 hover:text-ide-text'}`}
+                      style={{ textDecoration: excluded ? 'line-through' : undefined }}
+                    >
+                      {folder}
+                      {excluded ? (
+                        <svg viewBox="0 0 12 12" fill="currentColor" className="w-2.5 h-2.5 ml-0.5 inline-block opacity-60"><path d="M3 2.5L9.5 9M9.5 2.5L3 9" stroke="currentColor" strokeWidth="1.5" fill="none" /></svg>
+                      ) : (
+                        <svg viewBox="0 0 12 12" fill="currentColor" className="w-2.5 h-2.5 ml-0.5 inline-block opacity-40 hover:opacity-80"><path d="M3 2.5L9.5 9M9.5 2.5L3 9" stroke="currentColor" strokeWidth="1.5" fill="none" /></svg>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -396,7 +520,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
           {/* MCP agent config */}
           {showMcpConfig && (
             <div className="border-t border-ide-border px-3 py-2">
-              <div className="text-[10px] text-ide-text-muted/50 mb-1.5">{t('Configure CodeGraph MCP for agents')}</div>
+              <div className="text-[10px] text-ide-text-muted/80 mb-1.5">{t('Configure CodeGraph MCP for agents')}</div>
               <div className="flex flex-wrap gap-x-2 gap-y-1 mb-2">
                 {AGENT_TARGETS.map(t => {
                   const checked = mcpTargets.includes(t.id)

@@ -215,7 +215,7 @@ const ZH_MAP: Record<string, string> = {
   // CodeGraphSearch
   'Initializing CodeGraph...': '正在初始化代码图...',
   'Cancel Init': '取消初始化',
-  'Slow? Add folders like {ex1}, {ex2}, {ex3} to your {ignore} or {gitignore} to skip indexing them.': '速度慢？将 {ex1}、{ex2}、{ex3} 等文件夹加入 {ignore} 或 {gitignore} 可跳过索引。',
+  'Slow? Add folders like {ex1}, {ex2}, {ex3} to your {gitignore} to skip indexing them.': '速度慢？将 {ex1}、{ex2}、{ex3} 等文件夹加入 {gitignore} 可跳过索引。',
   'Not initialized — click Init': '未初始化 — 点击 Init',
   'Indexing...': '正在索引...',
   'Loading...': '加载中...',
@@ -232,8 +232,7 @@ const ZH_MAP: Record<string, string> = {
   'Done': '完成',
   'Configure MCP': '配置 MCP',
   'Configure CodeGraph MCP for agents': '配置 CodeGraph MCP for Agent',
-  'Exclude patterns (glob, comma-separated)': '排除模式（glob，逗号分隔）',
-  'Apply': '应用',
+  'Exclude folders': '排除文件夹',
 }
 
 // ── context ────────────────────────────────────────────────────────
