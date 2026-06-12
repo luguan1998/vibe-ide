@@ -221,7 +221,10 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
 
         const o = await window.api.code.setWorkspace(target)
         if (pendingPathRef.current !== target) return
-        if (o.error) { setStatus('error'); setError(o.error); return }
+        if (o.error) {
+          if (o.error === 'REBUILDING') { setStatus('indexing'); return }
+          setStatus('error'); setError(o.error); return
+        }
 
         const idx = await window.api.code.isIndexing()
         if (pendingPathRef.current !== target) return
