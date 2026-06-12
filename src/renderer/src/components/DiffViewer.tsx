@@ -1,9 +1,75 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Editor, DiffEditor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
 import { ENCODING_GROUPS, DEFAULT_ENCODING } from '@shared/encodings'
 import { useI18n } from '../i18n'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
+
+let _monacoConfigured = false
+let _monacoGlobal: any = null
+function configureMonacoBase(monaco: any) {
+  _monacoGlobal = monaco
+  if (_monacoConfigured) return
+  _monacoConfigured = true
+  const compilerOpts = {
+    target: monaco.languages.typescript.ScriptTarget.ES2020,
+    allowNonTsExtensions: true,
+    moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+    module: monaco.languages.typescript.ModuleKind.CommonJS,
+    jsx: monaco.languages.typescript.JsxEmit.React,
+    noEmit: true
+  }
+  monaco.languages.typescript.typescriptDefaults.setCompilerOptions(compilerOpts)
+  monaco.languages.typescript.javascriptDefaults.setCompilerOptions({ ...compilerOpts, allowJs: true })
+}
+let _lastShowSquiggles: boolean | undefined
+function syncTsDiagnostics(showSquiggles: boolean) {
+  if (!_monacoGlobal) return
+  if (_lastShowSquiggles === showSquiggles && _lastShowSquiggles !== undefined) return
+  _lastShowSquiggles = showSquiggles
+  const opts = { noSemanticValidation: !showSquiggles, noSyntaxValidation: !showSquiggles }
+  _monacoGlobal.languages.typescript.typescriptDefaults.setDiagnosticsOptions(opts)
+  _monacoGlobal.languages.typescript.javascriptDefaults.setDiagnosticsOptions(opts)
+}
+
+// 语言映射表提至模块层 — 避免每次渲染重建 100+ 键值
+const langMap: Record<string, string> = {
+  'ts': 'typescript', 'tsx': 'typescript', 'mts': 'typescript', 'cts': 'typescript',
+  'js': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript', 'jsx': 'javascript',
+  'py': 'python', 'pyw': 'python',
+  'rs': 'rust', 'go': 'go', 'java': 'java', 'kt': 'kotlin', 'kts': 'kotlin',
+  'c': 'c', 'cpp': 'cpp', 'h': 'c', 'hpp': 'cpp',
+  'cs': 'csharp', 'csx': 'csharp', 'cake': 'csharp',
+  'rb': 'ruby', 'php': 'php', 'swift': 'swift', 'dart': 'dart',
+  'scala': 'scala', 'sc': 'scala', 'sbt': 'scala',
+  'clj': 'clojure', 'cljs': 'clojure', 'cljc': 'clojure', 'edn': 'clojure',
+  'fs': 'fsharp', 'fsx': 'fsharp', 'jl': 'julia',
+  'ex': 'elixir', 'exs': 'elixir',
+  'pl': 'perl', 'pm': 'perl', 'lua': 'lua', 'r': 'r', 'coffee': 'coffeescript',
+  'sol': 'sol', 'proto': 'protobuf',
+  'json': 'json', 'lock': 'json',
+  'yaml': 'yaml', 'yml': 'yaml', 'toml': 'toml', 'xml': 'xml',
+  'html': 'html', 'htm': 'html', 'vue': 'html', 'cshtml': 'razor',
+  'css': 'css', 'scss': 'scss', 'less': 'less',
+  'md': 'markdown', 'mdx': 'mdx',
+  'sql': 'sql',
+  'sh': 'shell', 'bash': 'shell',
+  'bat': 'bat', 'cmd': 'bat',
+  'ps1': 'powershell', 'psm1': 'powershell', 'psd1': 'powershell',
+  'dockerfile': 'dockerfile',
+  'tf': 'hcl', 'tfvars': 'hcl',
+  'ini': 'ini', 'properties': 'ini',
+  'graphql': 'graphql', 'gql': 'graphql',
+  'handlebars': 'handlebars', 'hbs': 'handlebars',
+  'pug': 'pug', 'jade': 'pug', 'twig': 'twig',
+  'sv': 'systemverilog', 'svh': 'systemverilog',
+  'v': 'verilog', 'vh': 'verilog',
+  'gitignore': 'plaintext', 'env': 'plaintext', 'txt': 'plaintext'
+}
+function getLanguageFromFile(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() || ''
+  return langMap[ext] || 'plaintext'
+}
 
 interface DiffViewerProps {
   filePath: string          // 相对路径（用于 git 操作）
@@ -487,146 +553,35 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     setSaving(false)
   }, [fullPath, filePath, modifiedContent, onSaved])
 
-  const getLanguageFromFile = (path: string): string => {
-    const ext = path.split('.').pop()?.toLowerCase() || ''
-    const langMap: Record<string, string> = {
-      // JavaScript/TypeScript
-      'ts': 'typescript',
-      'tsx': 'typescript',
-      'mts': 'typescript',
-      'cts': 'typescript',
-      'js': 'javascript',
-      'mjs': 'javascript',
-      'cjs': 'javascript',
-      'jsx': 'javascript',
-      // Python
-      'py': 'python',
-      'pyw': 'python',
-      // Rust / Go / Java / Kotlin
-      'rs': 'rust',
-      'go': 'go',
-      'java': 'java',
-      'kt': 'kotlin',
-      'kts': 'kotlin',
-      // C / C++ / C#
-      'c': 'c',
-      'cpp': 'cpp',
-      'h': 'c',
-      'hpp': 'cpp',
-      'cs': 'csharp',
-      'csx': 'csharp',
-      'cake': 'csharp',
-      // Ruby / PHP / Swift / Dart
-      'rb': 'ruby',
-      'php': 'php',
-      'swift': 'swift',
-      'dart': 'dart',
-      // Scala / Clojure / F# / Julia / Elixir
-      'scala': 'scala',
-      'sc': 'scala',
-      'sbt': 'scala',
-      'clj': 'clojure',
-      'cljs': 'clojure',
-      'cljc': 'clojure',
-      'edn': 'clojure',
-      'fs': 'fsharp',
-      'fsx': 'fsharp',
-      'jl': 'julia',
-      'ex': 'elixir',
-      'exs': 'elixir',
-      // Perl / Lua / R / CoffeeScript
-      'pl': 'perl',
-      'pm': 'perl',
-      'lua': 'lua',
-      'r': 'r',
-      'coffee': 'coffeescript',
-      // Solidity / Protobuf
-      'sol': 'sol',
-      'proto': 'protobuf',
-      // JSON / YAML / TOML / XML
-      'json': 'json',
-      'lock': 'json',
-      'yaml': 'yaml',
-      'yml': 'yaml',
-      'toml': 'toml',
-      'xml': 'xml',
-      // HTML / Vue / Razor
-      'html': 'html',
-      'htm': 'html',
-      'vue': 'html',
-      'cshtml': 'razor',
-      // CSS / SCSS / Less
-      'css': 'css',
-      'scss': 'scss',
-      'less': 'less',
-      // Markdown / MDX
-      'md': 'markdown',
-      'mdx': 'mdx',
-      // SQL
-      'sql': 'sql',
-      // Shell / Batch / PowerShell
-      'sh': 'shell',
-      'bash': 'shell',
-      'bat': 'bat',
-      'cmd': 'bat',
-      'ps1': 'powershell',
-      'psm1': 'powershell',
-      'psd1': 'powershell',
-      // Docker / Terraform / INI
-      'dockerfile': 'dockerfile',
-      'tf': 'hcl',
-      'tfvars': 'hcl',
-      'ini': 'ini',
-      'properties': 'ini',
-      // GraphQL
-      'graphql': 'graphql',
-      'gql': 'graphql',
-      // Templates
-      'handlebars': 'handlebars',
-      'hbs': 'handlebars',
-      'pug': 'pug',
-      'jade': 'pug',
-      'twig': 'twig',
-      // Hardware
-      'sv': 'systemverilog',
-      'svh': 'systemverilog',
-      'v': 'verilog',
-      'vh': 'verilog',
-      // Plain text (no highlighting)
-      'gitignore': 'plaintext',
-      'env': 'plaintext',
-      'txt': 'plaintext'
-    }
-    return langMap[ext] || 'plaintext'
-  }
+  // 同步 showSquiggles 到 TS 校验开关
+  useEffect(() => { syncTsDiagnostics(!!showSquiggles) }, [showSquiggles])
 
-  const configureMonaco = (monaco: any) => {
-    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-      target: monaco.languages.typescript.ScriptTarget.ES2020,
-      allowNonTsExtensions: true,
-      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-      module: monaco.languages.typescript.ModuleKind.CommonJS,
-      jsx: monaco.languages.typescript.JsxEmit.React,
-      noEmit: true
-    })
-    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-      noSemanticValidation: !showSquiggles,
-      noSyntaxValidation: !showSquiggles
-    })
-    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-      target: monaco.languages.typescript.ScriptTarget.ES2020,
-      allowNonTsExtensions: true,
-      allowJs: true,
-      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-      module: monaco.languages.typescript.ModuleKind.CommonJS,
-      jsx: monaco.languages.typescript.JsxEmit.React,
-      noEmit: true
-    })
-    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-      noSemanticValidation: !showSquiggles,
-      noSyntaxValidation: !showSquiggles
-    })
-  }
+  const diffOptions = useMemo(() => ({
+    renderSideBySide: !inlineDiff,
+    readOnly: !!commitHash,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    fontSize,
+    lineNumbers: 'on' as const,
+    wordWrap: (wordWrap ? 'on' : 'off') as 'on' | 'off',
+    renderIndicators: true,
+    originalEditable: false,
+    renderOverviewRuler: true,
+    ignoreTrimWhitespace: false,
+    diffAlgorithm: 'advanced' as const,
+    scrollbar: { verticalScrollbarSize: 5, horizontalScrollbarSize: 10, useShadows: false }
+  }), [inlineDiff, commitHash, fontSize, wordWrap])
+
+  const editOptions = useMemo(() => ({
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    fontSize,
+    lineNumbers: 'on' as const,
+    wordWrap: (wordWrap ? 'on' : 'off') as 'on' | 'off',
+    automaticLayout: true,
+    padding: { top: 8 },
+    scrollbar: { verticalScrollbarSize: 12, horizontalScrollbarSize: 10, useShadows: false }
+  }), [fontSize, wordWrap])
 
   return (
     <div ref={containerRef} className="flex flex-col animate-fade-in">
@@ -703,26 +658,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             theme={currentTheme.monacoTheme}
             original={originalContent}
             modified={modifiedContent}
-            options={{
-              renderSideBySide: !inlineDiff,
-              readOnly: !!commitHash,
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-              fontSize,
-              lineNumbers: 'on',
-              wordWrap: wordWrap ? 'on' : 'off',
-              renderIndicators: true,
-              originalEditable: false,
-              renderOverviewRuler: true,
-              ignoreTrimWhitespace: false,
-              diffAlgorithm: 'advanced',
-              scrollbar: {
-                verticalScrollbarSize: 5,
-                horizontalScrollbarSize: 10,
-                useShadows: false
-              }
-            }}
-            beforeMount={configureMonaco}
+            options={diffOptions}
+            beforeMount={(m: any) => { configureMonacoBase(m) }}
             onMount={(editor) => {
               diffEditorRef.current = editor
               const modifiedEditor = editor.getModifiedEditor()
@@ -791,21 +728,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               setModifiedContent(value || '')
               setIsDirty((value || '') !== savedContentRef.current)
             }}
-            options={{
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-              fontSize,
-              lineNumbers: 'on',
-              wordWrap: wordWrap ? 'on' : 'off',
-              automaticLayout: true,
-              padding: { top: 8 },
-              scrollbar: {
-                verticalScrollbarSize: 12,
-                horizontalScrollbarSize: 10,
-                useShadows: false
-              }
-            }}
-            beforeMount={configureMonaco}
+            options={editOptions}
+            beforeMount={(m: any) => { configureMonacoBase(m) }}
             onMount={(editor) => {
               editEditorRef.current = editor
               editor.onDidChangeCursorPosition((e: any) => {
