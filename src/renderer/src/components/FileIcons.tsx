@@ -7,6 +7,7 @@ const FILE_KINDS: Record<string, { kind: FileKind; color: string }> = {
   go: { kind: 'code', color: 'text-[#00ADD8]' },
   rs: { kind: 'code', color: 'text-[#dea584]' },
   java: { kind: 'code', color: 'text-[#b07219]' },
+  c: { kind: 'code', color: 'text-[#00ADD8]' }, cpp: { kind: 'code', color: 'text-[#f34b7d]' }, h: { kind: 'code', color: 'text-[#00ADD8]' }, hpp: { kind: 'code', color: 'text-[#f34b7d]' },
   css: { kind: 'style', color: 'text-[#a855f7]' }, scss: { kind: 'style', color: 'text-[#a855f7]' }, less: { kind: 'style', color: 'text-[#a855f7]' },
   html: { kind: 'markup', color: 'text-ide-accent' }, htm: { kind: 'markup', color: 'text-ide-accent' },
   vue: { kind: 'markup', color: 'text-ide-accent' }, svelte: { kind: 'markup', color: 'text-ide-accent' },

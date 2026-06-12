@@ -138,10 +138,15 @@ async function resolveAndOpenFile(
   const parsed = parseFilePath(rawText, cwd)
   if (!parsed) return false
 
-  // 尝试直接读文件
+  // 尝试直接读文件验证路径存在
   try {
     const result = await window.api.file.read(parsed.fullPath)
     if (!result.error) {
+      onOpenFile(parsed.fullPath, parsed.lineNumber)
+      return true
+    }
+    // 文件存在但不可读（超大/二进制）→ 仍打开，DiffViewer 会展示 Force Open 按钮
+    if (result.error.startsWith('File too large') || result.error === 'Cannot display binary file') {
       onOpenFile(parsed.fullPath, parsed.lineNumber)
       return true
     }

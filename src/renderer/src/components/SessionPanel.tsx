@@ -785,7 +785,7 @@ const SessionPanel = React.memo(function SessionPanel({
                       ? 'underline text-ide-text cursor-pointer bg-ide-accent/15 rounded px-0.5'
                       : 'text-ide-text-muted opacity-70'
                   }`}
-                  title={cwdLinkSession === session.id ? t('Open in Explorer') : undefined}
+                  title={cwdLinkSession === session.id ? t('Open in Explorer') : session.cwd.length > 18 ? session.cwd : undefined}
                   onClick={(e) => {
                     if (cwdLinkSession === session.id) {
                       e.stopPropagation()
@@ -793,7 +793,7 @@ const SessionPanel = React.memo(function SessionPanel({
                     }
                   }}
                 >
-                  {session.cwd}
+                  {session.cwd.length > 20 ? session.cwd.replace(/^.*[\\\/]/, '') : session.cwd}
                 </span>
               </div>
             </div>

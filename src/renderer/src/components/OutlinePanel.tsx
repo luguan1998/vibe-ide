@@ -17,10 +17,35 @@ interface OutlineItem {
   children?: OutlineItem[]
 }
 
+const OUTLINE_LINE_LIMIT = 3000
+
+// 手动取行，避免 split 全量分配后再 slice；limit 行即停
+function takeLines(content: string, limit: number): string[] {
+  const lines: string[] = []
+  let start = 0
+  const len = content.length
+  for (let i = 0; i < len; i++) {
+    if (content[i] === '\n') {
+      // strip trailing \r if present (\r\n case)
+      const end = i > start && content[i - 1] === '\r' ? i - 1 : i
+      lines.push(content.substring(start, end))
+      start = i + 1
+      if (lines.length >= limit) return lines
+    } else if (content[i] === '\r' && (i + 1 >= len || content[i + 1] !== '\n')) {
+      // standalone \r (old Mac line ending)
+      lines.push(content.substring(start, i))
+      start = i + 1
+      if (lines.length >= limit) return lines
+    }
+  }
+  if (start < len && lines.length < limit) lines.push(content.substring(start))
+  return lines
+}
+
 const KIND_LABELS: Record<string, string> = {
   function: 'Fn', method: 'Me', class: 'Cl', interface: 'If',
   variable: 'Va', constant: 'Ct', type_alias: 'Ty', component: 'Co',
-  enum: 'En', module: 'Mo', property: 'Pr',
+  enum: 'En', module: 'Ns', property: 'Pr',
 }
 
 function getKindLabel(kind: string): string { return KIND_LABELS[kind] || kind.slice(0, 2) }
@@ -52,8 +77,8 @@ function getLanguageId(filePath: string): string {
 }
 
 function parseMarkdownOutline(content: string): OutlineItem[] {
+  const lines = takeLines(content, OUTLINE_LINE_LIMIT)
   const headings: OutlineItem[] = []
-  const lines = content.split(/\r?\n/)
   let inFenced = false
   let fenceChar = ''
   let fenceLen = 0
@@ -109,6 +134,8 @@ function parseMarkdownOutline(content: string): OutlineItem[] {
 
 // Code outline regex parser — 惰性正则：按 kinds 预建 pattern 表，循环外过滤，循环内只遍历小表
 const BLOCK_KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'return', 'throw', 'new', 'try', 'catch', 'else', 'do', 'case', 'break', 'continue', 'delete', 'typeof', 'instanceof', 'void', 'await', 'yield', 'super', 'import', 'from'])
+
+const C_TYPE_KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'return', 'throw', 'new', 'delete', 'try', 'catch', 'class', 'struct', 'enum', 'namespace', 'typedef', 'using', 'template', 'include', 'define', 'sizeof', 'alignof', 'static_assert', 'public', 'private', 'protected', 'friend', 'operator', 'virtual', 'override', 'final', 'const', 'constexpr', 'volatile', 'extern', 'static', 'inline', 'register', 'mutable', 'thread_local', 'noexcept', 'decltype', 'auto', 'void', 'int', 'char', 'float', 'double', 'bool', 'long', 'short', 'unsigned', 'signed', 'size_t', 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t', 'string', 'wstring', 'nullptr'])
 
 type PatternEntry = {
   regex: RegExp
@@ -258,6 +285,84 @@ function buildRustPatterns(kinds: Set<string>): PatternEntry[] {
   return patterns
 }
 
+// ── C/C++ resolve helper ──
+function resolveCFunction(fnName: string, lineIdx: number, rawLine: string, kinds: Set<string>): OutlineItem | null {
+  if (BLOCK_KEYWORDS.has(fnName) || C_TYPE_KEYWORDS.has(fnName)) return null
+  const isMethod = rawLine.charCodeAt(0) === 32 && rawLine.charCodeAt(1) === 32 || rawLine.charCodeAt(0) === 9
+  if (isMethod && kinds.has('method')) return { name: fnName, kind: 'method', line: lineIdx + 1 }
+  if (!isMethod && kinds.has('function')) return { name: fnName, kind: 'function', line: lineIdx + 1 }
+  return null
+}
+
+// ── C/C++ pattern builder ──
+function buildCPatterns(kinds: Set<string>): PatternEntry[] {
+  const needMethod = kinds.has('method')
+  const trackClass = kinds.has('class') || kinds.has('interface') || kinds.has('enum') || needMethod
+  const patterns: PatternEntry[] = []
+
+  // namespace → module kind
+  if (kinds.has('module')) {
+    patterns.push({
+      regex: /^namespace\s+(\w+)/,
+      resolve: (m, i) => ({ name: m[1], kind: 'module', line: i + 1 })
+    })
+  }
+  if (trackClass) {
+    // struct / class
+    patterns.push({
+      regex: /^(?:template\s*<[^>]*>\s*)?(?:class|struct)\s+(\w+)/,
+      resolve: (m, i, _raw) => {
+        const item: OutlineItem = { name: m[1], kind: 'class', line: i + 1, children: [] }
+        return { item, classCtx: true, push: kinds.has('class') }
+      }
+    })
+    // enum / enum class
+    patterns.push({
+      regex: /^enum\s+(class\s+)?(\w+)/,
+      resolve: (m, i, _raw) => {
+        const item: OutlineItem = { name: m[2], kind: 'enum', line: i + 1, children: [] }
+        return { item, classCtx: true, push: kinds.has('enum') }
+      }
+    })
+  }
+  // typedef → type_alias
+  if (kinds.has('type_alias')) {
+    patterns.push({
+      regex: /^typedef\s+[^;]*\b(\w+)\s*;/,
+      resolve: (m, i) => ({ name: m[1], kind: 'type_alias', line: i + 1 })
+    })
+  }
+  // #define → constant
+  if (kinds.has('constant')) {
+    patterns.push({
+      regex: /^#define\s+(\w+)/,
+      resolve: (m, i) => ({ name: m[1], kind: 'constant', line: i + 1 })
+    })
+  }
+  // function declarations / definitions — 确定性正则，无 {n,m} 回溯
+  // 三条正则分别匹配 1/2/3 词返回类型，各自确定性 O(1)
+  const cQual = '(?:inline\\s+|static\\s+|extern\\s+|virtual\\s+|constexpr\\s+)?'
+  const cTpl = '(?:template\\s*<[^>]*>\\s*)?'
+  if (kinds.has('function') || kinds.has('method')) {
+    // 单词返回类型：void foo( / int bar(
+    patterns.push({
+      regex: new RegExp(`^${cTpl}${cQual}\\w+\\s+(\\w+)\\s*\\(`),
+      resolve: (m, i, rawLine) => resolveCFunction(m[1], i, rawLine, kinds)
+    })
+    // 双词返回类型：unsigned int foo( / const char bar( / long long baz(
+    patterns.push({
+      regex: new RegExp(`^${cTpl}${cQual}(?:const\\s+|unsigned\\s+|signed\\s+|long\\s+|short\\s+)\\w+\\s+(\\w+)\\s*\\(`),
+      resolve: (m, i, rawLine) => resolveCFunction(m[1], i, rawLine, kinds)
+    })
+    // 三词返回类型：unsigned long long foo( / const unsigned char bar(
+    patterns.push({
+      regex: new RegExp(`^${cTpl}${cQual}(?:unsigned\\s+|signed\\s+)(?:long\\s+|short\\s+)\\w+\\s+(\\w+)\\s*\\(`),
+      resolve: (m, i, rawLine) => resolveCFunction(m[1], i, rawLine, kinds)
+    })
+  }
+  return patterns
+}
+
 // ── Generic pattern builder ──
 function buildGenericPatterns(kinds: Set<string>): PatternEntry[] {
   const patterns: PatternEntry[] = []
@@ -281,7 +386,7 @@ function buildGenericPatterns(kinds: Set<string>): PatternEntry[] {
 }
 
 function parseCodeOutline(content: string, lang: string, kinds: Set<string>): OutlineItem[] {
-  const lines = content.split(/\r?\n/)
+  const lines = takeLines(content, OUTLINE_LINE_LIMIT)
   const items: OutlineItem[] = []
   let currentClass: OutlineItem | null = null
   const needMethod = kinds.has('method')
@@ -297,6 +402,8 @@ function parseCodeOutline(content: string, lang: string, kinds: Set<string>): Ou
     patterns = buildGoPatterns(kinds)
   } else if (lang === 'rust') {
     patterns = buildRustPatterns(kinds)
+  } else if (lang === 'c' || lang === 'cpp' || lang === 'csharp') {
+    patterns = buildCPatterns(kinds)
   } else {
     patterns = buildGenericPatterns(kinds)
   }
@@ -353,9 +460,9 @@ const LANG_KINDS: Record<string, string[]> = {
   python: ['function', 'method', 'class'],
   go: ['function', 'method', 'class', 'interface'],
   rust: ['function', 'method', 'class', 'interface', 'enum'],
-  csharp: ['function', 'method', 'class', 'interface', 'enum'],
-  cpp: ['function', 'method', 'class', 'interface', 'enum'],
-  c: ['function', 'method', 'class', 'interface', 'enum'],
+  cpp: ['function', 'method', 'class', 'interface', 'enum', 'type_alias', 'constant', 'module'],
+  c: ['function', 'method', 'class', 'interface', 'enum', 'type_alias', 'constant', 'module'],
+  csharp: ['function', 'method', 'class', 'interface', 'enum', 'type_alias', 'constant'],
   java: ['function', 'method', 'class', 'interface', 'enum'],
   ruby: ['function', 'method', 'class'],
   php: ['function', 'method', 'class', 'interface'],

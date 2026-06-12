@@ -912,26 +912,19 @@ export default function App() {
         const session = await handleCreateSessionAt(parentDir)
         if (session) {
           pushNavHistory()
-          try {
-            const result = await window.api.file.read(data.path)
-            if (!result.error) {
-              let filePath = data.path
-              if (parentDir && data.path.startsWith(parentDir)) {
-                filePath = data.path.slice(parentDir.length).replace(/^[\\/]+/, '')
-              }
-              setDiffFile({
-                filePath,
-                fullPath: data.path,
-                diffContent: '',
-                isStaged: false,
-                defaultEdit: true,
-                revision: ++diffRevisionRef.current
-              })
-              setCenterView('diff')
-            }
-          } catch (err) {
-            console.error('Failed to open file from startup path:', err)
+          let filePath = data.path
+          if (parentDir && data.path.startsWith(parentDir)) {
+            filePath = data.path.slice(parentDir.length).replace(/^[\\/]+/, '')
           }
+          setDiffFile({
+            filePath,
+            fullPath: data.path,
+            diffContent: '',
+            isStaged: false,
+            defaultEdit: true,
+            revision: ++diffRevisionRef.current
+          })
+          setCenterView('diff')
         }
       }
     })
@@ -1128,69 +1121,41 @@ export default function App() {
   const [outlineScrollTrigger, setOutlineScrollTrigger] = useState(0)
 
   // 处理从中间终端点击文件路径打开文件
-  const handleOpenFileFromTerminal = useCallback(async (fullPath: string, lineNumber?: number) => {
+  const handleOpenFileFromTerminal = useCallback((fullPath: string, lineNumber?: number) => {
     pushNavHistory()
-    try {
-      // 读取文件内容
-      const result = await window.api.file.read(fullPath)
-      if (result.error) {
-        console.error('Failed to read file:', result.error)
-        return
-      }
-
-      // 计算 filePath（相对路径）用于 git 操作
-      let filePath = fullPath
-      if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
-        filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
-      }
-
-      // 设置 diffFile 状态，使用空 diffContent（因为是从终端打开，不是 git diff）
-      setDiffFile({
-        filePath,
-        fullPath,
-        diffContent: '',
-        isStaged: false,
-        lineNumber,
-        defaultEdit: true,
-        revision: ++diffRevisionRef.current
-      })
-      setCenterView('diff')
-    } catch (err) {
-      console.error('Failed to open file from terminal:', err)
+    let filePath = fullPath
+    if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
+      filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
     }
+    setDiffFile({
+      filePath,
+      fullPath,
+      diffContent: '',
+      isStaged: false,
+      lineNumber,
+      defaultEdit: true,
+      revision: ++diffRevisionRef.current
+    })
+    setCenterView('diff')
   }, [activeSessionCwd])
 
   // 处理从右侧终端点击文件路径打开文件 - 直接切换到 edit 模式
-  const handleOpenFileFromRightTerminal = useCallback(async (fullPath: string, lineNumber?: number) => {
+  const handleOpenFileFromRightTerminal = useCallback((fullPath: string, lineNumber?: number) => {
     pushNavHistory()
-    try {
-      // 读取文件内容
-      const result = await window.api.file.read(fullPath)
-      if (result.error) {
-        console.error('Failed to read file:', result.error)
-        return
-      }
-
-      // 计算 filePath（相对路径），右侧终端 cwd 与活动 session cwd 一致
-      const rightCwd = activeSessionCwd
-      let filePath = fullPath
-      if (rightCwd && fullPath.startsWith(rightCwd)) {
-        filePath = fullPath.slice(rightCwd.length).replace(/^[\\\/]+/, '')
-      }
-
-      // 设置 diffFile 状态，直接打开编辑模式
-      setDiffFile({
-        filePath,
-        fullPath,
-        diffContent: '',  // 直接打开编辑，不是 diff 视图
-        isStaged: false,
-        lineNumber,
-        revision: ++diffRevisionRef.current
-      })
-      setCenterView('diff')
-    } catch (err) {
-      console.error('Failed to open file from right terminal:', err)
+    const rightCwd = activeSessionCwd
+    let filePath = fullPath
+    if (rightCwd && fullPath.startsWith(rightCwd)) {
+      filePath = fullPath.slice(rightCwd.length).replace(/^[\\\/]+/, '')
     }
+    setDiffFile({
+      filePath,
+      fullPath,
+      diffContent: '',
+      isStaged: false,
+      lineNumber,
+      revision: ++diffRevisionRef.current
+    })
+    setCenterView('diff')
   }, [activeSessionCwd])
 
   // 创建右侧终端（每个 session 独立）
@@ -1222,55 +1187,40 @@ export default function App() {
   }, [rightTerminalSessions])
 
   // 处理从搜索面板打开文件
-  const handleOpenFileFromSearch = useCallback(async (fullPath: string, lineNumber?: number) => {
+  const handleOpenFileFromSearch = useCallback((fullPath: string, lineNumber?: number) => {
     pushNavHistory()
-    try {
-      const result = await window.api.file.read(fullPath)
-      if (result.error) {
-        console.error('Failed to read file:', result.error)
-        return
-      }
-
-      let filePath = fullPath
-      if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
-        filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
-      }
-
-      setDiffFile({
-        filePath,
-        fullPath,
-        diffContent: '',
-        isStaged: false,
-        defaultEdit: true,
-        lineNumber,
-        revision: ++diffRevisionRef.current
-      })
-      setCenterView('diff')
-    } catch (err) {
-      console.error('Failed to open file from search:', err)
+    let filePath = fullPath
+    if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
+      filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
     }
+    setDiffFile({
+      filePath,
+      fullPath,
+      diffContent: '',
+      isStaged: false,
+      defaultEdit: true,
+      lineNumber,
+      revision: ++diffRevisionRef.current
+    })
+    setCenterView('diff')
   }, [activeSessionCwd])
 
   // 处理从文件浏览器打开文件 — 默认 edit 模式
-  const handleOpenFileFromExplorer = useCallback(async (fullPath: string) => {
+  const handleOpenFileFromExplorer = useCallback((fullPath: string) => {
     pushNavHistory()
-    try {
-      let filePath = fullPath
-      if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
-        filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
-      }
-      setDiffFile({
-        filePath,
-        fullPath,
-        diffContent: '',
-        isStaged: false,
-        defaultEdit: true,
-        revision: ++diffRevisionRef.current
-      })
-      setCenterView('diff')
-    } catch (err) {
-      console.error('Failed to open file from explorer:', err)
+    let filePath = fullPath
+    if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
+      filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
     }
+    setDiffFile({
+      filePath,
+      fullPath,
+      diffContent: '',
+      isStaged: false,
+      defaultEdit: true,
+      revision: ++diffRevisionRef.current
+    })
+    setCenterView('diff')
   }, [activeSessionCwd])
 
   const handlePreviewMarkdown = useCallback((fullPath: string, fileName: string) => {

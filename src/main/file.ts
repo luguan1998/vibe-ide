@@ -99,6 +99,14 @@ export function registerFileHandlers(): void {
   // Read file content (legacy, always UTF-8)
   ipcMain.handle(IPC_CHANNELS.FILE_READ, async (_event, filePath: string) => {
     try {
+      if (isBinaryByExtension(filePath)) {
+        return { error: 'Cannot display binary file' }
+      }
+      const st = await stat(filePath)
+      if (st.size > MAX_EDIT_FILE_SIZE) {
+        const mb = (st.size / (1024 * 1024)).toFixed(1)
+        return { error: `File too large (${mb} MB), cannot display` }
+      }
       const content = await readFile(filePath, 'utf-8')
       return { content }
     } catch (err: any) {
@@ -115,24 +123,7 @@ export function registerFileHandlers(): void {
     }
   })
 
-  // Read file as base64 data URL (for local images in markdown preview)
-  ipcMain.handle(IPC_CHANNELS.FILE_READ_BASE64, async (_event, filePath: string) => {
-    try {
-      const buffer = await readFile(filePath)
-      const ext = extname(filePath).toLowerCase()
-      const mimeMap: Record<string, string> = {
-        '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif', '.svg': 'image/svg+xml', '.webp': 'image/webp',
-        '.bmp': 'image/bmp', '.ico': 'image/x-icon', '.avif': 'image/avif',
-      }
-      const mime = mimeMap[ext] || 'application/octet-stream'
-      const base64 = buffer.toString('base64')
-      return { dataUrl: `data:${mime};base64,${base64}` }
-    } catch (err: any) {
-      return { error: err.message }
-    }
-  })
-
+  
   // Write file content
   ipcMain.handle(IPC_CHANNELS.FILE_WRITE, async (_event, filePath: string, content: string) => {
     try {
