@@ -107,7 +107,6 @@ declare global {
         searchNodes: (query: string, opts?: { limit?: number; kinds?: string[]; filePath?: string }) => Promise<{ nodes: import('@shared/types').CodeSymbol[]; total: number; error?: string }>
         getCallers: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
         getCallees: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
-        getCallGraph: (id: string, depth?: number) => Promise<{ nodes: any[]; edges: any[]; error?: string }>
         isIndexing: () => Promise<{ isIndexing: boolean; error?: string }>
         getStats: () => Promise<any>
         onProgress: (callback: (progress: any) => void) => any

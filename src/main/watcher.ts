@@ -22,23 +22,38 @@ function buildSkipRegex(): RegExp {
 
 watcherSkipRegex = buildSkipRegex()
 
+type ChangeListener = () => void
+let changeListeners: ChangeListener[] = []
+
+export function onChanged(listener: ChangeListener): () => void {
+  changeListeners.push(listener)
+  return () => {
+    changeListeners = changeListeners.filter(l => l !== listener)
+  }
+}
+
 function notifyChanged() {
   const now = Date.now()
   const elapsed = now - lastNotifyTime
 
-  if (elapsed >= COOLDOWN_MS) {
-    lastNotifyTime = now
+  const fire = () => {
     BrowserWindow.getAllWindows().forEach(win => {
       win.webContents.send(IPC_CHANNELS.FS_CHANGED)
     })
+    for (const cb of changeListeners) {
+      cb()
+    }
+  }
+
+  if (elapsed >= COOLDOWN_MS) {
+    lastNotifyTime = now
+    fire()
   } else {
     if (!pendingTimer) {
       pendingTimer = setTimeout(() => {
         pendingTimer = null
         lastNotifyTime = Date.now()
-        BrowserWindow.getAllWindows().forEach(win => {
-          win.webContents.send(IPC_CHANNELS.FS_CHANGED)
-        })
+        fire()
       }, COOLDOWN_MS - elapsed)
     }
   }

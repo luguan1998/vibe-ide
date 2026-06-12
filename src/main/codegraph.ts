@@ -4,6 +4,7 @@ import { join, dirname } from 'path'
 import * as fs from 'fs'
 import { IPC_CHANNELS } from '../shared/types'
 import * as jsoncParser from 'jsonc-parser'
+import { onChanged } from './watcher'
 
 let cg: any = null
 let currentWorkspace: string | null = null
@@ -12,10 +13,11 @@ let cgEnabled = true
 let CodeGraphClass: any = null
 let initProc: any = null
 let initCancelled = false
-let customWatcher: fs.FSWatcher | null = null
 let syncTimer: ReturnType<typeof setTimeout> | null = null
+let unsubWatcher: (() => void) | null = null
 let isRebuilding = false
 let pendingRebuild = false
+let rebuildCooldownUntil = 0
 
 /** Delete the .codegraph directory to clean up partial/corrupted index data */
 function cleanupCodeGraphDir(root: string): void {
@@ -165,29 +167,25 @@ function normalizeNode(n: any): any {
   }
 }
 
-/** Start custom fs.watch watcher. Replaces cg.watch() to avoid in-process sync blocking the main event loop.
- *  On file change, debounce 3s then trigger rebuildViaCli (CLI subprocess, non-blocking). */
-function startCustomWatcher(root: string): void {
-  stopCustomWatcher()
+/** Subscribe to the shared fs watcher (watcher.ts). On change, debounce 3s then rebuild via CLI. */
+function startCodeGraphWatcher(root: string): void {
+  stopCodeGraphWatcher()
   const DEBOUNCE_MS = 3000
-  try {
-    customWatcher = fs.watch(root, { recursive: true }, () => {
-      if (syncTimer) clearTimeout(syncTimer)
-      syncTimer = setTimeout(() => {
-        syncTimer = null
-        if (isRebuilding) { pendingRebuild = true; return }
-        if (!cgEnabled || !cg) return
-        rebuildViaCli(root)
-      }, DEBOUNCE_MS)
-    })
-  } catch (err: any) {
-    console.error('[codegraph] watcher start failed:', err.message)
-  }
+  unsubWatcher = onChanged(() => {
+    if (Date.now() < rebuildCooldownUntil) return
+    if (syncTimer) clearTimeout(syncTimer)
+    syncTimer = setTimeout(() => {
+      syncTimer = null
+      if (isRebuilding) { pendingRebuild = true; return }
+      if (!cgEnabled || !cg) return
+      rebuildViaCli(root)
+    }, DEBOUNCE_MS)
+  })
 }
 
-function stopCustomWatcher(): void {
+function stopCodeGraphWatcher(): void {
   if (syncTimer) { clearTimeout(syncTimer); syncTimer = null }
-  if (customWatcher) { try { customWatcher.close() } catch {} ; customWatcher = null }
+  if (unsubWatcher) { unsubWatcher(); unsubWatcher = null }
   pendingRebuild = false
 }
 
@@ -195,7 +193,7 @@ function stopCustomWatcher(): void {
 async function rebuildViaCli(root: string): Promise<void> {
   if (isRebuilding || !cgEnabled || initProc) return
   isRebuilding = true
-  stopCustomWatcher()
+  stopCodeGraphWatcher()
   if (cg) {
     try { cg.close() } catch {}
     cg = null
@@ -215,7 +213,8 @@ async function rebuildViaCli(root: string): Promise<void> {
       const CG = await getCodeGraph()
       cg = await CG.open(root)
       currentWorkspace = root
-      startCustomWatcher(root)
+      startCodeGraphWatcher(root)
+      rebuildCooldownUntil = Date.now() + 10_000
     } catch (err: any) {
       console.error('[codegraph] reopen after sync failed:', err.message)
       cg = null
@@ -226,7 +225,7 @@ async function rebuildViaCli(root: string): Promise<void> {
   }
   try {
     for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.CODE_PROGRESS, null)
+      if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.CODE_PROGRESS, { phase: 'auto-sync-done' })
     }
   } catch {}
   isRebuilding = false
@@ -243,7 +242,7 @@ async function ensureOpen(root: string): Promise<{ success: boolean; error?: str
   if (isRebuilding) return { success: false, error: 'REBUILDING' }
   try {
     if (cg && currentWorkspace === root) return { success: true }
-    stopCustomWatcher()
+    stopCodeGraphWatcher()
     if (cg) {
       cg.close()
       cg = null
@@ -255,10 +254,10 @@ async function ensureOpen(root: string): Promise<{ success: boolean; error?: str
     }
     cg = await CG.open(root)
     currentWorkspace = root
-    startCustomWatcher(root)
+    startCodeGraphWatcher(root)
     return { success: true }
   } catch (err: any) {
-    stopCustomWatcher()
+    stopCodeGraphWatcher()
     cleanupCodeGraphDir(root)
     cg = null
     currentWorkspace = null
@@ -275,7 +274,7 @@ export function registerCodeGraphHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CODE_SET_ENABLED, async (_event, enabled: boolean) => {
     cgEnabled = enabled
     if (!enabled) {
-      stopCustomWatcher()
+      stopCodeGraphWatcher()
       if (cg) {
         try { cg.close() } catch {}
         cg = null
@@ -296,7 +295,7 @@ export function registerCodeGraphHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.CODE_INIT, async (event, root: string) => {
     try {
-      stopCustomWatcher()
+      stopCodeGraphWatcher()
       if (cg) { cg.close(); cg = null; currentWorkspace = null }
       initCancelled = false
       initWorkspace = root
@@ -313,7 +312,7 @@ export function registerCodeGraphHandlers(): void {
       cg = await CG.open(root)
       currentWorkspace = root
       initWorkspace = null
-      startCustomWatcher(root)
+      startCodeGraphWatcher(root)
       return { success: true }
     } catch (err: any) {
       cleanupCodeGraphDir(root)
@@ -335,7 +334,7 @@ export function registerCodeGraphHandlers(): void {
       } catch {}
       initProc = null
     }
-    stopCustomWatcher()
+    stopCodeGraphWatcher()
     // Reset in-process state
     if (cg) {
       try { cg.close() } catch {}
@@ -385,24 +384,6 @@ export function registerCodeGraphHandlers(): void {
       return { nodes: (callees || []).map((item: any) => ({ ...item, node: normalizeNode(item.node) })) }
     } catch (err: any) {
       return { error: err.message, nodes: [] }
-    }
-  })
-
-  ipcMain.handle(IPC_CHANNELS.CODE_GET_CALL_GRAPH, async (_event, id: string, depth?: number) => {
-    if (isRebuilding) return { error: 'rebuilding', nodes: [], edges: [] }
-    if (!cg) return { error: 'CodeGraph not initialized', nodes: [], edges: [] }
-    try {
-      const sub = cg.getCallGraph(id, depth || 4)
-      const nodes: any[] = []
-      if (sub.nodes) {
-        sub.nodes.forEach((n: any) => nodes.push(normalizeNode(n)))
-      }
-      const edges = (sub.edges || []).map((e: any) => ({
-        source: e.source, target: e.target, kind: e.kind
-      }))
-      return { nodes, edges }
-    } catch (err: any) {
-      return { error: err.message, nodes: [], edges: [] }
     }
   })
 
@@ -516,17 +497,6 @@ ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], 
     }
   })
 
-  ipcMain.handle(IPC_CHANNELS.CODE_GET_NODE_CODE, async (_event, nodeId: string) => {
-    if (isRebuilding) return { error: 'rebuilding', code: null }
-    if (!cg) return { error: 'Not initialized', code: null }
-    try {
-      const code = await cg.getCode(nodeId)
-      return { code }
-    } catch (err: any) {
-      return { error: err.message, code: null }
-    }
-  })
-
   ipcMain.handle(IPC_CHANNELS.CODE_EXPLORE, async (_event, query: string, opts?: { maxFiles?: number }) => {
     if (isRebuilding) return { error: 'rebuilding', content: '' }
     if (!cg) return { error: 'Not initialized', content: '' }
@@ -548,7 +518,7 @@ ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], 
 }
 
 export function closeCodeGraph(): void {
-  stopCustomWatcher()
+  stopCodeGraphWatcher()
   isRebuilding = false
   if (cg) {
     try { cg.close() } catch {}

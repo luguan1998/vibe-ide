@@ -82,14 +82,12 @@ export const IPC_CHANNELS = {
   CODE_SEARCH_NODES: 'code:searchNodes',
   CODE_GET_CALLERS: 'code:getCallers',
   CODE_GET_CALLEES: 'code:getCallees',
-  CODE_GET_CALL_GRAPH: 'code:getCallGraph',
   CODE_IS_INDEXING: 'code:isIndexing',
   CODE_PROGRESS: 'code:progress',           // push: init/index progress
   CODE_CANCEL_INIT: 'code:cancelInit',       // cancel ongoing init/index
   CODE_GET_STATS: 'code:getStats',
   CODE_INSTALL_MCP: 'code:installMcp',
   CODE_FIND_RELEVANT_CONTEXT: 'code:findRelevantContext',
-  CODE_GET_NODE_CODE: 'code:getNodeCode',
   CODE_EXPLORE: 'code:explore',
   CODE_SET_ENABLED: 'code:setEnabled',
 

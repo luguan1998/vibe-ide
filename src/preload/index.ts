@@ -175,13 +175,11 @@ const api = {
     searchNodes: (query: string, opts?: any) => ipcRenderer.invoke(IPC_CHANNELS.CODE_SEARCH_NODES, query, opts),
     getCallers: (id: string, maxDepth?: number) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_CALLERS, id, maxDepth),
     getCallees: (id: string, maxDepth?: number) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_CALLEES, id, maxDepth),
-    getCallGraph: (id: string, depth?: number) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_CALL_GRAPH, id, depth),
     isIndexing: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_IS_INDEXING),
     cancelInit: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_CANCEL_INIT),
     getStats: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_STATS),
     installMcp: (targets: string[], workspacePath: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_INSTALL_MCP, targets, workspacePath),
     findRelevantContext: (query: string, opts?: any) => ipcRenderer.invoke(IPC_CHANNELS.CODE_FIND_RELEVANT_CONTEXT, query, opts),
-    getNodeCode: (nodeId: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_GET_NODE_CODE, nodeId),
     explore: (query: string, opts?: any) => ipcRenderer.invoke(IPC_CHANNELS.CODE_EXPLORE, query, opts),
     setEnabled: (enabled: boolean) => ipcRenderer.invoke(IPC_CHANNELS.CODE_SET_ENABLED, enabled),
     onProgress: (callback: (progress: any) => void) => {
