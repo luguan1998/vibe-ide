@@ -511,8 +511,8 @@ function OutlineItemRow({ item, depth, collapsedSet, onToggle, onNavigate, isMd 
             className="w-4 h-4 flex items-center justify-center text-ide-text-muted shrink-0 hover:text-ide-text"
             onClick={(e) => { e.stopPropagation(); onToggle(key) }}
           >
-            <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3 h-3 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>
-              <path d="M6 4l4 4-4 4z" />
+            <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3 h-3 transition-transform shrink-0 ${isCollapsed ? '' : 'rotate-90'}`}>
+              <path d="M5 3.5L11 8L5 12.5" />
             </svg>
           </button>
         )}
