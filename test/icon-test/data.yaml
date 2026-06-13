@@ -1,0 +1,100 @@
+# YAML 语法高亮测试
+
+# 标量类型
+name: "YAML 世界"
+count: 42
+pi: 3.14159
+flag: true
+nothing: null
+datetime: 2024-01-15T10:30:00Z
+date: 2024-01-15
+
+# 多行字符串
+description: |
+  这是第一行
+  这是第二行
+  这是第三行
+
+summary: >
+  折叠成
+  一行的
+  文本
+
+# 数组
+items:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+
+items_flow: [1, 2, 3, 4, 5]
+
+# 对象
+mapping:
+  a: 1
+  b: 2
+  c: 3
+
+mapping_flow: { a: 1, b: 2, c: 3 }
+
+# 嵌套结构
+server:
+  host: "localhost"
+  port: 8080
+  ssl: true
+  options:
+    timeout: 30
+    retry: 3
+    backends:
+      - host: "backend1.example.com"
+        port: 3000
+      - host: "backend2.example.com"
+        port: 3000
+
+# 环境配置
+development:
+  database:
+    host: "localhost"
+    port: 5432
+    name: "app_dev"
+  debug: true
+
+production:
+  database:
+    host: "prod-db.example.com"
+    port: 5432
+    name: "app_prod"
+  debug: false
+
+# 锚点 & 引用
+x-default: &defaults
+  timeout: 30
+  retry: 3
+
+service1:
+  <<: *defaults
+  url: "https://service1.example.com"
+
+service2:
+  <<: *defaults
+  url: "https://service2.example.com"
+  timeout: 60  # 覆写默认值
+
+# 多文档
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  key1: value1
+  key2: value2
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+type: Opaque
+stringData:
+  password: "secret123"

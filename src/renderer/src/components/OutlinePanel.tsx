@@ -19,6 +19,14 @@ interface OutlineItem {
 
 const OUTLINE_LINE_LIMIT = 3000
 
+// Per-language kind filter cache (in-memory, session only)
+const langFilterCache = new Map<string, Set<string>>()
+
+function getLangFilter(lang: string): Set<string> {
+  const cached = langFilterCache.get(lang)
+  return cached ? new Set(cached) : new Set(['function'])
+}
+
 // 手动取行，避免 split 全量分配后再 slice；limit 行即停
 function takeLines(content: string, limit: number): string[] {
   const lines: string[] = []
@@ -53,7 +61,7 @@ function getKindLabel(kind: string): string { return KIND_LABELS[kind] || kind.s
 const CODE_EXTS = new Set([
     'ts', 'tsx', 'js', 'jsx', 'py', 'rs', 'go', 'java', 'rb',
     'cs', 'cpp', 'c', 'h', 'hpp', 'php', 'swift', 'kt', 'scala',
-    'vue', 'svelte',
+    'vue', 'svelte', 'dart',
   ])
   const MD_EXTS = new Set(['md', 'mdx', 'markdown'])
 
@@ -71,7 +79,7 @@ function getLanguageId(filePath: string): string {
     py: 'python', rs: 'rust', go: 'go', java: 'java', rb: 'ruby',
     cs: 'csharp', cpp: 'cpp', c: 'c', h: 'c', hpp: 'cpp',
     php: 'php', swift: 'swift', kt: 'kotlin', scala: 'scala',
-    vue: 'vue', svelte: 'svelte',
+    vue: 'vue', svelte: 'svelte', dart: 'dart',
   }
   return map[ext] || 'unknown'
 }
@@ -204,21 +212,9 @@ function buildPythonPatterns(kinds: Set<string>): PatternEntry[] {
       }
     })
   }
-  if (kinds.has('function') || kinds.has('method')) {
-    patterns.push({
-      regex: /^(async\s+)?def\s+(\w+)/,
-      resolve: (m, i, rawLine) => {
-        const isMethod = rawLine.startsWith('  ') || rawLine.startsWith('\t')
-        if (isMethod && kinds.has('method')) {
-          return { name: m[2], kind: 'method', line: i + 1 }  // 独立推入，class 不在 kinds 时 method 不挂 children
-        }
-        if (!isMethod && kinds.has('function')) {
-          return { name: m[2], kind: 'function', line: i + 1 }
-        }
-        return null
-      }
-    })
-  }
+
+  // def is handled entirely in the fallback below (like TS/JS/Java),
+  // so it doesn't reset currentClass in the main pattern loop.
   return patterns
 }
 
@@ -363,6 +359,87 @@ function buildCPatterns(kinds: Set<string>): PatternEntry[] {
   return patterns
 }
 
+// ── Java pattern builder ──
+const JAVA_KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'return', 'throw', 'new', 'try', 'catch', 'else', 'do', 'case', 'break', 'continue', 'synchronized', 'super', 'this', 'instanceof', 'default', 'finally', 'assert'])
+
+function buildJavaPatterns(kinds: Set<string>): PatternEntry[] {
+  const needMethod = kinds.has('method')
+  const trackClass = kinds.has('class') || kinds.has('interface') || kinds.has('enum') || needMethod
+  const patterns: PatternEntry[] = []
+
+  if (trackClass) {
+    patterns.push({
+      regex: /^(?:public\s+|private\s+|protected\s+)?(?:abstract\s+|final\s+)?(class|interface|enum)\s+(\w+)/,
+      resolve: (m, i) => {
+        const kind = m[1]
+        const item: OutlineItem = { name: m[2], kind, line: i + 1, children: [] }
+        return { item, classCtx: true, push: kinds.has(kind) }
+      }
+    })
+  }
+
+  // Methods are handled entirely in the fallback below (like TS/JS),
+  // so they don't reset currentClass in the main pattern loop.
+  return patterns
+}
+
+// ── Kotlin pattern builder ──
+const KOTLIN_KEYWORDS = new Set(['if', 'else', 'for', 'while', 'do', 'when', 'try', 'catch', 'finally', 'return', 'throw', 'break', 'continue', 'super', 'this', 'in', 'is', 'as'])
+
+function buildKotlinPatterns(kinds: Set<string>): PatternEntry[] {
+  const needMethod = kinds.has('method')
+  const trackClass = kinds.has('class') || kinds.has('interface') || kinds.has('enum') || needMethod
+  const patterns: PatternEntry[] = []
+
+  if (trackClass) {
+    // enum class (must come before regular class)
+    if (kinds.has('enum')) {
+      patterns.push({
+        regex: /^(?:public\s+|private\s+|protected\s+|internal\s+)?enum\s+class\s+(\w+)/,
+        resolve: (m, i) => {
+          const item: OutlineItem = { name: m[1], kind: 'enum', line: i + 1, children: [] }
+          return { item, classCtx: true, push: true }
+        }
+      })
+    }
+    // class / interface / object
+    patterns.push({
+      regex: /^(?:public\s+|private\s+|protected\s+|internal\s+)?(?:abstract\s+|open\s+|data\s+|sealed\s+)?(class|interface|object)\s+(\w+)/,
+      resolve: (m, i) => {
+        const kind = m[1] === 'object' ? 'class' : m[1]
+        const item: OutlineItem = { name: m[2], kind, line: i + 1, children: [] }
+        return { item, classCtx: true, push: kinds.has(kind) }
+      }
+    })
+  }
+
+  return patterns
+}
+
+// ── Dart pattern builder ──
+const DART_KEYWORDS = new Set(['if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'try', 'catch', 'finally', 'return', 'throw', 'break', 'continue', 'assert', 'await', 'yield', 'new', 'super', 'this', 'in', 'is', 'as', 'typedef', 'import', 'export', 'library', 'part', 'factory'])
+
+function buildDartPatterns(kinds: Set<string>): PatternEntry[] {
+  const needMethod = kinds.has('method')
+  const trackClass = kinds.has('class') || kinds.has('interface') || kinds.has('enum') || needMethod
+  const patterns: PatternEntry[] = []
+
+  if (trackClass) {
+    // enum (must come before class/mixin since it uses 'enum' keyword)
+    patterns.push({
+      regex: /^(?:abstract\s+)?(class|mixin|enum|extension)\s+(\w+)/,
+      resolve: (m, i) => {
+        let kind = m[1]
+        if (kind === 'mixin' || kind === 'extension') kind = 'class'
+        const item: OutlineItem = { name: m[2], kind, line: i + 1, children: [] }
+        return { item, classCtx: true, push: kinds.has(kind) }
+      }
+    })
+  }
+
+  return patterns
+}
+
 // ── Generic pattern builder ──
 function buildGenericPatterns(kinds: Set<string>): PatternEntry[] {
   const patterns: PatternEntry[] = []
@@ -402,6 +479,12 @@ function parseCodeOutline(content: string, lang: string, kinds: Set<string>): Ou
     patterns = buildGoPatterns(kinds)
   } else if (lang === 'rust') {
     patterns = buildRustPatterns(kinds)
+  } else if (lang === 'java') {
+    patterns = buildJavaPatterns(kinds)
+  } else if (lang === 'kotlin') {
+    patterns = buildKotlinPatterns(kinds)
+  } else if (lang === 'dart') {
+    patterns = buildDartPatterns(kinds)
   } else if (lang === 'c' || lang === 'cpp' || lang === 'csharp') {
     patterns = buildCPatterns(kinds)
   } else {
@@ -450,6 +533,125 @@ function parseCodeOutline(content: string, lang: string, kinds: Set<string>): Ou
         }
       }
     }
+
+    // Java method fallback — ALL methods caught here (like TS/JS), keeping currentClass intact
+    if (!matched && needMethod && lang === 'java' && currentClass) {
+      const rawLine = lines[i]
+      if (!rawLine.match(/^\s{2,}/)) continue
+      const trimmed = rawLine.trim()
+      if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('@')) continue
+
+      // Full method: [modifiers]* [<type-params>] ReturnType methodName(
+      let mm = trimmed.match(/^(?:(?:public|private|protected|static|final|abstract|synchronized|native)\s+)*(?:<[^>]*>\s*)?(\w+(?:<[^>]*>)?(?:\[\])?)\s+(\w+)\s*\(/)
+      if (mm && !JAVA_KEYWORDS.has(mm[2])) {
+        const methodItem = { name: mm[2], kind: 'method' as const, line: i + 1 }
+        if (showClassInTree) currentClass.children!.push(methodItem)
+        else items.push(methodItem)
+        continue
+      }
+      // Constructor: modifiers ClassName(  (name starts uppercase)
+      mm = trimmed.match(/^(?:public|private|protected)\s+([A-Z]\w*)\s*\(/)
+      if (mm) {
+        const methodItem = { name: mm[1], kind: 'method' as const, line: i + 1 }
+        if (showClassInTree) currentClass.children!.push(methodItem)
+        else items.push(methodItem)
+        continue
+      }
+      // Package-private / bare return-type method: ReturnType methodName(
+      mm = trimmed.match(/^(\w+(?:<[^>]*>)?(?:\[\])?)\s+(\w+)\s*\(/)
+      if (mm && !JAVA_KEYWORDS.has(mm[2]) && mm[1].toLowerCase() === mm[1]) {
+        const methodItem = { name: mm[2], kind: 'method' as const, line: i + 1 }
+        if (showClassInTree) currentClass.children!.push(methodItem)
+        else items.push(methodItem)
+      }
+    }
+
+    // Kotlin function/method fallback — ALL fun caught here
+    if (!matched && (kinds.has('function') || kinds.has('method')) && lang === 'kotlin') {
+      const rawLine = lines[i]
+      const trimmed = rawLine.trim()
+      if (!trimmed.startsWith('//') && !trimmed.startsWith('/*') && !trimmed.startsWith('*') && !trimmed.startsWith('@')) {
+        const mm = trimmed.match(/^(?:suspend\s+)?(?:override\s+)?(?:open\s+)?(?:private\s+|protected\s+|internal\s+|public\s+)?fun\s+(\w+)\s*[\(<]/)
+        if (mm && !KOTLIN_KEYWORDS.has(mm[1])) {
+          const isIndented = /^\s{2,}/.test(rawLine)
+          if (isIndented && kinds.has('method') && currentClass) {
+            const methodItem = { name: mm[1], kind: 'method' as const, line: i + 1 }
+            if (showClassInTree) currentClass.children!.push(methodItem)
+            else items.push(methodItem)
+          } else if (!isIndented && kinds.has('function')) {
+            items.push({ name: mm[1], kind: 'function', line: i + 1 })
+          }
+        }
+      }
+    }
+
+    // Dart method fallback — inside a class context
+    if (!matched && needMethod && lang === 'dart' && currentClass) {
+      const rawLine = lines[i]
+      if (!rawLine.match(/^\s{2,}/)) continue
+      const trimmed = rawLine.trim()
+      if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('@')) continue
+      // Method: [static|const|final]* ReturnType methodName(
+      let mm = trimmed.match(/^(?:static\s+|const\s+|final\s+)*(\w+(?:<[^>]*>)?(?:\[\])?)\s+(\w+)\s*\(/)
+      if (mm && !DART_KEYWORDS.has(mm[1]) && !DART_KEYWORDS.has(mm[2])) {
+        const methodItem = { name: mm[2], kind: 'method' as const, line: i + 1 }
+        if (showClassInTree) currentClass.children!.push(methodItem)
+        else items.push(methodItem)
+        continue
+      }
+      // Named constructor: ClassName.named(
+      mm = trimmed.match(/^([A-Z]\w*(?:\.\w+)?)\s*\(/)
+      if (mm) {
+        const methodItem = { name: mm[1], kind: 'method' as const, line: i + 1 }
+        if (showClassInTree) currentClass.children!.push(methodItem)
+        else items.push(methodItem)
+        continue
+      }
+      // Factory constructor: factory ClassName(
+      mm = trimmed.match(/^factory\s+([A-Z]\w*)\s*\(/)
+      if (mm) {
+        const methodItem = { name: mm[1], kind: 'method' as const, line: i + 1 }
+        if (showClassInTree) currentClass.children!.push(methodItem)
+        else items.push(methodItem)
+        continue
+      }
+      // Bare method (package-private style): ReturnType methodName( — lowercase return type
+      mm = trimmed.match(/^(\w+(?:<[^>]*>)?(?:\[\])?)\s+(\w+)\s*\(/)
+      if (mm && !DART_KEYWORDS.has(mm[1]) && !DART_KEYWORDS.has(mm[2]) && mm[1].toLowerCase() === mm[1]) {
+        const methodItem = { name: mm[2], kind: 'method' as const, line: i + 1 }
+        if (showClassInTree) currentClass.children!.push(methodItem)
+        else items.push(methodItem)
+      }
+    }
+
+    // Dart top-level function fallback — no class context
+    if (!matched && kinds.has('function') && lang === 'dart' && !currentClass) {
+      const trimmed = lines[i].trim()
+      if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('@')) continue
+      // Top-level function: ReturnType functionName(
+      const mm = trimmed.match(/^(?:const\s+)?(\w+(?:<[^>]*>)?(?:\[\])?)\s+(\w+)\s*\(/)
+      if (mm && !DART_KEYWORDS.has(mm[1]) && !DART_KEYWORDS.has(mm[2])) {
+        items.push({ name: mm[2], kind: 'function', line: i + 1 })
+      }
+    }
+
+    // Python function/method fallback — ALL def caught here
+    if (!matched && (kinds.has('function') || kinds.has('method')) && lang === 'python') {
+      const rawLine = lines[i]
+      const trimmed = rawLine.trim()
+      if (trimmed.startsWith('#') || trimmed.startsWith('"""') || trimmed.startsWith("'''") || trimmed.startsWith('@')) continue
+      const mm = trimmed.match(/^(?:async\s+)?def\s+(\w+)\s*\(/)
+      if (mm) {
+        const isIndented = /^\s{2,}/.test(rawLine)
+        if (isIndented && kinds.has('method') && currentClass) {
+          const methodItem = { name: mm[1], kind: 'method' as const, line: i + 1 }
+          if (showClassInTree) currentClass.children!.push(methodItem)
+          else items.push(methodItem)
+        } else if (!isIndented && kinds.has('function')) {
+          items.push({ name: mm[1], kind: 'function', line: i + 1 })
+        }
+      }
+    }
   }
   return items
 }
@@ -469,6 +671,7 @@ const LANG_KINDS: Record<string, string[]> = {
   swift: ['function', 'method', 'class', 'interface', 'enum'],
   kotlin: ['function', 'method', 'class', 'interface', 'enum'],
   scala: ['function', 'method', 'class', 'interface'],
+  dart: ['function', 'method', 'class', 'interface', 'enum'],
   vue: ['function', 'method', 'class', 'interface', 'enum', 'type_alias', 'constant'],
   svelte: ['function', 'method', 'class', 'interface', 'enum', 'type_alias', 'constant'],
   unknown: ['function', 'method', 'class', 'interface'],
@@ -556,17 +759,18 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, content, h
   const code = !md && isCode(filePath)
   const lang = code ? getLanguageId(filePath) : 'unknown'
 
-  // Kind filter: only for code files, default only 'function' active
-  const kindFilterRef = useRef(new Set(['function']))
+  // Kind filter: restore cached config per language, default only 'function' active
+  const kindFilterRef = useRef(getLangFilter(lang))
+  const [kindFilterDisplay, setKindFilterDisplay] = useState<Set<string>>(() => new Set(kindFilterRef.current))
 
-  // Reset filter when file changes (code only)
+  // Restore cached filter when language changes (file switch)
   useEffect(() => {
-    kindFilterRef.current = new Set(['function'])
-    setKindFilterDisplay(new Set(['function']))
-  }, [fullPath])
-
-  // Separate display state to drive the filter bar buttons
-  const [kindFilterDisplay, setKindFilterDisplay] = useState<Set<string>>(new Set(['function']))
+    if (!code) return
+    const l = getLanguageId(filePath)
+    const filter = getLangFilter(l)
+    kindFilterRef.current = filter
+    setKindFilterDisplay(new Set(filter))
+  }, [fullPath, code])
 
   // Load outline content (Markdown always full, Code uses kindFilter)
   useEffect(() => {
@@ -635,8 +839,9 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, content, h
     else next.add(kind)
     if (next.size === 0) return  // Don't allow empty filter
     kindFilterRef.current = next
+    langFilterCache.set(lang, next)  // persist to in-memory cache for this language
     setKindFilterDisplay(next)  // trigger re-parse via the kindFilter effect
-  }, [])
+  }, [lang])
 
   const fileName = filePath.replace(/[\\/]/g, '/').split('/').pop() || filePath
 

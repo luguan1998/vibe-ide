@@ -1,0 +1,90 @@
+# TOML 语法高亮测试
+
+[basic]
+name = "TOML 世界"
+count = 42
+pi = 3.14159
+flag = true
+nothing = ""
+
+# 多行字符串
+description = """
+第一行
+第二行
+第三行
+"""
+
+# 日期时间
+created_at = 2024-01-15T10:30:00Z
+updated_at = 2024-01-15
+
+# 数组
+items = [1, 2, 3, 4, 5]
+mixed = [1, "two", true, 3.14]
+
+# 对象 / 内联表
+mapping = { a = 1, b = 2, c = 3 }
+
+# 嵌套表
+[server]
+host = "localhost"
+port = 8080
+ssl = true
+
+[server.options]
+timeout = 30
+retry = 3
+
+[server.backends]
+backend1 = { host = "backend1.example.com", port = 3000 }
+backend2 = { host = "backend2.example.com", port = 3000 }
+
+# 多级表
+[database]
+host = "localhost"
+port = 5432
+name = "app_dev"
+pool_size = 10
+max_connections = 100
+
+# 表数组
+[[apps]]
+name = "app1"
+version = "1.0.0"
+enabled = true
+
+[[apps]]
+name = "app2"
+version = "2.0.0"
+enabled = false
+
+[[apps]]
+name = "app3"
+version = "3.0.0-beta"
+enabled = true
+
+# 键值组
+[logging]
+level = "debug"
+format = "json"
+output = "stdout"
+
+[logging.filters]
+include = ["app", "db"]
+exclude = ["healthcheck"]
+
+# 带点的键名
+[metrics]
+"cpu.usage" = 0.85
+"memory.usage" = 0.62
+"disk.io" = 0.33
+
+# 环境配置
+[environment.development]
+debug = true
+verbose = false
+
+[environment.production]
+debug = false
+verbose = true
+host = "prod.example.com"
