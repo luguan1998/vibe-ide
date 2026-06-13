@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
+import { parseFrontmatter } from '@renderer/utils/frontmatter'
 
 interface Props {
   query: string
@@ -10,6 +11,7 @@ interface Props {
 }
 
 function CodeGraphExploreResult({ query, content, onClose }: Props) {
+  const { meta: frontmatter, body: mdBody } = parseFrontmatter(content)
   const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -56,8 +58,20 @@ function CodeGraphExploreResult({ query, content, onClose }: Props) {
         {/* Content */}
         <div className="flex-1 overflow-auto p-6 bg-ide-bg">
           <div className="md-preview max-w-4xl mx-auto" ref={contentRef}>
+            {frontmatter && (
+              <div className="md-frontmatter mb-6">
+                {Object.entries(frontmatter).map(([key, val]) => (
+                  <div key={key} className="md-fm-row">
+                    <span className="md-fm-key">{key}</span>
+                    <span className="md-fm-val">
+                      {Array.isArray(val) ? val.join(', ') : val}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownCodeOverrides()}>
-              {content}
+              {mdBody}
             </ReactMarkdown>
           </div>
         </div>

@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
-
+import { type Frontmatter, parseFrontmatter } from '@renderer/utils/frontmatter'
 
 interface MarkdownPreviewProps {
   fullPath: string
@@ -47,6 +47,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   scrollToHeading
 }: MarkdownPreviewProps) {
   const [content, setContent] = useState('')
+  const [frontmatter, setFrontmatter] = useState<Frontmatter | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -80,13 +81,18 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
       if (result.error) {
         setError(result.error)
         setContent('')
+        setFrontmatter(null)
       } else {
-        setContent(typeof result === 'string' ? result : result.content || '')
+        const raw = typeof result === 'string' ? result : result.content || ''
+        const { meta, body } = parseFrontmatter(raw)
+        setFrontmatter(meta)
+        setContent(body)
       }
       setLoading(false)
     }).catch((err: any) => {
       if (!cancelled) {
         setError(String(err))
+        setFrontmatter(null)
         setLoading(false)
       }
     })
@@ -150,6 +156,18 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
         )}
         {!loading && !error && (
           <div className="md-preview max-w-4xl mx-auto" ref={contentRef}>
+            {frontmatter && (
+              <div className="md-frontmatter mb-6">
+                {Object.entries(frontmatter).map(([key, val]) => (
+                  <div key={key} className="md-fm-row">
+                    <span className="md-fm-key">{key}</span>
+                    <span className="md-fm-val">
+                      {Array.isArray(val) ? val.join(', ') : val}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
               ...getMarkdownCodeOverrides(),
               h1: ({ children }) => { const text = extractText(children); return <h1 id={slugify(text)}>{children}</h1> },

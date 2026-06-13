@@ -312,3 +312,33 @@ html, body, #root {
 .md-preview del { text-decoration: line-through; color: rgb(var(--ide-danger)); }
 .md-preview > *:first-child { margin-top: 0; }
 
+/* ── Frontmatter card ── */
+.md-frontmatter {
+  background-color: rgb(var(--ide-sidebar));
+  border: 1px solid rgb(var(--ide-border));
+  border-radius: 8px;
+  overflow: hidden;
+}
+.md-fm-row {
+  display: flex;
+  border-bottom: 1px solid rgb(var(--ide-border));
+}
+.md-fm-row:last-child { border-bottom: none; }
+.md-fm-key {
+  width: 140px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(var(--ide-accent));
+  background-color: rgb(var(--ide-hover));
+  font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+}
+.md-fm-val {
+  flex: 1;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: rgb(var(--ide-text));
+  word-break: break-word;
+}
+
