@@ -52,6 +52,7 @@ interface TerminalViewProps {
   isActive?: boolean
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   onOscTitle?: (sessionId: string, title: string) => void
+  ocrEnabled?: boolean
   newlineShortcut?: string // e.g. "Shift+Enter"
   pageDownShortcut?: string // e.g. "PageDown"
   pageUpShortcut?: string // e.g. "PageUp"
@@ -377,7 +378,7 @@ function findNextPrompt(buf: IBuffer, fromY: number): number {
   return -1
 }
 
-const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, isActive = true, onAgentStatusChange, onOscTitle, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
+const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, isActive = true, ocrEnabled = true, onAgentStatusChange, onOscTitle, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -417,6 +418,73 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   const prevStatusRef = useRef<'running' | 'idle'>('idle')
   const activationStartRef = useRef(0)
 
+  const mountedRef = useRef(false)
+
+  // OCR drag-and-drop state
+  const [ocrState, setOcrState] = useState<'idle' | 'dragover' | 'processing' | 'success' | 'error'>('idle')
+  const [ocrMessage, setOcrMessage] = useState('')
+  const ocrTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearOcrTimer = useCallback(() => {
+    if (ocrTimerRef.current) { clearTimeout(ocrTimerRef.current); ocrTimerRef.current = null }
+  }, [])
+
+  const pasteFromClipboard = useCallback(async () => {
+    try {
+      const items = await navigator.clipboard.read()
+      for (const item of items) {
+        for (const type of item.types) {
+          if (type.startsWith('image/')) {
+            const blob = await item.getType(type)
+            const file = new File([blob], `clipboard.${type.split('/')[1] || 'png'}`, { type })
+            setOcrState('processing')
+            try {
+              const text = await window.api.ocr.recognize(
+                (file as any).path
+                  ? (file as any).path as string
+                  : { buffer: new Uint8Array(await file.arrayBuffer()), name: file.name }
+              )
+              if (!mountedRef.current) return
+              const sanitized = text.replace(/[\r\n]+/g, ' ').trim()
+              if (sanitized) {
+                xtermRef.current?.paste(sanitized)
+                setOcrMessage(sanitized.slice(0, 120))
+                setOcrState('success')
+                ocrTimerRef.current = setTimeout(() => { setOcrState('idle'); setOcrMessage('') }, 600)
+              } else {
+                setOcrMessage('No text found')
+                setOcrState('error')
+                ocrTimerRef.current = setTimeout(() => { setOcrState('idle'); setOcrMessage('') }, 1500)
+              }
+            } catch (err: any) {
+              if (!mountedRef.current) return
+              setOcrMessage(err.message || 'OCR failed')
+              setOcrState('error')
+              ocrTimerRef.current = setTimeout(() => { setOcrState('idle'); setOcrMessage('') }, 1500)
+            }
+            return true
+          }
+        }
+      }
+      // No image → return false so caller can fallback to text paste
+      return false
+    } catch {
+      return false
+    }
+  }, [])
+
+  const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tiff', '.tif', '.ico', '.svg'])
+
+  const findDropImage = (files: FileList): File | null => {
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i]
+      const isImage = f.type.startsWith('image/')
+        || IMAGE_EXTS.has('.' + f.name.split('.').pop()?.toLowerCase())
+      if (isImage) return f
+    }
+    return null
+  }
+
   useImperativeHandle(ref, () => ({
     focus: () => {
       xtermRef.current?.focus()
@@ -425,6 +493,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
   // Initialize xterm.js
   useEffect(() => {
+    mountedRef.current = true
     if (!terminalRef.current) return
 
     // Clean up previous terminal
@@ -594,8 +663,100 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           navigator.clipboard.writeText(sel).catch(() => {})
         }
       }
+      // Ctrl+V: check clipboard for image → OCR, fallback to text paste
+      if (e.key.toLowerCase() === 'v' && e.ctrlKey && !e.metaKey) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        ;(async () => {
+          if (ocrEnabled) {
+            const didOcr = await pasteFromClipboard()
+            if (didOcr) return
+          }
+          try {
+            const text = await navigator.clipboard.readText()
+            if (text) xtermRef.current?.paste(text)
+          } catch {}
+        })()
+        return
+      }
     }
     terminalRef.current?.addEventListener('keydown', onKeyDown, true)
+
+    // OCR drag/drop handlers — capture phase to intercept before xterm.js textarea
+    // Uses dragover timer approach: dragover fires ~every 200ms while dragging over element.
+    // When the mouse leaves, dragover stops firing, timer expires, overlay hides.
+    const el = terminalRef.current
+    let dragHideTimer: ReturnType<typeof setTimeout> | null = null
+
+    const isFileDrag = (e: DragEvent) =>
+      e.dataTransfer?.types.includes('Files') || (e.dataTransfer?.files && e.dataTransfer.files.length > 0)
+
+    const onDragOver = (e: DragEvent) => {
+      if (!isFileDrag(e)) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+      if (dragHideTimer) { clearTimeout(dragHideTimer); dragHideTimer = null }
+      setOcrState('dragover')
+    }
+
+    const onDrop = async (e: DragEvent) => {
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      if (dragHideTimer) { clearTimeout(dragHideTimer); dragHideTimer = null }
+      setOcrState('idle')
+      clearOcrTimer()
+
+      const files = e.dataTransfer?.files
+      if (!files || files.length === 0) return
+
+      const file = findDropImage(files)
+      if (!file || !ocrEnabled) return
+
+      setOcrState('processing')
+      try {
+        const filePath = (file as any).path as string | undefined
+        const text = filePath
+          ? await window.api.ocr.recognize(filePath)
+          : await window.api.ocr.recognize({ buffer: new Uint8Array(await file.arrayBuffer()), name: file.name })
+        if (!mountedRef.current) return
+        const sanitized = text.replace(/[\r\n]+/g, ' ').trim()
+        if (sanitized) {
+          xtermRef.current?.paste(sanitized)
+          setOcrMessage(sanitized.slice(0, 120))
+          setOcrState('success')
+          ocrTimerRef.current = setTimeout(() => { setOcrState('idle'); setOcrMessage('') }, 600)
+        } else {
+          setOcrMessage('No text found in image')
+          setOcrState('error')
+          ocrTimerRef.current = setTimeout(() => { setOcrState('idle'); setOcrMessage('') }, 1500)
+        }
+      } catch (err: any) {
+        if (!mountedRef.current) return
+        setOcrMessage(err.message || 'OCR failed')
+        setOcrState('error')
+        ocrTimerRef.current = setTimeout(() => { setOcrState('idle'); setOcrMessage('') }, 1500)
+      }
+    }
+
+    // Cleanup timer when drag leaves the terminal area
+    const onDragLeave = (e: DragEvent) => {
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      // Ignore if relatedTarget is still within the terminal container
+      const rt = e.relatedTarget
+      if (rt instanceof Node && el?.contains(rt)) return
+      dragHideTimer = setTimeout(() => {
+        setOcrState('idle')
+        dragHideTimer = null
+      }, 200)
+    }
+
+    if (el && !isAux) {
+      el.addEventListener('dragover', onDragOver, true)
+      el.addEventListener('dragleave', onDragLeave, true)
+      el.addEventListener('drop', onDrop, true)
+    }
 
     // Handle terminal data input
     term.onData((data: string) => {
@@ -643,7 +804,14 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     window.addEventListener('resize', onResize)
 
     return () => {
-      terminalRef.current?.removeEventListener('keydown', onKeyDown, true)
+      mountedRef.current = false
+      if (dragHideTimer) clearTimeout(dragHideTimer)
+      if (el) {
+        el.removeEventListener('keydown', onKeyDown, true)
+        el.removeEventListener('dragover', onDragOver, true)
+        el.removeEventListener('dragleave', onDragLeave, true)
+        el.removeEventListener('drop', onDrop, true)
+      }
       window.removeEventListener('resize', onResize)
       if (resizeTimer) clearTimeout(resizeTimer)
       if (textareaEl) {
@@ -652,6 +820,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       }
       window.removeEventListener('blur', onWindowBlur)
       window.removeEventListener('focus', onWindowFocus)
+      if (ocrTimerRef.current) { clearTimeout(ocrTimerRef.current); ocrTimerRef.current = null }
       searchResultDisposer?.dispose?.()
       if (webglAddonRef.current) {
         try { webglAddonRef.current.dispose() } catch {}
@@ -941,16 +1110,18 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
     const sel = xtermRef.current.getSelection()
     if (sel) {
-      // Has selection → copy to clipboard
       try { await navigator.clipboard.writeText(sel) } catch {}
     } else {
-      // No selection → paste clipboard
+      if (ocrEnabled) {
+        const didOcr = await pasteFromClipboard()
+        if (didOcr) return
+      }
       try {
         const text = await navigator.clipboard.readText()
         if (text) xtermRef.current.paste(text)
       } catch {}
     }
-  }, [sessionId])
+  }, [sessionId, pasteFromClipboard, ocrEnabled])
 
   useEffect(() => {
     if (searchState?.visible) requestAnimationFrame(() => searchInputRef.current?.focus())
@@ -997,7 +1168,66 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         style={isAux ? { backgroundColor: currentTheme.terminal.background } : undefined}
         onContextMenu={handleContextMenu}
       >
-        <div ref={terminalRef} className="flex-1 min-h-0" />
+        <div ref={terminalRef} className="flex-1 min-h-0 relative">
+          {/* OCR drag overlay */}
+          {ocrState !== 'idle' && (
+            <div
+              className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
+              style={{ backgroundColor: currentTheme.terminal.background }}
+            >
+              <div className="flex flex-col items-center gap-3 px-6 py-5 rounded-xl border shadow-2xl pointer-events-auto"
+                style={{
+                  backgroundColor: currentTheme.terminal.background,
+                  borderColor: ocrState === 'error' ? 'rgba(239,68,68,0.5)'
+                    : ocrState === 'success' ? 'rgba(34,197,94,0.5)'
+                    : 'var(--ide-border)',
+                }}
+              >
+                {ocrState === 'dragover' && (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-10 h-10 text-ide-accent">
+                      <rect x="3" y="3" width="18" height="18" rx="3"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+                    </svg>
+                    <span className="text-sm text-ide-text font-medium">Drop image to OCR</span>
+                  </>
+                )}
+                {ocrState === 'processing' && (
+                  <>
+                    <svg className="w-8 h-8 text-ide-accent animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" opacity="0.25"/>
+                      <path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                    </svg>
+                    <span className="text-sm text-ide-text">Recognizing text...</span>
+                  </>
+                )}
+                {ocrState === 'success' && (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8 text-emerald-400">
+                      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <div className="flex flex-col items-center gap-1 max-w-sm">
+                      <span className="text-sm text-emerald-400 font-medium">Text pasted</span>
+                      {ocrMessage && (
+                        <span className="text-xs text-ide-text-muted text-center truncate max-w-[280px]" title={ocrMessage}>
+                          {ocrMessage}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+                {ocrState === 'error' && (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8 text-red-400">
+                      <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6" strokeLinecap="round"/>
+                    </svg>
+                    <span className="text-sm text-red-400">{ocrMessage}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Terminal search bar — VSCode-style */}
         {searchState?.visible && (

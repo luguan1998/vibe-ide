@@ -94,6 +94,9 @@ export const IPC_CHANNELS = {
   // Perf
   PERF_SNAPSHOT: 'perf:snapshot',
 
+  // OCR
+  OCR_RECOGNIZE: 'ocr:recognize',
+
   // App
   APP_VERSION: 'app:version'
 } as const

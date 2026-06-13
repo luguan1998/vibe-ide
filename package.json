@@ -30,7 +30,10 @@
     "npmRebuild": false,
     "asarUnpack": [
       "node_modules/@colbymchenry/codegraph-*/**",
-      "node_modules/@colbymchenry/codegraph/node_modules/@colbymchenry/codegraph-*/**"
+      "node_modules/@colbymchenry/codegraph/node_modules/@colbymchenry/codegraph-*/**",
+      "node_modules/tesseract.js/**",
+      "node_modules/tesseract.js-core/**",
+      "node_modules/@tesseract.js-data/**"
     ],
     "extraResources": [
       {
@@ -43,6 +46,7 @@
     "@colbymchenry/codegraph": "0.9.9",
     "@electron-toolkit/utils": "^3.0.0",
     "@monaco-editor/react": "^4.6.0",
+    "@tesseract.js-data/eng": "^1.0.0",
     "@types/dagre": "^0.7.54",
     "@xterm/addon-clipboard": "^0.2.0",
     "@xterm/addon-fit": "latest",
@@ -67,6 +71,7 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "simple-git": "^3.27.0",
+    "tesseract.js": "^6.0.1",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.25.3"
   },

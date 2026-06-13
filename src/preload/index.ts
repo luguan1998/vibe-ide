@@ -159,6 +159,12 @@ const api = {
       ipcRenderer.send(IPC_CHANNELS.TITLE_BAR_UPDATE, options)
   },
 
+  // OCR
+  ocr: {
+    recognize: (input: string | { buffer: Uint8Array; name: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.OCR_RECOGNIZE, input) as Promise<string>
+  },
+
   // App
   appVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_VERSION) as Promise<string>,
 

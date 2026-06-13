@@ -232,6 +232,8 @@ const ZH_MAP: Record<string, string> = {
   'Install': '安装',
   'Installing...': '安装中...',
   'Done': '完成',
+  'OCR Image to Text': '图片OCR转文字',
+  'Drag image or Ctrl+V to extract text from images and paste into terminal': '拖入图片或 Ctrl+V 将图片文字识别并粘贴到终端',
   'Configure MCP': '配置 MCP',
   'Configure CodeGraph MCP for agents': '配置 CodeGraph MCP for Agent',
   'Exclude folders': '排除文件夹',

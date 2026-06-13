@@ -113,6 +113,9 @@ declare global {
         removeProgressListener: (handler?: any) => void
         setEnabled: (enabled: boolean) => Promise<{ enabled: boolean }>
       }
+      ocr: {
+        recognize: (input: string | { buffer: Uint8Array; name: string }) => Promise<string>
+      }
       theme: {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
       }
@@ -246,6 +249,9 @@ export default function App() {
   const escAutoAtRef = useRef(escAutoAt)
   escAutoAtRef.current = escAutoAt
 
+  const [ocrEnabled, setOcrEnabled] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-ocr-enabled') !== '0' } catch { return true }
+  })
   const [cgEnabled, setCgEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-cg-enabled') !== '0' } catch { return true }
   })
@@ -394,6 +400,9 @@ export default function App() {
     try { localStorage.setItem('vibe-ide-auto-utf8', String(autoUtf8)) } catch {}
   }, [autoUtf8])
   React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-ocr-enabled', ocrEnabled ? '1' : '0') } catch {}
+  }, [ocrEnabled])
+  useEffect(() => {
     try { localStorage.setItem('vibe-ide-cg-enabled', cgEnabled ? '1' : '0') } catch {}
     window.api.code.setEnabled(cgEnabled)
   }, [cgEnabled])
@@ -1271,6 +1280,8 @@ export default function App() {
             onToggleAutoUtf8={setAutoUtf8}
             cgEnabled={cgEnabled}
             onToggleCgEnabled={setCgEnabled}
+            ocrEnabled={ocrEnabled}
+            onToggleOcrEnabled={setOcrEnabled}
             inlineDiff={inlineDiff}
             onToggleInlineDiff={setInlineDiff}
             capsuleTabs={capsuleTabs}
@@ -1383,7 +1394,7 @@ export default function App() {
                   className="flex-1 flex flex-col overflow-hidden"
                   style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
                 >
-                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} isActive={session.id === activeSessionId} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
+                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
                 </div>
               ))}
             </Suspense>

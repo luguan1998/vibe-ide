@@ -10,6 +10,7 @@ import { stopWatching } from './watcher'
 import { registerFileHandlers } from './file'
 import { registerSearchHandlers } from './search'
 import { registerCodeGraphHandlers, closeCodeGraph } from './codegraph'
+import { recognizeImage, terminateOcrWorker } from './ocr'
 import { IPC_CHANNELS } from '../shared/types'
 
 // Derive a path-specific instance lock so different exe copies run concurrently
@@ -260,6 +261,14 @@ app.whenReady().then(() => {
   // App version
   ipcMain.handle(IPC_CHANNELS.APP_VERSION, () => app.getVersion())
 
+  // OCR — recognize text from image path or buffer
+  ipcMain.handle(IPC_CHANNELS.OCR_RECOGNIZE, (_event, input: string | { buffer: Uint8Array; name: string }) => {
+    if (typeof input === 'string') {
+      return recognizeImage(input)
+    }
+    return recognizeImage(input.buffer)
+  })
+
   // Perf snapshot — returns per-process memory + CPU usage
   ipcMain.handle(IPC_CHANNELS.PERF_SNAPSHOT, () => ({
     memory: process.memoryUsage(),
@@ -278,6 +287,7 @@ function cleanupAndExit(): void {
   cleanupTerminals()
   stopWatching()
   closeCodeGraph()
+  terminateOcrWorker()
 }
 
 app.on('before-quit', () => {

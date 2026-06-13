@@ -118,6 +118,8 @@ interface SessionPanelProps {
   onToggleInlineDiff?: (value: boolean) => void
   capsuleTabs?: boolean
   onToggleCapsuleTabs?: (value: boolean) => void
+  ocrEnabled?: boolean
+  onToggleOcrEnabled?: (value: boolean) => void
   escAutoAt?: boolean
   onToggleEscAutoAt?: (value: boolean) => void
   fileTreeDepth?: number
@@ -150,6 +152,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onToggleAutoUtf8,
   cgEnabled = true,
   onToggleCgEnabled,
+  ocrEnabled = true,
+  onToggleOcrEnabled,
   inlineDiff = false,
   onToggleInlineDiff,
   capsuleTabs = true,
@@ -1265,6 +1269,15 @@ const SessionPanel = React.memo(function SessionPanel({
                     <span className="text-xs text-ide-text">{t('CodeGraph')}</span>
                   </div>
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Code symbol indexing for smart search. Disable to free ~170MB main process memory.')}</p>
+                </label>
+              )}
+              {onToggleOcrEnabled && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={ocrEnabled} onChange={(e) => onToggleOcrEnabled(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('OCR Image to Text')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Drag image or Ctrl+V to extract text from images and paste into terminal')}</p>
                 </label>
               )}
               {onToggleSquiggles && (
