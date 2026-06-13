@@ -298,7 +298,7 @@ html, body, #root {
 }
 .md-preview blockquote {
   border-left: 3px solid rgb(var(--ide-warning)); padding-left: 1em;
-  margin-left: 0; margin-bottom: 1em; color: rgb(var(--ide-text-muted)); font-style: italic;
+  margin-left: 0; margin-bottom: 1em; color: rgb(var(--ide-text) / 0.72); font-style: italic;
   background-color: rgb(var(--ide-hover));
   padding: 0.5em 1em; border-radius: 0 4px 4px 0;
 }
