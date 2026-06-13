@@ -5,7 +5,7 @@ import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
 import MarkdownPreview from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
-import OutlinePanel from './components/OutlinePanel'
+import OutlinePanel, { isCode, isMarkdown } from './components/OutlinePanel'
 import NavBar from './components/NavBar'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
@@ -351,36 +351,22 @@ export default function App() {
     }, 0)
   }, [])
 
-  function pushNavHistory(truncate = true) {
+  function pushNavHistory() {
     const pos = cursorRef.current
     const df = diffFileRef.current
     if (!pos || !df || pos.fullPath !== df.fullPath) return
     const hist = navHistoryRef.current
-    const idx = navIndexRef.current
 
-    if (truncate) {
-      // File-open: LRU dedup + truncate forward
-      for (let i = hist.length - 1; i >= 0; i--) {
-        if (hist[i].fullPath === pos.fullPath) {
-          hist.splice(i, 1)
-          if (i <= navIndexRef.current) navIndexRef.current--
-        }
+    // LRU: 去重（删前面同文件旧节点），末尾插入新节点
+    for (let i = hist.length - 1; i >= 0; i--) {
+      if (hist[i].fullPath === pos.fullPath) {
+        hist.splice(i, 1)
+        break
       }
-      const newIdx = navIndexRef.current
-      hist.splice(newIdx + 1)
-      hist.push({ fullPath: pos.fullPath, line: pos.line, column: pos.column })
-      while (hist.length > 10) hist.shift()
-      navIndexRef.current = hist.length - 1
-    } else {
-      // Alt navigation: save position, update in place if same file at current index
-      if (idx >= 0 && idx < hist.length && hist[idx].fullPath === pos.fullPath) {
-        hist[idx] = { fullPath: pos.fullPath, line: pos.line, column: pos.column }
-        return
-      }
-      hist.push({ fullPath: pos.fullPath, line: pos.line, column: pos.column })
-      while (hist.length > 10) { hist.shift(); navIndexRef.current-- }
-      navIndexRef.current = hist.length - 1
     }
+    hist.push({ fullPath: pos.fullPath, line: pos.line, column: pos.column })
+    while (hist.length > 10) hist.shift()
+    navIndexRef.current = hist.length - 1
   }
 
   // Focus terminal when switching sessions or returning from diff
@@ -526,7 +512,7 @@ export default function App() {
           codeSearchActivatedRef.current = false
           setShowCodeSearch(true)
           if (navHistoryRef.current.length > 0) {
-            if (centerViewRef.current === 'diff') pushNavHistory(false)
+            if (centerViewRef.current === 'diff') pushNavHistory()
             const idx = navIndexRef.current
             if (idx >= 0 && idx < navHistoryRef.current.length) {
               navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
@@ -736,7 +722,7 @@ export default function App() {
           e.preventDefault()
           e.stopImmediatePropagation()
           if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
-          if (centerViewRef.current === 'diff') pushNavHistory(false)
+          if (centerViewRef.current === 'diff') pushNavHistory()
           const delta = isBack ? -1 : 1
           const startIdx = navIndexRef.current + delta
           const hist = navHistoryRef.current
@@ -1298,7 +1284,7 @@ export default function App() {
           />
           </div>
           {/* Outline: overlay covering entire left panel below title bar */}
-          {centerView === 'diff' && diffFile && (
+          {centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath)) && (
             <div className="absolute left-0 right-0 bottom-0 bg-ide-sidebar z-10" style={{ top: 40 }}>
               <OutlinePanel
                 key={diffFile.fullPath}
@@ -1310,7 +1296,7 @@ export default function App() {
               />
             </div>
           )}
-          {centerView === 'markdown' && markdownFile && (
+          {centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath) && (
             <div className="absolute left-0 right-0 bottom-0 bg-ide-sidebar z-10" style={{ top: 40 }}>
               <OutlinePanel
                 key={markdownFile.fullPath}

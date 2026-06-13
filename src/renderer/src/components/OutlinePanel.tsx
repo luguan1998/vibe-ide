@@ -65,10 +65,10 @@ const CODE_EXTS = new Set([
   ])
   const MD_EXTS = new Set(['md', 'mdx', 'markdown'])
 
-  function isMarkdown(filePath: string): boolean {
+  export function isMarkdown(filePath: string): boolean {
     return MD_EXTS.has(filePath.split('.').pop()?.toLowerCase() || '')
   }
-  function isCode(filePath: string): boolean {
+  export function isCode(filePath: string): boolean {
     return CODE_EXTS.has(filePath.split('.').pop()?.toLowerCase() || '')
   }
 
