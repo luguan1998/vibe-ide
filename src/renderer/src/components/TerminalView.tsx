@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react'
-import { Terminal, ILinkProvider, ILink, IBufferRange } from '@xterm/xterm'
+import { Terminal, ILinkProvider, ILink, IBufferRange, IBuffer, IBufferLine } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { ClipboardAddon } from '@xterm/addon-clipboard'
@@ -230,7 +230,7 @@ function extractShellCommand(line: string): string | null {
  * 将行字符串中的字符索引映射到 terminal buffer 的 cell 位置（1-based）
  * 正确处理 CJK 宽字符（width=2 占 2 cell）和 width=0 的尾随 cell
  */
-function mapStringIndexToCell(line: import('@xterm/xterm').IBufferLine, stringIndex: number): number {
+function mapStringIndexToCell(line: IBufferLine, stringIndex: number): number {
   let cellX = 0
   let strIdx = 0
   for (let i = 0; i < line.length && strIdx <= stringIndex; i++) {
@@ -357,6 +357,26 @@ function stripAnsiEscapes(data: string): string {
   return stripAnsiAndExtractOscTitle(data).clean
 }
 
+function hasPrompt(lineText: string): boolean {
+  return lineText.startsWith('> ')
+}
+
+function findPrevPrompt(buf: IBuffer, fromY: number): number {
+  for (let y = fromY; y >= 0; y--) {
+    const line = buf.getLine(y)
+    if (line && hasPrompt(line.translateToString(true))) return y
+  }
+  return -1
+}
+
+function findNextPrompt(buf: IBuffer, fromY: number): number {
+  for (let y = fromY; y < buf.length; y++) {
+    const line = buf.getLine(y)
+    if (line && hasPrompt(line.translateToString(true))) return y
+  }
+  return -1
+}
+
 const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, isActive = true, onAgentStatusChange, onOscTitle, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
@@ -391,6 +411,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     setFilePicker({ matches: matches.slice(0, 10), lineNumber })
   }
   const detectionReadyRef = useRef(false)    // 1s 延时后才开始检测
+  const lastPromptJumpRef = useRef<number>(-1) // Alt+↑↓ 上次跳转到的提示行索引
   const lastOutputRef = useRef(0)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevStatusRef = useRef<'running' | 'idle'>('idle')
@@ -531,6 +552,39 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           return
         }
         // 缓冲区不足一屏 → 不做拦截，让 xterm 把 \x1b[5~ 发给 PTY
+      }
+      // Alt+Up/Down: jump between shell prompt lines
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          const buf = term.buffer.active
+          if (e.code === 'ArrowUp') {
+            const fromY = lastPromptJumpRef.current >= 0
+              ? lastPromptJumpRef.current - 1
+              : buf.viewportY + buf.cursorY - 1
+            if (fromY >= 0) {
+              const targetY = findPrevPrompt(buf, fromY)
+              if (targetY >= 0) {
+                lastPromptJumpRef.current = targetY
+                term.scrollLines(Math.max(0, targetY - Math.floor(term.rows / 3)) - buf.viewportY)
+                return
+              }
+            }
+          } else {
+            const fromY = lastPromptJumpRef.current >= 0
+              ? lastPromptJumpRef.current + 1
+              : buf.viewportY + buf.cursorY + 1
+            if (fromY < buf.length) {
+              const targetY = findNextPrompt(buf, fromY)
+              if (targetY >= 0) {
+                lastPromptJumpRef.current = targetY
+                term.scrollLines(Math.max(0, targetY - Math.floor(term.rows / 3)) - buf.viewportY)
+                return
+              }
+            }
+          }
+        }
       }
       if (e.key.toLowerCase() === 'c' && e.ctrlKey && !e.metaKey) {
         const sel = term.getSelection()

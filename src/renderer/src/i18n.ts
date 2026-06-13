@@ -78,6 +78,8 @@ const ZH_MAP: Record<string, string> = {
   'Navigate Forward': '导航前进',
   'Open Code Graph Search': '打开代码图搜索',
   'Search Terminal': '终端内搜索',
+  'Jump to Previous Prompt': '跳到上条命令',
+  'Jump to Next Prompt': '跳到下条命令',
   'Toggle Preview / Edit': '切换预览/编辑',
 
   // File Tree

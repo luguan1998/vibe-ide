@@ -542,14 +542,7 @@ export default function App() {
         return
       }
 
-      // ── Alt+non-Arrow while timer running: cancel timer, mark cancelled ──
-      if (navBarTimerRef.current && e.altKey && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
-        clearTimeout(navBarTimerRef.current)
-        navBarTimerRef.current = null
-        navBarCancelledRef.current = true
-      }
-
-      // ── nav bar mode: intercept all Alt combos, Left/Right moves selection ──
+      // ── nav bar mode: intercept Left/Right to move selection ──
       if (navBarVisibleRef.current) {
         if (e.key === 'ArrowLeft' && e.altKey) {
           e.preventDefault()
@@ -575,13 +568,6 @@ export default function App() {
           e.preventDefault()
           e.stopImmediatePropagation()
           if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
-          setNavBarVisible(false)
-          return
-        }
-        // Dismiss bar on any non-Arrow Alt key, let original behavior through
-        if (e.altKey) {
-          navBarVisibleRef.current = false
-          navBarCancelledRef.current = true
           setNavBarVisible(false)
           return
         }

@@ -217,6 +217,16 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Alt+KeyF',
   },
   {
+    id: 'terminal.jumpPrevPrompt',
+    label: 'Jump to Previous Prompt',
+    defaultKeys: 'Alt+ArrowUp',
+  },
+  {
+    id: 'terminal.jumpNextPrompt',
+    label: 'Jump to Next Prompt',
+    defaultKeys: 'Alt+ArrowDown',
+  },
+  {
     id: 'diff.close',
     label: 'Close Diff / Back',
     defaultKeys: 'Escape',
