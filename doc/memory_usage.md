@@ -973,7 +973,68 @@ DevTools                        ← dev only
 
 ## 👤 User
 
-<local-command-stdout>Conversation exported to: E:\ai\claudeui\2026-06-09-225008-outline-cpu.md</local-command-stdout>
+<local-command-stdout>Conversation exported to: E:\ai\claudeui\2026-06-09-225008-outline-cpu.md
+
+---
+
+## 2026-06-13 内存分析（堆快照 + DMP 全量转储）
+
+工具：堆快照 (Heap-20260613T110026.heapsnapshot) + 进程全量 DMP (electron.DMP, 1.2GB)
+
+### 空闲基线（无大文件打开）
+
+| 来源 | 大小 | 说明 |
+|------|------|------|
+| V8 JS 堆 | ~50 MB | 堆快照确认 |
+| 分离 DOM | 16.8 MB | 20 个片段，切 tab 残留 |
+| V8 JIT 编译码 | ~150 MB | 所有已加载 JS 函数的编译码 |
+| V8 C++ 内部 | ~100 MB | Isolate、code space、外部字符串 |
+| Chromium 渲染引擎 | ~100 MB | DOM、CSS、GPU、合成器 |
+| Monaco 编辑器核心 | ~80 MB | 打包 chunk |
+| Monaco TS Worker | ~50 MB | 全项目类型检查 |
+| Vite HMR + source map | ~30 MB | dev 专属，内联 source map |
+| React + Fiber 树 | ~30 MB | 组件树 |
+
+**DMP Private 总计: ~556 MB**
+**正常 Electron IDE 基线: ~400-500 MB**
+
+### 大文件打开峰值
+
+Monaco model（文本 + token 缓存）翻倍：
+- originalContent + modifiedContent + Monaco models + token 树 = 额外 ~200-250 MB
+- Tokenization 开销：原始文本的 3-5 倍
+
+**总计: ~600-750 MB**
+
+### 关键发现
+
+1. **500MB 不是泄露。** 是 Electron + Monaco + V8 JIT 的基线成本。
+2. **Model 释放正常。** `@monaco-editor/react` 在 unmount 时已 dispose model，50MB JS 堆正确回收。
+3. **TS Worker 是唯一可控的大头（~50MB）。** 即使关掉 squiggles，它仍在扫描全项目文件。
+4. **React StrictMode dev 下会双挂载组件树。** `main.tsx:48`。
+5. **Monaco 全量打包 ~20-30MB 浪费。** 用 `monaco-editor/esm/` tree-shake 可去掉未注册语言的 tokenizer。
+6. **分离 DOM 16.8MB。** ~20 个 DOM 片段，切 tab/panel 后 JS 仍持有引用。
+
+### 能优化的项目
+
+| 改动 | 预期省 | 难度 |
+|------|--------|------|
+| 不动——Electron 平台税 | — | — |
+| 去掉 React StrictMode | ~20-30 MB | 1行 |
+| 限制 TS worker 只检查当前文件 | ~20 MB | 中等 |
+| Tree-shake Monaco 按需 import | ~20-30 MB | 中等 |
+| 修复分离 DOM 残留 | ~15 MB | 需定位引用源 |
+
+**最佳期望: 空闲 ~420 MB, 峰值 ~550 MB**
+
+### 分析脚本
+
+- 堆快照总览: `scripts/analyze-heap.mjs`
+- 详细分析: `scripts/analyze-v2.mjs`
+- 深层（分离DOM、native）: `scripts/analyze-deep.mjs`
+- 双快照对比: `scripts/analyze-diff.mjs`
+- DMP 分析: `scripts/analyze-dmp.mjs`
+- 共享工具: `scripts/heap-utils.mjs`</local-command-stdout>
 
 ---
 
