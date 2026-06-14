@@ -38,6 +38,8 @@ export function saveFilterRules(rules: string[]) {
 interface FileTabProps {
   workspacePath: string | null
   onOpenFileFromExplorer?: (fullPath: string) => void
+  onCompareWithCurrent?: (fullPath: string) => void
+  currentEditFilePath?: string | null
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
   onPreviewImage?: (fullPath: string, fileName: string) => void
   fileTreeDepth: number
@@ -317,7 +319,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onPreviewMarkdown, onPreviewImage, fileTreeDepth, refreshKey, navigateToFile, onRefresh }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, fileTreeDepth, refreshKey, navigateToFile, onRefresh }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -759,6 +761,20 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onPrevi
               >
                 {t('Open in Explorer')}
               </button>
+              {onCompareWithCurrent && currentEditFilePath && currentEditFilePath !== fileContextMenu.node.path && (
+                <>
+                  <div className="border-t border-ide-border my-1" />
+                  <button
+                    className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                    onClick={() => {
+                      onCompareWithCurrent(fileContextMenu.node.path)
+                      setFileContextMenu(null)
+                    }}
+                  >
+                    {t('Compare with Current')}
+                  </button>
+                </>
+              )}
               <div className="border-t border-ide-border my-1" />
               <button
                 className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"

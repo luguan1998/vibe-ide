@@ -102,6 +102,7 @@ const ZH_MAP: Record<string, string> = {
   'New File': '新建文件',
   'New Folder': '新建文件夹',
   'Open in Explorer': '打开文件所在位置',
+  'Compare with Current': '放入左侧比较',
   'Delete': '删除',
   'Folder name': '文件夹名称',
   'File name': '文件名称',

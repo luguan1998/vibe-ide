@@ -90,6 +90,8 @@ interface DiffViewerProps {
   cursorRef?: React.MutableRefObject<{ fullPath: string; line: number; column: number } | null>
   onContentLoaded?: (content: string) => void  // 回传文件内容给父组件（供 OutlinePanel 使用）
   onOpenCallGraph?: (word: string) => void     // 右键菜单 → 打开 call graph
+  compareOriginalContent?: string  // 左侧对比文件内容（文件对比模式）
+  compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -171,7 +173,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded, onOpenCallGraph }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded, onOpenCallGraph, compareOriginalContent, compareOriginalPath }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -280,7 +282,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       let original: string
       let modified: string
 
-      if (commitHash) {
+      if (compareOriginalContent !== undefined) {
+        // 文件对比模式：左侧 = 对比文件，右侧 = 当前文件
+        original = compareOriginalContent
+        const result = await window.api.file.read(fullPath)
+        modified = result.error ? '' : (result.content || '')
+      } else if (commitHash) {
         // 查看历史 commit：左边是 parent 的文件内容，右边是 commit 时的文件内容
         const [parentResult, commitResult] = await Promise.all([
           window.api.git.showFile(`${commitHash}^`, filePath),
@@ -333,7 +340,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       setModifiedContent('')
       setDiffStats({ additions: 0, deletions: 0 })
     }
-  }, [filePath, fullPath, isStaged, commitHash, diffContent, revision])
+  }, [filePath, fullPath, isStaged, commitHash, diffContent, revision, compareOriginalContent])
 
   useEffect(() => {
     // edit 模式 + 无 diffContent（从文件浏览器直接打开）→ 不需要 diff 版本
@@ -613,7 +620,15 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               </svg>
             </button>
           )}
-          <FilePathDisplay filePath={filePath} />
+          {compareOriginalPath ? (
+            <div className="flex items-center gap-1.5 text-sm min-w-0">
+              <FilePathDisplay filePath={compareOriginalPath} />
+              <span className="text-ide-accent shrink-0 font-medium">vs</span>
+              <FilePathDisplay filePath={filePath} />
+            </div>
+          ) : (
+            <FilePathDisplay filePath={filePath} />
+          )}
           {viewMode === 'diff' && (diffStats.additions > 0 || diffStats.deletions > 0) && (
             <div className="flex items-center gap-1 text-xs shrink-0">
               {diffStats.additions > 0 && <span className="text-ide-success font-mono">+{diffStats.additions}</span>}

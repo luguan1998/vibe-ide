@@ -143,6 +143,8 @@ interface DiffFileState {
   lineNumber?: number       // 跳转到指定行
   showSquiggles?: boolean
   revision: number          // 递增以强制 DiffViewer 重新加载内容
+  compareOriginalContent?: string  // 文件对比模式：左侧文件内容
+  compareOriginalPath?: string     // 文件对比模式：左侧文件路径
 }
 
 export default function App() {
@@ -1203,6 +1205,23 @@ export default function App() {
     setCenterView('diff')
   }, [activeSessionCwd])
 
+  const handleCompareWithCurrent = useCallback(async (compareFullPath: string) => {
+    if (!diffFile?.defaultEdit) return
+    pushNavHistory()
+    const [compareResult] = await Promise.all([
+      window.api.file.read(compareFullPath)
+    ])
+    const compareContent = compareResult.error ? '' : (compareResult.content || '')
+    setDiffFile(prev => prev ? {
+      ...prev,
+      defaultEdit: false,
+      diffContent: '',
+      compareOriginalContent: compareContent,
+      compareOriginalPath: compareFullPath,
+      revision: ++diffRevisionRef.current
+    } : null)
+  }, [diffFile])
+
   const handlePreviewMarkdown = useCallback((fullPath: string, fileName: string) => {
     pushNavHistory()
     setMarkdownFile({ fullPath, fileName })
@@ -1353,6 +1372,8 @@ export default function App() {
                 cursorRef={cursorRef}
                 onContentLoaded={setCurrentFileContent}
                 onOpenCallGraph={handleOpenCallGraphFromEditor}
+                compareOriginalContent={diffFile.compareOriginalContent}
+                compareOriginalPath={diffFile.compareOriginalPath}
               />
             </div>
           )}
@@ -1426,6 +1447,8 @@ export default function App() {
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
             onOpenFileFromSearch={handleOpenFileFromSearch}
             onOpenFileFromExplorer={handleOpenFileFromExplorer}
+            onCompareWithCurrent={handleCompareWithCurrent}
+            currentEditFilePath={diffFile?.defaultEdit ? diffFile.fullPath : null}
             onPreviewMarkdown={handlePreviewMarkdown}
             onPreviewImage={handlePreviewImage}
             rightTerminalSession={activeSessionId ? rightTerminalSessions[activeSessionId] : undefined}
