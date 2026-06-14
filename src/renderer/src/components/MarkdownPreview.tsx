@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
@@ -112,14 +112,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
     return () => window.removeEventListener('keydown', handler, true)
   }, [onBack])
 
-  const handleImgLoad = useCallback((src: string, setSrc: (url: string) => void) => {
-    const absPath = resolveImagePath(src, fullPath)
-    if (!absPath) return
-    const sep = absPath.includes('\\') ? '\\' : '/'
-    const parts = absPath.split(sep)
-    const fileUrl = 'file:///' + parts.map(p => encodeURIComponent(p)).join('/')
-    setSrc(fileUrl)
-  }, [fullPath])
+
 
   const lastSep = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'))
           const dirPart = lastSep >= 0 ? fullPath.substring(0, lastSep + 1) : ''
@@ -178,11 +171,15 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
               h6: ({ children }) => { const text = extractText(children); return <h6 id={slugify(text)}>{children}</h6> },
               a: ({ href, children, ...props }) => <a href={href} onClick={handleLinkClick} {...props}>{children}</a>,
               img: ({ src, alt, ...props }) => {
-                const [imgSrc, setImgSrc] = useState(src)
-                useEffect(() => {
-                  if (src) handleImgLoad(src, setImgSrc)
-                }, [src])
-                return <img src={imgSrc} alt={alt} {...props} />
+                const resolvedSrc = useMemo(() => {
+                  if (!src || /^(https?:|data:|#)/i.test(src)) return src
+                  const absPath = resolveImagePath(src, fullPath)
+                  if (!absPath) return src
+                  const sep = absPath.includes('\\') ? '\\' : '/'
+                  const parts = absPath.split(sep)
+                  return 'file:///' + parts.map(p => encodeURIComponent(p)).join('/')
+                }, [src, fullPath])
+                return <img src={resolvedSrc} alt={alt} {...props} />
               }
             }}>
               {content}
