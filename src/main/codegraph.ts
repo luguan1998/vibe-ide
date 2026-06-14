@@ -122,9 +122,12 @@ function runCodeGraphCli(args: string[], onProgress?: (p: any) => void, cwd?: st
     })
     if (isInit) initProc = proc
     let stderr = ''
+    let stdout = ''
     let outBuf = ''
     proc.stdout?.on('data', (d: Buffer) => {
-      outBuf += d.toString()
+      const chunk = d.toString()
+      stdout += chunk
+      outBuf += chunk
       // Parse verbose progress lines: "[Xs] Phase: name" or "[Xs]   current/total (pct%)"
       const lines = outBuf.split('\n')
       outBuf = lines.pop() || '' // keep incomplete last line
@@ -142,7 +145,12 @@ function runCodeGraphCli(args: string[], onProgress?: (p: any) => void, cwd?: st
       if (isInit) initProc = null
       if (initCancelled) resolve({ success: false, error: 'cancelled' })
       else if (code === 0) resolve({ success: true })
-      else resolve({ success: false, error: stderr || `exit ${code}` })
+      else {
+        const detail = stderr || stdout || `exit ${code}`
+        console.error(`[codegraph] CLI stderr:`, stderr)
+        console.error(`[codegraph] CLI stdout:`, stdout)
+        resolve({ success: false, error: detail })
+      }
     })
     proc.on('error', (err) => { if (isInit) initProc = null; resolve({ success: false, error: err.message }) })
   })
@@ -204,7 +212,7 @@ async function rebuildViaCli(root: string): Promise<void> {
       if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.CODE_PROGRESS, { phase: 'auto-sync', current: 0, total: 0 })
     }
   } catch {}
-  let result = await runCodeGraphCli(['sync', root, '--verbose'])
+  let result = await runCodeGraphCli(['sync', root])
   if (!result.success) {
     result = await runCodeGraphCli(['index', root, '--verbose'])
   }
