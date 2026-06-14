@@ -7,6 +7,7 @@ import MarkdownPreview from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
 import OutlinePanel, { isCode, isMarkdown } from './components/OutlinePanel'
 import NavBar from './components/NavBar'
+import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
@@ -1400,11 +1401,12 @@ export default function App() {
               />
             </div>
           )}
-          {/* Empty state */}
+          {/* Welcome screen — shown when no sessions exist */}
           {centerView === 'terminal' && sessions.length === 0 && (
-            <div className="flex-1 flex items-center justify-center text-ide-text-muted">
-              No active terminal session. Create one to start.
-            </div>
+            <WelcomeScreen
+              onOpenFolder={() => handleCreateSession()}
+              onOpenPath={(path) => handleCreateSessionAt(path)}
+            />
           )}
           {/* Terminal sessions */}
           <div className="flex-1 flex flex-col overflow-hidden" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>

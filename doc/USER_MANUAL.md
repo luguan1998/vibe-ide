@@ -61,6 +61,7 @@
 | `Shift+Enter` | 换行但不发送（写多行用的） |
 | `Ctrl+=` / `Ctrl+-` | 放大/缩小字体（终端和编辑器各自记各自的） |
 | `PageUp` / `PageDown` | 有滚动条时翻页，没有就透传给 Shell |
+| `Alt+↑` / `Alt+↓` | 跳到上一条/下一条命令（在 prompt 行间跳转） |
 | `Escape` | 关 Diff 视图 / 关历史浮窗 |
 
 **关于字体缩放**：`Ctrl+=` / `Ctrl+-` 是在主进程拦下来的，不会触发 Chromium 的页面缩放。终端字体大小和编辑器字体大小各管各的。
@@ -74,6 +75,8 @@
 - **聚焦才闪**：终端获得焦点时光标闪烁，失去焦点就停——省电也省心。
 - **重复命令不记两遍**：连着输入同样的命令，历史里只记一次。
 - **`Ctrl+H` 看历史**：弹窗全键盘操作，上下选择，Enter 发送，Escape 关闭。
+- **Alt+↑/↓ 命令跳转**：在终端里按 `Alt+↑` 跳到上一条命令的 prompt 行，`Alt+↓` 跳到下一条。浏览长输出时快速定位用的。
+- **图片 OCR 识别**（v0.6.1+）：拖入图片或 `Ctrl+V` 粘贴图片，自动 OCR 识别文字并输入到终端。支持截图直接粘贴识别。
 
 ---
 
@@ -119,6 +122,7 @@
 | 删除 | 右键 → Delete |
 | 复制/剪切/粘贴 | 右键文件 → Copy / Cut，再右键目标目录 → Paste |
 | 在资源管理器打开 | 右键 → Show in Explorer |
+| 文件对比 | 右键文件 → Compare with Current（放入左侧对比） |
 
 ### 这些你可能还不知道
 
@@ -126,6 +130,7 @@
 - **展开深度可调**：设置里 1-8 级随便调。
 - **文件图标自动匹配**：95+ 种文件类型都有对应的图标。
 - **二进制文件先问再开**：PNG 这类文件打开前会先弹确认，不会直接塞给你一堆乱码。
+- **文件对比**（v0.6.2+）：右键文件 → "Compare with Current"，该文件会放到 Diff 编辑器的左侧，右侧显示当前打开的文件。方便对比两个文件的差异。
 
 ---
 
@@ -169,6 +174,7 @@
 - **Word Wrap**：设置里可以开关自动换行。
 - **Show squiggles**：设置里可以关掉 TS/JS 的语法诊断波浪线——大文件时能省 CPU。
 - **Force Inline Diff**：设置里可以强制用内联 diff 而不是并排对比。
+- **文件对比模式**（v0.6.2+）：在文件树右键选择 "Compare with Current" 后，左侧显示对比文件，右侧显示当前文件，方便比较两个文件的差异。
 
 ---
 
@@ -203,20 +209,40 @@
 | **Word Wrap** | 编辑器/Diff 自动换行 |
 | **Auto UTF-8** | 新建终端自动 `chcp 65001`（防中文乱码） |
 | **Show squiggles** | TS/JS 诊断波浪线开关 |
+| **CodeGraph** | 代码图谱索引开关（开启后支持代码符号搜索） |
+| **OCR Image to Text** | 图片 OCR 识别开关（拖入图片或 Ctrl+V 识别文字） |
 | **Other Options…** | 更多选项 |
 
 ### Other Options 子面板
 
-- **Word Wrap** — 自动换行
-- **Auto UTF-8** — 终端 UTF-8 编码
-- **Show squiggles** — 诊断波浪线
-- **Polling Refresh Git/File** — 6 秒轮询（网络驱动器用）
-- **Force Inline Diff** — 强制内联 diff
-- **Capsule Tabs** — 胶囊标签栏
+- **Word Wrap** — diff/editor 自动换行
+- **Auto UTF-8** — 终端开启默认进行 `chcp 65001` 转换
+- **CodeGraph** — 代码符号索引，用于智能搜索。关闭可释放主进程约 170MB 内存
+- **OCR Image to Text** — 拖入图片或 Ctrl+V 将图片文字识别并粘贴到终端
+- **Show squiggles** — diff/editor 界面显示 LSP 诊断波浪线，建议关闭
+- **Polling Refresh Git/File** — 每 6 秒轮询刷新 Git 和文件树（仅网络驱动器等文件监听不靠谱的场景建议开启）
+- **Force Inline Diff** — 强制使用内联 diff 模式（撤销按钮呈圆形）。建议关闭（side-by-side 更易读）
+- **Capsule Tabs** — 使用胶囊风格选项卡替代方形图标按钮
+- **ESC Auto @ Selection** — 在 diff 界面选中文字后按 ESC，自动将 `@文件路径:行号` 输入到终端
 
 ---
 
-## 10. 快捷键全表
+## 10. 节省内存
+
+如果你的机器内存紧张，可以通过以下方式优化：
+
+| 优化项 | 操作 | 节省效果 |
+|--------|------|----------|
+| **关闭 CodeGraph** | 设置 → Other Options → 取消勾选 CodeGraph | 释放约 170MB 主进程内存 |
+| **使用 cmd 替代 PowerShell** | 设置 → Shell Type → 选择 cmd | PowerShell 启动较慢且内存占用更高 |
+| **关闭 Show squiggles** | 设置 → Other Options → 取消勾选 Show squiggles | 减少大文件时的 CPU 占用 |
+| **关闭 Polling Refresh** | 设置 → Other Options → 取消勾选 Polling Refresh | 减少不必要的轮询开销 |
+
+**提示**：CodeGraph 默认是开启的。如果你不需要代码符号搜索功能（`Alt+K`），建议关掉以节省内存。
+
+---
+
+## 11. 快捷键全表
 
 | 快捷键 | 功能 |
 |--------|------|
@@ -228,7 +254,14 @@
 | `Ctrl+H` | 弹出命令历史 |
 | `Ctrl+=` | 字体放大（终端/编辑器各自独立） |
 | `Ctrl+-` | 字体缩小 |
-| `Shift+Enter` | 终端换行但不发送，适合输入多行propmt |
+| `Ctrl+L` | 切换预览/编辑模式 |
+| `Shift+Enter` | 终端换行但不发送，适合输入多行prompt |
+| `Alt+↑` | 跳到上一条命令（prompt 行间跳转） |
+| `Alt+↓` | 跳到下一条命令（prompt 行间跳转） |
+| `Alt+K` | 打开 Code Graph 代码图谱搜索 |
+| `Alt+F` | 终端内搜索 |
+| `Alt+←` | 导航后退 |
+| `Alt+→` | 导航前进 |
 | `Ctrl+S` | 保存文件 |
 | `Ctrl+Enter` | 提交 Git commit |
 | `PageDown` | 有内容就翻页，没有就透传给 Shell |
@@ -241,7 +274,41 @@
 
 ---
 
-## 11. 14 套主题
+## 12. Code Graph（代码图谱）
+
+代码符号索引工具，帮你快速搜索项目中的函数、类、接口、组件等。
+
+### 使用方式
+
+| 操作 | 方式 |
+|------|------|
+| 打开搜索 | `Alt+K`，或长按 `Alt` 点击搜索框 |
+| 搜索符号 | 输入关键词，250ms 防抖自动搜 |
+| 跳转到定义 | 选中结果后 Enter |
+| 查看详情 | 选中结果后 Enter（无精确匹配时触发 Explore） |
+| 筛选符号类型 | 点击顶部的 Fn/Me/Cl/If/Co/Va/Ct/Ty 按钮 |
+
+### 符号类型
+
+- **Fn** — 函数
+- **Me** — 方法
+- **Cl** — 类
+- **If** — 接口
+- **Co** — 组件
+- **Va** — 变量
+- **Ct** — 常量
+- **Ty** — 类型别名
+
+### 这些你可能用得上
+
+- **首次使用需初始化**：点击搜索框右侧的 "Init" 按钮，首次会建立索引（大项目可能要几分钟）。之后增量更新，很快。
+- **排除文件夹**：点搜索框右侧的漏斗图标，可以排除不想索引的文件夹。排除的文件夹会自动写入 `.gitignore`。
+- **MCP 配置**：点齿轮图标可以配置 MCP（Model Context Protocol），让 Claude Code、Cursor 等 AI Agent 也能使用代码图谱搜索。
+- **内存占用**：开启 Code Graph 会占用约 170MB 主进程内存。不需要时可以在设置里关掉。
+
+---
+
+## 13. 14 套主题
 
 Vibe Dark、VS Code Dark、One Dark、Dracula、Nord、Solarized Dark/Light、Monokai、Monokai Pro、GitHub Light、Tokyo Night、Catppuccin、Hatsune Miku、Hatsune Light。
 
@@ -249,7 +316,7 @@ Vibe Dark、VS Code Dark、One Dark、Dracula、Nord、Solarized Dark/Light、Mo
 
 ---
 
-## 12. 右键菜单一览
+## 14. 右键菜单一览
 
 | 位置 | 右键能干啥 |
 |------|-----------|
@@ -258,7 +325,7 @@ Vibe Dark、VS Code Dark、One Dark、Dracula、Nord、Solarized Dark/Light、Mo
 | Session 列表项 | Clone / Rename / Auto Approve / Close |
 | Session 列表空白 | New Terminal / Recent Directories |
 | 自定义命令胶囊 | 编辑 / 删除 |
-| 文件树文件 | 打开 / 复制 / 剪切 / 删除 / 重命名 / 在资源管理器中显示 |
+| 文件树文件 | 打开 / 复制 / 剪切 / 删除 / 重命名 / 在资源管理器中显示 / 文件对比 |
 | 文件树目录 | 新建文件 / 新建文件夹 / 粘贴 / 在资源管理器中显示 |
 | Git 分支 | 删除分支 |
 | 右侧标签页 | 隐藏 |
@@ -266,7 +333,7 @@ Vibe Dark、VS Code Dark、One Dark、Dracula、Nord、Solarized Dark/Light、Mo
 
 ---
 
-## 13. 构建与分发
+## 15. 构建与分发
 
 ```bash
 npm run dev        # 热重载开发
