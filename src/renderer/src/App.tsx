@@ -1343,6 +1343,7 @@ export default function App() {
     setImageFile(null)
   }, [])
 
+  const isWelcome = sessions.length === 0
 
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
@@ -1372,7 +1373,7 @@ export default function App() {
       {/* Main Content - 3 Panels */}
       <div className="flex flex-1 overflow-hidden" style={{ cursor: isDragging ? 'col-resize' : 'default' }}>
         {/* Left Panel: Session + Outline */}
-        <div className="shrink-0 flex flex-col bg-ide-sidebar border-r border-ide-border relative" style={{ width: leftPanelWidth }}>
+        <div className="shrink-0 flex flex-col bg-ide-sidebar border-r border-ide-border relative" style={{ width: leftPanelWidth, display: isWelcome ? 'none' : undefined }}>
           {/* SessionPanel: always full height */}
           <div className="flex-1 overflow-hidden">
             <SessionPanel
@@ -1438,10 +1439,12 @@ export default function App() {
         </div>
 
         {/* Left Panel Resize Handle */}
+        {!isWelcome && (
         <div
           className="w-1 bg-ide-border hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
           onMouseDown={handleLeftResizeStart}
         />
+        )}
 
         {/* Center Panel: Terminal or Diff — all three blocks always mounted, toggled via display */}
         <div className="flex-1 flex flex-col overflow-hidden bg-ide-bg focus-frame relative"
@@ -1532,7 +1535,7 @@ export default function App() {
         </div>
 
         {/* Right Panel Resize Handle */}
-        {!rightPanelCollapsed && (
+        {!rightPanelCollapsed && !isWelcome && (
           <div
             className="w-1 bg-ide-border hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
             onMouseDown={handleRightResizeStart}
@@ -1540,7 +1543,7 @@ export default function App() {
         )}
 
         {/* Right Panel */}
-        {rightPanelCollapsed ? null : (
+        {rightPanelCollapsed || isWelcome ? null : (
         <div ref={rightPanelRef}
           className="shrink-0 flex flex-col bg-ide-sidebar border-l border-ide-border overflow-hidden focus-frame"
           style={{ width: rightPanelWidth }}
