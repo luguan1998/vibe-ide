@@ -170,6 +170,7 @@ export default function App() {
   }, [rightPanelCollapsed, rightPanelWidth])
   const [leftPanelWidth, setLeftPanelWidth] = useState(240)
   const [isDragging, setIsDragging] = useState(false)
+  const [isDragOverEdit, setIsDragOverEdit] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
   const [currentFileContent, setCurrentFileContent] = useState<string>('')  // DiffViewer 回传，供 OutlinePanel 省 IPC
@@ -296,6 +297,7 @@ export default function App() {
   // Terminal refs for focus management (keyed by sessionId)
   const terminalRefs = useRef<Record<string, TerminalViewHandle>>({})
   const rightPanelRef = useRef<HTMLDivElement>(null)
+  const centerPanelRef = useRef<HTMLDivElement>(null)
   // Navigation history for Alt+Left/Right cursor position jumps
   interface CursorHistoryEntry { fullPath: string; line: number; column: number }
   const navHistoryRef = useRef<CursorHistoryEntry[]>([])
@@ -443,6 +445,102 @@ export default function App() {
     })
     return () => {
       window.api.removeFontAdjustListener(handler)
+    }
+  }, [])
+
+  // Drag-and-drop file to compare: edit 模式下拖入文件触发对比
+  // 使用 window 级别 capture 监听，确保在 Monaco 等子组件之前拦截事件
+  React.useEffect(() => {
+    let dragHideTimer: ReturnType<typeof setTimeout> | null = null
+
+    const isFileDrag = (e: DragEvent) =>
+      e.dataTransfer?.types.includes('Files') || (e.dataTransfer?.files && e.dataTransfer.files.length > 0)
+
+    const onDragOver = (e: DragEvent) => {
+      if (!isFileDrag(e)) return
+      const panel = centerPanelRef.current
+      if (!panel || !panel.contains(e.target as Node)) return
+      if (!diffFileRef.current?.defaultEdit) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+      if (dragHideTimer) { clearTimeout(dragHideTimer); dragHideTimer = null }
+      setIsDragOverEdit(true)
+    }
+
+    const onDragLeave = (e: DragEvent) => {
+      const panel = centerPanelRef.current
+      if (!panel) return
+      // 仅当鼠标离开中心面板区域时隐藏 overlay
+      if (e.target === panel || !panel.contains(e.relatedTarget as Node)) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        dragHideTimer = setTimeout(() => {
+          setIsDragOverEdit(false)
+          dragHideTimer = null
+        }, 200)
+      }
+    }
+
+    const onDrop = async (e: DragEvent) => {
+      if (!isFileDrag(e)) return
+      if (!diffFileRef.current?.defaultEdit) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      if (dragHideTimer) { clearTimeout(dragHideTimer); dragHideTimer = null }
+      setIsDragOverEdit(false)
+
+      const files = e.dataTransfer?.files
+      if (!files || files.length === 0) return
+
+      const droppedPath = (files[0] as any).path as string | undefined
+      const currentEditPath = diffFileRef.current?.fullPath
+      if (!currentEditPath) return
+
+      pushNavHistory()
+
+      let compareContent: string
+      let comparePath: string
+
+      if (droppedPath) {
+        if (droppedPath === currentEditPath) return
+        try {
+          const compareResult = await window.api.file.read(droppedPath)
+          compareContent = compareResult.error ? '' : (compareResult.content || '')
+          comparePath = droppedPath
+        } catch {
+          return
+        }
+      } else {
+        const file = files[0]
+        try {
+          const buffer = await file.arrayBuffer()
+          compareContent = new TextDecoder().decode(buffer)
+          comparePath = file.name
+        } catch {
+          return
+        }
+      }
+
+      setDiffFile(prev => prev ? {
+        ...prev,
+        defaultEdit: false,
+        diffContent: '',
+        compareOriginalContent: compareContent,
+        compareOriginalPath: comparePath,
+        revision: ++diffRevisionRef.current
+      } : null)
+    }
+
+    window.addEventListener('dragover', onDragOver, true)
+    window.addEventListener('dragleave', onDragLeave, true)
+    window.addEventListener('drop', onDrop, true)
+
+    return () => {
+      if (dragHideTimer) clearTimeout(dragHideTimer)
+      window.removeEventListener('dragover', onDragOver, true)
+      window.removeEventListener('dragleave', onDragLeave, true)
+      window.removeEventListener('drop', onDrop, true)
     }
   }, [])
 
@@ -1346,7 +1444,8 @@ export default function App() {
         />
 
         {/* Center Panel: Terminal or Diff — all three blocks always mounted, toggled via display */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-ide-bg focus-frame"
+        <div className="flex-1 flex flex-col overflow-hidden bg-ide-bg focus-frame relative"
+          ref={centerPanelRef}
           data-focused={focusedPanel === 'term' ? 'true' : undefined}
           onFocus={handleCenterFocus}
           onBlur={handleCenterBlur}>
@@ -1422,6 +1521,14 @@ export default function App() {
               ))}
             </Suspense>
           </div>
+          {/* Drag-over overlay for file compare */}
+          {isDragOverEdit && (
+            <div className="absolute inset-0 z-50 bg-ide-accent/20 border-2 border-dashed border-ide-accent rounded-lg flex items-center justify-center pointer-events-none">
+              <div className="bg-ide-sidebar border border-ide-border rounded-xl px-6 py-4 shadow-2xl">
+                <span className="text-sm text-ide-text font-medium">Drop file to compare</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Panel Resize Handle */}
