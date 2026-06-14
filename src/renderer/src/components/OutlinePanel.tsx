@@ -24,7 +24,7 @@ const langFilterCache = new Map<string, Set<string>>()
 
 function getLangFilter(lang: string): Set<string> {
   const cached = langFilterCache.get(lang)
-  return cached ? new Set(cached) : new Set(['function'])
+  return cached ? new Set(cached) : new Set(['function', 'method', 'class'])
 }
 
 // 手动取行，避免 split 全量分配后再 slice；limit 行即停
