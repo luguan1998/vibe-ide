@@ -142,7 +142,6 @@ interface DiffFileState {
   isStaged: boolean
   commitHash?: string       // 查看历史 commit 时的 commit hash
   lineNumber?: number       // 跳转到指定行
-  showSquiggles?: boolean
   revision: number          // 递增以强制 DiffViewer 重新加载内容
   compareOriginalContent?: string  // 文件对比模式：左侧文件内容
   compareOriginalPath?: string     // 文件对比模式：左侧文件路径
@@ -179,7 +178,6 @@ export default function App() {
   const [markdownFile, setMarkdownFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const [imageFile, setImageFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const diffRevisionRef = useRef(0)
-  const [showSquiggles, setShowSquiggles] = useState(false)
   const [pollingEnabled, setPollingEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-polling') === '1' } catch { return false }
   })
@@ -1389,8 +1387,6 @@ export default function App() {
             agentStatus={agentStatus}
             autoApproveSessions={autoApproveSessions}
             onToggleAutoApprove={handleToggleAutoApprove}
-            showSquiggles={showSquiggles}
-            onToggleSquiggles={setShowSquiggles}
             pollingEnabled={pollingEnabled}
             onTogglePolling={(v) => { setPollingEnabled(v); try { localStorage.setItem('vibe-ide-polling', v ? '1' : '0') } catch {} }}
             wordWrap={wordWrap}
@@ -1462,7 +1458,6 @@ export default function App() {
                 diffContent={diffFile.diffContent}
                 isStaged={diffFile.isStaged}
                 commitHash={diffFile.commitHash}
-                showSquiggles={showSquiggles}
                 lineNumber={diffFile.lineNumber}
                 revision={diffFile.revision}
                 onBack={handleBackToTerminal}

@@ -21,15 +21,8 @@ function configureMonacoBase(monaco: any) {
   }
   monaco.languages.typescript.typescriptDefaults.setCompilerOptions(compilerOpts)
   monaco.languages.typescript.javascriptDefaults.setCompilerOptions({ ...compilerOpts, allowJs: true })
-}
-let _lastShowSquiggles: boolean | undefined
-function syncTsDiagnostics(showSquiggles: boolean) {
-  if (!_monacoGlobal) return
-  if (_lastShowSquiggles === showSquiggles && _lastShowSquiggles !== undefined) return
-  _lastShowSquiggles = showSquiggles
-  const opts = { noSemanticValidation: !showSquiggles, noSyntaxValidation: !showSquiggles }
-  _monacoGlobal.languages.typescript.typescriptDefaults.setDiagnosticsOptions(opts)
-  _monacoGlobal.languages.typescript.javascriptDefaults.setDiagnosticsOptions(opts)
+  monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: true, noSyntaxValidation: true })
+  monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({ noSemanticValidation: true, noSyntaxValidation: true })
 }
 
 // 语言映射表提至模块层 — 避免每次渲染重建 100+ 键值
@@ -77,7 +70,6 @@ interface DiffViewerProps {
   diffContent: string
   isStaged: boolean
   commitHash?: string       // 查看历史 commit 时的 commit hash
-  showSquiggles?: boolean
   lineNumber?: number       // 跳转到指定行
   fontSize?: number         // 编辑器字体大小
   wordWrap?: boolean        // 是否自动换行
@@ -173,7 +165,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, showSquiggles = true, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded, onOpenCallGraph, compareOriginalContent, compareOriginalPath }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded, onOpenCallGraph, compareOriginalContent, compareOriginalPath }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -559,9 +551,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     } catch {}
     setSaving(false)
   }, [fullPath, filePath, modifiedContent, onSaved])
-
-  // 同步 showSquiggles 到 TS 校验开关
-  useEffect(() => { syncTsDiagnostics(!!showSquiggles) }, [showSquiggles])
 
   const diffOptions = useMemo(() => ({
     renderSideBySide: !inlineDiff,

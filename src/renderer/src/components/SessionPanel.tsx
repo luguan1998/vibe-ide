@@ -104,8 +104,6 @@ interface SessionPanelProps {
   agentStatus?: Record<string, 'running' | 'idle'>
   autoApproveSessions?: Record<string, boolean>
   onToggleAutoApprove?: (sessionId: string, cwd: string) => void
-  showSquiggles?: boolean
-  onToggleSquiggles?: (value: boolean) => void
   pollingEnabled?: boolean
   onTogglePolling?: (value: boolean) => void
   wordWrap?: boolean
@@ -142,8 +140,6 @@ const SessionPanel = React.memo(function SessionPanel({
   agentStatus = {},
   autoApproveSessions = {},
   onToggleAutoApprove,
-  showSquiggles = false,
-  onToggleSquiggles,
   pollingEnabled = false,
   onTogglePolling,
   wordWrap = false,
@@ -617,7 +613,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   </button>
                 </div>
                 {/* Other Options */}
-                {(onToggleWordWrap || onToggleAutoUtf8 || onToggleSquiggles || onTogglePolling || onToggleInlineDiff) && (
+                {(onToggleWordWrap || onToggleAutoUtf8 || onTogglePolling || onToggleInlineDiff) && (
                   <div className="border-t border-ide-border mt-1 pt-1">
                     <button
                       className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
@@ -1278,15 +1274,6 @@ const SessionPanel = React.memo(function SessionPanel({
                     <span className="text-xs text-ide-text">{t('OCR Image to Text')}</span>
                   </div>
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Drag image or Ctrl+V to extract text from images and paste into terminal')}</p>
-                </label>
-              )}
-              {onToggleSquiggles && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={showSquiggles} onChange={(e) => onToggleSquiggles(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('Show squiggles')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Show LSP diagnostics in diff/editor. Recommended: off (basic highlighting is sufficient, this feature is incomplete)')}</p>
                 </label>
               )}
               {onTogglePolling && (
