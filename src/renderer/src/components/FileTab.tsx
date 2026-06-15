@@ -328,7 +328,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [highlightedFilePath, setHighlightedFilePath] = useState<string | null>(null)
   const [docTree, setDocTree] = useState<DocTreeNode[]>([])
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
-  const [archExpanded, setArchExpanded] = useState(true)
+  const [archExpanded, setArchExpanded] = useState(false)
   const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(null)
   const { t } = useI18n()
 

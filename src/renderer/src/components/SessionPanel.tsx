@@ -408,7 +408,7 @@ const SessionPanel = React.memo(function SessionPanel({
   return (
     <div className={`flex flex-col${compact ? '' : ' h-full'}`}>
       {/* Header + Dashboard merged */}
-      <div className="h-10 px-3 flex items-center justify-between border-b border-ide-border shrink-0">
+      <div className="h-10 px-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-1.5">
           <span
             className={`flex items-center gap-1 px-2 py-0.5 rounded transition-colors ${
@@ -641,14 +641,15 @@ const SessionPanel = React.memo(function SessionPanel({
       </div>
 
       {/* Session List */}
-      <div className="flex-1 overflow-y-auto py-1"
-        onDragOver={(e) => {
-          if (dragIndex !== null && sessions.length > 0) {
-            setDropIndex(sessions.length)
-          }
-        }}
-        onContextMenu={handleEmptyAreaContextMenu}
-      >
+      <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto py-1"
+          onDragOver={(e) => {
+            if (dragIndex !== null && sessions.length > 0) {
+              setDropIndex(sessions.length)
+            }
+          }}
+          onContextMenu={handleEmptyAreaContextMenu}
+        >
         {sessions.length === 0 ? (
           <div className="h-full flex items-center justify-center text-ide-text-muted text-sm">
             No sessions yet
@@ -802,7 +803,7 @@ const SessionPanel = React.memo(function SessionPanel({
         {dropIndex === sessions.length && dropIndex !== dragIndex && dragIndex !== sessions.length - 1 && (
           <div className="mx-1 border-t-2 border-ide-accent" />
         )}
-      </div>
+        </div>
 
       {/* Custom Command Capsules */}
       {customCommands.length > 0 && (
@@ -849,6 +850,8 @@ const SessionPanel = React.memo(function SessionPanel({
           </div>
         </div>
       )}
+
+      </div>
 
       {/* Custom Command Capsule Context Menu */}
       {customCmdCtxMenu && (

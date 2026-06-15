@@ -1383,7 +1383,7 @@ export default function App() {
       {/* Main Content - 3 Panels */}
       <div className="flex flex-1 overflow-hidden" style={{ cursor: isDragging ? 'col-resize' : 'default' }}>
         {/* Left Panel: Session + Outline */}
-        <div className="shrink-0 flex flex-col bg-ide-sidebar border-r border-ide-border relative" style={{ width: leftPanelWidth, display: isWelcome ? 'none' : undefined }}>
+        <div className="shrink-0 flex flex-col relative" style={{ width: leftPanelWidth, display: isWelcome ? 'none' : undefined }}>
           {/* SessionPanel: always full height */}
           <div className="flex-1 overflow-hidden">
             <SessionPanel
@@ -1423,7 +1423,7 @@ export default function App() {
           </div>
           {/* Outline: overlay covering entire left panel below title bar */}
           {centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath)) && (
-            <div className="absolute left-0 right-0 bottom-0 bg-ide-sidebar z-10" style={{ top: 40 }}>
+            <div className="absolute left-2 right-2 bottom-2 border border-ide-border rounded-lg overflow-hidden z-10 bg-ide-sidebar" style={{ top: 44 }}>
               <OutlinePanel
                 key={diffFile.fullPath}
                 filePath={diffFile.filePath}
@@ -1435,7 +1435,7 @@ export default function App() {
             </div>
           )}
           {centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath) && (
-            <div className="absolute left-0 right-0 bottom-0 bg-ide-sidebar z-10" style={{ top: 40 }}>
+            <div className="absolute left-2 right-2 bottom-2 border border-ide-border rounded-lg overflow-hidden z-10 bg-ide-sidebar" style={{ top: 44 }}>
               <OutlinePanel
                 key={markdownFile.fullPath}
                 filePath={markdownFile.fileName}
@@ -1449,7 +1449,7 @@ export default function App() {
         {/* Left Panel Resize Handle */}
         {!isWelcome && (
         <div
-          className="w-1 bg-ide-border hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
+          className="w-1 hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
           onMouseDown={handleLeftResizeStart}
         />
         )}
@@ -1462,7 +1462,7 @@ export default function App() {
           onBlur={handleCenterBlur}>
           {/* Diff */}
           {centerView === 'diff' && diffFile && (
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 mx-1 mb-1.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
               <DiffViewer
                 key={`${diffFile.fullPath}-${diffFile.commitHash || 'working'}`}
                 filePath={diffFile.filePath}
@@ -1490,7 +1490,7 @@ export default function App() {
           )}
           {/* Markdown Preview */}
           {centerView === 'markdown' && markdownFile && (
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 mx-1 mb-1.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
               <MarkdownPreview
                 key={markdownFile.fullPath}
                 fullPath={markdownFile.fullPath}
@@ -1502,7 +1502,7 @@ export default function App() {
           )}
           {/* Image Preview */}
           {centerView === 'image' && imageFile && (
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 mx-1 mb-1.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
               <ImagePreview
                 key={imageFile.fullPath}
                 fullPath={imageFile.fullPath}
@@ -1519,7 +1519,7 @@ export default function App() {
             />
           )}
           {/* Terminal sessions */}
-          <div className="flex-1 flex flex-col overflow-hidden" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>
+          <div className="flex-1 mx-1 mb-1.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => (
                 <div
@@ -1545,7 +1545,7 @@ export default function App() {
         {/* Right Panel Resize Handle */}
         {!rightPanelCollapsed && !isWelcome && (
           <div
-            className="w-1 bg-ide-border hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
+            className="w-1 hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
             onMouseDown={handleRightResizeStart}
           />
         )}
@@ -1553,7 +1553,7 @@ export default function App() {
         {/* Right Panel */}
         {rightPanelCollapsed || isWelcome ? null : (
         <div ref={rightPanelRef}
-          className="shrink-0 flex flex-col bg-ide-sidebar border-l border-ide-border overflow-hidden focus-frame"
+          className="shrink-0 flex flex-col overflow-hidden focus-frame"
           style={{ width: rightPanelWidth }}
           data-focused={focusedPanel === 'right' ? 'true' : undefined}
           onFocus={handleRightFocus}

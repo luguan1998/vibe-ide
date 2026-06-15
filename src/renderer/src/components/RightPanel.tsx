@@ -296,7 +296,7 @@ function TabBar({
   }, [onReorder])
 
   return (
-    <div className="h-10 flex items-center shrink-0 px-3 border-b border-ide-border" onContextMenu={handleContextMenu}>
+    <div className="h-10 flex items-center shrink-0 px-3" onContextMenu={handleContextMenu}>
       {capsuleTabs ? (
         <>
           <div className="flex-1" />
@@ -329,11 +329,8 @@ function TabBar({
         </>
       ) : (
         <>
-          <span className="text-xs font-semibold text-ide-text tracking-wide uppercase select-none">
-            {TAB_DEFS[activeSection].label}
-          </span>
-          <div className="flex-1" />
-          <div className="flex items-center gap-0.5">
+        <div className="flex-1" />
+        <div className="flex items-center gap-0.5">
             {tabs.map(section => {
               const active = section === activeSection
               return (
@@ -357,6 +354,7 @@ function TabBar({
               )
             })}
           </div>
+        <div className="flex-1" />
         </>
       )}
 
@@ -539,8 +537,8 @@ function RightPanel({
           capsuleTabs={capsuleTabs}
           onToggleCapsuleTabs={onToggleCapsuleTabs}
         />
-        <div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">
-          No active session
+        <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center">
+          <span className="text-ide-text-muted text-xs">No active session</span>
         </div>
       </div>
     )
@@ -559,6 +557,8 @@ function RightPanel({
         capsuleTabs={capsuleTabs}
         onToggleCapsuleTabs={onToggleCapsuleTabs}
       />
+
+      <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col">
 
       <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <GitTab
@@ -616,6 +616,8 @@ function RightPanel({
           navigateToFile={navigateToFilePayload}
           onRefresh={() => setFileRefreshKey(k => k + 1)}
         />
+      </div>
+
       </div>
 
     </div>
