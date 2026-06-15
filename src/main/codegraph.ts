@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron'
-import { spawn } from 'child_process'
+import { spawn, execSync } from 'child_process'
 import { join, dirname } from 'path'
 import * as fs from 'fs'
 import { IPC_CHANNELS } from '../shared/types'
@@ -8,16 +8,111 @@ import { onChanged } from './watcher'
 
 let cg: any = null
 let currentWorkspace: string | null = null
-let initWorkspace: string | null = null
 let cgEnabled = true
 let CodeGraphClass: any = null
 let initProc: any = null
 let initCancelled = false
+let initWorkspace: string | null = null
 let syncTimer: ReturnType<typeof setTimeout> | null = null
 let unsubWatcher: (() => void) | null = null
 let isRebuilding = false
 let pendingRebuild = false
 let rebuildCooldownUntil = 0
+let _moduleDirCache: string | null | undefined = undefined
+
+const CODEGRAPH_REQUIRED_VERSION = '1.0.1'
+const CODEGRAPH_INSTALL_CMD = `npm install -g @colbymchenry/codegraph@${CODEGRAPH_REQUIRED_VERSION}` = undefined
+
+/** Check if codegraph CLI is available in PATH */
+function isCodegraphCliAvailable(): boolean {
+  try {
+    const cmd = process.platform === 'win32' ? 'where codegraph' : 'which codegraph'
+    execSync(cmd, { encoding: 'utf-8', timeout: 5000, stdio: 'pipe' })
+    return true
+  } catch { return false }
+}
+
+/** Find the codegraph npm package directory for in-process library loading.
+ *  Searches: require.resolve, CLI binary location, npm global root, common paths.
+ *  The package entry is npm-sdk.js (which internally resolves the platform bundle). */
+function findCodegraphModuleDir(): string | null {
+  if (_moduleDirCache !== undefined) return _moduleDirCache
+
+  const sdkMarker = 'npm-sdk.js' // file that identifies a valid codegraph package
+
+  // 1. require.resolve — works in dev mode with local install
+  for (const pkgName of ['@colbymchenry/codegraph', 'codegraph']) {
+    try {
+      const pkgJsonPath = require.resolve(`${pkgName}/package.json`)
+      const dir = dirname(pkgJsonPath)
+      if (fs.existsSync(join(dir, sdkMarker))) {
+        _moduleDirCache = dir
+        return dir
+      }
+    } catch {}
+  }
+
+  // 2. Find from CLI binary path
+  try {
+    const cmd = process.platform === 'win32' ? 'where codegraph' : 'which codegraph'
+    const cliPath = execSync(cmd, { encoding: 'utf-8', timeout: 5000 }).trim().split(/\r?\n/)[0].trim()
+
+    if (process.platform === 'win32') {
+      // codegraph.cmd at <npm-global-bin>/codegraph.cmd
+      // Package at <npm-global-bin>/node_modules/<pkgName>
+      const binDir = dirname(cliPath)
+      for (const pkgName of ['@colbymchenry/codegraph', 'codegraph']) {
+        const pkgDir = join(binDir, 'node_modules', pkgName)
+        if (fs.existsSync(join(pkgDir, sdkMarker))) {
+          _moduleDirCache = pkgDir
+          return pkgDir
+        }
+      }
+    } else {
+      // Resolve symlink on Unix to find actual package location
+      try {
+        const realPath = fs.realpathSync(cliPath)
+        // e.g. /usr/local/lib/node_modules/codegraph/npm-shim.js → package root is dirname(realPath)
+        const pkgDir = dirname(dirname(realPath))
+        if (fs.existsSync(join(pkgDir, sdkMarker))) {
+          _moduleDirCache = pkgDir
+          return pkgDir
+        }
+      } catch {}
+
+      // Fallback: common relative paths from bin dir
+      const binDir = dirname(cliPath)
+      const possibleRoots = [
+        join(binDir, '..', 'lib', 'node_modules'),
+        join(binDir, '..', 'node_modules'),
+      ]
+      for (const root of possibleRoots) {
+        for (const pkgName of ['@colbymchenry/codegraph', 'codegraph']) {
+          const pkgDir = join(root, pkgName)
+          if (fs.existsSync(join(pkgDir, sdkMarker))) {
+            _moduleDirCache = pkgDir
+            return pkgDir
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // 3. Try npm root -g
+  try {
+    const globalRoot = execSync('npm root -g', { encoding: 'utf-8', timeout: 5000 }).trim()
+    for (const pkgName of ['@colbymchenry/codegraph', 'codegraph']) {
+      const pkgDir = join(globalRoot, pkgName)
+      if (fs.existsSync(join(pkgDir, sdkMarker))) {
+        _moduleDirCache = pkgDir
+        return pkgDir
+      }
+    }
+  } catch {}
+
+  _moduleDirCache = null
+  return null
+}
 
 /** Delete the .codegraph directory to clean up partial/corrupted index data */
 function cleanupCodeGraphDir(root: string): void {
@@ -34,91 +129,27 @@ function cleanupCodeGraphDir(root: string): void {
 
 async function getCodeGraph(): Promise<any> {
   if (!CodeGraphClass) {
+    const moduleDir = findCodegraphModuleDir()
+    if (!moduleDir) throw new Error(`CodeGraph module not found. Install: ${CODEGRAPH_INSTALL_CMD}`)
+    const sdkJs = join(moduleDir, 'npm-sdk.js')
     try {
-      const mod = await import('@colbymchenry/codegraph')
-      // CJS re-export via module.exports = require(...) may place named exports
-      // under .default in the ESM namespace, depending on Node version / asar env
+      // npm-sdk.js internally resolves the per-platform bundle and re-exports CodeGraph
+      const mod = require(sdkJs)
       CodeGraphClass = mod.CodeGraph ?? mod.default?.CodeGraph ?? mod.default
     } catch (err: any) {
-      console.error('Failed to load @colbymchenry/codegraph:', err.message)
+      console.error('[codegraph] Failed to load module from', sdkJs, err.message)
       throw err
     }
   }
   return CodeGraphClass
 }
 
-// Resolve the platform bundle directory. In dev, the bundle is at the top-level
-// node_modules (npm hoisted). In the packaged app, electron-builder nests it
-// inside the parent codegraph package's node_modules/.
-// When asarUnpack is used, files live in app.asar.unpacked/ — __dirname still
-// resolves to app.asar/..., so we must check the .unpacked equivalent first.
-function resolvePlatformBundle(): string {
-  const pkgName = 'codegraph-' + process.platform + '-' + process.arch
-
-  // Helper: if a path is inside app.asar, also check app.asar.unpacked
-  function tryPath(dir: string): boolean {
-    if (fs.existsSync(dir)) return true
-    const unpacked = dir.replace('app.asar', 'app.asar.unpacked')
-    return unpacked !== dir && fs.existsSync(unpacked)
-  }
-  function resolvePath(dir: string): string {
-    const unpacked = dir.replace('app.asar', 'app.asar.unpacked')
-    if (unpacked !== dir && fs.existsSync(unpacked)) return unpacked
-    return dir
-  }
-
-  // Try top-level layout first (dev mode)
-  const flatDir = join(__dirname, '../../node_modules/@colbymchenry', pkgName)
-  if (tryPath(flatDir)) return resolvePath(flatDir)
-
-  // Try nested layout (packaged app)
-  const nestedDir = join(__dirname, '../../node_modules/@colbymchenry/codegraph/node_modules/@colbymchenry', pkgName)
-  if (tryPath(nestedDir)) return resolvePath(nestedDir)
-
-  // Last resort: use require.resolve from within the @colbymchenry/codegraph context
-  try {
-    const codegraphMain = require.resolve('@colbymchenry/codegraph/package.json')
-    const nested = join(dirname(codegraphMain), 'node_modules/@colbymchenry', pkgName)
-    if (tryPath(nested)) return resolvePath(nested)
-  } catch {}
-
-  return flatDir // fall back to dev layout even if it doesn't exist
-}
-
-let cliDepsRestored = false
-
-/** Ensure ESM deps (web-tree-sitter etc) are physically present under lib/node_modules/.
- *  NODE_PATH is useless for ESM imports, so the deps must be on disk where the
- *  import resolver can walk up from the CLI entry and find them. */
-function ensureCliDeps(bundleDir: string): void {
-  if (cliDepsRestored) return
-  const libNM = join(bundleDir, 'lib', 'node_modules')
-  // Already present — nothing to do
-  if (fs.existsSync(join(libNM, 'web-tree-sitter'))) { cliDepsRestored = true; return }
-  // Packaged app: copy from extraResources/codegraph-platform-deps
-  try {
-    const src = join(process.resourcesPath, 'codegraph-platform-deps')
-    if (fs.existsSync(src) && fs.existsSync(join(src, 'web-tree-sitter'))) {
-      fs.mkdirSync(libNM, { recursive: true })
-      for (const entry of fs.readdirSync(src)) {
-        if (!fs.existsSync(join(libNM, entry))) {
-          fs.cpSync(join(src, entry), join(libNM, entry), { recursive: true })
-        }
-      }
-      cliDepsRestored = true
-    }
-  } catch { /* dev mode — resourcesPath not available */ }
-}
-
 function runCodeGraphCli(args: string[], onProgress?: (p: any) => void, cwd?: string, isInit?: boolean): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
-    const bundleDir = resolvePlatformBundle()
-    const bundledNode = join(bundleDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
-    const cliEntry = join(bundleDir, 'lib/dist/bin/codegraph.js')
-    ensureCliDeps(bundleDir)
-    const proc = spawn(bundledNode, ['--liftoff-only', cliEntry, ...args], {
+    const proc = spawn('codegraph', args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd,
+      shell: process.platform === 'win32',
     })
     if (isInit) initProc = proc
     let stderr = ''
@@ -128,9 +159,8 @@ function runCodeGraphCli(args: string[], onProgress?: (p: any) => void, cwd?: st
       const chunk = d.toString()
       stdout += chunk
       outBuf += chunk
-      // Parse verbose progress lines: "[Xs] Phase: name" or "[Xs]   current/total (pct%)"
       const lines = outBuf.split('\n')
-      outBuf = lines.pop() || '' // keep incomplete last line
+      outBuf = lines.pop() || ''
       for (const line of lines) {
         const phaseMatch = line.match(/^\[\d+\.?\d*s\]\s+Phase:\s+(.+)$/)
         if (phaseMatch) { onProgress?.({ phase: phaseMatch[1], current: 0, total: 0 }); continue }
@@ -148,15 +178,16 @@ function runCodeGraphCli(args: string[], onProgress?: (p: any) => void, cwd?: st
       else {
         const detail = stderr || stdout || `exit ${code}`
         console.error(`[codegraph] CLI stderr:`, stderr)
-        console.error(`[codegraph] CLI stdout:`, stdout)
         resolve({ success: false, error: detail })
       }
     })
-    proc.on('error', (err) => { if (isInit) initProc = null; resolve({ success: false, error: err.message }) })
+    proc.on('error', (err) => {
+      if (isInit) initProc = null
+      resolve({ success: false, error: err.message })
+    })
   })
 }
 
-/** Normalize a Node from CodeGraph to the serializable format the renderer expects */
 function normalizeNode(n: any): any {
   if (!n) return n
   return {
@@ -175,7 +206,6 @@ function normalizeNode(n: any): any {
   }
 }
 
-/** Subscribe to the shared fs watcher (watcher.ts). On change, debounce 3s then rebuild via CLI. */
 function startCodeGraphWatcher(root: string): void {
   stopCodeGraphWatcher()
   const DEBOUNCE_MS = 3000
@@ -197,7 +227,6 @@ function stopCodeGraphWatcher(): void {
   pendingRebuild = false
 }
 
-/** Rebuild via CLI subprocess (non-blocking). Closes in-process instance, runs sync/index in subprocess, then reopens for queries. */
 async function rebuildViaCli(root: string): Promise<void> {
   if (isRebuilding || !cgEnabled || initProc) return
   isRebuilding = true
@@ -247,6 +276,7 @@ async function rebuildViaCli(root: string): Promise<void> {
 
 async function ensureOpen(root: string): Promise<{ success: boolean; error?: string }> {
   if (!cgEnabled) return { success: false, error: 'DISABLED' }
+  if (!isCodegraphCliAvailable()) return { success: false, error: 'NOT_INSTALLED' }
   if (isRebuilding) return { success: false, error: 'REBUILDING' }
   try {
     if (cg && currentWorkspace === root) return { success: true }
@@ -274,6 +304,15 @@ async function ensureOpen(root: string): Promise<{ success: boolean; error?: str
 }
 
 export function registerCodeGraphHandlers(): void {
+  ipcMain.handle(IPC_CHANNELS.CODE_CHECK_AVAILABLE, async () => {
+    const cliAvailable = isCodegraphCliAvailable()
+    const moduleDir = findCodegraphModuleDir()
+    return {
+      cliAvailable,
+      moduleAvailable: moduleDir !== null,
+    }
+  })
+
   ipcMain.handle(IPC_CHANNELS.CODE_SET_WORKSPACE, async (_event, root: string) => {
     if (typeof root !== 'string' || !root) return { error: 'Invalid workspace path' }
     return await ensureOpen(root)
@@ -294,6 +333,7 @@ export function registerCodeGraphHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.CODE_IS_INITIALIZED, async (_event, root: string) => {
     try {
+      if (!isCodegraphCliAvailable()) return { initialized: false, error: 'NOT_INSTALLED' }
       const CG = await getCodeGraph()
       return { initialized: CG.isInitialized(root) }
     } catch (err: any) {
@@ -303,6 +343,7 @@ export function registerCodeGraphHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.CODE_INIT, async (event, root: string) => {
     try {
+      if (!isCodegraphCliAvailable()) return { error: `CodeGraph CLI not found. Install: ${CODEGRAPH_INSTALL_CMD}` }
       stopCodeGraphWatcher()
       if (cg) { cg.close(); cg = null; currentWorkspace = null }
       initCancelled = false
@@ -315,7 +356,6 @@ export function registerCodeGraphHandlers(): void {
       const r2 = await runCodeGraphCli(['index', root, '--verbose'], push, undefined, true)
       if (initCancelled) { cleanupCodeGraphDir(root); initWorkspace = null; return { error: 'cancelled' } }
       if (!r2.success) { cleanupCodeGraphDir(root); initWorkspace = null; return { error: r2.error || 'index failed' } }
-      // Open in-process for subsequent queries
       const CG = await getCodeGraph()
       cg = await CG.open(root)
       currentWorkspace = root
@@ -333,7 +373,6 @@ export function registerCodeGraphHandlers(): void {
     if (initProc) {
       initCancelled = true
       try {
-        // On Windows, force-kill the entire process tree (CLI may spawn tree-sitter workers)
         if (process.platform === 'win32' && initProc.pid) {
           spawn('taskkill', ['/pid', String(initProc.pid), '/f', '/t'], { stdio: 'ignore' })
         } else {
@@ -343,13 +382,11 @@ export function registerCodeGraphHandlers(): void {
       initProc = null
     }
     stopCodeGraphWatcher()
-    // Reset in-process state
     if (cg) {
       try { cg.close() } catch {}
       cg = null
       currentWorkspace = null
     }
-    // Clean up partial index data so next attempt starts fresh
     const ws = initWorkspace || currentWorkspace
     if (ws) cleanupCodeGraphDir(ws)
     initWorkspace = null
@@ -414,22 +451,17 @@ export function registerCodeGraphHandlers(): void {
     }
   })
 
-ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], workspacePath: string) => {
+  ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], workspacePath: string) => {
     try {
-      const fs = require('fs')
-      const bundleDir = resolvePlatformBundle()
-      const bundledNode = join(bundleDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
-      const cliEntry = join(bundleDir, 'lib/dist/bin/codegraph.js')
-      // Claude Code config: { type: 'stdio', command: node, args: [...] }
+      if (!isCodegraphCliAvailable()) return { success: false, error: 'CodeGraph CLI not found' }
       const claudeConfig = {
         type: 'stdio',
-        command: bundledNode,
-        args: ['--liftoff-only', cliEntry, 'serve', '--mcp'],
+        command: 'codegraph',
+        args: ['serve', '--mcp'],
       }
-      // Opencode config: { type: 'local', command: [...], enabled: true }
       const opencodeConfig = {
         type: 'local',
-        command: [bundledNode, '--liftoff-only', cliEntry, 'serve', '--mcp'],
+        command: ['codegraph', 'serve', '--mcp'],
         enabled: true,
       }
       const errors: string[] = []
@@ -445,7 +477,6 @@ ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], 
           existing.mcpServers.codegraph = claudeConfig
           fs.writeFileSync(file, JSON.stringify(existing, null, 2))
         } else if (target === 'opencode') {
-          // local config file: opencode.json or opencode.jsonc
           const jsoncPath = join(workspacePath, 'opencode.jsonc')
           const jsonPath = join(workspacePath, 'opencode.json')
           let file = fs.existsSync(jsoncPath) ? jsoncPath : (fs.existsSync(jsonPath) ? jsonPath : jsoncPath)
@@ -456,12 +487,10 @@ ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], 
           if (!text.trim()) {
             text = '{\n  "$schema": "https://opencode.ai/config.json"\n}\n'
           }
-          // Use jsonc-parser to preserve comments and formatting
           const edits = jsoncParser.modify(text, ['mcp', 'codegraph'], opencodeConfig, {
             formattingOptions: { tabSize: 2, insertSpaces: true, eol: '\n' },
           })
           text = jsoncParser.applyEdits(text, edits)
-          // Ensure $schema exists
           const config = jsoncParser.parse(text, undefined, { allowTrailingComma: true })
           if (!config.$schema) {
             const schemaEdits = jsoncParser.modify(text, ['$schema'], 'https://opencode.ai/config.json', {
@@ -471,7 +500,6 @@ ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], 
           }
           fs.writeFileSync(file, text)
         } else {
-          // Other targets: still use CLI install (they may need global install or different format)
           const r = await runCodeGraphCli(['install', '--target', target, '--location', 'local', '--yes'], undefined, workspacePath)
           if (!r.success) errors.push(`${target}: ${r.error || 'install mcp failed'}`)
         }
@@ -509,12 +537,24 @@ ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], 
     if (isRebuilding) return { error: 'rebuilding', content: '' }
     if (!cg) return { error: 'Not initialized', content: '' }
     try {
-      const bundleDir = resolvePlatformBundle()
-      const { ToolHandler } = require(join(bundleDir, 'lib/dist/mcp/tools.js'))
+      const moduleDir = findCodegraphModuleDir()
+      if (!moduleDir) return { error: 'CodeGraph module not found', content: '' }
+      // npm-sdk.js resolves the platform bundle; the tools module lives inside it.
+      // Try to find tools.js in the nested platform bundle.
+      const platformPkg = `@colbymchenry/codegraph-${process.platform}-${process.arch}`
+      const toolsPaths = [
+        join(moduleDir, 'node_modules', platformPkg, 'lib/dist/mcp/tools.js'),
+        join(moduleDir, 'dist/mcp/tools.js'),
+      ]
+      let toolsPath: string | null = null
+      for (const p of toolsPaths) {
+        if (fs.existsSync(p)) { toolsPath = p; break }
+      }
+      if (!toolsPath) return { error: 'CodeGraph MCP tools module not found', content: '' }
+      const { ToolHandler } = require(toolsPath)
       const handler = new ToolHandler(cg)
       const result = await handler.handleExplore({ query, maxFiles: opts?.maxFiles ?? 12 })
       const text = result.content?.[0]?.text || ''
-      // 去掉 MCP 截断提示（IDE 浮窗不受 25K inline 限制）
       const marker = '... (output truncated to budget; the source above is complete and verbatim'
       const clean = text.includes(marker) ? text.slice(0, text.indexOf(marker)).trimEnd() : text
       return { content: clean }
@@ -522,7 +562,6 @@ ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], 
       return { error: err.message, content: '' }
     }
   })
-
 }
 
 export function closeCodeGraph(): void {

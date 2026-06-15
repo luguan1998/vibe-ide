@@ -143,7 +143,7 @@ interface Props {
   focusTrigger?: number
 }
 
-type Status = 'loading' | 'not-initialized' | 'indexing' | 'ready' | 'error'
+type Status = 'loading' | 'not-installed' | 'not-initialized' | 'indexing' | 'ready' | 'error'
 
 function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onActivated, onExploreResult, focusTrigger }: Props) {
   const { t } = useI18n()
@@ -214,13 +214,23 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
         if (pendingPathRef.current !== target) return
         setExcludedFolders(excluded)
 
+        // Check if codegraph is installed
+        const avail = await window.api.code.checkAvailable()
+        if (pendingPathRef.current !== target) return
+        if (!avail.cliAvailable) {
+          setStatus('not-installed')
+          return
+        }
+
         const r = await window.api.code.isInitialized(target)
         if (pendingPathRef.current !== target) return
+        if (r.error === 'NOT_INSTALLED') { setStatus('not-installed'); return }
         if (r.error) { setStatus('error'); setError(r.error); return }
         if (!r.initialized) { setStatus('not-initialized'); return }
 
         const o = await window.api.code.setWorkspace(target)
         if (pendingPathRef.current !== target) return
+        if (o.error === 'NOT_INSTALLED') { setStatus('not-installed'); return }
         if (o.error) {
           if (o.error === 'REBUILDING') { setStatus('indexing'); return }
           setStatus('error'); setError(o.error); return
@@ -238,6 +248,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
         setStatus(idx.isIndexing ? 'indexing' : 'ready')
       } catch (err: any) { if (pendingPathRef.current === target) { setStatus('error'); setError(err.message) } }
     }
+
     init()
   }, [workspacePath])
 
@@ -371,13 +382,15 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
   )
 
   // ── Activated mode ──
-  const placeholder = status === 'not-initialized'
-    ? t('Not initialized — click Init')
-    : status === 'indexing'
-      ? t('Indexing...')
-      : status === 'loading'
-        ? t('Loading...')
-        : t('Search symbols... (Enter to jump)')
+  const placeholder = status === 'not-installed'
+    ? t('CodeGraph not installed')
+    : status === 'not-initialized'
+      ? t('Not initialized — click Init')
+      : status === 'indexing'
+        ? t('Indexing...')
+        : status === 'loading'
+          ? t('Loading...')
+          : t('Search symbols... (Enter to jump)')
 
   return (
     <>
@@ -437,6 +450,16 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 0 9-9"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
           </div>
+
+          {/* Not installed hint */}
+          {status === 'not-installed' && (
+            <div className="border-t border-ide-border px-3 py-3 text-center">
+              <div className="text-xs text-ide-text-muted/70 mb-2">{t('CodeGraph CLI is not installed')}</div>
+              <div className="text-[11px] text-ide-text-muted/50 bg-ide-hover/50 rounded px-2 py-1 font-mono select-all">
+                npm install -g @colbymchenry/codegraph@1.0.1
+              </div>
+            </div>
+          )}
 
           {/* Kind filter row */}
           <div className="border-t border-ide-border/50 px-3 py-1 flex items-center gap-1">

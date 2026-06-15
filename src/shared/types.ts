@@ -91,6 +91,7 @@ export const IPC_CHANNELS = {
   CODE_FIND_RELEVANT_CONTEXT: 'code:findRelevantContext',
   CODE_EXPLORE: 'code:explore',
   CODE_SET_ENABLED: 'code:setEnabled',
+  CODE_CHECK_AVAILABLE: 'code:checkAvailable',
 
   // Perf
   PERF_SNAPSHOT: 'perf:snapshot',

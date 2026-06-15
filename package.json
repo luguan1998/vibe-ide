@@ -10,8 +10,7 @@
     "test": "node --test --test-reporter=spec test/**/*.test.mjs",
     "test:perf": "node test/perf-file-switch.mjs",
     "start": "electron-vite preview",
-    "build:win": "npm run build && node scripts/patch-codegraph.js && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win --x64 && node -e \"var s=['register-context-menu.bat','unregister-context-menu.bat'];s.forEach(function(f){require('fs').copyFileSync('build/'+f,'dist/win-unpacked/'+f)})\" && node scripts/fix-codegraph-deps.js && node scripts/set-icon.js && node scripts/zip-win.js",
-    "postinstall": "node scripts/patch-codegraph.js"
+    "build:win": "npm run build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win --x64 && node -e \"var s=['register-context-menu.bat','unregister-context-menu.bat'];s.forEach(function(f){require('fs').copyFileSync('build/'+f,'dist/win-unpacked/'+f)})\" && node scripts/set-icon.js && node scripts/zip-win.js"
   },
   "build": {
     "appId": "com.vibe-ide",
@@ -20,30 +19,32 @@
       "output": "dist"
     },
     "files": [
-      "out/**/*"
+      "out/**/*",
+      "!node_modules/monaco-editor/**",
+      "!node_modules/@monaco-editor/**",
+      "!node_modules/@xterm/**",
+      "!node_modules/react/**",
+      "!node_modules/react-dom/**",
+      "!node_modules/react-markdown/**",
+      "!node_modules/remark-gfm/**",
+      "!node_modules/lucide-react/**",
+      "!node_modules/dagre/**",
+      "!node_modules/@types/dagre/**"
     ],
     "win": {
       "target": "dir",
       "signAndEditExecutable": false
     },
+    "afterPack": "./scripts/afterPack.js",
     "nodeGypRebuild": false,
     "npmRebuild": false,
     "asarUnpack": [
-      "node_modules/@colbymchenry/codegraph-*/**",
-      "node_modules/@colbymchenry/codegraph/node_modules/@colbymchenry/codegraph-*/**",
       "node_modules/tesseract.js/**",
       "node_modules/tesseract.js-core/**",
       "node_modules/@tesseract.js-data/**"
-    ],
-    "extraResources": [
-      {
-        "from": "node_modules/@colbymchenry/codegraph-win32-x64/lib/node_modules",
-        "to": "codegraph-platform-deps"
-      }
     ]
   },
   "dependencies": {
-    "@colbymchenry/codegraph": "0.9.9",
     "@electron-toolkit/utils": "^3.0.0",
     "@monaco-editor/react": "^4.6.0",
     "@tesseract.js-data/chi_sim": "^1.0.0",
@@ -56,25 +57,19 @@
     "@xterm/addon-web-links": "latest",
     "@xterm/addon-webgl": "^0.18.0",
     "@xterm/xterm": "^5.5.0",
-    "chokidar": "^4.0.3",
-    "commander": "^14.0.2",
     "dagre": "^0.8.5",
     "iconv-lite": "^0.7.2",
-    "ignore": "^7.0.5",
     "jschardet": "^3.1.4",
     "jsonc-parser": "^3.3.1",
     "lucide-react": "^0.469.0",
     "monaco-editor": "^0.52.2",
     "node-pty": "^1.0.0",
-    "picomatch": "^4.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "simple-git": "^3.27.0",
-    "tesseract.js": "^6.0.1",
-    "tree-sitter-wasms": "^0.1.11",
-    "web-tree-sitter": "^0.25.3"
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.18",

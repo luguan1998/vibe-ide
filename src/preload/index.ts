@@ -189,6 +189,7 @@ const api = {
     findRelevantContext: (query: string, opts?: any) => ipcRenderer.invoke(IPC_CHANNELS.CODE_FIND_RELEVANT_CONTEXT, query, opts),
     explore: (query: string, opts?: any) => ipcRenderer.invoke(IPC_CHANNELS.CODE_EXPLORE, query, opts),
     setEnabled: (enabled: boolean) => ipcRenderer.invoke(IPC_CHANNELS.CODE_SET_ENABLED, enabled),
+    checkAvailable: () => ipcRenderer.invoke(IPC_CHANNELS.CODE_CHECK_AVAILABLE),
     onProgress: (callback: (progress: any) => void) => {
       const handler = (_event: any, progress: any) => callback(progress)
       ipcRenderer.on(IPC_CHANNELS.CODE_PROGRESS, handler)
