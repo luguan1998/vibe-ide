@@ -408,7 +408,7 @@ const SessionPanel = React.memo(function SessionPanel({
   return (
     <div className={`flex flex-col${compact ? '' : ' h-full'}`}>
       {/* Header + Dashboard merged */}
-      <div className="h-10 px-3 flex items-center justify-between shrink-0">
+      <div className="h-10 px-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-1.5">
           <span
             className={`flex items-center gap-1 px-2 py-0.5 rounded transition-colors ${

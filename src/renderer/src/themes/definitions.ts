@@ -31,8 +31,8 @@ const vibeDark: IDETheme = {
     'ide-success': t('#10b981'),
     'ide-danger': t('#ef4444'),
     'ide-warning': t('#f59e0b'),
-    'ide-hover': t('#1e1e3a'),
-    'ide-active': t('#2e2e4a'),
+    'ide-hover': t('#2a2a48'),
+    'ide-active': t('#363656'),
     'scrollbar-track': t('#1a1a2e'),
     'scrollbar-thumb': t('#3a3a5a'),
     'scrollbar-thumb-hover': t('#5a5a7a'),
@@ -83,8 +83,8 @@ const oneDark: IDETheme = {
     'ide-success': t('#98c379'),
     'ide-danger': t('#e06c75'),
     'ide-warning': t('#d19a66'),
-    'ide-hover': t('#2c313a'),
-    'ide-active': t('#353a44'),
+    'ide-hover': t('#353d47'),
+    'ide-active': t('#3d4550'),
     'scrollbar-track': t('#282c34'),
     'scrollbar-thumb': t('#4b5263'),
     'scrollbar-thumb-hover': t('#5c6370'),
@@ -223,8 +223,8 @@ const solarizedDark: IDETheme = {
     'ide-sidebar': t('#073642'),
     'ide-panel': t('#073642'),
     'ide-border': t('#586e75'),
-    'ide-text': t('#839496'),
-    'ide-text-muted': t('#586e75'),
+    'ide-text': t('#93a4b3'),
+    'ide-text-muted': t('#657b83'),
     'ide-accent': t('#268bd2'),
     'ide-accent-hover': t('#2aa198'),
     'ide-success': t('#859900'),
@@ -234,14 +234,14 @@ const solarizedDark: IDETheme = {
     'ide-active': t('#155f6e'),
     'scrollbar-track': t('#002b36'),
     'scrollbar-thumb': t('#586e75'),
-    'scrollbar-thumb-hover': t('#839496'),
+    'scrollbar-thumb-hover': t('#93a4b3'),
     'selection-bg': t('#268bd2'),
     'selection-opacity': '0.3',
     'focus-outline': t('#268bd2'),
     'monaco-margin-bg': t('#002b36')
   },
   terminal: {
-    background: '#002b36', foreground: '#839496', cursor: '#268bd2', cursorAccent: '#002b36',
+    background: '#002b36', foreground: '#93a4b3', cursor: '#268bd2', cursorAccent: '#002b36',
     selectionBackground: hexToRgba('#268bd2', 0.3),
     black: '#073642', red: '#dc322f', green: '#859900', yellow: '#b58900',
     blue: '#268bd2', magenta: '#6c71c4', cyan: '#2aa198', white: '#93a1a1',
@@ -257,11 +257,11 @@ const solarizedDark: IDETheme = {
     { token: 'number', foreground: '#d33682' },
     { token: 'type', foreground: '#b58900' },
     { token: 'function', foreground: '#268bd2' },
-    { token: 'variable', foreground: '#839496' },
+    { token: 'variable', foreground: '#93a4b3' },
     { token: 'constant', foreground: '#6c71c4' },
     { token: 'regexp', foreground: '#dc322f' }
   ],
-  titleBar: { color: '#073642', symbolColor: '#586e75', backgroundColor: '#073642' }
+  titleBar: { color: '#073642', symbolColor: '#657b83', backgroundColor: '#073642' }
 }
 
 const solarizedLight: IDETheme = {
