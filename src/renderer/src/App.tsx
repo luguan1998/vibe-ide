@@ -1053,6 +1053,9 @@ export default function App() {
     if (activeSessionId) {
       const normalized = command.replace(/\r\n/g, '\n')
       window.api.terminal.write(activeSessionId, normalized.replace(/\n/g, '\r'))
+      setCenterView('terminal')
+      setDiffFile(null)
+      setTimeout(() => terminalRefs.current[activeSessionId]?.focus(), 0)
     }
   }, [activeSessionId])
 
