@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useI18n } from '../i18n'
-import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitCommitFile, TerminalSession } from '@shared/types'
+import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
 
 interface GitTabProps {
   workspacePath: string | null
@@ -15,6 +15,7 @@ interface GitTabProps {
   onWorktreeNavChange: (updater: (prev: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => void
   onDiffScroll?: (delta: number) => void
   onNavigateToFile?: (filePath: string) => void
+  lineHistoryPayload?: { filePath: string; lineNumber: number } | null
 }
 
 const getStatusIcon = (file: GitFileStatus): string => {
@@ -57,7 +58,7 @@ const splitPath = (filePath: string): { name: string; dir: string } => {
   return { name: filePath.slice(idx + 1), dir: filePath.slice(0, idx + 1) }
 }
 
-export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, isActive, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll, onNavigateToFile }: GitTabProps) {
+export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, isActive, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll, onNavigateToFile, lineHistoryPayload }: GitTabProps) {
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
   const { t } = useI18n()
@@ -109,12 +110,43 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [stashCount, setStashCount] = useState(0)
   const [busy, setBusy] = useState(false)
 
+  // Line history (git log -L) state
+  const [lineHistoryExpanded, setLineHistoryExpanded] = useState(false)
+  const [lineHistoryEntries, setLineHistoryEntries] = useState<GitLineLogEntry[]>([])
+  const [lineHistoryLoading, setLineHistoryLoading] = useState(false)
+  const [lineHistoryFilePath, setLineHistoryFilePath] = useState<string | null>(null)
+  const [lineHistoryLine, setLineHistoryLine] = useState<number | null>(null)
+
   // Error auto-dismiss after 5 seconds
   useEffect(() => {
     if (!error) return
     const timer = setTimeout(() => setError(null), 5000)
     return () => clearTimeout(timer)
   }, [error])
+
+  // Line history: react to payload changes
+  useEffect(() => {
+    if (!lineHistoryPayload || !lineHistoryPayload.filePath || !lineHistoryPayload.lineNumber) return
+    const fp = lineHistoryPayload.filePath
+    const ln = lineHistoryPayload.lineNumber
+    setLineHistoryFilePath(fp)
+    setLineHistoryLine(ln)
+    setLineHistoryExpanded(true)
+    setLineHistoryLoading(true)
+    setExpandedCommit(null)
+    setLineHistoryEntries([])
+    window.api.git.lineLog(fp, ln, ln).then(result => {
+      if (Array.isArray(result)) {
+        setLineHistoryEntries(result)
+      } else if (result?.error) {
+        setError(result.error)
+        setLineHistoryEntries([])
+      }
+      setLineHistoryLoading(false)
+    }).catch(() => {
+      setLineHistoryLoading(false)
+    })
+  }, [lineHistoryPayload])
 
   // 可导航项：section 标题栏 + 文件行，从上往下
   type NavItem = { type: 'header'; section: 'staged' | 'unstaged' | 'untracked' } | { type: 'file'; file: GitFileStatus; section: 'staged' | 'unstaged' | 'untracked' } | { type: 'commit' }
@@ -1007,6 +1039,110 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         )}
 
         <div className="mt-auto">
+          {/* Line History */}
+          {lineHistoryFilePath && (
+            <div className="border-b border-ide-border">
+              <div
+                className="pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+                onClick={() => setLineHistoryExpanded(!lineHistoryExpanded)}
+              >
+                <div className="flex items-center gap-1">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 text-ide-text-muted transition-transform ${lineHistoryExpanded ? 'rotate-0' : '-rotate-90'}`}><path d="M4 6l4 4 4-4" /></svg>
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent shrink-0">
+                    <path d="M2 1h12v2H2V1zm0 4h12v2H2V5zm0 4h12v2H2V9zm0 4h12v2H2v-2z" />
+                  </svg>
+                  <span>{t('Line History ({file}:{line})').replace('{file}', lineHistoryFilePath.split('/').pop() || lineHistoryFilePath).replace('{line}', String(lineHistoryLine))}</span>
+                </div>
+                <button
+                  className="text-ide-text-muted hover:text-ide-text text-xs px-1"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setLineHistoryFilePath(null)
+                    setLineHistoryLine(null)
+                    setLineHistoryEntries([])
+                    setLineHistoryExpanded(false)
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              {lineHistoryExpanded && (
+                <div className="flex flex-col">
+                  {lineHistoryLoading ? (
+                    <div className="px-2 py-2 text-xs text-ide-text-muted text-center">{t('Loading...')}</div>
+                  ) : lineHistoryEntries.length === 0 ? (
+                    <div className="px-2 py-2 text-xs text-ide-text-muted text-center">{t('No line history')}</div>
+                  ) : (
+                    lineHistoryEntries.map(entry => (
+                      <div key={entry.hash}>
+                        <div
+                          className={`pl-5 pr-2 py-1.5 border-b border-ide-border/50 hover:bg-ide-hover cursor-pointer ${
+                            expandedCommit === entry.hash ? 'bg-ide-accent/10' : ''
+                          }`}
+                          onClick={() => handleCommitClick(entry.hash)}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            setCommitContextMenu({ x: e.clientX, y: e.clientY, hash: entry.hash, message: entry.message })
+                          }}
+                        >
+                          <div className="text-xs text-ide-text truncate">{entry.message}</div>
+                          <div className="flex items-center gap-1 mt-1 text-xs text-ide-text-muted">
+                            <span className="text-ide-accent">{entry.hash.slice(0, 7)}</span>
+                            <span>{entry.author}</span>
+                            <span>{new Date(entry.date).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        {expandedCommit === entry.hash && (() => {
+                          const MAX_RENDER_FILES = 200
+                          const totalCount = commitFileCount || commitFiles.length
+                          const displayFiles = commitFiles.slice(0, MAX_RENDER_FILES)
+                          const renderTruncated = totalCount - MAX_RENDER_FILES
+                          return (
+                          <div className="bg-ide-bg border-b border-ide-border animate-fade-in">
+                            <div className="pl-5 pr-2 py-1 text-[11px] text-ide-text-muted uppercase tracking-wider bg-ide-hover/50">
+                              {t('Files ({count})').replace('{count}', String(totalCount))}
+                            </div>
+                            {displayFiles.map(file => {
+                              const { name, dir } = splitPath(file.path)
+                              return (
+                              <div
+                                key={file.path}
+                                className="pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1"
+                                onClick={() => handleCommitFileClick(file)}
+                              >
+                                <span className={`text-xs font-bold w-3.5 text-center shrink-0 ${
+                                  file.status === 'added' ? 'text-ide-success' :
+                                  file.status === 'deleted' ? 'text-ide-danger' :
+                                  file.status === 'renamed' ? 'text-ide-warning' :
+                                  'text-ide-text-muted'
+                                }`}>
+                                  {file.status === 'added' ? 'A' : file.status === 'deleted' ? 'D' : file.status === 'renamed' ? 'R' : 'M'}
+                                </span>
+                                <span className="shrink-0 text-[11px]">{name}</span>
+                                {dir && <span className="truncate text-ide-text-muted text-[10px] min-w-0">{dir}</span>}
+                                <span className="shrink-0 ml-auto flex items-center gap-1 text-[11px]">
+                                  {file.additions > 0 && <span className="text-ide-success font-mono">+{file.additions}</span>}
+                                  {file.deletions > 0 && <span className="text-ide-danger font-mono">-{file.deletions}</span>}
+                                </span>
+                              </div>
+                              )
+                            })}
+                            {renderTruncated > 0 && (
+                              <div className="pl-5 pr-2 py-1 text-[11px] text-ide-text-muted">
+                                {t('... {n} more files').replace('{n}', String(renderTruncated))}
+                              </div>
+                            )}
+                          </div>
+                          )
+                        })()}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Commits / Log */}
           <div className="border-b border-ide-border">
             <div

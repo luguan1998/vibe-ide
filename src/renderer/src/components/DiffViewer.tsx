@@ -82,6 +82,7 @@ interface DiffViewerProps {
   cursorRef?: React.MutableRefObject<{ fullPath: string; line: number; column: number } | null>
   onContentLoaded?: (content: string) => void  // 回传文件内容给父组件（供 OutlinePanel 使用）
   onOpenCallGraph?: (word: string) => void     // 右键菜单 → 打开 call graph
+  onViewLineHistory?: (filePath: string, lineNumber: number) => void  // 右键菜单 → 查看这行修改记录
   compareOriginalContent?: string  // 左侧对比文件内容（文件对比模式）
   compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
 }
@@ -165,7 +166,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded, onOpenCallGraph, compareOriginalContent, compareOriginalPath }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -200,12 +201,18 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   // Use useLayoutEffect so cleanup runs before @monaco-editor/react's useEffect cleanup
   React.useLayoutEffect(() => {
     return () => {
-      // Dispose call-graph actions before disposing editors
+      // Dispose call-graph + line-history actions before disposing editors
       try {
         diffEditorRef.current?.getModifiedEditor()?._callGraphActionDisposable?.dispose?.()
       } catch {}
       try {
+        diffEditorRef.current?.getModifiedEditor()?._lineHistoryActionDisposable?.dispose?.()
+      } catch {}
+      try {
         editEditorRef.current?._callGraphActionDisposable?.dispose?.()
+      } catch {}
+      try {
+        editEditorRef.current?._lineHistoryActionDisposable?.dispose?.()
       } catch {}
       // DiffEditor widget must be disposed before its models are disposed
       if (diffEditorRef.current) {
@@ -412,6 +419,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   handleSaveRef.current = handleSave
   const onOpenCallGraphRef = useRef(onOpenCallGraph)
   onOpenCallGraphRef.current = onOpenCallGraph
+  const onViewLineHistoryRef = useRef(onViewLineHistory)
+  onViewLineHistoryRef.current = onViewLineHistory
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -708,6 +717,18 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                   }
                 }
               })
+              ;(modifiedEditor as any)._lineHistoryActionDisposable = modifiedEditor.addAction({
+                id: 'view-line-history',
+                label: t('View Line History'),
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.6,
+                run: (ed: any) => {
+                  const pos = ed.getPosition()
+                  if (pos && onViewLineHistoryRef.current) {
+                    onViewLineHistoryRef.current(filePath, pos.lineNumber)
+                  }
+                }
+              })
             }}
           />
         ) : editLoading ? (
@@ -765,6 +786,18 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                   }
                   if (word && onOpenCallGraphRef.current) {
                     onOpenCallGraphRef.current(word)
+                  }
+                }
+              })
+              ;(editor as any)._lineHistoryActionDisposable = editor.addAction({
+                id: 'view-line-history',
+                label: t('View Line History'),
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.6,
+                run: (ed: any) => {
+                  const pos = ed.getPosition()
+                  if (pos && onViewLineHistoryRef.current) {
+                    onViewLineHistoryRef.current(filePath, pos.lineNumber)
                   }
                 }
               })

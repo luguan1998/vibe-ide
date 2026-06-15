@@ -34,6 +34,7 @@ interface RightPanelProps {
   navigateToFilePayload?: { trigger: number; filePath: string } | null
   onNavigateToFile?: (filePath: string) => void
   onExploreNode?: (node: any) => void
+  lineHistoryPayload?: { filePath: string; lineNumber: number } | null
 }
 
 type GitSection = 'git' | 'terminal' | 'search' | 'file'
@@ -386,6 +387,7 @@ function RightPanel({
   onToggleCapsuleTabs,
   navigateToFilePayload, onNavigateToFile,
   onExploreNode,
+  lineHistoryPayload,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -503,6 +505,19 @@ function RightPanel({
     }
   }, [navigateToFilePayload])
 
+  // lineHistoryPayload → 切换到 Git 面板
+  useEffect(() => {
+    if (lineHistoryPayload) {
+      setVisibleTabs(prev => {
+        if (prev['git']) return prev
+        const next = { ...prev, git: true }
+        saveVisibleTabs(next)
+        return next
+      })
+      setActiveSection('git')
+    }
+  }, [lineHistoryPayload])
+
   // 确保 activeSection 始终可见（处理隐藏当前 tab 的情况）
   useEffect(() => {
     if (!visibleTabs[activeSection] && visibleList.length > 0) {
@@ -559,6 +574,7 @@ function RightPanel({
           onWorktreeNavChange={setSessionWorktreeNav}
           onDiffScroll={onDiffScroll}
           onNavigateToFile={onNavigateToFile}
+          lineHistoryPayload={lineHistoryPayload}
         />
       </div>
 

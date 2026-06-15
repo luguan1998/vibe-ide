@@ -38,6 +38,7 @@ export const IPC_CHANNELS = {
   GIT_DELETE_WORKTREE: 'git:deleteWorktree',
   GIT_DELETE_BRANCH: 'git:deleteBranch',
   GIT_SET_FILTER_RULES: 'git:setFilterRules',
+  GIT_LINE_LOG: 'git:lineLog',
 
   // File
   FILE_READ: 'file:read',
@@ -199,6 +200,13 @@ export interface GitStatusResult {
 export interface CommitOptions {
   message: string
   files?: string[]
+}
+
+export interface GitLineLogEntry {
+  hash: string
+  message: string
+  author: string
+  date: string
 }
 
 // File types

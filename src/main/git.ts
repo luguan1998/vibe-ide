@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import simpleGit, { SimpleGit } from 'simple-git'
-import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, GitShowResult, GitCommitFile } from '../shared/types'
+import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, GitShowResult, GitCommitFile, GitLineLogEntry } from '../shared/types'
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
@@ -231,6 +231,30 @@ export function registerGitHandlers(): void {
         date: entry.date,
         refs: entry.refs
       })) as GitLogEntry[]
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Git line log - get commit history for a specific line range
+  ipcMain.handle(IPC_CHANNELS.GIT_LINE_LOG, async (_event, filePath: string, startLine: number, endLine: number) => {
+    try {
+      const git = getGit()
+      // git log -Lstart,end:file — trace line-level history
+      const output = await git.raw(['log', `-L${startLine},${endLine}:${filePath}`, '--format=%H%x00%an%x00%ad%x00%s%x00', '--date=iso'])
+      const entries: GitLineLogEntry[] = []
+      for (const line of output.split('\n')) {
+        const parts = line.split('\0')
+        if (parts.length >= 4 && /^[0-9a-f]{40}$/.test(parts[0])) {
+          entries.push({
+            hash: parts[0],
+            author: parts[1],
+            date: parts[2],
+            message: parts[3]
+          })
+        }
+      }
+      return entries
     } catch (err: any) {
       return { error: err.message }
     }

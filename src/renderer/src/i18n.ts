@@ -212,6 +212,9 @@ const ZH_MAP: Record<string, string> = {
   // DiffViewer
   'Force Open': '强行打开',
   'Open Call Graph': '查看调用图',
+  'View Line History': '查看这行修改记录',
+  'Line History ({file}:{line})': '行修改记录 ({file}:{line})',
+  'No line history': '无行修改记录',
 
   // CodeGraphSearch
   'Initializing CodeGraph...': '正在初始化代码图...',

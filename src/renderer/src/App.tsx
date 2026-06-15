@@ -205,6 +205,10 @@ export default function App() {
       setCallGraphFocalNode(exact || r.nodes[0])
     } catch {}
   }, [])
+  const handleViewLineHistory = useCallback((filePath: string, lineNumber: number) => {
+    // Use trigger counter to force re-render even if filePath+lineNumber are same
+    setLineHistoryPayload({ filePath, lineNumber })
+  }, [])
   const [showCodeSearch, setShowCodeSearch] = useState(false)
   const [codeSearchFocusTrigger, setCodeSearchFocusTrigger] = useState(0)
   const [exploreResult, setExploreResult] = useState<{ query: string; content: string } | null>(null)
@@ -217,6 +221,11 @@ export default function App() {
     setCodeSearchFocusTrigger(0)
   }, [])
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
+
+  // Line history payload — triggered by Monaco right-click "View Line History"
+  const [lineHistoryPayload, setLineHistoryPayload] = useState<{ filePath: string; lineNumber: number } | null>(null)
+  const lineHistoryPayloadRef = useRef(lineHistoryPayload)
+  lineHistoryPayloadRef.current = lineHistoryPayload
 
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
   const [diffScrollTrigger, setDiffScrollTrigger] = useState(0)
@@ -1470,6 +1479,7 @@ export default function App() {
                 cursorRef={cursorRef}
                 onContentLoaded={setCurrentFileContent}
                 onOpenCallGraph={handleOpenCallGraphFromEditor}
+                onViewLineHistory={handleViewLineHistory}
                 compareOriginalContent={diffFile.compareOriginalContent}
                 compareOriginalPath={diffFile.compareOriginalPath}
               />
@@ -1565,6 +1575,7 @@ export default function App() {
             navigateToFilePayload={navigateToFilePayload}
             onNavigateToFile={handleNavigateToFile}
             onExploreNode={(node) => setCallGraphFocalNode(node)}
+            lineHistoryPayload={lineHistoryPayload}
 
             fileTreeDepth={fileTreeDepth}
             onDiffScroll={handleDiffScroll}
