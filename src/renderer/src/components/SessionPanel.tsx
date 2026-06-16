@@ -259,6 +259,32 @@ const SessionPanel = React.memo(function SessionPanel({
     prevSessionIdsRef.current = new Set(sessions.map(s => s.id))
   }, [sessions])
 
+  // Group sessions by normalized cwd
+  const sessionGroups = useMemo(() => {
+    const map = new Map<string, TerminalSession[]>()
+    const order: string[] = []
+    for (const s of sessions) {
+      const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
+      if (!map.has(key)) {
+        map.set(key, [])
+        order.push(key)
+      }
+      map.get(key)!.push(s)
+    }
+    return order.map(cwd => ({ cwd, sessions: map.get(cwd)! }))
+  }, [sessions])
+
+  // Flat index map for drag reorder: visual position → session index in original array
+  const flatIndexMap = useMemo(() => {
+    const map: number[] = []
+    for (const g of sessionGroups) {
+      for (const s of g.sessions) {
+        map.push(sessions.findIndex(si => si.id === s.id))
+      }
+    }
+    return map
+  }, [sessionGroups, sessions])
+
   useEffect(() => {
     const handleClick = () => { setContextMenu(null); setEmptyAreaMenu(null); setCustomCmdCtxMenu(null) }
     window.addEventListener('click', handleClick)
@@ -655,150 +681,178 @@ const SessionPanel = React.memo(function SessionPanel({
             No sessions yet
           </div>
         ) : (
-          sessions.map((session, index) => (
-            <div
-              key={session.id}
-              draggable={!!onReorderSessions}
-              className={`group px-3 py-2 mx-1 rounded cursor-pointer transition-colors ${
-                session.id === activeSessionId
-                  ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
-                  : agentStatus[session.id] === 'running'
-                    ? 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text border-l-[3px] border-ide-accent/60'
-                    : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-              } ${dragIndex === index ? 'opacity-40' : ''} ${dropIndex === index && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
-              onClick={() => onSwitchSession(session.id)}
-              onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
-              onContextMenu={(e) => handleContextMenu(e, session.id)}
-              onMouseEnter={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect()
-                hoverTimerRef.current = setTimeout(() => {
-                  setHoverPreview({ sessionId: session.id, name: session.name, left: rect.right + 6, top: rect.top })
-                }, 600)
-              }}
-              onMouseLeave={() => {
-                if (hoverTimerRef.current) {
-                  clearTimeout(hoverTimerRef.current)
-                }
-                hoverTimerRef.current = setTimeout(() => {
-                  setHoverPreview(null)
-                }, 200)
-              }}
-              onDragStart={() => setDragIndex(index)}
-              onDragOver={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                if (dragIndex === null || dragIndex === index) {
-                  setDropIndex(null)
-                  return
-                }
-                const rect = e.currentTarget.getBoundingClientRect()
-                const midY = rect.top + rect.height / 2
-                setDropIndex(e.clientY < midY ? index : index + 1)
-              }}
-              onDrop={(e) => {
-                e.preventDefault()
-                if (dragIndex !== null && dragIndex !== index) {
-                  const toIndex = dropIndex !== null && dropIndex > dragIndex ? dropIndex - 1 : dropIndex ?? index
-                  onReorderSessions?.(dragIndex, toIndex)
-                }
-                setDragIndex(null)
-                setDropIndex(null)
-              }}
-              onDragEnd={() => {
-                setDragIndex(null)
-                setDropIndex(null)
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={`text-[12px] shrink-0 w-[16px] h-[16px] flex items-center justify-center rounded-full ${session.id !== activeSessionId && agentStatus[session.id] === 'running' ? 'animate-aura-glow' : ''}`}>{getSessionEmoji(session.id, sessionEmojis)}</span>
-                  {renaming === session.id ? (
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      onKeyDown={(e) => {
-                        e.stopPropagation()
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          handleRename()
-                        }
-                        if (e.key === 'Escape') setRenaming(null)
-                      }}
-                      onBlur={handleRename}
-                      className="bg-ide-bg border border-ide-accent rounded px-1 text-sm text-ide-text outline-none w-24"
-                    />
-                  ) : (
-                    <span className={`text-sm truncate ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}>{session.name}</span>
-                  )}
-                </div>
-                <div className="flex items-center">
-                {onToggleAutoApprove && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onToggleAutoApprove(session.id, session.cwd)
-                    }}
-                    className={`w-5 h-5 rounded transition-all shrink-0 flex items-center justify-center ${
-                      autoApproveSessions[session.id]
-                        ? 'text-ide-accent opacity-100'
-                        : 'text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white'
-                    }`}
-                    title={autoApproveSessions[session.id] ? t('Auto Approve: ON') : t('Auto Approve: OFF')}
-                  >
-                    {autoApproveSessions[session.id] ? <ShieldCheck size={13} /> : <Shield size={13} />}
-                  </button>
-                )}
-                <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onCloseSession(session.id)
-                    }}
-                    className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
-                    title={t('Close Session')}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div
-                className="text-xs mt-0.5"
-                onMouseEnter={() => {
-                  cwdHoverTimerRef.current = setTimeout(() => {
-                    setCwdLinkSession(session.id)
-                  }, 600)
-                }}
-                onMouseLeave={() => {
-                  if (cwdHoverTimerRef.current) {
-                    clearTimeout(cwdHoverTimerRef.current)
-                    cwdHoverTimerRef.current = null
-                  }
-                  setCwdLinkSession(null)
-                }}
-              >
-                <span
-                  className={`inline-block max-w-full truncate transition-all ${
-                    cwdLinkSession === session.id
-                      ? 'underline text-ide-text cursor-pointer bg-ide-accent/15 rounded px-0.5'
-                      : 'text-ide-text-muted opacity-70'
-                  }`}
-                  title={cwdLinkSession === session.id ? t('Open in Explorer') : session.cwd.length > 18 ? session.cwd : undefined}
-                  onClick={(e) => {
-                    if (cwdLinkSession === session.id) {
-                      e.stopPropagation()
-                      window.api.file.openExplorer(session.cwd)
-                    }
-                  }}
+          sessionGroups.map((group) => {
+            const dirName = group.cwd.replace(/^.*[\/]/, '')
+            return (
+              <div key={group.cwd}>
+                {/* Folder header */}
+                <div
+                  className="group flex items-center justify-between px-3 py-1 mx-1 mt-1 mb-0.5 rounded bg-ide-hover cursor-default select-none transition-colors text-ide-text-muted"
                 >
-                  {session.cwd.length > 20 ? session.cwd.replace(/^.*[\\\/]/, '') : session.cwd}
-                </span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[12px] shrink-0 w-[16px] h-[16px] flex items-center justify-center">{getSessionEmoji(group.cwd, sessionEmojis)}</span>
+                    <span
+                      className={`text-sm truncate min-w-0 cursor-pointer transition-all ${
+                        cwdLinkSession === group.cwd
+                          ? 'underline text-ide-text bg-ide-accent/15 rounded px-0.5'
+                          : ''
+                      }`}
+                      title={group.cwd}
+                      onMouseEnter={() => {
+                        cwdHoverTimerRef.current = setTimeout(() => {
+                          setCwdLinkSession(group.cwd)
+                        }, 600)
+                      }}
+                      onMouseLeave={() => {
+                        if (cwdHoverTimerRef.current) {
+                          clearTimeout(cwdHoverTimerRef.current)
+                          cwdHoverTimerRef.current = null
+                        }
+                        setCwdLinkSession(null)
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (cwdLinkSession === group.cwd) {
+                          window.api.file.openExplorer(group.cwd)
+                        }
+                      }}
+                    >{dirName}</span>
+                  </div>
+                  <div className="flex items-center">
+                  {onToggleAutoApprove && (() => {
+                    const anyOn = group.sessions.some(s => autoApproveSessions[s.id])
+                    const firstSession = group.sessions[0]
+                    return firstSession ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onToggleAutoApprove(firstSession.id, firstSession.cwd)
+                        }}
+                        className={`w-5 h-5 rounded transition-all shrink-0 flex items-center justify-center ${
+                          anyOn
+                            ? 'text-ide-accent opacity-100'
+                            : 'text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white'
+                        }`}
+                        title={anyOn ? t('Auto Approve: ON') : t('Auto Approve: OFF')}
+                      >
+                        {anyOn ? <ShieldCheck size={13} /> : <Shield size={13} />}
+                      </button>
+                    ) : null
+                  })()}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onCloneSession(null, group.cwd, termType)
+                      }}
+                      className="w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
+                      title={t('New Terminal in this folder')}
+                    >
+                      <Plus size={13} />
+                    </button>
+                  </div>
+                </div>
+                {/* Sessions under this folder */}
+                {group.sessions.map((session) => {
+                  const flatIdx = flatIndexMap.indexOf(sessions.findIndex(si => si.id === session.id))
+                  return (
+                    <div
+                      key={session.id}
+                      draggable={!!onReorderSessions}
+                      className={`group pl-7 pr-3 py-1.5 mx-1 rounded cursor-pointer transition-colors ${
+                        session.id === activeSessionId
+                          ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
+                          : agentStatus[session.id] === 'running'
+                            ? 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text border-l-[3px] border-ide-accent/60'
+                            : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
+                      } ${dragIndex === flatIdx ? 'opacity-40' : ''} ${dropIndex === flatIdx && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
+                      onClick={() => onSwitchSession(session.id)}
+                      onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
+                      onContextMenu={(e) => handleContextMenu(e, session.id)}
+                      onMouseEnter={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        hoverTimerRef.current = setTimeout(() => {
+                          setHoverPreview({ sessionId: session.id, name: session.name, left: rect.right + 6, top: rect.top })
+                        }, 600)
+                      }}
+                      onMouseLeave={() => {
+                        if (hoverTimerRef.current) {
+                          clearTimeout(hoverTimerRef.current)
+                        }
+                        hoverTimerRef.current = setTimeout(() => {
+                          setHoverPreview(null)
+                        }, 200)
+                      }}
+                      onDragStart={() => setDragIndex(flatIdx)}
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (dragIndex === null || dragIndex === flatIdx) {
+                          setDropIndex(null)
+                          return
+                        }
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const midY = rect.top + rect.height / 2
+                        setDropIndex(e.clientY < midY ? flatIdx : flatIdx + 1)
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        if (dragIndex !== null && dragIndex !== flatIdx) {
+                          const toIndex = dropIndex !== null && dropIndex > dragIndex ? dropIndex - 1 : dropIndex ?? flatIdx
+                          onReorderSessions?.(dragIndex, toIndex)
+                        }
+                        setDragIndex(null)
+                        setDropIndex(null)
+                      }}
+                      onDragEnd={() => {
+                        setDragIndex(null)
+                        setDropIndex(null)
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {renaming === session.id ? (
+                            <input
+                              ref={inputRef}
+                              type="text"
+                              value={newName}
+                              onChange={(e) => setNewName(e.target.value)}
+                              onKeyDown={(e) => {
+                                e.stopPropagation()
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  handleRename()
+                                }
+                                if (e.key === 'Escape') setRenaming(null)
+                              }}
+                              onBlur={handleRename}
+                              className="bg-ide-bg border border-ide-accent rounded px-1 text-sm text-ide-text outline-none w-24"
+                            />
+                          ) : (
+                            <span className={`text-sm truncate ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}>{session.name}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center">
+                        <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onCloseSession(session.id)
+                            }}
+                            className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
+                            title={t('Close Session')}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            </div>
-          ))
+            )
+          })
         )}
         {dropIndex === sessions.length && dropIndex !== dragIndex && dragIndex !== sessions.length - 1 && (
           <div className="mx-1 border-t-2 border-ide-accent" />

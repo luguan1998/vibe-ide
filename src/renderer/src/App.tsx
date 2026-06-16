@@ -696,18 +696,27 @@ export default function App() {
       }
 
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
+      // Use visual order (grouped by cwd) instead of creation order
+      const groups = new Map<string, TerminalSession[]>()
+      for (const s of sessions) {
+        const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key)!.push(s)
+      }
+      const visualOrder = Array.from(groups.values()).flat()
+
       if (eventMatchesBinding(e, bindings['terminal.next'])) {
         e.preventDefault()
         e.stopImmediatePropagation()
         ;(document.activeElement as HTMLElement)?.blur()
-        const idx = sessions.findIndex(s => s.id === activeSessionId)
-        const next = (idx + 1) % sessions.length
-        if (sessions[next]) {
-          setActiveSessionId(sessions[next].id)
+        const idx = visualOrder.findIndex(s => s.id === activeSessionId)
+        const next = (idx + 1) % visualOrder.length
+        if (visualOrder[next]) {
+          setActiveSessionId(visualOrder[next].id)
           setCenterView('terminal')
           setDiffFile(null)
           setTimeout(() => {
-            terminalRefs.current[sessions[next].id]?.focus()
+            terminalRefs.current[visualOrder[next].id]?.focus()
           }, 0)
         }
       }
@@ -715,14 +724,14 @@ export default function App() {
         e.preventDefault()
         e.stopImmediatePropagation()
         ;(document.activeElement as HTMLElement)?.blur()
-        const idx = sessions.findIndex(s => s.id === activeSessionId)
-        const next = (idx - 1 + sessions.length) % sessions.length
-        if (sessions[next]) {
-          setActiveSessionId(sessions[next].id)
+        const idx = visualOrder.findIndex(s => s.id === activeSessionId)
+        const next = (idx - 1 + visualOrder.length) % visualOrder.length
+        if (visualOrder[next]) {
+          setActiveSessionId(visualOrder[next].id)
           setCenterView('terminal')
           setDiffFile(null)
           setTimeout(() => {
-            terminalRefs.current[sessions[next].id]?.focus()
+            terminalRefs.current[visualOrder[next].id]?.focus()
           }, 0)
         }
       }
