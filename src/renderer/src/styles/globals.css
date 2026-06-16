@@ -290,6 +290,15 @@ html, body, #root {
   color: rgb(var(--ide-accent)); border-radius: 10px;
   font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 }
+.md-mermaid {
+  position: relative; margin: 1rem 0; padding: 1rem;
+  background-color: rgb(var(--ide-sidebar));
+  border: 1px solid rgb(var(--ide-border)); border-radius: 6px;
+  text-align: center; overflow-x: auto;
+}
+.md-mermaid svg { max-width: 100%; height: auto; }
+.md-mermaid-error-state { text-align: left; }
+.md-mermaid-error { color: rgb(var(--ide-danger)); font-size: 12px; margin-bottom: 0.5rem; }
 .md-preview code {
   background-color: rgb(var(--ide-hover)); border: 1px solid rgb(var(--ide-border));
   border-radius: 4px; padding: 0.15em 0.4em;

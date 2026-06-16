@@ -28,7 +28,8 @@ export default defineConfig({
           manualChunks: {
             vendor: ['react', 'react-dom', 'react/jsx-runtime'],
             xterm: ['@xterm/xterm'],
-            monaco: ['monaco-editor', '@monaco-editor/react']
+            monaco: ['monaco-editor', '@monaco-editor/react'],
+            mermaid: ['mermaid']
           }
         }
       }
