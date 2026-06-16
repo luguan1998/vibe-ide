@@ -737,6 +737,18 @@ export default function App() {
       }
 
 
+      // session.clone → Ctrl+N clone current session
+      if (eventMatchesBinding(e, bindings['session.clone'])) {
+        if (activeSessionId) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          const current = sessions.find(s => s.id === activeSessionId)
+          if (current) {
+            handleCloneSession(current.id, current.cwd, current.shell, current.name)
+          }
+        }
+      }
+
       // terminal.history → toggle command history popup
       if (eventMatchesBinding(e, bindings['terminal.history'])) {
         e.preventDefault()

@@ -237,6 +237,11 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     label: 'Toggle Preview / Edit',
     defaultKeys: 'Ctrl+KeyL',
   },
+  {
+    id: 'session.clone',
+    label: 'Clone Current Session',
+    defaultKeys: 'Ctrl+KeyN',
+  },
 ]
 
 const STORAGE_KEY = 'vibe-ide-keybindings'

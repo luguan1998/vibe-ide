@@ -79,6 +79,7 @@ const ZH_MAP: Record<string, string> = {
   'Jump to Previous Prompt': '跳到上条命令',
   'Jump to Next Prompt': '跳到下条命令',
   'Toggle Preview / Edit': '切换预览/编辑',
+  'Clone Current Session': '克隆当前会话',
 
   // File Tree
   'File Tree Depth': '文件树深度',
