@@ -95,8 +95,14 @@ async function switchToFileTab(cdp) {
     (() => {
       const buttons = document.querySelectorAll('button');
       for (const btn of buttons) {
+        // capsuleTabs 模式：按钮含 <span> 文本
         const span = btn.querySelector('span');
         if (span && span.textContent === 'File') {
+          const r = btn.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        }
+        // 图标模式：按钮用 title 属性（无 span）
+        if (btn.title === 'File') {
           const r = btn.getBoundingClientRect();
           return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
         }

@@ -692,7 +692,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[12px] shrink-0 w-[16px] h-[16px] flex items-center justify-center">{getSessionEmoji(group.cwd, sessionEmojis)}</span>
                     <span
-                      className={`text-sm truncate min-w-0 cursor-pointer transition-all ${
+                      className={`text-xs truncate min-w-0 cursor-pointer transition-all ${
                         cwdLinkSession === group.cwd
                           ? 'underline text-ide-text bg-ide-accent/15 rounded px-0.5'
                           : ''
