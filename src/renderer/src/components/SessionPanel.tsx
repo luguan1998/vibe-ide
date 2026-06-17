@@ -6,7 +6,8 @@ import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
 
-const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '🤖', '🐸', '👾', '🎯', '🚀', '⚡', '🌟', '💫', '🌀', '🎭', '🪐', '👻', '🍕', '🎲', '🧩', '🌈', '🙏', '🐉']
+// 前 1/3 → CWD 文件夹/定位图标；后 2/3 → Session 趣味图标
+const DEFAULT_SESSION_EMOJIS = ['🧩', '📌', '📁', '📍', '🏷️', '🎯', '🗺️', '🔗', '🔥', '💀', '🗿', '🤡', '👽', '👻', '🐸', '👾', '🚀', '⚡', '🌟', '🐉', '🌀', '🙏']
 
 const MAX_RECENT_DIRS = 10
 
@@ -65,8 +66,19 @@ function hashId(id: string): number {
   return Math.abs(h)
 }
 
+function splitEmojis(emojis: string[]) {
+  const cwdEnd = Math.ceil(emojis.length / 3)
+  return { cwd: emojis.slice(0, cwdEnd), session: emojis.slice(cwdEnd) }
+}
+
+function getCwdEmoji(cwd: string, emojis: string[]): string {
+  const pool = splitEmojis(emojis).cwd
+  return pool[hashId(cwd) % pool.length]
+}
+
 function getSessionEmoji(id: string, emojis: string[]): string {
-  return emojis[hashId(id) % emojis.length]
+  const pool = splitEmojis(emojis).session
+  return pool[hashId(id) % pool.length]
 }
 
 interface CustomCommand {
@@ -687,13 +699,12 @@ const SessionPanel = React.memo(function SessionPanel({
         ) : (
           sessionGroups.map((group, gi) => {
             const dirName = group.cwd.replace(/^.*[\/]/, '')
-            const cwdEmoji = getSessionEmoji(group.cwd, sessionEmojis)
-            const sessionEmojiIdx = hashId(group.cwd) % sessionEmojis.length
+            const cwdEmoji = getCwdEmoji(group.cwd, sessionEmojis)
             return (
               <div key={group.cwd} className={`bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden ${gi > 0 ? 'mt-3' : ''}`}>
                 {/* Folder header */}
                 <div
-                  className="group h-9 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted bg-ide-hover/30"
+                  className="group h-7 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted bg-ide-hover/30"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[11px] shrink-0 w-4 h-4 flex items-center justify-center">{cwdEmoji}</span>
@@ -765,7 +776,7 @@ const SessionPanel = React.memo(function SessionPanel({
                     <div
                       key={session.id}
                       draggable={!!onReorderSessions}
-                      className={`group pl-4 pr-3 py-1 cursor-pointer transition-colors h-11 ${
+                      className={`group pl-4 pr-3 py-1 cursor-pointer transition-colors min-h-[44px] h-auto ${
                         session.id === activeSessionId
                           ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
                           : agentStatus[session.id] === 'running'
@@ -815,7 +826,7 @@ const SessionPanel = React.memo(function SessionPanel({
                         setDropIndex(null)
                       }}
                     >
-                      <div className="flex items-center justify-between h-full">
+                      <div className="flex items-center justify-between min-h-[44px]">
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           {renaming === session.id ? (
                             <input
@@ -836,8 +847,8 @@ const SessionPanel = React.memo(function SessionPanel({
                             />
                           ) : (
                             <>
-                              <span className="text-[11px] shrink-0 w-3.5 h-3.5 flex items-center justify-center">{(() => { const e = getSessionEmoji(session.id, sessionEmojis); return e === cwdEmoji ? sessionEmojis[(sessionEmojiIdx + 1) % sessionEmojis.length] : e })()}</span>
-                              <span className={`text-sm ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}>{session.name}</span>
+                              <span className="text-[11px] shrink-0 w-3.5 h-3.5 flex items-center justify-center">{getSessionEmoji(session.id, sessionEmojis)}</span>
+                              <span className={`text-sm line-clamp-2 break-all ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}>{session.name}</span>
                             </>
                           )}
                         </div>
@@ -872,7 +883,7 @@ const SessionPanel = React.memo(function SessionPanel({
 
       {/* Custom Command Capsules */}
       {customCommands.length > 0 && (
-        <div className="border-t border-ide-border px-2 py-1.5">
+        <div className="px-2 py-1.5">
           <div className="flex flex-wrap gap-1">
             {customCommands.map((cmd) => (
               <div
@@ -1203,15 +1214,21 @@ const SessionPanel = React.memo(function SessionPanel({
               </button>
             </div>
             <div className="p-3">
-              <p className="text-xs text-ide-text-muted mb-2">{t('Each session gets a random icon. One per line.')}</p>
+              <p className="text-xs text-ide-text-muted mb-2">{t('Front 1/3 = folder icons, rest = session icons. One per line.')}</p>
               <div className="flex flex-wrap gap-1 mb-3 bg-ide-hover rounded p-2 min-h-[40px]">
                 {(() => {
                   const lines = emojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
+                  const cwdEnd = Math.ceil(lines.length / 3)
                   return lines.length === 0
                     ? <span className="text-xs text-ide-text-muted py-1">无表情</span>
-                    : lines.map((emoji, i) => (
-                        <span key={i} className="text-lg" title={emoji}>{emoji}</span>
-                      ))
+                    : <>
+                        {lines.slice(0, cwdEnd).map((emoji, i) => (
+                          <span key={`c${i}`} className="text-lg bg-ide-accent/15 rounded px-0.5" title={`CWD: ${emoji}`}>{emoji}</span>
+                        ))}
+                        {lines.slice(cwdEnd).map((emoji, i) => (
+                          <span key={`s${i}`} className="text-lg" title={`Session: ${emoji}`}>{emoji}</span>
+                        ))}
+                      </>
                 })()}
               </div>
               <textarea
