@@ -671,8 +671,8 @@ const SessionPanel = React.memo(function SessionPanel({
       </div>
 
       {/* Session List */}
-      <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col">
-        <div className="flex-1 min-h-0 overflow-y-auto py-1"
+      <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 overflow-hidden flex flex-col rounded-lg">
+        <div className="flex-1 min-h-0 overflow-y-auto pb-2"
           onDragOver={(e) => {
             if (dragIndex !== null && sessions.length > 0) {
               setDropIndex(sessions.length)
@@ -685,18 +685,20 @@ const SessionPanel = React.memo(function SessionPanel({
             No sessions yet
           </div>
         ) : (
-          sessionGroups.map((group) => {
+          sessionGroups.map((group, gi) => {
             const dirName = group.cwd.replace(/^.*[\/]/, '')
+            const cwdEmoji = getSessionEmoji(group.cwd, sessionEmojis)
+            const sessionEmojiIdx = hashId(group.cwd) % sessionEmojis.length
             return (
-              <div key={group.cwd}>
+              <div key={group.cwd} className={`bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden ${gi > 0 ? 'mt-3' : ''}`}>
                 {/* Folder header */}
                 <div
-                  className="group flex items-center justify-between px-3 py-1 mx-1 mt-1 mb-0.5 rounded bg-ide-hover cursor-default select-none transition-colors text-ide-text-muted"
+                  className="group h-9 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted bg-ide-hover/30"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[12px] shrink-0 w-[16px] h-[16px] flex items-center justify-center">{getSessionEmoji(group.cwd, sessionEmojis)}</span>
+                    <span className="text-[11px] shrink-0 w-4 h-4 flex items-center justify-center">{cwdEmoji}</span>
                     <span
-                      className={`text-xs truncate min-w-0 cursor-pointer transition-all ${
+                      className={`text-xs font-medium truncate min-w-0 cursor-pointer transition-all ${
                         cwdLinkSession === group.cwd
                           ? 'underline text-ide-text bg-ide-accent/15 rounded px-0.5'
                           : ''
@@ -756,13 +758,14 @@ const SessionPanel = React.memo(function SessionPanel({
                   </div>
                 </div>
                 {/* Sessions under this folder */}
+                <div className="py-0.5">
                 {group.sessions.map((session) => {
                   const flatIdx = flatIndexMap.indexOf(sessions.findIndex(si => si.id === session.id))
                   return (
                     <div
                       key={session.id}
                       draggable={!!onReorderSessions}
-                      className={`group pl-7 pr-3 py-1.5 mx-1 rounded cursor-pointer transition-colors ${
+                      className={`group pl-4 pr-3 py-1 cursor-pointer transition-colors h-11 ${
                         session.id === activeSessionId
                           ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
                           : agentStatus[session.id] === 'running'
@@ -812,8 +815,8 @@ const SessionPanel = React.memo(function SessionPanel({
                         setDropIndex(null)
                       }}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center justify-between h-full">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           {renaming === session.id ? (
                             <input
                               ref={inputRef}
@@ -829,10 +832,13 @@ const SessionPanel = React.memo(function SessionPanel({
                                 if (e.key === 'Escape') setRenaming(null)
                               }}
                               onBlur={handleRename}
-                              className="bg-ide-bg border border-ide-accent rounded px-1 text-sm text-ide-text outline-none w-24"
+                              className="bg-ide-bg border border-ide-accent rounded px-1 text-xs text-ide-text outline-none w-24"
                             />
                           ) : (
-                            <span className={`text-sm truncate ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}>{session.name}</span>
+                            <>
+                              <span className="text-[11px] shrink-0 w-3.5 h-3.5 flex items-center justify-center">{(() => { const e = getSessionEmoji(session.id, sessionEmojis); return e === cwdEmoji ? sessionEmojis[(sessionEmojiIdx + 1) % sessionEmojis.length] : e })()}</span>
+                              <span className={`text-sm ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}>{session.name}</span>
+                            </>
                           )}
                         </div>
                         <div className="flex items-center">
@@ -854,6 +860,7 @@ const SessionPanel = React.memo(function SessionPanel({
                     </div>
                   )
                 })}
+                </div>
               </div>
             )
           })
@@ -865,7 +872,7 @@ const SessionPanel = React.memo(function SessionPanel({
 
       {/* Custom Command Capsules */}
       {customCommands.length > 0 && (
-        <div className="px-2 py-1.5">
+        <div className="border-t border-ide-border px-2 py-1.5">
           <div className="flex flex-wrap gap-1">
             {customCommands.map((cmd) => (
               <div
