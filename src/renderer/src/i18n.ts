@@ -41,6 +41,8 @@ const ZH_MAP: Record<string, string> = {
   'Clone': '克隆',
   'Rename': '重命名',
   'Close': '关闭',
+  'Switch to AI Mode': '切换到 AI 模式',
+  'Switch to Terminal Mode': '切换到终端模式',
   'History': '历史',
   'No commands yet': '暂无命令',
   'Cut': '剪切',
@@ -240,6 +242,21 @@ const ZH_MAP: Record<string, string> = {
   'Configure MCP': '配置 MCP',
   'Configure CodeGraph MCP for agents': '配置 CodeGraph MCP for Agent',
   'Exclude folders': '排除文件夹',
+  // AI Tab
+  'Ask AI to help with your code...': '让 AI 帮你写代码...',
+  'Type a message...': '输入消息...',
+  'Initializing...': '初始化中...',
+  'Approve': '批准',
+  'Deny': '拒绝',
+  'AI wants permission to run:': 'AI 请求权限运行:',
+  'Focus AI Chat': '聚焦 AI 聊天',
+  'Connecting...': '连接中...',
+  'Streaming...': '生成中...',
+  'Explain this codebase': '解释这个代码库',
+  'Find potential bugs': '查找潜在 bug',
+  'Write tests for the main module': '为主模块编写测试',
+  'Refactor for readability': '重构以提高可读性',
+  'Copy install command': '复制安装命令',
 }
 
 // ── context ────────────────────────────────────────────────────────

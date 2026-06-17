@@ -62,6 +62,7 @@ const CODE_TO_LABEL: Record<string, string> = {
   Digit8: '8',
   Digit9: '9',
   KeyL: 'L',
+  KeyA: 'A',
 }
 
 const LABEL_TO_CODE: Record<string, string> = Object.fromEntries(
@@ -241,6 +242,11 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     id: 'session.clone',
     label: 'Clone Current Session',
     defaultKeys: 'Ctrl+KeyN',
+  },
+  {
+    id: 'ai.focus',
+    label: 'Focus AI Chat',
+    defaultKeys: 'Ctrl+Shift+KeyA',
   },
 ]
 

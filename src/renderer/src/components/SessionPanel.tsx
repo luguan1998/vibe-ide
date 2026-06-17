@@ -124,6 +124,8 @@ interface SessionPanelProps {
   onChangeFileTreeDepth?: (delta: number) => void
   focusSettingsTrigger?: number
   onExecuteCommand?: (command: string) => void
+  sessionViewModes?: Record<string, 'term' | 'gui'>
+  onSwitchViewMode?: (sessionId: string, mode: 'term' | 'gui') => void
 }
 
 const SessionPanel = React.memo(function SessionPanel({
@@ -159,7 +161,9 @@ const SessionPanel = React.memo(function SessionPanel({
   fileTreeDepth = 5,
   onChangeFileTreeDepth,
   focusSettingsTrigger = 0,
-  onExecuteCommand
+  onExecuteCommand,
+  sessionViewModes = {},
+  onSwitchViewMode,
 }: SessionPanelProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [appVersion, setAppVersion] = useState('')
@@ -978,6 +982,21 @@ const SessionPanel = React.memo(function SessionPanel({
                 {isOn ? <ShieldCheck size={14} className="text-ide-accent" /> : <Shield size={14} className="text-ide-text-muted" />}
                 <span>{t('Auto Approve')}</span>
                 {isOn && <span className="ml-auto text-ide-accent text-xs">✓</span>}
+              </button>
+            )
+          })()}
+          {onSwitchViewMode && (() => {
+            const isGui = sessionViewModes[contextMenu.sessionId] === 'gui'
+            return (
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                onClick={() => {
+                  onSwitchViewMode(contextMenu.sessionId, isGui ? 'term' : 'gui')
+                  setContextMenu(null)
+                }}
+              >
+                <Zap size={14} className={isGui ? 'text-ide-text-muted' : 'text-ide-accent'} />
+                <span>{t(isGui ? 'Switch to Terminal Mode' : 'Switch to AI Mode')}</span>
               </button>
             )
           })()}

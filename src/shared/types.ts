@@ -99,6 +99,21 @@ export const IPC_CHANNELS = {
   // OCR
   OCR_RECOGNIZE: 'ocr:recognize',
 
+  // AI (OpenClaude)
+  AI_CREATE: 'ai:create',
+  AI_SEND: 'ai:send',
+  AI_CANCEL: 'ai:cancel',
+  AI_DESTROY: 'ai:destroy',
+  AI_CHECK_AVAILABLE: 'ai:checkAvailable',
+  AI_PERMISSION_RESPONSE: 'ai:permissionResponse',
+  AI_MESSAGE: 'ai:message',               // push: full message (assistant text/tool_use)
+  AI_STREAM_TOKEN: 'ai:streamToken',      // push: partial token for streaming display
+  AI_PROGRESS: 'ai:progress',             // push: tool_progress events
+  AI_PERMISSION: 'ai:permission',         // push: permission_request events
+  AI_READY: 'ai:ready',                   // push: subprocess started, system init received
+  AI_ERROR: 'ai:error',                   // push: process error or crash
+  AI_FILE_CHANGE: 'ai:fileChange',        // push: tool_use with file edit detected
+
   // App
   APP_VERSION: 'app:version'
 } as const
@@ -266,4 +281,95 @@ export interface CodeSymbol {
   line: number
   column: number
   signature?: string
+}
+
+// AI (Claude CLI) types
+export type AiMessageType =
+  | 'system'
+  | 'assistant'
+  | 'user'
+  | 'result'
+  | 'stream_event'
+  | 'permission_request'
+  | 'tool_progress'
+
+export interface AiMessage {
+  sessionId: string
+  type: AiMessageType
+  role?: 'assistant' | 'user'
+  content?: string
+  thinking?: string
+  toolUse?: AiToolUse[]
+  toolResult?: AiToolResult
+  error?: string
+  installCmd?: string
+  costUsd?: number
+  numTurns?: number
+  durationMs?: number
+  timestamp: number
+}
+
+export const AI_FILE_EDIT_TOOLS = new Set([
+  'write_file', 'edit_file', 'file_write', 'file_edit',
+  'create_file', 'replace', 'insert', 'Write', 'Edit', 'NotebookEdit',
+])
+
+export interface AiToolUse {
+  id: string
+  name: string
+  input: Record<string, any>
+  result?: AiToolResult
+}
+
+export interface AiToolResult {
+  toolUseId: string
+  content: string
+  isError: boolean
+}
+
+export interface AiFileChange {
+  sessionId: string
+  filePath: string
+  relativePath: string
+  action: 'create' | 'edit' | 'delete'
+  content?: string
+  oldContent?: string
+}
+
+export interface AiPermissionRequest {
+  sessionId: string
+  requestId: string       // tool_use_id from control_request
+  tool: string            // tool_name
+  description: string
+  command?: string
+  toolInput?: Record<string, any>  // original tool_input, needed for control_response
+}
+
+export interface AiSessionState {
+  ready: boolean
+  busy: boolean
+  messages: AiMessage[]
+  streaming: boolean
+  streamBuffer: string
+  thinkingBuffer: string
+  pendingPermission: AiPermissionRequest | null
+}
+
+export interface AiCreateOptions {
+  sessionId: string
+  cwd: string
+  autoApprove: boolean
+}
+
+export interface AiSendPayload {
+  sessionId: string
+  message: string
+}
+
+export interface AiPermissionResponsePayload {
+  sessionId: string
+  requestId: string
+  approved: boolean
+  tool?: string
+  toolInput?: Record<string, any>
 }

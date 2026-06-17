@@ -201,6 +201,85 @@ const api = {
     },
   },
 
+  // AI (OpenClaude) operations
+  ai: {
+    checkAvailable: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_CHECK_AVAILABLE),
+    create: (options: any) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_CREATE, options),
+    send: (sessionId: string, message: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_SEND, { sessionId, message }),
+    cancel: (sessionId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_CANCEL, sessionId),
+    destroy: (sessionId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_DESTROY, sessionId),
+    respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_PERMISSION_RESPONSE, { sessionId, requestId, approved, tool, toolInput }),
+    onMessage: (callback: (data: any) => void) => {
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.AI_MESSAGE, handler)
+      return handler
+    },
+    removeMessageListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.AI_MESSAGE, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.AI_MESSAGE)
+    },
+    onStreamToken: (callback: (data: { sessionId: string; token: string }) => void) => {
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.AI_STREAM_TOKEN, handler)
+      return handler
+    },
+    removeStreamTokenListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.AI_STREAM_TOKEN, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.AI_STREAM_TOKEN)
+    },
+    onPermission: (callback: (data: any) => void) => {
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.AI_PERMISSION, handler)
+      return handler
+    },
+    removePermissionListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.AI_PERMISSION, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.AI_PERMISSION)
+    },
+    onReady: (callback: (data: { sessionId: string }) => void) => {
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.AI_READY, handler)
+      return handler
+    },
+    removeReadyListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.AI_READY, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.AI_READY)
+    },
+    onFileChange: (callback: (data: any) => void) => {
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.AI_FILE_CHANGE, handler)
+      return handler
+    },
+    removeFileChangeListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.AI_FILE_CHANGE, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.AI_FILE_CHANGE)
+    },
+    onProgress: (callback: (data: any) => void) => {
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.AI_PROGRESS, handler)
+      return handler
+    },
+    removeProgressListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.AI_PROGRESS, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.AI_PROGRESS)
+    },
+    onError: (callback: (data: { sessionId: string; error: string }) => void) => {
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.AI_ERROR, handler)
+      return handler
+    },
+    removeErrorListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.AI_ERROR, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.AI_ERROR)
+    },
+  },
+
 }
 
 contextBridge.exposeInMainWorld('api', api)

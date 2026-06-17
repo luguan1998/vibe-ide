@@ -115,8 +115,16 @@ function MermaidBlock({ code }: { code: string }) {
 function CodeBlock({ language, code }: { language: string; code: string }) {
   const { theme } = useTheme()
   const [html, setHtml] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const monacoRef = useRef<any>(null)
   const monacoLang = mapLanguage(language)
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [code])
 
   useEffect(() => {
     let cancel = () => {}
@@ -139,8 +147,24 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   }, [theme.monacoTheme, code, monacoLang])
 
   return (
-    <div className="md-code-block">
+    <div className="md-code-block group">
       {language !== 'plaintext' && <span className="md-code-lang">{language}</span>}
+      <button
+        onClick={handleCopy}
+        className="absolute top-1.5 right-1.5 p-1 rounded bg-ide-bg/80 hover:bg-ide-hover text-ide-text-muted hover:text-ide-text opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        title="Copy code"
+      >
+        {copied ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-success">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+            <rect x="9" y="9" width="13" height="13" rx="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+        )}
+      </button>
       {html
         ? <pre><code dangerouslySetInnerHTML={{ __html: html }} /></pre>
         : <pre><code>{code}</code></pre>

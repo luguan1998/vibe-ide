@@ -5,6 +5,7 @@ import { createHash } from 'crypto'
 import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers, cleanupTerminals } from './pty'
+import { registerAiHandlers, cleanupAiSessions } from './ai'
 import { registerGitHandlers } from './git'
 import { stopWatching } from './watcher'
 import { registerFileHandlers } from './file'
@@ -205,6 +206,7 @@ app.whenReady().then(() => {
 
   // Register PTY handlers after window is created
   registerPtyHandlers(mainWindow)
+  registerAiHandlers(mainWindow)
 
   // Clamp zoom to 100% — prevents Chromium's built-in page zoom from eating Ctrl+= / Ctrl+-
   if (mainWindow) {
@@ -285,6 +287,7 @@ app.whenReady().then(() => {
 
 function cleanupAndExit(): void {
   cleanupTerminals()
+  cleanupAiSessions()
   stopWatching()
   closeCodeGraph()
   terminateOcrWorker()

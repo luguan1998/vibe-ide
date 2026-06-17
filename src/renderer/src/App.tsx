@@ -9,6 +9,7 @@ import OutlinePanel, { isCode, isMarkdown } from './components/OutlinePanel'
 import NavBar from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
+import AiTab from './components/AiTab'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { TerminalSession, RenameTerminalResult } from '@shared/types'
@@ -128,6 +129,28 @@ declare global {
       removeFocusSettingsListener: (handler?: any) => void
       onStartupOpenPath: (callback: (data: { type: 'directory' | 'file'; path: string }) => void) => any
       removeStartupOpenPathListener: (handler?: any) => void
+      ai: {
+        checkAvailable: () => Promise<{ available: boolean; installCmd?: string }>
+        create: (options: { sessionId: string; cwd: string; autoApprove: boolean }) => Promise<{ success: boolean; error?: string }>
+        send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>
+        cancel: (sessionId: string) => Promise<boolean>
+        destroy: (sessionId: string) => Promise<boolean>
+        respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>) => Promise<{ success: boolean }>
+        onMessage: (callback: (data: any) => void) => any
+        removeMessageListener: (handler?: any) => void
+        onStreamToken: (callback: (data: { sessionId: string; token: string }) => void) => any
+        removeStreamTokenListener: (handler?: any) => void
+        onPermission: (callback: (data: any) => void) => any
+        removePermissionListener: (handler?: any) => void
+        onReady: (callback: (data: { sessionId: string }) => void) => any
+        removeReadyListener: (handler?: any) => void
+        onFileChange: (callback: (data: any) => void) => any
+        removeFileChangeListener: (handler?: any) => void
+        onProgress: (callback: (data: any) => void) => any
+        removeProgressListener: (handler?: any) => void
+        onError: (callback: (data: { sessionId: string; error: string }) => void) => any
+        removeErrorListener: (handler?: any) => void
+      }
     }
       }
 }
@@ -195,6 +218,7 @@ export default function App() {
   }, [pollingEnabled])
 
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
+  const [sessionViewModes, setSessionViewModes] = useState<Record<string, 'term' | 'gui'>>({})
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
   const callGraphFocalNodeRef = useRef<any>(null); callGraphFocalNodeRef.current = callGraphFocalNode
   const handleOpenCallGraphFromEditor = useCallback(async (word: string) => {
@@ -695,6 +719,16 @@ export default function App() {
         }
       }
 
+      // ai.focus → toggle current session between term/gui mode
+      if (eventMatchesBinding(e, bindings['ai.focus'])) {
+        if (centerView !== 'diff' && activeSessionId) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          const currentMode = sessionViewModes[activeSessionId] || 'term'
+          setSessionViewModes(prev => ({ ...prev, [activeSessionId]: currentMode === 'term' ? 'gui' : 'term' }))
+        }
+      }
+
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
       // Use visual order (grouped by cwd) instead of creation order
       const groups = new Map<string, TerminalSession[]>()
@@ -1112,6 +1146,8 @@ export default function App() {
         return next
       })
     }
+    // 清理该 session 的 AI 子进程
+    window.api.ai.destroy(id)
     if (activeSessionId === id) {
       const remaining = sessions.filter(s => s.id !== id)
       setActiveSessionId(remaining.length > 0 ? remaining[0].id : null)
@@ -1352,6 +1388,30 @@ export default function App() {
     } : null)
   }, [diffFile])
 
+  const handleOpenDiffFromAi = useCallback((fullPath: string, relativePath: string, oldContent?: string, newContent?: string) => {
+    pushNavHistory()
+    if (oldContent !== undefined && newContent !== undefined) {
+      setDiffFile({
+        filePath: relativePath, fullPath, diffContent: '', isStaged: false,
+        defaultEdit: false, compareOriginalContent: oldContent,
+        compareOriginalPath: fullPath, revision: ++diffRevisionRef.current,
+      })
+    } else {
+      setDiffFile({
+        filePath: relativePath, fullPath, diffContent: '', isStaged: false,
+        defaultEdit: true, revision: ++diffRevisionRef.current,
+      })
+    }
+    setCenterView('diff')
+  }, [])
+
+  const handleSwitchViewMode = useCallback((sessionId: string, mode: 'term' | 'gui') => {
+    setSessionViewModes(prev => ({ ...prev, [sessionId]: mode }))
+    if (activeSessionId !== sessionId) {
+      handleSwitchSession(sessionId)
+    }
+  }, [activeSessionId, handleSwitchSession])
+
   const handlePreviewMarkdown = useCallback((fullPath: string, fileName: string) => {
     pushNavHistory()
     setMarkdownFile({ fullPath, fileName })
@@ -1440,6 +1500,8 @@ export default function App() {
             onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}
             onExecuteCommand={handleExecuteCommand}
+            sessionViewModes={sessionViewModes}
+            onSwitchViewMode={handleSwitchViewMode}
           />
           </div>
           {/* Outline: overlay covering entire left panel below title bar */}
@@ -1539,18 +1601,31 @@ export default function App() {
               onOpenPath={(path) => handleCreateSessionAt(path)}
             />
           )}
-          {/* Terminal sessions */}
+          {/* Terminal sessions / AI GUI mode */}
           <div className="flex-1 mx-1 mb-1.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
-              {sessions.map(session => (
-                <div
-                  key={session.id}
-                  className="flex-1 flex flex-col overflow-hidden"
-                  style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
-                >
-                  <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
-                </div>
-              ))}
+              {sessions.map(session => {
+                const isGui = sessionViewModes[session.id] === 'gui'
+                return (
+                  <div
+                    key={session.id}
+                    className="flex-1 flex flex-col overflow-hidden"
+                    style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
+                  >
+                    {isGui ? (
+                      <AiTab
+                        activeSessionId={session.id}
+                        workspacePath={session.cwd}
+                        isActive={session.id === activeSessionId}
+                        autoApprove={autoApproveSessions[session.id] ?? false}
+                        onOpenDiff={handleOpenDiffFromAi}
+                      />
+                    ) : (
+                      <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
+                    )}
+                  </div>
+                )
+              })}
             </Suspense>
           </div>
           {/* Drag-over overlay for file compare */}
