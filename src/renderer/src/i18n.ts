@@ -15,6 +15,15 @@ export type Lang = 'en' | 'zh'
 
 // ── translation maps ───────────────────────────────────────────────
 
+// English overrides — keys whose English value differs from the key string itself
+// (e.g. 'prompt.explain' → full English sentence)
+const EN_MAP: Record<string, string> = {
+  'prompt.explain': 'Explain the architecture and key components of this codebase. Identify the main modules, how they interact, and the overall design patterns used. Be concise and focus on the most important structural insights.',
+  'prompt.bugs': 'Review the codebase for potential bugs, race conditions, error handling gaps, and edge cases that could cause failures. Prioritize by severity and likelihood. For each issue, explain the root cause and suggest a fix.',
+  'prompt.tests': 'Write comprehensive unit tests for the main module. Cover edge cases, error paths, and typical usage scenarios. Use the existing test framework and patterns in the project. Ensure tests are isolated and deterministic.',
+  'prompt.refactor': 'Identify code that could benefit from refactoring for readability, maintainability, or performance. Suggest concrete changes with clear rationale. Preserve existing behavior — no functional changes. Focus on the highest-impact improvements first.',
+}
+
 const ZH_MAP: Record<string, string> = {
   // SessionPanel
   'running': '正在运行',
@@ -252,10 +261,25 @@ const ZH_MAP: Record<string, string> = {
   'Focus AI Chat': '聚焦 AI 聊天',
   'Connecting...': '连接中...',
   'Streaming...': '生成中...',
-  'Explain this codebase': '解释这个代码库',
+  'Explain this codebase': '解释代码库',
   'Find potential bugs': '查找潜在 bug',
-  'Write tests for the main module': '为主模块编写测试',
-  'Refactor for readability': '重构以提高可读性',
+  'Write tests': '编写测试',
+  'Refactor': '重构',
+
+  // AI Prompt templates (full prompts sent to Claude)
+  'prompt.explain': '请解释这个代码库的架构和核心组件。识别主要模块、它们的交互方式以及所使用的设计模式。请简洁明了，聚焦于最重要的结构性洞察。',
+  'prompt.bugs': '审查代码库中潜在的 bug、竞态条件、错误处理缺失以及可能导致失败的边界情况。按严重程度和可能性排序。对每个问题，解释根本原因并建议修复方案。',
+  'prompt.tests': '为主要模块编写全面的单元测试。覆盖边界情况、错误路径和典型使用场景。使用项目中已有的测试框架和模式。确保测试独立且确定性可重复。',
+  'prompt.refactor': '识别可以重构以提升可读性、可维护性或性能的代码。提出具体的改动建议并说明理由。保持现有行为不变——不做功能性变更。优先关注影响最大的改进。',
+  // AI Permission Modes
+  'Session History': '会话历史',
+  'New Session': '新建会话',
+  'Default': '默认',
+  'Plan': '计划',
+  'Edit': '编辑',
+  'Auto': '自动',
+  'Don\'t Ask': '禁止询问',
+  'Bypass': '绕过',
   'Copy install command': '复制安装命令',
 }
 
@@ -290,8 +314,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const t = useCallback(
     (key: string) => {
-      if (lang === 'en') return key
-      return ZH_MAP[key] || key
+      if (lang === 'en') return EN_MAP[key] || key
+      return ZH_MAP[key] || EN_MAP[key] || key
     },
     [lang],
   )

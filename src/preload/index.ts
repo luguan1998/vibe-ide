@@ -205,6 +205,10 @@ const api = {
   ai: {
     checkAvailable: () =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_CHECK_AVAILABLE),
+    listSessions: (cwd?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_SESSIONS, cwd),
+    loadSessionMessages: (resumeSessionId: string, cwd: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, resumeSessionId, cwd),
     create: (options: any) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_CREATE, options),
     send: (sessionId: string, message: string) =>

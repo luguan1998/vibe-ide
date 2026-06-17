@@ -1,9 +1,10 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
-import { readFile } from 'fs/promises'
+import { readFile, readdir } from 'fs/promises'
 import { join, isAbsolute, relative } from 'path'
+import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
-import type { AiCreateOptions, AiToolUse, AiSendPayload, AiPermissionResponsePayload } from '../shared/types'
+import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode } from '../shared/types'
 
 interface ManagedAiSession {
   process: ChildProcess
@@ -47,6 +48,18 @@ function isFileEditTool(toolName: string): boolean {
   return AI_FILE_EDIT_TOOLS.has(toolName)
 }
 
+// Calculate context percentage from usage token counts.
+// Claude CLI stream-json does NOT include context_window in output;
+// only usage (token counts) is available.
+const DEFAULT_CONTEXT_WINDOW_SIZE = 200000
+
+function calcContextPercent(usage: any): number | undefined {
+  if (!usage) return undefined
+  const input = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0)
+  if (input === 0) return undefined
+  return (input / DEFAULT_CONTEXT_WINDOW_SIZE) * 100
+}
+
 async function extractFileChange(sessionId: string, block: any, cwd: string): Promise<void> {
   const input = block.input || {}
   const filePath = input.file_path || input.path || input.filePath
@@ -74,7 +87,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       if (msg.subtype === 'status') break
       const s = aiSessions.get(sessionId)
       if (s) s.ready = true
-      send(IPC_CHANNELS.AI_READY, { sessionId, tools: msg.tools, model: msg.model })
+      send(IPC_CHANNELS.AI_READY, { sessionId, tools: msg.tools, model: msg.model, slashCommands: msg.slash_commands })
       break
     }
 
@@ -106,6 +119,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         content: textParts.join('\n'),
         thinking: thinkingParts.length > 0 ? thinkingParts.join('\n') : undefined,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
+        contextPercent: calcContextPercent(msg.message?.usage),
         timestamp: Date.now(),
       })
       break
@@ -209,6 +223,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         costUsd: msg.total_cost_usd,
         durationMs: msg.duration_ms,
         numTurns: msg.num_turns,
+        contextPercent: calcContextPercent(msg.usage),
         timestamp: Date.now(),
       })
       break
@@ -243,8 +258,232 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
   }
 }
 
+// ── Session list: read from ~/.claude/projects/<normalized-cwd>/ ──
+// Claude CLI stores sessions as <session-id>.jsonl files under project directories.
+// Normalization: D:\path → d--path (:\ → --, \ → -, . → -, lowercase drive)
+
+function normalizeCwdToProjectDir(cwd: string): string {
+  let normalized = cwd
+  // Windows drive: D:\ → D--
+  if (/^[A-Za-z]:[\\\/]/.test(normalized)) {
+    normalized = normalized[0] + '--' + normalized.slice(3)
+  }
+  return normalized.replace(/[\\\/.]/g, '-')
+}
+
+async function listSessionsForCwd(cwd: string): Promise<{ sessions: any[] }> {
+  const projectsRoot = join(homedir(), '.claude', 'projects')
+  let projectDirName = normalizeCwdToProjectDir(cwd).toLowerCase()
+
+  // Try both lowercase and original case
+  const allDirs = await readdir(projectsRoot).catch(() => [] as string[])
+  const match = allDirs.find(d => d === projectDirName || d === normalizeCwdToProjectDir(cwd))
+  if (!match) return { sessions: [] }
+
+  const projectDir = join(projectsRoot, match)
+  const files = await readdir(projectDir).catch(() => [] as string[])
+  const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
+
+  // Read metadata from each session file (first few lines only)
+  const sessions: any[] = []
+  for (const jsonlFile of jsonlFiles) {
+    const sessionId = jsonlFile.replace('.jsonl', '')
+    try {
+      const content = await readFile(join(projectDir, jsonlFile), 'utf-8')
+      const lines = content.split('\n').filter(Boolean)
+
+      let name = sessionId
+      let timestamp = 0
+      let model = ''
+      // Scan first ~20 lines for first user message
+      for (const line of lines.slice(0, 20)) {
+        try {
+          const msg = JSON.parse(line)
+          if (msg.type === 'user' && msg.message?.role === 'user' && typeof msg.message.content === 'string') {
+            name = msg.message.content.slice(0, 60)
+            timestamp = new Date(msg.timestamp).getTime()
+            break
+          }
+          if (msg.type === 'assistant' && msg.message?.model) {
+            model = msg.message.model
+          }
+        } catch { /* skip malformed lines */ }
+      }
+      // Skip sessions with no user message
+      if (timestamp === 0) continue
+
+      sessions.push({ session_id: sessionId, name, timestamp, model })
+    } catch { /* skip unreadable files */ }
+  }
+
+  // Sort most recent first
+  sessions.sort((a, b) => b.timestamp - a.timestamp)
+  return { sessions: sessions.slice(0, 30) }
+}
+
+// ── Load full session history from .jsonl for resume display ──
+
+function resolveProjectDir(cwd: string): string | null {
+  const projectsRoot = join(homedir(), '.claude', 'projects')
+  // Synchronous scan needed here — only a few dirs
+  try {
+    const allDirs = require('fs').readdirSync(projectsRoot)
+    const lowerName = normalizeCwdToProjectDir(cwd).toLowerCase()
+    const upperName = normalizeCwdToProjectDir(cwd)
+    const match = allDirs.find(d => d === lowerName || d === upperName)
+    return match ? join(projectsRoot, match) : null
+  } catch { return null }
+}
+
+async function loadSessionMessages(resumeSessionId: string, cwd: string): Promise<{
+  messages: AiMessage[]
+  model: string
+  slashCommands: string[]
+}> {
+  const projectDir = resolveProjectDir(cwd)
+  if (!projectDir) return { messages: [], model: '', slashCommands: [] }
+
+  const jsonlPath = join(projectDir, `${resumeSessionId}.jsonl`)
+  let content: string
+  try { content = await readFile(jsonlPath, 'utf-8') } catch { return { messages: [], model: '', slashCommands: [] } }
+
+  const lines = content.split('\n').filter(Boolean)
+  const messages: AiMessage[] = []
+  let model = ''
+  const slashCommands: string[] = []
+
+  // Track tool_use IDs so we can merge tool_result into them
+  const toolUseIndex = new Map<string, { msgIdx: number; toolIdx: number }>()
+
+  for (const line of lines) {
+    let msg: any
+    try { msg = JSON.parse(line) } catch { continue }
+
+    // Skip non-conversation lines
+    if (['permission-mode', 'file-history-snapshot', 'stream_event', 'content_block_delta',
+      'content_block_start', 'content_block_stop', 'message_start', 'message_delta',
+      'message_stop', 'keep_alive', 'control_cancel_request', 'tool_progress',
+      'permission_request', 'control_request', 'attachment'].includes(msg.type)) continue
+
+    const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now()
+    const sid = resumeSessionId
+
+    if (msg.type === 'system') {
+      if (msg.subtype === 'init') {
+        model = msg.model || model
+        if (Array.isArray(msg.slash_commands)) {
+          for (const c of msg.slash_commands) slashCommands.push(c)
+        }
+      }
+      continue
+    }
+
+    if (msg.type === 'assistant') {
+      const contentArr = msg.message?.content
+      if (!Array.isArray(contentArr)) continue
+      const textParts: string[] = []
+      const thinkingParts: string[] = []
+      const toolUses: AiToolUse[] = []
+      for (const block of contentArr) {
+        if (block.type === 'text') textParts.push(block.text)
+        else if (block.type === 'thinking' && block.thinking) thinkingParts.push(block.thinking)
+        else if (block.type === 'tool_use') {
+          const tu: AiToolUse = { id: block.id, name: block.name, input: block.input }
+          toolUses.push(tu)
+          // Record position so we can merge tool_result later
+          toolUseIndex.set(block.id, { msgIdx: messages.length, toolIdx: toolUses.length - 1 })
+        }
+      }
+      if (textParts.length === 0 && toolUses.length === 0 && thinkingParts.length === 0) continue
+      messages.push({
+        sessionId: sid, type: 'assistant', role: 'assistant',
+        content: textParts.join('\n') || undefined,
+        thinking: thinkingParts.length > 0 ? thinkingParts.join('\n') : undefined,
+        toolUse: toolUses.length > 0 ? toolUses : undefined,
+        contextPercent: calcContextPercent(msg.message?.usage),
+        timestamp: ts,
+      })
+      continue
+    }
+
+    if (msg.type === 'user') {
+      const userContent = msg.message?.content
+      // String content: simple user message
+      if (typeof userContent === 'string') {
+        messages.push({
+          sessionId: sid, type: 'user', role: 'user',
+          content: userContent, timestamp: ts,
+        })
+        continue
+      }
+      // Array content: may contain tool_result blocks
+      if (Array.isArray(userContent)) {
+        for (const block of userContent) {
+          if (block.type === 'tool_result') {
+            const toolUseId = block.tool_use_id
+            const resultContent = typeof block.content === 'string' ? block.content : JSON.stringify(block.content)
+            const result: AiToolResult = { toolUseId, content: resultContent, isError: block.is_error || false }
+
+            // Merge into existing assistant message's toolUse if found
+            const pos = toolUseIndex.get(toolUseId)
+            if (pos) {
+              const existingMsg = messages[pos.msgIdx]
+              if (existingMsg.toolUse) {
+                existingMsg.toolUse[pos.toolIdx] = { ...existingMsg.toolUse[pos.toolIdx], result }
+              }
+              // No separate AiMessage for merged tool_result
+            }
+          }
+        }
+        // If the user content also has a text part (rare), add as user message
+        const textPart = userContent.find(b => b.type === 'text')
+        if (textPart) {
+          messages.push({
+            sessionId: sid, type: 'user', role: 'user',
+            content: textPart.text, timestamp: ts,
+          })
+        }
+      }
+      continue
+    }
+
+    if (msg.type === 'result') {
+      if (msg.is_error) {
+        messages.push({
+          sessionId: sid, type: 'result',
+          error: msg.errors?.join('\n') || msg.result || 'Unknown error',
+          timestamp: ts,
+        })
+      } else {
+        messages.push({
+          sessionId: sid, type: 'result',
+          content: msg.result,
+          costUsd: msg.total_cost_usd,
+          numTurns: msg.num_turns,
+          durationMs: msg.duration_ms,
+          contextPercent: calcContextPercent(msg.usage),
+          timestamp: ts,
+        })
+      }
+      continue
+    }
+  }
+
+  return { messages, model, slashCommands }
+}
+
 export function registerAiHandlers(win: BrowserWindow | null): void {
   mainWindow = win
+
+  // List available sessions for resume
+  ipcMain.handle(IPC_CHANNELS.AI_LIST_SESSIONS, async (_event, cwd?: string) => {
+    return listSessionsForCwd(cwd || '')
+  })
+
+  // Load full message history from .jsonl for resume display
+  ipcMain.handle(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, async (_event, resumeSessionId: string, cwd: string) => {
+    return loadSessionMessages(resumeSessionId, cwd)
+  })
 
   // Check if claude/openclaude CLI is available
   ipcMain.handle(IPC_CHANNELS.AI_CHECK_AVAILABLE, () => {
@@ -257,7 +496,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
 
   // Spawn claude/openclaude subprocess
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
-    const { sessionId, cwd, autoApprove } = options
+    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId } = options
 
     // Pre-check binary availability
     const resolved = findBinary()
@@ -278,7 +517,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
       aiSessions.delete(sessionId)
     }
 
-    const permMode = autoApprove ? 'acceptEdits' : 'default'
+    const permMode: AiPermissionMode = permissionMode || (autoApprove ? 'acceptEdits' : 'default')
 
     // Sanitize env: remove Unix-style / MSYS vars on Windows so the CLI detects the correct OS.
     // (pty.ts already does similar sanitization for encoding)
@@ -316,6 +555,9 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
       '--permission-mode', permMode,
       '--append-system-prompt', `You are running on ${platformDesc}. The workspace directory is: ${cwd}`,
     ]
+    if (resumeSessionId) {
+      args.push('--resume', resumeSessionId)
+    }
 
     const proc = spawn(bin, args, {
       cwd,
@@ -373,22 +615,30 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
 
     proc.on('error', (err) => {
       clearTimeout(startupTimer)
-      aiSessions.delete(sessionId)
-      send(IPC_CHANNELS.AI_ERROR, { sessionId, error: err.message })
+      // Only handle if this is still the active process for this session
+      // (a new process may have been spawned for the same sessionId via resume)
+      const current = aiSessions.get(sessionId)
+      if (current?.process.pid === proc.pid) {
+        aiSessions.delete(sessionId)
+        send(IPC_CHANNELS.AI_ERROR, { sessionId, error: err.message })
+      }
     })
 
     proc.on('exit', (code, signal) => {
       clearTimeout(startupTimer)
-      aiSessions.delete(sessionId)
-      if (code !== 0 && code !== null) {
-        // Include stderr content in the error for better diagnostics
-        const stderrMsg = stderrChunks.join('\n').trim()
-        const baseMsg = `Process exited with code ${code}${signal ? ` (signal: ${signal})` : ''}`
-        const errorDetail = stderrMsg ? `${baseMsg}\n\n${stderrMsg}` : baseMsg
-        send(IPC_CHANNELS.AI_ERROR, {
-          sessionId,
-          error: errorDetail,
-        })
+      // Only handle if this is still the active process for this session
+      const current = aiSessions.get(sessionId)
+      if (current?.process.pid === proc.pid) {
+        aiSessions.delete(sessionId)
+        if (code !== 0 && code !== null) {
+          const stderrMsg = stderrChunks.join('\n').trim()
+          const baseMsg = `Process exited with code ${code}${signal ? ` (signal: ${signal})` : ''}`
+          const errorDetail = stderrMsg ? `${baseMsg}\n\n${stderrMsg}` : baseMsg
+          send(IPC_CHANNELS.AI_ERROR, {
+            sessionId,
+            error: errorDetail,
+          })
+        }
       }
     })
 

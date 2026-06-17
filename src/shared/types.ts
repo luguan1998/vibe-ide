@@ -105,6 +105,8 @@ export const IPC_CHANNELS = {
   AI_CANCEL: 'ai:cancel',
   AI_DESTROY: 'ai:destroy',
   AI_CHECK_AVAILABLE: 'ai:checkAvailable',
+  AI_LIST_SESSIONS: 'ai:listSessions',
+  AI_LOAD_SESSION_MESSAGES: 'ai:loadSessionMessages',
   AI_PERMISSION_RESPONSE: 'ai:permissionResponse',
   AI_MESSAGE: 'ai:message',               // push: full message (assistant text/tool_use)
   AI_STREAM_TOKEN: 'ai:streamToken',      // push: partial token for streaming display
@@ -306,6 +308,7 @@ export interface AiMessage {
   costUsd?: number
   numTurns?: number
   durationMs?: number
+  contextPercent?: number | null
   timestamp: number
 }
 
@@ -345,6 +348,12 @@ export interface AiPermissionRequest {
   toolInput?: Record<string, any>  // original tool_input, needed for control_response
 }
 
+export interface AiSlashCommand {
+  name: string
+  description: string
+  argumentHint?: string
+}
+
 export interface AiSessionState {
   ready: boolean
   busy: boolean
@@ -353,12 +362,20 @@ export interface AiSessionState {
   streamBuffer: string
   thinkingBuffer: string
   pendingPermission: AiPermissionRequest | null
+  slashCommands: AiSlashCommand[]
+  model: string
+  contextPercent: number | null
+  name: string
 }
+
+export type AiPermissionMode = 'default' | 'plan' | 'acceptEdits' | 'auto' | 'dontAsk' | 'bypassPermissions'
 
 export interface AiCreateOptions {
   sessionId: string
   cwd: string
   autoApprove: boolean
+  permissionMode: AiPermissionMode
+  resumeSessionId?: string
 }
 
 export interface AiSendPayload {

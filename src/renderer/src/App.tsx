@@ -12,7 +12,7 @@ import CallGraphOverlay from './components/CallGraphOverlay'
 import AiTab from './components/AiTab'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
-import { TerminalSession, RenameTerminalResult } from '@shared/types'
+import { TerminalSession, RenameTerminalResult, AiPermissionMode } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
 import { useI18n } from './i18n'
 import type { TerminalViewHandle } from './components/TerminalView'
@@ -265,6 +265,7 @@ export default function App() {
   const historyListRef = useRef<HTMLDivElement>(null)
   const [agentStatus, setAgentStatus] = useState<Record<string, 'running' | 'idle'>>({})
   const [autoApproveSessions, setAutoApproveSessions] = useState<Record<string, boolean>>({})
+  const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
   const [focusedPanel, setFocusedPanel] = useState<'term' | 'right' | null>(null)
   const [wordWrap, setWordWrap] = useState(() => {
     try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
@@ -1618,6 +1619,20 @@ export default function App() {
                         workspacePath={session.cwd}
                         isActive={session.id === activeSessionId}
                         autoApprove={autoApproveSessions[session.id] ?? false}
+                        permissionMode={aiPermissionModes[session.id] ?? 'default'}
+                        onPermissionModeChange={(mode: AiPermissionMode) => {
+                          setAiPermissionModes(prev => ({ ...prev, [session.id]: mode }))
+                        }}
+                        onViewAi={() => {
+                          setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))
+                        }}
+                        onRenameSession={async (name: string) => {
+                          if (manuallyRenamedRef.current.has(session.id)) return
+                          const result = await window.api.terminal.rename(session.id, name)
+                          if (result.success && result.session) {
+                            setSessions(prev => prev.map(s => s.id === session.id ? result.session! : s))
+                          }
+                        }}
                         onOpenDiff={handleOpenDiffFromAi}
                       />
                     ) : (
