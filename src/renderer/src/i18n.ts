@@ -210,7 +210,6 @@ const ZH_MAP: Record<string, string> = {
   'New Custom Command': '新建自定义命令',
   'Enter command name': '输入命令名称',
   'Enter command to execute': '输入要执行的命令',
-  'Edit': '编辑',
   'Execute': '执行',
   'No custom commands': '暂无自定义命令',
 
@@ -274,13 +273,25 @@ const ZH_MAP: Record<string, string> = {
   // AI Permission Modes
   'Session History': '会话历史',
   'New Session': '新建会话',
-  'Default': '默认',
   'Plan': '计划',
   'Edit': '编辑',
-  'Auto': '自动',
-  'Don\'t Ask': '禁止询问',
   'Bypass': '绕过',
   'Copy install command': '复制安装命令',
+  // AI Result status
+  'Aborted': '已中止',
+  'Max tokens reached': '已达到最大 token 数',
+  'Execution failed': '执行失败',
+  'Agent': '智能体',
+  // AI AskUserQuestion card
+  'AI has a question': 'AI 有一个问题',
+  'Submit': '提交',
+  'multi-select': '可多选',
+  // AI ExitPlanMode card
+  'Plan Ready': '计划已就绪',
+  'Clear & Execute': '清空并执行',
+  'Send Feedback': '发送反馈',
+  'Cancel': '取消',
+  'Feedback for revision (optional)': '修改建议（可选）',
 }
 
 // ── context ────────────────────────────────────────────────────────

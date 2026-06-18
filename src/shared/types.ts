@@ -108,6 +108,9 @@ export const IPC_CHANNELS = {
   AI_LIST_SESSIONS: 'ai:listSessions',
   AI_LOAD_SESSION_MESSAGES: 'ai:loadSessionMessages',
   AI_PERMISSION_RESPONSE: 'ai:permissionResponse',
+  AI_PLAN_EXECUTE: 'ai:planExecute',
+  AI_SET_PERMISSION_MODE: 'ai:setPermissionMode',
+  AI_ASK_RESUME: 'ai:askResume',
   AI_MESSAGE: 'ai:message',               // push: full message (assistant text/tool_use)
   AI_STREAM_TOKEN: 'ai:streamToken',      // push: partial token for streaming display
   AI_PROGRESS: 'ai:progress',             // push: tool_progress events
@@ -299,6 +302,11 @@ export interface AiMessage {
   sessionId: string
   type: AiMessageType
   role?: 'assistant' | 'user'
+  // Stable across multi-block assistant messages. CLI's stream-json emits one assistant
+  // message per content block (thinking, then text, then tool_use) but the underlying
+  // message.id is the same. Without this, renderer appends each block as a separate
+  // message → same sentence shows twice.
+  messageId?: string
   content?: string
   thinking?: string
   toolUse?: AiToolUse[]
@@ -309,6 +317,9 @@ export interface AiMessage {
   numTurns?: number
   durationMs?: number
   contextPercent?: number | null
+  subtype?: 'success' | 'error_max_tokens' | 'error_during_execution'
+  isAborted?: boolean
+  parentToolUseId?: string
   timestamp: number
 }
 
@@ -368,7 +379,7 @@ export interface AiSessionState {
   name: string
 }
 
-export type AiPermissionMode = 'default' | 'plan' | 'acceptEdits' | 'auto' | 'dontAsk' | 'bypassPermissions'
+export type AiPermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions'
 
 export interface AiCreateOptions {
   sessionId: string
@@ -389,4 +400,29 @@ export interface AiPermissionResponsePayload {
   approved: boolean
   tool?: string
   toolInput?: Record<string, any>
+  feedback?: string  // For deny path: shown to model as reason. For ExitPlanMode keep-planning feedback.
+}
+
+// Clear conversation context + restart in acceptEdits mode + send plan as first message.
+// Used by ExitPlanMode "Clear + Execute" path: plan is already on disk (input.planFilePath).
+export interface AiPlanExecutePayload {
+  sessionId: string
+  planFilePath: string
+}
+
+// Switch permission mode at runtime via control_request subtype=set_permission_mode
+// (no subprocess restart). Validated against Claude CLI 2.1.139 raw stream-json input.
+export interface AiSetPermissionModePayload {
+  sessionId: string
+  mode: AiPermissionMode
+}
+
+// Kill-and-resume for AskUserQuestion. Claude CLI auto-fills empty answers after ~0.5s when
+// waiting on a control_response in stream-json input mode, so we can't rely on the normal
+// control_response path. Instead: kill the subprocess, respawn with --resume <claudeSessionId>,
+// and send the user's answers as a fresh user message. This avoids the "I didn't receive a
+// selection" noise message. Pattern copied from desktop-cc-gui-main (Tauri reference impl).
+export interface AiAskResumePayload {
+  sessionId: string
+  answers: Record<string, string>  // { [questionText]: "selected label" }
 }

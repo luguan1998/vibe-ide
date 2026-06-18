@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
 import { useI18n } from '../i18n'
-import { SquareArrowUp, Square, ChevronDown, Check } from 'lucide-react'
+import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText } from 'lucide-react'
 
 interface AiTabProps {
   activeSessionId: string | null
@@ -140,7 +140,130 @@ function AiToolCallCard({ tool }: { tool: AiToolUse }) {
   )
 }
 
-function AiPermissionCard({ perm, sessionId, onRespond }: {
+const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, sessionId, onRespond }: {
+  perm: AiPermissionRequest
+  sessionId: string
+  onRespond: (sid: string, rid: string, approved: boolean, tool: string, toolInput?: Record<string, any>) => void
+}) {
+  const { t } = useI18n()
+
+  const questions = (perm.toolInput?.questions || []) as Array<{
+    question: string
+    header: string
+    multiSelect: boolean
+    options: Array<{ label: string; description?: string; preview?: string }>
+  }>
+
+  // 单题单选 → 点击选项立即提交；多题或多选 → Submit 统一提交
+  const quickSubmit = questions.length === 1 && !questions[0].multiSelect
+
+  const [selections, setSelections] = useState<Record<string, Set<string>>>(() => {
+    const init: Record<string, Set<string>> = {}
+    for (const q of questions) init[q.question] = new Set<string>()
+    return init
+  })
+
+  const allAnswered = questions.every(q => (selections[q.question]?.size ?? 0) >= 1)
+
+  const buildAnswers = (selOverride?: Record<string, Set<string>>): Record<string, string> => {
+    const sel = selOverride ?? selections
+    const answers: Record<string, string> = {}
+    for (const q of questions) {
+      answers[q.question] = [...(sel[q.question] || [])].join(', ')
+    }
+    return answers
+  }
+
+  const handleSubmit = () => {
+    onRespond(sessionId, perm.requestId, true, perm.tool, { ...perm.toolInput, answers: buildAnswers() })
+  }
+
+  const toggle = (qText: string, label: string, multi: boolean) => {
+    const prevSet = selections[qText] || new Set<string>()
+    const next = new Set<string>(multi ? prevSet : [])
+    if (multi) {
+      if (prevSet.has(label)) next.delete(label)
+      else next.add(label)
+    } else {
+      next.add(label)
+    }
+    setSelections(prev => ({ ...prev, [qText]: next }))
+
+    // quickSubmit 模式下，单题单选点击即提交
+    if (quickSubmit) {
+      onRespond(sessionId, perm.requestId, true, perm.tool, {
+        ...perm.toolInput,
+        answers: { [qText]: label },
+      })
+    }
+  }
+
+  return (
+    <div className="shrink-0 border-t border-ide-accent/40 bg-ide-accent/5 px-2 py-2 animate-fade-in">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <HelpCircle size={13} className="text-ide-accent shrink-0" />
+        <span className="text-[11px] font-medium text-ide-accent">{t('AI has a question')}</span>
+      </div>
+
+      {questions.map((q, qi) => (
+        <div key={qi} className="mb-2 last:mb-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-ide-accent/15 text-ide-accent border border-ide-accent/25">
+              {q.header}
+            </span>
+            {q.multiSelect && (
+              <span className="text-[9px] text-ide-text-muted/60">{t('multi-select')}</span>
+            )}
+          </div>
+          <div className="text-[11px] text-ide-text mb-1.5">{q.question}</div>
+          <div className="flex flex-wrap gap-1">
+            {q.options.map((opt, oi) => {
+              const selected = selections[q.question]?.has(opt.label) ?? false
+              return (
+                <button
+                  key={oi}
+                  title={opt.description}
+                  onClick={() => toggle(q.question, opt.label, q.multiSelect)}
+                  className={`px-2 py-1 text-[10px] rounded border transition-colors ${
+                    selected
+                      ? 'bg-ide-accent/20 border-ide-accent/50 text-ide-text'
+                      : 'border-ide-border hover:bg-ide-hover text-ide-text-muted'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+
+      <div className="flex gap-1.5 mt-2">
+        {!quickSubmit && (
+          <button
+            disabled={!allAnswered}
+            onClick={handleSubmit}
+            className={`px-3 py-1 text-[11px] font-medium rounded transition-colors ${
+              allAnswered
+                ? 'bg-ide-accent hover:bg-ide-accent-hover text-white'
+                : 'bg-ide-accent/30 text-white/50 cursor-not-allowed'
+            }`}
+          >
+            {t('Submit')}
+          </button>
+        )}
+        <button
+          onClick={() => onRespond(sessionId, perm.requestId, false, perm.tool, perm.toolInput)}
+          className="px-3 py-1 text-[11px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
+        >
+          {t('Deny')}
+        </button>
+      </div>
+    </div>
+  )
+})
+
+const AiPermissionCard = React.memo(function AiPermissionCard({ perm, sessionId, onRespond }: {
   perm: AiPermissionRequest
   sessionId: string
   onRespond: (sid: string, rid: string, approved: boolean, tool: string, toolInput?: Record<string, any>) => void
@@ -176,7 +299,67 @@ function AiPermissionCard({ perm, sessionId, onRespond }: {
       </div>
     </div>
   )
-}
+})
+
+// ExitPlanMode approval card. Plan content is already on disk (perm.toolInput.planFilePath);
+// "Clear & Execute" kills the plan-mode subprocess and respawns in acceptEdits mode with the
+// plan re-injected as first message — clears the inflated context from exploration.
+// "Send Feedback" denies with a feedback message so the model revises the plan.
+const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onClearExecute, onDeny }: {
+  perm: AiPermissionRequest
+  sessionId: string
+  onClearExecute: (sessionId: string, planFilePath: string) => void
+  onDeny: (sessionId: string, requestId: string, feedback: string) => void
+}) {
+  const { t } = useI18n()
+  const plan = (perm.toolInput?.plan as string) || ''
+  const planFilePath = (perm.toolInput?.planFilePath as string) || ''
+  const [feedback, setFeedback] = useState('')
+
+  return (
+    <div className="shrink-0 border-t border-ide-accent/40 bg-ide-accent/5 px-2 py-2 animate-fade-in">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <FileText size={13} className="text-ide-accent shrink-0" />
+        <span className="text-[11px] font-medium text-ide-accent">{t('Plan Ready')}</span>
+      </div>
+
+      <div className="max-h-64 overflow-y-auto mb-1.5 bg-ide-bg/60 rounded px-2 py-1.5 border border-ide-border/40">
+        <ChatMarkdown text={plan} />
+      </div>
+
+      <textarea
+        value={feedback}
+        onChange={(e) => setFeedback(e.target.value)}
+        placeholder={t('Feedback for revision (optional)')}
+        rows={2}
+        className="w-full text-[11px] px-2 py-1 mb-1.5 bg-ide-bg border border-ide-border rounded resize-none focus:outline-none focus:border-ide-accent/60 text-ide-text"
+      />
+
+      <div className="flex gap-1.5">
+        <button
+          onClick={() => onClearExecute(sessionId, planFilePath)}
+          className="px-3 py-1 text-[11px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+        >
+          {t('Clear & Execute')}
+        </button>
+        {feedback.trim() && (
+          <button
+            onClick={() => onDeny(sessionId, perm.requestId, feedback)}
+            className="px-3 py-1 text-[11px] font-medium border border-ide-accent/40 hover:bg-ide-accent/10 text-ide-accent rounded transition-colors"
+          >
+            {t('Send Feedback')}
+          </button>
+        )}
+        <button
+          onClick={() => onDeny(sessionId, perm.requestId, '')}
+          className="px-3 py-1 text-[11px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
+        >
+          {t('Cancel')}
+        </button>
+      </div>
+    </div>
+  )
+})
 
 function AiUserMessage({ message }: { message: AiMessage }) {
   return (
@@ -211,11 +394,27 @@ function ThinkingBlock({ text, defaultOpen = false }: { text: string; defaultOpe
 }
 
 function AiAssistantMessage({ message }: { message: AiMessage }) {
+  const { t } = useI18n()
   const showMeta = message.type === 'result' && (message.costUsd != null || message.numTurns != null)
   const showContent = message.type !== 'result'
   const hasContent = showContent && (message.content || message.thinking || (message.toolUse && message.toolUse.length > 0))
+
+  // Status pill for result messages — abort takes precedence over subtype errors
+  const statusConfig = message.type === 'result' && message.isAborted
+    ? { label: t('Aborted'), color: 'text-ide-text-muted/60' }
+    : message.subtype === 'error_max_tokens'
+      ? { label: t('Max tokens reached'), color: 'text-ide-warning' }
+      : message.subtype === 'error_during_execution'
+        ? { label: t('Execution failed'), color: 'text-ide-danger' }
+        : null
+
   return (
     <div className="space-y-1 animate-fade-in">
+      {statusConfig && (
+        <div className={`text-[9px] font-medium px-1 ${statusConfig.color}`}>
+          {statusConfig!.label}
+        </div>
+      )}
       {hasContent && (
         <div className="max-w-[92%] space-y-1.5">
           {message.thinking && <ThinkingBlock text={message.thinking} />}
@@ -265,11 +464,38 @@ function AiErrorMessage({ message }: { message: AiMessage }) {
 }
 
 function AiMessageBubble({ message }: { message: AiMessage }) {
-  if (message.error) return <AiErrorMessage message={message} />
-  if (message.role === 'user') return <AiUserMessage message={message} />
-  // 'result' duplicates the preceding 'assistant' text — only render if it carries cost/turn metadata
-  if (message.type === 'result' && message.costUsd == null && message.numTurns == null) return null
-  return <AiAssistantMessage message={message} />
+  const { t } = useI18n()
+  let inner: React.ReactNode
+  if (message.error) {
+    inner = <AiErrorMessage message={message} />
+  } else if (message.role === 'user') {
+    inner = <AiUserMessage message={message} />
+  } else if (
+    message.type === 'result'
+    && message.costUsd == null
+    && message.numTurns == null
+    && message.subtype !== 'error_max_tokens'
+    && message.subtype !== 'error_during_execution'
+    && !message.isAborted
+  ) {
+    // success 且无 meta → 重复消息，不渲染
+    return null
+  } else {
+    inner = <AiAssistantMessage message={message} />
+  }
+
+  // 子 agent 视觉分组（Agent/Task 工具产生的子消息）
+  if (message.parentToolUseId) {
+    return (
+      <div className="border-l-[3px] border-ide-accent/40 pl-2 ml-2 space-y-1">
+        <div className="text-[9px] text-ide-accent/70 uppercase tracking-wider font-mono">
+          {t('Agent')}
+        </div>
+        {inner}
+      </div>
+    )
+  }
+  return <>{inner}</>
 }
 
 // ── Merge tool_result into assistant message ─────────────────────
@@ -318,11 +544,8 @@ const EXAMPLE_PROMPTS: { label: string; prompt: string }[] = [
 ]
 
 const MODE_OPTIONS: { value: AiPermissionMode; label: string; icon: string }[] = [
-  { value: 'default', label: 'Default', icon: '🔒' },
   { value: 'plan', label: 'Plan', icon: '📋' },
   { value: 'acceptEdits', label: 'Edit', icon: '✏️' },
-  { value: 'auto', label: 'Auto', icon: '⚡' },
-  { value: 'dontAsk', label: 'Don\'t Ask', icon: '🚫' },
   { value: 'bypassPermissions', label: 'Bypass', icon: '🔓' },
 ]
 
@@ -546,7 +769,18 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
   }, [sessionHistoryOpen])
 
   // Input
-  const [inputValue, setInputValue] = useState('')
+  // Per-session draft keyed by sessionId — survives session switching.
+  // Uses activeSessionIdRef so setInputValue identity stays stable across sessionId
+  // changes (matters for memoized child components consuming the setter).
+  const activeSessionIdRef = useRef(activeSessionId)
+  activeSessionIdRef.current = activeSessionId
+  const [inputValues, setInputValues] = useState<Record<string, string>>({})
+  const inputValue = activeSessionId ? (inputValues[activeSessionId] || '') : ''
+  const setInputValue = useCallback((v: string) => {
+    const sid = activeSessionIdRef.current
+    if (!sid) return
+    setInputValues(prev => ({ ...prev, [sid]: v }))
+  }, [])
   const [slashMenuOpen, setSlashMenuOpen] = useState(false)
   const [slashFilter, setSlashFilter] = useState('')
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
@@ -575,6 +809,16 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
       updateSession(msg.sessionId, (s) => {
         const isAssistant = msg.type === 'assistant' && msg.role === 'assistant'
 
+        // CLI stream-json emits one assistant message per content block (thinking, then text,
+        // then tool_use), but msg.message.id stays the same. Without this merge, each block
+        // becomes a separate AiMessage and the same sentence appears twice in the UI.
+        const lastMsg = s.messages[s.messages.length - 1]
+        const isSameMessageId = isAssistant
+          && !!msg.messageId
+          && !!lastMsg
+          && lastMsg.type === 'assistant'
+          && lastMsg.messageId === msg.messageId
+
         // Determine what the stream buffers have that the incoming message doesn't.
         // Only flush unique content to avoid duplication (e.g. same thinking appearing
         // in both the stream buffer and the assistant message).
@@ -590,11 +834,22 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
           ? [{ sessionId: msg.sessionId, type: 'assistant' as const, role: 'assistant' as const,
               content: extraText || undefined,
               thinking: extraThinking || undefined,
+              parentToolUseId: msg.parentToolUseId,
               timestamp: Date.now() }]
           : []
 
         let messages: AiMessage[]
-        if (msg.toolResult) {
+        if (isSameMessageId && lastMsg) {
+          // Merge multi-block assistant message: accumulate content/thinking/toolUse into the
+          // last assistant message rather than appending a new bubble.
+          const merged: AiMessage = {
+            ...lastMsg,
+            content: [lastMsg.content || '', msg.content || ''].filter(Boolean).join('') || undefined,
+            thinking: [lastMsg.thinking, msg.thinking].filter(Boolean).join('\n\n') || undefined,
+            toolUse: msg.toolUse?.length ? [...(lastMsg.toolUse || []), ...msg.toolUse] : lastMsg.toolUse,
+          }
+          messages = [...s.messages.slice(0, -1), merged, ...flushedMsg]
+        } else if (msg.toolResult) {
           const merged = mergeToolResultIntoMessages(s.messages, msg.toolResult.toolUseId, msg.toolResult)
           messages = merged
             ? [...merged, ...flushedMsg]
@@ -629,13 +884,34 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
   }, [updateSession])
 
   // ── IPC: Stream tokens ──
+  // Each token arrival previously called setSessionStates, blocking the main thread and
+  // delaying permission-card rendering (AskUserQuestion / ExitPlanMode / approve prompts all
+  // appeared late during long streaming). Coalesce tokens across a single animation frame so
+  // React renders at most once per 16ms regardless of token throughput.
+  const pendingTokensRef = useRef<Map<string, { text: string; thinking: string }>>(new Map())
+  const rafScheduledRef = useRef(false)
   useEffect(() => {
     const handleToken = window.api.ai.onStreamToken(({ sessionId, token, kind }: any) => {
-      updateSession(sessionId, (s) => {
-        if (kind === 'thinking') {
-          return { ...s, thinkingBuffer: s.thinkingBuffer + token, streaming: true }
-        }
-        return { ...s, streamBuffer: s.streamBuffer + token, streaming: true }
+      if (!token) return
+      const map = pendingTokensRef.current
+      const cur = map.get(sessionId) || { text: '', thinking: '' }
+      if (kind === 'thinking') cur.thinking += token
+      else cur.text += token
+      map.set(sessionId, cur)
+      if (rafScheduledRef.current) return
+      rafScheduledRef.current = true
+      requestAnimationFrame(() => {
+        rafScheduledRef.current = false
+        const batched = pendingTokensRef.current
+        pendingTokensRef.current = new Map()
+        batched.forEach((buf, sid) => {
+          updateSession(sid, (s) => ({
+            ...s,
+            streamBuffer: buf.text ? s.streamBuffer + buf.text : s.streamBuffer,
+            thinkingBuffer: buf.thinking ? s.thinkingBuffer + buf.thinking : s.thinkingBuffer,
+            streaming: true,
+          }))
+        })
       })
     })
     return () => window.api.ai.removeStreamTokenListener(handleToken)
@@ -652,6 +928,8 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
   // ── IPC: Permission requests ──
   useEffect(() => {
     const handlePerm = window.api.ai.onPermission((perm: any) => {
+      // [PLAN-MODE-DEBUG] confirm permission IPC reaches renderer
+      console.log(`[PLAN-MODE-DEBUG renderer] onPermission sid=${perm.sessionId} tool=${perm.tool} reqId=${perm.requestId} toolInputKeys=${Object.keys(perm.toolInput || {}).join(',')}`)
       updateSession(perm.sessionId, (s) => ({ ...s, pendingPermission: perm }))
     })
     return () => window.api.ai.removePermissionListener(handlePerm)
@@ -811,10 +1089,61 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
   // ── Permission response ──
   const handlePermissionResponse = useCallback((
     sessionId: string, requestId: string, approved: boolean,
+    tool: string, toolInput?: Record<string, any>, feedback?: string
+  ) => {
+    window.api.ai.respondPermission(sessionId, requestId, approved, tool, toolInput, feedback)
+    updateSession(sessionId, (s) => ({ ...s, pendingPermission: null }))
+  }, [updateSession])
+
+  // ── ExitPlanMode "Clear & Execute": kill plan-mode subprocess, respawn in acceptEdits,
+  // re-inject plan from disk as first message. Defined after handlePermissionResponse
+  // (被调先于主调) — AiExitPlanModeCard consumes both via onClearExecute / onDeny props.
+  const handlePlanClearExecute = useCallback(async (sessionId: string, planFilePath: string) => {
+    if (!planFilePath) return
+    // Preserve messages/model/slashCommands/contextPercent — main side /clear is intentional
+    // (drops plan-mode accumulated tokens), but renderer UI history should remain visible.
+    updateSession(sessionId, (s) => ({
+      ...s,
+      pendingPermission: null,
+      streaming: false,
+      streamBuffer: '',
+      thinkingBuffer: '',
+      busy: true,
+      ready: false,
+    }))
+    await window.api.ai.clearAndExecutePlan(sessionId, planFilePath)
+  }, [updateSession])
+
+  const handlePlanDeny = useCallback((sessionId: string, requestId: string, feedback: string) => {
+    window.api.ai.respondPermission(sessionId, requestId, false, 'ExitPlanMode', undefined, feedback || undefined)
+    updateSession(sessionId, (s) => ({ ...s, pendingPermission: null }))
+  }, [updateSession])
+
+  // ── AskUserQuestion "Kill-and-Resume": Claude CLI auto-fills empty answers ~0.5s after
+  // the control_request, so a normal control_response arrives too late and LLM already
+  // proceeded with "I didn't receive a selection". Main process kills CLI proactively
+  // on AskUserQuestion (ai.ts:289) and we spawn `--resume` after the user answers
+  // (ai-ask-resume.ts). Same signature as handlePermissionResponse so AiAskQuestionCard's
+  // existing onRespond prop works unchanged.
+  //
+  // Important: --resume only loads history into LLM context server-side; it does NOT
+  // replay past messages via stdout. So preserve messages/name/model/slashCommands here
+  // — clearing them was a previous bug that made the whole conversation disappear after
+  // answering an AskUserQuestion card. Only flush streaming buffers and the card itself.
+  const handleAskResume = useCallback((
+    sessionId: string, requestId: string, approved: boolean,
     tool: string, toolInput?: Record<string, any>
   ) => {
-    window.api.ai.respondPermission(sessionId, requestId, approved, tool, toolInput)
-    updateSession(sessionId, (s) => ({ ...s, pendingPermission: null }))
+    const answers = (toolInput?.answers || {}) as Record<string, string>
+    updateSession(sessionId, (s) => ({
+      ...s,
+      pendingPermission: null,
+      streaming: false,
+      streamBuffer: '',
+      thinkingBuffer: '',
+      busy: true,
+    }))
+    window.api.ai.askResume(sessionId, answers)
   }, [updateSession])
 
   // Exported for parent cleanup
@@ -975,11 +1304,26 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
 
       {/* Permission popup — floats above input, not inside scroll area */}
       {state.pendingPermission && activeSessionId && (
-        <AiPermissionCard
-          perm={state.pendingPermission}
-          sessionId={activeSessionId}
-          onRespond={handlePermissionResponse}
-        />
+        state.pendingPermission.tool === 'AskUserQuestion' ? (
+          <AiAskQuestionCard
+            perm={state.pendingPermission}
+            sessionId={activeSessionId}
+            onRespond={handleAskResume}
+          />
+        ) : state.pendingPermission.tool === 'ExitPlanMode' ? (
+          <AiExitPlanModeCard
+            perm={state.pendingPermission}
+            sessionId={activeSessionId}
+            onClearExecute={handlePlanClearExecute}
+            onDeny={handlePlanDeny}
+          />
+        ) : (
+          <AiPermissionCard
+            perm={state.pendingPermission}
+            sessionId={activeSessionId}
+            onRespond={handlePermissionResponse}
+          />
+        )
       )}
 
       {/* Input */}

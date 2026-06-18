@@ -1619,9 +1619,12 @@ export default function App() {
                         workspacePath={session.cwd}
                         isActive={session.id === activeSessionId}
                         autoApprove={autoApproveSessions[session.id] ?? false}
-                        permissionMode={aiPermissionModes[session.id] ?? 'default'}
+                        permissionMode={aiPermissionModes[session.id] ?? 'bypassPermissions'}
                         onPermissionModeChange={(mode: AiPermissionMode) => {
                           setAiPermissionModes(prev => ({ ...prev, [session.id]: mode }))
+                          // Push to subprocess so the actual --permission-mode reflects UI state.
+                          // Without this, subprocess keeps the spawn-time mode and UI lies.
+                          window.api.ai.setPermissionMode(session.id, mode)
                         }}
                         onViewAi={() => {
                           setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))

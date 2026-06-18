@@ -1,6 +1,7 @@
 # CLAUDE.md
 
 Vibe IDE — Electron-based desktop IDE with native terminal, git, file diff/edit, content search, and session management. Built with electron-vite, React, TypeScript, Tailwind CSS.
+使用sonnet搜索网上方案，sonnet才有搜索能力。
 
 ## UI Coding Rules
 

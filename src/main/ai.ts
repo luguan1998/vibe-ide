@@ -1,29 +1,45 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
+import { randomUUID } from 'crypto'
 import { readFile, readdir } from 'fs/promises'
 import { join, isAbsolute, relative } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
-import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode } from '../shared/types'
+import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload } from '../shared/types'
 
-interface ManagedAiSession {
+export interface ManagedAiSession {
   process: ChildProcess
   sessionId: string
   cwd: string
   lineBuffer: string
   ready: boolean
+  // Cached from system/init event — used by ask-resume to spawn a `--resume` subprocess.
+  claudeSessionId?: string
+  // Cached from modelUsage in stream-json output — used by calcContextPercent to use the
+  // actual model's context window instead of the 200k fallback. GLM-5.2 is 1M, Claude
+  // Sonnet/Opus 200k — without this, GLM users see percentage 5× higher than reality.
+  contextWindow?: number
+  // Permission mode at spawn time — preserved across ask-resume restart.
+  permissionMode?: AiPermissionMode
   pendingPermission?: {
     requestId: string
     toolName: string
     toolInput: Record<string, any>
     toolUseId?: string
   }
+  // Set when AskUserQuestion arrived — main process kills CLI proactively to
+  // prevent LLM from continuing on the auto-filled empty answer (CLI 0.5s
+  // auto-timeout fills empty tool_result → LLM calls Write/Edit → overwrites
+  // renderer's pendingPermission card). exit handler must NOT emit AI_ERROR
+  // for this intentional kill; session must NOT be deleted (claudeSessionId
+  // is still needed by ai-ask-resume to spawn `--resume`).
+  awaitingUserInput?: boolean
 }
 
-const aiSessions = new Map<string, ManagedAiSession>()
+export const aiSessions = new Map<string, ManagedAiSession>()
 let mainWindow: BrowserWindow | null = null
 
-function send(channel: string, data: any): void {
+export function send(channel: string, data: any): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(channel, data)
   }
@@ -31,9 +47,9 @@ function send(channel: string, data: any): void {
 
 const AI_INSTALL_CMD = 'npm install -g @anthropic-ai/claude-code@latest'
 
-type BinaryResult = { binary: string } | { error: string; installCmd: string }
+export type BinaryResult = { binary: string } | { error: string; installCmd: string }
 
-function findBinary(): BinaryResult {
+export function findBinary(): BinaryResult {
   for (const name of ['claude', 'openclaude']) {
     try {
       const cmd = process.platform === 'win32' ? `where ${name}` : `which ${name}`
@@ -44,20 +60,97 @@ function findBinary(): BinaryResult {
   return { error: `Claude CLI not found. Install with: ${AI_INSTALL_CMD}`, installCmd: AI_INSTALL_CMD }
 }
 
+// Sanitize env on Windows: Git Bash / MSYS2 leaks Unix-style vars (HOME, SHELL, OSTYPE, …)
+// that confuse the CLI's OS detection. Strip them so the subprocess sees a clean Windows env.
+export function sanitizeEnvForCli(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const childEnv: NodeJS.ProcessEnv = { ...env }
+  if (process.platform === 'win32') {
+    const unixVars = [
+      'HOME', 'SHELL', 'TERM',
+      'MSYSTEM', 'MINGW_PREFIX', 'MINGW_CHOST', 'MSYS',
+      'MSYS2_PATH_TYPE', 'MANPATH', 'INFOPATH',
+      'HOSTTYPE', 'MACHTYPE', 'OSTYPE',
+      'PKG_CONFIG_PATH', 'ORIGINAL_PATH', 'ORIGINAL_TEMP',
+      'ORIGINAL_TMP',
+    ]
+    for (const v of unixVars) delete childEnv[v]
+  }
+  return childEnv
+}
+
+// Build the standard Claude CLI arg list (stream-json + permission-prompt-tool stdio).
+// Explicit platform description is appended to --append-system-prompt as a safety net
+// in case env sanitization is incomplete.
+export function buildClaudeArgs(opts: {
+  cwd: string
+  permissionMode: AiPermissionMode
+  resumeSessionId?: string
+}): string[] {
+  const platformDesc = process.platform === 'win32'
+    ? 'Windows (use paths like C:\\Users\\... with backslashes)'
+    : process.platform === 'darwin'
+      ? 'macOS (use paths like /Users/...)'
+      : 'Linux (use paths like /home/user/...)'
+
+  const args = [
+    '-p',
+    '--output-format', 'stream-json',
+    '--input-format', 'stream-json',
+    '--permission-prompt-tool', 'stdio',
+    '--verbose',
+    '--include-partial-messages',
+    '--permission-mode', opts.permissionMode,
+    '--append-system-prompt', `You are running on ${platformDesc}. The workspace directory is: ${opts.cwd}`,
+  ]
+  if (opts.resumeSessionId) {
+    args.push('--resume', opts.resumeSessionId)
+  }
+  return args
+}
+
+// Spawn a Claude CLI subprocess with the standard args. Returns the ChildProcess on success,
+// or the findBinary error result (caller decides how to surface to UI).
+export function spawnClaude(opts: {
+  cwd: string
+  permissionMode: AiPermissionMode
+  resumeSessionId?: string
+}): ChildProcess | BinaryResult {
+  const resolved = findBinary()
+  if ('error' in resolved) return resolved
+
+  const args = buildClaudeArgs(opts)
+  return spawn(resolved.binary, args, {
+    cwd: opts.cwd,
+    env: sanitizeEnvForCli(),
+    stdio: ['pipe', 'pipe', 'pipe'],
+    shell: process.platform === 'win32',
+  })
+}
+
 function isFileEditTool(toolName: string): boolean {
   return AI_FILE_EDIT_TOOLS.has(toolName)
 }
 
 // Calculate context percentage from usage token counts.
 // Claude CLI stream-json does NOT include context_window in output;
-// only usage (token counts) is available.
+// only usage (token counts) and modelUsage (with per-model contextWindow) are available.
 const DEFAULT_CONTEXT_WINDOW_SIZE = 200000
 
-function calcContextPercent(usage: any): number | undefined {
+// Extract the actual contextWindow from CLI's modelUsage block (present on every assistant
+// and result message). First model in the map wins — for non-sub-agent turns there's only one.
+function extractContextWindow(msg: any): number | undefined {
+  const modelUsage = msg?.modelUsage || msg?.message?.modelUsage
+  if (!modelUsage || typeof modelUsage !== 'object') return undefined
+  const first = Object.values(modelUsage)[0] as any
+  return typeof first?.contextWindow === 'number' ? first.contextWindow : undefined
+}
+
+function calcContextPercent(usage: any, contextWindow?: number): number | undefined {
   if (!usage) return undefined
   const input = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0)
   if (input === 0) return undefined
-  return (input / DEFAULT_CONTEXT_WINDOW_SIZE) * 100
+  const denom = contextWindow || DEFAULT_CONTEXT_WINDOW_SIZE
+  return (input / denom) * 100
 }
 
 async function extractFileChange(sessionId: string, block: any, cwd: string): Promise<void> {
@@ -86,7 +179,11 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       // subtype "init" = session initialized; "status" = requesting/responding (ignore)
       if (msg.subtype === 'status') break
       const s = aiSessions.get(sessionId)
-      if (s) s.ready = true
+      if (s) {
+        s.ready = true
+        // Cache CLI's session_id for later --resume (used by ai-ask-resume Kill-and-Resume path)
+        if (msg.session_id) s.claudeSessionId = msg.session_id
+      }
       send(IPC_CHANNELS.AI_READY, { sessionId, tools: msg.tools, model: msg.model, slashCommands: msg.slash_commands })
       break
     }
@@ -104,6 +201,10 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
           if (block.thinking) thinkingParts.push(block.thinking)
         } else if (block.type === 'tool_use') {
           toolUses.push({ id: block.id, name: block.name, input: block.input })
+          // [PLAN-MODE-DEBUG] spot ExitPlanMode tool_use (should be followed by control_request)
+          if (block.name === 'ExitPlanMode' || block.name === 'EnterPlanMode') {
+            console.log(`[PLAN-MODE-DEBUG ${sessionId}] tool_use ${block.name} id=${block.id} inputKeys=${Object.keys(block.input || {}).join(',')}`)
+          }
           if (isFileEditTool(block.name)) {
             extractFileChange(sessionId, block, cwd)
           }
@@ -112,14 +213,20 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       // CLI emits intermediate assistant messages after each content block.
       // All are sent through — thinking-only messages preserve per-turn thinking.
       if (textParts.length === 0 && toolUses.length === 0 && thinkingParts.length === 0) break
+      const parentToolUseId = msg.message?.parent_tool_use_id
+      const session = aiSessions.get(sessionId)
+      const cw = extractContextWindow(msg)
+      if (session && cw) session.contextWindow = cw
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
         type: 'assistant',
         role: 'assistant',
+        messageId: msg.message?.id,
         content: textParts.join('\n'),
         thinking: thinkingParts.length > 0 ? thinkingParts.join('\n') : undefined,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
-        contextPercent: calcContextPercent(msg.message?.usage),
+        parentToolUseId: parentToolUseId || undefined,
+        contextPercent: calcContextPercent(msg.message?.usage, session?.contextWindow),
         timestamp: Date.now(),
       })
       break
@@ -189,6 +296,28 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         session.pendingPermission = { requestId, toolName, toolInput, toolUseId }
       }
 
+      // AskUserQuestion is special: Claude CLI auto-fills empty answers ~0.5s after
+      // sending the control_request. If we just respond (deny or wait), LLM still
+      // sees the auto-filled empty tool_result and proceeds — calls Write/Edit
+      // (whose control_request then overwrites renderer's pendingPermission card)
+      // or streams text pollution.
+      //
+      // Fix: kill the subprocess immediately. The CLI never gets to auto-fill an
+      // answer, so LLM cannot continue. Real answer arrives via ai-ask-resume
+      // (kill is a no-op on an already-dead process; spawn `--resume` + fresh user
+      // message carries the user's selection). The card stays displayed because
+      // pendingPermission is renderer-side state; session is preserved (not deleted)
+      // so ask-resume can read claudeSessionId/cwd/permissionMode.
+      if (toolName === 'AskUserQuestion' && session) {
+        session.awaitingUserInput = true
+        killAiProcess(session.process)
+        console.log(`[PLAN-MODE-DEBUG ${sessionId}] AskUserQuestion killed CLI proactively (prevents LLM continuing on auto-filled empty answer); card surfaced, awaiting user answer via ask-resume`)
+      }
+
+      // [PLAN-MODE-DEBUG] trace every permission request — this is what should drive the UI card
+      const fp = toolInput?.file_path || toolInput?.path || ''
+      console.log(`[PLAN-MODE-DEBUG ${sessionId}] control_request tool=${toolName} req_id=${requestId} toolInputKeys=${Object.keys(toolInput || {}).join(',')}${fp ? ` file_path=${fp}` : ''} → sending IPC AI_PERMISSION`)
+
       send(IPC_CHANNELS.AI_PERMISSION, {
         sessionId,
         requestId,
@@ -209,24 +338,23 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       })
       break
 
-    case 'result':
-      if (msg.is_error) {
-        send(IPC_CHANNELS.AI_ERROR, {
-          sessionId,
-          error: msg.errors?.join('\n') || msg.result || 'Unknown error',
-        })
-      }
+    case 'result': {
+      // CLI 旧版本可能不带 subtype，按 is_error 兜底
+      const subtype = msg.subtype || (msg.is_error ? 'error_during_execution' : 'success')
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
         type: 'result',
         content: msg.result,
+        subtype,
+        isAborted: !!msg.is_aborted,
         costUsd: msg.total_cost_usd,
         durationMs: msg.duration_ms,
         numTurns: msg.num_turns,
-        contextPercent: calcContextPercent(msg.usage),
+        contextPercent: calcContextPercent(msg.usage, aiSessions.get(sessionId)?.contextWindow),
         timestamp: Date.now(),
       })
       break
+    }
 
     // 'user' messages (tool_result) — pass through for context display
     case 'user': {
@@ -234,6 +362,9 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       if (Array.isArray(content)) {
         for (const block of content) {
           if (block.type === 'tool_result') {
+            // [PERMISSION-DEBUG] see what LLM gets back after a permission decision
+            const tc = typeof block.content === 'string' ? block.content : JSON.stringify(block.content)
+            console.log(`[PERMISSION-DEBUG ${sessionId}] tool_result id=${block.tool_use_id} is_error=${block.is_error} content=${tc.slice(0, 120)}`)
             send(IPC_CHANNELS.AI_MESSAGE, {
               sessionId,
               type: 'user',
@@ -400,7 +531,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
         content: textParts.join('\n') || undefined,
         thinking: thinkingParts.length > 0 ? thinkingParts.join('\n') : undefined,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
-        contextPercent: calcContextPercent(msg.message?.usage),
+        contextPercent: calcContextPercent(msg.message?.usage, aiSessions.get(sid)?.contextWindow),
         timestamp: ts,
       })
       continue
@@ -461,7 +592,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
           costUsd: msg.total_cost_usd,
           numTurns: msg.num_turns,
           durationMs: msg.duration_ms,
-          contextPercent: calcContextPercent(msg.usage),
+          contextPercent: calcContextPercent(msg.usage, aiSessions.get(sid)?.contextWindow),
           timestamp: ts,
         })
       }
@@ -470,6 +601,98 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
   }
 
   return { messages, model, slashCommands }
+}
+
+// Attach all process event handlers (stdout/stderr/error/exit) to a spawned Claude CLI process.
+// Shared between initial AI_CREATE spawn and plan-execute restart — extracted so
+// the restart path reuses identical NDJSON parsing / error reporting / lifecycle logic.
+export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: string): void {
+  const session: ManagedAiSession = {
+    process: proc,
+    sessionId,
+    cwd,
+    lineBuffer: '',
+    ready: true,
+  }
+  aiSessions.set(sessionId, session)
+
+  const stderrChunks: string[] = []
+  send(IPC_CHANNELS.AI_READY, { sessionId })
+
+  const startupTimer = setTimeout(() => {
+    if (session.lineBuffer === '' && aiSessions.has(sessionId)) {
+      console.warn(`[ai:${sessionId}] No stdout received in 8s — CLI may not support the given flags`)
+    }
+  }, 8000)
+
+  proc.stdout!.on('data', (chunk: Buffer) => {
+    session.lineBuffer += chunk.toString('utf-8')
+    const lines = session.lineBuffer.split('\n')
+    session.lineBuffer = lines.pop() || ''
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      try {
+        handleNdjsonMessage(sessionId, JSON.parse(trimmed), cwd)
+      } catch {
+        console.warn(`[ai:${sessionId}] NDJSON parse failed:`, trimmed.slice(0, 200))
+      }
+    }
+  })
+
+  proc.stderr!.on('data', (chunk: Buffer) => {
+    const text = chunk.toString('utf-8').trim()
+    if (text) {
+      stderrChunks.push(text)
+      console.error(`[ai:${sessionId}] stderr:`, text.slice(0, 500))
+    }
+  })
+
+  proc.on('error', (err) => {
+    clearTimeout(startupTimer)
+    // Only handle if this is still the active process for this session
+    // (a new process may have been spawned for the same sessionId via resume)
+    const current = aiSessions.get(sessionId)
+    if (current?.process.pid === proc.pid) {
+      aiSessions.delete(sessionId)
+      send(IPC_CHANNELS.AI_ERROR, { sessionId, error: err.message })
+    }
+  })
+
+  proc.on('exit', (code, signal) => {
+    clearTimeout(startupTimer)
+    // Only handle if this is still the active process for this session
+    const current = aiSessions.get(sessionId)
+    if (current?.process.pid === proc.pid) {
+      // AskUserQuestion proactive kill: keep session (ask-resume needs claudeSessionId),
+      // skip AI_ERROR — this exit is intentional, not a crash.
+      if (current!.awaitingUserInput === true) {
+        return
+      }
+      aiSessions.delete(sessionId)
+      if (code !== 0 && code !== null) {
+        const stderrMsg = stderrChunks.join('\n').trim()
+        const baseMsg = `Process exited with code ${code}${signal ? ` (signal: ${signal})` : ''}`
+        const errorDetail = stderrMsg ? `${baseMsg}\n\n${stderrMsg}` : baseMsg
+        send(IPC_CHANNELS.AI_ERROR, {
+          sessionId,
+          error: errorDetail,
+        })
+      }
+    }
+  })
+}
+
+// Kill an active AI subprocess. Uses taskkill /f /t on Windows to terminate the process tree
+// (claude.cmd spawns node children; SIGTERM only kills the cmd wrapper).
+export function killAiProcess(proc: ChildProcess): void {
+  if (process.platform === 'win32') {
+    try {
+      spawn('taskkill', ['/pid', String(proc.pid), '/f', '/t'])
+    } catch { /* ignore */ }
+  } else {
+    try { proc.kill('SIGTERM') } catch { /* ignore */ }
+  }
 }
 
 export function registerAiHandlers(win: BrowserWindow | null): void {
@@ -498,18 +721,6 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
     const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId } = options
 
-    // Pre-check binary availability
-    const resolved = findBinary()
-    if ('error' in resolved) {
-      send(IPC_CHANNELS.AI_ERROR, {
-        sessionId,
-        error: resolved.error,
-        installCmd: resolved.installCmd,
-      })
-      return { success: false, error: resolved.error, installCmd: resolved.installCmd }
-    }
-    const bin = resolved.binary
-
     // Kill existing session if any
     const existing = aiSessions.get(sessionId)
     if (existing) {
@@ -517,130 +728,23 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
       aiSessions.delete(sessionId)
     }
 
-    const permMode: AiPermissionMode = permissionMode || (autoApprove ? 'acceptEdits' : 'default')
+    const permMode: AiPermissionMode = permissionMode || (autoApprove ? 'acceptEdits' : 'bypassPermissions')
 
-    // Sanitize env: remove Unix-style / MSYS vars on Windows so the CLI detects the correct OS.
-    // (pty.ts already does similar sanitization for encoding)
-    const childEnv: NodeJS.ProcessEnv = { ...process.env }
-    if (process.platform === 'win32') {
-      // Git Bash / MSYS2 leaks Unix-style vars that confuse CLI OS detection
-      const unixVars = [
-        'HOME', 'SHELL', 'TERM',
-        'MSYSTEM', 'MINGW_PREFIX', 'MINGW_CHOST', 'MSYS',
-        'MSYS2_PATH_TYPE', 'MANPATH', 'INFOPATH',
-        'HOSTTYPE', 'MACHTYPE', 'OSTYPE',
-        'PKG_CONFIG_PATH', 'ORIGINAL_PATH', 'ORIGINAL_TEMP',
-        'ORIGINAL_TMP',
-      ]
-      for (const v of unixVars) {
-        delete childEnv[v]
-      }
+    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId })
+    if ('error' in result) {
+      send(IPC_CHANNELS.AI_ERROR, {
+        sessionId,
+        error: result.error,
+        installCmd: result.installCmd,
+      })
+      return { success: false, error: result.error, installCmd: result.installCmd }
     }
 
-    // Explicit platform context so the model always uses correct paths,
-    // even if env cleanup above is insufficient.
-    const platformDesc = process.platform === 'win32'
-      ? 'Windows (use paths like C:\\Users\\... with backslashes)'
-      : process.platform === 'darwin'
-        ? 'macOS (use paths like /Users/...)'
-        : 'Linux (use paths like /home/user/...)'
+    attachAiProcess(sessionId, result, cwd)
 
-    const args = [
-      '-p',
-      '--output-format', 'stream-json',
-      '--input-format', 'stream-json',
-      '--permission-prompt-tool', 'stdio',
-      '--verbose',
-      '--include-partial-messages',
-      '--permission-mode', permMode,
-      '--append-system-prompt', `You are running on ${platformDesc}. The workspace directory is: ${cwd}`,
-    ]
-    if (resumeSessionId) {
-      args.push('--resume', resumeSessionId)
-    }
-
-    const proc = spawn(bin, args, {
-      cwd,
-      env: childEnv,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      shell: process.platform === 'win32',
-    })
-
-    const session: ManagedAiSession = {
-      process: proc,
-      sessionId,
-      cwd,
-      lineBuffer: '',
-      ready: true,   // ready immediately — process is alive and can accept stdin
-    }
-    aiSessions.set(sessionId, session)
-
-    // Collect stderr for better error messages when process exits with non-zero code
-    const stderrChunks: string[] = []
-
-    // Notify renderer: session is alive, UI can enable the input.
-    // Not all claude CLI versions emit a 'system' NDJSON message, so we must
-    // signal ready here rather than waiting for one.
-    send(IPC_CHANNELS.AI_READY, { sessionId })
-
-    // Fallback: if no stdout arrives within 8s, log a warning (flags/format mismatch).
-    const startupTimer = setTimeout(() => {
-      if (session.lineBuffer === '' && aiSessions.has(sessionId)) {
-        console.warn(`[ai:${sessionId}] No stdout received in 8s — CLI may not support the given flags`)
-      }
-    }, 8000)
-
-    proc.stdout!.on('data', (chunk: Buffer) => {
-      session.lineBuffer += chunk.toString('utf-8')
-      const lines = session.lineBuffer.split('\n')
-      session.lineBuffer = lines.pop() || ''
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed) continue
-        try {
-          handleNdjsonMessage(sessionId, JSON.parse(trimmed), cwd)
-        } catch {
-          console.warn(`[ai:${sessionId}] NDJSON parse failed:`, trimmed.slice(0, 200))
-        }
-      }
-    })
-
-    proc.stderr!.on('data', (chunk: Buffer) => {
-      const text = chunk.toString('utf-8').trim()
-      if (text) {
-        stderrChunks.push(text)
-        console.error(`[ai:${sessionId}] stderr:`, text.slice(0, 500))
-      }
-    })
-
-    proc.on('error', (err) => {
-      clearTimeout(startupTimer)
-      // Only handle if this is still the active process for this session
-      // (a new process may have been spawned for the same sessionId via resume)
-      const current = aiSessions.get(sessionId)
-      if (current?.process.pid === proc.pid) {
-        aiSessions.delete(sessionId)
-        send(IPC_CHANNELS.AI_ERROR, { sessionId, error: err.message })
-      }
-    })
-
-    proc.on('exit', (code, signal) => {
-      clearTimeout(startupTimer)
-      // Only handle if this is still the active process for this session
-      const current = aiSessions.get(sessionId)
-      if (current?.process.pid === proc.pid) {
-        aiSessions.delete(sessionId)
-        if (code !== 0 && code !== null) {
-          const stderrMsg = stderrChunks.join('\n').trim()
-          const baseMsg = `Process exited with code ${code}${signal ? ` (signal: ${signal})` : ''}`
-          const errorDetail = stderrMsg ? `${baseMsg}\n\n${stderrMsg}` : baseMsg
-          send(IPC_CHANNELS.AI_ERROR, {
-            sessionId,
-            error: errorDetail,
-          })
-        }
-      }
-    })
+    // Cache spawn-time permissionMode so ai-ask-resume can preserve it across restart
+    const created = aiSessions.get(sessionId)
+    if (created) created.permissionMode = permMode
 
     return { success: true }
   })
@@ -671,7 +775,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     // {type:"control_response", response:{subtype:"success", request_id:"...", response:{behavior:..., ...}}}
     const decision = payload.approved
       ? { behavior: 'allow', updatedInput: toolInput, toolUseID: toolUseId }
-      : { behavior: 'deny', message: 'User denied permission', toolUseID: toolUseId }
+      : { behavior: 'deny', message: payload.feedback || 'User denied permission', toolUseID: toolUseId }
 
     const ndjson = JSON.stringify({
       type: 'control_response',
@@ -681,10 +785,32 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
         response: decision,
       },
     }) + '\n'
+    // [PERMISSION-DEBUG] trace exactly what we send to stdin so we can diff against ZodError
+    console.log(`[PERMISSION-DEBUG ${payload.sessionId}] control_response → tool=${payload.tool} approved=${payload.approved} req_id=${requestId.slice(0, 8)} pending.req=${(pending?.requestId || '').slice(0, 8)} payload=${JSON.stringify({ behavior: decision.behavior, hasUpdatedInput: !!toolInput, updatedInputKeys: Object.keys(toolInput || {}).join(','), message: (decision as any).message?.slice(0, 60) })}`)
     session.process.stdin!.write(ndjson)
 
     // Clear cached permission
     session.pendingPermission = undefined
+    return { success: true }
+  })
+
+  // Switch permission mode at runtime (no subprocess restart).
+  // Claude CLI 2.1.139 supports control_request subtype=set_permission_mode via raw stream-json
+  // stdin. Without this, switching ModeSelector only updates React state — subprocess keeps the
+  // old --permission-mode from spawn time, so "plan" UI display lies about actual mode.
+  ipcMain.handle(IPC_CHANNELS.AI_SET_PERMISSION_MODE, (_event, payload: AiSetPermissionModePayload) => {
+    const session = aiSessions.get(payload.sessionId)
+    if (!session || !session.ready) return { success: false, error: 'AI not ready' }
+
+    const ndjson = JSON.stringify({
+      type: 'control_request',
+      request_id: `set-mode-${randomUUID()}`,
+      request: {
+        subtype: 'set_permission_mode',
+        mode: payload.mode,
+      },
+    }) + '\n'
+    session.process.stdin!.write(ndjson)
     return { success: true }
   })
 

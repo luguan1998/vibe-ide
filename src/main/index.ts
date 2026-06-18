@@ -6,6 +6,8 @@ import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers, cleanupTerminals } from './pty'
 import { registerAiHandlers, cleanupAiSessions } from './ai'
+import { registerPlanExecuteHandlers } from './ai-plan-execute'
+import { registerAskResumeHandlers } from './ai-ask-resume'
 import { registerGitHandlers } from './git'
 import { stopWatching } from './watcher'
 import { registerFileHandlers } from './file'
@@ -207,6 +209,8 @@ app.whenReady().then(() => {
   // Register PTY handlers after window is created
   registerPtyHandlers(mainWindow)
   registerAiHandlers(mainWindow)
+  registerPlanExecuteHandlers()
+  registerAskResumeHandlers()
 
   // Clamp zoom to 100% — prevents Chromium's built-in page zoom from eating Ctrl+= / Ctrl+-
   if (mainWindow) {
