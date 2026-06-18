@@ -6,8 +6,10 @@ import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
 
-// 前 1/3 → CWD 文件夹/定位图标；后 2/3 → Session 趣味图标
-const DEFAULT_SESSION_EMOJIS = ['🧩', '📌', '📁', '📍', '🏷️', '🎯', '🗺️', '🔗', '🔥', '💀', '🗿', '🤡', '👽', '👻', '🐸', '👾', '🚀', '⚡', '🌟', '🐉', '🌀', '🙏']
+// CWD 图标：按目录分配（标题行）
+const DEFAULT_CWD_EMOJIS = ['🧩', '📌', '📁', '🚀', '🏷️', '🎯', '🗺️', '🔗']
+// Session 图标：按会话分配（列表行）
+const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '👻', '🤣', '👾', '⚡', '🌟', '🐉', '🤗', '🙏']
 
 const MAX_RECENT_DIRS = 10
 
@@ -33,7 +35,43 @@ function addRecentDir(dir: string, existing: string[]): string[] {
   return next
 }
 
+// 旧版「一个合并数组按 1/3 split」迁移到两个独立池
+function migrateLegacyEmojis(): void {
+  try {
+    if (localStorage.getItem('vibe-ide-cwd-emojis')) return
+    const legacyRaw = localStorage.getItem('vibe-ide-session-emojis')
+    if (!legacyRaw) return
+    const arr = JSON.parse(legacyRaw)
+    if (!Array.isArray(arr)) return
+    const valid = arr.filter((v: unknown) => typeof v === 'string')
+    if (valid.length === 0) return
+    const cwdEnd = Math.ceil(valid.length / 3)
+    localStorage.setItem('vibe-ide-cwd-emojis', JSON.stringify(valid.slice(0, cwdEnd)))
+    localStorage.setItem('vibe-ide-session-emojis', JSON.stringify(valid.slice(cwdEnd)))
+  } catch {}
+}
+
+function loadCwdEmojis(): string[] {
+  migrateLegacyEmojis()
+  try {
+    const raw = localStorage.getItem('vibe-ide-cwd-emojis')
+    if (raw) {
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr)) {
+        const valid = arr.filter((v: unknown) => typeof v === 'string')
+        if (valid.length > 0) return valid
+      }
+    }
+  } catch {}
+  return [...DEFAULT_CWD_EMOJIS]
+}
+
+function saveCwdEmojis(emojis: string[]): void {
+  try { localStorage.setItem('vibe-ide-cwd-emojis', JSON.stringify(emojis)) } catch {}
+}
+
 function loadSessionEmojis(): string[] {
+  migrateLegacyEmojis()
   try {
     const raw = localStorage.getItem('vibe-ide-session-emojis')
     if (raw) {
@@ -57,28 +95,18 @@ const FALLBACK_SHELLS = [
   { value: 'powershell', label: 'PowerShell 5' },
 ]
 
-function hashId(id: string): number {
-  if (!id) return 0
-  let h = 0
-  for (let i = 0; i < id.length; i++) {
-    h = (h * 31 + id.charCodeAt(i)) | 0
-  }
-  return Math.abs(h)
+function pickEmoji(index: number, pool: string[], override?: string): string {
+  if (pool.length === 0) return ''
+  if (override && pool.includes(override)) return override
+  return pool[index % pool.length]
 }
 
-function splitEmojis(emojis: string[]) {
-  const cwdEnd = Math.ceil(emojis.length / 3)
-  return { cwd: emojis.slice(0, cwdEnd), session: emojis.slice(cwdEnd) }
+function getCwdEmoji(index: number, pool: string[], override?: string): string {
+  return pickEmoji(index, pool, override)
 }
 
-function getCwdEmoji(cwd: string, emojis: string[]): string {
-  const pool = splitEmojis(emojis).cwd
-  return pool[hashId(cwd) % pool.length]
-}
-
-function getSessionEmoji(id: string, emojis: string[]): string {
-  const pool = splitEmojis(emojis).session
-  return pool[hashId(id) % pool.length]
+function getSessionEmoji(index: number, pool: string[], override?: string): string {
+  return pickEmoji(index, pool, override)
 }
 
 interface CustomCommand {
@@ -189,10 +217,30 @@ const SessionPanel = React.memo(function SessionPanel({
     try { return localStorage.getItem('vibe-ide-term-type') || 'pwsh' } catch { return 'pwsh' }
   })
   const [shellOptions, setShellOptions] = useState(FALLBACK_SHELLS)
+  const [cwdEmojis, setCwdEmojis] = useState<string[]>(() => loadCwdEmojis())
   const [sessionEmojis, setSessionEmojis] = useState<string[]>(() => loadSessionEmojis())
+  const [cwdEmojiOverrides, setCwdEmojiOverrides] = useState<Record<string, string>>({})
+  const [sessionEmojiOverrides, setSessionEmojiOverrides] = useState<Record<string, string>>({})
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const [emojiDraft, setEmojiDraft] = useState('')
+  const [cwdEmojiDraft, setCwdEmojiDraft] = useState('')
+  const [sessionEmojiDraft, setSessionEmojiDraft] = useState('')
   const [showOtherOptions, setShowOtherOptions] = useState(false)
+
+  // 池变更时清理失效 override（用户在 modal 删了被 override 引用的 emoji 时）
+  useEffect(() => {
+    setCwdEmojiOverrides(prev => {
+      const next: Record<string, string> = {}
+      for (const [k, v] of Object.entries(prev)) if (cwdEmojis.includes(v)) next[k] = v
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next
+    })
+  }, [cwdEmojis])
+  useEffect(() => {
+    setSessionEmojiOverrides(prev => {
+      const next: Record<string, string> = {}
+      for (const [k, v] of Object.entries(prev)) if (sessionEmojis.includes(v)) next[k] = v
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next
+    })
+  }, [sessionEmojis])
 
   // 启动时从主进程获取本机已安装的 shell，过滤选项
   useEffect(() => {
@@ -300,6 +348,13 @@ const SessionPanel = React.memo(function SessionPanel({
     }
     return map
   }, [sessionGroups, sessions])
+
+  // sessionId → 在 sessions 数组中的位置（按列表顺序分配 emoji 用）
+  const sessionIndexMap = useMemo(() => {
+    const m = new Map<string, number>()
+    sessions.forEach((s, i) => m.set(s.id, i))
+    return m
+  }, [sessions])
 
   useEffect(() => {
     const handleClick = () => { setContextMenu(null); setEmptyAreaMenu(null); setCustomCmdCtxMenu(null) }
@@ -555,7 +610,8 @@ const SessionPanel = React.memo(function SessionPanel({
                   <button
                     className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
                     onClick={() => {
-                      setEmojiDraft(sessionEmojis.join('\n'))
+                      setCwdEmojiDraft(cwdEmojis.join('\n'))
+                      setSessionEmojiDraft(sessionEmojis.join('\n'))
                       setShowEmojiPicker(true)
                       setShowConfigMenu(false)
                     }}
@@ -699,7 +755,7 @@ const SessionPanel = React.memo(function SessionPanel({
         ) : (
           sessionGroups.map((group, gi) => {
             const dirName = group.cwd.replace(/^.*[\/]/, '')
-            const cwdEmoji = getCwdEmoji(group.cwd, sessionEmojis)
+            const cwdEmoji = getCwdEmoji(gi, cwdEmojis, cwdEmojiOverrides[group.cwd])
             return (
               <div key={group.cwd} className={`bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden ${gi > 0 ? 'mt-3' : ''}`}>
                 {/* Folder header */}
@@ -707,7 +763,20 @@ const SessionPanel = React.memo(function SessionPanel({
                   className="group h-7 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted bg-ide-hover/30"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[11px] shrink-0 w-4 h-4 flex items-center justify-center">{cwdEmoji}</span>
+                    <span
+                      className="text-[11px] shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
+                      title={t('Click to cycle emoji')}
+                      draggable={false}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        if (cwdEmojis.length === 0) return
+                        const idx = cwdEmojis.indexOf(cwdEmoji)
+                        const next = cwdEmojis[(idx + 1) % cwdEmojis.length]
+                        setCwdEmojiOverrides(prev => ({ ...prev, [group.cwd]: next }))
+                      }}
+                      onContextMenu={(e) => e.stopPropagation()}
+                    >{cwdEmoji}</span>
                     <span
                       className={`text-xs font-medium truncate min-w-0 cursor-pointer transition-all ${
                         cwdLinkSession === group.cwd
@@ -847,7 +916,26 @@ const SessionPanel = React.memo(function SessionPanel({
                             />
                           ) : (
                             <>
-                              <span className="text-[11px] shrink-0 w-3.5 h-3.5 flex items-center justify-center">{getSessionEmoji(session.id, sessionEmojis)}</span>
+                              {(() => {
+                                const sessionIdx = sessionIndexMap.get(session.id) ?? 0
+                                const sessionEmoji = getSessionEmoji(sessionIdx, sessionEmojis, sessionEmojiOverrides[session.id])
+                                return (
+                                  <span
+                                    className="text-[11px] shrink-0 w-3.5 h-3.5 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
+                                    title={t('Click to cycle emoji')}
+                                    draggable={false}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      e.preventDefault()
+                                      if (sessionEmojis.length === 0) return
+                                      const idx = sessionEmojis.indexOf(sessionEmoji)
+                                      const next = sessionEmojis[(idx + 1) % sessionEmojis.length]
+                                      setSessionEmojiOverrides(prev => ({ ...prev, [session.id]: next }))
+                                    }}
+                                    onContextMenu={(e) => e.stopPropagation()}
+                                  >{sessionEmoji}</span>
+                                )
+                              })()}
                               <span className={`text-sm line-clamp-2 break-all ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}>{session.name}</span>
                             </>
                           )}
@@ -1213,34 +1301,64 @@ const SessionPanel = React.memo(function SessionPanel({
                 ×
               </button>
             </div>
-            <div className="p-3">
-              <p className="text-xs text-ide-text-muted mb-2">{t('Front 1/3 = folder icons, rest = session icons. One per line.')}</p>
-              <div className="flex flex-wrap gap-1 mb-3 bg-ide-hover rounded p-2 min-h-[40px]">
-                {(() => {
-                  const lines = emojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
-                  const cwdEnd = Math.ceil(lines.length / 3)
-                  return lines.length === 0
-                    ? <span className="text-xs text-ide-text-muted py-1">无表情</span>
-                    : <>
-                        {lines.slice(0, cwdEnd).map((emoji, i) => (
-                          <span key={`c${i}`} className="text-lg bg-ide-accent/15 rounded px-0.5" title={`CWD: ${emoji}`}>{emoji}</span>
-                        ))}
-                        {lines.slice(cwdEnd).map((emoji, i) => (
-                          <span key={`s${i}`} className="text-lg" title={`Session: ${emoji}`}>{emoji}</span>
-                        ))}
-                      </>
-                })()}
+            <div className="p-3 space-y-3">
+              <p className="text-xs text-ide-text-muted">{t('Click any emoji in the sidebar to cycle.')}</p>
+
+              {/* Folder / cwd pool */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-ide-text">{t('Folder Icons (per cwd)')}</span>
+                  <span className="text-[10px] text-ide-text-muted">{t('One per line')}</span>
+                </div>
+                <div className="flex flex-wrap gap-1 mb-2 bg-ide-hover rounded p-2 min-h-[36px]">
+                  {(() => {
+                    const pool = cwdEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
+                    return pool.length === 0
+                      ? <span className="text-xs text-ide-text-muted py-1">{t('No emojis')}</span>
+                      : pool.map((emoji, i) => (
+                        <span key={`c${i}`} className="text-lg bg-ide-accent/15 rounded px-0.5">{emoji}</span>
+                      ))
+                  })()}
+                </div>
+                <textarea
+                  className="w-full h-20 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
+                  value={cwdEmojiDraft}
+                  onChange={(e) => setCwdEmojiDraft(e.target.value)}
+                  placeholder={'📁\n📍\n🏷️'}
+                />
               </div>
-              <textarea
-                className="w-full h-32 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
-                value={emojiDraft}
-                onChange={(e) => setEmojiDraft(e.target.value)}
-                placeholder={'🔥\n💀\n🗿\n🤡\n👽'}
-              />
-              <div className="flex justify-between gap-2 mt-3">
+
+              {/* Session pool */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-ide-text">{t('Session Icons')}</span>
+                  <span className="text-[10px] text-ide-text-muted">{t('One per line')}</span>
+                </div>
+                <div className="flex flex-wrap gap-1 mb-2 bg-ide-hover rounded p-2 min-h-[36px]">
+                  {(() => {
+                    const pool = sessionEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
+                    return pool.length === 0
+                      ? <span className="text-xs text-ide-text-muted py-1">{t('No emojis')}</span>
+                      : pool.map((emoji, i) => (
+                        <span key={`s${i}`} className="text-lg">{emoji}</span>
+                      ))
+                  })()}
+                </div>
+                <textarea
+                  className="w-full h-20 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
+                  value={sessionEmojiDraft}
+                  onChange={(e) => setSessionEmojiDraft(e.target.value)}
+                  placeholder={'🔥\n💀\n🗿'}
+                />
+              </div>
+
+              <div className="flex justify-between gap-2 pt-1">
                 <button
                   className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
-                  onClick={() => setEmojiDraft(DEFAULT_SESSION_EMOJIS.join('\n'))}
+                  onClick={() => {
+                    setCwdEmojiDraft(DEFAULT_CWD_EMOJIS.join('\n'))
+                    setSessionEmojiDraft(DEFAULT_SESSION_EMOJIS.join('\n'))
+                  }}
                 >
                   {t('Reset Defaults')}
                 </button>
@@ -1254,11 +1372,10 @@ const SessionPanel = React.memo(function SessionPanel({
                   <button
                     className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
                     onClick={() => {
-                      const emojis = emojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
-                      if (emojis.length > 0) {
-                        setSessionEmojis(emojis)
-                        saveSessionEmojis(emojis)
-                      }
+                      const cwd = cwdEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
+                      const session = sessionEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
+                      if (cwd.length > 0) { setCwdEmojis(cwd); saveCwdEmojis(cwd) }
+                      if (session.length > 0) { setSessionEmojis(session); saveSessionEmojis(session) }
                       setShowEmojiPicker(false)
                     }}
                   >
