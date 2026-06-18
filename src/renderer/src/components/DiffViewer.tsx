@@ -574,7 +574,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     renderOverviewRuler: true,
     ignoreTrimWhitespace: false,
     diffAlgorithm: 'advanced' as const,
-    scrollbar: { verticalScrollbarSize: 5, horizontalScrollbarSize: 10, useShadows: false }
+    scrollbar: { verticalScrollbarSize: 5, horizontalScrollbarSize: 16, useShadows: false }
   }), [inlineDiff, commitHash, fontSize, wordWrap])
 
   const editOptions = useMemo(() => ({
@@ -585,7 +585,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     wordWrap: (wordWrap ? 'on' : 'off') as 'on' | 'off',
     automaticLayout: true,
     padding: { top: 8 },
-    scrollbar: { verticalScrollbarSize: 12, horizontalScrollbarSize: 10, useShadows: false }
+    scrollbar: { verticalScrollbarSize: 12, horizontalScrollbarSize: 16, useShadows: false }
   }), [fontSize, wordWrap])
 
   return (
