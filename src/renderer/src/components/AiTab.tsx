@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
 import { useI18n } from '../i18n'
 import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
-import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Lightbulb, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
+import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff } from 'lucide-react'
 
 interface AiTabProps {
   activeSessionId: string | null
@@ -557,7 +557,10 @@ function ThinkingBlock({ text, defaultOpen = false, durationMs }: { text: string
         onClick={() => setOpen(v => !v)}
         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
       >
-        <Lightbulb size={12} className="shrink-0" />
+        <svg role="img" width="12px" height="12px" viewBox="0 0 24 24" aria-labelledby="lightBulbIconTitle" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" fill="none" className="shrink-0">
+          <title id="lightBulbIconTitle">Light Bulb</title>
+          <path d="M16 12C15.3333333 12.6666667 15 14 15 16L15 17 9 17 9 16C9 14 8.66666667 12.6666667 8 12 5.6739597 9.6739597 5.41421356 6.10050506 7.75735931 3.75735931 10.1005051 1.41421356 13.8994949 1.41421356 16.2426407 3.75735931 18.5857864 6.10050506 18.4068484 9.59315157 16 12zM10 21L14 21"/>
+        </svg>
         <span className="shrink-0">{label}</span>
       </button>
       {open && (
@@ -588,13 +591,37 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText }: {
+function CollapsedToolsSummary({ tools }: { tools: AiToolUse[] }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div className="animate-fade-in">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/15 transition-colors"
+      >
+        <ToolIcon category="default" />
+        <span className="shrink-0">tools * {tools.length}</span>
+        <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      {expanded && (
+        <div className="mt-1 flex flex-col gap-1 animate-fade-in">
+          {tools.map(tool => <AiToolCallCard key={tool.id} tool={tool} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, viewMode }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   copyText?: string
+  viewMode?: number
 }) {
   const { t } = useI18n()
+  const hideTools = viewMode === 1 || viewMode === 2
+  const hideThink = viewMode === 2
   const showMeta = message.type === 'result' && (message.costUsd != null || message.numTurns != null)
   const showContent = message.type !== 'result'
   const hasContent = showContent && (message.content || message.thinking || (message.toolUse && message.toolUse.length > 0))
@@ -617,19 +644,19 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText }: {
       )}
       {hasContent && (
         <div className="max-w-[92%] space-y-1.5">
-          {message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} />}
-          {message.content && <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />}
-          {message.toolUse && message.toolUse.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {message.toolUse.map(tool => <AiToolCallCard key={tool.id} tool={tool} />)}
-            </div>
+          {!hideThink && message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} />}
+          {!hideTools && message.toolUse && message.toolUse.length >= 2 && <CollapsedToolsSummary tools={message.toolUse} />}
+          {!hideTools && message.toolUse && message.toolUse.length === 1 && (
+            <AiToolCallCard key={message.toolUse[0].id} tool={message.toolUse[0]} />
           )}
+          {message.content && <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />}
         </div>
       )}
       {showMeta && (
         <div className="flex items-center gap-2 text-[11px] text-ide-text-muted/50 px-1 group/meta">
-          <span>
-            {message.numTurns} turns · {(message.costUsd! * 100).toFixed(2)}¢ · {((message.durationMs || 0) / 1000).toFixed(1)}s
+          <span className="inline-flex items-center gap-0.5">
+            <span className="text-sm">✻</span>
+            <span>Churned for {((message.durationMs || 0) / 1000).toFixed(1)}s</span>
           </span>
           {copyText && <CopyButton text={copyText} />}
         </div>
@@ -714,7 +741,7 @@ function TodoListPanel({ items }: { items: TodoItem[] }) {
   )
 }
 
-function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages }: {
+function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
@@ -726,6 +753,7 @@ function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex,
   onFork: (idx: number) => void
   msgIndex: number
   allMessages: AiMessage[]
+  viewMode?: number
 }) {
   let copyText: string | undefined
   if (message.type === 'result' && message.numTurns != null) {
@@ -752,7 +780,7 @@ function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex,
     // success 且无 meta → 重复消息，不渲染
     return null
   } else {
-    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} />
+    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} viewMode={viewMode} />
   }
 
   // 子 agent 视觉分组（Agent/Task 工具产生的子消息）
@@ -1004,8 +1032,22 @@ function SlashCommandAutocomplete({
 
 // ── Main Component ─────────────────────────────────────────────
 
+const BUSY_QUIPS = [
+  'Forging the digital frontier…',
+  'The empire, long divided, must unite…',
+  'Defending the sacred source…',
+  'Decrypting the matrix, one token at a time…',
+  'Wrestling with the thought daemons…',
+  'Aligning the cosmic bits…',
+  'The bytes must flow…',
+  'Resisting the centralized compiler…',
+  'A bug in time saves nine…',
+  'Long live the open-source rebellion…',
+]
+
 export default function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, resumeSessionId }: AiTabProps) {
   const { t } = useI18n()
+  const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
@@ -1017,6 +1059,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
   // Session history
   const [sessionHistoryOpen, setSessionHistoryOpen] = useState(false)
   const [sessionHistoryList, setSessionHistoryList] = useState<any[]>([])
+  const [viewMode, setViewMode] = useState(0) // 0=all, 1=hide tools, 2=hide tools+think
   const historyRef = useRef<HTMLDivElement>(null)
 
   // Close session history on outside click + Escape
@@ -1551,17 +1594,42 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
       ? t('Streaming...')
       : null
 
+  // ── Copy entire conversation ──
+  const handleCopyConversation = useCallback(() => {
+    const text = state.messages
+      .filter(m => m.role && m.content)
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}:\n${m.content}`)
+      .join('\n\n---\n\n')
+    if (text) navigator.clipboard.writeText(text)
+  }, [state.messages])
+
   return (
     <div ref={containerRef} tabIndex={-1} className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-2 py-1 border-b border-ide-border shrink-0 acrylic-titlebar">
+      <div className="flex items-center justify-between px-2 py-1 border-b border-ide-border shrink-0 acrylic-titlebar-clean">
         <div className="flex items-center gap-1.5 min-w-0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
-              <path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6-4.8-6 4.8 2.4-7.2-6-4.8h7.6z" />
+            <svg height="1em" style={{ flex: 'none', lineHeight: 1 }} viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z" fill="#D97757" fill-rule="nonzero"></path>
             </svg>
             <span className="text-xs font-medium text-ide-text truncate">{state.name || 'untitled'}</span>
           </div>
         <div className="flex items-center gap-1">
+          {/* Copy conversation */}
+          <button
+            onClick={handleCopyConversation}
+            className="w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            title={t('Copy Conversation')}
+          >
+            <Copy size={14} />
+          </button>
+          {/* Toggle tool visibility */}
+          <button
+            onClick={() => setViewMode(v => (v + 1) % 3)}
+            className="w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            title={viewMode === 0 ? t('Show All') : viewMode === 1 ? t('Hide Tools') : t('Hide Tools & Think')}
+          >
+            {viewMode === 0 ? <Eye size={14} /> : <EyeOff size={14} />}
+          </button>
           {/* Session history */}
           <button
             onClick={async () => {
@@ -1704,6 +1772,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
                 onRevert={handleRevert}
                 onRevertAndCode={handleRevertAndCode}
                 onFork={handleFork}
+                viewMode={viewMode}
               />
             )
           })
@@ -1716,9 +1785,13 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
               <div>
                 <StreamingMarkdown text={state.streamBuffer} workspacePath={workspacePath} onOpenFile={onOpenFile} />
                 <span className="animate-sparkle ml-0.5 text-sm leading-none align-middle select-none">✻</span>
+                <span className="ml-0.5 text-xs leading-none align-middle select-none text-ide-accent/60">{busyQuip}</span>
               </div>
             ) : (
-              <span className="animate-sparkle text-sm leading-none select-none">✻</span>
+              <div>
+                <span className="animate-sparkle text-sm leading-none select-none">✻</span>
+                <span className="ml-0.5 text-xs leading-none select-none text-ide-accent/60">{busyQuip}</span>
+              </div>
             )}
           </div>
         )}

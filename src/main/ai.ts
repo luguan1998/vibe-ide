@@ -394,9 +394,6 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       if (Array.isArray(content)) {
         for (const block of content) {
           if (block.type === 'tool_result') {
-            // [PERMISSION-DEBUG] see what LLM gets back after a permission decision
-            const tc = typeof block.content === 'string' ? block.content : JSON.stringify(block.content)
-            console.log(`[PERMISSION-DEBUG ${sessionId}] tool_result id=${block.tool_use_id} is_error=${block.is_error} content=${tc.slice(0, 120)}`)
             send(IPC_CHANNELS.AI_MESSAGE, {
               sessionId,
               type: 'user',
@@ -819,8 +816,6 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
         response: decision,
       },
     }) + '\n'
-    // [PERMISSION-DEBUG] trace exactly what we send to stdin so we can diff against ZodError
-    console.log(`[PERMISSION-DEBUG ${payload.sessionId}] control_response → tool=${payload.tool} approved=${payload.approved} req_id=${requestId.slice(0, 8)} pending.req=${(pending?.requestId || '').slice(0, 8)} payload=${JSON.stringify({ behavior: decision.behavior, hasUpdatedInput: !!toolInput, updatedInputKeys: Object.keys(toolInput || {}).join(','), message: (decision as any).message?.slice(0, 60) })}`)
     session.process.stdin!.write(ndjson)
 
     // Clear cached permission

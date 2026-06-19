@@ -265,6 +265,11 @@ html, body, #root {
   -webkit-backdrop-filter: blur(12px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
+.acrylic-titlebar-clean {
+  background: rgb(var(--ide-sidebar) / 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
 
 /* Markdown preview prose styles — all colors via theme CSS variables */
 .md-preview { color: rgb(var(--ide-text)); line-height: 1.7; font-size: 14px; }

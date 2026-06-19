@@ -281,6 +281,10 @@ const ZH_MAP: Record<string, string> = {
   // AI Permission Modes
   'Session History': '会话历史',
   'New Session': '新建会话',
+  'Copy Conversation': '拷贝对话',
+  'Show All': '全部展示',
+  'Hide Tools': '隐藏工具',
+  'Hide Tools & Think': '隐藏工具和思考',
   'Plan': '计划',
   'Edit': '编辑',
   'Bypass': '绕过',
