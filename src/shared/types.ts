@@ -391,6 +391,7 @@ export interface AiCreateOptions {
   autoApprove: boolean
   permissionMode: AiPermissionMode
   resumeSessionId?: string
+  cliCommand?: string
 }
 
 export interface AiSendPayload {

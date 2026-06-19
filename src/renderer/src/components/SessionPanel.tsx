@@ -212,7 +212,11 @@ const SessionPanel = React.memo(function SessionPanel({
   const [fileFilterRulesDraft, setFileFilterRulesDraft] = useState('')
   const [showConfigMenu, setShowConfigMenu] = useState(false)
   const [showThemeFlyout, setShowThemeFlyout] = useState(false)
-  const [showTermTypeFlyout, setShowTermTypeFlyout] = useState(false)
+  const [showCliConfigModal, setShowCliConfigModal] = useState(false)
+  const [cliCommand, setCliCommand] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-ai-cli-command') || '' } catch { return '' }
+  })
+  const [cliCommandDraft, setCliCommandDraft] = useState('')
   const [termType, setTermType] = useState(() => {
     try { return localStorage.getItem('vibe-ide-term-type') || 'pwsh' } catch { return 'pwsh' }
   })
@@ -276,7 +280,6 @@ const SessionPanel = React.memo(function SessionPanel({
   const cwdHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [cwdLinkSession, setCwdLinkSession] = useState<string | null>(null)
   const themeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const termTypeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const configBtnRef = useRef<HTMLButtonElement>(null)
   const [configMenuStyle, setConfigMenuStyle] = useState<React.CSSProperties>({})
   const [flyoutOnLeft, setFlyoutOnLeft] = useState(false)
@@ -430,6 +433,19 @@ const SessionPanel = React.memo(function SessionPanel({
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
   }, [showCustomCmdModal, customCmdName, customCmdCommand, editingCustomCmd])
+
+  // ESC handler for CLI Config modal (capture phase per CLAUDE.md rule #8)
+  useEffect(() => {
+    if (!showCliConfigModal) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
+        setShowCliConfigModal(false)
+      }
+    }
+    document.addEventListener('keydown', handler, true)
+    return () => document.removeEventListener('keydown', handler, true)
+  }, [showCliConfigModal])
 
   // Menu → Settings → Keyboard Shortcuts opens the shortcuts modal
   useEffect(() => {
@@ -620,52 +636,17 @@ const SessionPanel = React.memo(function SessionPanel({
                   </button>
                 </div>
                 <div className="border-t border-ide-border mt-1 pt-1">
-                {/* Shell Type flyout */}
-                <div
-                  className="relative"
-                  onMouseEnter={() => {
-                    if (termTypeFlyoutTimerRef.current) clearTimeout(termTypeFlyoutTimerRef.current)
-                    setShowTermTypeFlyout(true)
-                  }}
-                  onMouseLeave={() => {
-                    termTypeFlyoutTimerRef.current = setTimeout(() => setShowTermTypeFlyout(false), 200)
+                {/* 命令行配置 */}
+                <button
+                  className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                  onClick={() => {
+                    setCliCommandDraft(cliCommand)
+                    setShowCliConfigModal(true)
+                    setShowConfigMenu(false)
                   }}
                 >
-                  <div className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors">
-                    {t('Shell Type')}
-                  </div>
-                  {showTermTypeFlyout && (
-                    <div
-                      className={`absolute top-0 ${flyoutOnLeft ? 'right-full mr-1' : 'left-full ml-1'} w-40 bg-ide-bg border border-ide-border rounded shadow-lg py-1`}
-                      onMouseEnter={() => {
-                        if (termTypeFlyoutTimerRef.current) clearTimeout(termTypeFlyoutTimerRef.current)
-                      }}
-                      onMouseLeave={() => setShowTermTypeFlyout(false)}
-                    >
-                      {shellOptions.map((tt) => (
-                        <button
-                          key={tt.value}
-                          onClick={() => {
-                            setTermType(tt.value)
-                            try { localStorage.setItem('vibe-ide-term-type', tt.value) } catch {}
-                          }}
-                          className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 transition-colors ${
-                            termType === tt.value
-                              ? 'text-ide-accent bg-ide-accent/10'
-                              : 'text-ide-text hover:bg-ide-hover'
-                          }`}
-                        >
-                          <span className={`w-3 h-3 rounded-full shrink-0 ${
-                            termType === tt.value
-                              ? 'bg-ide-accent border-ide-accent'
-                              : 'border border-ide-border'
-                          }`} />
-                          {tt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                  {t('CLI Configuration')}
+                </button>
                 </div>
                 {/* Keyboard Shortcuts */}
                 <div className="border-t border-ide-border mt-1 pt-1">
@@ -1529,6 +1510,58 @@ const SessionPanel = React.memo(function SessionPanel({
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('When pressing ESC in diff view with text selected, auto-insert @filepath:line into the terminal.')}</p>
                 </label>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CLI Configuration Modal — Shell Type + AI CLI Command */}
+      {showCliConfigModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCliConfigModal(false)}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[400px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+              <span className="text-sm font-semibold text-ide-text">{t('CLI Configuration')}</span>
+              <button
+                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                onClick={() => setShowCliConfigModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4 flex flex-col gap-4">
+              {/* Shell Type */}
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('Shell Type')}</span>
+                <select
+                  value={termType}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setTermType(val)
+                    try { localStorage.setItem('vibe-ide-term-type', val) } catch {}
+                  }}
+                  className="w-full px-3 py-2 text-sm bg-ide-sidebar border border-ide-border rounded text-ide-text focus:outline-none focus:border-ide-accent/60"
+                >
+                  {shellOptions.map((tt) => (
+                    <option key={tt.value} value={tt.value}>{tt.label}</option>
+                  ))}
+                </select>
+              </label>
+              {/* AI CLI Command */}
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('Claude Code GUI Command')}</span>
+                <input
+                  type="text"
+                  value={cliCommandDraft}
+                  onChange={(e) => setCliCommandDraft(e.target.value)}
+                  onBlur={() => {
+                    const val = cliCommandDraft.trim()
+                    setCliCommand(val)
+                    try { localStorage.setItem('vibe-ide-ai-cli-command', val) } catch {}
+                  }}
+                  placeholder="auto-detect: claude → openclaude"
+                  className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                />
+              </label>
             </div>
           </div>
         </div>

@@ -55,8 +55,9 @@ const AI_INSTALL_CMD = 'npm install -g @anthropic-ai/claude-code@latest'
 
 export type BinaryResult = { binary: string } | { error: string; installCmd: string }
 
-export function findBinary(): BinaryResult {
-  for (const name of ['claude', 'openclaude']) {
+export function findBinary(customCommand?: string): BinaryResult {
+  const names = customCommand ? [customCommand] : ['claude', 'openclaude']
+  for (const name of names) {
     try {
       const cmd = process.platform === 'win32' ? `where ${name}` : `which ${name}`
       execSync(cmd, { encoding: 'utf-8', timeout: 5000, stdio: 'pipe' })
@@ -120,8 +121,9 @@ export function spawnClaude(opts: {
   cwd: string
   permissionMode: AiPermissionMode
   resumeSessionId?: string
+  cliCommand?: string
 }): ChildProcess | BinaryResult {
-  const resolved = findBinary()
+  const resolved = findBinary(opts.cliCommand)
   if ('error' in resolved) return resolved
 
   const args = buildClaudeArgs(opts)
@@ -737,8 +739,8 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
   })
 
   // Check if claude/openclaude CLI is available
-  ipcMain.handle(IPC_CHANNELS.AI_CHECK_AVAILABLE, () => {
-    const result = findBinary()
+  ipcMain.handle(IPC_CHANNELS.AI_CHECK_AVAILABLE, (_event, cliCommand?: string) => {
+    const result = findBinary(cliCommand || undefined)
     if ('binary' in result) {
       return { available: true, binary: result.binary }
     }
@@ -747,7 +749,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
 
   // Spawn claude/openclaude subprocess
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
-    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId } = options
+    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand } = options
 
     // Kill existing session if any
     const existing = aiSessions.get(sessionId)
@@ -758,7 +760,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
 
     const permMode: AiPermissionMode = permissionMode || (autoApprove ? 'acceptEdits' : 'bypassPermissions')
 
-    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId })
+    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId, cliCommand })
     if ('error' in result) {
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,

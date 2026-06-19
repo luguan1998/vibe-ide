@@ -1169,7 +1169,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
   useEffect(() => {
     const handleReady = window.api.ai.onReady(({ sessionId, slashCommands, model }: any) => {
       const commands = enrichSlashCommands(slashCommands || [])
-      updateSession(sessionId, (s) => ({ ...s, ready: true, busy: false, slashCommands: commands, model: model || '' }))
+      updateSession(sessionId, (s) => ({ ...s, ready: true, busy: s.busy, slashCommands: commands, model: model || '' }))
     })
     return () => window.api.ai.removeReadyListener(handleReady)
   }, [updateSession])
@@ -1210,7 +1210,10 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
 
     // Pre-check availability
     const sid = activeSessionId
-    window.api.ai.checkAvailable().then((result: any) => {
+    const cliCommand = (() => {
+      try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined }
+    })()
+    window.api.ai.checkAvailable(cliCommand).then((result: any) => {
       if (!result.available) {
         updateSession(sid, (s) => ({
           ...s,
@@ -1230,6 +1233,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
         autoApprove,
         permissionMode,
         ...(resumeSessionId ? { resumeSessionId } : {}),
+        ...(cliCommand ? { cliCommand } : {}),
       })
       updateSession(sid, () => ({ ...EMPTY_SESSION }))
     }).catch(() => {
@@ -1495,11 +1499,15 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
               handleDestroySession(activeSessionId)
               createdSessionsRef.current.delete(activeSessionId)
               updateSession(activeSessionId, () => ({ ...EMPTY_SESSION }))
+              const cliCommand = (() => {
+                try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined }
+              })()
               window.api.ai.create({
                 sessionId: activeSessionId,
                 cwd: workspacePath,
                 autoApprove,
                 permissionMode,
+                ...(cliCommand ? { cliCommand } : {}),
               })
               onViewAi()
             }}
@@ -1533,12 +1541,16 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
                     }))
                     if (sessionName) onRenameSession(sessionName)
                     await window.api.ai.destroy(activeSessionId)
+                    const cliCommand = (() => {
+                      try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined }
+                    })()
                     window.api.ai.create({
                       sessionId: activeSessionId,
                       cwd: workspacePath || '',
                       autoApprove,
                       permissionMode,
                       resumeSessionId: s.session_id || s.id,
+                      ...(cliCommand ? { cliCommand } : {}),
                     })
                   }
                   setSessionHistoryOpen(false)

@@ -203,8 +203,8 @@ const api = {
 
   // AI (OpenClaude) operations
   ai: {
-    checkAvailable: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.AI_CHECK_AVAILABLE),
+    checkAvailable: (cliCommand?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_CHECK_AVAILABLE, cliCommand),
     listSessions: (cwd?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_SESSIONS, cwd),
     loadSessionMessages: (resumeSessionId: string, cwd: string) =>
