@@ -241,6 +241,7 @@ export default function App() {
 
   const showCodeSearchRef = useRef(false); showCodeSearchRef.current = showCodeSearch
   const codeSearchActivatedRef = useRef(false)
+  const exploreResultRef = useRef(exploreResult); exploreResultRef.current = exploreResult
   const closeCodeSearch = useCallback(() => {
     setShowCodeSearch(false)
     codeSearchActivatedRef.current = false
@@ -912,7 +913,7 @@ export default function App() {
         }
       }
 
-      // Escape priority: call graph → code search → focus return
+      // Escape priority: call graph → code search → explore result → focus return
       if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         if (callGraphFocalNodeRef.current) {
           e.preventDefault(); e.stopImmediatePropagation()
@@ -922,6 +923,11 @@ export default function App() {
         if (showCodeSearchRef.current) {
           e.preventDefault(); e.stopImmediatePropagation()
           closeCodeSearch()
+          return
+        }
+        if (exploreResultRef.current) {
+          e.preventDefault(); e.stopImmediatePropagation()
+          setExploreResult(null)
           return
         }
         const active = document.activeElement as HTMLElement | null

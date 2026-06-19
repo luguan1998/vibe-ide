@@ -13,8 +13,12 @@ Vibe IDE — Electron-based desktop IDE with native terminal, git, file diff/edi
 6. **信息不过二** — 同一份数据出现两次以上，立刻抽共享常量，不种重复因
 7. **禁用同步弹窗** — 严禁使用 `confirm()`、`prompt()`、`alert()` 等同步阻塞式浏览器原生弹窗。确认/输入类交互统一使用异步 Modal 模式（参考 `confirmAction` 状态 + fixed 定位弹窗，或内联 `<input>` 编辑）
 8. **被调先于主调** — `const` 声明（含 `useCallback`）不提升，被调函数必须在调用方之前定义。违反会触发 `ReferenceError: Cannot access 'xxx' before initialization`
-9. **Modal/Overlay 按键拦截用 capture + stopImmediatePropagation** — Modal 的 Escape/Enter 等键盘监听必须用捕获阶段（`addEventListener('keydown', handler, true)`），并在 handler 中调用 `e.stopImmediatePropagation()`。原因：xterm.js 终端会消费键盘事件，冒泡阶段监听时终端已先收到按键，导致 Modal 关闭的同时终端也被影响。清理时 `removeEventListener` 同样要传 `true`。参考 `TerminalView.tsx:741-749`
-10. **ESC 分层消费** — capture 阶段按 z-index 从上到下：z-50 overlay → NavBar → preview → 右侧 panel blur → 终端搜索。上层消费后必须 `stopImmediatePropagation()`；preview handler 也必须加，否则 ESC 泄漏到 Monaco/xterm 引发副作用。右侧 panel blur 只在 `centerView === 'terminal'` 时生效（`App.tsx:772`），preview 模式下 ESC 交给 preview handler
+9. **ESC 按注册顺序分层**（均为 window capture）：
+   - App.tsx 最先：NavBar → history → callGraph → codeSearch → exploreResult → focus return(`centerView === 'terminal'`)
+   - DiffViewer：关 diff（capture 因 Monaco 会抢清选区）
+   - MarkdownPreview / ImagePreview：关预览
+   上层命中即 `stopImmediatePropagation()`，下层不再执行
+10. **Modal/Overlay 按键拦截用 capture + stopImmediatePropagation** — xterm.js 冒泡阶段会消费按键，capture 阶段拦截方可阻止泄漏。参考 `TerminalView.tsx` filePicker handler
 11. **Caps Lock 安全** — 字母键判断必须 `.toLowerCase()`：`e.key.toLowerCase() === 's'`，不得直接 `e.key === 's'`。Caps Lock 时 `e.key` 为大写，直接比较会漏匹配
 
 ## Commands

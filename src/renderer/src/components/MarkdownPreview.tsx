@@ -108,11 +108,9 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
         onBack()
       }
     }
-    window.addEventListener('keydown', handler, true)
-    return () => window.removeEventListener('keydown', handler, true)
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [onBack])
-
-
 
   const lastSep = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'))
           const dirPart = lastSep >= 0 ? fullPath.substring(0, lastSep + 1) : ''
