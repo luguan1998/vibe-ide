@@ -129,6 +129,13 @@ export function registerRevertHandlers(): void {
 
     attachAiProcess(sessionId, spawnResult, effectiveCwd)
 
+    // Preserve contextWindow from old session — --resume may not re-emit system/init
+    // with a model name, so without this the percentage falls back to the 200k default.
+    if (prev?.contextWindow) {
+      const newSession = aiSessions.get(sessionId)
+      if (newSession) newSession.contextWindow = prev.contextWindow
+    }
+
     // --resume replay may not emit system/init; force AI_READY so
     // the renderer unlocks input immediately.
     send(IPC_CHANNELS.AI_READY, { sessionId, tools: [], model: '', slashCommands: [] })

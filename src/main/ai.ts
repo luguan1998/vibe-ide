@@ -54,6 +54,7 @@ export function send(channel: string, data: any): void {
 const AI_INSTALL_CMD = 'npm install -g @anthropic-ai/claude-code@latest'
 
 export type BinaryResult = { binary: string } | { error: string; installCmd: string }
+type SpawnError = { error: string; installCmd: string }
 
 export function findBinary(customCommand?: string): BinaryResult {
   const names = customCommand ? [customCommand] : ['claude', 'openclaude']
@@ -122,7 +123,7 @@ export function spawnClaude(opts: {
   permissionMode: AiPermissionMode
   resumeSessionId?: string
   cliCommand?: string
-}): ChildProcess | BinaryResult {
+}): ChildProcess | SpawnError {
   const resolved = findBinary(opts.cliCommand)
   if ('error' in resolved) return resolved
 
@@ -189,9 +190,12 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       if (s) {
         s.ready = true
         if (msg.session_id) s.claudeSessionId = msg.session_id
-        // Parse context window from model name (e.g. "deepseek-v4-pro[1m]" → 1M)
-        if (msg.model && !s.contextWindow) {
-          s.contextWindow = parseContextWindowFromModel(msg.model)
+        // Parse context window from model name (e.g. "deepseek-v4-pro[1m]" → 1M).
+        // Allow re-init: --resume may re-send system/init after a restart, and the
+        // first init might have lacked a model field.
+        if (msg.model) {
+          const parsed = parseContextWindowFromModel(msg.model)
+          if (parsed) s.contextWindow = parsed
         }
       }
       send(IPC_CHANNELS.AI_READY, { sessionId, tools: msg.tools, model: msg.model, slashCommands: msg.slash_commands })
@@ -489,7 +493,7 @@ export function resolveProjectDir(cwd: string): string | null {
     const allDirs = require('fs').readdirSync(projectsRoot)
     const lowerName = normalizeCwdToProjectDir(cwd).toLowerCase()
     const upperName = normalizeCwdToProjectDir(cwd)
-    const match = allDirs.find(d => d === lowerName || d === upperName)
+    const match = allDirs.find((d: string) => d === lowerName || d === upperName)
     return match ? join(projectsRoot, match) : null
   } catch { return null }
 }

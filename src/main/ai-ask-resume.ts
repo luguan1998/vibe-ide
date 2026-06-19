@@ -74,6 +74,7 @@ export function registerAskResumeHandlers(): void {
     if (newSession) {
       newSession.claudeSessionId = claudeSessionId
       newSession.permissionMode = permissionMode
+      newSession.contextWindow = session.contextWindow
     }
 
     const prompt = formatAskUserAnswer(payload.answers)

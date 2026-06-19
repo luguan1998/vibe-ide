@@ -69,6 +69,13 @@ export function registerPlanExecuteHandlers(): void {
     // 5. Attach stdout/stderr/error/exit handlers — reuses ai.ts lifecycle logic
     attachAiProcess(sessionId, result, cwd)
 
+    // Preserve contextWindow from old session (fresh spawn without --resume will
+    // get a new init event, but preserve as fallback in case the init lacks model).
+    if (prev?.contextWindow) {
+      const newSession = aiSessions.get(sessionId)
+      if (newSession) newSession.contextWindow = prev.contextWindow
+    }
+
     // 6. Push plan as first user message — model picks up from clean slate
     const firstMessage = buildPlanExecutePrompt(planContent, planFilePath)
     result.stdin!.write(JSON.stringify({

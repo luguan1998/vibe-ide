@@ -402,7 +402,7 @@ export function registerCodeGraphHandlers(): void {
       const results = cg.searchNodes(query, searchOpts)
       let nodes = (results || []).slice(0, opts?.limit || 200).map((r: any) => normalizeNode(r.node || r))
       if (opts?.filePath) {
-        nodes = nodes.filter(n => n.filePath === opts.filePath)
+        nodes = nodes.filter((n: any) => n.filePath === opts.filePath)
       }
       return { nodes, total: nodes.length }
     } catch (err: any) {

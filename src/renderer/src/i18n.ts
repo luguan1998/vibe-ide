@@ -299,6 +299,8 @@ const ZH_MAP: Record<string, string> = {
   'Clear & Execute': '清空并执行',
   'Send Feedback': '发送反馈',
   'Feedback for revision (optional)': '修改建议（可选）',
+  // AI Todo list
+  'Tasks': '任务列表',
   // AI Revert/Fork popover
   'Revert conversation & code': '回退对话和代码',
   'Revert conversation only': '仅回退对话',

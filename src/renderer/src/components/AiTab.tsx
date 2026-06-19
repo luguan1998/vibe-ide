@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import type { AiMessage, AiToolUse, AiSessionState, AiPermissionRequest, AiPermissionMode, AiSlashCommand } from '@shared/types'
 import { AI_FILE_EDIT_TOOLS } from '@shared/types'
 import ReactMarkdown from 'react-markdown'
@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
 import { useI18n } from '../i18n'
 import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
-import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Lightbulb, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy } from 'lucide-react'
+import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Lightbulb, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
 
 interface AiTabProps {
   activeSessionId: string | null
@@ -38,6 +38,45 @@ function getToolCategory(name: string): 'file' | 'command' | 'search' | 'default
   if (COMMAND_TOOLS.has(name)) return 'command'
   if (SEARCH_TOOLS.has(name)) return 'search'
   return 'default'
+}
+
+// ── Task tools ────────────────────────────────────────────────────
+
+const TASK_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'TaskOutput', 'TaskStop'])
+
+interface TodoItem {
+  id: string
+  subject: string
+  description?: string
+  status: 'pending' | 'in_progress' | 'completed' | 'deleted'
+  parentToolUseId?: string
+}
+
+function deriveTodoList(messages: AiMessage[]): TodoItem[] {
+  const tasks = new Map<string, TodoItem>()
+  for (const msg of messages) {
+    if (!msg.toolUse) continue
+    for (const tool of msg.toolUse) {
+      if (tool.name === 'TaskCreate') {
+        const id = String(tasks.size + 1)
+        tasks.set(id, {
+          id,
+          subject: tool.input?.subject || '',
+          description: tool.input?.description,
+          status: 'pending',
+          parentToolUseId: msg.parentToolUseId,
+        })
+      } else if (tool.name === 'TaskUpdate') {
+        const taskId = String(tool.input?.taskId || '')
+        const newStatus = tool.input?.status as TodoItem['status'] | undefined
+        const existing = tasks.get(taskId)
+        if (existing && newStatus) {
+          existing.status = newStatus
+        }
+      }
+    }
+  }
+  return [...tasks.values()].filter(t => t.status !== 'deleted')
 }
 
 // ── Sub-components (被调先于主调) ──────────────────────────────
@@ -625,6 +664,50 @@ function AiErrorMessage({ message }: { message: AiMessage }) {
           >
             {copied ? '✓' : t('Copy')}
           </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TodoListPanel({ items }: { items: TodoItem[] }) {
+  const { t } = useI18n()
+  const [collapsed, setCollapsed] = useState(false)
+  const completed = items.filter(i => i.status === 'completed').length
+  const total = items.length
+
+  return (
+    <div className="shrink-0 border-b border-ide-border/30 animate-fade-in">
+      <button
+        onClick={() => setCollapsed(v => !v)}
+        className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:bg-ide-hover/30 transition-colors"
+      >
+        <ListTodo size={13} className="text-ide-accent shrink-0" />
+        <span className="text-[11px] font-medium text-ide-text-muted">
+          {t('Tasks')} ({completed}/{total})
+        </span>
+        <ChevronDown size={11} className={`ml-auto text-ide-text-muted/50 transition-transform ${collapsed ? '' : 'rotate-180'}`} />
+      </button>
+      {!collapsed && (
+        <div className="px-2 pb-1.5 space-y-0.5">
+          {items.map(item => {
+            const isCompleted = item.status === 'completed'
+            const isInProgress = item.status === 'in_progress'
+            return (
+              <div key={item.id} className="flex items-center gap-2 px-1 py-0.5 text-xs">
+                {isCompleted ? (
+                  <Check size={12} className="text-ide-success shrink-0" />
+                ) : isInProgress ? (
+                  <Loader2 size={12} className="text-ide-accent shrink-0 animate-spin" />
+                ) : (
+                  <Circle size={12} className="text-ide-text-muted/40 shrink-0" />
+                )}
+                <span className={`truncate ${isCompleted ? 'line-through text-ide-text-muted/40' : 'text-ide-text'}`}>
+                  {item.subject}
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
@@ -1458,6 +1541,9 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
     onForkSession(userMessageIndex)
   }, [activeSessionId, onForkSession])
 
+  // ── Todo list ──
+  const todoItems = useMemo(() => deriveTodoList(state.messages), [state.messages])
+
   // ── Status text ──
   const statusText = !state.ready
     ? t('Connecting...')
@@ -1664,6 +1750,9 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
           />
         )
       )}
+
+      {/* Todo list — pins above input so it stays visible */}
+      {todoItems.length > 0 && <TodoListPanel items={todoItems} />}
 
       {/* Input */}
       <div className="shrink-0 p-2">
