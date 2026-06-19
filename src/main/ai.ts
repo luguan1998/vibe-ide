@@ -27,6 +27,9 @@ export interface ManagedAiSession {
     toolInput: Record<string, any>
     toolUseId?: string
   }
+  // Set when user clicks Cancel — the next result message should be marked as aborted
+  // (user-initiated interrupt) rather than error_during_execution.
+  cancelRequested?: boolean
   // Set when AskUserQuestion arrived — main process kills CLI proactively to
   // prevent LLM from continuing on the auto-filled empty answer (CLI 0.5s
   // auto-timeout fills empty tool_result → LLM calls Write/Edit → overwrites
@@ -360,12 +363,16 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
     case 'result': {
       // CLI 旧版本可能不带 subtype，按 is_error 兜底
       const subtype = msg.subtype || (msg.is_error ? 'error_during_execution' : 'success')
+      const session = aiSessions.get(sessionId)
+      // User-initiated cancel: treat result as aborted, not error
+      const wasCancelled = session?.cancelRequested
+      if (wasCancelled) session!.cancelRequested = false
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
         type: 'result',
         content: msg.result,
         subtype,
-        isAborted: !!msg.is_aborted,
+        isAborted: !!msg.is_aborted || wasCancelled,
         costUsd: msg.total_cost_usd,
         durationMs: msg.duration_ms,
         numTurns: msg.num_turns,
@@ -412,7 +419,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
 // Claude CLI stores sessions as <session-id>.jsonl files under project directories.
 // Normalization: D:\path → d--path (:\ → --, \ → -, . → -, lowercase drive)
 
-function normalizeCwdToProjectDir(cwd: string): string {
+export function normalizeCwdToProjectDir(cwd: string): string {
   let normalized = cwd
   // Windows drive: D:\ → D--
   if (/^[A-Za-z]:[\\\/]/.test(normalized)) {
@@ -473,7 +480,7 @@ async function listSessionsForCwd(cwd: string): Promise<{ sessions: any[] }> {
 
 // ── Load full session history from .jsonl for resume display ──
 
-function resolveProjectDir(cwd: string): string | null {
+export function resolveProjectDir(cwd: string): string | null {
   const projectsRoot = join(homedir(), '.claude', 'projects')
   // Synchronous scan needed here — only a few dirs
   try {
@@ -547,6 +554,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
       if (textParts.length === 0 && toolUses.length === 0 && thinkingParts.length === 0) continue
       messages.push({
         sessionId: sid, type: 'assistant', role: 'assistant',
+        messageId: msg.message?.id,
         content: textParts.join('\n') || undefined,
         thinking: thinkingParts.length > 0 ? thinkingParts.join('\n') : undefined,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
@@ -562,6 +570,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
       if (typeof userContent === 'string') {
         messages.push({
           sessionId: sid, type: 'user', role: 'user',
+          messageId: msg.message?.id,
           content: userContent, timestamp: ts,
         })
         continue
@@ -833,16 +842,16 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     return { success: true }
   })
 
-  // Cancel current operation
+  // Cancel current operation — send interrupt via stdin (CLI handles it gracefully)
   ipcMain.handle(IPC_CHANNELS.AI_CANCEL, (_event, sessionId: string) => {
     const session = aiSessions.get(sessionId)
-    if (!session) return false
-    // Send SIGINT for graceful cancellation
-    if (process.platform === 'win32') {
-      spawn('taskkill', ['/pid', String(session.process.pid), '/f', '/t'])
-    } else {
-      session.process.kill('SIGINT')
-    }
+    if (!session || !session.ready) return false
+    session.cancelRequested = true
+    session.process.stdin!.write(JSON.stringify({
+      type: 'control_request',
+      request_id: randomUUID(),
+      request: { subtype: 'interrupt' },
+    }) + '\n')
     return true
   })
 

@@ -131,11 +131,13 @@ declare global {
       removeStartupOpenPathListener: (handler?: any) => void
       ai: {
         checkAvailable: () => Promise<{ available: boolean; installCmd?: string }>
-        create: (options: { sessionId: string; cwd: string; autoApprove: boolean }) => Promise<{ success: boolean; error?: string }>
+        create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; resumeSessionId?: string }) => Promise<{ success: boolean; error?: string }>
         send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>
         cancel: (sessionId: string) => Promise<boolean>
         destroy: (sessionId: string) => Promise<boolean>
         respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>) => Promise<{ success: boolean }>
+        revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) => Promise<{ success: boolean; error?: string }>
+        fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
         onMessage: (callback: (data: any) => void) => any
         removeMessageListener: (handler?: any) => void
         onStreamToken: (callback: (data: { sessionId: string; token: string }) => void) => any
@@ -266,6 +268,7 @@ export default function App() {
   const [agentStatus, setAgentStatus] = useState<Record<string, 'running' | 'idle'>>({})
   const [autoApproveSessions, setAutoApproveSessions] = useState<Record<string, boolean>>({})
   const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
+  const [forkSessions, setForkSessions] = useState<Record<string, string>>({})
   const [focusedPanel, setFocusedPanel] = useState<'term' | 'right' | null>(null)
   const [wordWrap, setWordWrap] = useState(() => {
     try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
@@ -1096,6 +1099,48 @@ export default function App() {
     }
   }, [autoUtf8])
 
+  // Fork AI conversation at a specific user message
+  const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number) => {
+    try {
+      const current = sessions.find(s => s.id === currentSessionId)
+      if (!current) return
+
+      // 1. Call fork IPC to create truncated JSONL with new session ID
+      const result = await window.api.ai.fork({
+        sessionId: currentSessionId,
+        userMessageIndex,
+        cwd: current.cwd,
+      })
+      if (!result.success || !result.newClaudeSessionId) {
+        console.error('Fork failed:', result.error)
+        return
+      }
+
+      // 2. Create new terminal session (same cwd)
+      const session = await window.api.terminal.create({ cwd: current.cwd, autoUtf8 })
+
+      // 3. Store fork resume ID for the new session
+      setForkSessions(prev => ({ ...prev, [session.id]: result.newClaudeSessionId! }))
+
+      // 4. Insert session right after the current one
+      setSessions(prev => {
+        const parentIndex = prev.findIndex(s => s.id === currentSessionId)
+        if (parentIndex === -1) return [...prev, session]
+        const next = [...prev]
+        next.splice(parentIndex + 1, 0, session)
+        return next
+      })
+
+      // 5. Switch to new session in gui mode — AiTab's auto-create will use resumeSessionId
+      setActiveSessionId(session.id)
+      setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))
+      setCenterView('terminal')
+      setDiffFile(null)
+    } catch (err) {
+      console.error('Failed to fork session:', err)
+    }
+  }, [sessions, autoUtf8])
+
   // Switch active session
   const handleSwitchSession = useCallback((id: string) => {
     setActiveSessionId(id)
@@ -1127,6 +1172,11 @@ export default function App() {
       return next
     })
     setAgentStatus(prev => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setForkSessions(prev => {
       const next = { ...prev }
       delete next[id]
       return next
@@ -1629,6 +1679,10 @@ export default function App() {
                           if (result.success && result.session) {
                             setSessions(prev => prev.map(s => s.id === session.id ? result.session! : s))
                           }
+                        }}
+                        resumeSessionId={forkSessions[session.id]}
+                        onForkSession={(userMessageIndex: number) => {
+                          handleForkSession(session.id, userMessageIndex)
                         }}
                       />
                     ) : (

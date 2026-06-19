@@ -111,6 +111,8 @@ export const IPC_CHANNELS = {
   AI_PLAN_EXECUTE: 'ai:planExecute',
   AI_SET_PERMISSION_MODE: 'ai:setPermissionMode',
   AI_ASK_RESUME: 'ai:askResume',
+  AI_REVERT: 'ai:revert',
+  AI_FORK: 'ai:fork',
   AI_MESSAGE: 'ai:message',               // push: full message (assistant text/tool_use)
   AI_STREAM_TOKEN: 'ai:streamToken',      // push: partial token for streaming display
   AI_PROGRESS: 'ai:progress',             // push: tool_progress events
@@ -427,4 +429,21 @@ export interface AiSetPermissionModePayload {
 export interface AiAskResumePayload {
   sessionId: string
   answers: Record<string, string>  // { [questionText]: "selected label" }
+}
+
+// Revert conversation to a specific user message by truncating the JSONL and restarting CLI.
+// Scope 'conversation' only rewinds messages; 'both' also reverts file changes via git checkout.
+export interface AiRevertPayload {
+  sessionId: string
+  userMessageIndex: number   // index of the target user message among real user messages
+  scope: 'conversation' | 'both'
+  cwd: string
+}
+
+// Fork conversation at a specific user message: create a new truncated JSONL with a fresh
+// session ID. The renderer spawns a new CLI process via --resume to the forked session.
+export interface AiForkPayload {
+  sessionId: string
+  userMessageIndex: number
+  cwd: string
 }

@@ -225,6 +225,10 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_PERMISSION_MODE, { sessionId, mode }),
     askResume: (sessionId: string, answers: Record<string, string>) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_ASK_RESUME, { sessionId, answers }),
+    revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_REVERT, payload),
+    fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_FORK, payload),
     onMessage: (callback: (data: any) => void) => {
       const handler = (_event: any, data: any) => callback(data)
       ipcRenderer.on(IPC_CHANNELS.AI_MESSAGE, handler)

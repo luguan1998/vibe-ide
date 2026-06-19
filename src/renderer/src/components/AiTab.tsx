@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
 import { useI18n } from '../i18n'
 import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
-import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Lightbulb } from 'lucide-react'
+import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Lightbulb, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy } from 'lucide-react'
 
 interface AiTabProps {
   activeSessionId: string | null
@@ -18,6 +18,8 @@ interface AiTabProps {
   onViewAi: () => void
   onRenameSession: (name: string) => void
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  onForkSession?: (userMessageIndex: number) => void
+  resumeSessionId?: string
 }
 
 const EMPTY_SESSION: AiSessionState = {
@@ -65,7 +67,7 @@ function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
   }, [workspacePath, onOpenFile])
 
   return (
-    <div className={`md-preview text-xs ${className}`} onClick={handleClick}>
+    <div className={`md-preview text-sm ${className}`} onClick={handleClick}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownCodeOverrides()}>
         {text}
       </ReactMarkdown>
@@ -113,7 +115,7 @@ function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: 
   }, [workspacePath, onOpenFile])
 
   return (
-    <div className={`md-preview text-xs ${className}`} onClick={handleClick}>
+    <div className={`md-preview text-sm ${className}`} onClick={handleClick}>
       {safePart && (
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownCodeOverrides()}>
           {safePart}
@@ -411,11 +413,95 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
   )
 })
 
-function AiUserMessage({ message }: { message: AiMessage }) {
+function findMessageIndexForUserMessage(messages: AiMessage[], userMessageIndex: number): number {
+  let count = 0
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i]
+    if (m.role === 'user' && m.content && m.type === 'user') {
+      if (count === userMessageIndex) return i
+      count++
+    }
+  }
+  return -1
+}
+
+function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork }: {
+  message: AiMessage
+  userMessageIndex: number
+  totalUserMessages: number
+  isBusy: boolean
+  onRevert: (idx: number) => void
+  onRevertAndCode: (idx: number) => void
+  onFork: (idx: number) => void
+}) {
+  const { t } = useI18n()
+  const [showPopover, setShowPopover] = useState(false)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearHideTimer = () => {
+    if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null }
+  }
+
+  useEffect(() => {
+    if (!showPopover) return
+    const handleClick = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setShowPopover(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showPopover])
+
   return (
-    <div className="flex justify-end animate-fade-in">
-      <div className="max-w-[85%] px-3 py-2 rounded-2xl rounded-tr-md bg-ide-accent/12 border border-ide-accent/25 text-ide-text text-xs whitespace-pre-wrap">
-        {message.content}
+    <div className="flex justify-end animate-fade-in"
+      onMouseEnter={() => { clearHideTimer(); setShowPopover(true) }}
+      onMouseLeave={() => { hideTimerRef.current = setTimeout(() => setShowPopover(false), 300) }}
+    >
+      <div className="max-w-[85%] relative">
+        <div className="px-3 py-2 rounded-2xl rounded-tr-md bg-ide-accent/12 border-2 border-ide-accent/30 text-ide-text text-sm whitespace-pre-wrap">
+          {message.content}
+        </div>
+
+        {showPopover && (
+          <div ref={popoverRef}
+            className="absolute right-0 top-full mt-1 z-30
+                       bg-ide-sidebar border border-ide-border rounded-lg shadow-lg
+                       py-1 min-w-[170px] animate-fade-in"
+          >
+            <button
+              onClick={() => { setShowPopover(false); onRevertAndCode(userMessageIndex) }}
+              disabled={isBusy}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left text-ide-text-muted
+                         hover:bg-ide-hover hover:text-ide-text
+                         disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              <Undo2 size={12} className="shrink-0" />
+              {t('Revert conversation & code')}
+            </button>
+            <button
+              onClick={() => { setShowPopover(false); onRevert(userMessageIndex) }}
+              disabled={isBusy}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left text-ide-text-muted
+                         hover:bg-ide-hover hover:text-ide-text
+                         disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              <MessageSquare size={12} className="shrink-0" />
+              {t('Revert conversation only')}
+            </button>
+            <button
+              onClick={() => { setShowPopover(false); onFork(userMessageIndex) }}
+              disabled={isBusy}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left text-ide-text-muted
+                         hover:bg-ide-hover hover:text-ide-text
+                         disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              <GitFork size={12} className="shrink-0" />
+              {t('Fork to new session')}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -444,10 +530,30 @@ function ThinkingBlock({ text, defaultOpen = false, durationMs }: { text: string
   )
 }
 
-function AiAssistantMessage({ message, workspacePath, onOpenFile }: {
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }, [text])
+  return (
+    <button
+      onClick={handleCopy}
+      className="shrink-0 opacity-0 group-hover/meta:opacity-100 transition-opacity hover:text-ide-accent"
+      title="Copy"
+    >
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+    </button>
+  )
+}
+
+function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  copyText?: string
 }) {
   const { t } = useI18n()
   const showMeta = message.type === 'result' && (message.costUsd != null || message.numTurns != null)
@@ -482,8 +588,11 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile }: {
         </div>
       )}
       {showMeta && (
-        <div className="text-[11px] text-ide-text-muted/50 px-1">
-          {message.numTurns} turns · {(message.costUsd! * 100).toFixed(2)}¢ · {((message.durationMs || 0) / 1000).toFixed(1)}s
+        <div className="flex items-center gap-2 text-[11px] text-ide-text-muted/50 px-1 group/meta">
+          <span>
+            {message.numTurns} turns · {(message.costUsd! * 100).toFixed(2)}¢ · {((message.durationMs || 0) / 1000).toFixed(1)}s
+          </span>
+          {copyText && <CopyButton text={copyText} />}
         </div>
       )}
     </div>
@@ -522,17 +631,33 @@ function AiErrorMessage({ message }: { message: AiMessage }) {
   )
 }
 
-function AiMessageBubble({ message, workspacePath, onOpenFile }: {
+function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  userMessageIndex: number
+  totalUserMessages: number
+  isBusy: boolean
+  onRevert: (idx: number) => void
+  onRevertAndCode: (idx: number) => void
+  onFork: (idx: number) => void
+  msgIndex: number
+  allMessages: AiMessage[]
 }) {
+  let copyText: string | undefined
+  if (message.type === 'result' && message.numTurns != null) {
+    for (let j = msgIndex - 1; j >= 0; j--) {
+      const prev = allMessages[j]
+      if (prev.type === 'assistant' && prev.content) { copyText = prev.content; break }
+      if (prev.type !== 'assistant') break
+    }
+  }
   const { t } = useI18n()
   let inner: React.ReactNode
   if (message.error) {
     inner = <AiErrorMessage message={message} />
   } else if (message.role === 'user') {
-    inner = <AiUserMessage message={message} />
+    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} totalUserMessages={totalUserMessages} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} onFork={onFork} />
   } else if (
     message.type === 'result'
     && message.costUsd == null
@@ -544,7 +669,7 @@ function AiMessageBubble({ message, workspacePath, onOpenFile }: {
     // success 且无 meta → 重复消息，不渲染
     return null
   } else {
-    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} />
+    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} />
   }
 
   // 子 agent 视觉分组（Agent/Task 工具产生的子消息）
@@ -646,33 +771,36 @@ function enrichSlashCommands(names: string[]): AiSlashCommand[] {
 // ── ContextBar ──────────────────────────────────────────────────────
 function ContextBar({ percent }: { percent: number | null }) {
   const pct = percent ?? 0
-  const TOTAL_SEGMENTS = 5
-  const filled = Math.round(pct / 100 * TOTAL_SEGMENTS)
+  const TOTAL = 10
+  const filled = Math.round(pct / 100 * TOTAL)
 
   const colorClass =
     pct >= 80 ? 'bg-ide-danger'
     : pct >= 50 ? 'bg-ide-warning'
     : 'bg-ide-success'
 
-  const textColorClass =
+  const textColor =
     pct >= 80 ? 'text-ide-danger'
     : pct >= 50 ? 'text-ide-warning'
     : 'text-ide-success'
 
   return (
     <div
-      className="flex items-center gap-1.5 shrink-0 w-[70px]"
+      className="flex items-center gap-1.5 shrink-0"
       title={`${pct}% context used`}
     >
-      <div className="flex gap-[2px]">
-        {Array.from({ length: TOTAL_SEGMENTS }).map((_, i) => (
+      {/* energy bar frame */}
+      <div className="flex gap-[2px] border border-ide-border/50 rounded-md px-[3px] py-[3px]">
+        {Array.from({ length: TOTAL }).map((_, i) => (
           <div
             key={i}
-            className={`w-[6px] h-3 rounded-[2px] transition-colors duration-300 ${i < filled ? colorClass : 'bg-ide-border/40'}`}
+            className={`w-[5px] h-3 rounded-[2px] transition-all duration-500 ${
+              i < filled ? colorClass : 'bg-ide-border/25'
+            }`}
           />
         ))}
       </div>
-      <span className={`text-xs font-mono leading-none ${textColorClass}`}>
+      <span className={`text-[10px] font-mono leading-none tabular-nums ${textColor}`}>
         {pct}%
       </span>
     </div>
@@ -793,7 +921,7 @@ function SlashCommandAutocomplete({
 
 // ── Main Component ─────────────────────────────────────────────
 
-export default function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile }: AiTabProps) {
+export default function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, resumeSessionId }: AiTabProps) {
   const { t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
   const isActiveRef = useRef(isActive)
@@ -980,7 +1108,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
           ...s,
           messages,
           name: newName,
-          busy: msg.type !== 'result',
+          busy: s.busy && msg.type !== 'result',
           streaming: msg.type === 'result' ? false : s.streaming,
           streamBuffer: clearText || msg.type === 'result' ? '' : s.streamBuffer,
           thinkingBuffer: clearThinking || msg.type === 'result' ? '' : s.thinkingBuffer,
@@ -1041,7 +1169,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
   useEffect(() => {
     const handleReady = window.api.ai.onReady(({ sessionId, slashCommands, model }: any) => {
       const commands = enrichSlashCommands(slashCommands || [])
-      updateSession(sessionId, (s) => ({ ...s, ready: true, slashCommands: commands, model: model || '' }))
+      updateSession(sessionId, (s) => ({ ...s, ready: true, busy: false, slashCommands: commands, model: model || '' }))
     })
     return () => window.api.ai.removeReadyListener(handleReady)
   }, [updateSession])
@@ -1101,6 +1229,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
         cwd: workspacePath,
         autoApprove,
         permissionMode,
+        ...(resumeSessionId ? { resumeSessionId } : {}),
       })
       updateSession(sid, () => ({ ...EMPTY_SESSION }))
     }).catch(() => {
@@ -1266,6 +1395,65 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
     }
   }, [])
 
+  // ── Revert / Fork handlers ──────────────────────────────────────
+
+  const handleRevert = useCallback(async (userMessageIndex: number) => {
+    if (!activeSessionId || !workspacePath) return
+
+    // 1. Optimistic: truncate renderer messages before the target
+    const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
+    const truncatedMessages = targetMsgIdx >= 0 ? state.messages.slice(0, targetMsgIdx) : []
+
+    // 2. Restore the reverted message to the input for re-editing
+    if (targetMsgIdx >= 0 && state.messages[targetMsgIdx]?.content) {
+      setInputValue(state.messages[targetMsgIdx].content!)
+    }
+
+    // 3. Update renderer state — truncate messages, keep input enabled
+    updateSession(activeSessionId, (s) => ({
+      ...s,
+      messages: truncatedMessages,
+      busy: false,
+      streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null,
+      pendingPermission: null,
+    }))
+
+    // 4. IPC: truncate JSONL, kill old CLI, spawn new with --resume
+    await window.api.ai.revert({
+      sessionId: activeSessionId,
+      userMessageIndex,
+      scope: 'conversation',
+      cwd: workspacePath,
+    })
+  }, [activeSessionId, workspacePath, state.messages, updateSession, setInputValue])
+
+  const handleRevertAndCode = useCallback(async (userMessageIndex: number) => {
+    if (!activeSessionId || !workspacePath) return
+
+    // 1. Revert all unstaged file changes
+    try {
+      const status = await window.api.git.status()
+      if (status?.files) {
+        for (const f of status.files) {
+          if (f.staged) continue
+          if (f.status === 'modified' || f.status === 'deleted') {
+            await window.api.git.discard(f.path)
+          } else if (f.status === 'untracked' || f.status === '?') {
+            await window.api.file.delete(f.path)
+          }
+        }
+      }
+    } catch (err) { console.error('git discard failed:', err) }
+
+    // 2. Same as handleRevert
+    await handleRevert(userMessageIndex)
+  }, [handleRevert, workspacePath])
+
+  const handleFork = useCallback(async (userMessageIndex: number) => {
+    if (!activeSessionId || !onForkSession) return
+    onForkSession(userMessageIndex)
+  }, [activeSessionId, onForkSession])
+
   // ── Status text ──
   const statusText = !state.ready
     ? t('Connecting...')
@@ -1313,9 +1501,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
             className="w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
             title={t('New Session')}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+            <MessageSquarePlus size={14} />
           </button>
         </div>
       </div>
@@ -1394,9 +1580,31 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
             </div>
           </div>
         )}
-        {state.messages.map((msg: AiMessage, i: number) => (
-          <AiMessageBubble key={i} message={msg} workspacePath={workspacePath} onOpenFile={onOpenFile} />
-        ))}
+        {(() => {
+          const userMessages = state.messages.filter(m => m.role === 'user' && m.content && m.type === 'user')
+          const totalUserMessages = userMessages.length
+          return state.messages.map((msg: AiMessage, i: number) => {
+            const uIdx = msg.role === 'user' && msg.content && msg.type === 'user'
+              ? userMessages.indexOf(msg)
+              : -1
+            return (
+              <AiMessageBubble
+                key={i}
+                message={msg}
+                msgIndex={i}
+                allMessages={state.messages}
+                workspacePath={workspacePath}
+                onOpenFile={onOpenFile}
+                userMessageIndex={uIdx}
+                totalUserMessages={totalUserMessages}
+                isBusy={state.busy}
+                onRevert={handleRevert}
+                onRevertAndCode={handleRevertAndCode}
+                onFork={handleFork}
+              />
+            )
+          })
+        })()}
         {/* Busy indicator — thinking + streaming + sparkle */}
         {state.busy && (
           <div className="max-w-[92%] space-y-1.5 animate-fade-in">
@@ -1528,7 +1736,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
                 placeholder={state.ready ? t('Type a message...') : t('Initializing...')}
                 rows={2}
                 disabled={!state.ready}
-                className="w-full text-xs bg-transparent px-0 py-0.5 text-ide-text
+                className="w-full text-sm bg-transparent px-0 py-0.5 text-ide-text
                            placeholder:text-ide-text-muted/50 resize-none
                            focus:outline-none disabled:opacity-50 leading-relaxed text-sm"
               />
