@@ -760,7 +760,7 @@ const SessionPanel = React.memo(function SessionPanel({
               <div key={group.cwd} className={`bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden ${gi > 0 ? 'mt-3' : ''}`}>
                 {/* Folder header */}
                 <div
-                  className="group h-7 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted bg-ide-hover/30"
+                  className="group h-7 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted acrylic-titlebar rounded-t-lg"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span

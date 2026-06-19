@@ -57,6 +57,10 @@ function MermaidBlock({ code }: { code: string }) {
   const { theme } = useTheme()
   const [svg, setSvg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [zoomed, setZoomed] = useState(false)
+  const [scale, setScale] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const dragRef = useRef<{ dragging: boolean; startX: number; startY: number; panX: number; panY: number }>({ dragging: false, startX: 0, startY: 0, panX: 0, panY: 0 })
 
   useEffect(() => {
     let cancelled = false
@@ -86,6 +90,20 @@ function MermaidBlock({ code }: { code: string }) {
     return () => { cancelled = true }
   }, [code, theme.monacoTheme])
 
+  useEffect(() => {
+    if (!zoomed) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
+        setZoomed(false)
+        setScale(1)
+        setPan({ x: 0, y: 0 })
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [zoomed])
+
   if (error) {
     return (
       <div className="md-mermaid md-mermaid-error-state">
@@ -105,10 +123,92 @@ function MermaidBlock({ code }: { code: string }) {
   }
 
   return (
-    <div className="md-mermaid">
-      <span className="md-code-lang">mermaid</span>
-      <div dangerouslySetInnerHTML={{ __html: svg }} />
-    </div>
+    <>
+      <div
+        className="md-mermaid cursor-zoom-in hover:shadow-lg hover:border-ide-accent/30 transition-shadow"
+        onClick={() => setZoomed(true)}
+      >
+        <span className="md-code-lang">mermaid</span>
+        <div dangerouslySetInnerHTML={{ __html: svg }} />
+      </div>
+
+      {zoomed && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 pt-10 animate-fade-in"
+          onClick={() => { setZoomed(false); setScale(1); setPan({ x: 0, y: 0 }) }}
+        >
+          <div
+            className="bg-ide-bg rounded-lg shadow-2xl w-[88vw] h-[92vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-3 py-1.5 border-b border-ide-border shrink-0 bg-ide-sidebar gap-2">
+              <span className="md-code-lang static text-xs">mermaid</span>
+              <div className="flex items-center gap-0.5">
+                <button
+                  className="w-6 h-6 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors text-sm leading-none select-none"
+                  onClick={() => setScale(s => Math.max(0.1, +(s * 0.8).toFixed(2)))}
+                  title="Zoom out"
+                >−</button>
+                <button
+                  className="min-w-[42px] h-6 rounded text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors font-mono select-none"
+                  onClick={() => { setScale(1); setPan({ x: 0, y: 0 }) }}
+                  title="Reset zoom"
+                >{Math.round(scale * 100)}%</button>
+                <button
+                  className="w-6 h-6 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors text-sm leading-none select-none"
+                  onClick={() => setScale(s => Math.min(10, +(s * 1.25).toFixed(2)))}
+                  title="Zoom in"
+                >+</button>
+              </div>
+              <button
+                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none shrink-0"
+                onClick={() => { setZoomed(false); setScale(1); setPan({ x: 0, y: 0 }) }}
+              >
+                ×
+              </button>
+            </div>
+            <div
+              className="overflow-auto p-4 flex items-center justify-center flex-1 cursor-grab"
+              onWheel={(e) => {
+                e.stopPropagation()
+                setScale(s => {
+                  const next = e.deltaY < 0 ? s * 1.15 : s * 0.85
+                  return Math.min(10, Math.max(0.1, +next.toFixed(2)))
+                })
+              }}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return
+                dragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }
+                ;(e.currentTarget as HTMLElement).style.cursor = 'grabbing'
+              }}
+              onMouseMove={(e) => {
+                if (!dragRef.current.dragging) return
+                setPan({
+                  x: dragRef.current.panX + (e.clientX - dragRef.current.startX),
+                  y: dragRef.current.panY + (e.clientY - dragRef.current.startY),
+                })
+              }}
+              onMouseUp={() => {
+                dragRef.current.dragging = false
+              }}
+              onMouseLeave={() => {
+                if (dragRef.current.dragging) {
+                  dragRef.current.dragging = false
+                }
+              }}
+            >
+              <div
+                style={{
+                  transform: `scale(${scale}) translate(${pan.x / scale}px, ${pan.y / scale}px)`,
+                  transition: dragRef.current.dragging ? 'none' : 'transform 0.15s ease-out',
+                }}
+                dangerouslySetInnerHTML={{ __html: svg }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

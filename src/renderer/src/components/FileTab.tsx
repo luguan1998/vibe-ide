@@ -557,7 +557,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {workspacePath && (
-        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2">
+        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar">
           <div className="flex items-center gap-1 min-w-0 flex-1">
             <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent shrink-0">
               <path d="M14.5 3H7.71L6.86 2.15L6.51 2H1.51L1.01 2.5V6.5V13.5L1.51 14H14.51L15.01 13.5V9V3.5L14.5 3ZM13.99 11.49V13H1.99V11.49V7.49V7H6.48L6.83 6.85L7.69 5.99H14V7.49L13.99 11.49ZM13.99 5H7.49L7.14 5.15L6.28 6.01H2V3.01H6.29L7.14 3.86L7.5 4.01H14L13.99 5Z" />

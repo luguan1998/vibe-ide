@@ -1464,8 +1464,13 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
   return (
     <div ref={containerRef} tabIndex={-1} className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-2 py-1 border-b border-ide-border shrink-0">
-        <span className="text-xs font-medium text-ide-text truncate">{state.name || 'untitled'}</span>
+      <div className="flex items-center justify-between px-2 py-1 border-b border-ide-border shrink-0 acrylic-titlebar">
+        <div className="flex items-center gap-1.5 min-w-0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
+              <path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6-4.8-6 4.8 2.4-7.2-6-4.8h7.6z" />
+            </svg>
+            <span className="text-xs font-medium text-ide-text truncate">{state.name || 'untitled'}</span>
+          </div>
         <div className="flex items-center gap-1">
           {/* Session history */}
           <button
