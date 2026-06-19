@@ -16,12 +16,11 @@ interface AiTabProps {
   onPermissionModeChange: (mode: AiPermissionMode) => void
   onViewAi: () => void
   onRenameSession: (name: string) => void
-  onOpenDiff: (fullPath: string, relativePath: string, oldContent?: string, newContent?: string) => void
 }
 
 const EMPTY_SESSION: AiSessionState = {
   ready: false, busy: false, messages: [],
-  streaming: false, streamBuffer: '', thinkingBuffer: '', pendingPermission: null,
+  streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null, pendingPermission: null,
   slashCommands: [], model: '', contextPercent: null, name: '',
 }
 
@@ -371,22 +370,26 @@ function AiUserMessage({ message }: { message: AiMessage }) {
   )
 }
 
-function ThinkingBlock({ text, defaultOpen = false }: { text: string; defaultOpen?: boolean }) {
+function ThinkingBlock({ text, defaultOpen = false, durationMs }: { text: string; defaultOpen?: boolean; durationMs?: number }) {
   const [open, setOpen] = useState(defaultOpen)
+  const label = durationMs != null
+    ? `Thinking for ${(durationMs / 1000).toFixed(1)}s`
+    : 'Thinking...'
   return (
     <div className="inline-block max-w-full animate-fade-in">
       <button
         onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-ide-hover text-ide-text-muted hover:bg-ide-active transition-colors"
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-colors"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 shrink-0">
-          <path d="M9 18h6M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 shrink-0 text-amber-400">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 3.87 3.13 7 7 7s7-3.13 7-7-3.13-7-7-7zm-1 11h2v-2h-2v2zm0-4h2V5h-2v4z" transform="scale(0.85) translate(2, 2)" opacity="0.6" />
+          <path d="M9 18h6M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" opacity="0.9" />
         </svg>
-        <span className="shrink-0">Thinking</span>
+        <span className="shrink-0">{label}</span>
       </button>
       {open && (
-        <div className="mt-1 px-3 py-2 text-xs bg-ide-bg border border-ide-border rounded space-y-1 max-h-64 overflow-y-auto">
-          <pre className="whitespace-pre-wrap break-words text-[11px] text-ide-text-muted">{text}</pre>
+        <div className="mt-1 px-3 py-2 text-xs bg-amber-500/5 border border-amber-500/15 rounded space-y-1 max-h-64 overflow-y-auto">
+          <pre className="whitespace-pre-wrap break-words text-[11px] text-amber-300/70">{text}</pre>
         </div>
       )}
     </div>
@@ -417,7 +420,7 @@ function AiAssistantMessage({ message }: { message: AiMessage }) {
       )}
       {hasContent && (
         <div className="max-w-[92%] space-y-1.5">
-          {message.thinking && <ThinkingBlock text={message.thinking} />}
+          {message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} />}
           {message.content && <ChatMarkdown text={message.content} />}
           {message.toolUse?.map(tool => <AiToolCallCard key={tool.id} tool={tool} />)}
         </div>
@@ -730,7 +733,7 @@ function SlashCommandAutocomplete({
 
 // ── Main Component ─────────────────────────────────────────────
 
-export default function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenDiff }: AiTabProps) {
+export default function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession }: AiTabProps) {
   const { t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
   const isActiveRef = useRef(isActive)
@@ -788,8 +791,6 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const userScrolledUpRef = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const onOpenDiffRef = useRef(onOpenDiff)
-  onOpenDiffRef.current = onOpenDiff
 
   // Track which sessions have been created to avoid double-init
   const createdSessionsRef = useRef<Set<string>>(new Set())
@@ -809,6 +810,19 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
       updateSession(msg.sessionId, (s) => {
         const isAssistant = msg.type === 'assistant' && msg.role === 'assistant'
 
+        // Consume any pending RAF tokens that haven't been flushed to state yet.
+        // Without this, the comparison below sees stale buffer values and can
+        // incorrectly create a duplicate flushedMsg (same text renders twice).
+        const pendingTokens = pendingTokensRef.current.get(msg.sessionId)
+        if (pendingTokens) {
+          pendingTokensRef.current.delete(msg.sessionId)
+          s = {
+            ...s,
+            streamBuffer: pendingTokens.text ? s.streamBuffer + pendingTokens.text : s.streamBuffer,
+            thinkingBuffer: pendingTokens.thinking ? s.thinkingBuffer + pendingTokens.thinking : s.thinkingBuffer,
+          }
+        }
+
         // CLI stream-json emits one assistant message per content block (thinking, then text,
         // then tool_use), but msg.message.id stays the same. Without this merge, each block
         // becomes a separate AiMessage and the same sentence appears twice in the UI.
@@ -820,11 +834,21 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
           && lastMsg.messageId === msg.messageId
 
         // Determine what the stream buffers have that the incoming message doesn't.
-        // Only flush unique content to avoid duplication (e.g. same thinking appearing
-        // in both the stream buffer and the assistant message).
-        const extraThinking = s.thinkingBuffer && s.thinkingBuffer !== msg.thinking
+        // Only flush unique content to avoid duplication. Buffer content that is a
+        // substring of the message is just a streaming preview — the message already
+        // covers it, so no need to flush.
+        // When merging with a previous message (same message ID), also check the
+        // merged result — otherwise stale buffer content from raced stream events
+        // creates duplicate thinking blocks after the response has finished rendering.
+        const coveredByMergedThinking = isSameMessageId && !!lastMsg?.thinking && lastMsg.thinking.includes(s.thinkingBuffer)
+        const coveredByMergedText = isSameMessageId && !!lastMsg?.content && lastMsg.content.includes(s.streamBuffer)
+        const extraThinking = s.thinkingBuffer
+          && (!msg.thinking || !msg.thinking.includes(s.thinkingBuffer))
+          && !coveredByMergedThinking
           ? s.thinkingBuffer : ''
-        const extraText = s.streamBuffer && s.streamBuffer !== msg.content
+        const extraText = s.streamBuffer
+          && (!msg.content || !msg.content.includes(s.streamBuffer))
+          && !coveredByMergedText
           ? s.streamBuffer : ''
         const hasExtra = extraThinking || extraText
 
@@ -834,18 +858,40 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
           ? [{ sessionId: msg.sessionId, type: 'assistant' as const, role: 'assistant' as const,
               content: extraText || undefined,
               thinking: extraThinking || undefined,
+              thinkingDurationMs: extraThinking && s.thinkingStartedAt ? Date.now() - s.thinkingStartedAt : undefined,
               parentToolUseId: msg.parentToolUseId,
               timestamp: Date.now() }]
           : []
 
+        // Calculate thinking duration when thinking content first lands in a message
+        const thinkDuration = (isAssistant && msg.thinking && s.thinkingStartedAt)
+          ? Date.now() - s.thinkingStartedAt : undefined
+
         let messages: AiMessage[]
         if (isSameMessageId && lastMsg) {
-          // Merge multi-block assistant message: accumulate content/thinking/toolUse into the
-          // last assistant message rather than appending a new bubble.
+          // Merge multi-block assistant message.
+          // --include-partial-messages emits cumulative content (each message has the full
+          // text so far). If new content/thinking starts with the old value, replace rather
+          // than concatenate — otherwise the same text doubles up.
+          const mergeContent = (oldC: string | undefined, newC: string | undefined): string | undefined => {
+            const o = oldC || ''
+            const n = newC || ''
+            if (!n) return oldC
+            if (!o) return newC
+            return n.startsWith(o) ? n : o + n
+          }
+          const mergeThinking = (oldT: string | undefined, newT: string | undefined): string | undefined => {
+            const o = oldT || ''
+            const n = newT || ''
+            if (!n) return oldT
+            if (!o) return newT
+            return n.startsWith(o) ? n : o + '\n\n' + n
+          }
           const merged: AiMessage = {
             ...lastMsg,
-            content: [lastMsg.content || '', msg.content || ''].filter(Boolean).join('') || undefined,
-            thinking: [lastMsg.thinking, msg.thinking].filter(Boolean).join('\n\n') || undefined,
+            content: mergeContent(lastMsg.content, msg.content) || undefined,
+            thinking: mergeThinking(lastMsg.thinking, msg.thinking) || undefined,
+            thinkingDurationMs: lastMsg.thinkingDurationMs ?? thinkDuration,
             toolUse: msg.toolUse?.length ? [...(lastMsg.toolUse || []), ...msg.toolUse] : lastMsg.toolUse,
           }
           messages = [...s.messages.slice(0, -1), merged, ...flushedMsg]
@@ -855,13 +901,15 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
             ? [...merged, ...flushedMsg]
             : [...s.messages, ...flushedMsg, msg]
         } else {
-          messages = [...s.messages, ...flushedMsg, msg]
+          messages = [...s.messages, ...flushedMsg, isAssistant ? { ...msg, thinkingDurationMs: thinkDuration } : msg]
         }
 
         // Clear buffers: only the fields the incoming message already covers.
-        // Keep thinking buffer if message has no thinking (preserves for next turn).
-        const clearThinking = isAssistant && !!msg.thinking
-        const clearText = isAssistant && !!msg.content
+        // When merging with a previous message (same ID), also clear if the merged
+        // result already has that content — prevents stale buffer surviving across
+        // partial messages and surfacing as duplicate blocks on result flush.
+        const clearThinking = isAssistant && (!!msg.thinking || (isSameMessageId && !!lastMsg?.thinking))
+        const clearText = isAssistant && (!!msg.content || (isSameMessageId && !!lastMsg?.content))
 
         // Auto-rename from first user message
         const isUserMsg = msg.type === 'user' && msg.role === 'user' && typeof msg.content === 'string' && msg.content.trim()
@@ -876,6 +924,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
           streaming: msg.type === 'result' ? false : s.streaming,
           streamBuffer: clearText || msg.type === 'result' ? '' : s.streamBuffer,
           thinkingBuffer: clearThinking || msg.type === 'result' ? '' : s.thinkingBuffer,
+          thinkingStartedAt: clearThinking || msg.type === 'result' ? null : s.thinkingStartedAt,
           contextPercent: msg.contextPercent != null ? Math.round(msg.contextPercent) : s.contextPercent,
         }
       })
@@ -909,6 +958,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
             ...s,
             streamBuffer: buf.text ? s.streamBuffer + buf.text : s.streamBuffer,
             thinkingBuffer: buf.thinking ? s.thinkingBuffer + buf.thinking : s.thinkingBuffer,
+            thinkingStartedAt: buf.thinking && !s.thinkingBuffer ? Date.now() : s.thinkingStartedAt,
             streaming: true,
           }))
         })
@@ -916,14 +966,6 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
     })
     return () => window.api.ai.removeStreamTokenListener(handleToken)
   }, [updateSession])
-
-  // ── IPC: File changes → open DiffViewer ──
-  useEffect(() => {
-    const handleFc = window.api.ai.onFileChange((change: any) => {
-      onOpenDiffRef.current(change.filePath, change.relativePath, change.oldContent, change.content)
-    })
-    return () => window.api.ai.removeFileChangeListener(handleFc)
-  }, [])
 
   // ── IPC: Permission requests ──
   useEffect(() => {
@@ -964,7 +1006,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
         return {
           ...s,
           ready: true,
-          busy: false, streaming: false, streamBuffer: '', thinkingBuffer: '',
+          busy: false, streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null,
           messages,
         }
       })
@@ -1108,11 +1150,15 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
       streaming: false,
       streamBuffer: '',
       thinkingBuffer: '',
+      thinkingStartedAt: null,
       busy: true,
       ready: false,
     }))
+    // Switch UI mode to acceptEdits — the new subprocess spawns with acceptEdits, so the
+    // ModeSelector must reflect reality. Without this, UI still shows "Plan" after execution.
+    onPermissionModeChange('acceptEdits')
     await window.api.ai.clearAndExecutePlan(sessionId, planFilePath)
-  }, [updateSession])
+  }, [updateSession, onPermissionModeChange])
 
   const handlePlanDeny = useCallback((sessionId: string, requestId: string, feedback: string) => {
     window.api.ai.respondPermission(sessionId, requestId, false, 'ExitPlanMode', undefined, feedback || undefined)
@@ -1141,6 +1187,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
       streaming: false,
       streamBuffer: '',
       thinkingBuffer: '',
+      thinkingStartedAt: null,
       busy: true,
     }))
     window.api.ai.askResume(sessionId, answers)

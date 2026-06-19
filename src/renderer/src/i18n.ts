@@ -296,7 +296,6 @@ const ZH_MAP: Record<string, string> = {
   'Plan Ready': '计划已就绪',
   'Clear & Execute': '清空并执行',
   'Send Feedback': '发送反馈',
-  'Cancel': '取消',
   'Feedback for revision (optional)': '修改建议（可选）',
 }
 

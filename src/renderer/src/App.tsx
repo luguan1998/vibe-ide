@@ -1389,23 +1389,6 @@ export default function App() {
     } : null)
   }, [diffFile])
 
-  const handleOpenDiffFromAi = useCallback((fullPath: string, relativePath: string, oldContent?: string, newContent?: string) => {
-    pushNavHistory()
-    if (oldContent !== undefined && newContent !== undefined) {
-      setDiffFile({
-        filePath: relativePath, fullPath, diffContent: '', isStaged: false,
-        defaultEdit: false, compareOriginalContent: oldContent,
-        compareOriginalPath: fullPath, revision: ++diffRevisionRef.current,
-      })
-    } else {
-      setDiffFile({
-        filePath: relativePath, fullPath, diffContent: '', isStaged: false,
-        defaultEdit: true, revision: ++diffRevisionRef.current,
-      })
-    }
-    setCenterView('diff')
-  }, [])
-
   const handleSwitchViewMode = useCallback((sessionId: string, mode: 'term' | 'gui') => {
     setSessionViewModes(prev => ({ ...prev, [sessionId]: mode }))
     if (activeSessionId !== sessionId) {
@@ -1636,7 +1619,6 @@ export default function App() {
                             setSessions(prev => prev.map(s => s.id === session.id ? result.session! : s))
                           }
                         }}
-                        onOpenDiff={handleOpenDiffFromAi}
                       />
                     ) : (
                       <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />

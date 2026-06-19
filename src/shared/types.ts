@@ -309,6 +309,7 @@ export interface AiMessage {
   messageId?: string
   content?: string
   thinking?: string
+  thinkingDurationMs?: number
   toolUse?: AiToolUse[]
   toolResult?: AiToolResult
   error?: string
@@ -372,6 +373,7 @@ export interface AiSessionState {
   streaming: boolean
   streamBuffer: string
   thinkingBuffer: string
+  thinkingStartedAt: number | null
   pendingPermission: AiPermissionRequest | null
   slashCommands: AiSlashCommand[]
   model: string

@@ -34,6 +34,9 @@ export interface ManagedAiSession {
   // for this intentional kill; session must NOT be deleted (claudeSessionId
   // is still needed by ai-ask-resume to spawn `--resume`).
   awaitingUserInput?: boolean
+  // Track tool_use IDs already processed for file-change events so --include-partial-messages
+  // doesn't cause duplicate diff viewer opens for the same tool call.
+  seenToolUseIds?: Set<string>
 }
 
 export const aiSessions = new Map<string, ManagedAiSession>()
@@ -206,7 +209,23 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
             console.log(`[PLAN-MODE-DEBUG ${sessionId}] tool_use ${block.name} id=${block.id} inputKeys=${Object.keys(block.input || {}).join(',')}`)
           }
           if (isFileEditTool(block.name)) {
-            extractFileChange(sessionId, block, cwd)
+            const session = aiSessions.get(sessionId)
+            // Plan mode: never open diff for file-edit tools — the model is only describing
+            // a plan, not actually executing. If a Write/Edit slips through the CLI's plan-mode
+            // enforcement, skip the diff and log a warning so the user knows something is off.
+            if (session?.permissionMode === 'plan') {
+              console.warn(`[ai:${sessionId}] SKIP extractFileChange for ${block.name} (plan mode)`)
+            } else {
+              // --include-partial-messages replays the same tool_use across partial messages;
+              // deduplicate so the diff viewer opens only once per tool call.
+              if (!session?.seenToolUseIds) {
+                if (session) session.seenToolUseIds = new Set()
+              }
+              if (!session?.seenToolUseIds?.has(block.id)) {
+                session?.seenToolUseIds?.add(block.id)
+                extractFileChange(sessionId, block, cwd)
+              }
+            }
           }
         }
       }
