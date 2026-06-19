@@ -874,8 +874,7 @@ export default function App() {
           setMarkdownFile(null)
           return
         } else if (centerView === 'diff' && diffFile) {
-          const ext = diffFile.filePath.split('.').pop()?.toLowerCase() || diffFile.fullPath.split('.').pop()?.toLowerCase() || ''
-          if (['md', 'mdx', 'markdown'].includes(ext)) {
+          if (isMarkdownFile(diffFile.fullPath)) {
             e.preventDefault()
             e.stopImmediatePropagation()
             const fileName = diffFile.fullPath.replace(/[\\/]/g, '/').split('/').pop() || diffFile.filePath
@@ -1336,7 +1335,18 @@ export default function App() {
   }, [rightTerminalSessions])
 
   // 处理从搜索面板打开文件
+  const isMarkdownFile = (path: string) => {
+    const ext = path.split('.').pop()?.toLowerCase() || ''
+    return ['md', 'mdx', 'markdown'].includes(ext)
+  }
+
   const handleOpenFileFromSearch = useCallback((fullPath: string, lineNumber?: number) => {
+    if (isMarkdownFile(fullPath)) {
+      pushNavHistory()
+      setMarkdownFile({ fullPath, fileName: fullPath.split(/[\\/]/).pop() || fullPath })
+      setCenterView('markdown')
+      return
+    }
     pushNavHistory()
     let filePath = fullPath
     if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
@@ -1612,6 +1622,7 @@ export default function App() {
                         onViewAi={() => {
                           setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))
                         }}
+                        onOpenFile={handleOpenFileFromSearch}
                         onRenameSession={async (name: string) => {
                           if (manuallyRenamedRef.current.has(session.id)) return
                           const result = await window.api.terminal.rename(session.id, name)

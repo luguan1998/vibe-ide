@@ -135,22 +135,21 @@ function isFileEditTool(toolName: string): boolean {
 }
 
 // Calculate context percentage from usage token counts.
-// Claude CLI stream-json does NOT include context_window in output;
-// only usage (token counts) and modelUsage (with per-model contextWindow) are available.
+// Claude CLI stream-json does NOT include context_window in output.
+// modelUsage block (used by newer CLI versions) has not been observed in practice.
+// Fallback: parse context window from model name (e.g. "deepseek-v4-pro[1m]" → 1M).
 const DEFAULT_CONTEXT_WINDOW_SIZE = 200000
 
-// Extract the actual contextWindow from CLI's modelUsage block (present on every assistant
-// and result message). First model in the map wins — for non-sub-agent turns there's only one.
-function extractContextWindow(msg: any): number | undefined {
-  const modelUsage = msg?.modelUsage || msg?.message?.modelUsage
-  if (!modelUsage || typeof modelUsage !== 'object') return undefined
-  const first = Object.values(modelUsage)[0] as any
-  return typeof first?.contextWindow === 'number' ? first.contextWindow : undefined
+function parseContextWindowFromModel(model: string): number | undefined {
+  const m = model.match(/\[(\d+(?:\.\d+)?)\s*(k|m)\]/i)
+  if (!m) return undefined
+  const num = parseFloat(m[1])
+  return m[2].toLowerCase() === 'm' ? num * 1_000_000 : num * 1_000
 }
 
 function calcContextPercent(usage: any, contextWindow?: number): number | undefined {
   if (!usage) return undefined
-  const input = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0)
+  const input = (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0)
   if (input === 0) return undefined
   const denom = contextWindow || DEFAULT_CONTEXT_WINDOW_SIZE
   return (input / denom) * 100
@@ -184,8 +183,11 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       const s = aiSessions.get(sessionId)
       if (s) {
         s.ready = true
-        // Cache CLI's session_id for later --resume (used by ai-ask-resume Kill-and-Resume path)
         if (msg.session_id) s.claudeSessionId = msg.session_id
+        // Parse context window from model name (e.g. "deepseek-v4-pro[1m]" → 1M)
+        if (msg.model && !s.contextWindow) {
+          s.contextWindow = parseContextWindowFromModel(msg.model)
+        }
       }
       send(IPC_CHANNELS.AI_READY, { sessionId, tools: msg.tools, model: msg.model, slashCommands: msg.slash_commands })
       break
@@ -234,8 +236,6 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       if (textParts.length === 0 && toolUses.length === 0 && thinkingParts.length === 0) break
       const parentToolUseId = msg.message?.parent_tool_use_id
       const session = aiSessions.get(sessionId)
-      const cw = extractContextWindow(msg)
-      if (session && cw) session.contextWindow = cw
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
         type: 'assistant',

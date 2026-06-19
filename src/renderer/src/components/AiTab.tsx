@@ -5,7 +5,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
 import { useI18n } from '../i18n'
-import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText } from 'lucide-react'
+import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
+import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Lightbulb } from 'lucide-react'
 
 interface AiTabProps {
   activeSessionId: string | null
@@ -16,6 +17,7 @@ interface AiTabProps {
   onPermissionModeChange: (mode: AiPermissionMode) => void
   onViewAi: () => void
   onRenameSession: (name: string) => void
+  onOpenFile?: (fullPath: string, lineNumber?: number) => void
 }
 
 const EMPTY_SESSION: AiSessionState = {
@@ -27,7 +29,7 @@ const EMPTY_SESSION: AiSessionState = {
 // ── Tool type classification ──────────────────────────────────────
 
 const COMMAND_TOOLS = new Set(['Bash', 'bash', 'terminal', 'run_command', 'execute_command'])
-const SEARCH_TOOLS = new Set(['Grep', 'grep', 'search', 'Glob', 'glob', 'find', 'ripgrep'])
+const SEARCH_TOOLS = new Set(['Grep', 'grep', 'search', 'Glob', 'glob', 'find', 'ripgrep', 'Read'])
 
 function getToolCategory(name: string): 'file' | 'command' | 'search' | 'default' {
   if (AI_FILE_EDIT_TOOLS.has(name)) return 'file'
@@ -38,9 +40,32 @@ function getToolCategory(name: string): 'file' | 'command' | 'search' | 'default
 
 // ── Sub-components (被调先于主调) ──────────────────────────────
 
-function ChatMarkdown({ text, className = '' }: { text: string; className?: string }) {
+function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
+  text: string; className?: string
+  workspacePath: string | null
+  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+}) {
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    if (!workspacePath || !onOpenFile) return
+    const target = e.target as HTMLElement
+    if (target.closest('a, pre')) return
+    if (window.getSelection()?.toString().trim()) return
+    const block = target.closest('p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote') as HTMLElement
+    const text = block?.textContent || ''
+    FILE_PATH_REGEX.lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = FILE_PATH_REGEX.exec(text)) !== null) {
+      const parsed = parseFilePath(match[0], workspacePath)
+      if (parsed) {
+        e.preventDefault()
+        onOpenFile(parsed.fullPath, parsed.lineNumber)
+        return
+      }
+    }
+  }, [workspacePath, onOpenFile])
+
   return (
-    <div className={`md-preview text-xs ${className}`}>
+    <div className={`md-preview text-xs ${className}`} onClick={handleClick}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownCodeOverrides()}>
         {text}
       </ReactMarkdown>
@@ -51,7 +76,11 @@ function ChatMarkdown({ text, className = '' }: { text: string; className?: stri
 // During streaming, only render markdown up to the last CLOSED code fence.
 // Any open (incomplete) code block is shown as raw text to prevent CodeBlock
 // from remounting + re-colorizing on every token (which causes flicker).
-function StreamingMarkdown({ text, className = '' }: { text: string; className?: string }) {
+function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: {
+  text: string; className?: string
+  workspacePath: string | null
+  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+}) {
   const fenceRe = /```/g
   let count = 0
   let lastCloseIdx = -1
@@ -64,8 +93,27 @@ function StreamingMarkdown({ text, className = '' }: { text: string; className?:
   const safePart = isCodeOpen ? (lastCloseIdx >= 0 ? text.slice(0, lastCloseIdx) : '') : text
   const rawPart = isCodeOpen ? text.slice(lastCloseIdx >= 0 ? lastCloseIdx : 0) : ''
 
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    if (!workspacePath || !onOpenFile) return
+    const target = e.target as HTMLElement
+    if (target.closest('a, pre')) return
+    if (window.getSelection()?.toString().trim()) return
+    const block = target.closest('p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote') as HTMLElement
+    const text = block?.textContent || ''
+    FILE_PATH_REGEX.lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = FILE_PATH_REGEX.exec(text)) !== null) {
+      const parsed = parseFilePath(match[0], workspacePath)
+      if (parsed) {
+        e.preventDefault()
+        onOpenFile(parsed.fullPath, parsed.lineNumber)
+        return
+      }
+    }
+  }, [workspacePath, onOpenFile])
+
   return (
-    <div className={`md-preview text-xs ${className}`}>
+    <div className={`md-preview text-xs ${className}`} onClick={handleClick}>
       {safePart && (
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownCodeOverrides()}>
           {safePart}
@@ -79,8 +127,9 @@ function StreamingMarkdown({ text, className = '' }: { text: string; className?:
 function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'default' }) {
   const cls = "w-3 h-3 shrink-0"
   if (category === 'file') return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
-      <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className={cls}>
+      <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.848 2.047a.75.75 0 0 0 .98.98l2.047-.848a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.474Z" />
+      <path d="M4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z" />
     </svg>
   )
   if (category === 'command') return (
@@ -89,8 +138,8 @@ function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'def
     </svg>
   )
   if (category === 'search') return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
-      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className={cls}>
+      <path d="M7.25 3.688a8.035 8.035 0 0 0-4.872-.523A.48.48 0 0 0 2 3.64v7.994c0 .345.342.588.679.512a6.02 6.02 0 0 1 4.571.81V3.688ZM8.75 12.956a6.02 6.02 0 0 1 4.571-.81c.337.075.679-.167.679-.512V3.64a.48.48 0 0 0-.378-.475 8.034 8.034 0 0 0-4.872.523v9.268Z" />
     </svg>
   )
   return (
@@ -198,23 +247,23 @@ const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, sessionI
   }
 
   return (
-    <div className="shrink-0 border-t border-ide-accent/40 bg-ide-accent/5 px-2 py-2 animate-fade-in">
+    <div className="shrink-0 border-t border-ide-accent/40 bg-ide-accent/5 px-3 py-2.5 animate-fade-in">
       <div className="flex items-center gap-1.5 mb-1.5">
-        <HelpCircle size={13} className="text-ide-accent shrink-0" />
-        <span className="text-[11px] font-medium text-ide-accent">{t('AI has a question')}</span>
+        <HelpCircle size={15} className="text-ide-accent shrink-0" />
+        <span className="text-[13px] font-medium text-ide-accent">{t('AI has a question')}</span>
       </div>
 
       {questions.map((q, qi) => (
-        <div key={qi} className="mb-2 last:mb-0">
+        <div key={qi} className="mb-3 last:mb-0">
           <div className="flex items-center gap-1.5 mb-1">
-            <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-ide-accent/15 text-ide-accent border border-ide-accent/25">
+            <span className="px-2 py-1 text-[11px] font-medium rounded bg-ide-accent/15 text-ide-accent border border-ide-accent/25">
               {q.header}
             </span>
             {q.multiSelect && (
-              <span className="text-[9px] text-ide-text-muted/60">{t('multi-select')}</span>
+              <span className="text-[11px] text-ide-text-muted/60">{t('multi-select')}</span>
             )}
           </div>
-          <div className="text-[11px] text-ide-text mb-1.5">{q.question}</div>
+          <div className="text-[13px] text-ide-text mb-1.5">{q.question}</div>
           <div className="flex flex-wrap gap-1">
             {q.options.map((opt, oi) => {
               const selected = selections[q.question]?.has(opt.label) ?? false
@@ -223,7 +272,7 @@ const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, sessionI
                   key={oi}
                   title={opt.description}
                   onClick={() => toggle(q.question, opt.label, q.multiSelect)}
-                  className={`px-2 py-1 text-[10px] rounded border transition-colors ${
+                  className={`px-3 py-1.5 text-[12px] rounded border transition-colors ${
                     selected
                       ? 'bg-ide-accent/20 border-ide-accent/50 text-ide-text'
                       : 'border-ide-border hover:bg-ide-hover text-ide-text-muted'
@@ -242,7 +291,7 @@ const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, sessionI
           <button
             disabled={!allAnswered}
             onClick={handleSubmit}
-            className={`px-3 py-1 text-[11px] font-medium rounded transition-colors ${
+            className={`px-4 py-1.5 text-[13px] font-medium rounded transition-colors ${
               allAnswered
                 ? 'bg-ide-accent hover:bg-ide-accent-hover text-white'
                 : 'bg-ide-accent/30 text-white/50 cursor-not-allowed'
@@ -253,7 +302,7 @@ const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, sessionI
         )}
         <button
           onClick={() => onRespond(sessionId, perm.requestId, false, perm.tool, perm.toolInput)}
-          className="px-3 py-1 text-[11px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
+          className="px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
         >
           {t('Deny')}
         </button>
@@ -269,29 +318,29 @@ const AiPermissionCard = React.memo(function AiPermissionCard({ perm, sessionId,
 }) {
   const { t } = useI18n()
   return (
-    <div className="shrink-0 border-t border-ide-warning/40 bg-ide-warning/5 px-2 py-2 animate-fade-in">
+    <div className="shrink-0 border-t border-ide-warning/40 bg-ide-warning/5 px-3 py-2.5 animate-fade-in">
       <div className="flex items-start gap-2">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-warning shrink-0 mt-0.5">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-ide-warning shrink-0 mt-0.5">
           <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
         </svg>
         <div className="flex-1 min-w-0">
-          <div className="text-[11px] font-medium text-ide-warning">{t('AI wants permission to run:')}</div>
-          <div className="mt-1 px-1.5 py-1 bg-ide-bg/80 rounded text-[10px] font-mono text-ide-text truncate">
+          <div className="text-[13px] font-medium text-ide-warning">{t('AI wants permission to run:')}</div>
+          <div className="mt-1 px-1.5 py-1 bg-ide-bg/80 rounded text-[12px] font-mono text-ide-text truncate">
             <span className="text-ide-accent">{perm.tool}</span>
             {perm.command && <span className="text-ide-text-muted"> → {perm.command}</span>}
           </div>
         </div>
       </div>
-      <div className="flex gap-1.5 mt-2 ml-6">
+      <div className="flex gap-1.5 mt-2 ml-7">
         <button
           onClick={() => onRespond(sessionId, perm.requestId, true, perm.tool, perm.toolInput)}
-          className="px-3 py-1 text-[11px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+          className="px-4 py-1.5 text-[13px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
         >
           {t('Approve')}
         </button>
         <button
           onClick={() => onRespond(sessionId, perm.requestId, false, perm.tool, perm.toolInput)}
-          className="px-3 py-1 text-[11px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
+          className="px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
         >
           {t('Deny')}
         </button>
@@ -304,11 +353,13 @@ const AiPermissionCard = React.memo(function AiPermissionCard({ perm, sessionId,
 // "Clear & Execute" kills the plan-mode subprocess and respawns in acceptEdits mode with the
 // plan re-injected as first message — clears the inflated context from exploration.
 // "Send Feedback" denies with a feedback message so the model revises the plan.
-const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onClearExecute, onDeny }: {
+const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onClearExecute, onDeny, workspacePath, onOpenFile }: {
   perm: AiPermissionRequest
   sessionId: string
   onClearExecute: (sessionId: string, planFilePath: string) => void
   onDeny: (sessionId: string, requestId: string, feedback: string) => void
+  workspacePath: string | null
+  onOpenFile?: (fullPath: string, lineNumber?: number) => void
 }) {
   const { t } = useI18n()
   const plan = (perm.toolInput?.plan as string) || ''
@@ -316,14 +367,14 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
   const [feedback, setFeedback] = useState('')
 
   return (
-    <div className="shrink-0 border-t border-ide-accent/40 bg-ide-accent/5 px-2 py-2 animate-fade-in">
+    <div className="shrink-0 border-t border-ide-accent/40 bg-ide-accent/5 px-3 py-2.5 animate-fade-in">
       <div className="flex items-center gap-1.5 mb-1.5">
-        <FileText size={13} className="text-ide-accent shrink-0" />
-        <span className="text-[11px] font-medium text-ide-accent">{t('Plan Ready')}</span>
+        <FileText size={15} className="text-ide-accent shrink-0" />
+        <span className="text-[13px] font-medium text-ide-accent">{t('Plan Ready')}</span>
       </div>
 
       <div className="max-h-64 overflow-y-auto mb-1.5 bg-ide-bg/60 rounded px-2 py-1.5 border border-ide-border/40">
-        <ChatMarkdown text={plan} />
+        <ChatMarkdown text={plan} workspacePath={workspacePath} onOpenFile={onOpenFile} />
       </div>
 
       <textarea
@@ -331,27 +382,27 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
         onChange={(e) => setFeedback(e.target.value)}
         placeholder={t('Feedback for revision (optional)')}
         rows={2}
-        className="w-full text-[11px] px-2 py-1 mb-1.5 bg-ide-bg border border-ide-border rounded resize-none focus:outline-none focus:border-ide-accent/60 text-ide-text"
+        className="w-full text-[13px] px-2 py-1 mb-1.5 bg-ide-bg border border-ide-border rounded resize-none focus:outline-none focus:border-ide-accent/60 text-ide-text"
       />
 
       <div className="flex gap-1.5">
         <button
           onClick={() => onClearExecute(sessionId, planFilePath)}
-          className="px-3 py-1 text-[11px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+          className="px-4 py-1.5 text-[13px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
         >
           {t('Clear & Execute')}
         </button>
         {feedback.trim() && (
           <button
             onClick={() => onDeny(sessionId, perm.requestId, feedback)}
-            className="px-3 py-1 text-[11px] font-medium border border-ide-accent/40 hover:bg-ide-accent/10 text-ide-accent rounded transition-colors"
+            className="px-4 py-1.5 text-[13px] font-medium border border-ide-accent/40 hover:bg-ide-accent/10 text-ide-accent rounded transition-colors"
           >
             {t('Send Feedback')}
           </button>
         )}
         <button
           onClick={() => onDeny(sessionId, perm.requestId, '')}
-          className="px-3 py-1 text-[11px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
+          className="px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
         >
           {t('Cancel')}
         </button>
@@ -374,29 +425,30 @@ function ThinkingBlock({ text, defaultOpen = false, durationMs }: { text: string
   const [open, setOpen] = useState(defaultOpen)
   const label = durationMs != null
     ? `Thinking for ${(durationMs / 1000).toFixed(1)}s`
-    : 'Thinking...'
+    : 'Thinking'
   return (
     <div className="inline-block max-w-full animate-fade-in">
       <button
         onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-colors"
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
       >
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 shrink-0 text-amber-400">
-          <path d="M12 2C8.13 2 5 5.13 5 9c0 3.87 3.13 7 7 7s7-3.13 7-7-3.13-7-7-7zm-1 11h2v-2h-2v2zm0-4h2V5h-2v4z" transform="scale(0.85) translate(2, 2)" opacity="0.6" />
-          <path d="M9 18h6M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" opacity="0.9" />
-        </svg>
+        <Lightbulb size={12} className="shrink-0" />
         <span className="shrink-0">{label}</span>
       </button>
       {open && (
-        <div className="mt-1 px-3 py-2 text-xs bg-amber-500/5 border border-amber-500/15 rounded space-y-1 max-h-64 overflow-y-auto">
-          <pre className="whitespace-pre-wrap break-words text-[11px] text-amber-300/70">{text}</pre>
+        <div className="mt-1 px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
+          <pre className="whitespace-pre-wrap break-words text-[11px] text-ide-text-muted">{text}</pre>
         </div>
       )}
     </div>
   )
 }
 
-function AiAssistantMessage({ message }: { message: AiMessage }) {
+function AiAssistantMessage({ message, workspacePath, onOpenFile }: {
+  message: AiMessage
+  workspacePath: string | null
+  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+}) {
   const { t } = useI18n()
   const showMeta = message.type === 'result' && (message.costUsd != null || message.numTurns != null)
   const showContent = message.type !== 'result'
@@ -421,12 +473,16 @@ function AiAssistantMessage({ message }: { message: AiMessage }) {
       {hasContent && (
         <div className="max-w-[92%] space-y-1.5">
           {message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} />}
-          {message.content && <ChatMarkdown text={message.content} />}
-          {message.toolUse?.map(tool => <AiToolCallCard key={tool.id} tool={tool} />)}
+          {message.content && <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />}
+          {message.toolUse && message.toolUse.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {message.toolUse.map(tool => <AiToolCallCard key={tool.id} tool={tool} />)}
+            </div>
+          )}
         </div>
       )}
       {showMeta && (
-        <div className="text-[9px] text-ide-text-muted/50 px-1">
+        <div className="text-[11px] text-ide-text-muted/50 px-1">
           {message.numTurns} turns · {(message.costUsd! * 100).toFixed(2)}¢ · {((message.durationMs || 0) / 1000).toFixed(1)}s
         </div>
       )}
@@ -466,7 +522,11 @@ function AiErrorMessage({ message }: { message: AiMessage }) {
   )
 }
 
-function AiMessageBubble({ message }: { message: AiMessage }) {
+function AiMessageBubble({ message, workspacePath, onOpenFile }: {
+  message: AiMessage
+  workspacePath: string | null
+  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+}) {
   const { t } = useI18n()
   let inner: React.ReactNode
   if (message.error) {
@@ -484,7 +544,7 @@ function AiMessageBubble({ message }: { message: AiMessage }) {
     // success 且无 meta → 重复消息，不渲染
     return null
   } else {
-    inner = <AiAssistantMessage message={message} />
+    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} />
   }
 
   // 子 agent 视觉分组（Agent/Task 工具产生的子消息）
@@ -733,7 +793,7 @@ function SlashCommandAutocomplete({
 
 // ── Main Component ─────────────────────────────────────────────
 
-export default function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession }: AiTabProps) {
+export default function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile }: AiTabProps) {
   const { t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
   const isActiveRef = useRef(isActive)
@@ -1271,13 +1331,16 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
                   if (activeSessionId) {
                     // Load conversation history from .jsonl before resuming
                     const history = await window.api.ai.loadSessionMessages(s.session_id || s.id, workspacePath || '')
+                    const sessionName = s.name && s.name !== s.session_id ? s.name : ''
                     updateSession(activeSessionId, () => ({
                       ...EMPTY_SESSION,
                       messages: history.messages,
                       model: history.model || '',
                       slashCommands: enrichSlashCommands(history.slashCommands || []),
+                      name: sessionName,
                       ready: false,
                     }))
+                    if (sessionName) onRenameSession(sessionName)
                     await window.api.ai.destroy(activeSessionId)
                     window.api.ai.create({
                       sessionId: activeSessionId,
@@ -1332,17 +1395,19 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
           </div>
         )}
         {state.messages.map((msg: AiMessage, i: number) => (
-          <AiMessageBubble key={i} message={msg} />
+          <AiMessageBubble key={i} message={msg} workspacePath={workspacePath} onOpenFile={onOpenFile} />
         ))}
-        {/* Streaming buffer — thinking + text */}
-        {state.streaming && (state.streamBuffer || state.thinkingBuffer) && (
+        {/* Busy indicator — thinking + streaming + sparkle */}
+        {state.busy && (
           <div className="max-w-[92%] space-y-1.5 animate-fade-in">
             {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen />}
-            {state.streamBuffer && (
+            {state.streamBuffer ? (
               <div>
-                <StreamingMarkdown text={state.streamBuffer} />
-                <span className="inline-block w-1 h-3 bg-ide-accent animate-pulse ml-0.5 align-middle" />
+                <StreamingMarkdown text={state.streamBuffer} workspacePath={workspacePath} onOpenFile={onOpenFile} />
+                <span className="animate-sparkle ml-0.5 text-sm leading-none align-middle select-none">✻</span>
               </div>
+            ) : (
+              <span className="animate-sparkle text-sm leading-none select-none">✻</span>
             )}
           </div>
         )}
@@ -1363,6 +1428,8 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
             sessionId={activeSessionId}
             onClearExecute={handlePlanClearExecute}
             onDeny={handlePlanDeny}
+            workspacePath={workspacePath}
+            onOpenFile={onOpenFile}
           />
         ) : (
           <AiPermissionCard
@@ -1475,7 +1542,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
                 <ContextBar percent={state.contextPercent} />
                 {state.model && (
                   <span className="text-xs text-ide-text-muted/60 font-mono
-                                 truncate w-[90px] leading-tight">
+                                 truncate max-w-[200px] leading-tight">
                     {state.model}
                   </span>
                 )}

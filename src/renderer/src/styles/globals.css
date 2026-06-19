@@ -244,6 +244,17 @@ html, body, #root {
   animation: slideUp 0.15s ease-out;
 }
 
+@keyframes sparkle {
+  0%, 100% { transform: scale(0.9) rotate(0deg); opacity: 0.5; text-shadow: 0 0 2px rgb(var(--ide-accent) / 0.5); }
+  50% { transform: scale(1.25) rotate(12deg); opacity: 1; text-shadow: 0 0 8px rgb(var(--ide-accent) / 0.8); }
+}
+
+.animate-sparkle {
+  animation: sparkle 1s ease-in-out infinite;
+  display: inline-block;
+  color: rgb(var(--ide-accent));
+}
+
 /* Markdown preview prose styles — all colors via theme CSS variables */
 .md-preview { color: rgb(var(--ide-text)); line-height: 1.7; font-size: 14px; }
 .md-preview h1,.md-preview h2,.md-preview h3,.md-preview h4,.md-preview h5,.md-preview h6 {
