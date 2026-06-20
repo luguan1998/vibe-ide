@@ -64,8 +64,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const { t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [panelWidth, setPanelWidth] = useState(Infinity)
-  const MIN_STATS_WIDTH = 290
   const [stagedExpanded, setStagedExpanded] = useState(true)
   const [changesExpanded, setChangesExpanded] = useState(true)
   const [untrackedExpanded, setUntrackedExpanded] = useState(true)
@@ -663,19 +661,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     return () => window.removeEventListener('click', handleClick)
   }, [showPushDropdown])
 
-  // 监测面板宽度，窄时隐藏标题栏 +n -n 统计
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const ro = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        setPanelWidth(entry.contentRect.width)
-      }
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   // Keyboard navigation: ArrowUp/Down 遍历标题栏+文件行，文件行自动打开 diff；Enter 触发标题栏批量操作
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -765,7 +750,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       )}
 
       {/* Content */}
-      <div ref={containerRef} tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto flex flex-col outline-none focus:outline-none focus:ring-0">
+      <div ref={containerRef} tabIndex={-1} className="git-tab-container flex-1 min-h-0 overflow-y-auto flex flex-col outline-none focus:outline-none focus:ring-0">
         {message && (
           <div className="px-3 py-2 text-sm text-ide-accent bg-ide-accent/10 animate-fade-in">
             <p>{message}</p>
@@ -822,8 +807,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                         <span>{status?.truncated && status.staged > stagedFiles.length
                           ? `${t('Staged ({count})').replace('{count}', String(stagedFiles.length))} / ${status.staged}`
                           : t('Staged ({count})').replace('{count}', String(stagedFiles.length))}</span>
-                        {stats.additions > 0 && panelWidth >= MIN_STATS_WIDTH && <span className="text-ide-success font-mono">+{stats.additions}</span>}
-                        {stats.deletions > 0 && panelWidth >= MIN_STATS_WIDTH && <span className="text-ide-danger font-mono">-{stats.deletions}</span>}
+                        {stats.additions > 0 && <span className="git-stats text-ide-success font-mono">+{stats.additions}</span>}
+                        {stats.deletions > 0 && <span className="git-stats text-ide-danger font-mono">-{stats.deletions}</span>}
                       </div>
                       {stagedExpanded && (
                         <button
@@ -893,8 +878,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                         <span>{status?.truncated && status.unstaged > modifiedFiles.length
                           ? `${t('Changes ({count})').replace('{count}', String(modifiedFiles.length))} / ${status.unstaged}`
                           : t('Changes ({count})').replace('{count}', String(modifiedFiles.length))}</span>
-                        {stats.additions > 0 && panelWidth >= MIN_STATS_WIDTH && <span className="text-ide-success font-mono">+{stats.additions}</span>}
-                        {stats.deletions > 0 && panelWidth >= MIN_STATS_WIDTH && <span className="text-ide-danger font-mono">-{stats.deletions}</span>}
+                        {stats.additions > 0 && <span className="git-stats text-ide-success font-mono">+{stats.additions}</span>}
+                        {stats.deletions > 0 && <span className="git-stats text-ide-danger font-mono">-{stats.deletions}</span>}
                       </div>
                       {changesExpanded && (
                         <div className="flex items-center gap-1">

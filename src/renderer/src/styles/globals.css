@@ -378,3 +378,12 @@ html, body, #root {
   word-break: break-word;
 }
 
+/* ── Git Tab container query: 窄面板隐藏 +/- 统计防按钮换行 ── */
+.git-tab-container {
+  container-type: inline-size;
+  container-name: git-tab;
+}
+@container git-tab (max-width: 289px) {
+  .git-stats { display: none; }
+}
+
