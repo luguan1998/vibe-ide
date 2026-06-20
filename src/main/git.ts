@@ -382,7 +382,14 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_APPLY_BRANCH, async (_event, branch: string) => {
     const git = getGit()
     try {
-      const committedDiff = await git.raw(['diff', '--full-index', 'HEAD', branch])
+      let mergeBase = ''
+      try {
+        mergeBase = (await git.raw(['merge-base', 'HEAD', branch])).trim()
+      } catch {
+        mergeBase = ''
+      }
+      const base = mergeBase || 'HEAD'
+      const committedDiff = await git.raw(['diff', '--full-index', base, branch])
 
       const wtList = await git.raw(['worktree', 'list', '--porcelain'])
       let worktreePath = ''
@@ -439,7 +446,14 @@ export function registerGitHandlers(): void {
       // 同步 index 与 worktree，消除 "does not match index" 错误
       await git.raw(['add', '-A'])
 
-      const committedDiff = await git.raw(['diff', '--full-index', 'HEAD', branch])
+      let mergeBase = ''
+      try {
+        mergeBase = (await git.raw(['merge-base', 'HEAD', branch])).trim()
+      } catch {
+        mergeBase = ''
+      }
+      const base = mergeBase || 'HEAD'
+      const committedDiff = await git.raw(['diff', '--full-index', base, branch])
 
       const wtList = await git.raw(['worktree', 'list', '--porcelain'])
       let worktreePath = ''
