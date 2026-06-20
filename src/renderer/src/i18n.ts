@@ -52,7 +52,7 @@ const ZH_MAP: Record<string, string> = {
   'Clone': '克隆',
   'Rename': '重命名',
   'Close': '关闭',
-  'Switch to AI Mode': '切换到 AI 模式',
+  'Switch to GUI Mode': '切换到 GUI 模式',
   'Switch to Terminal Mode': '切换到终端模式',
   'History': '历史',
   'No commands yet': '暂无命令',

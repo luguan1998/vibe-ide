@@ -65,7 +65,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const containerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [panelWidth, setPanelWidth] = useState(Infinity)
-  const MIN_STATS_WIDTH = 300
+  const MIN_STATS_WIDTH = 290
   const [stagedExpanded, setStagedExpanded] = useState(true)
   const [changesExpanded, setChangesExpanded] = useState(true)
   const [untrackedExpanded, setUntrackedExpanded] = useState(true)

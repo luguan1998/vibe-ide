@@ -1083,7 +1083,7 @@ const SessionPanel = React.memo(function SessionPanel({
                 }}
               >
                 <Zap size={14} className={isGui ? 'text-ide-text-muted' : 'text-ide-accent'} />
-                <span>{t(isGui ? 'Switch to Terminal Mode' : 'Switch to AI Mode')}</span>
+                <span>{t(isGui ? 'Switch to Terminal Mode' : 'Switch to GUI Mode')}</span>
               </button>
             )
           })()}
