@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, lazy, Suspense, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
 import SessionPanel from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
@@ -266,7 +266,15 @@ export default function App() {
   const manuallyRenamedRef = useRef<Set<string>>(new Set())
   const commandHistoryRef = useRef(commandHistory)
   const historyListRef = useRef<HTMLDivElement>(null)
-  const [agentStatus, setAgentStatus] = useState<Record<string, 'running' | 'idle'>>({})
+  const [terminalBusy, setTerminalBusy] = useState<Record<string, boolean>>({})
+  const [aiBusy, setAiBusy] = useState<Record<string, boolean>>({})
+  const agentStatus = useMemo(() => {
+    const result: Record<string, 'running' | 'idle'> = {}
+    for (const s of sessions) {
+      result[s.id] = (terminalBusy[s.id] || aiBusy[s.id]) ? 'running' : 'idle'
+    }
+    return result
+  }, [sessions, terminalBusy, aiBusy])
   const [autoApproveSessions, setAutoApproveSessions] = useState<Record<string, boolean>>({})
   const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
   const [forkSessions, setForkSessions] = useState<Record<string, string>>({})
@@ -590,9 +598,18 @@ export default function App() {
     }
   }, [])
   const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
-    setAgentStatus(prev => {
-      if (prev[sessionId] === status) return prev
-      return { ...prev, [sessionId]: status }
+    setTerminalBusy(prev => {
+      const v = status === 'running'
+      if (prev[sessionId] === v) return prev
+      return { ...prev, [sessionId]: v }
+    })
+  }, [])
+
+  const handleAiAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
+    setAiBusy(prev => {
+      const v = status === 'running'
+      if (prev[sessionId] === v) return prev
+      return { ...prev, [sessionId]: v }
     })
   }, [])
 
@@ -1177,7 +1194,12 @@ export default function App() {
       delete next[id]
       return next
     })
-    setAgentStatus(prev => {
+    setTerminalBusy(prev => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setAiBusy(prev => {
       const next = { ...prev }
       delete next[id]
       return next
@@ -1690,6 +1712,7 @@ export default function App() {
                         onForkSession={(userMessageIndex: number) => {
                           handleForkSession(session.id, userMessageIndex)
                         }}
+                        onAgentStatusChange={handleAiAgentStatusChange}
                       />
                     ) : (
                       <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />

@@ -19,6 +19,7 @@ interface AiTabProps {
   onRenameSession: (name: string) => void
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   onForkSession?: (userMessageIndex: number) => void
+  onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   resumeSessionId?: string
 }
 
@@ -494,11 +495,11 @@ function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, o
   }, [showPopover])
 
   return (
-    <div className="flex justify-end animate-fade-in"
-      onMouseEnter={() => { clearHideTimer(); setShowPopover(true) }}
-      onMouseLeave={() => { hideTimerRef.current = setTimeout(() => setShowPopover(false), 300) }}
-    >
-      <div className="max-w-[85%] relative">
+    <div className="flex justify-end animate-fade-in">
+      <div className="max-w-[85%] relative"
+        onMouseEnter={() => { clearHideTimer(); setShowPopover(true) }}
+        onMouseLeave={() => { hideTimerRef.current = setTimeout(() => setShowPopover(false), 300) }}
+      >
         <div className="px-3 py-2 rounded-2xl rounded-tr-md bg-ide-accent/12 border-2 border-ide-accent/30 text-ide-text text-sm whitespace-pre-wrap">
           {message.content}
         </div>
@@ -552,7 +553,7 @@ function ThinkingBlock({ text, defaultOpen = false, durationMs }: { text: string
     ? `Thinking for ${(durationMs / 1000).toFixed(1)}s`
     : 'Thinking'
   return (
-    <div className="inline-block max-w-full animate-fade-in">
+    <div className="max-w-full animate-fade-in">
       <button
         onClick={() => setOpen(v => !v)}
         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
@@ -901,7 +902,7 @@ function ContextBar({ percent }: { percent: number | null }) {
       title={`${pct}% context used`}
     >
       {/* energy bar frame */}
-      <div className="flex gap-[2px] border border-ide-border/50 rounded-md px-[3px] py-[3px]">
+      <div className="flex gap-[2px] border-2 border-ide-border/80 rounded-md px-[3px] py-[3px]">
         {Array.from({ length: TOTAL }).map((_, i) => (
           <div
             key={i}
@@ -914,6 +915,110 @@ function ContextBar({ percent }: { percent: number | null }) {
       <span className={`text-[10px] font-mono leading-none tabular-nums ${textColor}`}>
         {pct}%
       </span>
+    </div>
+  )
+}
+
+// ── ModelBadge ──────────────────────────────────────────────────────
+const MODEL_ALIASES = ['opus', 'sonnet', 'haiku']
+
+function ModelBadge({
+  model,
+  sessionId,
+}: {
+  model: string
+  sessionId: string | null
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const [pendingModel, setPendingModel] = useState<string | null>(null)
+  const prevModelRef = useRef(model)
+
+  const displayModel = pendingModel || model
+
+  const shortName = (() => {
+    if (!displayModel) return ''
+    return displayModel
+  })()
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setOpen(false); e.stopPropagation() }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open])
+
+  const handleSelect = useCallback((alias: string) => {
+    if (!sessionId) return
+    prevModelRef.current = model
+    setPendingModel(alias)
+    setOpen(false)
+    window.api.ai.setModel(sessionId, alias)
+  }, [sessionId, model])
+
+  useEffect(() => {
+    if (pendingModel && model && model !== prevModelRef.current) {
+      setPendingModel(null)
+    }
+  }, [model, pendingModel])
+
+  const currentAlias = MODEL_ALIASES.find(a => {
+    if (!model) return false
+    const resolved = model.toLowerCase()
+    return resolved.includes(a) || resolved.includes({ opus: 'pro', sonnet: 'pro', haiku: 'flash' }[a] || '')
+  })
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => sessionId && setOpen(v => !v)}
+        className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full
+          transition-colors leading-tight
+          ${sessionId
+            ? 'bg-ide-border/30 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text cursor-pointer'
+            : 'bg-ide-border/15 text-ide-text-muted/40 cursor-default'
+          }`}
+        title={model || 'Model'}
+        disabled={!sessionId}
+      >
+        <span className="truncate max-w-[160px]">{shortName || 'default'}</span>
+        {sessionId && <ChevronDown size={10} className={`opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
+      </button>
+      {open && (
+        <div className="absolute bottom-full right-0 mb-1.5 z-30
+          bg-ide-sidebar border border-ide-border rounded-lg
+          shadow-lg min-w-[110px] py-0.5 animate-fade-in">
+          {MODEL_ALIASES.map(alias => {
+            const isCurrent = !pendingModel && alias === currentAlias
+            return (
+              <button
+                key={alias}
+                type="button"
+                onClick={() => handleSelect(alias)}
+                className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors ${
+                  isCurrent
+                    ? 'bg-ide-accent/15 text-ide-accent'
+                    : 'text-ide-text hover:bg-ide-hover'
+                }`}
+              >
+                <span className="truncate">{alias}</span>
+                {isCurrent && <Check size={10} className="ml-auto shrink-0" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -1045,7 +1150,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 
-export default function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, resumeSessionId }: AiTabProps) {
+export default function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId }: AiTabProps) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1055,6 +1160,14 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
   // Per-session AI state
   const [sessionStates, setSessionStates] = useState<Record<string, AiSessionState>>({})
   const state = activeSessionId ? (sessionStates[activeSessionId] || EMPTY_SESSION) : EMPTY_SESSION
+
+  // Sync AI busy state to parent agentStatus (OR with terminal detection)
+  useEffect(() => {
+    if (!activeSessionId || !onAgentStatusChange) return
+    const s = sessionStates[activeSessionId]
+    if (!s) return
+    onAgentStatusChange(activeSessionId, s.busy ? 'running' : 'idle')
+  }, [activeSessionId, sessionStates[activeSessionId]?.busy, onAgentStatusChange])
 
   // Session history
   const [sessionHistoryOpen, setSessionHistoryOpen] = useState(false)
@@ -1625,7 +1738,7 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
           {/* Toggle tool visibility */}
           <button
             onClick={() => setViewMode(v => (v + 1) % 3)}
-            className="w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            className={`w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors ${viewMode === 2 ? 'bg-ide-active' : ''}`}
             title={viewMode === 0 ? t('Show All') : viewMode === 1 ? t('Hide Tools') : t('Hide Tools & Think')}
           >
             {viewMode === 0 ? <Eye size={14} /> : <EyeOff size={14} />}
@@ -1924,15 +2037,10 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
             {/* Bottom toolbar */}
             <div className="flex items-center gap-2 px-2 py-1.5
                             border-t border-ide-border/30">
-              {/* LEFT: Context bar + model name */}
-              <div className="flex items-center gap-3 shrink-0">
+              {/* LEFT: Context bar + model badge */}
+              <div className="flex items-center gap-2 shrink-0">
                 <ContextBar percent={state.contextPercent} />
-                {state.model && (
-                  <span className="text-xs text-ide-text-muted/60 font-mono
-                                 truncate max-w-[200px] leading-tight">
-                    {state.model}
-                  </span>
-                )}
+                <ModelBadge model={state.model} sessionId={activeSessionId} />
               </div>
 
               {/* CENTER: flex spacer */}

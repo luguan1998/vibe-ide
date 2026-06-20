@@ -5,7 +5,7 @@ import { readFile, readdir } from 'fs/promises'
 import { join, isAbsolute, relative } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
-import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload } from '../shared/types'
+import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload } from '../shared/types'
 
 export interface ManagedAiSession {
   process: ChildProcess
@@ -250,6 +250,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         type: 'assistant',
         role: 'assistant',
         messageId: msg.message?.id,
+        model: msg.message?.model,
         content: textParts.join('\n'),
         thinking: thinkingParts.length > 0 ? thinkingParts.join('\n') : undefined,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
@@ -558,6 +559,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
       messages.push({
         sessionId: sid, type: 'assistant', role: 'assistant',
         messageId: msg.message?.id,
+        model: msg.message?.model,
         content: textParts.join('\n') || undefined,
         thinking: thinkingParts.length > 0 ? thinkingParts.join('\n') : undefined,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
@@ -837,6 +839,24 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
       request: {
         subtype: 'set_permission_mode',
         mode: payload.mode,
+      },
+    }) + '\n'
+    session.process.stdin!.write(ndjson)
+    return { success: true }
+  })
+
+  // Switch model at runtime via control_request subtype=set_model.
+  // CLI resolves aliases (opus/sonnet/haiku) via ANTHROPIC_DEFAULT_*_MODEL env vars.
+  ipcMain.handle(IPC_CHANNELS.AI_SET_MODEL, (_event, payload: AiSetModelPayload) => {
+    const session = aiSessions.get(payload.sessionId)
+    if (!session || !session.ready) return { success: false, error: 'AI not ready' }
+
+    const ndjson = JSON.stringify({
+      type: 'control_request',
+      request_id: `set-model-${randomUUID()}`,
+      request: {
+        subtype: 'set_model',
+        model: payload.model,
       },
     }) + '\n'
     session.process.stdin!.write(ndjson)

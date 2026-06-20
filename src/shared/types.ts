@@ -110,6 +110,7 @@ export const IPC_CHANNELS = {
   AI_PERMISSION_RESPONSE: 'ai:permissionResponse',
   AI_PLAN_EXECUTE: 'ai:planExecute',
   AI_SET_PERMISSION_MODE: 'ai:setPermissionMode',
+  AI_SET_MODEL: 'ai:setModel',
   AI_ASK_RESUME: 'ai:askResume',
   AI_REVERT: 'ai:revert',
   AI_FORK: 'ai:fork',
@@ -312,6 +313,7 @@ export interface AiMessage {
   content?: string
   thinking?: string
   thinkingDurationMs?: number
+  model?: string
   toolUse?: AiToolUse[]
   toolResult?: AiToolResult
   error?: string
@@ -420,6 +422,14 @@ export interface AiPlanExecutePayload {
 export interface AiSetPermissionModePayload {
   sessionId: string
   mode: AiPermissionMode
+}
+
+// Switch model at runtime via control_request subtype=set_model
+// (same pattern as set_permission_mode). CLI resolves aliases (opus/sonnet/haiku)
+// via ANTHROPIC_DEFAULT_*_MODEL env vars.
+export interface AiSetModelPayload {
+  sessionId: string
+  model: string
 }
 
 // Kill-and-resume for AskUserQuestion. Claude CLI auto-fills empty answers after ~0.5s when
