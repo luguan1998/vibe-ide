@@ -1,0 +1,246 @@
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { Pencil, X } from 'lucide-react'
+import { useI18n } from '../i18n'
+
+export interface CustomCommand {
+  id: string
+  name: string
+  command: string
+}
+
+export interface CustomCommandsHandle {
+  openCreateModal: () => void
+}
+
+interface CustomCommandsProps {
+  onExecuteCommand?: (command: string) => void
+}
+
+function loadCustomCommands(): CustomCommand[] {
+  try {
+    const raw = localStorage.getItem('vibe-ide-custom-commands')
+    if (raw) {
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr)) return arr.filter((c: unknown) => c && typeof c === 'object' && typeof (c as any).id === 'string' && typeof (c as any).name === 'string' && typeof (c as any).command === 'string')
+    }
+  } catch {}
+  return []
+}
+
+function saveCustomCommands(cmds: CustomCommand[]): void {
+  try { localStorage.setItem('vibe-ide-custom-commands', JSON.stringify(cmds)) } catch {}
+}
+
+const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
+  function CustomCommands({ onExecuteCommand }, ref) {
+    const { t } = useI18n()
+
+    const [customCommands, setCustomCommands] = useState<CustomCommand[]>(() => loadCustomCommands())
+    const [showCustomCmdModal, setShowCustomCmdModal] = useState(false)
+    const [editingCustomCmd, setEditingCustomCmd] = useState<CustomCommand | null>(null)
+    const [customCmdName, setCustomCmdName] = useState('')
+    const [customCmdCommand, setCustomCmdCommand] = useState('')
+    const [customCmdCtxMenu, setCustomCmdCtxMenu] = useState<{ x: number; y: number; cmd: CustomCommand } | null>(null)
+
+    const openCreateModal = () => {
+      setEditingCustomCmd(null)
+      setCustomCmdName('')
+      setCustomCmdCommand('')
+      setShowCustomCmdModal(true)
+    }
+
+    useImperativeHandle(ref, () => ({ openCreateModal }))
+
+    const handleSaveCustomCommand = () => {
+      const name = customCmdName.trim()
+      const rawCommand = customCmdCommand.replace(/\r\n/g, '\n')
+      if (!name || !rawCommand.trim()) return
+      const command = rawCommand
+      if (editingCustomCmd) {
+        setCustomCommands(prev => {
+          const next = prev.map(c => c.id === editingCustomCmd.id ? { ...c, name, command } : c)
+          saveCustomCommands(next)
+          return next
+        })
+      } else {
+        setCustomCommands(prev => {
+          const next = [...prev, { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, command }]
+          saveCustomCommands(next)
+          return next
+        })
+      }
+      setShowCustomCmdModal(false)
+      setEditingCustomCmd(null)
+      setCustomCmdName('')
+      setCustomCmdCommand('')
+    }
+
+    // ESC handler for Custom Command modal (capture phase per CLAUDE.md rule #8)
+    useEffect(() => {
+      if (!showCustomCmdModal) return
+      const handler = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.stopImmediatePropagation()
+          setShowCustomCmdModal(false)
+          setEditingCustomCmd(null)
+        }
+        if (e.key === 'Enter' && e.ctrlKey) {
+          e.stopImmediatePropagation()
+          handleSaveCustomCommand()
+        }
+      }
+      document.addEventListener('keydown', handler, true)
+      return () => document.removeEventListener('keydown', handler, true)
+    }, [showCustomCmdModal, customCmdName, customCmdCommand, editingCustomCmd])
+
+    // Global click to dismiss capsule context menu
+    useEffect(() => {
+      const handleClick = () => { setCustomCmdCtxMenu(null) }
+      window.addEventListener('click', handleClick)
+      return () => window.removeEventListener('click', handleClick)
+    }, [])
+
+    return (
+      <>
+        {/* Custom Command Capsules */}
+        {customCommands.length > 0 && (
+          <div className="px-2 py-1.5">
+            <div className="flex flex-wrap gap-1">
+              {customCommands.map((cmd) => (
+                <div
+                  key={cmd.id}
+                  className="relative group inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ide-hover hover:bg-ide-accent/20 text-ide-text-muted hover:text-ide-text cursor-pointer transition-colors text-xs max-w-full select-none"
+                  onClick={() => {
+                    if (onExecuteCommand) onExecuteCommand(cmd.command)
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setCustomCmdCtxMenu({ x: e.clientX, y: e.clientY, cmd })
+                  }}
+                  title={`${cmd.name}: ${cmd.command}`}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 shrink-0 text-ide-accent">
+                    <polyline points="4 17 10 11 4 5" />
+                    <line x1="12" y1="19" x2="20" y2="19" />
+                  </svg>
+                  <span className="truncate max-w-[160px]">{cmd.name}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setCustomCommands(prev => {
+                        const next = prev.filter(c => c.id !== cmd.id)
+                        saveCustomCommands(next)
+                        return next
+                      })
+                    }}
+                    className="opacity-0 group-hover:opacity-100 absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-ide-accent text-white flex items-center justify-center hover:bg-ide-accent-hover transition-all z-10"
+                    title={t('Delete')}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-2 h-2">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Custom Command Capsule Context Menu */}
+        {customCmdCtxMenu && (
+          <div
+            className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px]"
+            style={{ left: customCmdCtxMenu.x, bottom: window.innerHeight - customCmdCtxMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+              onClick={() => {
+                setEditingCustomCmd(customCmdCtxMenu.cmd)
+                setCustomCmdName(customCmdCtxMenu.cmd.name)
+                setCustomCmdCommand(customCmdCtxMenu.cmd.command)
+                setShowCustomCmdModal(true)
+                setCustomCmdCtxMenu(null)
+              }}
+            >
+              <Pencil size={14} className="text-ide-text-muted" />
+              {t('Edit')}
+            </button>
+            <button
+              className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover flex items-center gap-2"
+              onClick={() => {
+                setCustomCommands(prev => {
+                  const next = prev.filter(c => c.id !== customCmdCtxMenu.cmd.id)
+                  saveCustomCommands(next)
+                  return next
+                })
+                setCustomCmdCtxMenu(null)
+              }}
+            >
+              <X size={14} className="text-ide-danger" />
+              {t('Delete')}
+            </button>
+          </div>
+        )}
+
+        {/* Custom Command Modal */}
+        {showCustomCmdModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setShowCustomCmdModal(false); setEditingCustomCmd(null) }}>
+            <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[400px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+                <span className="text-sm font-semibold text-ide-text">{editingCustomCmd ? t('Edit Custom Command') : t('New Custom Command')}</span>
+                <button
+                  className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                  onClick={() => { setShowCustomCmdModal(false); setEditingCustomCmd(null) }}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="p-4 flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-ide-text-muted">{t('Command Name')}</label>
+                  <input
+                    type="text"
+                    className="w-full bg-ide-bg border border-ide-border rounded px-3 py-1.5 text-sm text-ide-text focus:border-ide-accent focus:outline-none"
+                    placeholder={t('Enter command name')}
+                    value={customCmdName}
+                    onChange={(e) => setCustomCmdName(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-ide-text-muted">{t('Command')}</label>
+                  <textarea
+                    className="w-full h-24 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
+                    placeholder={t('Enter command to execute')}
+                    value={customCmdCommand}
+                    onChange={(e) => setCustomCmdCommand(e.target.value)}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 mt-1">
+                  <button
+                    className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
+                    onClick={() => { setShowCustomCmdModal(false); setEditingCustomCmd(null) }}
+                  >
+                    {t('Cancel')}
+                  </button>
+                  <button
+                    className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    disabled={!customCmdName.trim() || !customCmdCommand.trim()}
+                    onClick={handleSaveCustomCommand}
+                  >
+                    {t('Save')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+)
+
+export default CustomCommands
