@@ -5,6 +5,7 @@ import SearchPanel from './SearchPanel'
 import GitTab from './GitTab'
 import AuxTab from './AuxTab'
 import FileTab from './FileTab'
+import GameLauncher from './GameLauncher'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { TerminalSession } from '@shared/types'
 
@@ -37,9 +38,9 @@ interface RightPanelProps {
   lineHistoryPayload?: { filePath: string; lineNumber: number } | null
 }
 
-type GitSection = 'git' | 'terminal' | 'search' | 'file'
+type GitSection = 'git' | 'terminal' | 'search' | 'file' | 'game'
 
-const ALL_SECTIONS: GitSection[] = ['file', 'git', 'terminal', 'search']
+const ALL_SECTIONS: GitSection[] = ['file', 'git', 'terminal', 'search', 'game']
 
 const TAB_DEFS: Record<GitSection, { label: string; icon: React.ReactNode }> = {
   git: {
@@ -79,6 +80,19 @@ const TAB_DEFS: Record<GitSection, { label: string; icon: React.ReactNode }> = {
       </svg>
     ),
   },
+  game: {
+    label: 'Game',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+        <rect x="2" y="7" width="20" height="12" rx="2" />
+        <circle cx="12" cy="13" r="1.5" />
+        <circle cx="17" cy="10.5" r="1.5" />
+        <circle cx="17" cy="15.5" r="1.5" />
+        <circle cx="7" cy="10.5" r="1.5" />
+        <circle cx="7" cy="15.5" r="1.5" />
+      </svg>
+    ),
+  },
 }
 
 // ── localStorage helpers ──
@@ -88,7 +102,15 @@ function loadTabOrder(): GitSection[] {
     const raw = localStorage.getItem('vibe-ide-right-tab-order')
     if (raw) {
       const arr = JSON.parse(raw) as GitSection[]
-      if (Array.isArray(arr) && arr.length === 4 && ALL_SECTIONS.every(s => arr.includes(s))) return arr
+      if (Array.isArray(arr) && arr.length > 0 && arr.every(s => ALL_SECTIONS.includes(s))) {
+        const missing = ALL_SECTIONS.filter(s => !arr.includes(s))
+        if (missing.length > 0) {
+          const merged = [...arr, ...missing]
+          saveTabOrder(merged)
+          return merged
+        }
+        return arr
+      }
     }
   } catch {}
   return [...ALL_SECTIONS]
@@ -410,16 +432,18 @@ function RightPanel({
   const terminalContentRef = useRef<HTMLDivElement>(null)
   const searchContentRef = useRef<HTMLDivElement>(null)
   const fileContentRef = useRef<HTMLDivElement>(null)
+  const gameContentRef = useRef<HTMLDivElement>(null)
   const sectionRefs: Record<GitSection, React.RefObject<HTMLDivElement>> = {
     git: gitContentRef,
     terminal: terminalContentRef,
     search: searchContentRef,
     file: fileContentRef,
+    game: gameContentRef,
   }
   useEffect(() => {
-    if (activeSection === 'search') {
+    if (activeSection === 'search' || activeSection === 'game') {
       setTimeout(() => {
-        const input = searchContentRef.current?.querySelector('input') as HTMLInputElement | null
+        const input = (activeSection === 'game' ? gameContentRef : searchContentRef).current?.querySelector('input') as HTMLInputElement | null
         input?.focus()
       })
     } else {
@@ -616,6 +640,10 @@ function RightPanel({
           navigateToFile={navigateToFilePayload}
           onRefresh={() => setFileRefreshKey(k => k + 1)}
         />
+      </div>
+
+      <div ref={gameContentRef} tabIndex={-1} style={{ display: activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden">
+        <GameLauncher />
       </div>
 
       </div>
