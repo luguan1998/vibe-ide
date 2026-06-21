@@ -861,7 +861,14 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
   // CLI resolves aliases (opus/sonnet/haiku) via ANTHROPIC_DEFAULT_*_MODEL env vars.
   ipcMain.handle(IPC_CHANNELS.AI_SET_MODEL, (_event, payload: AiSetModelPayload) => {
     const session = aiSessions.get(payload.sessionId)
-    if (!session || !session.ready) return { success: false, error: 'AI not ready' }
+    if (!session) return { success: false, error: 'Session not found' }
+
+    // Parse context window from model name (e.g. "deepseek-v4-pro[1m]" → 1M) and cache
+    // immediately regardless of ready state, since the CLI doesn't echo [1m] in system/init.
+    const parsed = parseContextWindowFromModel(payload.model)
+    if (parsed) session.contextWindow = parsed
+
+    if (!session.ready) return { success: false, error: 'AI not ready' }
 
     const ndjson = JSON.stringify({
       type: 'control_request',
