@@ -206,15 +206,15 @@ function AiToolCallCard({ tool }: { tool: AiToolUse }) {
     <div className="inline-block max-w-full animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
-        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors ${
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] leading-none font-mono transition-colors ${
           isFileEdit ? 'bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25' : 'bg-ide-hover text-ide-text-muted hover:bg-ide-active'
         }`}
       >
         <span className="shrink-0"><ToolIcon category={category} /></span>
-        <span className="shrink-0">{tool.name}</span>
-        {detail && <span className="truncate max-w-[140px] opacity-60 text-[9px]">{detail}</span>}
+        <span className="shrink-0 leading-none">{tool.name}</span>
+        {detail && <span className="truncate max-w-[140px] opacity-60 text-[9px] leading-none">{detail}</span>}
         {hasResult && (
-          <span className={`shrink-0 text-[9px] ${tool.result!.isError ? 'text-ide-danger' : 'text-ide-success'}`}>
+          <span className={`shrink-0 text-[9px] leading-none ${tool.result!.isError ? 'text-ide-danger' : 'text-ide-success'}`}>
             {tool.result!.isError ? '✗' : '✓'}
           </span>
         )}
@@ -561,13 +561,13 @@ function ThinkingBlock({ text, defaultOpen = false, durationMs }: { text: string
     <div className="max-w-full animate-fade-in">
       <button
         onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
       >
         <svg role="img" width="12px" height="12px" viewBox="0 0 24 24" aria-labelledby="lightBulbIconTitle" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" fill="none" className="shrink-0">
           <title id="lightBulbIconTitle">Light Bulb</title>
           <path d="M16 12C15.3333333 12.6666667 15 14 15 16L15 17 9 17 9 16C9 14 8.66666667 12.6666667 8 12 5.6739597 9.6739597 5.41421356 6.10050506 7.75735931 3.75735931 10.1005051 1.41421356 13.8994949 1.41421356 16.2426407 3.75735931 18.5857864 6.10050506 18.4068484 9.59315157 16 12zM10 21L14 21"/>
         </svg>
-        <span className="shrink-0">{label}</span>
+        <span className="shrink-0 leading-none">{label}</span>
       </button>
       {open && (
         <div className="mt-1 px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
@@ -603,10 +603,10 @@ function CollapsedToolsSummary({ tools }: { tools: AiToolUse[] }) {
     <div className="animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
-        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/15 transition-colors"
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/15 transition-colors"
       >
         <ToolIcon category="default" />
-        <span className="shrink-0">tools * {tools.length}</span>
+        <span className="shrink-0 leading-none">tools * {tools.length}</span>
         <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
       {expanded && (
@@ -1370,12 +1370,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   }, [updateSession])
 
   // ── IPC: Stream tokens ──
-  // Each token arrival previously called setSessionStates, blocking the main thread and
-  // delaying permission-card rendering (AskUserQuestion / ExitPlanMode / approve prompts all
-  // appeared late during long streaming). Coalesce tokens across a single animation frame so
-  // React renders at most once per 16ms regardless of token throughput.
+  // Tokens arrive at high frequency during streaming. Coalesce with rAF (avoid blocking
+  // main thread per token) then throttle state updates to 200ms. Without throttling,
+  // ReactMarkdown re-parses the growing text at 60fps and flickers hard.
+  const THROTTLE_MS = 200
   const pendingTokensRef = useRef<Map<string, { text: string; thinking: string }>>(new Map())
   const rafScheduledRef = useRef(false)
+  const lastFlushRef = useRef(0)
+  const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     const handleToken = window.api.ai.onStreamToken(({ sessionId, token, kind }: any) => {
       if (!token) return
@@ -1388,20 +1390,39 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       rafScheduledRef.current = true
       requestAnimationFrame(() => {
         rafScheduledRef.current = false
-        const batched = pendingTokensRef.current
-        pendingTokensRef.current = new Map()
-        batched.forEach((buf, sid) => {
-          updateSession(sid, (s) => ({
-            ...s,
-            streamBuffer: buf.text ? s.streamBuffer + buf.text : s.streamBuffer,
-            thinkingBuffer: buf.thinking ? s.thinkingBuffer + buf.thinking : s.thinkingBuffer,
-            thinkingStartedAt: buf.thinking && !s.thinkingBuffer ? Date.now() : s.thinkingStartedAt,
-            streaming: true,
-          }))
-        })
+        const now = Date.now()
+        const elapsed = now - lastFlushRef.current
+        if (elapsed >= THROTTLE_MS) {
+          lastFlushRef.current = now
+          flushTokens()
+        } else if (!throttleTimerRef.current) {
+          throttleTimerRef.current = setTimeout(() => {
+            throttleTimerRef.current = null
+            lastFlushRef.current = Date.now()
+            flushTokens()
+          }, THROTTLE_MS - elapsed)
+        }
       })
     })
-    return () => window.api.ai.removeStreamTokenListener(handleToken)
+
+    function flushTokens() {
+      const batched = pendingTokensRef.current
+      pendingTokensRef.current = new Map()
+      batched.forEach((buf, sid) => {
+        updateSession(sid, (s) => ({
+          ...s,
+          streamBuffer: buf.text ? s.streamBuffer + buf.text : s.streamBuffer,
+          thinkingBuffer: buf.thinking ? s.thinkingBuffer + buf.thinking : s.thinkingBuffer,
+          thinkingStartedAt: buf.thinking && !s.thinkingBuffer ? Date.now() : s.thinkingStartedAt,
+          streaming: true,
+        }))
+      })
+    }
+
+    return () => {
+      window.api.ai.removeStreamTokenListener(handleToken)
+      if (throttleTimerRef.current) clearTimeout(throttleTimerRef.current)
+    }
   }, [updateSession])
 
   // ── IPC: Permission requests ──
