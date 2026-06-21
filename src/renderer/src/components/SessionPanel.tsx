@@ -105,8 +105,13 @@ function getCwdEmoji(index: number, pool: string[], override?: string): string {
   return pickEmoji(index, pool, override)
 }
 
-function getSessionEmoji(index: number, pool: string[], override?: string): string {
-  return pickEmoji(index, pool, override)
+function stableEmojiForSession(sessionId: string, pool: string[]): string {
+  if (pool.length === 0) return ''
+  let hash = 0
+  for (let i = 0; i < sessionId.length; i++) {
+    hash = ((hash << 5) - hash + sessionId.charCodeAt(i)) | 0
+  }
+  return pool[Math.abs(hash) % pool.length]
 }
 
 interface CustomCommand {
@@ -140,6 +145,7 @@ interface SessionPanelProps {
   onCloseSession: (id: string) => void
   onRenameSession?: (id: string, newName: string) => Promise<void>
   onReorderSessions?: (fromIndex: number, toIndex: number) => void
+  onReorderGroup?: (fromGroupIndex: number, toGroupIndex: number) => void
   commandHistory?: Record<string, string[]>
   agentStatus?: Record<string, 'running' | 'idle'>
   autoApproveSessions?: Record<string, boolean>
@@ -178,6 +184,7 @@ const SessionPanel = React.memo(function SessionPanel({
   onCloseSession,
   onRenameSession,
   onReorderSessions,
+  onReorderGroup,
   commandHistory = {},
   agentStatus = {},
   autoApproveSessions = {},
@@ -286,6 +293,8 @@ const SessionPanel = React.memo(function SessionPanel({
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const [dragGroupIndex, setDragGroupIndex] = useState<number | null>(null)
+  const [dropGroupIndex, setDropGroupIndex] = useState<number | null>(null)
   const [customCommands, setCustomCommands] = useState<CustomCommand[]>(() => loadCustomCommands())
   const [showCustomCmdModal, setShowCustomCmdModal] = useState(false)
   const [editingCustomCmd, setEditingCustomCmd] = useState<CustomCommand | null>(null)
@@ -351,13 +360,6 @@ const SessionPanel = React.memo(function SessionPanel({
     }
     return map
   }, [sessionGroups, sessions])
-
-  // sessionId → 在 sessions 数组中的位置（按列表顺序分配 emoji 用）
-  const sessionIndexMap = useMemo(() => {
-    const m = new Map<string, number>()
-    sessions.forEach((s, i) => m.set(s.id, i))
-    return m
-  }, [sessions])
 
   useEffect(() => {
     const handleClick = () => { setContextMenu(null); setEmptyAreaMenu(null); setCustomCmdCtxMenu(null) }
@@ -723,9 +725,26 @@ const SessionPanel = React.memo(function SessionPanel({
       <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 overflow-hidden flex flex-col rounded-lg">
         <div className="flex-1 min-h-0 overflow-y-auto pb-2"
           onDragOver={(e) => {
-            if (dragIndex !== null && sessions.length > 0) {
+            if (dragGroupIndex !== null && sessionGroups.length > 0) {
+              e.preventDefault()
+              e.stopPropagation()
+              setDropGroupIndex(sessionGroups.length)
+            } else if (dragIndex !== null && sessions.length > 0) {
               setDropIndex(sessions.length)
             }
+          }}
+          onDrop={(e) => {
+            if (dragGroupIndex !== null && dragGroupIndex !== sessionGroups.length) {
+              e.preventDefault()
+              e.stopPropagation()
+              const targetIdx = dropGroupIndex !== null ? dropGroupIndex : sessionGroups.length
+              const toIdx = targetIdx > dragGroupIndex ? targetIdx - 1 : targetIdx
+              onReorderGroup?.(dragGroupIndex, toIdx)
+            }
+            setDragGroupIndex(null)
+            setDropGroupIndex(null)
+            setDragIndex(null)
+            setDropIndex(null)
           }}
           onContextMenu={handleEmptyAreaContextMenu}
         >
@@ -737,11 +756,50 @@ const SessionPanel = React.memo(function SessionPanel({
           sessionGroups.map((group, gi) => {
             const dirName = group.cwd.replace(/^.*[\/]/, '')
             const cwdEmoji = getCwdEmoji(gi, cwdEmojis, cwdEmojiOverrides[group.cwd])
+            const groupHasActive = activeSessionId && group.sessions.some(s => s.id === activeSessionId)
             return (
-              <div key={group.cwd} className={`bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden ${gi > 0 ? 'mt-3' : ''}`}>
+              <div
+                key={group.cwd}
+                className={`bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden ${gi > 0 ? 'mt-3' : ''}`}
+                style={dropGroupIndex === gi && dropGroupIndex !== dragGroupIndex ? { borderTop: '2px solid rgb(var(--ide-accent))' } : undefined}
+              >
                 {/* Folder header */}
                 <div
-                  className="group h-7 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted acrylic-titlebar rounded-t-lg"
+                  draggable={!!onReorderGroup}
+                  className={`group h-7 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted acrylic-titlebar rounded-t-lg ${
+                    dragGroupIndex === gi ? 'opacity-40' : ''
+                  }`}
+                  onDragStart={() => { setDragGroupIndex(gi); setDragIndex(null); setDropIndex(null) }}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (dragGroupIndex === null || dragGroupIndex === gi) {
+                      setDropGroupIndex(null)
+                      return
+                    }
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const midY = rect.top + rect.height / 2
+                    setDropGroupIndex(e.clientY < midY ? gi : gi + 1)
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (dragGroupIndex !== null && dragGroupIndex !== gi) {
+                      const targetIdx = dropGroupIndex !== null ? dropGroupIndex : gi
+                      const toIdx = targetIdx > dragGroupIndex ? targetIdx - 1 : targetIdx
+                      onReorderGroup?.(dragGroupIndex, toIdx)
+                    }
+                    setDragGroupIndex(null)
+                    setDropGroupIndex(null)
+                    setDragIndex(null)
+                    setDropIndex(null)
+                  }}
+                  onDragEnd={() => {
+                    setDragGroupIndex(null)
+                    setDropGroupIndex(null)
+                    setDragIndex(null)
+                    setDropIndex(null)
+                  }}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span
@@ -760,8 +818,10 @@ const SessionPanel = React.memo(function SessionPanel({
                     >{cwdEmoji}</span>
                     <span
                       className={`text-xs font-medium truncate min-w-0 cursor-pointer transition-all ${
+                        groupHasActive || cwdLinkSession === group.cwd ? 'text-ide-text' : 'text-ide-text-muted'
+                      } ${
                         cwdLinkSession === group.cwd
-                          ? 'underline text-ide-text bg-ide-accent/15 rounded px-0.5'
+                          ? 'underline bg-ide-accent/15 rounded px-0.5'
                           : ''
                       }`}
                       title={group.cwd}
@@ -819,7 +879,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   </div>
                 </div>
                 {/* Sessions under this folder */}
-                <div className="py-0.5">
+                <div>
                 {group.sessions.map((session) => {
                   const flatIdx = flatIndexMap.indexOf(sessions.findIndex(si => si.id === session.id))
                   return (
@@ -850,7 +910,7 @@ const SessionPanel = React.memo(function SessionPanel({
                           setHoverPreview(null)
                         }, 200)
                       }}
-                      onDragStart={() => setDragIndex(flatIdx)}
+                      onDragStart={() => { setDragIndex(flatIdx); setDragGroupIndex(null); setDropGroupIndex(null) }}
                       onDragOver={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
@@ -870,10 +930,14 @@ const SessionPanel = React.memo(function SessionPanel({
                         }
                         setDragIndex(null)
                         setDropIndex(null)
+                        setDragGroupIndex(null)
+                        setDropGroupIndex(null)
                       }}
                       onDragEnd={() => {
                         setDragIndex(null)
                         setDropIndex(null)
+                        setDragGroupIndex(null)
+                        setDropGroupIndex(null)
                       }}
                     >
                       <div className="flex items-center justify-between min-h-[44px]">
@@ -898,8 +962,7 @@ const SessionPanel = React.memo(function SessionPanel({
                           ) : (
                             <>
                               {(() => {
-                                const sessionIdx = sessionIndexMap.get(session.id) ?? 0
-                                const sessionEmoji = getSessionEmoji(sessionIdx, sessionEmojis, sessionEmojiOverrides[session.id])
+                                const sessionEmoji = sessionEmojiOverrides[session.id] || stableEmojiForSession(session.id, sessionEmojis)
                                 return (
                                   <span
                                     className="text-[11px] shrink-0 w-3.5 h-3.5 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
@@ -944,6 +1007,9 @@ const SessionPanel = React.memo(function SessionPanel({
               </div>
             )
           })
+        )}
+        {dropGroupIndex !== null && dropGroupIndex === sessionGroups.length && dropGroupIndex !== dragGroupIndex && (
+          <div className="mx-1 border-t-2 border-ide-accent mt-1" />
         )}
         {dropIndex === sessions.length && dropIndex !== dragIndex && dragIndex !== sessions.length - 1 && (
           <div className="mx-1 border-t-2 border-ide-accent" />

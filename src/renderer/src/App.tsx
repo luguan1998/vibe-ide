@@ -1241,6 +1241,22 @@ export default function App() {
     })
   }, [])
 
+  const handleReorderGroup = useCallback((fromGroupIdx: number, toGroupIdx: number) => {
+    setSessions(prev => {
+      const map = new Map<string, TerminalSession[]>()
+      const order: string[] = []
+      for (const s of prev) {
+        const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
+        if (!map.has(key)) { map.set(key, []); order.push(key) }
+        map.get(key)!.push(s)
+      }
+      const groups = order.map(cwd => ({ cwd, sessions: map.get(cwd)! }))
+      const [moved] = groups.splice(fromGroupIdx, 1)
+      groups.splice(toGroupIdx, 0, moved)
+      return groups.flatMap(g => g.sessions)
+    })
+  }, [])
+
   // Rename a terminal session
   const handleRenameSession = useCallback(async (id: string, newName: string) => {
     const oldSession = sessionsRef.current.find(s => s.id === id)
@@ -1548,6 +1564,7 @@ export default function App() {
             onCloseSession={handleCloseSession}
             onRenameSession={handleRenameSession}
             onReorderSessions={handleReorderSessions}
+            onReorderGroup={handleReorderGroup}
             commandHistory={commandHistory}
             agentStatus={agentStatus}
             autoApproveSessions={autoApproveSessions}
