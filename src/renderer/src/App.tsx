@@ -1234,7 +1234,13 @@ export default function App() {
       setCenterView('terminal')
       setDiffFile(null)
       const normalized = command.replace(/\r\n/g, '\n')
-      window.api.terminal.write(session.id, normalized.replace(/\n/g, '\r'))
+      if (autoUtf8) {
+        setTimeout(() => {
+          window.api.terminal.write(session.id, normalized.replace(/\n/g, '\r'))
+        }, 600)
+      } else {
+        window.api.terminal.write(session.id, normalized.replace(/\n/g, '\r'))
+      }
     } catch (err) {
       console.error('Failed to init session:', err)
     }
