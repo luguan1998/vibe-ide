@@ -1384,6 +1384,18 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 onChange={(e) => setCommitMessage(e.target.value)}
                 disabled={busy}
                 placeholder={t('Commit message...')}
+                onContextMenu={async (e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  const el = e.currentTarget as HTMLTextAreaElement
+                  el.focus()
+                  if (document.execCommand('paste')) return
+                  try {
+                    const text = await navigator.clipboard.readText()
+                    if (text) el.setRangeText(text, el.selectionStart, el.selectionEnd, 'end')
+                  } catch {}
+                  el.dispatchEvent(new Event('input', { bubbles: true }))
+                }}
                 className={`w-full h-20 text-xs bg-ide-bg border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50 disabled:opacity-40 ${focusedCommit ? 'border-ide-accent bg-ide-accent/5' : 'border-ide-border'}`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.ctrlKey) handleCommit()

@@ -292,7 +292,12 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
       const vb = viewBoxRef.current
       setRightPanning({ sx: e.clientX, sy: e.clientY, vx: vb.x, vy: vb.y })
     }
-    const onCtxMenu = (e: Event) => { e.preventDefault(); e.stopImmediatePropagation() }
+    const onCtxMenu = (e: Event) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+    }
     document.addEventListener('mousedown', onRightDown, true)
     document.addEventListener('contextmenu', onCtxMenu, true)
     return () => { document.removeEventListener('mousedown', onRightDown, true); document.removeEventListener('contextmenu', onCtxMenu, true) }

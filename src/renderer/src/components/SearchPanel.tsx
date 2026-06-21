@@ -328,6 +328,18 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             placeholder={mode === 'smart' ? t('描述后按 Enter 搜索...') : t('Search in project...')}
+            onContextMenu={async (e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              const el = e.currentTarget as HTMLInputElement
+              el.focus()
+              if (document.execCommand('paste')) return
+              try {
+                const text = await navigator.clipboard.readText()
+                if (text) el.setRangeText(text, el.selectionStart || 0, el.selectionEnd || 0, 'end')
+              } catch {}
+              el.dispatchEvent(new Event('input', { bubbles: true }))
+            }}
             className={`w-full text-sm bg-ide-bg border border-ide-border rounded px-2 py-1.5 text-ide-text focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50 ${cgReady ? 'pr-16' : 'pr-8'}`}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
