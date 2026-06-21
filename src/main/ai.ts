@@ -43,6 +43,9 @@ export interface ManagedAiSession {
 }
 
 export const aiSessions = new Map<string, ManagedAiSession>()
+// Reverse map: CLI session ID (e.g. "claude-xxx") → renderer session ID ("term-xxxxx")
+// Used by loadSessionMessages to look up contextWindow from the correct aiSessions entry.
+const cliSessionToRenderer = new Map<string, string>()
 let mainWindow: BrowserWindow | null = null
 
 export function send(channel: string, data: any): void {
@@ -189,7 +192,10 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       const s = aiSessions.get(sessionId)
       if (s) {
         s.ready = true
-        if (msg.session_id) s.claudeSessionId = msg.session_id
+        if (msg.session_id) {
+          s.claudeSessionId = msg.session_id
+          cliSessionToRenderer.set(msg.session_id, sessionId)
+        }
         // Parse context window from model name (e.g. "deepseek-v4-pro[1m]" → 1M).
         // Allow re-init: --resume may re-send system/init after a restart, and the
         // first init might have lacked a model field.
@@ -496,6 +502,12 @@ export function resolveProjectDir(cwd: string): string | null {
   } catch { return null }
 }
 
+// Resolve contextWindow for a CLI session ID via the reverse map to a renderer session.
+function getContextWindowForCliSession(cliSessionId: string): number | undefined {
+  const rendererId = cliSessionToRenderer.get(cliSessionId)
+  return rendererId ? aiSessions.get(rendererId)?.contextWindow : undefined
+}
+
 async function loadSessionMessages(resumeSessionId: string, cwd: string): Promise<{
   messages: AiMessage[]
   model: string
@@ -563,7 +575,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
         content: textParts.join('\n') || undefined,
         thinking: thinkingParts.length > 0 ? thinkingParts.join('\n') : undefined,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
-        contextPercent: calcContextPercent(msg.message?.usage, aiSessions.get(sid)?.contextWindow),
+        contextPercent: calcContextPercent(msg.message?.usage, getContextWindowForCliSession(sid)),
         timestamp: ts,
       })
       continue
@@ -625,7 +637,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
           costUsd: msg.total_cost_usd,
           numTurns: msg.num_turns,
           durationMs: msg.duration_ms,
-          contextPercent: calcContextPercent(msg.usage, aiSessions.get(sid)?.contextWindow),
+          contextPercent: calcContextPercent(msg.usage, getContextWindowForCliSession(sid)),
           timestamp: ts,
         })
       }
@@ -754,10 +766,10 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
     const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand } = options
 
-    // Kill existing session if any
+    // Kill existing session if any (taskkill /f /t on Windows to avoid orphaned node processes)
     const existing = aiSessions.get(sessionId)
     if (existing) {
-      existing.process.kill('SIGTERM')
+      killAiProcess(existing.process)
       aiSessions.delete(sessionId)
     }
 
@@ -886,6 +898,9 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
       session.process.kill('SIGTERM')
     }
     aiSessions.delete(sessionId)
+    for (const [cliId, rendererId] of cliSessionToRenderer) {
+      if (rendererId === sessionId) { cliSessionToRenderer.delete(cliId); break }
+    }
     return true
   })
 }
@@ -901,4 +916,5 @@ export function cleanupAiSessions(): void {
     }
   }
   aiSessions.clear()
+  cliSessionToRenderer.clear()
 }
