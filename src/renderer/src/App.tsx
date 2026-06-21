@@ -818,7 +818,7 @@ export default function App() {
           e.stopImmediatePropagation()
           const current = sessions.find(s => s.id === activeSessionId)
           if (current) {
-            handleCloneSession(current.id, current.cwd, current.shell, current.name)
+            handleCloneSession(current.id, current.cwd, current.shell)
           }
         }
       }
@@ -1212,6 +1212,33 @@ export default function App() {
     }
   }, [activeSessionId, sessionViewModes])
 
+  // Clone with init: clone specific session and write command into the new clone
+  const handleCloneWithInit = useCallback(async (sessionId: string, cwd: string, shell: string | undefined, command: string) => {
+    try {
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8 })
+      setSessions(prev => {
+        const parentIndex = prev.findIndex(s => s.id === sessionId)
+        if (parentIndex === -1) return [...prev, session]
+        const next = [...prev]
+        next.splice(parentIndex + 1, 0, session)
+        return next
+      })
+      setActiveSessionId(session.id)
+      setCenterView('terminal')
+      setDiffFile(null)
+      const normalized = command.replace(/\r\n/g, '\n')
+      if (autoUtf8) {
+        setTimeout(() => {
+          window.api.terminal.write(session.id, normalized.replace(/\n/g, '\r'))
+        }, 600)
+      } else {
+        window.api.terminal.write(session.id, normalized.replace(/\n/g, '\r'))
+      }
+    } catch (err) {
+      console.error('Failed to clone with init:', err)
+    }
+  }, [autoUtf8])
+
   // Init command: clone active session and write command into the new clone
   const handleInitCommand = useCallback(async (command: string) => {
     const activeSession = sessions.find(s => s.id === activeSessionId)
@@ -1220,8 +1247,7 @@ export default function App() {
       const session = await window.api.terminal.create({
         cwd: activeSession.cwd,
         shell: activeSession.shell,
-        autoUtf8,
-        name: activeSession.name
+        autoUtf8
       })
       setSessions(prev => {
         const parentIndex = prev.findIndex(s => s.id === activeSessionId)
@@ -1655,6 +1681,7 @@ export default function App() {
             focusSettingsTrigger={focusSettingsTrigger}
             onExecuteCommand={handleExecuteCommand}
             onInitCommand={handleInitCommand}
+            onCloneWithInit={handleCloneWithInit}
             sessionViewModes={sessionViewModes}
             onSwitchViewMode={handleSwitchViewMode}
           />

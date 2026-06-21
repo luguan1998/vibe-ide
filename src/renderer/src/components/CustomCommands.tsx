@@ -18,7 +18,7 @@ interface CustomCommandsProps {
   onInitCommand?: (command: string) => void
 }
 
-function loadCustomCommands(): CustomCommand[] {
+export function loadCustomCommands(): CustomCommand[] {
   try {
     const raw = localStorage.getItem('vibe-ide-custom-commands')
     if (raw) {

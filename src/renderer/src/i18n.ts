@@ -46,6 +46,7 @@ const ZH_MAP: Record<string, string> = {
   'Force Inline Diff': '强制内联 Diff',
   'Force inline diff mode (revert button uses circular icon). Recommended: off (side-by-side reads better)': '强制使用内联 diff 模式（撤销按钮呈圆形）。建议关闭（side-by-side 更易读）',
   'New Terminal': '新建终端',
+  'New Terminal in this folder': '在此文件夹新建终端',
   'Recent Directories': '最近打开的目录',
   'No sessions yet': '暂无会话',
   'Close Session': '关闭会话',

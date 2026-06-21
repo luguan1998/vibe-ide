@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { TerminalSession } from '@shared/types'
-import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X } from 'lucide-react'
+import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus } from 'lucide-react'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
-import CustomCommands, { CustomCommandsHandle } from './CustomCommands'
+import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand } from './CustomCommands'
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
 
 // CWD 图标：按目录分配（标题行）
@@ -121,6 +121,7 @@ interface SessionPanelProps {
   compact?: boolean
   onCreateSession: (shell?: string) => void
   onCloneSession: (parentId: string | null, cwd: string, shell?: string, name?: string) => void
+  onCloneWithInit?: (sessionId: string, cwd: string, shell: string | undefined, command: string) => void
   onSwitchSession: (id: string) => void
   onCloseSession: (id: string) => void
   onRenameSession?: (id: string, newName: string) => Promise<void>
@@ -161,6 +162,7 @@ const SessionPanel = React.memo(function SessionPanel({
   compact,
   onCreateSession,
   onCloneSession,
+  onCloneWithInit,
   onSwitchSession,
   onCloseSession,
   onRenameSession,
@@ -259,6 +261,8 @@ const SessionPanel = React.memo(function SessionPanel({
   const { themes, currentThemeId, setTheme } = useTheme()
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
+  const [cloneSubmenu, setCloneSubmenu] = useState<{ x: number; y: number; sessionId: string; cwd: string; shell?: string; initCommands: CustomCommand[] } | null>(null)
+  const cloneSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [emptyAreaMenu, setEmptyAreaMenu] = useState<{ x: number; y: number } | null>(null)
   const [recentDirs, setRecentDirs] = useState<string[]>(() => loadRecentDirs())
   const prevSessionIdsRef = useRef<Set<string>>(new Set())
@@ -738,7 +742,7 @@ const SessionPanel = React.memo(function SessionPanel({
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span
-                      className="text-[11px] shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
+                      className="text-xs shrink-0 w-3.5 h-3.5 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
                       title={t('Click to cycle emoji')}
                       draggable={false}
                       onClick={(e) => {
@@ -900,7 +904,7 @@ const SessionPanel = React.memo(function SessionPanel({
                                 const sessionEmoji = sessionEmojiOverrides[session.id] || stableEmojiForSession(session.id, sessionEmojis)
                                 return (
                                   <span
-                                    className="text-[11px] shrink-0 w-3.5 h-3.5 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
+                                    className="text-sm shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
                                     title={t('Click to cycle emoji')}
                                     draggable={false}
                                     onClick={(e) => {
@@ -963,19 +967,67 @@ const SessionPanel = React.memo(function SessionPanel({
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-            onClick={() => {
+          <div
+            className="relative"
+            onMouseEnter={() => {
+              const cmds = loadCustomCommands().filter(c => c.type === 'init')
+              if (cmds.length === 0) return
               const session = sessions.find(s => s.id === contextMenu.sessionId)
-              if (session) {
-                onCloneSession(session.id, session.cwd, session.shell, session.name)
-              }
-              setContextMenu(null)
+              if (!session) return
+              if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
+              setCloneSubmenu({ x: contextMenu.x + 168, y: contextMenu.y + 4, sessionId: session.id, cwd: session.cwd, shell: session.shell, initCommands: cmds })
+            }}
+            onMouseLeave={() => {
+              cloneSubmenuTimerRef.current = setTimeout(() => setCloneSubmenu(null), 150)
             }}
           >
-            <Copy size={14} className="text-ide-text-muted" />
-            <span>{t('Clone')}</span>
-          </button>
+            <button
+              className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+              onClick={() => {
+                const session = sessions.find(s => s.id === contextMenu.sessionId)
+                if (session) {
+                  onCloneSession(session.id, session.cwd, session.shell)
+                }
+                setContextMenu(null)
+                setCloneSubmenu(null)
+              }}
+            >
+              <Copy size={14} className="text-ide-text-muted" />
+              <span>{t('Clone')}</span>
+              {loadCustomCommands().some(c => c.type === 'init') && (
+                <ChevronRight size={14} className="ml-auto text-ide-text-muted" />
+              )}
+            </button>
+            {cloneSubmenu && cloneSubmenu.sessionId === contextMenu.sessionId && (
+              <div
+                className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px]"
+                style={{ left: cloneSubmenu.x, top: cloneSubmenu.y }}
+                onMouseEnter={() => {
+                  if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
+                }}
+                onMouseLeave={() => {
+                  setCloneSubmenu(null)
+                }}
+              >
+                {cloneSubmenu.initCommands.map(cmd => (
+                  <button
+                    key={cmd.id}
+                    className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                    onClick={() => {
+                      if (onCloneWithInit) {
+                        onCloneWithInit(cloneSubmenu.sessionId, cloneSubmenu.cwd, cloneSubmenu.shell, cmd.command)
+                      }
+                      setContextMenu(null)
+                      setCloneSubmenu(null)
+                    }}
+                  >
+                    <MessageSquarePlus size={14} className="text-ide-accent" />
+                    <span className="truncate max-w-[180px]">{cmd.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {onToggleAutoApprove && (() => {
             const session = sessions.find(s => s.id === contextMenu.sessionId)
             const isOn = session ? autoApproveSessions[session.id] : false
