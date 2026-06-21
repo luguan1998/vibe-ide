@@ -2,10 +2,8 @@ import React, { useState } from 'react'
 import Game2048 from './Game2048'
 import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
-import GameKlotski from './GameKlotski'
-import GameKillKing from './GameKillKing'
 
-type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro' | 'klotski' | 'killking'
+type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro'
 
 interface GameCard {
   id: Exclude<GameId, 'menu'>
@@ -15,11 +13,9 @@ interface GameCard {
 }
 
 const GAMES: GameCard[] = [
-  { id: 'klotski', icon: '🔰', name: '华容道', desc: '横刀立马 — 移动方块让曹操出关' },
   { id: 'balatro', icon: '🃏', name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: '🏖️', name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: '🧩', name: '2048', desc: 'Slide tiles to merge them' },
-  { id: 'killking', icon: '🐉', name: 'Slay the Dragon', desc: 'Press SPACE — slay the dragon!' },
 ]
 
 export default function GameLauncher() {
@@ -28,11 +24,9 @@ export default function GameLauncher() {
   if (currentGame !== 'menu') {
     const back = () => setCurrentGame('menu')
     switch (currentGame) {
-      case 'klotski': return <GameKlotski onBack={back} />
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />
       case '2048': return <Game2048 onBack={back} />
-      case 'killking': return <GameKillKing onBack={back} />
     }
   }
 
