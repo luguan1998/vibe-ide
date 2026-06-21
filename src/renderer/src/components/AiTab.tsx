@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import type { AiMessage, AiToolUse, AiSessionState, AiPermissionRequest, AiPermissionMode, AiSlashCommand } from '@shared/types'
 import { AI_FILE_EDIT_TOOLS } from '@shared/types'
 import ReactMarkdown from 'react-markdown'
@@ -21,6 +21,11 @@ interface AiTabProps {
   onForkSession?: (userMessageIndex: number) => void
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   resumeSessionId?: string
+}
+
+export interface AiTabHandle {
+  focus: () => void
+  setValue: (text: string) => void
 }
 
 const EMPTY_SESSION: AiSessionState = {
@@ -1150,7 +1155,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 
-export default function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId }: AiTabProps) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1218,6 +1223,11 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const userScrolledUpRef = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    focus: () => { inputRef.current?.focus({ preventScroll: true }) },
+    setValue: (text: string) => { setInputValue(text) },
+  }), [setInputValue])
 
   // Track which sessions have been created to avoid double-init
   const createdSessionsRef = useRef<Set<string>>(new Set())
@@ -2084,4 +2094,6 @@ export default function AiTab({ activeSessionId, workspacePath, isActive, autoAp
       </div>
     </div>
   )
-}
+})
+
+export default AiTab

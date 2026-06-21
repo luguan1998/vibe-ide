@@ -9,7 +9,7 @@ import OutlinePanel, { isCode, isMarkdown } from './components/OutlinePanel'
 import NavBar from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
-import AiTab from './components/AiTab'
+import AiTab, { AiTabHandle } from './components/AiTab'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { TerminalSession, RenameTerminalResult, AiPermissionMode } from '@shared/types'
@@ -221,6 +221,7 @@ export default function App() {
 
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [sessionViewModes, setSessionViewModes] = useState<Record<string, 'term' | 'gui'>>({})
+  const sessionViewModesRef = useRef(sessionViewModes); sessionViewModesRef.current = sessionViewModes
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
   const callGraphFocalNodeRef = useRef<any>(null); callGraphFocalNodeRef.current = callGraphFocalNode
   const handleOpenCallGraphFromEditor = useCallback(async (word: string) => {
@@ -340,6 +341,7 @@ export default function App() {
 
   // Terminal refs for focus management (keyed by sessionId)
   const terminalRefs = useRef<Record<string, TerminalViewHandle>>({})
+  const aiTabRefs = useRef<Record<string, AiTabHandle>>({})
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const centerPanelRef = useRef<HTMLDivElement>(null)
   // Navigation history for Alt+Left/Right cursor position jumps
@@ -424,16 +426,20 @@ export default function App() {
     navIndexRef.current = hist.length - 1
   }
 
-  // Focus terminal when switching sessions or returning from diff
+  // Focus input when switching sessions or returning from diff
   useEffect(() => {
     if (centerView === 'terminal' && activeSessionId) {
-      // Delay to let the new TerminalView mount/show
+      const mode = sessionViewModes[activeSessionId]
       const timer = setTimeout(() => {
-        terminalRefs.current[activeSessionId]?.focus()
+        if (mode === 'gui') {
+          aiTabRefs.current[activeSessionId]?.focus()
+        } else {
+          terminalRefs.current[activeSessionId]?.focus()
+        }
       }, 0)
       return () => clearTimeout(timer)
     }
-  }, [centerView, activeSessionId])
+  }, [centerView, activeSessionId, sessionViewModes])
 
   // Persist font sizes to localStorage
   React.useEffect(() => {
@@ -768,11 +774,17 @@ export default function App() {
         const idx = visualOrder.findIndex(s => s.id === activeSessionId)
         const next = (idx + 1) % visualOrder.length
         if (visualOrder[next]) {
-          setActiveSessionId(visualOrder[next].id)
+          const nextId = visualOrder[next].id
+          const nextMode = sessionViewModesRef.current[nextId]
+          setActiveSessionId(nextId)
           setCenterView('terminal')
           setDiffFile(null)
           setTimeout(() => {
-            terminalRefs.current[visualOrder[next].id]?.focus()
+            if (nextMode === 'gui') {
+              aiTabRefs.current[nextId]?.focus()
+            } else {
+              terminalRefs.current[nextId]?.focus()
+            }
           }, 0)
         }
       }
@@ -783,11 +795,17 @@ export default function App() {
         const idx = visualOrder.findIndex(s => s.id === activeSessionId)
         const next = (idx - 1 + visualOrder.length) % visualOrder.length
         if (visualOrder[next]) {
-          setActiveSessionId(visualOrder[next].id)
+          const nextId = visualOrder[next].id
+          const nextMode = sessionViewModesRef.current[nextId]
+          setActiveSessionId(nextId)
           setCenterView('terminal')
           setDiffFile(null)
           setTimeout(() => {
-            terminalRefs.current[visualOrder[next].id]?.focus()
+            if (nextMode === 'gui') {
+              aiTabRefs.current[nextId]?.focus()
+            } else {
+              terminalRefs.current[nextId]?.focus()
+            }
           }, 0)
         }
       }
@@ -955,7 +973,14 @@ export default function App() {
             e.stopImmediatePropagation()
             active.blur()
             if (activeSessionId) {
-              setTimeout(() => terminalRefs.current[activeSessionId]?.focus(), 0)
+              const mode = sessionViewModesRef.current[activeSessionId]
+              setTimeout(() => {
+                if (mode === 'gui') {
+                  aiTabRefs.current[activeSessionId]?.focus()
+                } else {
+                  terminalRefs.current[activeSessionId]?.focus()
+                }
+              }, 0)
             }
           }
         }
@@ -1171,16 +1196,21 @@ export default function App() {
     setDiffFile(null)
   }, [])
 
-  // Execute a custom command in the active terminal
+  // Execute a custom command — sends to AI input in GUI mode, terminal otherwise
   const handleExecuteCommand = useCallback((command: string) => {
-    if (activeSessionId) {
-      const normalized = command.replace(/\r\n/g, '\n')
+    if (!activeSessionId) return
+    const normalized = command.replace(/\r\n/g, '\n')
+    const mode = sessionViewModes[activeSessionId]
+    if (mode === 'gui') {
+      aiTabRefs.current[activeSessionId]?.setValue(normalized)
+      aiTabRefs.current[activeSessionId]?.focus()
+    } else {
       window.api.terminal.write(activeSessionId, normalized.replace(/\n/g, '\r'))
       setCenterView('terminal')
       setDiffFile(null)
       setTimeout(() => terminalRefs.current[activeSessionId]?.focus(), 0)
     }
-  }, [activeSessionId])
+  }, [activeSessionId, sessionViewModes])
 
   // Init command: clone active session and write command into the new clone
   const handleInitCommand = useCallback(async (command: string) => {
@@ -1213,8 +1243,9 @@ export default function App() {
   // Close a terminal session
   const handleCloseSession = useCallback(async (id: string) => {
     await window.api.terminal.close(id)
-    // 清理 terminalRefs 中已关闭 session 的 handle 引用
+    // 清理 terminalRefs / aiTabRefs 中已关闭 session 的 handle 引用
     delete terminalRefs.current[id]
+    delete aiTabRefs.current[id]
     setSessions(prev => prev.filter(s => s.id !== id))
     // 清理该 session 的命令历史和 agent 状态
     setCommandHistory(prev => {
@@ -1732,6 +1763,7 @@ export default function App() {
                   >
                     {isGui ? (
                       <AiTab
+                        ref={(node) => { if (node) aiTabRefs.current[session.id] = node }}
                         activeSessionId={session.id}
                         workspacePath={session.cwd}
                         isActive={session.id === activeSessionId}
