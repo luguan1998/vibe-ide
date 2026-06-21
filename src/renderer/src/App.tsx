@@ -1182,6 +1182,34 @@ export default function App() {
     }
   }, [activeSessionId])
 
+  // Init command: clone active session and write command into the new clone
+  const handleInitCommand = useCallback(async (command: string) => {
+    const activeSession = sessions.find(s => s.id === activeSessionId)
+    if (!activeSession) return
+    try {
+      const session = await window.api.terminal.create({
+        cwd: activeSession.cwd,
+        shell: activeSession.shell,
+        autoUtf8,
+        name: activeSession.name
+      })
+      setSessions(prev => {
+        const parentIndex = prev.findIndex(s => s.id === activeSessionId)
+        if (parentIndex === -1) return [...prev, session]
+        const next = [...prev]
+        next.splice(parentIndex + 1, 0, session)
+        return next
+      })
+      setActiveSessionId(session.id)
+      setCenterView('terminal')
+      setDiffFile(null)
+      const normalized = command.replace(/\r\n/g, '\n')
+      window.api.terminal.write(session.id, normalized.replace(/\n/g, '\r'))
+    } catch (err) {
+      console.error('Failed to init session:', err)
+    }
+  }, [activeSessionId, sessions, autoUtf8])
+
   // Close a terminal session
   const handleCloseSession = useCallback(async (id: string) => {
     await window.api.terminal.close(id)
@@ -1589,6 +1617,7 @@ export default function App() {
             onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}
             onExecuteCommand={handleExecuteCommand}
+            onInitCommand={handleInitCommand}
             sessionViewModes={sessionViewModes}
             onSwitchViewMode={handleSwitchViewMode}
           />

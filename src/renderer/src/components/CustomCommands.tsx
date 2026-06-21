@@ -1,11 +1,12 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { Pencil, X } from 'lucide-react'
+import React, { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react'
+import { Pencil, X, MessageSquarePlus } from 'lucide-react'
 import { useI18n } from '../i18n'
 
 export interface CustomCommand {
   id: string
   name: string
   command: string
+  type: 'simple' | 'init'
 }
 
 export interface CustomCommandsHandle {
@@ -14,6 +15,7 @@ export interface CustomCommandsHandle {
 
 interface CustomCommandsProps {
   onExecuteCommand?: (command: string) => void
+  onInitCommand?: (command: string) => void
 }
 
 function loadCustomCommands(): CustomCommand[] {
@@ -21,7 +23,7 @@ function loadCustomCommands(): CustomCommand[] {
     const raw = localStorage.getItem('vibe-ide-custom-commands')
     if (raw) {
       const arr = JSON.parse(raw)
-      if (Array.isArray(arr)) return arr.filter((c: unknown) => c && typeof c === 'object' && typeof (c as any).id === 'string' && typeof (c as any).name === 'string' && typeof (c as any).command === 'string')
+      if (Array.isArray(arr)) return arr.filter((c: unknown) => c && typeof c === 'object' && typeof (c as any).id === 'string' && typeof (c as any).name === 'string' && typeof (c as any).command === 'string').map((c: any) => ({ ...c, type: c.type || 'simple' }))
     }
   } catch {}
   return []
@@ -32,7 +34,7 @@ function saveCustomCommands(cmds: CustomCommand[]): void {
 }
 
 const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
-  function CustomCommands({ onExecuteCommand }, ref) {
+  function CustomCommands({ onExecuteCommand, onInitCommand }, ref) {
     const { t } = useI18n()
 
     const [customCommands, setCustomCommands] = useState<CustomCommand[]>(() => loadCustomCommands())
@@ -40,12 +42,14 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
     const [editingCustomCmd, setEditingCustomCmd] = useState<CustomCommand | null>(null)
     const [customCmdName, setCustomCmdName] = useState('')
     const [customCmdCommand, setCustomCmdCommand] = useState('')
+    const [customCmdType, setCustomCmdType] = useState<'simple' | 'init'>('simple')
     const [customCmdCtxMenu, setCustomCmdCtxMenu] = useState<{ x: number; y: number; cmd: CustomCommand } | null>(null)
 
     const openCreateModal = () => {
       setEditingCustomCmd(null)
       setCustomCmdName('')
       setCustomCmdCommand('')
+      setCustomCmdType('simple')
       setShowCustomCmdModal(true)
     }
 
@@ -58,13 +62,13 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
       const command = rawCommand
       if (editingCustomCmd) {
         setCustomCommands(prev => {
-          const next = prev.map(c => c.id === editingCustomCmd.id ? { ...c, name, command } : c)
+          const next = prev.map(c => c.id === editingCustomCmd.id ? { ...c, name, command, type: customCmdType } : c)
           saveCustomCommands(next)
           return next
         })
       } else {
         setCustomCommands(prev => {
-          const next = [...prev, { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, command }]
+          const next = [...prev, { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, command, type: customCmdType }]
           saveCustomCommands(next)
           return next
         })
@@ -73,6 +77,7 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
       setEditingCustomCmd(null)
       setCustomCmdName('')
       setCustomCmdCommand('')
+      setCustomCmdType('simple')
     }
 
     // ESC handler for Custom Command modal (capture phase per CLAUDE.md rule #8)
@@ -91,7 +96,7 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
       }
       document.addEventListener('keydown', handler, true)
       return () => document.removeEventListener('keydown', handler, true)
-    }, [showCustomCmdModal, customCmdName, customCmdCommand, editingCustomCmd])
+    }, [showCustomCmdModal, customCmdName, customCmdCommand, customCmdType, editingCustomCmd])
 
     // Global click to dismiss capsule context menu
     useEffect(() => {
@@ -100,30 +105,44 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
       return () => window.removeEventListener('click', handleClick)
     }, [])
 
+    const sortedCommands = useMemo(() => {
+      const init = customCommands.filter(c => c.type === 'init')
+      const simple = customCommands.filter(c => c.type !== 'init')
+      return [...init, ...simple]
+    }, [customCommands])
+
     return (
       <>
         {/* Custom Command Capsules */}
-        {customCommands.length > 0 && (
+        {sortedCommands.length > 0 && (
           <div className="px-2 py-1.5">
             <div className="flex flex-wrap gap-1">
-              {customCommands.map((cmd) => (
+              {sortedCommands.map((cmd) => (
                 <div
                   key={cmd.id}
                   className="relative group inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ide-hover hover:bg-ide-accent/20 text-ide-text-muted hover:text-ide-text cursor-pointer transition-colors text-xs max-w-full select-none"
                   onClick={() => {
-                    if (onExecuteCommand) onExecuteCommand(cmd.command)
+                    if (cmd.type === 'init' && onInitCommand) {
+                      onInitCommand(cmd.command)
+                    } else if (onExecuteCommand) {
+                      onExecuteCommand(cmd.command)
+                    }
                   }}
                   onContextMenu={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
                     setCustomCmdCtxMenu({ x: e.clientX, y: e.clientY, cmd })
                   }}
-                  title={`${cmd.name}: ${cmd.command}`}
+                  title={`${cmd.name}: ${cmd.command}${cmd.type === 'init' ? ' (init)' : ''}`}
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 shrink-0 text-ide-accent">
-                    <polyline points="4 17 10 11 4 5" />
-                    <line x1="12" y1="19" x2="20" y2="19" />
-                  </svg>
+                  {cmd.type === 'init' ? (
+                    <MessageSquarePlus size={12} className="shrink-0 text-ide-accent" />
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 shrink-0 text-ide-accent">
+                      <polyline points="4 17 10 11 4 5" />
+                      <line x1="12" y1="19" x2="20" y2="19" />
+                    </svg>
+                  )}
                   <span className="truncate max-w-[160px]">{cmd.name}</span>
                   <button
                     onClick={(e) => {
@@ -161,6 +180,7 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
                 setEditingCustomCmd(customCmdCtxMenu.cmd)
                 setCustomCmdName(customCmdCtxMenu.cmd.name)
                 setCustomCmdCommand(customCmdCtxMenu.cmd.command)
+                setCustomCmdType(customCmdCtxMenu.cmd.type || 'simple')
                 setShowCustomCmdModal(true)
                 setCustomCmdCtxMenu(null)
               }}
@@ -199,6 +219,28 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
                 </button>
               </div>
               <div className="p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="cmdType"
+                      checked={customCmdType === 'simple'}
+                      onChange={() => setCustomCmdType('simple')}
+                      className="accent-ide-accent"
+                    />
+                    <span className="text-xs text-ide-text">{t('Simple')}</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="cmdType"
+                      checked={customCmdType === 'init'}
+                      onChange={() => setCustomCmdType('init')}
+                      className="accent-ide-accent"
+                    />
+                    <span className="text-xs text-ide-text">{t('Init Session')}</span>
+                  </label>
+                </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-ide-text-muted">{t('Command Name')}</label>
                   <input

@@ -150,6 +150,7 @@ interface SessionPanelProps {
   onChangeFileTreeDepth?: (delta: number) => void
   focusSettingsTrigger?: number
   onExecuteCommand?: (command: string) => void
+  onInitCommand?: (command: string) => void
   sessionViewModes?: Record<string, 'term' | 'gui'>
   onSwitchViewMode?: (sessionId: string, mode: 'term' | 'gui') => void
 }
@@ -189,6 +190,7 @@ const SessionPanel = React.memo(function SessionPanel({
   onChangeFileTreeDepth,
   focusSettingsTrigger = 0,
   onExecuteCommand,
+  onInitCommand,
   sessionViewModes = {},
   onSwitchViewMode,
 }: SessionPanelProps) {
@@ -950,7 +952,7 @@ const SessionPanel = React.memo(function SessionPanel({
         </div>
 
       {/* Custom Commands */}
-      <CustomCommands ref={commandsRef} onExecuteCommand={onExecuteCommand} />
+      <CustomCommands ref={commandsRef} onExecuteCommand={onExecuteCommand} onInitCommand={onInitCommand} />
 
       </div>
 

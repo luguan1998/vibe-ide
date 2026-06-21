@@ -220,6 +220,8 @@ const ZH_MAP: Record<string, string> = {
   'Enter command to execute': '输入要执行的命令',
   'Execute': '执行',
   'No custom commands': '暂无自定义命令',
+  'Simple': '简单执行',
+  'Init Session': '初始化会话',
 
   // Encoding
   'Search encodings...': '搜索编码...',
