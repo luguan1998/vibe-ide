@@ -53,6 +53,27 @@ function colorizeDone() {
 
 let mermaidInitialized = false
 
+class MermaidErrorBoundary extends React.Component<{ children: React.ReactNode; code: string }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode; code: string }) {
+    super(props)
+    this.state = { hasError: false }
+  }
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="md-mermaid md-mermaid-error-state">
+          <div className="md-mermaid-error">Mermaid render error</div>
+          <pre><code>{this.props.code}</code></pre>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function MermaidBlock({ code }: { code: string }) {
   const { theme } = useTheme()
   const [svg, setSvg] = useState<string | null>(null)
@@ -65,28 +86,38 @@ function MermaidBlock({ code }: { code: string }) {
   useEffect(() => {
     let cancelled = false
     const isDark = !theme.monacoTheme.includes('light')
-    if (!mermaidInitialized) {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: isDark ? 'dark' : 'default',
-        securityLevel: 'loose',
-      })
-      mermaidInitialized = true
-    } else {
-      mermaid.initialize({ theme: isDark ? 'dark' : 'default' })
-    }
-    const id = `mermaid-${Math.random().toString(36).slice(2)}`
-    mermaid.render(id, code).then(({ svg: renderedSvg }) => {
-      if (!cancelled) {
-        setSvg(renderedSvg)
-        setError(null)
+    try {
+      if (!mermaidInitialized) {
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: isDark ? 'dark' : 'default',
+          securityLevel: 'loose',
+        })
+        mermaidInitialized = true
+      } else {
+        mermaid.initialize({ theme: isDark ? 'dark' : 'default' })
       }
-    }).catch((err: any) => {
+    } catch (err: any) {
       if (!cancelled) {
-        setError(err.message || 'Mermaid render error')
+        setError(err?.message || 'Mermaid init error')
         setSvg(null)
       }
-    })
+    }
+    const id = `mermaid-${Math.random().toString(36).slice(2)}`
+    ;(async () => {
+      try {
+        const { svg: renderedSvg } = await mermaid.render(id, code)
+        if (!cancelled) {
+          setSvg(renderedSvg)
+          setError(null)
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || 'Mermaid render error')
+          setSvg(null)
+        }
+      }
+    })()
     return () => { cancelled = true }
   }, [code, theme.monacoTheme])
 
@@ -280,7 +311,7 @@ function getMarkdownCodeOverrides(): Record<string, React.ComponentType<any>> {
       const match = /language-(\w+)/.exec(className || '')
       const code = String(children).replace(/\n$/, '')
       if (match?.[1] === 'mermaid') {
-        return <MermaidBlock code={code} />
+        return <MermaidErrorBoundary code={code}><MermaidBlock code={code} /></MermaidErrorBoundary>
       }
       if (match || code.includes('\n')) {
         return <CodeBlock language={match?.[1] ?? 'plaintext'} code={code} />
