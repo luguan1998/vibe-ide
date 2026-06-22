@@ -1439,7 +1439,11 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   useEffect(() => {
     const handleReady = window.api.ai.onReady(({ sessionId, slashCommands, model }: any) => {
       const commands = enrichSlashCommands(slashCommands || [])
-      updateSession(sessionId, (s) => ({ ...s, ready: true, busy: s.busy, slashCommands: commands, model: model || '' }))
+      // Preserve existing model when a re-init arrives without a model field.
+      // --resume / plan clear-execute / /clear / /compact / set_model can re-emit
+      // system/init that lacks msg.model; clobbering with '' would flip the badge
+      // from the real model back to "default".
+      updateSession(sessionId, (s) => ({ ...s, ready: true, busy: s.busy, slashCommands: commands, model: model || s.model || '' }))
     })
     return () => window.api.ai.removeReadyListener(handleReady)
   }, [updateSession])
