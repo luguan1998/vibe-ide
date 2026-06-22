@@ -3,7 +3,6 @@ import { spawn, execSync } from 'child_process'
 import { join, dirname } from 'path'
 import * as fs from 'fs'
 import { IPC_CHANNELS } from '../shared/types'
-import * as jsoncParser from 'jsonc-parser'
 import { onChanged } from './watcher'
 
 let cg: any = null
@@ -454,58 +453,9 @@ export function registerCodeGraphHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CODE_INSTALL_MCP, async (_event, targets: string[], workspacePath: string) => {
     try {
       if (!isCodegraphCliAvailable()) return { success: false, error: 'CodeGraph CLI not found' }
-      const claudeConfig = {
-        type: 'stdio',
-        command: 'codegraph',
-        args: ['serve', '--mcp'],
-      }
-      const opencodeConfig = {
-        type: 'local',
-        command: ['codegraph', 'serve', '--mcp'],
-        enabled: true,
-      }
-      const errors: string[] = []
-
-      for (const target of targets) {
-        if (target === 'claude') {
-          const file = join(workspacePath, '.mcp.json')
-          let existing: any = {}
-          if (fs.existsSync(file)) {
-            try { existing = JSON.parse(fs.readFileSync(file, 'utf-8')) } catch { existing = {} }
-          }
-          if (!existing.mcpServers) existing.mcpServers = {}
-          existing.mcpServers.codegraph = claudeConfig
-          fs.writeFileSync(file, JSON.stringify(existing, null, 2))
-        } else if (target === 'opencode') {
-          const jsoncPath = join(workspacePath, 'opencode.jsonc')
-          const jsonPath = join(workspacePath, 'opencode.json')
-          let file = fs.existsSync(jsoncPath) ? jsoncPath : (fs.existsSync(jsonPath) ? jsonPath : jsoncPath)
-          let text = ''
-          if (fs.existsSync(file)) {
-            text = fs.readFileSync(file, 'utf-8')
-          }
-          if (!text.trim()) {
-            text = '{\n  "$schema": "https://opencode.ai/config.json"\n}\n'
-          }
-          const edits = jsoncParser.modify(text, ['mcp', 'codegraph'], opencodeConfig, {
-            formattingOptions: { tabSize: 2, insertSpaces: true, eol: '\n' },
-          })
-          text = jsoncParser.applyEdits(text, edits)
-          const config = jsoncParser.parse(text, undefined, { allowTrailingComma: true })
-          if (!config.$schema) {
-            const schemaEdits = jsoncParser.modify(text, ['$schema'], 'https://opencode.ai/config.json', {
-              formattingOptions: { tabSize: 2, insertSpaces: true, eol: '\n' },
-            })
-            text = jsoncParser.applyEdits(text, schemaEdits)
-          }
-          fs.writeFileSync(file, text)
-        } else {
-          const r = await runCodeGraphCli(['install', '--target', target, '--location', 'local', '--yes'], undefined, workspacePath)
-          if (!r.success) errors.push(`${target}: ${r.error || 'install mcp failed'}`)
-        }
-      }
-
-      if (errors.length > 0) return { success: false, error: errors.join('; ') }
+      const targetFlag = targets.length > 0 ? targets.join(',') : 'none'
+      const r = await runCodeGraphCli(['install', '--target', targetFlag, '--location', 'local', '--yes'], undefined, workspacePath)
+      if (!r.success) return { success: false, error: r.error || 'install mcp failed' }
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.message }
