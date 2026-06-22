@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useTheme } from '../themes'
 
 const COLS = 200
 const ROWS = 150
@@ -68,6 +69,20 @@ export default function GameSandspiel({ onBack }: { onBack?: () => void }) {
   const pausedRef = useRef(false)
   const [paused, setPaused] = useState(false)
   const mouseRef = useRef({ down: false })
+
+  // background follows current theme's --ide-bg ("r g b")
+  const { theme } = useTheme()
+  const bgParts = (theme.css['ide-bg'] ?? '10 10 26').split(' ')
+  const bgR = parseInt(bgParts[0], 10) || 10
+  const bgG = parseInt(bgParts[1], 10) || 10
+  const bgB = parseInt(bgParts[2], 10) || 26
+  const bgRef = useRef({ r: bgR, g: bgG, b: bgB })
+  useEffect(() => {
+    bgRef.current = { r: bgR, g: bgG, b: bgB }
+    // theme changed → redraw every cell so EMPTY picks up the new bg
+    const d = dirtyRef.current
+    for (let i = 0; i < ROWS * COLS; i++) d.add(i)
+  }, [bgR, bgG, bgB])
 
   useEffect(() => { elRef.current = el }, [el])
   useEffect(() => { brushRef.current = brush }, [brush])
@@ -299,7 +314,8 @@ export default function GameSandspiel({ onBack }: { onBack?: () => void }) {
       const v = g[i]
       const yy = Math.floor(i / COLS); const xx = i % COLS
       if (v === EMPTY) {
-        fillBlock(xx, yy, 10, 10, 26)
+        const bg = bgRef.current
+        fillBlock(xx, yy, bg.r, bg.g, bg.b)
         continue
       }
       if (v === FIRE) {
@@ -407,17 +423,16 @@ export default function GameSandspiel({ onBack }: { onBack?: () => void }) {
         <div className="w-px h-4 bg-ide-border mx-1" />
         {BRUSH_SIZES.map(s => (
           <button key={s} onClick={() => setBrush(s)}
-            className="w-7 h-7 flex items-center justify-center text-[10px] font-bold rounded border transition-all shrink-0"
-            style={{
-              backgroundColor: brush === s ? 'rgba(255,255,255,0.12)' : 'transparent',
-              borderColor: brush === s ? 'rgba(255,255,255,0.3)' : 'transparent',
-              color: brush === s ? '#fff' : 'rgba(255,255,255,0.4)',
-            }}
+            className={`w-7 h-7 flex items-center justify-center text-[10px] font-bold rounded border transition-all shrink-0 ${
+              brush === s
+                ? 'bg-ide-accent/20 border-ide-accent text-ide-text'
+                : 'border-transparent text-ide-text-muted hover:border-ide-text-muted/30'
+            }`}
             title={`Brush ${s}`}
           >{s}</button>
         ))}
       </div>
-      <div className="flex-1 flex items-center justify-center overflow-hidden p-2" style={{ background: '#0a0a1a', minHeight: 0 }}>
+      <div className="flex-1 flex items-center justify-center overflow-hidden p-2" style={{ background: 'rgb(var(--ide-bg))', minHeight: 0 }}>
         <canvas ref={canvasRef} width={W} height={H} onMouseDown={onDown}
           style={{ cursor: 'crosshair', imageRendering: 'pixelated', width: W, height: H, outline: '1px solid rgba(255,255,255,0.08)' }}
         />
