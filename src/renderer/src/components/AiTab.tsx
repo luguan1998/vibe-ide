@@ -220,14 +220,14 @@ function AiToolCallCard({ tool }: { tool: AiToolUse }) {
         )}
       </button>
       {expanded && (
-        <div className="mt-1 px-2 py-1 text-[10px] font-mono bg-ide-bg border border-ide-border rounded space-y-1 max-h-48 overflow-y-auto">
+        <div className="mt-1 px-2 py-1 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-1 max-h-48 overflow-y-auto">
           {hasResult && (
             <div className={tool.result!.isError ? 'text-ide-danger/80' : 'text-ide-text'}>
-              <pre className="whitespace-pre-wrap break-words text-[9px]">{tool.result!.content}</pre>
+              <pre className="whitespace-pre-wrap break-words text-[11px]">{tool.result!.content}</pre>
             </div>
           )}
           <div className="text-ide-text-muted">
-            <pre className="whitespace-pre-wrap break-words text-[9px]">{JSON.stringify(tool.input, null, 2)}</pre>
+            <pre className="whitespace-pre-wrap break-words text-[11px]">{JSON.stringify(tool.input, null, 2)}</pre>
           </div>
         </div>
       )}
@@ -571,7 +571,7 @@ function ThinkingBlock({ text, defaultOpen = false, durationMs }: { text: string
       </button>
       {open && (
         <div className="mt-1 px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
-          <pre className="whitespace-pre-wrap break-words text-[11px] text-ide-text-muted">{text}</pre>
+          <pre className="whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">{text}</pre>
         </div>
       )}
     </div>
