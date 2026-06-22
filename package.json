@@ -37,7 +37,8 @@
     "icon": "build/icon.ico",
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "7z"
       ],
       "signAndEditExecutable": false
     },
@@ -51,16 +52,6 @@
         "zh_CN"
       ]
     },
-    "extraResources": [
-      {
-        "from": "build/register-context-menu.bat",
-        "to": "register-context-menu.bat"
-      },
-      {
-        "from": "build/unregister-context-menu.bat",
-        "to": "unregister-context-menu.bat"
-      }
-    ],
     "afterPack": "./scripts/afterPack.js",
     "nodeGypRebuild": false,
     "npmRebuild": false,
