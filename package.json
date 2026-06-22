@@ -1,6 +1,8 @@
 {
   "name": "vibe-ide",
   "version": "0.7.0",
+  "author": "luguan",
+  "license": "MIT",
   "description": "A vibe coding IDE with terminal session management, native terminal, and git management",
   "main": "./out/main/index.js",
   "scripts": {
@@ -15,6 +17,7 @@
   "build": {
     "appId": "com.vibe-ide",
     "productName": "Vibe IDE",
+    "copyright": "Copyright © 2026 luguan",
     "directories": {
       "output": "dist"
     },
