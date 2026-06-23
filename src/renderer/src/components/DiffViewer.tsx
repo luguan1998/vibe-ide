@@ -85,6 +85,9 @@ interface DiffViewerProps {
   onViewLineHistory?: (filePath: string, lineNumber: number) => void  // 右键菜单 → 查看这行修改记录
   compareOriginalContent?: string  // 左侧对比文件内容（文件对比模式）
   compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
+  bookmarks?: Set<number>          // 当前文件的书签行号集合（渲染 glyph margin 📌）
+  onToggleBookmark?: (line: number) => void  // Alt+点击行 → toggle 书签
+  altBrush?: boolean               // Alt 按住中 → 鼠标变 🖌️ 画笔
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -166,7 +169,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, bookmarks, onToggleBookmark, altBrush }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -196,6 +199,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   // Editor refs for imperative line jumping
   const diffEditorRef = useRef<any>(null)
   const editEditorRef = useRef<any>(null)
+  const monacoRef = useRef<any>(null)
+  // Bookmark glyph margin decorations (per editor)
+  const diffDecorationsRef = useRef<string[]>([])
+  const editDecorationsRef = useRef<string[]>([])
 
   // Dispose Monaco editors before unmount to prevent "TextModel got disposed before DiffEditorWidget model got reset"
   // Use useLayoutEffect so cleanup runs before @monaco-editor/react's useEffect cleanup
@@ -421,6 +428,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   onOpenCallGraphRef.current = onOpenCallGraph
   const onViewLineHistoryRef = useRef(onViewLineHistory)
   onViewLineHistoryRef.current = onViewLineHistory
+  const onToggleBookmarkRef = useRef(onToggleBookmark)
+  onToggleBookmarkRef.current = onToggleBookmark
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -568,6 +577,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     scrollBeyondLastLine: false,
     fontSize,
     lineNumbers: 'on' as const,
+    glyphMargin: true,
     wordWrap: (wordWrap ? 'on' : 'off') as 'on' | 'off',
     renderIndicators: true,
     originalEditable: false,
@@ -582,14 +592,38 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     scrollBeyondLastLine: false,
     fontSize,
     lineNumbers: 'on' as const,
+    glyphMargin: true,
     wordWrap: (wordWrap ? 'on' : 'off') as 'on' | 'off',
     automaticLayout: true,
     padding: { top: 8 },
     scrollbar: { verticalScrollbarSize: 12, horizontalScrollbarSize: 16, useShadows: false }
   }), [fontSize, wordWrap])
 
+  // 渲染书签行的 glyph margin 📌 装饰
+  const applyBookmarks = useCallback((editor: any, decorationsRef: React.MutableRefObject<string[]>) => {
+    const monaco = monacoRef.current
+    if (!editor || !monaco) return
+    const lines = bookmarks ? Array.from(bookmarks) : []
+    try {
+      decorationsRef.current = editor.deltaDecorations(decorationsRef.current, lines.map((ln: number) => ({
+        range: new monaco.Range(ln, 1, ln, 1),
+        options: {
+          isWholeLine: true,
+          glyphMarginClassName: 'bookmark-glyph',
+          glyphMarginHoverMessage: '📌 书签'
+        }
+      })))
+    } catch {}
+  }, [bookmarks])
+
+  // bookmarks 变化 → 重新渲染两个 editor 的装饰
+  useEffect(() => {
+    if (editEditorRef.current) applyBookmarks(editEditorRef.current, editDecorationsRef)
+    if (diffEditorRef.current) applyBookmarks(diffEditorRef.current.getModifiedEditor?.() ?? null, diffDecorationsRef)
+  }, [applyBookmarks, bookmarks, viewMode])
+
   return (
-    <div ref={containerRef} className="flex flex-col animate-fade-in">
+    <div ref={containerRef} className={`flex flex-col animate-fade-in${altBrush ? ' diff-brush-mode' : ''}`}>
       <div
         className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0"
         onContextMenu={!commitHash ? (e) => { e.preventDefault(); setEncodingContextMenu({ x: e.clientX, y: e.clientY }) } : undefined}
@@ -673,9 +707,19 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             modified={modifiedContent}
             options={diffOptions}
             beforeMount={(m: any) => { configureMonacoBase(m) }}
-            onMount={(editor) => {
+            onMount={(editor, monaco) => {
               diffEditorRef.current = editor
+              monacoRef.current = monaco
               const modifiedEditor = editor.getModifiedEditor()
+              modifiedEditor.onMouseDown((e: any) => {
+                if (e.event?.altKey) {
+                  e.event.preventDefault()
+                  e.event.stopPropagation()
+                  const ln = e.target?.position?.lineNumber
+                  if (ln) onToggleBookmarkRef.current?.(ln)
+                }
+              })
+              applyBookmarks(modifiedEditor, diffDecorationsRef)
               modifiedEditor.onDidChangeCursorPosition((e: any) => {
                 if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
               })
@@ -755,8 +799,18 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             }}
             options={editOptions}
             beforeMount={(m: any) => { configureMonacoBase(m) }}
-            onMount={(editor) => {
+            onMount={(editor, monaco) => {
               editEditorRef.current = editor
+              monacoRef.current = monaco
+              editor.onMouseDown((e: any) => {
+                if (e.event?.altKey) {
+                  e.event.preventDefault()
+                  e.event.stopPropagation()
+                  const ln = e.target?.position?.lineNumber
+                  if (ln) onToggleBookmarkRef.current?.(ln)
+                }
+              })
+              applyBookmarks(editor, editDecorationsRef)
               editor.onDidChangeCursorPosition((e: any) => {
                 if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
               })
