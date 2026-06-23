@@ -243,11 +243,6 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     label: 'Clone Current Session',
     defaultKeys: 'Ctrl+KeyN',
   },
-  {
-    id: 'ai.focus',
-    label: 'Focus AI Chat',
-    defaultKeys: 'Ctrl+Shift+KeyA',
-  },
 ]
 
 const STORAGE_KEY = 'vibe-ide-keybindings'

@@ -867,16 +867,6 @@ export default function App() {
         }
       }
 
-      // ai.focus → toggle current session between term/gui mode
-      if (eventMatchesBinding(e, bindings['ai.focus'])) {
-        if (centerView !== 'diff' && activeSessionId) {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-          const currentMode = sessionViewModes[activeSessionId] || 'term'
-          setSessionViewModes(prev => ({ ...prev, [activeSessionId]: currentMode === 'term' ? 'gui' : 'term' }))
-        }
-      }
-
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
       // Use visual order (grouped by cwd) instead of creation order
       const groups = new Map<string, TerminalSession[]>()
