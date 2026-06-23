@@ -317,6 +317,8 @@ html, body, #root {
   color: rgb(var(--ide-accent)); border-radius: 10px;
   font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 }
+.md-search-match { background-color: rgb(var(--ide-accent) / 0.3); color: inherit; border-radius: 2px; }
+.md-search-match-current { background-color: rgb(var(--ide-accent) / 0.6); }
 .md-mermaid {
   position: relative; margin: 1rem 0; padding: 1rem;
   background-color: rgb(var(--ide-sidebar));

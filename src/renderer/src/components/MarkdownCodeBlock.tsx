@@ -40,7 +40,13 @@ function enqueue(task: () => void): () => void {
   } else {
     queue.push(run)
   }
-  return () => { cancelled = true }
+  return () => {
+    cancelled = true
+    // Remove from the pending queue so a cancelled task never occupies a
+    // concurrency slot when it is eventually shifted out to run.
+    const i = queue.indexOf(run)
+    if (i >= 0) queue.splice(i, 1)
+  }
 }
 
 function colorizeDone() {
@@ -247,7 +253,6 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   const { theme } = useTheme()
   const [html, setHtml] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const monacoRef = useRef<any>(null)
   const monacoLang = mapLanguage(language)
 
   const handleCopy = useCallback(() => {
@@ -257,25 +262,31 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
     })
   }, [code])
 
+  // Single colorize pass that re-runs on code / language / theme change.
+  // getMonaco() resolves once monaco + themes are registered; we re-check
+  // `cancelled` after each async hop so a fast theme/code switch can never
+  // land a stale HTML payload. This replaces the old two-effect version,
+  // which captured the mount-time theme (theme was absent from its deps)
+  // and silently skipped re-colorize when monacoRef wasn't ready yet — the
+  // root cause of the first-paint theme/font mismatch.
   useEffect(() => {
-    let cancel = () => {}
+    let cancelled = false
+    let release: (() => void) | null = null
     getMonaco().then(monaco => {
-      monacoRef.current = monaco
-      cancel = enqueue(() => {
+      if (cancelled) return
+      release = enqueue(() => {
+        if (cancelled) return
         monaco.editor.colorize(code, monacoLang, { theme: theme.monacoTheme }).then((h: string) => {
           colorizeDone()
-          setHtml(h)
+          if (!cancelled) setHtml(h)
         }).catch(colorizeDone)
       })
     })
-    return () => { cancel() }
-  }, [code, monacoLang])
-
-  useEffect(() => {
-    const monaco = monacoRef.current
-    if (!monaco) return
-    monaco.editor.colorize(code, monacoLang, { theme: theme.monacoTheme }).then((h: string) => setHtml(h))
-  }, [theme.monacoTheme, code, monacoLang])
+    return () => {
+      cancelled = true
+      release?.()
+    }
+  }, [code, monacoLang, theme.monacoTheme])
 
   return (
     <div className="md-code-block group">

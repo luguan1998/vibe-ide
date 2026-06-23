@@ -220,6 +220,7 @@ export default function App() {
   }, [pollingEnabled])
 
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
+  const [mdSearchTrigger, setMdSearchTrigger] = useState(0)
   const [sessionViewModes, setSessionViewModes] = useState<Record<string, 'term' | 'gui'>>({})
   const sessionViewModesRef = useRef(sessionViewModes); sessionViewModesRef.current = sessionViewModes
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
@@ -738,9 +739,13 @@ export default function App() {
         return
       }
 
-      // search.focus → focus search in right panel
+      // search.focus → focus search in right panel (md preview: route to in-page search)
       if (eventMatchesBinding(e, bindings['search.focus'])) {
-        if (centerView !== 'diff') {
+        if (centerView === 'markdown') {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          setMdSearchTrigger(k => k + 1)
+        } else if (centerView !== 'diff') {
           e.preventDefault()
           e.stopImmediatePropagation()
           setSearchFocusTrigger(k => k + 1)
@@ -1762,6 +1767,7 @@ export default function App() {
                 fileName={markdownFile.fileName}
                 onBack={handleBackFromMarkdown}
                 scrollToHeading={mdScrollHeading}
+                searchTrigger={mdSearchTrigger}
               />
             </div>
           )}

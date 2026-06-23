@@ -14,7 +14,7 @@ interface ElDef { id: number; label: string; color: string; icon: string }
 
 const PALETTE: ElDef[] = [
   { id: SAND, label: 'Sand', color: '#e8c44a', icon: '\u{1F7E8}' },
-  { id: WATER, label: 'Water', color: '#3b82f6', icon: '\u{1F7E6}' },
+  { id: WATER, label: 'Water', color: '#3b82f6', icon: '\u{1F4A7}' },
   { id: LAVA, label: 'Lava', color: '#e65100', icon: '\u{1F7E5}' },
   { id: OIL, label: 'Oil', color: '#5d4037', icon: '\u{1F7E3}' },
   { id: WOOD, label: 'Wood', color: '#8b5e3c', icon: '\u{1F7EB}' },

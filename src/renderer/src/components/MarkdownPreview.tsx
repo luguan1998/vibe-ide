@@ -10,6 +10,7 @@ interface MarkdownPreviewProps {
   fileName: string
   onBack?: () => void
   scrollToHeading?: string
+  searchTrigger?: number
 }
 
 function slugify(text: string): string {
@@ -40,17 +41,96 @@ function resolveImagePath(src: string, mdFullPath: string): string | null {
   return resolved.join(sep)
 }
 
+interface TextMatch { node: Text; start: number; end: number }
+
+// Walk every text node under `root`, collecting case-insensitive matches.
+// Skips <script>/<style> and mermaid <svg> subtrees (SVG mark breaks rendering).
+function collectTextMatches(root: Node, qLower: string): TextMatch[] {
+  const matches: TextMatch[] = []
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => {
+      const parent = (node as Text).parentElement
+      if (!parent) return NodeFilter.FILTER_REJECT
+      const tag = parent.tagName
+      if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT
+      if (parent.closest('svg')) return NodeFilter.FILTER_REJECT
+      const text = node.nodeValue || ''
+      return text.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+    }
+  })
+  let textNode: Text | null
+  while ((textNode = walker.nextNode() as Text | null)) {
+    const text = textNode.nodeValue || ''
+    const lower = text.toLowerCase()
+    let from = 0
+    let idx = lower.indexOf(qLower, from)
+    while (idx !== -1) {
+      matches.push({ node: textNode, start: idx, end: idx + qLower.length })
+      from = idx + qLower.length
+      idx = lower.indexOf(qLower, from)
+    }
+  }
+  return matches
+}
+
+// Restore the DOM by unwrapping every mark back into its original text,
+// then normalize() to merge adjacent text nodes (keeps React's vdom aligned).
+function clearMarks(marks: HTMLElement[]): void {
+  for (const mark of marks) {
+    const parent = mark.parentNode
+    if (!parent) continue
+    mark.replaceWith(document.createTextNode(mark.textContent || ''))
+    parent.normalize()
+  }
+}
+
+// Wrap each match in <mark>, current item gets an extra class.
+// Per-node from-back-to-front so earlier offsets stay valid after splits.
+function applyMarks(matches: TextMatch[], currentIdx: number): HTMLElement[] {
+  const marks: HTMLElement[] = []
+  const byNode = new Map<Text, { start: number; end: number; gi: number }[]>()
+  matches.forEach((m, gi) => {
+    let list = byNode.get(m.node)
+    if (!list) { list = []; byNode.set(m.node, list) }
+    list.push({ start: m.start, end: m.end, gi })
+  })
+  byNode.forEach((list, node) => {
+    list.sort((a, b) => b.start - a.start)
+    for (const { start, end, gi } of list) {
+      const range = document.createRange()
+      range.setStart(node, start)
+      range.setEnd(node, end)
+      const mark = document.createElement('mark')
+      mark.className = 'md-search-match' + (gi === currentIdx ? ' md-search-match-current' : '')
+      range.surroundContents(mark)
+      marks.push(mark)
+    }
+  })
+  return marks
+}
+
 const MarkdownPreview = React.memo(function MarkdownPreview({
   fullPath,
   fileName,
   onBack,
-  scrollToHeading
+  scrollToHeading,
+  searchTrigger
 }: MarkdownPreviewProps) {
   const [content, setContent] = useState('')
   const [frontmatter, setFrontmatter] = useState<Frontmatter | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+
+  // in-page search state
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [matchIndex, setMatchIndex] = useState(0)
+  const [matchCount, setMatchCount] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const marksRef = useRef<HTMLElement[]>([])
+  const searchOpenRef = useRef(false)
+  searchOpenRef.current = searchOpen
 
   const handleLinkClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
@@ -64,12 +144,56 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
     }
   }, [])
 
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false)
+    setQuery('')
+    setMatchIndex(0)
+  }, [])
+
+  // Re-run highlight + count whenever query / current index / content / open state changes.
+  const runSearch = useCallback(() => {
+    const root = contentRef.current
+    if (!root) return
+    clearMarks(marksRef.current)
+    marksRef.current = []
+    const q = query.trim()
+    if (!q) { setMatchCount(0); return }
+    const matches = collectTextMatches(root, q.toLowerCase())
+    const cur = matches.length > 0 ? ((matchIndex % matches.length) + matches.length) % matches.length : 0
+    const marks = applyMarks(matches, cur)
+    marksRef.current = marks
+    setMatchCount(matches.length)
+    marks[cur]?.scrollIntoView({ block: 'center' })
+  }, [query, matchIndex])
+
+  // Ctrl+F trigger from App.tsx → open search bar.
+  // First-open focus is handled by the searchOpen effect below; if the bar
+  // is already open, re-focus + select so the user can retype immediately.
+  useEffect(() => {
+    if (searchTrigger === undefined || searchTrigger === 0) return
+    setSearchOpen(true)
+    const el = searchInputRef.current
+    if (el) { el.focus(); el.select() }
+  }, [searchTrigger])
+
+  // Focus the input right after the bar mounts (searchOpen just turned true),
+  // so the keyboard can type into it without an extra click.
+  useEffect(() => {
+    if (!searchOpen) return
+    const el = searchInputRef.current
+    if (el) { el.focus(); el.select() }
+  }, [searchOpen])
+
+  useEffect(() => {
+    runSearch()
+  }, [runSearch, content, searchOpen])
+
   // Scroll to heading when outline triggers navigation
   useEffect(() => {
     if (!scrollToHeading || !contentRef.current) return
     const id = slugify(scrollToHeading)
     const el = contentRef.current.querySelector(`[id="${id}"]`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    el?.scrollIntoView({ behavior: 'smooth' })
   }, [scrollToHeading])
 
   useEffect(() => {
@@ -100,23 +224,30 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   }, [fullPath])
 
   useEffect(() => {
-    if (!onBack) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key !== 'Escape') return
+      // ① search bar open → close it (do not close the preview)
+      if (searchOpenRef.current) {
         e.preventDefault()
         e.stopImmediatePropagation()
-        onBack()
+        closeSearch()
+        return
       }
+      // ② otherwise → close preview (existing behavior)
+      if (!onBack) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      onBack()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onBack])
+  }, [onBack, closeSearch])
 
   const lastSep = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'))
           const dirPart = lastSep >= 0 ? fullPath.substring(0, lastSep + 1) : ''
           const namePart = lastSep >= 0 ? fullPath.substring(lastSep + 1) : fullPath
           return (
-            <div className="flex flex-col h-full animate-fade-in">
+            <div className="flex flex-col h-full animate-fade-in relative">
               <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0">
                 <div className="flex items-center gap-1.5 text-sm min-w-0">
                   {onBack && (
@@ -185,6 +316,49 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
           </div>
         )}
       </div>
+
+      {searchOpen && (
+        <div className="absolute top-12 right-3 z-20 flex items-center gap-1 p-1.5 bg-ide-sidebar border border-ide-border rounded-md shadow-lg">
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setMatchIndex(0) }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                if (matchCount > 0) setMatchIndex(i => (i + (e.shiftKey ? -1 : 1) + matchCount) % matchCount)
+              } else if (e.key === 'Escape') {
+                e.preventDefault()
+                e.stopPropagation()
+                closeSearch()
+              }
+            }}
+            placeholder="查找..."
+            className="w-40 px-2 py-1 text-sm bg-ide-bg border border-ide-border rounded text-ide-text outline-none focus:border-ide-accent"
+          />
+          <span className="text-xs text-ide-text-muted tabular-nums w-12 text-center">
+            {matchCount > 0 ? `${matchIndex + 1}/${matchCount}` : '0/0'}
+          </span>
+          <button
+            onClick={() => matchCount > 0 && setMatchIndex(i => (i - 1 + matchCount) % matchCount)}
+            disabled={matchCount === 0}
+            className="w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-sm"
+            title="上一个 (Shift+Enter)"
+          >↑</button>
+          <button
+            onClick={() => matchCount > 0 && setMatchIndex(i => (i + 1) % matchCount)}
+            disabled={matchCount === 0}
+            className="w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-sm"
+            title="下一个 (Enter)"
+          >↓</button>
+          <button
+            onClick={closeSearch}
+            className="w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-sm"
+            title="关闭 (Esc)"
+          >×</button>
+        </div>
+      )}
     </div>
   )
 })
