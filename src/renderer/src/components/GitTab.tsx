@@ -725,7 +725,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     <>
       {/* Branch info bar */}
       {status && (
-        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar">
+        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean">
           <div className="flex items-center gap-1 min-w-0 flex-1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
               <line x1="6" y1="3" x2="6" y2="15" />

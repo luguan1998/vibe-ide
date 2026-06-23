@@ -692,7 +692,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {workspacePath && (
-        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar"
+        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean"
           onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
         >
           <div className="flex items-center gap-1 min-w-0 flex-1">
