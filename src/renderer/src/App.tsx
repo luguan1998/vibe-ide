@@ -274,10 +274,12 @@ export default function App() {
     setRecentFiles(prev => {
       const existingIdx = prev.findIndex(r => norm(r.path) === target)
       if (existingIdx >= 0) {
-        // 已在列表：仅刷新行号，保持原位置不变（不置顶、不影响其余条目）
+        // 已在列表：刷新行号，保持原位置不变（不置顶、不影响其余条目）
+        // lineNumber 缺省（如文件树点开）时保留已有行号——行号由光标回写/跳转入口维护，普通打开不清空
         const existing = prev[existingIdx]
-        if (existing.line === line) return prev
-        const next = prev.map((r, i) => i === existingIdx ? { ...r, line } : r)
+        const mergedLine = line ?? existing.line
+        if (existing.line === mergedLine) return prev
+        const next = prev.map((r, i) => i === existingIdx ? { ...r, line: mergedLine } : r)
         try { localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next)) } catch {}
         return next
       }
@@ -398,8 +400,40 @@ export default function App() {
   // Cursor position (DiffViewer 回传，供行历史等使用)
   interface CursorHistoryEntry { fullPath: string; line: number; column: number }
   const cursorRef = useRef<CursorHistoryEntry | null>(null)
+  // 视口顶部可见行（滚轮实际看到的位置，非光标）— DiffViewer 的 onDidScrollChange 实时回写，供最近文件行号
+  interface VisibleLineEntry { fullPath: string; line: number }
+  const visibleLineRef = useRef<VisibleLineEntry | null>(null)
   const diffFileRef = useRef(diffFile)
   diffFileRef.current = diffFile
+
+  // ── 最近文件行号落盘：切换/关闭 diff 文件时，回写上一个文件的视口可见行号 ──
+  // visibleLineRef 切文件瞬间仍是旧值（新 DiffViewer 尚未 mount 写入），故可安全存上一个文件
+  const prevDiffPathRef = useRef<string | null>(null)
+  useEffect(() => {
+    const prevPath = prevDiffPathRef.current
+    const cur = visibleLineRef.current
+    // 校验 visibleLineRef 仍归属上一个文件，避免误存新文件行号
+    if (prevPath && cur && cur.fullPath === prevPath && cur.line > 0) {
+      recordRecentFile(prevPath, cur.line)
+    }
+    prevDiffPathRef.current = diffFile?.fullPath ?? null
+  }, [diffFile?.fullPath, recordRecentFile])
+
+  // ── 关 app / 切后台时兜底落盘当前文件视口可见行号 ──
+  useEffect(() => {
+    const save = () => {
+      const cur = visibleLineRef.current
+      if (cur && cur.line > 0) recordRecentFile(cur.fullPath, cur.line)
+    }
+    const onHide = () => { if (document.visibilityState === 'hidden') save() }
+    window.addEventListener('beforeunload', save)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.removeEventListener('beforeunload', save)
+      document.removeEventListener('visibilitychange', onHide)
+    }
+  }, [recordRecentFile])
+
   // ── 行书签（手动钉选 📌，跨重启持久化，全局不按 session 隔离）──
   const BOOKMARKS_KEY = 'vibe-ide-bookmarks'
   interface BookmarkEntry { fullPath: string; line: number }
@@ -1820,6 +1854,7 @@ export default function App() {
                 inlineDiff={inlineDiff}
                 scrollTrigger={diffScrollTrigger}
                 cursorRef={cursorRef}
+                visibleLineRef={visibleLineRef}
                 onContentLoaded={setCurrentFileContent}
                 onOpenCallGraph={handleOpenCallGraphFromEditor}
                 onViewLineHistory={handleViewLineHistory}
@@ -1950,6 +1985,7 @@ export default function App() {
             recentFiles={recentFiles}
             onOpenRecentFile={handleOpenRecentFile}
             onRemoveRecentFile={removeRecentFile}
+            onEditRecentFile={handleOpenFileFromExplorer}
             onCompareWithCurrent={handleCompareWithCurrent}
             currentEditFilePath={diffFile?.defaultEdit ? diffFile.fullPath : null}
             onPreviewMarkdown={handlePreviewMarkdown}

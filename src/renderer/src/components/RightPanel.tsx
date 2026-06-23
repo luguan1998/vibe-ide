@@ -39,6 +39,7 @@ interface RightPanelProps {
   recentFiles?: RecentFileEntry[]
   onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
   onRemoveRecentFile?: (fullPath: string) => void
+  onEditRecentFile?: (fullPath: string) => void
 }
 
 type GitSection = 'git' | 'terminal' | 'search' | 'file' | 'game'
@@ -438,6 +439,7 @@ function RightPanel({
   lineHistoryPayload,
   recentFiles, onOpenRecentFile,
   onRemoveRecentFile,
+  onEditRecentFile,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -672,6 +674,7 @@ function RightPanel({
           recentFiles={recentFiles ?? []}
           onOpenRecentFile={onOpenRecentFile}
           onRemoveRecentFile={onRemoveRecentFile}
+          onEditRecentFile={onEditRecentFile}
           isActive={activeSection === 'file'}
         />
       </div>

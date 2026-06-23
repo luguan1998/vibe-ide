@@ -80,6 +80,7 @@ interface DiffViewerProps {
   defaultEdit?: boolean
   inlineDiff?: boolean      // 强制内联 diff 模式
   cursorRef?: React.MutableRefObject<{ fullPath: string; line: number; column: number } | null>
+  visibleLineRef?: React.MutableRefObject<{ fullPath: string; line: number } | null>  // 视口顶部可见行（滚轮实际看到的位置），供最近文件回写行号
   onContentLoaded?: (content: string) => void  // 回传文件内容给父组件（供 OutlinePanel 使用）
   onOpenCallGraph?: (word: string) => void     // 右键菜单 → 打开 call graph
   onViewLineHistory?: (filePath: string, lineNumber: number) => void  // 右键菜单 → 查看这行修改记录
@@ -169,7 +170,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, bookmarks, onToggleBookmark, altBrush }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, bookmarks, onToggleBookmark, altBrush }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -252,6 +253,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           modifiedEditor.revealLineInCenter(ln)
           modifiedEditor.setPosition({ lineNumber: ln, column: 1 })
           if (cursorRef) cursorRef.current = { fullPath, line: ln, column: 1 }
+          if (visibleLineRef) visibleLineRef.current = { fullPath, line: ln }
         }
       } else if (viewMode === 'edit' && editEditorRef.current) {
         const count = editEditorRef.current.getModel()?.getLineCount() || 0
@@ -260,6 +262,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           editEditorRef.current.revealLineInCenter(ln)
           editEditorRef.current.setPosition({ lineNumber: ln, column: 1 })
           if (cursorRef) cursorRef.current = { fullPath, line: ln, column: 1 }
+          if (visibleLineRef) visibleLineRef.current = { fullPath, line: ln }
         }
       }
     } catch {}
@@ -723,6 +726,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               modifiedEditor.onDidChangeCursorPosition((e: any) => {
                 if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
               })
+              // 滚动时回写视口顶部可见行（用户眼睛实际看到的位置）→ 最近文件行号
+              modifiedEditor.onDidScrollChange(() => {
+                if (!visibleLineRef) return
+                const vr = modifiedEditor.getVisibleRanges()
+                visibleLineRef.current = { fullPath, line: vr && vr.length ? vr[0].startLineNumber : 1 }
+              })
               modifiedEditor.onDidChangeModelContent(() => {
                 const val = modifiedEditor.getValue()
                 setModifiedContent(val)
@@ -813,6 +822,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               applyBookmarks(editor, editDecorationsRef)
               editor.onDidChangeCursorPosition((e: any) => {
                 if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
+              })
+              // 滚动时回写视口顶部可见行（用户眼睛实际看到的位置）→ 最近文件行号
+              editor.onDidScrollChange(() => {
+                if (!visibleLineRef) return
+                const vr = editor.getVisibleRanges()
+                visibleLineRef.current = { fullPath, line: vr && vr.length ? vr[0].startLineNumber : 1 }
               })
               if (lineNumber && lineNumber > 0) {
                 try {

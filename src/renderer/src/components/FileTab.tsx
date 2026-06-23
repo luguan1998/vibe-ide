@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Lightbulb, Eye, Clock, X } from 'lucide-react'
+import { Lightbulb, Eye, Clock, X, Pencil } from 'lucide-react'
 import { FileNode, RecentFileEntry } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
@@ -75,6 +75,7 @@ interface FileTabProps {
   recentFiles?: RecentFileEntry[]
   onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
   onRemoveRecentFile?: (fullPath: string) => void
+  onEditRecentFile?: (fullPath: string) => void
   isActive?: boolean
 }
 
@@ -349,7 +350,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, fileTreeDepth, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, isActive }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, fileTreeDepth, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, isActive }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -795,6 +796,15 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
                   dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
                 <span className="truncate text-ide-text min-w-0 flex-1">{baseName}</span>
+                {onEditRecentFile && baseName.toLowerCase().endsWith('.md') && (
+                  <button
+                    className="ml-1 shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => { e.stopPropagation(); onEditRecentFile(f.path) }}
+                    title={t('Edit')}
+                  >
+                    <Pencil size={11} />
+                  </button>
+                )}
                 {f.line && <span className="text-ide-accent shrink-0 text-[10px]">:{f.line}</span>}
                 {onRemoveRecentFile && (
                   <button
