@@ -106,9 +106,9 @@ const api = {
 
   // Search operations
   search: {
-    grep: (options: { query: string; cwd: string; regex?: boolean; caseSensitive?: boolean; include?: string }) =>
+    grep: (options: { query: string; cwd: string; regex?: boolean; caseSensitive?: boolean; wholeWord?: boolean; include?: string }) =>
       ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GREP, options),
-    replace: (options: { query: string; replacement: string; cwd: string; regex?: boolean; caseSensitive?: boolean; include?: string; excludeFiles?: string[] }) =>
+    replace: (options: { query: string; replacement: string; cwd: string; regex?: boolean; caseSensitive?: boolean; wholeWord?: boolean; include?: string; excludeFiles?: string[] }) =>
       ipcRenderer.invoke(IPC_CHANNELS.SEARCH_REPLACE, options)
   },
 

@@ -29,16 +29,18 @@ function trimToMatch(content: string, column: number): { text: string; head: boo
   }
 }
 
-function highlightMatches(text: string, query: string, regex: boolean, caseSensitive: boolean): React.ReactNode {
+function highlightMatches(text: string, query: string, regex: boolean, caseSensitive: boolean, wholeWord: boolean): React.ReactNode {
   if (!query || !text) return text
 
   let pattern: RegExp
   try {
     if (regex) {
-      pattern = new RegExp(query, caseSensitive ? 'g' : 'gi')
+      const src = wholeWord ? `\\b(?:${query})\\b` : query
+      pattern = new RegExp(src, caseSensitive ? 'g' : 'gi')
     } else {
       const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      pattern = new RegExp(escaped, caseSensitive ? 'g' : 'gi')
+      const src = wholeWord ? `\\b${escaped}\\b` : escaped
+      pattern = new RegExp(src, caseSensitive ? 'g' : 'gi')
     }
   } catch {
     return text
@@ -140,6 +142,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
   const [includePattern, setIncludePattern] = useState('')
   const [regex, setRegex] = useState(false)
   const [caseSensitive, setCaseSensitive] = useState(false)
+  const [wholeWord, setWholeWord] = useState(false)
   const [replacement, setReplacement] = useState('')
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false)
   const [replaceResult, setReplaceResult] = useState<{ filesModified: number; totalReplacements: number; errors: string[] } | null>(null)
@@ -235,6 +238,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
         cwd,
         regex,
         caseSensitive,
+        wholeWord,
         include: includePattern || undefined
       })
       setResults(result.matches)
@@ -246,7 +250,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
       setTotal(0)
     }
     setSearching(false)
-  }, [cwd, regex, caseSensitive, includePattern])
+  }, [cwd, regex, caseSensitive, wholeWord, includePattern])
 
   const handleQueryChange = useCallback((value: string) => {
     setQuery(value)
@@ -263,7 +267,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
       if (searchTimer.current) clearTimeout(searchTimer.current)
       searchTimer.current = setTimeout(() => doSearch(query), 100)
     }
-  }, [regex, caseSensitive, includePattern, cwd, query, doSearch])
+  }, [regex, caseSensitive, wholeWord, includePattern, cwd, query, doSearch])
 
   const handleResultClick = useCallback((match: GrepMatch) => {
     onOpenFile(match.fullPath, match.line)
@@ -298,6 +302,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
         cwd,
         regex,
         caseSensitive,
+        wholeWord,
         include: includePattern || undefined,
         excludeFiles: excludedFiles.size > 0 ? Array.from(excludedFiles) : undefined
       })
@@ -307,7 +312,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
       setReplaceResult({ filesModified: 0, totalReplacements: 0, errors: [err.message || 'Replace failed'] })
     }
     setReplacing(false)
-  }, [query, replacement, cwd, regex, caseSensitive, includePattern, visibleTotal, excludedFiles, doSearch])
+  }, [query, replacement, cwd, regex, caseSensitive, wholeWord, includePattern, visibleTotal, excludedFiles, doSearch])
 
   if (!cwd) {
     return (
@@ -389,12 +394,21 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
             />
             Aa
           </label>
+          <label className="flex items-center gap-1 text-xs text-ide-text-muted cursor-pointer" title={t('全词匹配')}>
+            <input
+              type="checkbox"
+              checked={wholeWord}
+              onChange={(e) => setWholeWord(e.target.checked)}
+              className="accent-ide-accent w-3 h-3"
+            />
+            <span className="underline">ab</span>
+          </label>
           <input
             type="text"
             value={includePattern}
             onChange={(e) => setIncludePattern(e.target.value)}
             placeholder="*.ts"
-            className="flex-1 text-xs bg-ide-bg border border-ide-border rounded px-1.5 py-0.5 text-ide-text-muted focus:border-ide-accent focus:outline-none"
+            className="flex-1 text-xs bg-ide-bg border border-ide-border rounded px-1.5 py-0.5 text-ide-text focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50"
           />
         </div>
         )}
@@ -626,7 +640,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
                         return (
                           <>
                             {head && <span className="text-ide-text-muted/50">...</span>}
-                            {highlightMatches(trimmed, query, regex, caseSensitive)}
+                            {highlightMatches(trimmed, query, regex, caseSensitive, wholeWord)}
                             {tail && <span className="text-ide-text-muted/50">...</span>}
                           </>
                         )

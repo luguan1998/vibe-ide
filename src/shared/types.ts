@@ -253,6 +253,7 @@ export interface GrepSearchOptions {
   cwd: string
   regex?: boolean
   caseSensitive?: boolean
+  wholeWord?: boolean
   include?: string
 }
 
@@ -276,6 +277,7 @@ export interface ReplaceOptions {
   cwd: string
   regex?: boolean
   caseSensitive?: boolean
+  wholeWord?: boolean
   include?: string
   excludeFiles?: string[]
 }

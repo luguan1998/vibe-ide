@@ -61,6 +61,8 @@ declare global {
         deleteWorktree: (branch: string) => Promise<any>
         deleteBranch: (branch: string) => Promise<any>
         setFilterRules: (rules: string[]) => Promise<any>
+        diffCommitFile: (hash: string, filePath: string, isRoot: boolean) => Promise<any>
+        lineLog: (filePath: string, startLine: number, endLine: number) => Promise<any>
       }
       file: {
         read: (filePath: string) => Promise<any>
@@ -90,6 +92,7 @@ declare global {
           cwd: string
           regex?: boolean
           caseSensitive?: boolean
+          wholeWord?: boolean
           include?: string
         }) => Promise<any>
         replace: (options: {
@@ -98,6 +101,7 @@ declare global {
           cwd: string
           regex?: boolean
           caseSensitive?: boolean
+          wholeWord?: boolean
           include?: string
           excludeFiles?: string[]
         }) => Promise<{ filesModified: number; totalReplacements: number; errors: string[] }>
@@ -106,11 +110,16 @@ declare global {
         setWorkspace: (root: string) => Promise<{ success: boolean; error?: string }>
         isInitialized: (root: string) => Promise<{ initialized: boolean; error?: string }>
         init: (root: string) => Promise<{ success: boolean; error?: string }>
-        searchNodes: (query: string, opts?: { limit?: number; kinds?: string[]; filePath?: string }) => Promise<{ nodes: import('@shared/types').CodeSymbol[]; total: number; error?: string }>
+        searchNodes: (query: string, opts?: { limit?: number; kinds?: string[]; filePath?: string; excludePatterns?: string[] }) => Promise<{ nodes: import('@shared/types').CodeSymbol[]; total: number; error?: string }>
         getCallers: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
         getCallees: (id: string, maxDepth?: number) => Promise<{ nodes: any[]; error?: string }>
         isIndexing: () => Promise<{ isIndexing: boolean; error?: string }>
+        cancelInit: () => Promise<{ success: boolean; error?: string }>
         getStats: () => Promise<any>
+        installMcp: (targets: string[], workspacePath: string) => Promise<{ success: boolean; error?: string }>
+        findRelevantContext: (query: string, opts?: { searchLimit?: number; traversalDepth?: number; maxNodes?: number }) => Promise<{ nodes: import('@shared/types').CodeSymbol[]; roots: string[]; confidence?: 'high' | 'low'; error?: string }>
+        explore: (query: string, opts?: any) => Promise<{ nodes: import('@shared/types').CodeSymbol[]; roots: string[]; error?: string }>
+        checkAvailable: () => Promise<{ available: boolean; cliAvailable?: boolean; installCmd?: string; error?: string }>
         onProgress: (callback: (progress: any) => void) => any
         removeProgressListener: (handler?: any) => void
         setEnabled: (enabled: boolean) => Promise<{ enabled: boolean }>
@@ -130,12 +139,18 @@ declare global {
       onStartupOpenPath: (callback: (data: { type: 'directory' | 'file'; path: string }) => void) => any
       removeStartupOpenPathListener: (handler?: any) => void
       ai: {
-        checkAvailable: () => Promise<{ available: boolean; installCmd?: string }>
-        create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; resumeSessionId?: string }) => Promise<{ success: boolean; error?: string }>
+        checkAvailable: (cliCommand?: string) => Promise<{ available: boolean; installCmd?: string; error?: string }>
+        create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; resumeSessionId?: string; cliCommand?: string; model?: string }) => Promise<{ success: boolean; error?: string }>
         send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>
         cancel: (sessionId: string) => Promise<boolean>
         destroy: (sessionId: string) => Promise<boolean>
-        respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>) => Promise<{ success: boolean }>
+        respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>, feedback?: string) => Promise<{ success: boolean }>
+        clearAndExecutePlan: (sessionId: string, planFilePath: string) => Promise<{ success: boolean; error?: string }>
+        setPermissionMode: (sessionId: string, mode: string) => Promise<{ success: boolean; error?: string }>
+        setModel: (sessionId: string, model: string) => Promise<{ success: boolean; error?: string }>
+        askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
+        listSessions: (cwd?: string) => Promise<{ sessions: any[]; error?: string }>
+        loadSessionMessages: (resumeSessionId: string, cwd: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
         revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) => Promise<{ success: boolean; error?: string }>
         fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
         onMessage: (callback: (data: any) => void) => any

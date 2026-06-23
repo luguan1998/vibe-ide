@@ -14,9 +14,10 @@ export function registerSearchHandlers(): void {
     cwd: string
     regex?: boolean
     caseSensitive?: boolean
+    wholeWord?: boolean
     include?: string
   }): Promise<GrepSearchResult> => {
-    const { query, cwd, regex, caseSensitive, include } = options || {}
+    const { query, cwd, regex, caseSensitive, wholeWord, include } = options || {}
 
     if (!query || !cwd) {
       return { matches: [], total: 0, truncated: false }
@@ -24,9 +25,9 @@ export function registerSearchHandlers(): void {
 
     // Try ripgrep first, fall back to Node.js
     try {
-      return await rgSearch(query, cwd, { regex, caseSensitive, include })
+      return await rgSearch(query, cwd, { regex, caseSensitive, wholeWord, include })
     } catch {
-      return await nodeSearch(query, cwd, { regex, caseSensitive, include })
+      return await nodeSearch(query, cwd, { regex, caseSensitive, wholeWord, include })
     }
   })
 
@@ -36,22 +37,24 @@ export function registerSearchHandlers(): void {
     cwd: string
     regex?: boolean
     caseSensitive?: boolean
+    wholeWord?: boolean
     include?: string
     excludeFiles?: string[]
   }): Promise<ReplaceResult> => {
-    const { query, replacement, cwd, regex, caseSensitive, include, excludeFiles } = options || {}
+    const { query, replacement, cwd, regex, caseSensitive, wholeWord, include, excludeFiles } = options || {}
 
     if (!query || !cwd) {
       return { filesModified: 0, totalReplacements: 0, errors: [] }
     }
 
-    return await replaceInFiles(query, replacement, cwd, { regex, caseSensitive, include, excludeFiles })
+    return await replaceInFiles(query, replacement, cwd, { regex, caseSensitive, wholeWord, include, excludeFiles })
   })
 }
 
 function rgSearch(query: string, cwd: string, opts: {
   regex?: boolean
   caseSensitive?: boolean
+  wholeWord?: boolean
   include?: string
 }): Promise<GrepSearchResult> {
   return new Promise((resolve, reject) => {
@@ -59,6 +62,7 @@ function rgSearch(query: string, cwd: string, opts: {
 
     if (!opts.caseSensitive) args.push('--ignore-case')
     if (!opts.regex) args.push('--fixed-strings')
+    if (opts.wholeWord) args.push('--word-regexp')
 
     // Skip common dirs (glob ** matches zero+ segments, covers nested)
     for (const dir of SKIP_DIRS) {
@@ -165,14 +169,20 @@ export function matchInclude(filePath: string, includeGlob: string): boolean {
 async function nodeSearch(query: string, cwd: string, opts: {
   regex?: boolean
   caseSensitive?: boolean
+  wholeWord?: boolean
   include?: string
 }): Promise<GrepSearchResult> {
   const matches: GrepMatch[] = []
   let total = 0
 
-  const pattern = opts.regex
-    ? new RegExp(query, opts.caseSensitive ? 'g' : 'gi')
-    : null
+  let pattern: RegExp | null = null
+  if (opts.regex) {
+    pattern = new RegExp(query, opts.caseSensitive ? 'g' : 'gi')
+  } else if (opts.wholeWord) {
+    // Plain text + whole word: wrap in \b word boundaries
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    pattern = new RegExp(`\\b${escaped}\\b`, opts.caseSensitive ? 'g' : 'gi')
+  }
 
   async function searchDir(dirPath: string): Promise<void> {
     if (matches.length >= MAX_RESULTS) return
@@ -208,7 +218,10 @@ async function nodeSearch(query: string, cwd: string, opts: {
 
         try {
           const content = await readFile(fullPath, 'utf-8')
-          const lines = content.split('\n')
+          // 与 Monaco 一致地识别换行：\r\n / \r / \n。
+          // 旧实现只用 split('\n')，遇到裸 \r（老 Mac 换行 / CRLF 残留）会把多行并成一行，
+          // 导致报出的行号比编辑器实际行号小，点击跳转错位。
+          const lines = content.split(/\r\n|\r|\n/)
           for (let i = 0; i < lines.length; i++) {
             if (matches.length >= MAX_RESULTS) return
             const line = lines[i]
@@ -256,19 +269,21 @@ async function nodeSearch(query: string, cwd: string, opts: {
   }
 }
 
-function buildReplacePattern(query: string, regex: boolean, caseSensitive: boolean): RegExp {
+function buildReplacePattern(query: string, regex: boolean, caseSensitive: boolean, wholeWord: boolean): RegExp {
   if (regex) {
-    return new RegExp(query, caseSensitive ? 'gm' : 'gim')
+    const src = wholeWord ? `\\b(?:${query})\\b` : query
+    return new RegExp(src, caseSensitive ? 'gm' : 'gim')
   }
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(escaped, caseSensitive ? 'gm' : 'gim')
+  const src = wholeWord ? `\\b${escaped}\\b` : escaped
+  return new RegExp(src, caseSensitive ? 'gm' : 'gim')
 }
 
 async function replaceInFiles(
   query: string,
   replacement: string,
   cwd: string,
-  opts: { regex?: boolean; caseSensitive?: boolean; include?: string; excludeFiles?: string[] }
+  opts: { regex?: boolean; caseSensitive?: boolean; wholeWord?: boolean; include?: string; excludeFiles?: string[] }
 ): Promise<ReplaceResult> {
   const errors: string[] = []
   let filesModified = 0
@@ -287,7 +302,7 @@ async function replaceInFiles(
   const files = [...new Set(searchResult.matches.map(m => m.fullPath))]
     .filter(f => !excludeSet.has(f))
 
-  const pattern = buildReplacePattern(query, !!opts.regex, !!opts.caseSensitive)
+  const pattern = buildReplacePattern(query, !!opts.regex, !!opts.caseSensitive, !!opts.wholeWord)
 
   for (const fullPath of files) {
     try {
