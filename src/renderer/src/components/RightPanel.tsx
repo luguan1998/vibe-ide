@@ -7,7 +7,7 @@ import AuxTab from './AuxTab'
 import FileTab from './FileTab'
 import GameLauncher from './GameLauncher'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
-import { TerminalSession } from '@shared/types'
+import { TerminalSession, RecentFileEntry } from '@shared/types'
 
 interface RightPanelProps {
   workspacePath: string | null
@@ -36,6 +36,9 @@ interface RightPanelProps {
   onNavigateToFile?: (filePath: string) => void
   onExploreNode?: (node: any) => void
   lineHistoryPayload?: { filePath: string; lineNumber: number } | null
+  recentFiles?: RecentFileEntry[]
+  onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
+  onRemoveRecentFile?: (fullPath: string) => void
 }
 
 type GitSection = 'git' | 'terminal' | 'search' | 'file' | 'game'
@@ -433,6 +436,8 @@ function RightPanel({
   navigateToFilePayload, onNavigateToFile,
   onExploreNode,
   lineHistoryPayload,
+  recentFiles, onOpenRecentFile,
+  onRemoveRecentFile,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -664,6 +669,10 @@ function RightPanel({
           refreshKey={fileRefreshKey}
           navigateToFile={navigateToFilePayload}
           onRefresh={() => setFileRefreshKey(k => k + 1)}
+          recentFiles={recentFiles ?? []}
+          onOpenRecentFile={onOpenRecentFile}
+          onRemoveRecentFile={onRemoveRecentFile}
+          isActive={activeSection === 'file'}
         />
       </div>
 

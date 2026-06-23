@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Lightbulb, Eye } from 'lucide-react'
-import { FileNode } from '@shared/types'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { Lightbulb, Eye, Clock, X } from 'lucide-react'
+import { FileNode, RecentFileEntry } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
@@ -33,6 +33,32 @@ export function saveFilterRules(rules: string[]) {
   try { localStorage.setItem(FILTER_RULES_KEY, JSON.stringify(rules)) } catch {}
 }
 
+// ── FileTab section visibility (recently / arch) ──
+
+const SECTION_VIS_KEY = 'vibe-ide-filetab-sections'
+
+interface FileTabSectionVis { recently: boolean; arch: boolean }
+
+export function loadSectionVis(): FileTabSectionVis {
+  try {
+    const raw = localStorage.getItem(SECTION_VIS_KEY)
+    if (raw) {
+      const obj = JSON.parse(raw)
+      if (obj && typeof obj === 'object') {
+        return {
+          recently: typeof obj.recently === 'boolean' ? obj.recently : true,
+          arch: typeof obj.arch === 'boolean' ? obj.arch : true,
+        }
+      }
+    }
+  } catch {}
+  return { recently: true, arch: true }
+}
+
+export function saveSectionVis(v: FileTabSectionVis) {
+  try { localStorage.setItem(SECTION_VIS_KEY, JSON.stringify(v)) } catch {}
+}
+
 // ──
 
 interface FileTabProps {
@@ -46,6 +72,10 @@ interface FileTabProps {
   refreshKey?: number
   navigateToFile?: { trigger: number; filePath: string } | null
   onRefresh?: () => void
+  recentFiles?: RecentFileEntry[]
+  onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
+  onRemoveRecentFile?: (fullPath: string) => void
+  isActive?: boolean
 }
 
 // Workspace-root inline input (new file/folder at root level)
@@ -319,7 +349,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, fileTreeDepth, refreshKey, navigateToFile, onRefresh }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, fileTreeDepth, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, isActive }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -331,6 +361,23 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [archExpanded, setArchExpanded] = useState(false)
   const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(null)
   const { t } = useI18n()
+
+  // ── recently file section ──
+  const [recentExpanded, setRecentExpanded] = useState(true)
+  const [selectedRecentIndex, setSelectedRecentIndex] = useState<number | null>(null)
+  const [sectionVis, setSectionVis] = useState<FileTabSectionVis>(loadSectionVis)
+  const [sectionMenu, setSectionMenu] = useState<{ x: number; y: number } | null>(null)
+  const selectedRecentIndexRef = useRef<number | null>(null)
+  const isActiveRef = useRef(isActive)
+  isActiveRef.current = isActive
+
+  // recently files filtered to current workspace
+  const wsRecent = useMemo(() => recentFiles.filter(f => {
+    const p = norm(f.path)
+    const w = norm(workspacePath || '').replace(/\/$/, '')
+    if (!w) return false
+    return p === w || p.startsWith(w + '/')
+  }), [recentFiles, workspacePath])
 
   // Load file tree
   const loadFileTree = useCallback(async () => {
@@ -447,6 +494,93 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     return () => window.removeEventListener('click', handleClick)
   }, [])
 
+  // Sync selectedRecentIndex ref (avoid re-registration on every index change)
+  useEffect(() => { selectedRecentIndexRef.current = selectedRecentIndex }, [selectedRecentIndex])
+
+  // 切 session / 切走 tab / 切 workspace 时清除 recently 键盘导航高亮（X 移除时另行复位）
+  useEffect(() => { setSelectedRecentIndex(null) }, [isActive, workspacePath])
+
+  // Keyboard navigation in recently panel: ArrowUp/Down 选择，Enter 打开，Escape 清除（照抄 AuxTab 模式）
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (!isActiveRef.current) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!recentExpanded || !sectionVis.recently || wsRecent.length === 0) return
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const prev = selectedRecentIndexRef.current
+        const next = e.key === 'ArrowDown'
+          ? (prev === null ? 0 : Math.min(prev + 1, wsRecent.length - 1))
+          : (prev === null ? wsRecent.length - 1 : Math.max(prev - 1, 0))
+        selectedRecentIndexRef.current = next  // 同步更新，避免连按时 ref 滞后
+        setSelectedRecentIndex(next)
+        // 上下移动直接打开对应文件（无需 Enter）
+        const f = wsRecent[next]
+        if (f) onOpenRecentFile?.(f.path, f.line)
+      } else if (e.key === 'Enter') {
+        const idx = selectedRecentIndexRef.current
+        if (idx !== null && idx < wsRecent.length) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          const f = wsRecent[idx]
+          onOpenRecentFile?.(f.path, f.line)
+        }
+      } else if (e.key === 'Escape') {
+        setSelectedRecentIndex(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKey, true)
+    return () => window.removeEventListener('keydown', handleKey, true)
+  }, [recentExpanded, sectionVis.recently, wsRecent, onOpenRecentFile])
+
+  // 选中项滚入视
+  useEffect(() => {
+    if (selectedRecentIndex === null) return
+    const tryScroll = () => {
+      const el = document.querySelector(`[data-recent-idx="${selectedRecentIndex}"]`)
+      if (el) {
+        el.scrollIntoView({ block: 'nearest' })
+        return true
+      }
+      return false
+    }
+    if (!tryScroll()) {
+      const id = setTimeout(() => { if (!tryScroll()) setTimeout(tryScroll, 100) }, 50)
+      return () => clearTimeout(id)
+    }
+  }, [selectedRecentIndex])
+
+  // 切换 recently / arch 显隐（标题栏右键菜单与文件树空白处菜单共享）
+  const toggleSection = useCallback((key: 'recently' | 'arch') => {
+    setSectionVis(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      saveSectionVis(next)
+      return next
+    })
+  }, [])
+
+  // 关闭标题栏右键菜单：外部点击 / ESC（照抄 RightPanel.ContextMenu 的 contains 判定）
+  const sectionMenuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!sectionMenu) return
+    const handleDown = (e: MouseEvent) => {
+      if (sectionMenuRef.current && !sectionMenuRef.current.contains(e.target as Node)) setSectionMenu(null)
+    }
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setSectionMenu(null) }
+    const timer = setTimeout(() => document.addEventListener('mousedown', handleDown), 0)
+    window.addEventListener('keydown', handleEsc)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handleDown)
+      window.removeEventListener('keydown', handleEsc)
+    }
+  }, [sectionMenu])
+
   // File context menu handlers
   const handleFileDeleteFromMenu = useCallback((node: FileNode) => {
     setFileContextMenu(null)
@@ -557,7 +691,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {workspacePath && (
-        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar">
+        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar"
+          onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
+        >
           <div className="flex items-center gap-1 min-w-0 flex-1">
             <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent shrink-0">
               <path d="M14.5 3H7.71L6.86 2.15L6.51 2H1.51L1.01 2.5V6.5V13.5L1.51 14H14.51L15.01 13.5V9V3.5L14.5 3ZM13.99 11.49V13H1.99V11.49V7.49V7H6.48L6.83 6.85L7.69 5.99H14V7.49L13.99 11.49ZM13.99 5H7.49L7.14 5.15L6.28 6.01H2V3.01H6.29L7.14 3.86L7.5 4.01H14L13.99 5Z" />
@@ -635,10 +771,49 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           </div>
         )}
       </div>
-      {docTree.length > 0 && (
+      {sectionVis.recently && wsRecent.length > 0 && (
+        <div className="shrink-0 border-t border-ide-border max-h-[14rem] overflow-y-auto">
+          <div
+            className={`pl-5 pr-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border ${recentExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
+            onClick={() => setRecentExpanded(v => !v)}
+            onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
+          >
+            <Clock size={12} className={recentExpanded ? 'text-ide-accent' : 'text-ide-text-muted'} />
+            <span>{t('Recently Opened')}</span>
+          </div>
+          {recentExpanded && wsRecent.map((f, i) => {
+            const baseName = f.path.split(/[\\/]/).pop() || f.path
+            const info = getFileInfo(baseName)
+            return (
+              <div
+                key={f.path}
+                data-recent-idx={i}
+                className={`group pl-[30px] pr-2 py-0.5 flex items-center gap-1.5 cursor-pointer hover:bg-ide-hover text-xs ${selectedRecentIndex === i ? 'bg-ide-accent/10 text-ide-text' : ''}`}
+                title={`${f.path}${f.line ? ':' + f.line : ''}`}
+                onClick={() => onOpenRecentFile?.(f.path, f.line)}
+              >
+                <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
+                  dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+                <span className="truncate text-ide-text min-w-0 flex-1">{baseName}</span>
+                {f.line && <span className="text-ide-accent shrink-0 text-[10px]">:{f.line}</span>}
+                {onRemoveRecentFile && (
+                  <button
+                    className="ml-1 shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => { e.stopPropagation(); onRemoveRecentFile(f.path); setSelectedRecentIndex(null) }}
+                    title={t('Remove')}
+                  >
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {sectionVis.arch && docTree.length > 0 && (
         <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '45%', overflowY: 'auto' }}>
           <div
-            className={`px-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border ${archExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
+            className={`pl-5 pr-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border ${archExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
             onClick={() => setArchExpanded(!archExpanded)}
           >
             <Lightbulb size={12} className={archExpanded ? 'text-ide-warning' : 'text-ide-text-muted'} />
@@ -807,8 +982,84 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
               </button>
             </>
           )}
+          {isRoot && (
+            <>
+              <div className="border-t border-ide-border my-1" />
+              <button
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                onClick={() => toggleSection('recently')}
+              >
+                <span className={`w-3.5 h-3.5 flex items-center justify-center ${sectionVis.recently ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
+                  {sectionVis.recently ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-30" />
+                  )}
+                </span>
+                <span>{t('Recently')}</span>
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                onClick={() => toggleSection('arch')}
+              >
+                <span className={`w-3.5 h-3.5 flex items-center justify-center ${sectionVis.arch ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
+                  {sectionVis.arch ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-30" />
+                  )}
+                </span>
+                <span>arch</span>
+              </button>
+            </>
+          )}
         </div>
       )})()}
+
+      {/* 标题栏右键菜单：切换 recently / arch 显隐 */}
+      {sectionMenu && (
+        <div
+          ref={sectionMenuRef}
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px]"
+          style={{ left: Math.min(sectionMenu.x, window.innerWidth - 180), top: Math.min(sectionMenu.y, window.innerHeight - 120) }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+            onClick={() => toggleSection('recently')}
+          >
+            <span className={`w-3.5 h-3.5 flex items-center justify-center ${sectionVis.recently ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
+              {sectionVis.recently ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-30" />
+              )}
+            </span>
+            <span>{t('Recently')}</span>
+          </button>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+            onClick={() => toggleSection('arch')}
+          >
+            <span className={`w-3.5 h-3.5 flex items-center justify-center ${sectionVis.arch ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
+              {sectionVis.arch ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-30" />
+              )}
+            </span>
+            <span>arch</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

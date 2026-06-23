@@ -131,6 +131,9 @@ const ZH_MAP: Record<string, string> = {
   'Save': '保存',
   'Confirm': '确认',
   'Delete {fileName}?': '确定删除 {fileName}？',
+  'Recently': '最近',
+  'Recently Opened': '最近打开的文件',
+  'Remove': '移除',
 
   // GitTab - Stage/Unstage/Discard tooltips
   'Stage': '暂存',

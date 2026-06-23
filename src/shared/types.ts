@@ -241,6 +241,12 @@ export interface FileNode {
   children?: FileNode[]
 }
 
+// Recently opened file entry (global, persisted in localStorage)
+export interface RecentFileEntry {
+  path: string      // fullPath
+  line?: number     // 1-based line number; undefined when opened without a line
+}
+
 // Search types
 export interface GrepSearchOptions {
   query: string

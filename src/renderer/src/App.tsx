@@ -12,7 +12,7 @@ import CallGraphOverlay from './components/CallGraphOverlay'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
-import { TerminalSession, RenameTerminalResult, AiPermissionMode } from '@shared/types'
+import { TerminalSession, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
 import { useI18n } from './i18n'
 import type { TerminalViewHandle } from './components/TerminalView'
@@ -250,6 +250,56 @@ export default function App() {
     setCodeSearchFocusTrigger(0)
   }, [])
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
+
+  // ── Recently opened files (global, persisted) ──
+  const RECENT_FILES_KEY = 'vibe-ide-recent-files'
+  const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem(RECENT_FILES_KEY)
+      if (raw) {
+        const arr = JSON.parse(raw)
+        if (Array.isArray(arr) && arr.every((v: any) => v && typeof v.path === 'string')) {
+          return arr.map((v: any) => ({ path: v.path, line: typeof v.line === 'number' && v.line > 0 ? v.line : undefined }))
+        }
+      }
+    } catch {}
+    return []
+  })
+
+  const recordRecentFile = useCallback((fullPath: string, lineNumber?: number) => {
+    if (!fullPath) return
+    const line = typeof lineNumber === 'number' && lineNumber > 0 ? lineNumber : undefined
+    const norm = (p: string) => p.replace(/\\/g, '/')
+    const target = norm(fullPath)
+    setRecentFiles(prev => {
+      const existingIdx = prev.findIndex(r => norm(r.path) === target)
+      if (existingIdx >= 0) {
+        // 已在列表：仅刷新行号，保持原位置不变（不置顶、不影响其余条目）
+        const existing = prev[existingIdx]
+        if (existing.line === line) return prev
+        const next = prev.map((r, i) => i === existingIdx ? { ...r, line } : r)
+        try { localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next)) } catch {}
+        return next
+      }
+      // 新文件：置顶
+      const next = [{ path: fullPath, line }, ...prev].slice(0, 10)
+      try { localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }, [])
+
+  // 从最近文件列表移除单个文件（X 按钮）
+  const removeRecentFile = useCallback((fullPath: string) => {
+    if (!fullPath) return
+    const norm = (p: string) => p.replace(/\\/g, '/')
+    const target = norm(fullPath)
+    setRecentFiles(prev => {
+      const next = prev.filter(r => norm(r.path) !== target)
+      if (next.length === prev.length) return prev
+      try { localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }, [])
 
   // Line history payload — triggered by Monaco right-click "View Line History"
   const [lineHistoryPayload, setLineHistoryPayload] = useState<{ filePath: string; lineNumber: number } | null>(null)
@@ -1461,6 +1511,7 @@ export default function App() {
   // 处理从中间终端点击文件路径打开文件
   const handleOpenFileFromTerminal = useCallback((fullPath: string, lineNumber?: number) => {
     pushNavHistory()
+    recordRecentFile(fullPath, lineNumber)
     let filePath = fullPath
     if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
       filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
@@ -1480,6 +1531,7 @@ export default function App() {
   // 处理从右侧终端点击文件路径打开文件 - 直接切换到 edit 模式
   const handleOpenFileFromRightTerminal = useCallback((fullPath: string, lineNumber?: number) => {
     pushNavHistory()
+    recordRecentFile(fullPath, lineNumber)
     const rightCwd = activeSessionCwd
     let filePath = fullPath
     if (rightCwd && fullPath.startsWith(rightCwd)) {
@@ -1531,6 +1583,7 @@ export default function App() {
   }
 
   const handleOpenFileFromSearch = useCallback((fullPath: string, lineNumber?: number) => {
+    recordRecentFile(fullPath, lineNumber)
     if (isMarkdownFile(fullPath)) {
       pushNavHistory()
       setMarkdownFile({ fullPath, fileName: fullPath.split(/[\\/]/).pop() || fullPath })
@@ -1554,9 +1607,15 @@ export default function App() {
     setCenterView('diff')
   }, [activeSessionCwd])
 
+  // 处理从「最近文件」栏点击打开文件 — 复用 search 打开逻辑（含 markdown 预览 + 行号定位 + 记录）
+  const handleOpenRecentFile = useCallback((fullPath: string, lineNumber?: number) => {
+    handleOpenFileFromSearch(fullPath, lineNumber)
+  }, [handleOpenFileFromSearch])
+
   // 处理从文件浏览器打开文件 — 默认 edit 模式
   const handleOpenFileFromExplorer = useCallback((fullPath: string) => {
     pushNavHistory()
+    recordRecentFile(fullPath)
     let filePath = fullPath
     if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
       filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
@@ -1874,6 +1933,9 @@ export default function App() {
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
             onOpenFileFromSearch={handleOpenFileFromSearch}
             onOpenFileFromExplorer={handleOpenFileFromExplorer}
+            recentFiles={recentFiles}
+            onOpenRecentFile={handleOpenRecentFile}
+            onRemoveRecentFile={removeRecentFile}
             onCompareWithCurrent={handleCompareWithCurrent}
             currentEditFilePath={diffFile?.defaultEdit ? diffFile.fullPath : null}
             onPreviewMarkdown={handlePreviewMarkdown}
