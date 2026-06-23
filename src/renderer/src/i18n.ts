@@ -213,6 +213,7 @@ const ZH_MAP: Record<string, string> = {
   'Exclude from replace': '排除此文件',
   'from': '来自',
   'total': '总计',
+  'Sort by extension': '按后缀排序',
 
   // Custom Commands
   'Custom Command': '自定义命令',

@@ -7,6 +7,13 @@ const MODE_KEY = 'vibe-ide-search-mode'
 function loadMode(): 'grep' | 'smart' { try { return (localStorage.getItem(MODE_KEY) || 'grep') as 'grep' | 'smart' } catch { return 'grep' } }
 function saveMode(m: string) { try { localStorage.setItem(MODE_KEY, m) } catch {} }
 
+// 取文件后缀（含 .），用于按类别排序；无后缀返回 ''（排序时垫底）
+function extOf(file: string): string {
+  const base = file.replace(/^.*[/\\]/, '')
+  const i = base.lastIndexOf('.')
+  return i > 0 ? base.slice(i) : ''
+}
+
 interface SearchPanelProps {
   cwd: string | null
   onOpenFile: (fullPath: string, lineNumber?: number) => void
@@ -149,6 +156,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
   const [replacing, setReplacing] = useState(false)
   const [excludedFiles, setExcludedFiles] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState<'grep' | 'smart'>(loadMode)
+  const [sortByExt, setSortByExt] = useState<boolean>(true)
   const [cgReady, setCgReady] = useState(false)
   const [smartResults, setSmartResults] = useState<CodeSymbol[]>([])
   const [smartRoots, setSmartRoots] = useState<Set<string>>(new Set())
@@ -281,8 +289,18 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
       if (!groups[m.file]) groups[m.file] = []
       groups[m.file].push(m)
     }
-    return groups
-  }, [results, excludedFiles])
+    if (!sortByExt) return groups
+    // 按后缀（类别）优先排序：主键后缀，次键文件名；无后缀文件垫底（￿ 排序最大）
+    const files = Object.keys(groups).sort((a, b) => {
+      const ea = extOf(a) || '￿'
+      const eb = extOf(b) || '￿'
+      if (ea !== eb) return ea < eb ? -1 : 1
+      return a < b ? -1 : 1
+    })
+    const sorted: Record<string, GrepMatch[]> = {}
+    for (const f of files) sorted[f] = groups[f]
+    return sorted
+  }, [results, excludedFiles, sortByExt])
 
   // Total visible matches (excluding excluded files)
   const visibleTotal = React.useMemo(() => {
@@ -402,6 +420,15 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
               className="accent-ide-accent w-3 h-3"
             />
             <span className="underline">ab</span>
+          </label>
+          <label className="flex items-center gap-1 text-xs text-ide-text-muted cursor-pointer" title={t('Sort by extension')}>
+            <input
+              type="checkbox"
+              checked={sortByExt}
+              onChange={(e) => setSortByExt(e.target.checked)}
+              className="accent-ide-accent w-3 h-3"
+            />
+            .x
           </label>
           <input
             type="text"

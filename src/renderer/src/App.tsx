@@ -1676,9 +1676,9 @@ export default function App() {
     handleOpenFileFromSearch(fullPath, lineNumber)
   }, [handleOpenFileFromSearch])
 
-  // 处理从文件浏览器打开文件 — 默认 edit 模式
-  const handleOpenFileFromExplorer = useCallback((fullPath: string) => {
-    recordRecentFile(fullPath)
+  // 处理从文件浏览器打开文件 — 默认 edit 模式（铅笔入口可带行号定位）
+  const handleOpenFileFromExplorer = useCallback((fullPath: string, lineNumber?: number) => {
+    recordRecentFile(fullPath, lineNumber)
     let filePath = fullPath
     if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
       filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
@@ -1689,6 +1689,7 @@ export default function App() {
       diffContent: '',
       isStaged: false,
       defaultEdit: true,
+      lineNumber,
       revision: ++diffRevisionRef.current
     })
     setCenterView('diff')

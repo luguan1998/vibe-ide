@@ -75,7 +75,7 @@ interface FileTabProps {
   recentFiles?: RecentFileEntry[]
   onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
   onRemoveRecentFile?: (fullPath: string) => void
-  onEditRecentFile?: (fullPath: string) => void
+  onEditRecentFile?: (fullPath: string, lineNumber?: number) => void
   isActive?: boolean
 }
 
@@ -799,7 +799,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 {onEditRecentFile && baseName.toLowerCase().endsWith('.md') && (
                   <button
                     className="ml-1 shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => { e.stopPropagation(); onEditRecentFile(f.path) }}
+                    onClick={(e) => { e.stopPropagation(); onEditRecentFile(f.path, f.line) }}
                     title={t('Edit')}
                   >
                     <Pencil size={11} />
