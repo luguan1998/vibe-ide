@@ -268,7 +268,7 @@ html, body, #root {
 
 /* ── Acrylic frosted glass title bar ── */
 .acrylic-titlebar {
-  --acrylic-tint: rgb(var(--ide-accent) / 0.08);
+  --acrylic-tint: rgb(var(--ide-accent) / 0.05);
   background:
     linear-gradient(180deg, var(--acrylic-tint) 0%, transparent 60%),
     rgb(var(--ide-sidebar) / 0.82);
