@@ -73,7 +73,9 @@ function rgSearch(query: string, cwd: string, opts: {
       args.push('--glob', opts.include)
     }
 
-    args.push('--', query, '.')
+    // 不传显式搜索路径：rg 默认用 cwd，且输出的相对路径不带前缀。
+    // 旧实现传 '.' 会让 rg 原样回显 `./` 或 `.\` 前缀，前端树形分组据此多出一个 `.` 文件夹。
+    args.push('--', query)
 
     const child = spawn('rg', args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] })
     const matches: GrepMatch[] = []
@@ -100,7 +102,8 @@ function rgSearch(query: string, cwd: string, opts: {
           const parsed = JSON.parse(line)
           if (parsed.type === 'match') {
             const matchData = parsed.data
-            const file = matchData.path?.text || ''
+            // 防御性剥离 rg 可能回显的 `./` `.\` 前缀，保证相对路径干净
+            const file = (matchData.path?.text || '').replace(/^\.[\\/]/, '')
             const fullPath = join(cwd, file)
             const lineNum = matchData.line_number || 0
             const col = matchData.submatches?.[0]?.start ? matchData.submatches[0].start + 1 : 1

@@ -1661,6 +1661,27 @@ export default function App() {
     setCenterView('diff')
   }, [activeSessionCwd])
 
+  // 搜索结果点击打开：即使 md 也默认进编辑模式（defaultEdit），区别于
+  // 最近文件 / AI 链接 / callgraph（走 handleOpenFileFromSearch 的 md 预览）。
+  // 想看渲染预览可按 Ctrl+L（view.togglePreview：diff(md) ↔ markdown）。
+  const handleOpenSearchResult = useCallback((fullPath: string, lineNumber?: number) => {
+    recordRecentFile(fullPath, lineNumber)
+    let filePath = fullPath
+    if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
+      filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
+    }
+    setDiffFile({
+      filePath,
+      fullPath,
+      diffContent: '',
+      isStaged: false,
+      defaultEdit: true,
+      lineNumber,
+      revision: ++diffRevisionRef.current
+    })
+    setCenterView('diff')
+  }, [activeSessionCwd])
+
   // 处理从「最近文件」栏点击打开文件 — 复用 search 打开逻辑（含 markdown 预览 + 行号定位 + 记录）
   const handleOpenRecentFile = useCallback((fullPath: string, lineNumber?: number) => {
     handleOpenFileFromSearch(fullPath, lineNumber)
@@ -1986,7 +2007,7 @@ export default function App() {
             refreshKey={gitRefreshKey}
             pollingTick={pollingTick}
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
-            onOpenFileFromSearch={handleOpenFileFromSearch}
+            onOpenFileFromSearch={handleOpenSearchResult}
             onOpenFileFromExplorer={handleOpenFileFromExplorer}
             recentFiles={recentFiles}
             onOpenRecentFile={handleOpenRecentFile}

@@ -694,7 +694,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const resultTree = useMemo<ResultNode[]>(() => {
     const root: ResultNode[] = []
     for (const [file, matches] of Object.entries(groupedResults)) {
-      const segs = norm(file).split('/').filter(Boolean)
+      const segs = norm(file).split('/').filter(seg => seg && seg !== '.')
       let level = root
       for (let i = 0; i < segs.length; i++) {
         const seg = segs[i]
