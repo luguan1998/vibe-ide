@@ -21,7 +21,7 @@ interface SearchPanelProps {
   onExploreNode?: (node: CodeSymbol) => void
 }
 
-function trimToMatch(content: string, column: number): { text: string; head: boolean; tail: boolean } {
+export function trimToMatch(content: string, column: number): { text: string; head: boolean; tail: boolean } {
   const MATCH_BEFORE = 30
   const MAX_LEN = 150
 
@@ -36,7 +36,7 @@ function trimToMatch(content: string, column: number): { text: string; head: boo
   }
 }
 
-function highlightMatches(text: string, query: string, regex: boolean, caseSensitive: boolean, wholeWord: boolean): React.ReactNode {
+export function highlightMatches(text: string, query: string, regex: boolean, caseSensitive: boolean, wholeWord: boolean): React.ReactNode {
   if (!query || !text) return text
 
   let pattern: RegExp

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Lightbulb, Eye, Clock, X, Pencil } from 'lucide-react'
-import { FileNode, RecentFileEntry } from '@shared/types'
+import { Lightbulb, Eye, Clock, X, Pencil, Search } from 'lucide-react'
+import { FileNode, RecentFileEntry, GrepMatch } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
+import { trimToMatch, highlightMatches } from './SearchPanel'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
 
@@ -76,6 +77,7 @@ interface FileTabProps {
   onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
   onRemoveRecentFile?: (fullPath: string) => void
   onEditRecentFile?: (fullPath: string, lineNumber?: number) => void
+  onOpenFileAtLine?: (fullPath: string, lineNumber?: number) => void
   isActive?: boolean
 }
 
@@ -138,7 +140,7 @@ function norm(p: string): string {
 }
 
 // File tree item component
-function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage }: {
+function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onSearchInFolder, inlineSearch }: {
   node: FileNode
   depth: number
   expandedDirs: Set<string>
@@ -151,9 +153,12 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   highlightedFilePath: string | null
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
   onPreviewImage?: (fullPath: string, fileName: string) => void
+  onSearchInFolder?: (path: string) => void
+  inlineSearch?: InlineSearch
 }) {
   const { t } = useI18n()
   const isDir = node.type === 'directory'
+  const isSearchFolder = isDir && !!inlineSearch?.activePath && norm(inlineSearch.activePath) === norm(node.path)
   const isExpanded = expandedDirs.has(norm(node.path))
   const paddingLeft = 16 + depth * 16
   const isRenaming = editingState?.type === 'rename' && editingState.nodePath === node.path
@@ -264,6 +269,50 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
         ) : (
           <>
             <span className="truncate text-ide-text">{node.name}</span>
+            {isSearchFolder && inlineSearch ? (
+              <div
+                className="ml-1 flex items-center gap-0.5 bg-ide-border/30 border border-ide-border group-focus-within:border-ide-accent rounded-full px-2 py-0.5 shrink-0 transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Search className="w-3 h-3 text-ide-text-muted shrink-0" />
+                <input
+                  ref={inlineSearch.inputRef}
+                  value={inlineSearch.query}
+                  onChange={(e) => inlineSearch.onQueryChange(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') inlineSearch.onClose() }}
+                  placeholder={t('Search')}
+                  className="w-16 bg-transparent text-xs text-ide-text outline-none focus-visible:outline-none caret-ide-accent placeholder:text-ide-text-muted/50"
+                />
+                <button
+                  onClick={() => inlineSearch.onToggleCaseSensitive()}
+                  title={t('Match case')}
+                  className={`shrink-0 px-1 py-0.5 rounded-full text-[11px] font-mono leading-none transition-colors ${inlineSearch.useCaseSensitive ? 'bg-ide-accent/25 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+                >Aa</button>
+                <button
+                  onClick={() => inlineSearch.onToggleRegex()}
+                  title={t('Use regular expression')}
+                  className={`shrink-0 px-1 py-0.5 rounded-full text-[11px] font-mono leading-none transition-colors ${inlineSearch.useRegex ? 'bg-ide-accent/25 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+                >.*</button>
+                <button
+                  onClick={() => inlineSearch.onClose()}
+                  title={t('Close')}
+                  className="shrink-0 w-4 h-4 flex items-center justify-center rounded-full text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : isDir && onSearchInFolder ? (
+              <button
+                className="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSearchInFolder(node.path)
+                }}
+                title={t('Search in folder')}
+              >
+                <Search className="w-3.5 h-3.5" />
+              </button>
+            ) : null}
             {!isDir && node.name.toLowerCase().endsWith('.md') && onPreviewMarkdown && (
               <button
                 className="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -327,36 +376,186 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
               {editingState.error}
             </div>
           )}
-          {node.children?.map(child => (
-            <FileTreeItem
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              expandedDirs={expandedDirs}
-              onToggle={onToggle}
-              onOpenFile={onOpenFile}
-              onContextMenu={onContextMenu}
-              editingState={editingState}
-              onEditSubmit={onEditSubmit}
-              onEditCancel={onEditCancel}
-              highlightedFilePath={highlightedFilePath}
-              onPreviewMarkdown={onPreviewMarkdown}
-              onPreviewImage={onPreviewImage}
-            />
-          ))}
+          {isSearchFolder && inlineSearch && inlineSearch.query.trim() ? (
+            <>
+              {inlineSearch.searching && (
+                <div style={{ paddingLeft: 16 + (depth + 1) * 16 }} className="pr-2 py-0.5 text-xs text-ide-text-muted">{t('Searching...')}</div>
+              )}
+              {!inlineSearch.searching && inlineSearch.resultTree.length === 0 && (
+                <div style={{ paddingLeft: 16 + (depth + 1) * 16 }} className="pr-2 py-0.5 text-xs text-ide-text-muted">{t('No results')}</div>
+              )}
+              {inlineSearch.resultTree.map(rn => (
+                <ResultTreeItem
+                  key={rn.path}
+                  node={rn}
+                  depth={depth + 1}
+                  collapsedDirs={inlineSearch.collapsedResultDirs}
+                  expandedFiles={inlineSearch.expandedResultFiles}
+                  onToggleDir={inlineSearch.onToggleResultDir}
+                  onToggleFile={inlineSearch.onToggleResultFile}
+                  onOpenFileAtLine={inlineSearch.onOpenFileAtLine}
+                  searchQuery={inlineSearch.query}
+                  useRegex={inlineSearch.useRegex}
+                  useCaseSensitive={inlineSearch.useCaseSensitive}
+                />
+              ))}
+            </>
+          ) : (
+            node.children?.map(child => (
+              <FileTreeItem
+                key={child.path}
+                node={child}
+                depth={depth + 1}
+                expandedDirs={expandedDirs}
+                onToggle={onToggle}
+                onOpenFile={onOpenFile}
+                onContextMenu={onContextMenu}
+                editingState={editingState}
+                onEditSubmit={onEditSubmit}
+                onEditCancel={onEditCancel}
+                highlightedFilePath={highlightedFilePath}
+                onPreviewMarkdown={onPreviewMarkdown}
+                onPreviewImage={onPreviewImage}
+                onSearchInFolder={onSearchInFolder}
+                inlineSearch={inlineSearch}
+              />
+            ))
+          )}
         </>
       )}
     </>
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, fileTreeDepth, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, isActive }: FileTabProps) {
+// ── in-tree search result tree (reuses FileTreeItem visual style) ──
+type ResultNode =
+  | { type: 'dir'; name: string; path: string; children: ResultNode[]; matchCount: number }
+  | { type: 'file'; name: string; path: string; matches: GrepMatch[]; matchCount: number }
+
+// In-place folder search payload (passed into the target FileTreeItem node).
+interface InlineSearch {
+  activePath: string
+  query: string
+  resultTree: ResultNode[]
+  useRegex: boolean
+  useCaseSensitive: boolean
+  searching: boolean
+  inputRef: React.RefObject<HTMLInputElement>
+  onQueryChange: (v: string) => void
+  onToggleRegex: () => void
+  onToggleCaseSensitive: () => void
+  onClose: () => void
+  onToggleResultDir: (p: string) => void
+  onToggleResultFile: (p: string) => void
+  collapsedResultDirs: Set<string>
+  expandedResultFiles: Set<string>
+  onOpenFileAtLine?: (fp: string, ln?: number) => void
+}
+
+function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir, onToggleFile, onOpenFileAtLine, searchQuery, useRegex, useCaseSensitive }: {
+  node: ResultNode
+  depth: number
+  collapsedDirs: Set<string>
+  expandedFiles: Set<string>
+  onToggleDir: (path: string) => void
+  onToggleFile: (path: string) => void
+  onOpenFileAtLine?: (fullPath: string, lineNumber?: number) => void
+  searchQuery: string
+  useRegex: boolean
+  useCaseSensitive: boolean
+}) {
+  const isDir = node.type === 'dir'
+  const expanded = isDir ? !collapsedDirs.has(node.path) : expandedFiles.has(node.path)
+  const paddingLeft = 16 + depth * 16
+  return (
+    <>
+      <div
+        className="group pr-2 py-0.5 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none"
+        style={{ paddingLeft }}
+        onClick={() => isDir ? onToggleDir(node.path) : onToggleFile(node.path)}
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 text-ide-text-muted transition-transform shrink-0 ${expanded ? 'rotate-0' : '-rotate-90'}`}>
+          <path d="M4 6l4 4 4-4" />
+        </svg>
+        {isDir ? (
+          expanded ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              <path d="M2 10h12l2 4h6" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          )
+        ) : (
+          (() => {
+            const info = getFileInfo(node.name)
+            return (
+              <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
+                dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+            )
+          })()
+        )}
+        <span className="truncate text-ide-text">{node.name}</span>
+        <span className="ml-auto shrink-0 px-1.5 rounded-full text-[10px] bg-ide-border/40 text-ide-text-muted">{node.matchCount}</span>
+      </div>
+      {isDir && expanded && node.children.map(child => (
+        <ResultTreeItem
+          key={child.path}
+          node={child}
+          depth={depth + 1}
+          collapsedDirs={collapsedDirs}
+          expandedFiles={expandedFiles}
+          onToggleDir={onToggleDir}
+          onToggleFile={onToggleFile}
+          onOpenFileAtLine={onOpenFileAtLine}
+          searchQuery={searchQuery}
+          useRegex={useRegex}
+          useCaseSensitive={useCaseSensitive}
+        />
+      ))}
+      {!isDir && expanded && node.matches.map((match, idx) => {
+        const { text, head, tail } = trimToMatch(match.content, match.column)
+        return (
+          <div
+            key={`${match.file}-${match.line}-${match.column}-${idx}`}
+            className="pr-2 py-0.5 text-xs cursor-pointer hover:bg-ide-hover flex gap-2 items-start"
+            style={{ paddingLeft: 16 + (depth + 1) * 16 }}
+            onClick={() => onOpenFileAtLine?.(match.fullPath, match.line)}
+          >
+            <span className="text-ide-text-muted font-mono shrink-0">{match.line}</span>
+            <span className="text-ide-text font-mono overflow-hidden whitespace-nowrap">
+              {head && <span className="text-ide-text-muted/50">...</span>}
+              {highlightMatches(text, searchQuery, useRegex, useCaseSensitive, false)}
+              {tail && <span className="text-ide-text-muted/50">...</span>}
+            </span>
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, fileTreeDepth, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
   const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; node: FileNode } | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ type: string; filePath: string; fileName: string } | null>(null)
   const [highlightedFilePath, setHighlightedFilePath] = useState<string | null>(null)
+  // ── in-tree content search (reuses search.grep) ──
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchScope, setSearchScope] = useState<string | null>(null)
+  const [useRegex, setUseRegex] = useState(false)
+  const [useCaseSensitive, setUseCaseSensitive] = useState(false)
+  const [searchResults, setSearchResults] = useState<GrepMatch[]>([])
+  const [searchTotal, setSearchTotal] = useState(0)
+  const [searching, setSearching] = useState(false)
+  const [expandedResultFiles, setExpandedResultFiles] = useState<Set<string>>(new Set())
+  const [collapsedResultDirs, setCollapsedResultDirs] = useState<Set<string>>(new Set())
+  const [searchJustClosed, setSearchJustClosed] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [docTree, setDocTree] = useState<DocTreeNode[]>([])
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
   const [archExpanded, setArchExpanded] = useState(false)
@@ -443,6 +642,145 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       return next
     })
   }, [])
+
+  // ── in-tree search handlers (被调先于主调:定义在 return 之前) ──
+  const openSearch = useCallback((scope: string | null) => {
+    setSearchScope(scope)
+    if (scope) setExpandedDirs(prev => { const next = new Set(prev); next.add(norm(scope)); return next })
+  }, [])
+
+  // Focus the in-place search input once it renders (display:none can't focus → wait for scope→render).
+  useEffect(() => {
+    if (searchScope !== null) {
+      requestAnimationFrame(() => searchInputRef.current?.focus())
+    }
+  }, [searchScope])
+
+  const closeSearch = useCallback(() => {
+    setSearchQuery('')
+    setSearchScope(null)
+    setSearchJustClosed(true)
+    searchInputRef.current?.blur()
+  }, [])
+
+  const toggleResultFileExpand = useCallback((file: string) => {
+    setExpandedResultFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(file)) next.delete(file)
+      else next.add(file)
+      return next
+    })
+  }, [])
+
+  const groupedResults = useMemo(() => {
+    const groups: Record<string, GrepMatch[]> = {}
+    for (const m of searchResults) {
+      if (!groups[m.file]) groups[m.file] = []
+      groups[m.file].push(m)
+    }
+    return groups
+  }, [searchResults])
+
+  const toggleResultDir = useCallback((path: string) => {
+    setCollapsedResultDirs(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }, [])
+
+  // Build a directory-nested tree from the flat grouped results (dirs first, then by name asc).
+  const resultTree = useMemo<ResultNode[]>(() => {
+    const root: ResultNode[] = []
+    for (const [file, matches] of Object.entries(groupedResults)) {
+      const segs = norm(file).split('/').filter(Boolean)
+      let level = root
+      for (let i = 0; i < segs.length; i++) {
+        const seg = segs[i]
+        const path = segs.slice(0, i + 1).join('/')
+        if (i === segs.length - 1) {
+          level.push({ type: 'file', name: seg, path, matches, matchCount: matches.length })
+        } else {
+          let dir = level.find((n): n is Extract<ResultNode, { type: 'dir' }> => n.type === 'dir' && n.name === seg)
+          if (!dir) {
+            dir = { type: 'dir', name: seg, path, children: [], matchCount: 0 }
+            level.push(dir)
+          }
+          dir.matchCount += matches.length
+          level = dir.children
+        }
+      }
+    }
+    const sortRec = (nodes: ResultNode[]) => {
+      nodes.sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'dir' ? -1 : 1
+        return a.name < b.name ? -1 : 1
+      })
+      nodes.forEach(n => { if (n.type === 'dir') sortRec(n.children) })
+    }
+    sortRec(root)
+    return root
+  }, [groupedResults])
+
+  // In-place folder search payload (built only when a folder is the search target).
+  const inlineSearchPayload = useMemo<InlineSearch | undefined>(() => {
+    if (!searchScope) return undefined
+    return {
+      activePath: searchScope,
+      query: searchQuery,
+      resultTree,
+      useRegex,
+      useCaseSensitive,
+      searching,
+      inputRef: searchInputRef,
+      onQueryChange: setSearchQuery,
+      onToggleRegex: () => setUseRegex(v => !v),
+      onToggleCaseSensitive: () => setUseCaseSensitive(v => !v),
+      onClose: closeSearch,
+      onToggleResultDir: toggleResultDir,
+      onToggleResultFile: toggleResultFileExpand,
+      collapsedResultDirs,
+      expandedResultFiles,
+      onOpenFileAtLine,
+    }
+  }, [searchScope, searchQuery, resultTree, useRegex, useCaseSensitive, searching, closeSearch, toggleResultDir, toggleResultFileExpand, collapsedResultDirs, expandedResultFiles, onOpenFileAtLine])
+
+  // Debounced content search (reuses search.grep; cwd limits the scope to a folder or the whole workspace)
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([])
+      setSearchTotal(0)
+      setSearching(false)
+      return
+    }
+    const cwd = searchScope || workspacePath
+    if (!cwd) return
+    let cancelled = false
+    setSearching(true)
+    const timer = setTimeout(async () => {
+      try {
+        const res = await window.api.search.grep({
+          query: searchQuery,
+          cwd,
+          regex: useRegex,
+          caseSensitive: useCaseSensitive,
+        })
+        if (!cancelled) {
+          setSearchResults(res.matches)
+          setSearchTotal(res.total)
+        }
+      } catch {
+        if (!cancelled) {
+          setSearchResults([])
+          setSearchTotal(0)
+        }
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    }, 300)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [searchQuery, useRegex, useCaseSensitive, searchScope, workspacePath])
 
   // Handle navigateToFile prop
   const navTriggerRef = useRef<number>(0)
@@ -692,8 +1030,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {workspacePath && (
-        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean"
+        <div className="group h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean"
           onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
+          onMouseLeave={() => setSearchJustClosed(false)}
         >
           <div className="flex items-center gap-1 min-w-0 flex-1">
             <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent shrink-0">
@@ -702,6 +1041,36 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
             <span className="text-sm text-ide-text font-medium truncate">
               {workspacePath.split(/[\\/]/).pop()}
             </span>
+          </div>
+          <div
+            className={`items-center gap-0.5 bg-ide-border/30 border border-ide-border group-focus-within:border-ide-accent rounded-full px-2 py-0.5 shrink-0 transition-colors ${searchScope === null && !searchJustClosed ? (searchQuery.trim() ? 'flex' : 'hidden group-hover:flex group-focus-within:flex') : 'hidden'}`}
+          >
+            <Search className="w-3.5 h-3.5 text-ide-text-muted shrink-0" />
+            <input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') closeSearch() }}
+              placeholder={searchScope ? `${t('Search')} · ${searchScope.split(/[\\/]/).pop() || searchScope}` : t('Search')}
+              className="w-20 sm:w-28 bg-transparent text-xs text-ide-text outline-none focus-visible:outline-none caret-ide-accent placeholder:text-ide-text-muted/50"
+            />
+            <button
+              onClick={() => setUseCaseSensitive(v => !v)}
+              title={t('Match case')}
+              className={`shrink-0 px-1 py-0.5 rounded-full text-[11px] font-mono leading-none transition-colors ${useCaseSensitive ? 'bg-ide-accent/25 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+            >Aa</button>
+            <button
+              onClick={() => setUseRegex(v => !v)}
+              title={t('Use regular expression')}
+              className={`shrink-0 px-1 py-0.5 rounded-full text-[11px] font-mono leading-none transition-colors ${useRegex ? 'bg-ide-accent/25 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+            >.*</button>
+            <button
+              onClick={closeSearch}
+              title={t('Close')}
+              className="shrink-0 w-4 h-4 flex items-center justify-center rounded-full text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
           </div>
           <button
             className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
@@ -742,7 +1111,36 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
             t={t}
           />
         )}
-        {fileTree.length === 0 && !(editingState && editingState.nodePath === workspacePath) ? (
+        {(searchScope === null && searchQuery.trim()) ? (
+          <div className="flex flex-col py-1">
+            {searching && (
+              <div className="px-3 py-2 text-xs text-ide-text-muted">{t('Searching...')}</div>
+            )}
+            {!searching && resultTree.length === 0 && (
+              <div className="px-3 py-2 text-xs text-ide-text-muted">{t('No results')}</div>
+            )}
+            {resultTree.map(node => (
+              <ResultTreeItem
+                key={node.path}
+                node={node}
+                depth={0}
+                collapsedDirs={collapsedResultDirs}
+                expandedFiles={expandedResultFiles}
+                onToggleDir={toggleResultDir}
+                onToggleFile={toggleResultFileExpand}
+                onOpenFileAtLine={onOpenFileAtLine}
+                searchQuery={searchQuery}
+                useRegex={useRegex}
+                useCaseSensitive={useCaseSensitive}
+              />
+            ))}
+            {!searching && searchTotal > searchResults.length && (
+              <div className="px-3 py-1 text-[11px] text-ide-text-muted">
+                {t('Showing first {n} of {total}').replace('{n}', String(searchResults.length)).replace('{total}', String(searchTotal))}
+              </div>
+            )}
+          </div>
+        ) : fileTree.length === 0 && !(editingState && editingState.nodePath === workspacePath) ? (
           <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
             {workspacePath ? t('Empty directory') : t('No workspace')}
           </div>
@@ -767,6 +1165,8 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 highlightedFilePath={highlightedFilePath}
                 onPreviewMarkdown={onPreviewMarkdown}
                 onPreviewImage={onPreviewImage}
+                onSearchInFolder={(p) => openSearch(p)}
+                inlineSearch={inlineSearchPayload}
               />
             ))}
           </div>

@@ -640,6 +640,7 @@ function RightPanel({
         <FileTab
           workspacePath={workspacePath}
           onOpenFileFromExplorer={onOpenFileFromExplorer}
+          onOpenFileAtLine={onOpenFileFromSearch}
           onCompareWithCurrent={onCompareWithCurrent}
           currentEditFilePath={currentEditFilePath}
           onPreviewMarkdown={onPreviewMarkdown}
