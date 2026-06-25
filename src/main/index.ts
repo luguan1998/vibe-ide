@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, Menu, screen } from 'electron'
-import { join, resolve } from 'path'
-import { statSync, existsSync } from 'fs'
+import { join, resolve, dirname } from 'path'
+import { statSync, existsSync, readFileSync } from 'fs'
 import { createHash } from 'crypto'
 import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -268,6 +268,17 @@ app.whenReady().then(() => {
 
   // App version
   ipcMain.handle(IPC_CHANNELS.APP_VERSION, () => app.getVersion())
+
+  // 用户自定义 CSS — exe 同目录下的 user.css，覆盖 globals.css，重启生效
+  ipcMain.handle(IPC_CHANNELS.USER_CSS_LOAD, () => {
+    try {
+      const userCssPath = join(dirname(exePath), 'user.css')
+      if (!existsSync(userCssPath)) return ''
+      return readFileSync(userCssPath, 'utf8')
+    } catch {
+      return ''
+    }
+  })
 
   // OCR — recognize text from image path or buffer
   ipcMain.handle(IPC_CHANNELS.OCR_RECOGNIZE, (_event, input: string | { buffer: Uint8Array; name: string }) => {

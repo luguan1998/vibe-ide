@@ -1,0 +1,82 @@
+/*
+  Vibe IDE 用户自定义 CSS
+  ─────────────────────────────────────────────────────
+  用法：
+    1. 把此文件复制到 vibe-ide.exe 所在目录（与 exe 同级）
+    2. 重命名为 user.css
+    3. 重启 Vibe IDE 生效（不支持热加载，改完必须重启）
+    4. 删除或清空 user.css 即可恢复默认
+
+  规则：
+    - 本文件在 globals.css 之后注入到 <head> 末尾，同等特异性下后写胜出，
+      可覆盖 globals.css 里的任意规则
+    - 主题色变量值必须写成 "R G B" 空格分隔（如 16 185 129），不要写 #hex
+      或 rgb()，因为 globals.css 里是 rgb(var(--ide-bg)) 这种引用形式
+    - 想覆盖 Monaco 等带 !important 的规则时，这里也要加 !important
+
+  下面是一份「护眼暖灰 + 绿强调」的完整案例，按类别列出可覆盖的元素。
+*/
+
+/* ════════════ 1. 主题色变量（最常用，改一处全应用变色） ════════════ */
+:root {
+  --ide-bg: 30 30 30;              /* 主背景 */
+  --ide-sidebar: 38 38 38;         /* 左侧栏 / 标题栏底色 */
+  --ide-panel: 24 24 24;           /* 面板背景 */
+  --ide-border: 60 60 60;          /* 分隔线 / 边框 */
+  --ide-text: 220 220 210;         /* 主文字 */
+  --ide-text-muted: 150 145 130;   /* 次要文字 */
+  --ide-accent: 16 185 129;        /* 强调色（链接/选中/图标） */
+  --ide-accent-hover: 13 148 136;  /* 强调色 hover */
+  --ide-success: 16 185 129;       /* 成功 / em */
+  --ide-danger: 239 68 68;         /* 危险 / del */
+  --ide-warning: 245 158 11;       /* 警告 / strong / blockquote 边 */
+  --ide-hover: 44 44 44;           /* 行 hover 背景 */
+  --ide-active: 56 56 56;          /* 选中项背景 */
+  --scrollbar-track: 30 30 30;
+  --scrollbar-thumb: 70 70 70;
+  --scrollbar-thumb-hover: 100 100 100;
+  --selection-bg: 16 185 129;      /* 文本选区色 */
+  --selection-opacity: 0.3;
+  --focus-outline: 16 185 129;     /* focus-visible 描边 */
+  --monaco-margin-bg: 24 24 24;    /* Monaco 行号区背景 */
+}
+
+/* ════════════ 2. 字体 ════════════ */
+html, body, #root {
+  font-family: 'JetBrains Mono', 'Consolas', 'Cascadia Code',
+               'PingFang SC', 'Microsoft YaHei', monospace, sans-serif;
+}
+
+/* ════════════ 3. 滚动条粗细 / 圆角 ════════════ */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { border-radius: 4px; }
+
+/* ════════════ 4. 标题栏（去毛玻璃 / 纯色底） ════════════ */
+.acrylic-titlebar {
+  background: rgb(var(--ide-sidebar));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ════════════ 5. 焦点框（加粗强调色描边） ════════════ */
+.focus-frame::before {
+  box-shadow: inset 0 0 0 2px rgb(var(--ide-accent) / 0.6);
+}
+
+/* ════════════ 6. 终端内边距 ════════════ */
+.xterm { padding: 4px 8px; }
+
+/* ════════════ 7. Markdown 预览 ════════════ */
+.md-preview { font-size: 15px; line-height: 1.8; }
+.md-preview h1 { border-bottom: 2px solid rgb(var(--ide-success)); }
+.md-preview code { background-color: rgb(var(--ide-active)); }
+
+/* ════════════ 8. Monaco 行号区背景（需 !important） ════════════ */
+.monaco-editor .margin {
+  background-color: rgb(var(--ide-panel)) !important;
+}
+
+/* ════════════ 9. 文本选区透明度 ════════════ */
+::selection {
+  background: rgb(var(--ide-accent) / 0.5);
+}

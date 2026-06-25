@@ -169,6 +169,11 @@ const api = {
   // App
   appVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_VERSION) as Promise<string>,
 
+  // 用户自定义 CSS（覆盖 globals.css，重启生效）
+  userCss: {
+    load: () => ipcRenderer.invoke(IPC_CHANNELS.USER_CSS_LOAD) as Promise<string>
+  },
+
   // Perf
   perf: {
     snapshot: () => ipcRenderer.invoke(IPC_CHANNELS.PERF_SNAPSHOT)

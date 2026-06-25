@@ -44,14 +44,28 @@ loader.config({ monaco })
 // 启动时注册主题+tokenizer，全局只跑一次
 getMonaco()
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <ThemeProvider>
-        <I18nProvider>
-          <App />
-        </I18nProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
-  </React.StrictMode>
-)
+async function bootstrap() {
+  try {
+    const css = await window.api.userCss.load()
+    if (css) {
+      const style = document.createElement('style')
+      style.id = 'user-css'
+      style.textContent = css
+      document.head.appendChild(style)  // 末尾注入，覆盖 globals.css
+    }
+  } catch { /* 加载失败不阻断启动 */ }
+
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <I18nProvider>
+            <App />
+          </I18nProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
+    </React.StrictMode>
+  )
+}
+
+bootstrap()

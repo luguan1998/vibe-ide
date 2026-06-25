@@ -123,7 +123,8 @@ export const IPC_CHANNELS = {
   AI_FILE_CHANGE: 'ai:fileChange',        // push: tool_use with file edit detected
 
   // App
-  APP_VERSION: 'app:version'
+  APP_VERSION: 'app:version',
+  USER_CSS_LOAD: 'app:userCssLoad'
 } as const
 
 // Terminal types
