@@ -13,6 +13,15 @@ import { loadFilterRules } from './FileTab'
 import { EDITABLE_EXTENSIONS, FILE_PATH_REGEX, parseFilePath, isBareFilename } from '../utils/filePathUtils'
 import '@xterm/xterm/css/xterm.css'
 
+// 读取 user.css 设的终端背景图变量；为空则无背景图（重启生效，不热加载）
+function readTerminalBgImage(): string {
+  try {
+    return getComputedStyle(document.documentElement).getPropertyValue('--terminal-bg-image').trim()
+  } catch {
+    return ''
+  }
+}
+
 interface TerminalViewProps {
   sessionId: string
   sessionName?: string
@@ -414,8 +423,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       xtermRef.current.dispose()
     }
 
+    const bgImage = readTerminalBgImage()
     const term = new Terminal({
-      theme: currentTheme.terminal,
+      theme: bgImage ? { ...currentTheme.terminal, background: 'transparent' } : currentTheme.terminal,
       fontFamily: 'Consolas, Cascadia Code, JetBrains Mono, Fira Code, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace',
       fontSize,
       fontWeight: currentTheme.terminal.fontWeight || '400',
@@ -750,11 +760,14 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   // Update terminal theme when it changes
   useEffect(() => {
     if (xtermRef.current) {
-      xtermRef.current.options.theme = currentTheme.terminal
+      const bgImage = readTerminalBgImage()
+      xtermRef.current.options.theme = bgImage
+        ? { ...currentTheme.terminal, background: 'transparent' }
+        : currentTheme.terminal
       xtermRef.current.options.allowTransparency = currentTheme.terminal.allowTransparency ?? true
       xtermRef.current.options.fontWeight = currentTheme.terminal.fontWeight || '400'
       const el = terminalRef.current?.querySelector('.xterm') as HTMLElement | null
-      if (el) el.style.backgroundColor = currentTheme.terminal.background
+      if (el) el.style.backgroundColor = bgImage ? 'transparent' : currentTheme.terminal.background
     }
   }, [currentTheme])
 
@@ -1082,6 +1095,13 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         onContextMenu={handleContextMenu}
       >
         <div ref={terminalRef} className="flex-1 min-h-0 relative">
+          {readTerminalBgImage() && (
+            <div className="absolute inset-0 -z-10 pointer-events-none" style={{
+              backgroundImage: `linear-gradient(var(--terminal-bg-overlay, transparent), var(--terminal-bg-overlay, transparent)), var(--terminal-bg-image)`,
+              backgroundSize: 'cover, cover',
+              backgroundPosition: 'center, center',
+            }} />
+          )}
           {/* OCR drag overlay */}
           {ocrState !== 'idle' && (
             <div

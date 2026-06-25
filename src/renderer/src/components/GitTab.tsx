@@ -841,8 +841,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     <span className={`font-bold ${getStatusColor(file)} w-3.5 text-center shrink-0`}>
                       {getStatusIcon(file)}
                     </span>
-                    <span className="shrink-0 text-[11px]">{name}</span>
-                    {dir && <span className="truncate text-ide-text-muted text-[10px] min-w-0">{dir}</span>}
+                    <span className="shrink-0 git-fname">{name}</span>
+                    {dir && <span className="truncate text-ide-text-muted git-fdir min-w-0">{dir}</span>}
                     <span className="flex-1" />
                     <span className="shrink-0 w-5" />
                     <button
@@ -922,8 +922,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     <span className={`font-bold ${getStatusColor(file)} w-3.5 text-center shrink-0`}>
                       {getStatusIcon(file)}
                     </span>
-                    <span className="shrink-0 text-[11px]">{name}</span>
-                    {dir && <span className="truncate text-ide-text-muted text-[10px] min-w-0">{dir}</span>}
+                    <span className="shrink-0 git-fname">{name}</span>
+                    {dir && <span className="truncate text-ide-text-muted git-fdir min-w-0">{dir}</span>}
                     <span className="flex-1" />
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
@@ -1005,8 +1005,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     }}
                   >
                     <span className="font-bold text-ide-text-muted w-3.5 text-center shrink-0">U</span>
-                    <span className="shrink-0 text-[11px]">{name}</span>
-                    {dir && <span className="truncate text-ide-text-muted text-[10px] min-w-0">{dir}</span>}
+                    <span className="shrink-0 git-fname">{name}</span>
+                    {dir && <span className="truncate text-ide-text-muted git-fdir min-w-0">{dir}</span>}
                     <span className="flex-1" />
                     <button
                       onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
@@ -1118,8 +1118,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                                 }`}>
                                   {file.status === 'added' ? 'A' : file.status === 'deleted' ? 'D' : file.status === 'renamed' ? 'R' : 'M'}
                                 </span>
-                                <span className="shrink-0 text-[11px]">{name}</span>
-                                {dir && <span className="truncate text-ide-text-muted text-[10px] min-w-0">{dir}</span>}
+                                <span className="shrink-0 git-fname">{name}</span>
+                                {dir && <span className="truncate text-ide-text-muted git-fdir min-w-0">{dir}</span>}
                                 <span className="shrink-0 ml-auto flex items-center gap-1 text-[11px]">
                                   {file.additions > 0 && <span className="text-ide-success font-mono">+{file.additions}</span>}
                                   {file.deletions > 0 && <span className="text-ide-danger font-mono">-{file.deletions}</span>}
@@ -1209,8 +1209,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                             }`}>
                               {file.status === 'added' ? 'A' : file.status === 'deleted' ? 'D' : file.status === 'renamed' ? 'R' : 'M'}
                             </span>
-                            <span className="shrink-0 text-[11px]">{name}</span>
-                            {dir && <span className="truncate text-ide-text-muted text-[10px] min-w-0">{dir}</span>}
+                            <span className="shrink-0 git-fname">{name}</span>
+                            {dir && <span className="truncate text-ide-text-muted git-fdir min-w-0">{dir}</span>}
                             <span className="shrink-0 ml-auto flex items-center gap-1 text-[11px]">
                               {file.additions > 0 && <span className="text-ide-success font-mono">+{file.additions}</span>}
                               {file.deletions > 0 && <span className="text-ide-danger font-mono">-{file.deletions}</span>}

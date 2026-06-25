@@ -1,82 +1,224 @@
 /*
-  Vibe IDE 用户自定义 CSS
+  Vibe IDE 用户自定义 CSS — 完整覆盖版
   ─────────────────────────────────────────────────────
   用法：
     1. 把此文件复制到 vibe-ide.exe 所在目录（与 exe 同级）
+       dev 模式则放到 node_modules/electron/dist/ 目录
     2. 重命名为 user.css
-    3. 重启 Vibe IDE 生效（不支持热加载，改完必须重启）
-    4. 删除或清空 user.css 即可恢复默认
+    3. 重启 Vibe IDE 生效（不支持热加载）
+    4. 不想要某项：删掉对应规则；全部恢复：删除/清空 user.css
 
   规则：
-    - 本文件在 globals.css 之后注入到 <head> 末尾，同等特异性下后写胜出，
-      可覆盖 globals.css 里的任意规则
+    - 本文件在 globals.css 之后注入到 <head> 末尾，同等特异性下后写胜出
     - 主题色变量值必须写成 "R G B" 空格分隔（如 16 185 129），不要写 #hex
-      或 rgb()，因为 globals.css 里是 rgb(var(--ide-bg)) 这种引用形式
-    - 想覆盖 Monaco 等带 !important 的规则时，这里也要加 !important
+      或 rgb()，因为 globals.css 里是 rgb(var(--ide-bg)) 引用形式
+    - 覆盖带 !important 的规则（如 Monaco .margin）时，这里也要加 !important
+    - 改不到的部分见文末
 
-  下面是一份「护眼暖灰 + 绿强调」的完整案例，按类别列出可覆盖的元素。
+  下面是一套「暖灰 + 翠绿强调」完整示例，可整体采用或按需删改。
 */
 
-/* ════════════ 1. 主题色变量（最常用，改一处全应用变色） ════════════ */
+
+/* ═══════════════════════════════════════════════════
+   1. 主题色变量（改一处，全应用变色；最常用）
+   ═══════════════════════════════════════════════════ */
 :root {
+  /* ── 背景 ── */
   --ide-bg: 30 30 30;              /* 主背景 */
-  --ide-sidebar: 38 38 38;         /* 左侧栏 / 标题栏底色 */
-  --ide-panel: 24 24 24;           /* 面板背景 */
+  --ide-sidebar: 38 38 38;         /* 左侧栏 / 标题栏底 */
+  --ide-panel: 24 24 24;           /* 面板 / 输入框底 */
   --ide-border: 60 60 60;          /* 分隔线 / 边框 */
+
+  /* ── 文字 ── */
   --ide-text: 220 220 210;         /* 主文字 */
   --ide-text-muted: 150 145 130;   /* 次要文字 */
-  --ide-accent: 16 185 129;        /* 强调色（链接/选中/图标） */
-  --ide-accent-hover: 13 148 136;  /* 强调色 hover */
-  --ide-success: 16 185 129;       /* 成功 / em */
-  --ide-danger: 239 68 68;         /* 危险 / del */
+
+  /* ── 强调色（链接 / 选中 / 图标 / focus） ── */
+  --ide-accent: 16 185 129;
+  --ide-accent-hover: 13 148 136;
+
+  /* ── 语义色 ── */
+  --ide-success: 16 185 129;       /* 成功 / em 斜体 */
+  --ide-danger: 239 68 68;         /* 危险 / del 删除线 */
   --ide-warning: 245 158 11;       /* 警告 / strong / blockquote 边 */
-  --ide-hover: 44 44 44;           /* 行 hover 背景 */
-  --ide-active: 56 56 56;          /* 选中项背景 */
+
+  /* ── 交互态背景 ── */
+  --ide-hover: 44 44 44;           /* 行 hover */
+  --ide-active: 56 56 56;          /* 选中项 */
+
+  /* ── 滚动条 ── */
   --scrollbar-track: 30 30 30;
   --scrollbar-thumb: 70 70 70;
   --scrollbar-thumb-hover: 100 100 100;
-  --selection-bg: 16 185 129;      /* 文本选区色 */
-  --selection-opacity: 0.3;
-  --focus-outline: 16 185 129;     /* focus-visible 描边 */
-  --monaco-margin-bg: 24 24 24;    /* Monaco 行号区背景 */
+
+  /* ── 文本选区 ── */
+  --selection-bg: 16 185 129;
+  --selection-opacity: 0.3;        /* 0–1，越大越浓 */
+
+  /* ── focus 描边 ── */
+  --focus-outline: 16 185 129;
+
+  /* ── Monaco 行号区背景 ── */
+  --monaco-margin-bg: 24 24 24;
 }
 
-/* ════════════ 2. 字体 ════════════ */
+
+/* ═══════════════════════════════════════════════════
+   2. 字体（全局）
+   ═══════════════════════════════════════════════════ */
 html, body, #root {
   font-family: 'JetBrains Mono', 'Consolas', 'Cascadia Code',
-               'PingFang SC', 'Microsoft YaHei', monospace, sans-serif;
+               'Fira Code', 'PingFang SC', 'Microsoft YaHei',
+               'Noto Sans CJK SC', monospace, sans-serif;
 }
 
-/* ════════════ 3. 滚动条粗细 / 圆角 ════════════ */
+
+/* ═══════════════════════════════════════════════════
+   3. 滚动条（粗细 / 圆角 / 颜色已由变量驱动）
+   ═══════════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { border-radius: 4px; }
+::-webkit-scrollbar-corner { background: transparent; }
 
-/* ════════════ 4. 标题栏（去毛玻璃 / 纯色底） ════════════ */
-.acrylic-titlebar {
+
+/* ═══════════════════════════════════════════════════
+   4. 文本选区 + focus 描边
+   ═══════════════════════════════════════════════════ */
+::selection { background: rgb(var(--ide-accent) / 0.5); }
+*:focus-visible { outline-width: 1px; outline-offset: -1px; }
+
+
+/* ═══════════════════════════════════════════════════
+   5. 标题栏（去毛玻璃 / 纯色底）
+   ═══════════════════════════════════════════════════ */
+.acrylic-titlebar,
+.acrylic-titlebar-clean {
   background: rgb(var(--ide-sidebar));
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
-/* ════════════ 5. 焦点框（加粗强调色描边） ════════════ */
-.focus-frame::before {
-  box-shadow: inset 0 0 0 2px rgb(var(--ide-accent) / 0.6);
+
+/* ═══════════════════════════════════════════════════
+   6. 终端（xterm.js）
+   ═══════════════════════════════════════════════════ */
+/* 6a. 背景图：设了 --terminal-bg-image 即开启，canvas 自动透明，图铺满。
+       --terminal-bg-overlay 是叠在图上的半透明遮罩，调到看清文字。
+       不想要：注释掉 --terminal-bg-image 即恢复纯色终端。 */
+:root {
+  --terminal-bg-image: url('file:///D:/pics/terminal-bg.jpg');
+  --terminal-bg-overlay: rgba(0, 0, 0, 0.55);
 }
 
-/* ════════════ 6. 终端内边距 ════════════ */
+/* 6b. 终端内边距 */
 .xterm { padding: 4px 8px; }
 
-/* ════════════ 7. Markdown 预览 ════════════ */
-.md-preview { font-size: 15px; line-height: 1.8; }
-.md-preview h1 { border-bottom: 2px solid rgb(var(--ide-success)); }
-.md-preview code { background-color: rgb(var(--ide-active)); }
+/* 6c. Alt 画笔模式光标（globals 用 --brush-cursor，默认 crosshair） */
+:root {
+  --brush-cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 20l5-5 8-8-4-4-8 8z' fill='%2316b981' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E") 2 18, text;
+}
 
-/* ════════════ 8. Monaco 行号区背景（需 !important） ════════════ */
+
+/* ═══════════════════════════════════════════════════
+   7. Monaco 编辑器
+   ═══════════════════════════════════════════════════ */
+/* 7a. 行号区背景（需 !important 覆盖 globals） */
 .monaco-editor .margin {
   background-color: rgb(var(--ide-panel)) !important;
 }
 
-/* ════════════ 9. 文本选区透明度 ════════════ */
-::selection {
-  background: rgb(var(--ide-accent) / 0.5);
+/* 7b. 书签 glyph 图标（globals 默认 📌 图钉，可换 svg）
+.bookmark-glyph {
+  background: url("data:image/svg+xml,%3Csvg ...%3E") center / 14px no-repeat;
 }
+*/
+
+/* 7c. diff 视图：gutter 分隔线颜色（其他 diff 规则见 globals.css，同理覆盖）
+.monaco-diff-editor .gutter { outline-color: rgb(var(--ide-border)); }
+*/
+
+
+/* ═══════════════════════════════════════════════════
+   8. Markdown 预览（.md-preview）
+   ═══════════════════════════════════════════════════ */
+.md-preview { font-size: 15px; line-height: 1.8; }
+.md-preview h1 { border-bottom: 2px solid rgb(var(--ide-accent)); }
+.md-preview h2 { border-bottom: 1px solid rgb(var(--ide-accent)); }
+.md-preview h3, .md-preview h4 { color: rgb(var(--ide-accent)); }
+.md-preview a { color: rgb(var(--ide-accent)); }
+.md-preview a:hover { color: rgb(var(--ide-accent-hover)); }
+.md-preview strong { color: rgb(var(--ide-warning)); }
+.md-preview em { color: rgb(var(--ide-success)); }
+.md-preview code {
+  background-color: rgb(var(--ide-active));
+  border: 1px solid rgb(var(--ide-border));
+}
+.md-preview pre { border: 1px solid rgb(var(--ide-border)); }
+.md-preview blockquote { border-left: 3px solid rgb(var(--ide-warning)); }
+.md-preview th { color: rgb(var(--ide-accent)); }
+.md-preview li::marker { color: rgb(var(--ide-accent)); }
+.md-preview hr { border-top-color: rgb(var(--ide-accent)); }
+.md-preview del { color: rgb(var(--ide-danger)); }
+
+/* 代码块语言标签 */
+.md-code-lang {
+  background-color: rgb(var(--ide-accent) / 0.2);
+  color: rgb(var(--ide-accent));
+}
+/* 代码块容器 */
+.md-code-block { border-color: rgb(var(--ide-border)); }
+
+/* 搜索匹配高亮 */
+.md-search-match { background-color: rgb(var(--ide-warning) / 0.35); }
+.md-search-match-current { background-color: rgb(var(--ide-warning) / 0.65); }
+
+/* mermaid 图容器 */
+.md-mermaid {
+  background-color: rgb(var(--ide-sidebar));
+  border-color: rgb(var(--ide-border));
+}
+
+/* frontmatter 卡片 */
+.md-frontmatter { border-color: rgb(var(--ide-border)); }
+.md-fm-key { color: rgb(var(--ide-accent)); background-color: rgb(var(--ide-hover)); }
+
+
+/* ═══════════════════════════════════════════════════
+   9. Git 面板
+   ═══════════════════════════════════════════════════ */
+/* 文件名 / 目录名字号（默认 11px / 10px） */
+:root {
+  --git-fname-size: 12px;
+  --git-fdir-size: 10px;
+}
+/* 窄面板时仍显示 +/- 统计（globals 在 <289px 隐藏，这里放开）
+@container git-tab (max-width: 289px) {
+  .git-stats { display: inline-flex !important; }
+}
+*/
+
+
+/* ═══════════════════════════════════════════════════
+   10. 焦点框 / 动画（可选微调）
+   ═══════════════════════════════════════════════════ */
+.focus-frame::before {
+  box-shadow: inset 0 0 0 2px rgb(var(--ide-accent) / 0.6),
+              inset 0 0 24px rgb(var(--ide-accent) / 0.1);
+}
+/* 入场动画更快 / 关闭动画
+.animate-fade-in { animation-duration: 0.08s; }
+.animate-fade-in { animation: none; }
+*/
+
+
+/* ═══════════════════════════════════════════════════
+   改不到的（不在 globals.css / CSS 变量范围）
+   ═══════════════════════════════════════════════════
+   • Monaco 语法高亮 token 颜色 —— 走 src/renderer/src/themes/
+     的 Monaco 主题（JS 注入），需改 themes 层
+   • xterm 终端文字色 / 光标色 / 选中色 —— 走 currentTheme.terminal
+     （JS theme 对象），需改 themes 层
+   • 窗口标题栏 overlay 颜色（#1a1a2e / #8888aa）—— main/index.ts
+     的 titleBarOverlay 配置，需改代码
+   • 标题栏拖拽区 .titlebar-drag / .no-drag —— app-region，一般不动
+   ═══════════════════════════════════════════════════ */

@@ -399,3 +399,7 @@ html, body, #root {
   .git-stats { display: none; }
 }
 
+/* ── Git 文件名/目录字号 — user.css 可通过 --git-fname-size / --git-fdir-size 覆盖 ── */
+.git-fname { font-size: var(--git-fname-size, 12px); }
+.git-fdir { font-size: var(--git-fdir-size, 10px); }
+
