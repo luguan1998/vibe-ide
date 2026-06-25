@@ -42,7 +42,7 @@ const api = {
   git: {
     setWorkspace: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_WORKSPACE, path),
     status: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STATUS),
-    log: (count?: number) => ipcRenderer.invoke(IPC_CHANNELS.GIT_LOG, count),
+    log: (opts?: { count?: number; skip?: number }) => ipcRenderer.invoke(IPC_CHANNELS.GIT_LOG, opts),
     diff: (filePath?: string, staged?: boolean) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DIFF, filePath, staged),
     add: (files: string | string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_ADD, files),
     reset: (files: string | string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_RESET, files),

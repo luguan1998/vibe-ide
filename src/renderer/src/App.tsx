@@ -39,7 +39,7 @@ declare global {
       git: {
         setWorkspace: (path: string) => Promise<any>
         status: () => Promise<any>
-        log: (count?: number) => Promise<any>
+        log: (opts?: { count?: number; skip?: number }) => Promise<any>
         diff: (filePath?: string, staged?: boolean) => Promise<any>
         add: (files: string | string[]) => Promise<any>
         reset: (files: string | string[]) => Promise<any>

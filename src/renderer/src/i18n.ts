@@ -172,6 +172,7 @@ const ZH_MAP: Record<string, string> = {
   'No git repository found in this workspace': '当前工作目录未找到 Git 仓库',
   'No changes detected': '没有检测到更改',
   'No commits yet': '暂无提交',
+  'Load more commits': '加载更多提交',
   'No branches': '暂无分支',
 
   // GitTab - Commit area

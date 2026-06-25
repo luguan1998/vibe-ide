@@ -58,6 +58,8 @@ const splitPath = (filePath: string): { name: string; dir: string } => {
   return { name: filePath.slice(idx + 1), dir: filePath.slice(0, idx + 1) }
 }
 
+const LOG_PAGE_SIZE = 50
+
 export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, isActive, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll, onNavigateToFile, lineHistoryPayload }: GitTabProps) {
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
@@ -84,6 +86,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     if (status.staged > LARGE_SECTION) setStagedExpanded(false)
   }, [status])
   const [logs, setLogs] = useState<GitLogEntry[]>([])
+  const [hasMoreLog, setHasMoreLog] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const loadingMoreRef = useRef(false)
   const [branches, setBranches] = useState<GitBranch[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [diffContent, setDiffContent] = useState<string>('')
@@ -227,18 +232,44 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   // Refresh git log
   const refreshLog = useCallback(async () => {
     try {
-      const result = await window.api.git.log(50)
+      const result = await window.api.git.log({ count: LOG_PAGE_SIZE, skip: 0 })
       if (result.error) {
         if (!/does not have any commits/.test(result.error)) {
           setError(result.error)
         }
       } else {
         setLogs(result)
+        setHasMoreLog(result.length >= LOG_PAGE_SIZE)
       }
     } catch (err: any) {
       setError(err.message)
     }
   }, [])
+
+  // Load older commits — append next page via --skip
+  const loadMoreLog = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreLog) return
+    loadingMoreRef.current = true
+    setLoadingMore(true)
+    try {
+      const result = await window.api.git.log({ count: LOG_PAGE_SIZE, skip: logs.length })
+      if (result.error) {
+        if (!/does not have any commits/.test(result.error)) {
+          setError(result.error)
+        }
+      } else if (result.length > 0) {
+        setLogs(prev => [...prev, ...result])
+        setHasMoreLog(result.length >= LOG_PAGE_SIZE)
+      } else {
+        setHasMoreLog(false)
+      }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      loadingMoreRef.current = false
+      setLoadingMore(false)
+    }
+  }, [hasMoreLog, logs.length])
 
   // Refresh branches
   const refreshBranches = useCallback(async () => {
@@ -596,6 +627,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     const targetPath = effectiveGitPath
 
     setLogs([])
+    setHasMoreLog(true)
     setBranches([])
     setError(null)
     setSelectedFile(null)
@@ -1163,7 +1195,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 {logs.length === 0 ? (
                   <div className="px-2 py-2 text-xs text-ide-text-muted text-center">{t('No commits yet')}</div>
                 ) : (
-                  logs.map(entry => (
+                  <>
+                  {logs.map(entry => (
                   <div key={entry.hash}>
                     <div
                       className={`pl-5 pr-2 py-1.5 border-b border-ide-border/50 hover:bg-ide-hover cursor-pointer ${
@@ -1225,7 +1258,16 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       </div>
                     )})()}
                   </div>
-                ))
+                ))}
+                {hasMoreLog && (
+                  <div
+                    className="pl-5 pr-2 py-1.5 text-xs text-center text-ide-text-muted bg-ide-hover/30 cursor-pointer hover:bg-ide-hover hover:text-ide-accent"
+                    onClick={loadMoreLog}
+                  >
+                    {loadingMore ? t('Loading...') : t('Load more commits')}
+                  </div>
+                )}
+                </>
               )}
             </div>
             )}

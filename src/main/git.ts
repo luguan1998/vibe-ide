@@ -217,20 +217,29 @@ export function registerGitHandlers(): void {
     }
   })
 
-  // Get git log
-  ipcMain.handle(IPC_CHANNELS.GIT_LOG, async (_event, count?: number) => {
+  // Get git log — opts.skip 跳过已加载的新提交，支持懒加载"加载更多"
+  ipcMain.handle(IPC_CHANNELS.GIT_LOG, async (_event, opts?: { count?: number; skip?: number }) => {
     try {
       const git = getGit()
-      // multiLine: true → body 用 %B（完整原始信息，含换行），避免 %b 换行丢失
-      const log = await git.log({ maxCount: count || 50, multiLine: true })
-      return log.all.map(entry => ({
-        hash: entry.hash,
-        // %B 已包含 subject + body 完整信息，%s 只有标题行
-        message: entry.body || entry.message,
-        author: entry.author_name,
-        date: entry.date,
-        refs: entry.refs
-      })) as GitLogEntry[]
+      const count = opts?.count ?? 50
+      const skip = opts?.skip ?? 0
+      // %B=完整消息(含换行) %H=hash %aN=作者(应用 mailmap) %aI=ISO日期 %D=refs
+      // %x00 字段分隔 %x1e 记录分隔，--pretty=format: 不自动补换行，靠 %x1e 切分
+      const output = await git.raw(['log', `--skip=${skip}`, `--max-count=${count}`, '--pretty=format:%H%x00%B%x00%aN%x00%aI%x00%D%x1e'])
+      const entries: GitLogEntry[] = []
+      for (const rec of output.split('\x1e')) {
+        if (!rec.trim()) continue
+        const [hash, body, author, date, refs] = rec.split('\x00')
+        // format: 在记录间补 \n，会落到下条 %H 前，trim 各字段去除
+        entries.push({
+          hash: (hash || '').trim(),
+          message: (body || '').trim(),
+          author: (author || '').trim(),
+          date: (date || '').trim(),
+          refs: refs || ''
+        })
+      }
+      return entries
     } catch (err: any) {
       return { error: err.message }
     }
