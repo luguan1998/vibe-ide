@@ -426,7 +426,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     const bgImage = readTerminalBgImage()
     const term = new Terminal({
       theme: bgImage ? { ...currentTheme.terminal, background: 'transparent' } : currentTheme.terminal,
-      fontFamily: 'Consolas, Cascadia Code, JetBrains Mono, Fira Code, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace',
+      fontFamily: 'Cascadia Code, Consolas, JetBrains Mono, Fira Code, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace',
       fontSize,
       fontWeight: currentTheme.terminal.fontWeight || '400',
       letterSpacing: 0,
