@@ -73,9 +73,10 @@ function rgSearch(query: string, cwd: string, opts: {
       args.push('--glob', opts.include)
     }
 
-    // 不传显式搜索路径：rg 默认用 cwd，且输出的相对路径不带前缀。
-    // 旧实现传 '.' 会让 rg 原样回显 `./` 或 `.\` 前缀，前端树形分组据此多出一个 `.` 文件夹。
-    args.push('--', query)
+    // 必须传显式路径 '.': stdio 用 pipe(非 TTY),不传路径时 rg 会改读 stdin 并永久阻塞
+    // (父进程既不写也不关 stdin → rg 一直等输入 → 前端"一直 search")。
+    // 回显的 `./` `.\` 前缀由下方 replace 剥离,不会产生 `.` 文件夹。
+    args.push('--', query, '.')
 
     const child = spawn('rg', args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] })
     const matches: GrepMatch[] = []
