@@ -416,7 +416,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
     const term = new Terminal({
       theme: currentTheme.terminal,
-      fontFamily: 'Cascadia Code, JetBrains Mono, Fira Code, Consolas, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace',
+      fontFamily: 'Consolas, Cascadia Code, JetBrains Mono, Fira Code, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace',
       fontSize,
       fontWeight: currentTheme.terminal.fontWeight || '400',
       letterSpacing: 0,

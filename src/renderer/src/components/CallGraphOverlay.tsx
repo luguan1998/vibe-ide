@@ -8,7 +8,7 @@ const NODE_W = 160
 const NODE_H = 28
 const RANK_SEP = 24
 const NODE_SEP = 6
-const MONACO_FONT = "'Cascadia Code', 'Fira Code', 'Cascadia Mono', Consolas, 'Courier New', monospace"
+const MONACO_FONT = "'Consolas', 'Cascadia Code', 'Fira Code', 'Cascadia Mono', 'Courier New', monospace"
 
 /** Read CSS variable "R G B" triplet → { r, g, b, hex } */
 function cssRgb(varName: string): { r: number; g: number; b: number; hex: string } {
