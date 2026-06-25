@@ -8,6 +8,10 @@ import { IPC_CHANNELS, CreateTerminalOptions, TerminalSession } from '../shared/
 interface ManagedPty {
   pty: pty.IPty
   session: TerminalSession
+  autoUtf8: boolean
+  cols: number
+  rows: number
+  restarts: number[]
 }
 
 const terminals = new Map<string, ManagedPty>()
@@ -21,6 +25,12 @@ const AUTO_APPROVE_HOOK = {
     command: 'node -e "console.log(JSON.stringify({hookSpecificOutput:{hookEventName:\'PermissionRequest\',decision:{behavior:\'allow\'}}}))"'
   }]
 }
+
+// Auto-restart debounce: more than RESTART_MAX restarts within RESTART_WINDOW_MS means
+// the shell is crash-looping (e.g. a broken profile makes it exit on spawn). Stop
+// restarting and let the session end for real instead of spinning forever.
+const RESTART_WINDOW_MS = 10000
+const RESTART_MAX = 5
 
 async function syncConfig(have: boolean, filePath: string, set: (o: any) => void, has: (o: any) => boolean, mkdirPath?: string): Promise<void> {
   let obj: any = {}
@@ -101,6 +111,110 @@ function resolveShell(shellType?: string): { shell: string; args: string[] } {
   }
 }
 
+// Spawn a PTY for a given id: spawn + onData + startup init + onExit wiring.
+// onExit auto-restarts a fresh shell in place when the shell exits on its own —
+// Ctrl+C inside a TUI (opencode/vim) broadcasts CTRL_C_EVENT across the whole ConPTY
+// process group and routinely takes the shell down with it, leaving xterm with no
+// peer (cursor frozen, input goes nowhere). Restarting on the same id lets xterm keep
+// its listeners and the user keeps typing.
+//
+// "Shell exited on its own" vs "user closed the terminal" is told by whether the
+// entry is still in `terminals`: PTY_CLOSE / cleanupTerminals delete the entry
+// synchronously before kill()'s async onExit fires, so a missing entry means the
+// user intended to close — emit PTY_EXIT and don't restart.
+function spawnPty(id: string, cwd: string, shellType: string | undefined, name: string, autoUtf8: boolean, cols = 80, rows = 24): pty.IPty {
+  const { shell, args } = resolveShell(shellType)
+  const ptyProcess = pty.spawn(shell, args, {
+    name: 'xterm-256color',
+    cols,
+    rows,
+    cwd,
+    env: Object.assign({}, process.env, {
+      LANG: 'en_US.UTF-8',
+      LC_ALL: 'en_US.UTF-8',
+      PYTHONUTF8: '1',
+      COLORTERM: 'truecolor'
+    }) as Record<string, string>
+  })
+
+  const doStartupInit = autoUtf8 !== false
+  let startupDone = !doStartupInit
+
+  ptyProcess.onData((data: string) => {
+    if (!startupDone) return
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, { id, data })
+    }
+  })
+
+  if (doStartupInit) {
+    setTimeout(() => {
+      const managed = terminals.get(id)
+      if (!managed) return
+      startupDone = true
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, {
+          id,
+          data: '\x1b[2J\x1b[3J\x1b[H'
+        })
+      }
+      const shellName = shell.toLowerCase()
+      if (shellName.includes('powershell') || shellName.includes('pwsh')) {
+        managed.pty.write('chcp 65001 >$null\r')
+        managed.pty.write('Clear-Host\r')
+      } else if (shellName.includes('cmd')) {
+        managed.pty.write('chcp 65001 >nul\r')
+        managed.pty.write('cls\r')
+      }
+    }, 600)
+  }
+
+  ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
+    const managed = terminals.get(id)
+    if (!managed) {
+      // Entry removed by PTY_CLOSE / cleanupTerminals — user intended to close.
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.PTY_EXIT, { id, exitCode })
+      }
+      return
+    }
+    // Debounce auto-restart: a sliding window of recent restart timestamps catches
+    // crash loops. Past the threshold, stop restarting and end the session for real.
+    const now = Date.now()
+    managed.restarts = managed.restarts.filter(t => now - t < RESTART_WINDOW_MS)
+    managed.restarts.push(now)
+    if (managed.restarts.length > RESTART_MAX) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, {
+          id,
+          data: '\x1b[?1049l\x1b[?25h\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1l\x1b[0m\r\n[Shell exited repeatedly, auto-restart stopped. Reopen the terminal to start a new session.]\r\n'
+        })
+        mainWindow.webContents.send(IPC_CHANNELS.PTY_EXIT, { id, exitCode })
+      }
+      const refSet = autoApproveRefs.get(managed.session.cwd)
+      if (refSet) {
+        refSet.delete(id)
+        if (refSet.size === 0) autoApproveRefs.delete(managed.session.cwd)
+        syncAutoApproveHook(managed.session.cwd).catch(() => {})
+      }
+      terminals.delete(id)
+      return
+    }
+    // Shell exited on its own (Ctrl+C cascade, `exit`, crash) → restart in place.
+    // Restore xterm out of any TUI leftover state a force-killed TUI failed to reset
+    // (alt screen, hidden cursor, mouse tracking), then spawn a fresh shell on the same id.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, {
+        id,
+        data: '\x1b[?1049l\x1b[?25h\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1l\x1b[0m\r\n[Process exited, restarting shell...]\r\n'
+      })
+    }
+    managed.pty = spawnPty(id, managed.session.cwd, managed.session.shell, managed.session.name, managed.autoUtf8, managed.cols, managed.rows)
+  })
+
+  return ptyProcess
+}
+
 export function registerPtyHandlers(win: BrowserWindow | null): void {
   mainWindow = win
 
@@ -141,22 +255,11 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
   ipcMain.handle(IPC_CHANNELS.PTY_CREATE, (_event, options: CreateTerminalOptions) => {
     try {
       const id = `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      const { shell, args } = resolveShell(options.shell)
       const cwd = options.cwd || process.cwd()
       const name = options.name || `Terminal ${terminals.size + 1}`
+      const autoUtf8 = options.autoUtf8 !== false
 
-      const ptyProcess = pty.spawn(shell, args, {
-        name: 'xterm-256color',
-        cols: 80,
-        rows: 24,
-        cwd,
-        env: Object.assign({}, process.env, {
-          LANG: 'en_US.UTF-8',
-          LC_ALL: 'en_US.UTF-8',
-          PYTHONUTF8: '1',
-          COLORTERM: 'truecolor'
-        }) as Record<string, string>
-      })
+      const ptyProcess = spawnPty(id, cwd, options.shell, name, autoUtf8)
 
       const session: TerminalSession = {
         id,
@@ -167,54 +270,7 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
         createdAt: Date.now()
       }
 
-      terminals.set(id, { pty: ptyProcess, session })
-
-      // 启动初始化（可通过 autoUtf8 设置关闭）
-      const doStartupInit = options.autoUtf8 !== false
-      let startupDone = !doStartupInit
-
-      ptyProcess.onData((data: string) => {
-        if (!startupDone) return
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, { id, data })
-        }
-      })
-
-      if (doStartupInit) {
-        // 延迟后：停止缓冲 → IPC 直清 xterm.js → chcp + Clear-Host 兜底
-        setTimeout(() => {
-          const managed = terminals.get(id)
-          if (!managed) return
-
-          startupDone = true
-
-          // IPC 直清 xterm.js（绕过 shell，无命令回显）
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, {
-              id,
-              data: '\x1b[2J\x1b[3J\x1b[H'
-            })
-          }
-
-          const shellName = shell.toLowerCase()
-          if (shellName.includes('powershell') || shellName.includes('pwsh')) {
-            managed.pty.write('chcp 65001 >$null\r')
-            managed.pty.write('Clear-Host\r')
-          } else if (shellName.includes('cmd')) {
-            managed.pty.write('chcp 65001 >nul\r')
-            managed.pty.write('cls\r')
-          }
-          // git-bash / wsl: ANSI clear 已足够，无需额外命令
-        }, 600)
-      }
-
-      // Handle terminal exit
-      ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IPC_CHANNELS.PTY_EXIT, { id, exitCode })
-        }
-        terminals.delete(id)
-      })
+      terminals.set(id, { pty: ptyProcess, session, autoUtf8, cols: 80, rows: 24, restarts: [] })
 
       return session
     } catch (err: any) {
@@ -240,6 +296,8 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
     const managed = terminals.get(id)
     if (managed) {
       managed.pty.resize(cols, rows)
+      managed.cols = cols
+      managed.rows = rows
     }
   })
 

@@ -879,7 +879,13 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
     exitHandlerRef.current = window.api.terminal.onExit((data: { id: string; exitCode: number }) => {
       if (data.id === sessionId && xtermRef.current) {
-        xtermRef.current.write(`\r\n[Process exited with code ${data.exitCode}]\r\n`)
+        const term = xtermRef.current
+        // Restore xterm out of any TUI leftover state a force-killed TUI failed to reset
+        // (alt screen / hidden cursor / mouse tracking), then show exit line.
+        term.write('\x1b[?1049l\x1b[?25h\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1l\x1b[0m')
+        const code = data.exitCode
+        const suffix = (code === undefined || code === null) ? '' : ` with code ${code}`
+        term.write(`\r\n[Process exited${suffix}]\r\n`)
       }
     })
 
