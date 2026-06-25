@@ -249,7 +249,7 @@ function MermaidBlock({ code }: { code: string }) {
   )
 }
 
-function CodeBlock({ language, code }: { language: string; code: string }) {
+function CodeBlock({ language, code, onColorized }: { language: string; code: string; onColorized?: () => void }) {
   const { theme } = useTheme()
   const [html, setHtml] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -278,7 +278,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
         if (cancelled) return
         monaco.editor.colorize(code, monacoLang, { theme: theme.monacoTheme }).then((h: string) => {
           colorizeDone()
-          if (!cancelled) setHtml(h)
+          if (!cancelled) { setHtml(h); onColorized?.() }
         }).catch(colorizeDone)
       })
     })
@@ -315,7 +315,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   )
 }
 
-function getMarkdownCodeOverrides(): Record<string, React.ComponentType<any>> {
+function getMarkdownCodeOverrides(onColorized?: () => void): Record<string, React.ComponentType<any>> {
   return {
     pre: ({ children }: any) => <>{children}</>,
     code: ({ className, children, ...props }: any) => {
@@ -325,7 +325,7 @@ function getMarkdownCodeOverrides(): Record<string, React.ComponentType<any>> {
         return <MermaidErrorBoundary code={code}><MermaidBlock code={code} /></MermaidErrorBoundary>
       }
       if (match || code.includes('\n')) {
-        return <CodeBlock language={match?.[1] ?? 'plaintext'} code={code} />
+        return <CodeBlock language={match?.[1] ?? 'plaintext'} code={code} onColorized={onColorized} />
       }
       return <code className={className} {...props}>{children}</code>
     },

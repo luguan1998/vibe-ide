@@ -103,7 +103,7 @@ function applyMarks(matches: TextMatch[], currentIdx: number): HTMLElement[] {
       const mark = document.createElement('mark')
       mark.className = 'md-search-match' + (gi === currentIdx ? ' md-search-match-current' : '')
       range.surroundContents(mark)
-      marks.push(mark)
+      marks[gi] = mark
     }
   })
   return marks
@@ -131,6 +131,13 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   const marksRef = useRef<HTMLElement[]>([])
   const searchOpenRef = useRef(false)
   searchOpenRef.current = searchOpen
+  // 用 ref 同步 query/matchIndex：onColorized 路径直接操作 DOM 重新高亮（不 set React state）。
+  // 否则 colorize 完成 → setMatchCount/重渲染 → components.code 引用变 → CodeBlock remount
+  // → 又触发 colorize → onColorized … 无限重渲染，页面卡死。
+  const queryRef = useRef('')
+  const matchIndexRef = useRef(0)
+  queryRef.current = query
+  matchIndexRef.current = matchIndex
 
   const handleLinkClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
@@ -151,20 +158,55 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   }, [])
 
   // Re-run highlight + count whenever query / current index / content / open state changes.
-  const runSearch = useCallback(() => {
+  // 在 contentRef DOM 上重新收集并高亮。updateCount=false 时不 setMatchCount（用于 onColorized：
+  // colorize 后只补 mark，避免触发重渲染造成 components 重建 → CodeBlock remount → 死循环）。
+  const refreshHighlight = useCallback((updateCount: boolean, scroll: boolean) => {
     const root = contentRef.current
     if (!root) return
     clearMarks(marksRef.current)
     marksRef.current = []
-    const q = query.trim()
-    if (!q) { setMatchCount(0); return }
+    const q = queryRef.current.trim()
+    if (!q) { if (updateCount) setMatchCount(0); return }
     const matches = collectTextMatches(root, q.toLowerCase())
-    const cur = matches.length > 0 ? ((matchIndex % matches.length) + matches.length) % matches.length : 0
+    const cur = matches.length > 0 ? ((matchIndexRef.current % matches.length) + matches.length) % matches.length : 0
     const marks = applyMarks(matches, cur)
     marksRef.current = marks
-    setMatchCount(matches.length)
-    marks[cur]?.scrollIntoView({ block: 'center' })
-  }, [query, matchIndex])
+    if (updateCount) setMatchCount(matches.length)
+    if (scroll) marks[cur]?.scrollIntoView({ block: 'center' })
+  }, [])
+
+  const runSearch = useCallback(() => {
+    refreshHighlight(true, true)
+  }, [refreshHighlight])
+
+  // 回调与 overrides 都 memoize：保证 components.code 引用稳定，CodeBlock 不会因
+  // MarkdownPreview 重渲染而 remount → 不反复 colorize（fallback↔HTML 闪烁、mark 反复丢失）。
+  const handleColorized = useCallback(() => refreshHighlight(false, false), [refreshHighlight])
+  const codeOverrides = useMemo(() => getMarkdownCodeOverrides(handleColorized), [handleColorized])
+  // 整个 components + remarkPlugins 都 memoize：MarkdownPreview 每次重渲染时引用不变，
+  // ReactMarkdown 不重渲染子树 → CodeBlock/h1/img 都不 remount → 无 colorize 闪烁、图片不重载。
+  const remarkPlugins = useMemo(() => [remarkGfm], [])
+  const mdComponents = useMemo(() => ({
+    ...codeOverrides,
+    h1: ({ children }: any) => { const text = extractText(children); return <h1 id={slugify(text)}>{children}</h1> },
+    h2: ({ children }: any) => { const text = extractText(children); return <h2 id={slugify(text)}>{children}</h2> },
+    h3: ({ children }: any) => { const text = extractText(children); return <h3 id={slugify(text)}>{children}</h3> },
+    h4: ({ children }: any) => { const text = extractText(children); return <h4 id={slugify(text)}>{children}</h4> },
+    h5: ({ children }: any) => { const text = extractText(children); return <h5 id={slugify(text)}>{children}</h5> },
+    h6: ({ children }: any) => { const text = extractText(children); return <h6 id={slugify(text)}>{children}</h6> },
+    a: ({ href, children, ...props }: any) => <a href={href} onClick={handleLinkClick} {...props}>{children}</a>,
+    img: ({ src, alt, ...props }: any) => {
+      const resolvedSrc = useMemo(() => {
+        if (!src || /^(https?:|data:|#)/i.test(src)) return src
+        const absPath = resolveImagePath(src, fullPath)
+        if (!absPath) return src
+        const sep = absPath.includes('\\') ? '\\' : '/'
+        const parts = absPath.split(sep)
+        return 'file:///' + parts.map(p => encodeURIComponent(p)).join('/')
+      }, [src, fullPath])
+      return <img src={resolvedSrc} alt={alt} {...props} />
+    }
+  }), [codeOverrides, handleLinkClick, fullPath])
 
   // Ctrl+F trigger from App.tsx → open search bar.
   // First-open focus is handled by the searchOpen effect below; if the bar
@@ -186,7 +228,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
 
   useEffect(() => {
     runSearch()
-  }, [runSearch, content, searchOpen])
+  }, [runSearch, content, searchOpen, query, matchIndex])
 
   // Scroll to heading when outline triggers navigation
   useEffect(() => {
@@ -290,27 +332,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
                 ))}
               </div>
             )}
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-              ...getMarkdownCodeOverrides(),
-              h1: ({ children }) => { const text = extractText(children); return <h1 id={slugify(text)}>{children}</h1> },
-              h2: ({ children }) => { const text = extractText(children); return <h2 id={slugify(text)}>{children}</h2> },
-              h3: ({ children }) => { const text = extractText(children); return <h3 id={slugify(text)}>{children}</h3> },
-              h4: ({ children }) => { const text = extractText(children); return <h4 id={slugify(text)}>{children}</h4> },
-              h5: ({ children }) => { const text = extractText(children); return <h5 id={slugify(text)}>{children}</h5> },
-              h6: ({ children }) => { const text = extractText(children); return <h6 id={slugify(text)}>{children}</h6> },
-              a: ({ href, children, ...props }) => <a href={href} onClick={handleLinkClick} {...props}>{children}</a>,
-              img: ({ src, alt, ...props }) => {
-                const resolvedSrc = useMemo(() => {
-                  if (!src || /^(https?:|data:|#)/i.test(src)) return src
-                  const absPath = resolveImagePath(src, fullPath)
-                  if (!absPath) return src
-                  const sep = absPath.includes('\\') ? '\\' : '/'
-                  const parts = absPath.split(sep)
-                  return 'file:///' + parts.map(p => encodeURIComponent(p)).join('/')
-                }, [src, fullPath])
-                return <img src={resolvedSrc} alt={alt} {...props} />
-              }
-            }}>
+            <ReactMarkdown remarkPlugins={remarkPlugins} components={mdComponents}>
               {content}
             </ReactMarkdown>
           </div>
