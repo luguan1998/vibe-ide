@@ -144,6 +144,11 @@ const ZH_MAP: Record<string, string> = {
   'Refresh': '刷新',
   'Capsule Tabs': '胶囊选项卡',
   'Use capsule-style tab bar instead of icon buttons.': '使用胶囊风格选项卡替代方形图标按钮。',
+  'Group Sessions by Folder': '按目录分组',
+  'Group sessions by their working directory. Off = flat list with cwd under each item.': '按工作目录分组显示会话。关闭则平铺，每条下方显示目录。',
+  'UI Style Settings': 'UI 样式设置',
+  'Terminal Font Size': '终端字体大小',
+  'Editor Font Size': '编辑器字体大小',
   'ESC Auto @ Selection': 'ESC 自动 @ 选中行',
   'When pressing ESC in diff view with text selected, auto-insert @filepath:line into the terminal.': '在 diff 界面选中文字后按 ESC，自动将 @文件路径:行号 输入到终端。',
 

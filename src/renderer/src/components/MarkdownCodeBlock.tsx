@@ -98,10 +98,12 @@ function MermaidBlock({ code }: { code: string }) {
           startOnLoad: false,
           theme: isDark ? 'dark' : 'default',
           securityLevel: 'loose',
+          // 失败时 mermaid 自己清掉 append 到 body 的临时容器再 throw，否则残留 div 带 "Syntax error" SVG 永不消失
+          suppressErrorRendering: true,
         })
         mermaidInitialized = true
       } else {
-        mermaid.initialize({ theme: isDark ? 'dark' : 'default' })
+        mermaid.initialize({ theme: isDark ? 'dark' : 'default', suppressErrorRendering: true })
       }
     } catch (err: any) {
       if (!cancelled) {
@@ -124,7 +126,11 @@ function MermaidBlock({ code }: { code: string }) {
         }
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      // 兜底清掉 mermaid 失败时 append 到 body 的临时容器（d{id}/iframe），防历史残留与时序漏网
+      document.querySelectorAll('body > div[id^="dmermaid-"], body > iframe[id^="imermaid-"]').forEach(el => el.remove())
+    }
   }, [code, theme.monacoTheme])
 
   useEffect(() => {

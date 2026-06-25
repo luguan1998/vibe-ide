@@ -360,6 +360,9 @@ export default function App() {
   const [capsuleTabs, setCapsuleTabs] = useState(() => {
     try { return localStorage.getItem('vibe-ide-capsule-tabs') !== 'false' } catch { return true }
   })
+  const [groupSessionsByCwd, setGroupSessionsByCwd] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-group-sessions-by-cwd') !== 'false' } catch { return true }
+  })
   const [escAutoAt, setEscAutoAt] = useState(() => {
     try { return localStorage.getItem('vibe-ide-esc-auto-at') === 'true' } catch { return false }
   })
@@ -584,6 +587,9 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-capsule-tabs', String(capsuleTabs)) } catch {}
   }, [capsuleTabs])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-group-sessions-by-cwd', String(groupSessionsByCwd)) } catch {}
+  }, [groupSessionsByCwd])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-esc-auto-at', String(escAutoAt)) } catch {}
   }, [escAutoAt])
@@ -1810,8 +1816,14 @@ export default function App() {
             onToggleInlineDiff={setInlineDiff}
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={setCapsuleTabs}
+            groupSessionsByCwd={groupSessionsByCwd}
+            onToggleGroupSessionsByCwd={setGroupSessionsByCwd}
             escAutoAt={escAutoAt}
             onToggleEscAutoAt={setEscAutoAt}
+            terminalFontSize={terminalFontSize}
+            editorFontSize={editorFontSize}
+            onAdjustTerminalFontSize={(delta: number) => setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))}
+            onAdjustEditorFontSize={(delta: number) => setEditorFontSize(prev => Math.max(8, Math.min(30, prev + delta)))}
             fileTreeDepth={fileTreeDepth}
             onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}

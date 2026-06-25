@@ -154,6 +154,12 @@ interface SessionPanelProps {
   onInitCommand?: (command: string) => void
   sessionViewModes?: Record<string, 'term' | 'gui'>
   onSwitchViewMode?: (sessionId: string, mode: 'term' | 'gui') => void
+  groupSessionsByCwd?: boolean
+  onToggleGroupSessionsByCwd?: (v: boolean) => void
+  terminalFontSize?: number
+  editorFontSize?: number
+  onAdjustTerminalFontSize?: (delta: number) => void
+  onAdjustEditorFontSize?: (delta: number) => void
 }
 
 const SessionPanel = React.memo(function SessionPanel({
@@ -195,6 +201,12 @@ const SessionPanel = React.memo(function SessionPanel({
   onInitCommand,
   sessionViewModes = {},
   onSwitchViewMode,
+  groupSessionsByCwd = true,
+  onToggleGroupSessionsByCwd,
+  terminalFontSize = 14,
+  editorFontSize = 14,
+  onAdjustTerminalFontSize,
+  onAdjustEditorFontSize,
 }: SessionPanelProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [appVersion, setAppVersion] = useState('')
@@ -220,6 +232,7 @@ const SessionPanel = React.memo(function SessionPanel({
   const [cwdEmojiDraft, setCwdEmojiDraft] = useState('')
   const [sessionEmojiDraft, setSessionEmojiDraft] = useState('')
   const [showOtherOptions, setShowOtherOptions] = useState(false)
+  const [showUiStyleModal, setShowUiStyleModal] = useState(false)
 
   // 池变更时清理失效 override（用户在 modal 删了被 override 引用的 emoji 时）
   useEffect(() => {
@@ -399,6 +412,19 @@ const SessionPanel = React.memo(function SessionPanel({
     return () => document.removeEventListener('keydown', handler, true)
   }, [showOtherOptions])
 
+  // ESC handler for UI Style modal (capture phase per CLAUDE.md rule #8)
+  useEffect(() => {
+    if (!showUiStyleModal) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
+        setShowUiStyleModal(false)
+      }
+    }
+    document.addEventListener('keydown', handler, true)
+    return () => document.removeEventListener('keydown', handler, true)
+  }, [showUiStyleModal])
+
   // ESC handler for CLI Config modal (capture phase per CLAUDE.md rule #8)
   useEffect(() => {
     if (!showCliConfigModal) return
@@ -458,6 +484,178 @@ const SessionPanel = React.memo(function SessionPanel({
     const idle = total - running
     return { running, idle }
   }, [sessions, agentStatus])
+
+  const renderSessionItem = (
+    session: TerminalSession,
+    dragIdx: number,
+    opts: { showAutoApprove: boolean; showCwd: boolean; outerClass: string; nameClass: string; minHeightClass: string }
+  ) => (
+    <div
+      key={session.id}
+      draggable={!!onReorderSessions}
+      className={`group ${opts.outerClass} ${
+        session.id === activeSessionId
+          ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
+          : agentStatus[session.id] === 'running'
+            ? 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text border-l-[3px] border-ide-accent/60'
+            : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
+      } ${dragIndex === dragIdx ? 'opacity-40' : ''} ${dropIndex === dragIdx && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
+      onClick={() => onSwitchSession(session.id)}
+      onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
+      onContextMenu={(e) => handleContextMenu(e, session.id)}
+      onMouseEnter={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect()
+        hoverTimerRef.current = setTimeout(() => {
+          setHoverPreview({ sessionId: session.id, name: session.name, left: rect.right + 6, top: rect.top })
+        }, 600)
+      }}
+      onMouseLeave={() => {
+        if (hoverTimerRef.current) {
+          clearTimeout(hoverTimerRef.current)
+        }
+        hoverTimerRef.current = setTimeout(() => {
+          setHoverPreview(null)
+        }, 200)
+      }}
+      onDragStart={() => { setDragIndex(dragIdx); setDragGroupIndex(null); setDropGroupIndex(null) }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (dragIndex === null || dragIndex === dragIdx) {
+          setDropIndex(null)
+          return
+        }
+        const rect = e.currentTarget.getBoundingClientRect()
+        const midY = rect.top + rect.height / 2
+        setDropIndex(e.clientY < midY ? dragIdx : dragIdx + 1)
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        if (dragIndex !== null && dragIndex !== dragIdx) {
+          const toIndex = dropIndex !== null && dropIndex > dragIndex ? dropIndex - 1 : dropIndex ?? dragIdx
+          onReorderSessions?.(dragIndex, toIndex)
+        }
+        setDragIndex(null)
+        setDropIndex(null)
+        setDragGroupIndex(null)
+        setDropGroupIndex(null)
+      }}
+      onDragEnd={() => {
+        setDragIndex(null)
+        setDropIndex(null)
+        setDragGroupIndex(null)
+        setDropGroupIndex(null)
+      }}
+    >
+      <div className={`flex items-center justify-between ${opts.minHeightClass}`}>
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          {renaming === session.id ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleRename()
+                }
+                if (e.key === 'Escape') setRenaming(null)
+              }}
+              onBlur={handleRename}
+              className="bg-ide-bg border border-ide-accent rounded px-1 text-xs text-ide-text outline-none w-24"
+            />
+          ) : (
+            <>
+              {(() => {
+                const sessionEmoji = sessionEmojiOverrides[session.id] || stableEmojiForSession(session.id, sessionEmojis)
+                return (
+                  <span
+                    className="text-sm shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
+                    title={t('Click to cycle emoji')}
+                    draggable={false}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      if (sessionEmojis.length === 0) return
+                      const idx = sessionEmojis.indexOf(sessionEmoji)
+                      const next = sessionEmojis[(idx + 1) % sessionEmojis.length]
+                      setSessionEmojiOverrides(prev => ({ ...prev, [session.id]: next }))
+                    }}
+                    onContextMenu={(e) => e.stopPropagation()}
+                  >{sessionEmoji}</span>
+                )
+              })()}
+              <span className={`text-sm ${opts.nameClass} ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`} title={session.name}>{session.name}</span>
+            </>
+          )}
+        </div>
+        <div className="flex items-center">
+          {opts.showAutoApprove && onToggleAutoApprove && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleAutoApprove(session.id, session.cwd) }}
+              className={`w-5 h-5 rounded transition-all shrink-0 flex items-center justify-center ${
+                autoApproveSessions[session.id]
+                  ? 'text-ide-accent opacity-100'
+                  : 'text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white'
+              }`}
+              title={autoApproveSessions[session.id] ? t('Auto Approve: ON') : t('Auto Approve: OFF')}
+            >
+              {autoApproveSessions[session.id] ? <ShieldCheck size={13} /> : <Shield size={13} />}
+            </button>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onCloseSession(session.id)
+            }}
+            className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
+            title={t('Close Session')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      {opts.showCwd && (
+        <div
+          className="text-xs mt-0.5"
+          onMouseEnter={() => {
+            cwdHoverTimerRef.current = setTimeout(() => {
+              setCwdLinkSession(session.id)
+            }, 600)
+          }}
+          onMouseLeave={() => {
+            if (cwdHoverTimerRef.current) {
+              clearTimeout(cwdHoverTimerRef.current)
+              cwdHoverTimerRef.current = null
+            }
+            setCwdLinkSession(null)
+          }}
+        >
+          <span
+            className={`inline-block max-w-full truncate transition-all ${
+              cwdLinkSession === session.id
+                ? 'underline text-ide-text cursor-pointer bg-ide-accent/15 rounded px-0.5'
+                : 'text-ide-text-muted opacity-70'
+            }`}
+            title={cwdLinkSession === session.id ? t('Open in Explorer') : session.cwd.length > 18 ? session.cwd : undefined}
+            onClick={(e) => {
+              if (cwdLinkSession === session.id) {
+                e.stopPropagation()
+                window.api.file.openExplorer(session.cwd)
+              }
+            }}
+          >
+            {session.cwd.length > 20 ? session.cwd.replace(/^.*[\\\/]/, '') : session.cwd}
+          </span>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className={`flex flex-col${compact ? '' : ' h-full'}`}>
@@ -632,6 +830,17 @@ const SessionPanel = React.memo(function SessionPanel({
                     {t('File Filter Rules')}
                   </button>
                 </div>
+                {/* UI Style Settings */}
+                {(onToggleCapsuleTabs || onToggleGroupSessionsByCwd || onToggleInlineDiff || onAdjustTerminalFontSize || onAdjustEditorFontSize) && (
+                  <div className="border-t border-ide-border mt-1 pt-1">
+                    <button
+                      className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                      onClick={() => { setShowUiStyleModal(true); setShowConfigMenu(false) }}
+                    >
+                      {t('UI Style Settings')}
+                    </button>
+                  </div>
+                )}
                 {/* Other Options */}
                 {(onToggleWordWrap || onToggleAutoUtf8 || onTogglePolling || onToggleInlineDiff) && (
                   <div className="border-t border-ide-border mt-1 pt-1">
@@ -691,7 +900,7 @@ const SessionPanel = React.memo(function SessionPanel({
           <div className="h-full flex items-center justify-center text-ide-text-muted text-sm">
             No sessions yet
           </div>
-        ) : (
+        ) : groupSessionsByCwd ? (
           sessionGroups.map((group, gi) => {
             const dirName = group.cwd.replace(/^.*[\/]/, '')
             const cwdEmoji = getCwdEmoji(gi, cwdEmojis, cwdEmojiOverrides[group.cwd])
@@ -821,131 +1030,16 @@ const SessionPanel = React.memo(function SessionPanel({
                 <div>
                 {group.sessions.map((session) => {
                   const flatIdx = flatIndexMap.indexOf(sessions.findIndex(si => si.id === session.id))
-                  return (
-                    <div
-                      key={session.id}
-                      draggable={!!onReorderSessions}
-                      className={`group pl-4 pr-3 py-1 cursor-pointer transition-colors min-h-[44px] h-auto ${
-                        session.id === activeSessionId
-                          ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
-                          : agentStatus[session.id] === 'running'
-                            ? 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text border-l-[3px] border-ide-accent/60'
-                            : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-                      } ${dragIndex === flatIdx ? 'opacity-40' : ''} ${dropIndex === flatIdx && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
-                      onClick={() => onSwitchSession(session.id)}
-                      onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
-                      onContextMenu={(e) => handleContextMenu(e, session.id)}
-                      onMouseEnter={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        hoverTimerRef.current = setTimeout(() => {
-                          setHoverPreview({ sessionId: session.id, name: session.name, left: rect.right + 6, top: rect.top })
-                        }, 600)
-                      }}
-                      onMouseLeave={() => {
-                        if (hoverTimerRef.current) {
-                          clearTimeout(hoverTimerRef.current)
-                        }
-                        hoverTimerRef.current = setTimeout(() => {
-                          setHoverPreview(null)
-                        }, 200)
-                      }}
-                      onDragStart={() => { setDragIndex(flatIdx); setDragGroupIndex(null); setDropGroupIndex(null) }}
-                      onDragOver={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        if (dragIndex === null || dragIndex === flatIdx) {
-                          setDropIndex(null)
-                          return
-                        }
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        const midY = rect.top + rect.height / 2
-                        setDropIndex(e.clientY < midY ? flatIdx : flatIdx + 1)
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault()
-                        if (dragIndex !== null && dragIndex !== flatIdx) {
-                          const toIndex = dropIndex !== null && dropIndex > dragIndex ? dropIndex - 1 : dropIndex ?? flatIdx
-                          onReorderSessions?.(dragIndex, toIndex)
-                        }
-                        setDragIndex(null)
-                        setDropIndex(null)
-                        setDragGroupIndex(null)
-                        setDropGroupIndex(null)
-                      }}
-                      onDragEnd={() => {
-                        setDragIndex(null)
-                        setDropIndex(null)
-                        setDragGroupIndex(null)
-                        setDropGroupIndex(null)
-                      }}
-                    >
-                      <div className="flex items-center justify-between min-h-[44px]">
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          {renaming === session.id ? (
-                            <input
-                              ref={inputRef}
-                              type="text"
-                              value={newName}
-                              onChange={(e) => setNewName(e.target.value)}
-                              onKeyDown={(e) => {
-                                e.stopPropagation()
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                  handleRename()
-                                }
-                                if (e.key === 'Escape') setRenaming(null)
-                              }}
-                              onBlur={handleRename}
-                              className="bg-ide-bg border border-ide-accent rounded px-1 text-xs text-ide-text outline-none w-24"
-                            />
-                          ) : (
-                            <>
-                              {(() => {
-                                const sessionEmoji = sessionEmojiOverrides[session.id] || stableEmojiForSession(session.id, sessionEmojis)
-                                return (
-                                  <span
-                                    className="text-sm shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
-                                    title={t('Click to cycle emoji')}
-                                    draggable={false}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      e.preventDefault()
-                                      if (sessionEmojis.length === 0) return
-                                      const idx = sessionEmojis.indexOf(sessionEmoji)
-                                      const next = sessionEmojis[(idx + 1) % sessionEmojis.length]
-                                      setSessionEmojiOverrides(prev => ({ ...prev, [session.id]: next }))
-                                    }}
-                                    onContextMenu={(e) => e.stopPropagation()}
-                                  >{sessionEmoji}</span>
-                                )
-                              })()}
-                              <span className={`text-sm line-clamp-2 break-all ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}>{session.name}</span>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center">
-                        <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onCloseSession(session.id)
-                            }}
-                            className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
-                            title={t('Close Session')}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )
+                  return renderSessionItem(session, flatIdx, { showAutoApprove: false, showCwd: false, outerClass: 'pl-4 pr-3 py-1 cursor-pointer transition-colors min-h-[44px] h-auto', nameClass: 'line-clamp-2 break-all', minHeightClass: 'min-h-[44px]' })
                 })}
                 </div>
               </div>
             )
           })
+        ) : (
+          <div className="bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden">
+            {sessions.map((session, index) => renderSessionItem(session, index, { showAutoApprove: true, showCwd: true, outerClass: 'px-3 py-1 cursor-pointer transition-colors', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[32px]' }))}
+          </div>
         )}
         {dropGroupIndex !== null && dropGroupIndex === sessionGroups.length && dropGroupIndex !== dragGroupIndex && (
           <div className="mx-1 border-t-2 border-ide-accent mt-1" />
@@ -1453,15 +1547,34 @@ const SessionPanel = React.memo(function SessionPanel({
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Poll git and file tree every 6s. Recommended: off (only for network drives where file watching is unreliable)')}</p>
                 </label>
               )}
-              {onToggleInlineDiff && (
+              {onToggleEscAutoAt && (
                 <label className="flex flex-col gap-0.5 cursor-pointer">
                   <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={inlineDiff} onChange={(e) => onToggleInlineDiff(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('Force Inline Diff')}</span>
+                    <input type="checkbox" checked={escAutoAt} onChange={(e) => onToggleEscAutoAt(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('ESC Auto @ Selection')}</span>
                   </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Force inline diff mode (revert button uses circular icon). Recommended: off (side-by-side reads better)')}</p>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('When pressing ESC in diff view with text selected, auto-insert @filepath:line into the terminal.')}</p>
                 </label>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* UI Style Modal */}
+      {showUiStyleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowUiStyleModal(false)}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[400px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+              <span className="text-sm font-semibold text-ide-text">{t('UI Style Settings')}</span>
+              <button
+                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                onClick={() => setShowUiStyleModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4 flex flex-col gap-4">
               {onToggleCapsuleTabs && (
                 <label className="flex flex-col gap-0.5 cursor-pointer">
                   <div className="flex items-center gap-2">
@@ -1471,14 +1584,59 @@ const SessionPanel = React.memo(function SessionPanel({
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Use capsule-style tab bar instead of icon buttons.')}</p>
                 </label>
               )}
-              {onToggleEscAutoAt && (
+              {onToggleGroupSessionsByCwd && (
                 <label className="flex flex-col gap-0.5 cursor-pointer">
                   <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={escAutoAt} onChange={(e) => onToggleEscAutoAt(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('ESC Auto @ Selection')}</span>
+                    <input type="checkbox" checked={groupSessionsByCwd} onChange={(e) => onToggleGroupSessionsByCwd(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('Group Sessions by Folder')}</span>
                   </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('When pressing ESC in diff view with text selected, auto-insert @filepath:line into the terminal.')}</p>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Group sessions by their working directory. Off = flat list with cwd under each item.')}</p>
                 </label>
+              )}
+              {onToggleInlineDiff && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={inlineDiff} onChange={(e) => onToggleInlineDiff(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('Force Inline Diff')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Force inline diff mode (revert button uses circular icon). Recommended: off (side-by-side reads better)')}</p>
+                </label>
+              )}
+              {onAdjustTerminalFontSize && (
+                <div className="flex items-center justify-between text-xs text-ide-text">
+                  <span className="whitespace-nowrap shrink-0">{t('Terminal Font Size')}</span>
+                  <div className="flex items-center gap-px">
+                    <button
+                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
+                      disabled={terminalFontSize <= 8}
+                      onClick={(e) => { e.stopPropagation(); onAdjustTerminalFontSize(-1) }}
+                    >{'<'}</button>
+                    <span className="text-center font-mono text-ide-accent font-bold text-xs leading-none w-5">{terminalFontSize}</span>
+                    <button
+                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
+                      disabled={terminalFontSize >= 30}
+                      onClick={(e) => { e.stopPropagation(); onAdjustTerminalFontSize(1) }}
+                    >{'>'}</button>
+                  </div>
+                </div>
+              )}
+              {onAdjustEditorFontSize && (
+                <div className="flex items-center justify-between text-xs text-ide-text">
+                  <span className="whitespace-nowrap shrink-0">{t('Editor Font Size')}</span>
+                  <div className="flex items-center gap-px">
+                    <button
+                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
+                      disabled={editorFontSize <= 8}
+                      onClick={(e) => { e.stopPropagation(); onAdjustEditorFontSize(-1) }}
+                    >{'<'}</button>
+                    <span className="text-center font-mono text-ide-accent font-bold text-xs leading-none w-5">{editorFontSize}</span>
+                    <button
+                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
+                      disabled={editorFontSize >= 30}
+                      onClick={(e) => { e.stopPropagation(); onAdjustEditorFontSize(1) }}
+                    >{'>'}</button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
