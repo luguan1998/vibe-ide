@@ -30,6 +30,7 @@ interface TerminalViewProps {
   onCommand?: (command: string) => void
   showHeader?: boolean
   fontSize?: number
+  fontFamily?: string
   isAux?: boolean
   isActive?: boolean
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
@@ -300,7 +301,7 @@ function findNextPrompt(buf: IBuffer, fromY: number): number {
   return -1
 }
 
-const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, isAux = false, isActive = true, ocrEnabled = true, onAgentStatusChange, onOscTitle, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
+const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, fontFamily = 'Cascadia Code', isAux = false, isActive = true, ocrEnabled = true, onAgentStatusChange, onOscTitle, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -426,7 +427,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     const bgImage = readTerminalBgImage()
     const term = new Terminal({
       theme: bgImage ? { ...currentTheme.terminal, background: 'transparent' } : currentTheme.terminal,
-      fontFamily: 'Cascadia Code, Consolas, JetBrains Mono, Fira Code, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace',
+      fontFamily: `${fontFamily}, Consolas, JetBrains Mono, Fira Code, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace`,
       fontSize,
       fontWeight: currentTheme.terminal.fontWeight || '400',
       letterSpacing: 0,
@@ -813,6 +814,12 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       try { fitAddonRef.current?.fit() } catch {}
     }
   }, [fontSize])
+  useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.options.fontFamily = `${fontFamily}, Consolas, JetBrains Mono, Fira Code, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace`
+      try { fitAddonRef.current?.fit() } catch {}
+    }
+  }, [fontFamily])
 
   // Listen for terminal data from PTY
   useEffect(() => {

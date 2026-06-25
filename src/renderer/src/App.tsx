@@ -413,6 +413,11 @@ export default function App() {
       return localStorage.getItem('vibe-ide-font-family') || 'Cascadia Code'
     } catch { return 'Cascadia Code' }
   })
+  const [termFontFamily, setTermFontFamily] = useState(() => {
+    try {
+      return localStorage.getItem('vibe-ide-term-font') || 'Cascadia Code'
+    } catch { return 'Cascadia Code' }
+  })
   const centerViewRef = React.useRef<CenterView>('terminal')
 
   // Keep ref in sync so IPC listener always sees latest centerView
@@ -590,6 +595,12 @@ export default function App() {
   React.useEffect(() => {
     document.documentElement.style.setProperty('--ide-font-family', fontFamily)
   }, [fontFamily])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-term-font', termFontFamily) } catch {}
+  }, [termFontFamily])
+  React.useEffect(() => {
+    document.documentElement.style.setProperty('--ide-term-font', termFontFamily)
+  }, [termFontFamily])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-word-wrap', String(wordWrap)) } catch {}
   }, [wordWrap])
@@ -1850,6 +1861,8 @@ export default function App() {
             onSetFontFamily={setSessionFontFamily}
             uiFontFamily={fontFamily}
             onSetUiFontFamily={setFontFamily}
+            termFontFamily={termFontFamily}
+            onSetTermFontFamily={setTermFontFamily}
             fileTreeDepth={fileTreeDepth}
             onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}
@@ -2005,7 +2018,7 @@ export default function App() {
                         onAgentStatusChange={handleAiAgentStatusChange}
                       />
                     ) : (
-                      <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
+                      <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
                     )}
                   </div>
                 )

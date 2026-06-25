@@ -164,6 +164,8 @@ interface SessionPanelProps {
   onSetFontFamily?: (font: string) => void
   uiFontFamily?: string
   onSetUiFontFamily?: (font: string) => void
+  termFontFamily?: string
+  onSetTermFontFamily?: (font: string) => void
 }
 
 const SessionPanel = React.memo(function SessionPanel({
@@ -215,6 +217,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onSetFontFamily,
   uiFontFamily = 'Cascadia Code',
   onSetUiFontFamily,
+  termFontFamily = 'Cascadia Code',
+  onSetTermFontFamily,
 }: SessionPanelProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [appVersion, setAppVersion] = useState('')
@@ -1690,6 +1694,30 @@ const SessionPanel = React.memo(function SessionPanel({
                     placeholder={t('Or type any font name…')}
                     value={uiFontFamily}
                     onChange={(e) => onSetUiFontFamily(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )}
+              {onSetTermFontFamily && (
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-xs text-ide-text">
+                    <span className="whitespace-nowrap shrink-0">{t('Terminal Font')}</span>
+                    <select
+                      className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
+                      value={termFontFamily}
+                      onChange={(e) => { if (e.target.value) onSetTermFontFamily(e.target.value) }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {['Cascadia Code', 'Consolas', 'JetBrains Mono', 'Fira Code', 'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Courier New', 'monospace'].map(f => (
+                        <option key={f} value={f}>{f}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent"
+                    placeholder={t('Or type any font name…')}
+                    value={termFontFamily}
+                    onChange={(e) => onSetTermFontFamily(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
                   />
                 </div>
