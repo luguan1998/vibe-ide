@@ -757,7 +757,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     <>
       {/* Branch info bar */}
       {status && (
-        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean">
+        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean git-tab__header">
           <div className="flex items-center gap-1 min-w-0 flex-1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
               <line x1="6" y1="3" x2="6" y2="15" />
@@ -765,7 +765,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               <circle cx="6" cy="18" r="3" />
               <path d="M18 9a9 9 0 0 0-9 9" />
             </svg>
-            <span className="text-sm text-ide-text font-medium truncate">{status.branch}</span>
+            <span className="text-sm text-ide-text font-medium truncate git-tab__branch-name">{status.branch}</span>
             {status.ahead > 0 && <span className="text-ide-success text-[11px]">↑{status.ahead}</span>}
             {status.behind > 0 && <span className="text-ide-warning text-[11px]">↓{status.behind}</span>}
           </div>
@@ -782,7 +782,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       )}
 
       {/* Content */}
-      <div ref={containerRef} tabIndex={-1} className="git-tab-container flex-1 min-h-0 overflow-y-auto flex flex-col outline-none focus:outline-none focus:ring-0">
+      <div ref={containerRef} tabIndex={-1} className="git-tab-container flex-1 min-h-0 overflow-y-auto flex flex-col outline-none focus:outline-none focus:ring-0 git-tab">
         {message && (
           <div className="px-3 py-2 text-sm text-ide-accent bg-ide-accent/10 animate-fade-in">
             <p>{message}</p>
@@ -820,13 +820,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           <div className="flex flex-col">
             {/* Staged Changes */}
             {status?.files?.filter(f => f.staged).length > 0 && (
-              <div className="border-b border-ide-border">
+              <div className="border-b border-ide-border git-tab__section">
                 {(() => {
                   const stagedFiles = status.files.filter(f => f.staged)
                   const stats = calcFileStats(stagedFiles)
                   return (
                     <div
-                      className={`pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between ${focusedHeaderSection === 'staged' ? 'bg-ide-accent/10' : ''}`}
+                      className={`pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between git-tab__section-header ${focusedHeaderSection === 'staged' ? 'bg-ide-accent/10' : ''}`}
                       onClick={() => setStagedExpanded(!stagedExpanded)}
                     >
                       <div className="flex items-center gap-1">
@@ -860,7 +860,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   return (
                   <div
                     key={`staged-${file.path}`}
-                    className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
+                    className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 git-tab__file-item ${
                       focusedFileKey === `staged:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
                     onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'staged' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
@@ -892,13 +892,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
             {/* Unstaged Changes */}
             {status?.files?.filter(f => !f.staged && f.status !== 'untracked').length > 0 && (
-              <div className="border-b border-ide-border">
+              <div className="border-b border-ide-border git-tab__section">
                 {(() => {
                   const modifiedFiles = status.files.filter(f => !f.staged && f.status !== 'untracked')
                   const stats = calcFileStats(modifiedFiles)
                   return (
                     <div
-                      className={`pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between ${focusedHeaderSection === 'unstaged' ? 'bg-ide-accent/10' : ''}`}
+                      className={`pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between git-tab__section-header ${focusedHeaderSection === 'unstaged' ? 'bg-ide-accent/10' : ''}`}
                       onClick={() => setChangesExpanded(!changesExpanded)}
                     >
                       <div className="flex items-center gap-1">
@@ -941,7 +941,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   return (
                   <div
                     key={`unstaged-${file.path}`}
-                    className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
+                    className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 git-tab__file-item ${
                       focusedFileKey === `unstaged:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
                     onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'unstaged' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
@@ -980,9 +980,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
             {/* Untracked Files */}
             {status?.files?.filter(f => f.status === 'untracked').length > 0 && (
-              <div className="border-b border-ide-border">
+              <div className="border-b border-ide-border git-tab__section">
                 <div
-                  className={`pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between ${focusedHeaderSection === 'untracked' ? 'bg-ide-accent/10' : ''}`}
+                  className={`pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between git-tab__section-header ${focusedHeaderSection === 'untracked' ? 'bg-ide-accent/10' : ''}`}
                   onClick={() => setUntrackedExpanded(!untrackedExpanded)}
                 >
                   <div className="flex items-center gap-1">
@@ -1026,7 +1026,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   return (
                   <div
                     key={`untracked-${file.path}`}
-                    className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 ${
+                    className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 git-tab__file-item ${
                       focusedFileKey === `untracked:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
                     onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'untracked' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
@@ -1351,7 +1351,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
       {/* Commit area */}
       {status && (
-        <div className="shrink-0 border-t border-ide-border p-3">
+        <div className="shrink-0 border-t border-ide-border p-3 git-tab__commit-area">
           {/* Quick actions */}
           <div className="flex gap-2 mb-2">
             <button
@@ -1438,7 +1438,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   } catch {}
                   el.dispatchEvent(new Event('input', { bubbles: true }))
                 }}
-                className={`w-full h-20 text-xs bg-ide-bg border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50 disabled:opacity-40 ${focusedCommit ? 'border-ide-accent bg-ide-accent/5' : 'border-ide-border'}`}
+                className={`w-full h-20 text-xs bg-ide-bg border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50 disabled:opacity-40 git-tab__commit-input ${focusedCommit ? 'border-ide-accent bg-ide-accent/5' : 'border-ide-border'}`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.ctrlKey) handleCommit()
                   if (e.key === 'Escape') {
@@ -1460,7 +1460,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               <button
                 onClick={handleCommit}
                 disabled={busy || !commitMessage.trim() || !status?.files?.some(f => f.staged) || hasConflictInStaged}
-                className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed git-tab__commit-btn"
               >
                 {t('Commit (Ctrl+Enter)')}
               </button>

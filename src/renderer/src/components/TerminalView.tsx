@@ -13,7 +13,7 @@ import { loadFilterRules } from './FileTab'
 import { EDITABLE_EXTENSIONS, FILE_PATH_REGEX, parseFilePath, isBareFilename } from '../utils/filePathUtils'
 import '@xterm/xterm/css/xterm.css'
 
-// 读取 user.css 设的终端背景图变量；为空则无背景图（重启生效，不热加载）
+// 读取 snippets CSS 设的终端背景图变量；为空则无背景图（重启生效，不热加载）
 function readTerminalBgImage(): string {
   try {
     return getComputedStyle(document.documentElement).getPropertyValue('--terminal-bg-image').trim()
@@ -1090,10 +1090,10 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   }, [])
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full term-view">
       {/* Terminal tab header - 可选显示 */}
       {showHeader && (
-        <div className="h-10 px-3 flex items-center border-b border-ide-border shrink-0 bg-ide-sidebar/50">
+        <div className="h-10 px-3 flex items-center border-b border-ide-border shrink-0 bg-ide-sidebar/50 term-view__header">
           <span className="text-sm text-ide-text-muted">{sessionName || sessionId.slice(0, 12)}</span>
           {sessionCwd && <span className="text-xs text-ide-text-muted ml-2 opacity-70 truncate">{sessionCwd}</span>}
         </div>
@@ -1103,13 +1103,12 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           h-full resolves to auto when parent is a flex item without explicit height,
           making terminalRef content-sized → xterm.js stale canvas height prevents shrinking. */}
       <div
-        className="flex-1 overflow-hidden pt-1 flex flex-col relative"
-        style={isAux ? { backgroundColor: currentTheme.terminal.background } : undefined}
+        className="flex-1 overflow-hidden flex flex-col relative term-view__canvas"
         onContextMenu={handleContextMenu}
       >
         <div ref={terminalRef} className="flex-1 min-h-0 relative">
           {bgImage && (
-            <div className="absolute inset-0 -z-10 pointer-events-none" style={{
+            <div className="absolute inset-0 -z-10 pointer-events-none term-view__bg-overlay" style={{
               backgroundImage: `linear-gradient(var(--terminal-bg-overlay, transparent), var(--terminal-bg-overlay, transparent)), var(--terminal-bg-image)`,
               backgroundSize: 'cover, cover',
               backgroundPosition: 'center, center',
@@ -1118,7 +1117,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           {/* OCR drag overlay */}
           {ocrState !== 'idle' && (
             <div
-              className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
+              className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none term-view__ocr-overlay"
               style={{ backgroundColor: currentTheme.terminal.background }}
             >
               <div className="flex flex-col items-center gap-3 px-6 py-5 rounded-xl border shadow-2xl pointer-events-auto"
@@ -1177,7 +1176,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
         {/* Terminal search bar — VSCode-style */}
         {searchState?.visible && (
-          <div className="absolute top-2 right-3 flex items-center border border-ide-border/60 rounded shadow-md z-10"
+          <div className="absolute top-2 right-3 flex items-center border border-ide-border/60 rounded shadow-md z-10 term-view__search"
             style={{ backgroundColor: currentTheme.terminal.background }}>
             <div className="flex items-center gap-1 px-2 py-0.5">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 text-ide-text-muted/50 shrink-0">
@@ -1190,7 +1189,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
                   if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); searchAddonRef.current?.clearDecorations(); setSearchState(null) }
                 }}
                 placeholder="Crunched"
-                className="bg-transparent text-[13px] text-ide-text outline-none w-44 placeholder:text-ide-text-muted/40" />
+                className="bg-transparent text-[13px] text-ide-text outline-none w-44 placeholder:text-ide-text-muted/40 term-view__search-input" />
             </div>
             {searchState.count > 0 && (
               <span className="text-[11px] text-ide-text-muted/50 tabular-nums shrink-0 mr-1">
@@ -1218,7 +1217,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       {/* File Picker Modal — 多文件匹配选择器 */}
       {filePicker && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 term-view__filepicker"
           onClick={() => setFilePicker(null)}
         >
           <div
@@ -1248,7 +1247,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
                 return (
                   <button
                     key={fullPath}
-                    className="w-full text-left px-3 py-2 rounded hover:bg-ide-hover transition-colors"
+                    className="w-full text-left px-3 py-2 rounded hover:bg-ide-hover transition-colors term-view__filepicker-item"
                     onClick={() => {
                       if (onOpenFile) onOpenFile(fullPath, filePicker.lineNumber)
                       setFilePicker(null)

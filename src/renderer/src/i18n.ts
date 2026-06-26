@@ -147,6 +147,7 @@ const ZH_MAP: Record<string, string> = {
   'Group Sessions by Folder': '按目录分组',
   'Group sessions by their working directory. Off = flat list with cwd under each item.': '按工作目录分组显示会话。关闭则平铺，每条下方显示目录。',
   'UI Style': 'UI 样式',
+  'CSS Snippets': 'CSS 片段',
   'Terminal Font Size': '终端字体大小',
   'Editor Font Size': '编辑器字体大小',
   'Recommended': '推荐',

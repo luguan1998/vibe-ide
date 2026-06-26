@@ -169,8 +169,12 @@ declare global {
         onError: (callback: (data: { sessionId: string; error: string }) => void) => any
         removeErrorListener: (handler?: any) => void
       }
-    }
+      snippets: {
+        load: () => Promise<import('@shared/types').SnippetsLoadResult>
+        toggle: (filename: string, enabled: boolean) => Promise<import('@shared/types').SnippetsLoadResult>
       }
+    }
+  }
 }
 
 type CenterView = 'terminal' | 'diff' | 'markdown' | 'image'

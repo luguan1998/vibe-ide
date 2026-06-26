@@ -169,9 +169,10 @@ const api = {
   // App
   appVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_VERSION) as Promise<string>,
 
-  // 用户自定义 CSS（覆盖 globals.css，重启生效）
-  userCss: {
-    load: () => ipcRenderer.invoke(IPC_CHANNELS.USER_CSS_LOAD) as Promise<string>
+  // CSS snippets（exe 同目录 snippets/ 文件夹，snippets.json 控制启用/禁用）
+  snippets: {
+    load: () => ipcRenderer.invoke(IPC_CHANNELS.SNIPPETS_LOAD) as Promise<import('../shared/types').SnippetsLoadResult>,
+    toggle: (filename: string, enabled: boolean) => ipcRenderer.invoke(IPC_CHANNELS.SNIPPETS_TOGGLE, filename, enabled) as Promise<import('../shared/types').SnippetsLoadResult>
   },
 
   // Perf

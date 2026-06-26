@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { TerminalSession } from '@shared/types'
+import { TerminalSession, SnippetInfo } from '@shared/types'
 import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus } from 'lucide-react'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
@@ -337,6 +337,9 @@ const SessionPanel = React.memo(function SessionPanel({
   const cwdHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [cwdLinkSession, setCwdLinkSession] = useState<string | null>(null)
   const themeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [showSnippetsFlyout, setShowSnippetsFlyout] = useState(false)
+  const [snippetsList, setSnippetsList] = useState<SnippetInfo[]>([])
+  const snippetsFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const configBtnRef = useRef<HTMLButtonElement>(null)
   const [configMenuStyle, setConfigMenuStyle] = useState<React.CSSProperties>({})
   const [flyoutOnLeft, setFlyoutOnLeft] = useState(false)
@@ -498,6 +501,26 @@ const SessionPanel = React.memo(function SessionPanel({
 
   useEffect(() => { window.api.appVersion().then(setAppVersion).catch(() => {}) }, [])
 
+  // 打开配置菜单时加载 snippets 列表
+  useEffect(() => {
+    if (showConfigMenu) {
+      window.api.snippets.load().then(r => setSnippetsList(r.snippets)).catch(() => {})
+    }
+  }, [showConfigMenu])
+
+  const handleSnippetToggle = async (filename: string, enabled: boolean) => {
+    const result = await window.api.snippets.toggle(filename, enabled)
+    setSnippetsList(result.snippets)
+    const style = document.getElementById('custom-css')
+    if (style) { style.textContent = result.css }
+    else if (result.css) {
+      const s = document.createElement('style')
+      s.id = 'custom-css'
+      s.textContent = result.css
+      document.head.appendChild(s)
+    }
+  }
+
   const handleContextMenu = (e: React.MouseEvent, sessionId: string) => {
     e.preventDefault()
     e.stopPropagation()
@@ -544,7 +567,9 @@ const SessionPanel = React.memo(function SessionPanel({
     <div
       key={session.id}
       draggable={!!onReorderSessions}
-      className={`group ${opts.outerClass} ${
+      className={`group ${opts.outerClass} session-item${
+        session.id === activeSessionId ? ' session-item--active' : ''
+      } ${
         session.id === activeSessionId
           ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
           : agentStatus[session.id] === 'running'
@@ -623,7 +648,7 @@ const SessionPanel = React.memo(function SessionPanel({
                 const sessionEmoji = sessionEmojiOverrides[session.id] || stableEmojiForSession(session.id, sessionEmojis)
                 return (
                   <span
-                    className="text-sm shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
+                    className="text-sm shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors session-item__icon"
                     title={t('Click to cycle emoji')}
                     draggable={false}
                     onClick={(e) => {
@@ -638,11 +663,11 @@ const SessionPanel = React.memo(function SessionPanel({
                   >{sessionEmoji}</span>
                 )
               })()}
-              <span className={`text-sm ${opts.nameClass} ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`} title={session.name}>{session.name}</span>
+              <span className={`text-sm ${opts.nameClass} session-item__name ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`} title={session.name}>{session.name}</span>
             </>
           )}
         </div>
-        <div className={`flex items-center ${opts.showCwd ? 'absolute right-3 top-1/2 -translate-y-1/2' : ''}`}>
+        <div className={`flex items-center session-item__actions ${opts.showCwd ? 'absolute right-3 top-1/2 -translate-y-1/2' : ''}`}>
           {opts.showAutoApprove && onToggleAutoApprove && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleAutoApprove(session.id, session.cwd) }}
@@ -673,7 +698,7 @@ const SessionPanel = React.memo(function SessionPanel({
       </div>
       {opts.showCwd && (
         <div
-          className="text-xs mt-0.5"
+          className="text-xs mt-0.5 session-item__cwd"
           onMouseEnter={() => {
             cwdHoverTimerRef.current = setTimeout(() => {
               setCwdLinkSession(session.id)
@@ -709,12 +734,12 @@ const SessionPanel = React.memo(function SessionPanel({
   )
 
   return (
-    <div className={`flex flex-col${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
+    <div className={`flex flex-col session-panel${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
       {/* Header + Dashboard merged */}
-      <div className="h-10 px-5 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-1.5">
+      <div className="h-10 px-5 flex items-center justify-between shrink-0 session-panel__header">
+        <div className="flex items-center gap-1.5 session-panel__stats">
           <span
-            className={`flex items-center gap-1 px-2 py-0.5 rounded transition-colors ${
+            className={`flex items-center gap-1 px-2 py-0.5 rounded transition-colors session-panel__stat ${
               stats.running > 0
                 ? 'text-ide-accent bg-ide-accent/10'
                 : 'text-ide-text-muted bg-ide-hover'
@@ -725,7 +750,7 @@ const SessionPanel = React.memo(function SessionPanel({
             <span className="text-xs font-bold font-mono">{stats.running}</span>
           </span>
           <span
-            className="flex items-center gap-1 px-2 py-0.5 rounded text-ide-text-muted bg-ide-hover transition-colors"
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-ide-text-muted bg-ide-hover transition-colors session-panel__stat"
             title={t('Idle')}
           >
             <Coffee size={13} className="shrink-0" />
@@ -733,10 +758,10 @@ const SessionPanel = React.memo(function SessionPanel({
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="relative config-menu-area">
+          <div className="relative config-menu-area session-panel__config">
             <button
               ref={configBtnRef}
-              className={`w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${
+              className={`w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 session-panel__config-btn ${
                 showConfigMenu
                   ? 'text-ide-accent bg-ide-accent/20'
                   : 'text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white'
@@ -750,7 +775,7 @@ const SessionPanel = React.memo(function SessionPanel({
               </svg>
             </button>
             {showConfigMenu && (
-              <div style={configMenuStyle} className="bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 config-menu-area">
+              <div style={configMenuStyle} className="bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 config-menu-area session-panel__config-menu">
                 {/* Language toggle */}
                 <div className="flex items-center justify-between mx-3 my-1.5">
                   <div className="inline-flex items-center rounded-md bg-ide-hover overflow-hidden">
@@ -784,7 +809,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   </div>
                   {showThemeFlyout && (
                     <div
-                      className={`absolute top-0 ${flyoutOnLeft ? 'right-full mr-1' : 'left-full ml-1'} w-44 bg-ide-bg border border-ide-border rounded shadow-lg py-1 max-h-64 overflow-y-auto`}
+                      className={`absolute top-0 ${flyoutOnLeft ? 'right-full mr-1' : 'left-full ml-1'} w-44 bg-ide-bg border border-ide-border rounded shadow-lg py-1 max-h-64 overflow-y-auto session-panel__theme-list`}
                       onMouseEnter={() => {
                         if (themeFlyoutTimerRef.current) clearTimeout(themeFlyoutTimerRef.current)
                       }}
@@ -807,6 +832,59 @@ const SessionPanel = React.memo(function SessionPanel({
                           {t.label}
                         </button>
                       ))}
+                    </div>
+                  )}
+                </div>
+                </div>
+                {/* Snippets */}
+                <div className="border-t border-ide-border mt-1 pt-1">
+                <div
+                  className="relative"
+                  onMouseEnter={() => {
+                    if (snippetsFlyoutTimerRef.current) clearTimeout(snippetsFlyoutTimerRef.current)
+                    setShowSnippetsFlyout(true)
+                  }}
+                  onMouseLeave={() => {
+                    snippetsFlyoutTimerRef.current = setTimeout(() => setShowSnippetsFlyout(false), 200)
+                  }}
+                >
+                  <div className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors">
+                    {t('CSS Snippets')}
+                  </div>
+                  {showSnippetsFlyout && (
+                    <div
+                      className={`absolute top-0 ${flyoutOnLeft ? 'right-full mr-1' : 'left-full ml-1'} w-52 bg-ide-bg border border-ide-border rounded shadow-lg py-1 max-h-64 overflow-y-auto session-panel__snippets-list`}
+                      onMouseEnter={() => {
+                        if (snippetsFlyoutTimerRef.current) clearTimeout(snippetsFlyoutTimerRef.current)
+                      }}
+                      onMouseLeave={() => setShowSnippetsFlyout(false)}
+                    >
+                      {snippetsList.length === 0 ? (
+                        <div className="px-3 py-2 text-[11px] text-ide-text-muted">
+                          {t('No snippets found.\nPlace .css files in the snippets/ folder.')}
+                        </div>
+                      ) : (
+                        snippetsList.map(s => (
+                          <button
+                            key={s.name}
+                            onClick={() => handleSnippetToggle(s.name, !s.enabled)}
+                            className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 transition-colors ${
+                              s.enabled ? 'text-ide-text hover:bg-ide-hover' : 'text-ide-text-muted/40 hover:bg-ide-hover hover:text-ide-text-muted'
+                            }`}
+                          >
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                              s.enabled ? 'bg-ide-accent border-ide-accent text-white' : 'border-ide-border'
+                            }`}>
+                              {s.enabled && (
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              )}
+                            </span>
+                            <span className="truncate">{s.name}</span>
+                          </button>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>
@@ -899,7 +977,7 @@ const SessionPanel = React.memo(function SessionPanel({
           </div>
           <button
             onClick={() => onCreateSession(termType)}
-            className={`w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${
+            className={`w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 session-panel__new-btn ${
               sessions.length === 0
                 ? 'text-white bg-ide-accent hover:bg-ide-accent-hover'
                 : 'text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white'
@@ -912,8 +990,8 @@ const SessionPanel = React.memo(function SessionPanel({
       </div>
 
       {/* Session List */}
-      <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 overflow-hidden flex flex-col rounded-lg">
-        <div className="flex-1 min-h-0 overflow-y-auto pb-2"
+      <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 overflow-hidden flex flex-col rounded-lg session-panel__list-wrapper">
+        <div className="flex-1 min-h-0 overflow-y-auto pb-2 session-panel__list"
           onDragOver={(e) => {
             if (dragGroupIndex !== null && sessionGroups.length > 0) {
               e.preventDefault()
@@ -950,13 +1028,13 @@ const SessionPanel = React.memo(function SessionPanel({
             return (
               <div
                 key={group.cwd}
-                className={`bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden ${gi > 0 ? 'mt-3' : ''}`}
+                className={`bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-group ${gi > 0 ? 'mt-3' : ''}`}
                 style={dropGroupIndex === gi && dropGroupIndex !== dragGroupIndex ? { borderTop: '2px solid rgb(var(--ide-accent))' } : undefined}
               >
                 {/* Folder header */}
                 <div
                   draggable={!!onReorderGroup}
-                  className={`group h-7 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted acrylic-titlebar rounded-t-lg ${
+                  className={`group h-7 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted acrylic-titlebar rounded-t-lg session-group__header ${
                     dragGroupIndex === gi ? 'opacity-40' : ''
                   }`}
                   onDragStart={() => { setDragGroupIndex(gi); setDragIndex(null); setDropIndex(null) }}
@@ -1007,7 +1085,7 @@ const SessionPanel = React.memo(function SessionPanel({
                       onContextMenu={(e) => e.stopPropagation()}
                     >{cwdEmoji}</span>
                     <span
-                      className={`text-xs font-medium truncate min-w-0 cursor-pointer transition-all ${
+                      className={`text-xs font-medium truncate min-w-0 cursor-pointer transition-all session-group__path ${
                         groupHasActive || cwdLinkSession === group.cwd ? 'text-ide-text' : 'text-ide-text-muted'
                       } ${
                         cwdLinkSession === group.cwd
@@ -1079,7 +1157,7 @@ const SessionPanel = React.memo(function SessionPanel({
             )
           })
         ) : (
-          <div className="bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden">
+          <div className="bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-panel__flat-list">
             {sessions.map((session, index) => renderSessionItem(session, index, { showAutoApprove: true, showCwd: true, outerClass: 'px-3 py-1 cursor-pointer transition-colors relative', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[32px]' }))}
           </div>
         )}

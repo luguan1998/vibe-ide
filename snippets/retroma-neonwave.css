@@ -1,0 +1,112 @@
+/*
+  Retroma NeonWave — 复古霓虹合成器波
+  暖粉(rose) × 神秘紫(violet) × 青绿(teal) 三色交织
+  灵感：80s synthwave / 日落霓虹 / 复古灯管
+
+  · 活跃项 → 暖粉 #e91e63
+  · 文件夹/标题 → 紫罗兰 #9c27b0
+  · Git 状态/成功 → 青绿 #009688
+  · 全局暗底偏紫，分割线粉紫渐变
+*/
+:root {
+  --ide-bg: 16 12 22 !important;
+  --ide-sidebar: 22 16 28 !important;
+  --ide-panel: 26 18 32 !important;
+  --ide-border: 58 38 60 !important;
+  --ide-text: 222 210 230 !important;
+  --ide-text-muted: 158 135 170 !important;
+  --ide-accent: 233 30 99 !important;
+  --ide-accent-hover: 255 80 140 !important;
+  --ide-success: 0 150 136 !important;
+  --ide-danger: 211 47 47 !important;
+  --ide-warning: 255 170 40 !important;
+  --ide-hover: 44 28 50 !important;
+  --ide-active: 55 30 58 !important;
+  --scrollbar-track: 16 12 22 !important;
+  --scrollbar-thumb: 58 38 60 !important;
+  --scrollbar-thumb-hover: 130 60 130 !important;
+  --selection-bg: 233 30 99 !important;
+  --selection-opacity: 0.3 !important;
+  --monaco-margin-bg: 22 16 28 !important;
+}
+* { border-radius: 0 !important; }
+html, body, #root { font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace !important; }
+.titlebar-drag[class*="h-9"] { border-bottom: 4px groove rgb(58 38 60) !important; background: linear-gradient(90deg, rgb(22 16 28), rgb(30 18 40), rgb(22 16 28)) !important; }
+
+/* 会话列表 — 紫罗兰边框 */
+.session-panel__list-wrapper { border: 4px ridge rgb(58 38 60) !important; background: rgb(var(--ide-bg)) !important; box-shadow: inset -2px -2px 0 rgb(8 6 12), inset 2px 2px 0 rgb(38 28 48) !important; }
+.session-panel__stat { border: 2px groove rgb(58 38 60); box-shadow: -1px -1px 0 rgb(38 28 48), 1px 1px 0 rgb(8 6 12); text-transform: uppercase; letter-spacing: 1px; }
+.session-panel__config-btn, .session-panel__new-btn { border: 3px outset rgb(58 38 60) !important; box-shadow: -1px -1px 0 rgb(38 28 48), 1px 1px 0 rgb(8 6 12); }
+.session-panel__config-btn:active, .session-panel__new-btn:active { border-style: inset !important; box-shadow: inset 1px 1px 0 rgb(8 6 12), inset -1px -1px 0 rgb(38 28 48) !important; }
+.session-item { border-bottom: 1px solid rgb(48 32 50); transition: none !important; }
+
+/* 活跃项 → 暖粉 */
+.session-item--active { border-left: 4px solid rgb(233 30 99) !important; background: rgb(55 30 58) !important; box-shadow: inset 2px 2px 0 rgb(8 6 12), inset -1px -1px 0 rgb(48 26 50) !important; }
+.session-item--active .session-item__name { color: rgb(255 80 140); font-weight: 700; text-shadow: 0 0 6px rgba(233, 30, 99, 0.3); letter-spacing: 0.5px; }
+
+/* 文件夹分组 → 紫罗兰 */
+.session-group { border: 3px groove rgb(58 38 60) !important; box-shadow: -1px 1px 0 rgb(8 6 12); margin-top: 6px; background: rgb(var(--ide-panel)) !important; }
+.session-group__header { border-bottom: 3px ridge rgb(58 38 60) !important; background: linear-gradient(90deg, rgb(22 16 28), rgb(35 22 45), rgb(22 16 28)) !important; text-transform: uppercase; letter-spacing: 1px; }
+.session-group__path { color: rgb(180 80 200) !important; font-weight: 700 !important; }
+.session-panel__config-menu { border: 3px ridge rgb(58 38 60) !important; box-shadow: -2px -2px 0 rgb(38 28 48), 2px 2px 0 rgb(8 6 12), 0 4px 12px rgba(0,0,0,0.5) !important; }
+.session-panel__config-menu button { border-bottom: 1px solid rgb(48 32 50); font-size: 11px !important; letter-spacing: 0.5px; }
+
+/* 终端 — 冷粉紫暗底 */
+.term-view__canvas { border: 4px inset rgb(58 38 60) !important; box-shadow: inset 3px 3px 8px rgba(0,0,0,0.6), inset 0 0 60px rgba(156, 39, 176, 0.04) !important; background: rgb(var(--ide-bg)) !important; }
+.term-view__header { border-bottom: 3px ridge rgb(58 38 60) !important; background: linear-gradient(90deg, rgb(22 16 28), rgb(35 22 45), rgb(22 16 28)) !important; text-transform: uppercase; letter-spacing: 1px; }
+.term-view__search { border: 2px ridge rgb(58 38 60) !important; box-shadow: -1px -1px 0 rgb(38 28 48), 1px 1px 0 rgb(8 6 12) !important; }
+
+/* 文件树 — 粉紫混色 */
+.file-tab__header { border-bottom: 3px ridge rgb(58 38 60) !important; background: linear-gradient(90deg, rgb(22 16 28), rgb(35 22 45), rgb(22 16 28)) !important; text-transform: uppercase; letter-spacing: 0.5px; }
+.file-tree-item { border: 1px solid transparent; font-size: 12px !important; }
+
+/* 选中 → 粉 */
+.file-tree-item--active { background: rgb(55 30 58) !important; border-left: 3px solid rgb(233 30 99) !important; }
+.file-tree-item--active .file-tree-item__name { color: rgb(255 80 140) !important; }
+
+/* 文件夹 → 紫 */
+.file-tree-item--folder > .file-tree-item__name { color: rgb(180 80 200) !important; text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px !important; }
+
+.file-tab__section { border-top: 3px groove rgb(58 38 60) !important; }
+.file-tab__section-header { border-bottom: 2px ridge rgb(58 38 60) !important; background: rgb(30 20 36) !important; text-transform: uppercase; letter-spacing: 2px; font-size: 10px !important; }
+
+/* Git 面板 — 三色分工 */
+.git-tab__header { border-bottom: 3px ridge rgb(58 38 60) !important; background: linear-gradient(90deg, rgb(22 16 28), rgb(35 22 45), rgb(22 16 28)) !important; }
+.git-tab__branch-name { color: rgb(180 80 200) !important; font-weight: 700; letter-spacing: 0.5px; }
+.git-tab__section { border-bottom: 3px groove rgb(58 38 60) !important; }
+.git-tab__section-header { border-bottom: 2px ridge rgb(58 38 60) !important; background: rgb(30 20 36) !important; text-transform: uppercase; letter-spacing: 1px; font-size: 11px !important; }
+.git-tab__file-item { border-bottom: 1px solid rgb(44 28 50); font-size: 11px !important; }
+.git-tab__file-item:hover { background: rgb(var(--ide-hover)) !important; }
+.git-tab__commit-area { border-top: 4px ridge rgb(58 38 60) !important; background: rgb(28 18 34) !important; box-shadow: inset 0 2px 6px rgba(0,0,0,0.4) !important; }
+.git-tab__commit-input { border: 3px inset rgb(58 38 60) !important; background: rgb(18 14 24) !important; font-size: 11px !important; box-shadow: inset 2px 2px 4px rgba(0,0,0,0.5) !important; }
+.git-tab__commit-input:focus { border-style: ridge !important; border-color: rgb(233 30 99) !important; }
+
+/* 提交按钮 → 紫罗兰 + 粉 渐变 */
+.git-tab__commit-btn { border: 3px outset rgb(156 39 176) !important; font-weight: 700 !important; text-transform: uppercase; letter-spacing: 2px; background: linear-gradient(135deg, rgb(156 39 176), rgb(233 30 99)) !important; color: #fff !important; box-shadow: -2px -2px 0 rgb(220 90 180), 2px 2px 0 rgb(90 20 100) !important; }
+.git-tab__commit-btn:active { border-style: inset !important; box-shadow: inset 2px 2px 0 rgb(90 20 100), inset -2px -2px 0 rgb(220 90 180) !important; }
+
+/* 成功 → 青绿 */
+.text-ide-success, .git-tab__section .text-ide-success { color: rgb(0 180 160) !important; }
+
+.right-panel__content { border: 3px ridge rgb(58 38 60) !important; box-shadow: inset -2px -2px 0 rgb(8 6 12), inset 2px 2px 0 rgb(38 28 48) !important; }
+.right-panel__tab-bar { border-bottom: 3px groove rgb(58 38 60) !important; }
+.right-panel__tab { border: 3px outset rgb(58 38 60) !important; font-size: 11px !important; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: -1px -1px 0 rgb(38 28 48), 1px 1px 0 rgb(8 6 12); }
+
+/* 活跃标签 → 粉 */
+.right-panel__tab--active { border-style: inset !important; background: rgb(55 30 58) !important; color: rgb(255 80 140) !important; font-weight: 700; box-shadow: inset 1px 1px 0 rgb(8 6 12), inset -1px -1px 0 rgb(48 26 50) !important; }
+
+::-webkit-scrollbar { width: 12px !important; height: 12px !important; }
+::-webkit-scrollbar-track { background: rgb(16 12 22) !important; border-left: 2px groove rgb(58 38 60) !important; }
+::-webkit-scrollbar-thumb { background: rgb(58 38 60) !important; border: 2px outset rgb(58 38 60) !important; box-shadow: -1px -1px 0 rgb(38 24 44), 1px 1px 0 rgb(8 6 12) !important; }
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgb(156 39 176), rgb(233 30 99)) !important; }
+::-webkit-scrollbar-corner { background: rgb(16 12 22) !important; }
+.fixed.inset-0.z-50 > div[class*="bg-ide-bg"] { border: 4px ridge rgb(58 38 60) !important; box-shadow: -3px -3px 0 rgb(38 28 48), 3px 3px 0 rgb(8 6 12), 0 8px 24px rgba(0,0,0,0.5) !important; }
+.fixed.inset-0.z-50 button { border-radius: 0 !important; }
+.fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] { border: 3px ridge rgb(58 38 60) !important; box-shadow: -2px -2px 0 rgb(38 28 48), 2px 2px 0 rgb(8 6 12) !important; }
+input, select, textarea { border: 2px inset rgb(58 38 60) !important; }
+input:focus, select:focus, textarea:focus { border-style: ridge !important; border-color: rgb(233 30 99) !important; }
+input[type="checkbox"] { accent-color: rgb(233 30 99); }
+.border-t.border-ide-border { border-top: 2px groove rgb(58 38 60) !important; }
+.border-b.border-ide-border { border-bottom: 2px groove rgb(58 38 60) !important; }
+*:focus-visible { outline: 2px solid rgb(233 30 99) !important; outline-offset: 0 !important; }
+::selection { background: rgb(156 39 176 / 0.4) !important; }

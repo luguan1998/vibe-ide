@@ -46,12 +46,12 @@ getMonaco()
 
 async function bootstrap() {
   try {
-    const css = await window.api.userCss.load()
+    const { css } = await window.api.snippets.load()
     if (css) {
       const style = document.createElement('style')
-      style.id = 'user-css'
+      style.id = 'custom-css'
       style.textContent = css
-      document.head.appendChild(style)  // 末尾注入，覆盖 globals.css
+      document.head.appendChild(style)
     }
   } catch { /* 加载失败不阻断启动 */ }
 

@@ -96,3 +96,20 @@ Each terminal session owns its RightPanel/GitTab state independently — **no gl
 3. tab 内全局 `keydown` 监听器（`window.addEventListener('keydown', ..., true)`）必须检查 `isActiveRef.current` 和修饰键（`e.ctrlKey/e.metaKey/e.altKey`），非活动 tab 或有修饰键时直接 return
 
 **实现位置：** `App.tsx`（全局快捷键 + session 切换）、`RightPanel.tsx`（tab 切换聚焦）、`GitTab.tsx`（文件列表导航）、`AuxTab.tsx`（命令列表导航）
+
+## CSS Snippets 系统
+
+```
+{exeDir}/
+└── snippets/          # CSS 片段目录，重启生效
+    ├── snippets.json  # 启用/禁用状态（自动生成）
+    └── *.css          # 任意 CSS 文件
+```
+
+- `snippets.json` 控制每个 `.css` 文件的启用/禁用，在设置菜单 → Snippets 中切换
+- **覆盖主题色变量必须加 `!important`** — `ThemeProvider` 用 `setProperty` 写内联样式（优先级 1000），普通 `:root` 规则无效。例：
+  ```css
+  :root { --ide-accent: 255 179 0 !important; }
+  ```
+- BEM 语义类名（`.session-item--active`、`.git-tab__section-header` 等）无需 `!important`，它们选择的是具体元素而非变量
+- 颜色值必须写成 `R G B` 空格分隔（如 `22 22 18`），不要 `#hex` 或 `rgb()`，否则 Tailwind 透明度修饰符 `/50` 会失效

@@ -1,0 +1,81 @@
+/*
+  Retroma Violet — 复古紫罗兰 CRT 风格
+  提取自 Retroma theme.css color palette：
+    --hue-violet: #9c27b0
+    --hue-purple: #673ab7
+  极暗紫底 + 紫罗兰强调 + 3D 浮雕
+*/
+:root {
+  --ide-bg: 20 14 22 !important;
+  --ide-sidebar: 25 18 28 !important;
+  --ide-panel: 28 20 32 !important;
+  --ide-border: 55 42 60 !important;
+  --ide-text: 218 208 225 !important;
+  --ide-text-muted: 150 135 160 !important;
+  --ide-accent: 156 39 176 !important;
+  --ide-accent-hover: 190 80 210 !important;
+  --ide-success: 120 170 120 !important;
+  --ide-danger: 211 47 47 !important;
+  --ide-warning: 240 160 40 !important;
+  --ide-hover: 44 30 50 !important;
+  --ide-active: 50 32 58 !important;
+  --scrollbar-track: 20 14 22 !important;
+  --scrollbar-thumb: 55 42 60 !important;
+  --scrollbar-thumb-hover: 95 60 108 !important;
+  --selection-bg: 156 39 176 !important;
+  --selection-opacity: 0.35 !important;
+  --monaco-margin-bg: 25 18 28 !important;
+}
+* { border-radius: 0 !important; }
+html, body, #root { font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace !important; }
+.titlebar-drag[class*="h-9"] { border-bottom: 4px groove rgb(var(--ide-border)) !important; background: rgb(var(--ide-sidebar)) !important; }
+.session-panel__list-wrapper { border: 4px ridge rgb(var(--ide-border)) !important; background: rgb(var(--ide-bg)) !important; box-shadow: inset -2px -2px 0 rgb(10 7 12), inset 2px 2px 0 rgb(42 30 48) !important; }
+.session-panel__stat { border: 2px groove rgb(var(--ide-border)); box-shadow: -1px -1px 0 rgb(42 30 48), 1px 1px 0 rgb(10 7 12); text-transform: uppercase; letter-spacing: 1px; }
+.session-panel__config-btn, .session-panel__new-btn { border: 3px outset rgb(var(--ide-border)) !important; box-shadow: -1px -1px 0 rgb(42 30 48), 1px 1px 0 rgb(10 7 12); }
+.session-panel__config-btn:active, .session-panel__new-btn:active { border-style: inset !important; box-shadow: inset 1px 1px 0 rgb(10 7 12), inset -1px -1px 0 rgb(42 30 48) !important; }
+.session-item { border-bottom: 1px solid rgb(var(--ide-border)); transition: none !important; }
+.session-item--active { border-left: 4px solid rgb(var(--ide-accent)) !important; background: rgb(var(--ide-active)) !important; box-shadow: inset 2px 2px 0 rgb(10 7 12), inset -1px -1px 0 rgb(44 28 52) !important; }
+.session-item--active .session-item__name { color: rgb(var(--ide-accent)); font-weight: 700; letter-spacing: 0.5px; }
+.session-group { border: 3px groove rgb(var(--ide-border)) !important; box-shadow: -1px 1px 0 rgb(10 7 12); margin-top: 6px; background: rgb(var(--ide-panel)) !important; }
+.session-group__header { border-bottom: 3px ridge rgb(var(--ide-border)) !important; background: rgb(var(--ide-sidebar)) !important; text-transform: uppercase; letter-spacing: 1px; }
+.session-panel__config-menu { border: 3px ridge rgb(var(--ide-border)) !important; box-shadow: -2px -2px 0 rgb(42 30 48), 2px 2px 0 rgb(10 7 12), 0 4px 12px rgba(0,0,0,0.5) !important; }
+.session-panel__config-menu button { border-bottom: 1px solid rgb(var(--ide-border)); font-size: 11px !important; letter-spacing: 0.5px; }
+.term-view__canvas { border: 4px inset rgb(var(--ide-border)) !important; box-shadow: inset 3px 3px 8px rgba(0,0,0,0.6) !important; background: rgb(var(--ide-bg)) !important; }
+.term-view__header { border-bottom: 3px ridge rgb(var(--ide-border)) !important; background: rgb(var(--ide-sidebar)) !important; text-transform: uppercase; letter-spacing: 1px; }
+.term-view__search { border: 2px ridge rgb(var(--ide-border)) !important; box-shadow: -1px -1px 0 rgb(42 30 48), 1px 1px 0 rgb(10 7 12) !important; }
+.file-tab__header { border-bottom: 3px ridge rgb(var(--ide-border)) !important; background: rgb(var(--ide-sidebar)) !important; text-transform: uppercase; letter-spacing: 0.5px; }
+.file-tree-item { border: 1px solid transparent; font-size: 12px !important; }
+.file-tree-item--active { background: rgb(var(--ide-active)) !important; border-left: 3px solid rgb(var(--ide-accent)) !important; }
+.file-tree-item--folder > .file-tree-item__name { color: rgb(var(--ide-accent)) !important; text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px !important; }
+.file-tab__section { border-top: 3px groove rgb(var(--ide-border)) !important; }
+.file-tab__section-header { border-bottom: 2px ridge rgb(var(--ide-border)) !important; background: rgb(var(--ide-panel)) !important; text-transform: uppercase; letter-spacing: 2px; font-size: 10px !important; }
+.git-tab__header { border-bottom: 3px ridge rgb(var(--ide-border)) !important; background: rgb(var(--ide-sidebar)) !important; }
+.git-tab__branch-name { color: rgb(var(--ide-accent)) !important; font-weight: 700; letter-spacing: 0.5px; }
+.git-tab__section { border-bottom: 3px groove rgb(var(--ide-border)) !important; }
+.git-tab__section-header { border-bottom: 2px ridge rgb(var(--ide-border)) !important; background: rgb(var(--ide-sidebar)) !important; text-transform: uppercase; letter-spacing: 1px; font-size: 11px !important; }
+.git-tab__file-item { border-bottom: 1px solid rgb(44 28 52); font-size: 11px !important; }
+.git-tab__file-item:hover { background: rgb(var(--ide-hover)) !important; }
+.git-tab__commit-area { border-top: 4px ridge rgb(var(--ide-border)) !important; background: rgb(var(--ide-panel)) !important; box-shadow: inset 0 2px 6px rgba(0,0,0,0.4) !important; }
+.git-tab__commit-input { border: 3px inset rgb(var(--ide-border)) !important; background: rgb(var(--ide-bg)) !important; font-size: 11px !important; box-shadow: inset 2px 2px 4px rgba(0,0,0,0.5) !important; }
+.git-tab__commit-input:focus { border-style: ridge !important; border-color: rgb(var(--ide-accent)) !important; }
+.git-tab__commit-btn { border: 3px outset rgb(var(--ide-accent)) !important; font-weight: 700 !important; text-transform: uppercase; letter-spacing: 2px; background: rgb(var(--ide-accent)) !important; color: #fff !important; box-shadow: -2px -2px 0 rgb(200 90 220), 2px 2px 0 rgb(100 24 115) !important; }
+.git-tab__commit-btn:active { border-style: inset !important; box-shadow: inset 2px 2px 0 rgb(100 24 115), inset -2px -2px 0 rgb(200 90 220) !important; }
+.right-panel__content { border: 3px ridge rgb(var(--ide-border)) !important; box-shadow: inset -2px -2px 0 rgb(10 7 12), inset 2px 2px 0 rgb(42 30 48) !important; }
+.right-panel__tab-bar { border-bottom: 3px groove rgb(var(--ide-border)) !important; }
+.right-panel__tab { border: 3px outset rgb(var(--ide-border)) !important; font-size: 11px !important; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: -1px -1px 0 rgb(42 30 48), 1px 1px 0 rgb(10 7 12); }
+.right-panel__tab--active { border-style: inset !important; background: rgb(var(--ide-active)) !important; color: rgb(var(--ide-accent)) !important; font-weight: 700; box-shadow: inset 1px 1px 0 rgb(10 7 12), inset -1px -1px 0 rgb(44 28 52) !important; }
+::-webkit-scrollbar { width: 12px !important; height: 12px !important; }
+::-webkit-scrollbar-track { background: rgb(var(--ide-bg)) !important; border-left: 2px groove rgb(var(--ide-border)) !important; }
+::-webkit-scrollbar-thumb { background: rgb(var(--ide-border)) !important; border: 2px outset rgb(var(--ide-border)) !important; box-shadow: -1px -1px 0 rgb(42 28 48), 1px 1px 0 rgb(10 7 12) !important; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--ide-accent)) !important; }
+::-webkit-scrollbar-corner { background: rgb(var(--ide-bg)) !important; }
+.fixed.inset-0.z-50 > div[class*="bg-ide-bg"] { border: 4px ridge rgb(var(--ide-border)) !important; box-shadow: -3px -3px 0 rgb(42 30 48), 3px 3px 0 rgb(10 7 12), 0 8px 24px rgba(0,0,0,0.5) !important; }
+.fixed.inset-0.z-50 button { border-radius: 0 !important; }
+.fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] { border: 3px ridge rgb(var(--ide-border)) !important; box-shadow: -2px -2px 0 rgb(42 30 48), 2px 2px 0 rgb(10 7 12) !important; }
+input, select, textarea { border: 2px inset rgb(var(--ide-border)) !important; }
+input:focus, select:focus, textarea:focus { border-style: ridge !important; border-color: rgb(var(--ide-accent)) !important; }
+input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
+.border-t.border-ide-border { border-top: 2px groove rgb(var(--ide-border)) !important; }
+.border-b.border-ide-border { border-bottom: 2px groove rgb(var(--ide-border)) !important; }
+*:focus-visible { outline: 2px solid rgb(var(--ide-accent)) !important; outline-offset: 0 !important; }
+::selection { background: rgb(var(--selection-bg) / var(--selection-opacity)) !important; }

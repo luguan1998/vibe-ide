@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, Menu, screen } from 'electron'
 import { join, resolve, dirname } from 'path'
-import { statSync, existsSync, readFileSync } from 'fs'
+import { statSync, existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'fs'
 import { createHash } from 'crypto'
 import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -270,14 +270,59 @@ app.whenReady().then(() => {
   // App version
   ipcMain.handle(IPC_CHANNELS.APP_VERSION, () => app.getVersion())
 
-  // 用户自定义 CSS — exe 同目录下的 user.css，覆盖 globals.css，重启生效
-  ipcMain.handle(IPC_CHANNELS.USER_CSS_LOAD, () => {
+  // CSS snippets — dev 用项目根目录，打包后用 exe 同目录
+  const snippetsDir = app.isPackaged
+    ? join(dirname(exePath), 'snippets')
+    : join(app.getAppPath(), 'snippets')
+  const snippetsJsonPath = join(snippetsDir, 'snippets.json')
+
+  function loadSnippetsJson(): Record<string, boolean> {
     try {
-      const userCssPath = join(dirname(exePath), 'user.css')
-      if (!existsSync(userCssPath)) return ''
-      return readFileSync(userCssPath, 'utf8')
+      if (existsSync(snippetsJsonPath)) {
+        return JSON.parse(readFileSync(snippetsJsonPath, 'utf8'))
+      }
+    } catch {}
+    return {}
+  }
+
+  function saveSnippetsJson(state: Record<string, boolean>) {
+    try { writeFileSync(snippetsJsonPath, JSON.stringify(state, null, 2), 'utf8') } catch {}
+  }
+
+  function buildSnippetsResult() {
+    if (!existsSync(snippetsDir)) {
+      mkdirSync(snippetsDir, { recursive: true })
+      return { css: '', snippets: [] }
+    }
+    const state = loadSnippetsJson()
+    const files = readdirSync(snippetsDir)
+      .filter(f => f.endsWith('.css'))
+      .sort()
+    // 新文件默认启用
+    const snippets = files.map(name => ({
+      name,
+      enabled: state[name] !== undefined ? state[name] : false
+    }))
+    // 仅拼接启用的
+    const enabledFiles = snippets.filter(s => s.enabled).map(s => s.name)
+    const css = enabledFiles
+      .map(f => `/* ${f} */\n${readFileSync(join(snippetsDir, f), 'utf8')}`)
+      .join('\n\n')
+    return { css, snippets }
+  }
+
+  ipcMain.handle(IPC_CHANNELS.SNIPPETS_LOAD, () => {
+    try { return buildSnippetsResult() } catch { return { css: '', snippets: [] } }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SNIPPETS_TOGGLE, (_event, filename: string, enabled: boolean) => {
+    try {
+      const state = loadSnippetsJson()
+      state[filename] = enabled
+      saveSnippetsJson(state)
+      return buildSnippetsResult()
     } catch {
-      return ''
+      return { css: '', snippets: [] }
     }
   })
 

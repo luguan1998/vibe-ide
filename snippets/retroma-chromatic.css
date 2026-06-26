@@ -1,0 +1,298 @@
+/*
+  Retroma Chromatic — 复色调色板 · 全色域 CRT 风格
+  忠实还原 Retroma theme.css 多彩设计哲学：
+    · 15 色调色板循环（文件夹/分组按序分配色相）
+    · 背景极度暗哑（lightness 22-24%, chroma < 0.1），颜色只点缀
+    · 4px groove/ridge 粗边框 + inset box-shadow 3D 物理感
+    · 活跃态粗左边框 + font-weight: bold（对应 Retroma is-active）
+    · 每个可交互元素有凸起/按下（raised/pressed）行程
+
+  色相分配（对应 Retroma folder-color-{1..15}）：
+    红 → 橙 → 黄 → 绿 → 蓝 → 靛 → 紫 → 朱 → 琥 → 柠 → 青 → 紫 → 品 → 玫 → 青
+*/
+
+/* ════════════════════════════════════════════════════
+   基础主题色 — 超低 chroma 暗底
+   无论选什么内置主题，snippet 覆盖后全局统一
+   ════════════════════════════════════════════════════ */
+:root {
+  --ide-bg: 16 16 18 !important;
+  --ide-sidebar: 20 20 22 !important;
+  --ide-panel: 22 22 25 !important;
+  --ide-border: 50 48 52 !important;
+  --ide-text: 220 218 222 !important;
+  --ide-text-muted: 150 148 155 !important;
+  --ide-accent: 180 120 200 !important;
+  --ide-accent-hover: 200 150 220 !important;
+  --ide-success: 100 170 140 !important;
+  --ide-danger: 200 70 70 !important;
+  --ide-warning: 200 160 50 !important;
+  --ide-hover: 38 36 42 !important;
+  --ide-active: 60 50 65 !important;
+  --scrollbar-track: 16 16 18 !important;
+  --scrollbar-thumb: 50 48 52 !important;
+  --scrollbar-thumb-hover: 80 75 88 !important;
+  --selection-bg: 180 120 200 !important;
+  --selection-opacity: 0.3 !important;
+  --monaco-margin-bg: 20 20 22 !important;
+}
+
+* { border-radius: 0 !important; }
+html, body, #root { font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace !important; }
+
+/* ════════════════════════════════════════════════════
+   标题栏 — 最暗层
+   ════════════════════════════════════════════════════ */
+.titlebar-drag[class*="h-9"] {
+  border-bottom: 4px groove rgb(var(--ide-border)) !important;
+  background: rgb(14 14 16) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   会话面板 — 3D 浮雕
+   ════════════════════════════════════════════════════ */
+.session-panel__list-wrapper {
+  border: 4px ridge rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-bg)) !important;
+  box-shadow: inset -2px -2px 0 rgb(8 8 10), inset 2px 2px 0 rgb(34 34 38) !important;
+}
+.session-panel__stat {
+  border: 2px groove rgb(var(--ide-border));
+  box-shadow: -1px -1px 0 rgb(34 34 38), 1px 1px 0 rgb(8 8 10);
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.session-panel__config-btn, .session-panel__new-btn {
+  border: 3px outset rgb(var(--ide-border)) !important;
+  box-shadow: -1px -1px 0 rgb(34 34 38), 1px 1px 0 rgb(8 8 10);
+}
+.session-panel__config-btn:active, .session-panel__new-btn:active {
+  border-style: inset !important;
+  box-shadow: inset 1px 1px 0 rgb(8 8 10), inset -1px -1px 0 rgb(34 34 38) !important;
+}
+.session-item {
+  border-bottom: 1px solid rgb(var(--ide-border));
+  transition: none !important;
+}
+
+/* ── 活跃会话色相循环 ──
+   每 8 个会话一个周期，模仿 Retroma 的 nav-folder nth-child 调色板
+   左边界颜色对应 session 的位置 */
+.session-item:nth-child(8n+1).session-item--active { border-left-color: rgb(211 47 47) !important; }    /* 红 */
+.session-item:nth-child(8n+2).session-item--active { border-left-color: rgb(255 152 0) !important; }    /* 橙 */
+.session-item:nth-child(8n+3).session-item--active { border-left-color: rgb(255 179 0) !important; }    /* 琥珀 */
+.session-item:nth-child(8n+4).session-item--active { border-left-color: rgb(76 175 80) !important; }    /* 绿 */
+.session-item:nth-child(8n+5).session-item--active { border-left-color: rgb(33 150 243) !important; }   /* 蓝 */
+.session-item:nth-child(8n+6).session-item--active { border-left-color: rgb(63 81 181) !important; }   /* 靛 */
+.session-item:nth-child(8n+7).session-item--active { border-left-color: rgb(156 39 176) !important; }  /* 紫 */
+.session-item:nth-child(8n+0).session-item--active { border-left-color: rgb(233 30 99) !important; }   /* 品红 */
+.session-item:nth-child(8n+1).session-item--active .session-item__name { color: rgb(255 100 100) !important; }
+.session-item:nth-child(8n+2).session-item--active .session-item__name { color: rgb(255 180 60) !important; }
+.session-item:nth-child(8n+3).session-item--active .session-item__name { color: rgb(255 200 60) !important; }
+.session-item:nth-child(8n+4).session-item--active .session-item__name { color: rgb(100 200 100) !important; }
+.session-item:nth-child(8n+5).session-item--active .session-item__name { color: rgb(80 180 255) !important; }
+.session-item:nth-child(8n+6).session-item--active .session-item__name { color: rgb(100 130 230) !important; }
+.session-item:nth-child(8n+7).session-item--active .session-item__name { color: rgb(200 100 230) !important; }
+.session-item:nth-child(8n+0).session-item--active .session-item__name { color: rgb(255 80 150) !important; }
+
+/* 非活跃项 — 沿用 muted 色但保留淡淡底色区分 */
+.session-item--active {
+  background: rgb(var(--ide-active)) !important;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  box-shadow: inset 2px 2px 0 rgb(8 8 10), inset -1px -1px 0 rgb(48 40 55) !important;
+}
+
+/* ── 会话分组（按 cwd）→ 循环色相边框 ── */
+.session-group:nth-child(8n+1) { border-color: rgb(211 47 47) !important; }
+.session-group:nth-child(8n+2) { border-color: rgb(255 152 0) !important; }
+.session-group:nth-child(8n+3) { border-color: rgb(255 179 0) !important; }
+.session-group:nth-child(8n+4) { border-color: rgb(76 175 80) !important; }
+.session-group:nth-child(8n+5) { border-color: rgb(33 150 243) !important; }
+.session-group:nth-child(8n+6) { border-color: rgb(63 81 181) !important; }
+.session-group:nth-child(8n+7) { border-color: rgb(156 39 176) !important; }
+.session-group:nth-child(8n+0) { border-color: rgb(233 30 99) !important; }
+
+.session-group {
+  border: 3px groove rgb(var(--ide-border)) !important;
+  box-shadow: -1px 1px 0 rgb(8 8 10);
+  margin-top: 6px;
+  background: rgb(var(--ide-panel)) !important;
+}
+.session-group__header {
+  border-bottom: 3px ridge rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-sidebar)) !important;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.session-panel__config-menu {
+  border: 3px ridge rgb(var(--ide-border)) !important;
+  box-shadow: -2px -2px 0 rgb(34 34 38), 2px 2px 0 rgb(8 8 10), 0 4px 12px rgba(0,0,0,0.5) !important;
+}
+.session-panel__config-menu button {
+  border-bottom: 1px solid rgb(var(--ide-border));
+  font-size: 11px !important; letter-spacing: 0.5px;
+}
+
+/* ════════════════════════════════════════════════════
+   终端 — CRT 凹陷屏幕
+   ════════════════════════════════════════════════════ */
+.term-view__canvas {
+  border: 4px inset rgb(var(--ide-border)) !important;
+  box-shadow: inset 3px 3px 8px rgba(0,0,0,0.6) !important;
+  background: rgb(var(--ide-bg)) !important;
+}
+.term-view__header {
+  border-bottom: 3px ridge rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-sidebar)) !important;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.term-view__search {
+  border: 2px ridge rgb(var(--ide-border)) !important;
+  box-shadow: -1px -1px 0 rgb(34 34 38), 1px 1px 0 rgb(8 8 10) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   文件树 — 文件夹色相循环（忠实 Retroma 设计）
+   ════════════════════════════════════════════════════ */
+.file-tab__header {
+  border-bottom: 3px ridge rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-sidebar)) !important;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.file-tree-item { border: 1px solid transparent; font-size: 12px !important; }
+.file-tree-item--active {
+  background: rgb(var(--ide-active)) !important;
+  border-left: 3px solid rgb(var(--ide-accent)) !important;
+  font-weight: 700 !important;
+}
+
+/* 文件夹名色相循环 — 对应 Retroma nav-folder-title → var(--folder-color) */
+.file-tree-item--folder:nth-child(15n+1) > .file-tree-item__name { color: rgb(211 47 47) !important; }    /* 红 */
+.file-tree-item--folder:nth-child(15n+2) > .file-tree-item__name { color: rgb(255 152 0) !important; }    /* 橙 */
+.file-tree-item--folder:nth-child(15n+3) > .file-tree-item__name { color: rgb(255 179 0) !important; }    /* 琥珀 */
+.file-tree-item--folder:nth-child(15n+4) > .file-tree-item__name { color: rgb(76 175 80) !important; }     /* 绿 */
+.file-tree-item--folder:nth-child(15n+5) > .file-tree-item__name { color: rgb(33 150 243) !important; }    /* 蓝 */
+.file-tree-item--folder:nth-child(15n+6) > .file-tree-item__name { color: rgb(63 81 181) !important; }     /* 靛 */
+.file-tree-item--folder:nth-child(15n+7) > .file-tree-item__name { color: rgb(156 39 176) !important; }    /* 紫 */
+.file-tree-item--folder:nth-child(15n+8) > .file-tree-item__name { color: rgb(255 87 34) !important; }    /* 朱 */
+.file-tree-item--folder:nth-child(15n+9) > .file-tree-item__name { color: rgb(255 179 0) !important; }    /* 琥 */
+.file-tree-item--folder:nth-child(15n+10) > .file-tree-item__name { color: rgb(139 195 74) !important; }  /* 柠 */
+.file-tree-item--folder:nth-child(15n+11) > .file-tree-item__name { color: rgb(0 150 136) !important; }   /* 青 */
+.file-tree-item--folder:nth-child(15n+12) > .file-tree-item__name { color: rgb(103 58 183) !important; }  /* 紫2 */
+.file-tree-item--folder:nth-child(15n+13) > .file-tree-item__name { color: rgb(233 30 99) !important; }    /* 品 */
+.file-tree-item--folder:nth-child(15n+14) > .file-tree-item__name { color: rgb(244 143 177) !important; }  /* 玫 */
+.file-tree-item--folder:nth-child(15n+0) > .file-tree-item__name  { color: rgb(0 188 212) !important; }   /* 青 */
+
+.file-tree-item--folder > .file-tree-item__name {
+  text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px !important; font-weight: 700 !important;
+}
+.file-tab__section { border-top: 3px groove rgb(var(--ide-border)) !important; }
+.file-tab__section-header {
+  border-bottom: 2px ridge rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-panel)) !important;
+  text-transform: uppercase; letter-spacing: 2px; font-size: 10px !important;
+}
+
+/* ════════════════════════════════════════════════════
+   Git 面板
+   ════════════════════════════════════════════════════ */
+.git-tab__header {
+  border-bottom: 3px ridge rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-sidebar)) !important;
+}
+.git-tab__branch-name {
+  color: rgb(156 39 176) !important; font-weight: 700; letter-spacing: 0.5px;
+}
+.git-tab__section { border-bottom: 3px groove rgb(var(--ide-border)) !important; }
+.git-tab__section-header {
+  border-bottom: 2px ridge rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-sidebar)) !important;
+  text-transform: uppercase; letter-spacing: 1px; font-size: 11px !important;
+}
+.git-tab__file-item {
+  border-bottom: 1px solid rgb(40 38 44);
+  font-size: 11px !important;
+}
+.git-tab__file-item:hover { background: rgb(var(--ide-hover)) !important; }
+.git-tab__commit-area {
+  border-top: 4px ridge rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-panel)) !important;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.4) !important;
+}
+.git-tab__commit-input {
+  border: 3px inset rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-bg)) !important;
+  font-size: 11px !important;
+  box-shadow: inset 2px 2px 4px rgba(0,0,0,0.5) !important;
+}
+.git-tab__commit-input:focus {
+  border-style: ridge !important;
+  border-color: rgb(var(--ide-accent)) !important;
+}
+.git-tab__commit-btn {
+  border: 3px outset rgb(156 39 176) !important;
+  font-weight: 700 !important; text-transform: uppercase; letter-spacing: 2px;
+  background: rgb(156 39 176) !important; color: #fff !important;
+  box-shadow: -2px -2px 0 rgb(200 100 220), 2px 2px 0 rgb(90 20 110) !important;
+}
+.git-tab__commit-btn:active {
+  border-style: inset !important;
+  box-shadow: inset 2px 2px 0 rgb(90 20 110), inset -2px -2px 0 rgb(200 100 220) !important;
+}
+
+/* ── Git 状态语义色（对应 Retroma tag 着色）── */
+.text-ide-success { color: rgb(76 175 80) !important; }
+.text-ide-danger { color: rgb(211 47 47) !important; }
+.text-ide-warning { color: rgb(255 179 0) !important; }
+
+/* ════════════════════════════════════════════════════
+   右侧面板
+   ════════════════════════════════════════════════════ */
+.right-panel__content {
+  border: 3px ridge rgb(var(--ide-border)) !important;
+  box-shadow: inset -2px -2px 0 rgb(8 8 10), inset 2px 2px 0 rgb(34 34 38) !important;
+}
+.right-panel__tab-bar { border-bottom: 3px groove rgb(var(--ide-border)) !important; }
+.right-panel__tab {
+  border: 3px outset rgb(var(--ide-border)) !important;
+  font-size: 11px !important; text-transform: uppercase; letter-spacing: 0.5px;
+  box-shadow: -1px -1px 0 rgb(34 34 38), 1px 1px 0 rgb(8 8 10);
+}
+.right-panel__tab--active {
+  border-style: inset !important;
+  background: rgb(var(--ide-active)) !important;
+  color: rgb(200 150 220) !important; font-weight: 700;
+  box-shadow: inset 1px 1px 0 rgb(8 8 10), inset -1px -1px 0 rgb(48 40 55) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   滚动条
+   ════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 12px !important; height: 12px !important; }
+::-webkit-scrollbar-track { background: rgb(var(--ide-bg)) !important; border-left: 2px groove rgb(var(--ide-border)) !important; }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--ide-border)) !important;
+  border: 2px outset rgb(var(--ide-border)) !important;
+  box-shadow: -1px -1px 0 rgb(34 34 38), 1px 1px 0 rgb(8 8 10) !important;
+}
+::-webkit-scrollbar-thumb:hover { background: rgb(156 39 176) !important; }
+::-webkit-scrollbar-corner { background: rgb(var(--ide-bg)) !important; }
+
+/* ════════════════════════════════════════════════════
+   模态框 & 菜单
+   ════════════════════════════════════════════════════ */
+.fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
+  border: 4px ridge rgb(var(--ide-border)) !important;
+  box-shadow: -3px -3px 0 rgb(34 34 38), 3px 3px 0 rgb(8 8 10), 0 8px 24px rgba(0,0,0,0.5) !important;
+}
+.fixed.inset-0.z-50 button { border-radius: 0 !important; }
+.fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
+  border: 3px ridge rgb(var(--ide-border)) !important;
+  box-shadow: -2px -2px 0 rgb(34 34 38), 2px 2px 0 rgb(8 8 10) !important;
+}
+input, select, textarea { border: 2px inset rgb(var(--ide-border)) !important; }
+input:focus, select:focus, textarea:focus { border-style: ridge !important; border-color: rgb(156 39 176) !important; }
+input[type="checkbox"] { accent-color: rgb(156 39 176); }
+.border-t.border-ide-border { border-top: 2px groove rgb(var(--ide-border)) !important; }
+.border-b.border-ide-border { border-bottom: 2px groove rgb(var(--ide-border)) !important; }
+*:focus-visible { outline: 2px solid rgb(156 39 176) !important; outline-offset: 0 !important; }
+::selection { background: rgb(180 120 200 / 0.3) !important; }

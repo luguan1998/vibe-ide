@@ -201,14 +201,14 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   return (
     <>
       <div
-        className={`group pr-2 py-0.5 ft-fname cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none ${highlightedFilePath === norm(node.path) ? 'bg-ide-accent/20' : ''}`}
+        className={`group pr-2 py-0.5 ft-fname cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none file-tree-item${isDir ? ' file-tree-item--folder' : ' file-tree-item--file'}${highlightedFilePath === norm(node.path) ? ' file-tree-item--active bg-ide-accent/20' : ''}`}
         style={{ paddingLeft }}
         onClick={handleClick}
         onContextMenu={(e) => { if (!isRenaming && !isCreating) onContextMenu(e, node) }}
         data-file-highlighted={highlightedFilePath === norm(node.path) ? 'true' : undefined}
       >
         {isDir ? (
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 text-ide-text-muted transition-transform shrink-0 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 text-ide-text-muted transition-transform shrink-0 file-tree-item__toggle ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>
             <path d="M4 6l4 4 4-4" />
           </svg>
         ) : (
@@ -268,7 +268,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
           />
         ) : (
           <>
-            <span className="truncate text-ide-text">{node.name}</span>
+            <span className="truncate text-ide-text file-tree-item__name">{node.name}</span>
             {isSearchFolder && inlineSearch ? (
               <div
                 className="ml-1 flex items-center gap-0.5 bg-ide-border/30 border border-ide-border group-focus-within:border-ide-accent rounded-full px-2 py-0.5 shrink-0 transition-colors"
@@ -1028,9 +1028,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   }, [fileClipboard, loadFileTree])
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0 file-tab">
       {workspacePath && (
-        <div className="group h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean"
+        <div className="group h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean file-tab__header"
           onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
           onMouseLeave={() => setSearchJustClosed(false)}
         >
@@ -1095,7 +1095,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
         </div>
       )}
       <div
-        className="flex-1 min-h-0 overflow-y-auto"
+        className="flex-1 min-h-0 overflow-y-auto file-tab__tree"
         onContextMenu={(e) => {
           if (!workspacePath) return
           e.preventDefault()
@@ -1173,14 +1173,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
         )}
       </div>
       {sectionVis.recently && wsRecent.length > 0 && (
-        <div className="shrink-0 border-t border-ide-border max-h-[14rem] overflow-y-auto">
+        <div className="shrink-0 border-t border-ide-border max-h-[14rem] overflow-y-auto file-tab__section">
           <div
-            className={`pl-5 pr-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border ${recentExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
+            className={`pl-5 pr-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border file-tab__section-header ${recentExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
             onClick={() => setRecentExpanded(v => !v)}
             onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
           >
             <Clock size={12} className={recentExpanded ? 'text-ide-accent' : 'text-ide-text-muted'} />
-            <span>{t('Recently Opened')}</span>
+            <span className="file-tab__section-title">{t('Recently Opened')}</span>
           </div>
           {recentExpanded && wsRecent.map((f, i) => {
             const baseName = f.path.split(/[\\/]/).pop() || f.path
@@ -1221,13 +1221,13 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
         </div>
       )}
       {sectionVis.arch && docTree.length > 0 && (
-        <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '45%', overflowY: 'auto' }}>
+        <div className="shrink-0 border-t border-ide-border file-tab__section" style={{ maxHeight: '45%', overflowY: 'auto' }}>
           <div
-            className={`pl-5 pr-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border ${archExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
+            className={`pl-5 pr-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border file-tab__section-header ${archExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
             onClick={() => setArchExpanded(!archExpanded)}
           >
             <Lightbulb size={12} className={archExpanded ? 'text-ide-warning' : 'text-ide-text-muted'} />
-            <span>arch</span>
+            <span className="file-tab__section-title">arch</span>
           </div>
           {archExpanded && docTree.map(node => (
             <DocTreeItem

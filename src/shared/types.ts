@@ -125,8 +125,20 @@ export const IPC_CHANNELS = {
 
   // App
   APP_VERSION: 'app:version',
-  USER_CSS_LOAD: 'app:userCssLoad'
+  SNIPPETS_LOAD: 'app:snippetsLoad',
+  SNIPPETS_TOGGLE: 'app:snippetsToggle'
 } as const
+
+// Snippet types
+export interface SnippetInfo {
+  name: string
+  enabled: boolean
+}
+
+export interface SnippetsLoadResult {
+  css: string
+  snippets: SnippetInfo[]
+}
 
 // Terminal types
 export interface TerminalSession {

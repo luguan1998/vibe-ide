@@ -60,8 +60,12 @@ html, body, #root {
 }
 
 /* xterm overrides */
+.term-view__canvas {
+  background-color: rgb(var(--ide-bg));
+}
 .xterm {
   padding: 0;
+  height: 100%;
 }
 
 /* Monaco editor overrides */
@@ -399,11 +403,11 @@ html, body, #root {
   .git-stats { display: none; }
 }
 
-/* ── Git 文件名/目录字号 — user.css 可通过 --git-fname-size / --git-fdir-size 覆盖 ── */
+/* ── Git 文件名/目录字号 — snippets CSS 可通过 --git-fname-size / --git-fdir-size 覆盖 ── */
 .git-fname { font-size: var(--git-fname-size, 11px); }
 .git-fdir { font-size: var(--git-fdir-size, 10px); }
 
-/* ── File 文件名/图标尺寸 — user.css 可通过 --ft-fname-size / --ft-icon-size 覆盖 ── */
+/* ── File 文件名/图标尺寸 — snippets CSS 可通过 --ft-fname-size / --ft-icon-size 覆盖 ── */
 .ft-fname { font-size: var(--ft-fname-size, 12px); }
 .ft-icon  { width: var(--ft-icon-size, 14px); height: var(--ft-icon-size, 14px); }
 

@@ -324,7 +324,7 @@ function TabBar({
   }, [onReorder])
 
   return (
-    <div className="h-10 flex items-center shrink-0 px-3" onContextMenu={handleContextMenu}>
+    <div className="h-10 flex items-center shrink-0 px-3 right-panel__tab-bar" onContextMenu={handleContextMenu}>
       {capsuleTabs ? (
         <>
           <div className="flex-1" />
@@ -334,7 +334,7 @@ function TabBar({
               return (
                 <button
                   key={section}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors right-panel__tab${active ? ' right-panel__tab--active' : ''} ${
                     active ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text'
                   } ${dragOverSection === section ? 'ring-1 ring-ide-accent' : ''}`}
                   onClick={() => onSelect(section)}
@@ -364,7 +364,7 @@ function TabBar({
               return (
                 <button
                   key={section}
-                  className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+                  className={`w-7 h-7 flex items-center justify-center rounded transition-colors right-panel__tab${active ? ' right-panel__tab--active' : ''} ${
                     active ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
                   } ${dragOverSection === section ? 'ring-1 ring-ide-accent bg-ide-accent/10' : ''}`}
                   onClick={() => onSelect(section)}
@@ -570,7 +570,7 @@ function RightPanel({
           capsuleTabs={capsuleTabs}
           onToggleCapsuleTabs={onToggleCapsuleTabs}
         />
-        <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center">
+        <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center right-panel__content">
           <span className="text-ide-text-muted text-xs">No active session</span>
         </div>
       </div>
@@ -578,7 +578,7 @@ function RightPanel({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full right-panel">
       <TabBar
         tabs={visibleList}
         activeSection={activeSection}
@@ -591,7 +591,7 @@ function RightPanel({
         onToggleCapsuleTabs={onToggleCapsuleTabs}
       />
 
-      <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col right-panel__content">
 
       <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <GitTab

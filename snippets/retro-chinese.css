@@ -1,0 +1,327 @@
+/*
+  Retro Chinese — 80s 国风动画 · 大闹天宫
+  融合 Monkey King Theme 四色体系：
+    朱红(ax0) + 翠绿(bg3) + 赤金(bg4) + 玄青(bg0)
+  灵感：上海美术电影制片厂《大闹天宫》《哪吒闹海》
+  厚涂重彩 · 墨线勾勒 · 多色交响
+*/
+:root {
+  /* 玄青底 — ink-wash dark */
+  --ide-bg: 18 16 14 !important;
+  --ide-sidebar: 24 22 18 !important;
+  --ide-panel: 30 28 22 !important;
+  --ide-border: 70 58 40 !important;
+  --ide-text: 235 230 220 !important;
+  --ide-text-muted: 185 175 158 !important;
+
+  /* 朱红 — 主强调（ax0: hsl 357 70% 46%）*/
+  --ide-accent: 199 50 43 !important;
+  --ide-accent-hover: 230 80 70 !important;
+
+  /* 翠绿 — 成功/正向（bg3: hsl 140 33% 52%）*/
+  --ide-success: 100 170 100 !important;
+
+  /* 赤金 — 警告（bg4: hsl 45 100% 75%）*/
+  --ide-warning: 210 165 50 !important;
+
+  --ide-danger: 199 50 43 !important;
+  --ide-hover: 52 40 30 !important;
+  --ide-active: 72 42 30 !important;
+
+  --scrollbar-track: 18 16 14 !important;
+  --scrollbar-thumb: 70 58 40 !important;
+  --scrollbar-thumb-hover: 140 90 50 !important;
+}
+
+* { border-radius: 0 !important; }
+.monaco-editor * { border-radius: revert !important; }
+html, body, #root { font-family: 'HONOR Sans CN', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Cascadia Code', monospace !important; }
+
+/* ═══════════════════════════════════════════
+   标题栏 — 墨线分割 + 赤金描边
+   ═══════════════════════════════════════════ */
+.titlebar-drag[class*="h-9"] {
+  border-bottom: 3px solid rgb(210 165 50 / 0.6) !important;
+  background: linear-gradient(90deg, rgb(14 12 10), rgb(30 28 20), rgb(14 12 10)) !important;
+}
+
+/* ═══════════════════════════════════════════
+   会话面板 — 绿底金边
+   ═══════════════════════════════════════════ */
+.session-panel__list-wrapper {
+  border: 2px solid rgb(70 58 40) !important;
+  background: rgb(var(--ide-bg)) !important;
+}
+.session-panel__stat {
+  border: 1px solid rgb(70 58 40);
+  text-transform: none !important; letter-spacing: 0 !important;
+}
+
+/* 会话项 — 轮换色相：红金绿蓝紫周期 */
+.session-item {
+  border-bottom: 1px solid rgb(50 42 28);
+  transition: all 0.2s !important;
+}
+.session-item:hover { background: rgb(52 40 30); }
+
+/* 活跃项左边条 + 名称颜色循环 */
+.session-item:nth-child(5n+1).session-item--active { border-left-color: rgb(199 50 43) !important; }
+.session-item:nth-child(5n+1).session-item--active .session-item__name { color: rgb(230 80 65) !important; text-shadow: 0 0 4px rgba(199, 50, 43, 0.2); }
+.session-item:nth-child(5n+2).session-item--active { border-left-color: rgb(210 165 50) !important; }
+.session-item:nth-child(5n+2).session-item--active .session-item__name { color: rgb(230 195 70) !important; text-shadow: 0 0 4px rgba(210, 165, 50, 0.2); }
+.session-item:nth-child(5n+3).session-item--active { border-left-color: rgb(100 170 100) !important; }
+.session-item:nth-child(5n+3).session-item--active .session-item__name { color: rgb(120 200 120) !important; text-shadow: 0 0 4px rgba(100, 170, 100, 0.2); }
+.session-item:nth-child(5n+4).session-item--active { border-left-color: rgb(100 150 200) !important; }
+.session-item:nth-child(5n+4).session-item--active .session-item__name { color: rgb(120 180 230) !important; text-shadow: 0 0 4px rgba(100, 150, 200, 0.2); }
+.session-item:nth-child(5n+5).session-item--active { border-left-color: rgb(150 120 180) !important; }
+.session-item:nth-child(5n+5).session-item--active .session-item__name { color: rgb(180 150 210) !important; text-shadow: 0 0 4px rgba(150, 120, 180, 0.2); }
+
+.session-item--active {
+  font-weight: 700;
+  background: linear-gradient(90deg, rgb(40 30 22), rgb(35 35 25)) !important;
+}
+
+/* 会话组 — 边框轮换 */
+.session-group:nth-child(5n+1) { border-color: rgb(199 50 43 / 0.6) !important; }
+.session-group:nth-child(5n+2) { border-color: rgb(210 165 50 / 0.6) !important; }
+.session-group:nth-child(5n+3) { border-color: rgb(100 170 100 / 0.6) !important; }
+.session-group:nth-child(5n+4) { border-color: rgb(100 150 200 / 0.6) !important; }
+.session-group:nth-child(5n+5) { border-color: rgb(150 120 180 / 0.6) !important; }
+
+.session-group {
+  border: 2px solid rgb(80 100 65) !important;
+  margin-top: 6px;
+  background: rgb(var(--ide-panel)) !important;
+}
+.session-group__header {
+  border-bottom: 2px solid rgb(80 100 65) !important;
+  background: linear-gradient(90deg, rgb(30 28 20), rgb(40 45 28), rgb(30 28 20)) !important;
+}
+.session-group__path { color: rgb(130 200 130) !important; font-weight: 700 !important; }
+.session-panel__config-btn, .session-panel__new-btn {
+  border: 1px solid rgb(70 58 40) !important;
+  transition: all 0.15s !important;
+}
+.session-panel__new-btn:not(:disabled) {
+  background: rgb(199 50 43) !important; color: #fff !important; border-color: rgb(199 50 43) !important;
+}
+.session-panel__config-menu { border: 2px solid rgb(70 58 40) !important; }
+
+/* ═══════════════════════════════════════════
+   终端 — 墨色 + 金边
+   ═══════════════════════════════════════════ */
+.term-view__canvas {
+  border: 2px solid rgb(70 58 40) !important;
+  background: rgb(20 16 14) !important;
+}
+.term-view__header {
+  border-bottom: 2px solid rgb(70 58 40) !important;
+  background: linear-gradient(90deg, rgb(24 22 18), rgb(40 38 28), rgb(24 22 18)) !important;
+}
+.term-view__search { border: 1px solid rgb(70 58 40) !important; }
+
+/* ═══════════════════════════════════════════
+   文件树 — 绿红金三色
+   ═══════════════════════════════════════════ */
+.file-tab__header {
+  border-bottom: 2px solid rgb(70 58 40) !important;
+  background: linear-gradient(90deg, rgb(24 22 18), rgb(40 38 28), rgb(24 22 18)) !important;
+}
+.file-tree-item { font-size: 12px !important; }
+
+/* 选中 = 朱红左边条 + 暖红底 */
+.file-tree-item--active {
+  border-left: 3px solid rgb(199 50 43) !important;
+  background: rgb(60 35 25) !important;
+}
+.file-tree-item--active .file-tree-item__name { color: rgb(230 80 65) !important; font-weight: 700 !important; }
+
+/* 文件夹 = 翠绿 */
+.file-tree-item--folder > .file-tree-item__name { color: rgb(130 200 130) !important; font-weight: 700 !important; }
+
+/* 文件 = 金色点缀 */
+.file-tree-item--file > .file-tree-item__name { color: rgb(215 195 140) !important; }
+
+.file-tab__section { border-top: 2px solid rgb(70 58 40) !important; }
+.file-tab__section-header {
+  border-bottom: 1px solid rgb(70 58 40) !important;
+  background: rgb(30 28 20) !important;
+  text-transform: none !important; letter-spacing: 0 !important; font-size: 11px !important;
+}
+
+/* ═══════════════════════════════════════════
+   Git 面板 — 多色分层
+   ═══════════════════════════════════════════ */
+.git-tab__header {
+  border-bottom: 2px solid rgb(70 58 40) !important;
+  background: linear-gradient(90deg, rgb(24 22 18), rgb(40 38 28), rgb(24 22 18)) !important;
+}
+.git-tab__branch-name { color: rgb(210 165 50) !important; font-weight: 700; }
+
+/* Staged = 绿 */
+.git-tab__section:nth-child(1) { border-left: 3px solid rgb(100 170 100); }
+/* Unstaged = 金 */
+.git-tab__section:nth-child(2) { border-left: 3px solid rgb(210 165 50); }
+/* Untracked = 朱红 */
+.git-tab__section:nth-child(3) { border-left: 3px solid rgb(199 50 43); }
+
+.git-tab__section { border-bottom: 2px solid rgb(50 42 28) !important; padding-left: 2px !important; }
+.git-tab__section-header {
+  border-bottom: 1px solid rgb(70 58 40) !important;
+  text-transform: none !important; letter-spacing: 0 !important; font-size: 11px !important;
+}
+.git-tab__file-item {
+  border-bottom: 1px solid rgb(40 32 22);
+  font-size: 11px !important;
+  transition: background 0.15s !important;
+}
+.git-tab__file-item:hover { background: rgb(52 40 30) !important; }
+.git-tab__commit-area {
+  border-top: 2px solid rgb(70 58 40) !important;
+  background: rgb(30 28 20) !important;
+}
+.git-tab__commit-input {
+  border: 2px solid rgb(70 58 40) !important;
+  background: rgb(14 12 10) !important;
+}
+.git-tab__commit-input:focus { border-color: rgb(199 50 43) !important; }
+.git-tab__commit-btn {
+  border: 2px solid rgb(199 50 43) !important;
+  background: rgb(199 50 43) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  letter-spacing: 1px !important;
+}
+.git-tab__commit-btn:hover {
+  background: rgb(230 80 65) !important;
+}
+
+/* ═══════════════════════════════════════════
+   右侧面板
+   ═══════════════════════════════════════════ */
+.right-panel__content { border: 2px solid rgb(70 58 40) !important; }
+.right-panel__tab-bar { border-bottom: 2px solid rgb(70 58 40) !important; }
+.right-panel__tab {
+  border: 1px solid rgb(70 58 40) !important;
+  font-size: 11px !important;
+  transition: all 0.15s !important;
+}
+
+/* 每个标签不同色 */
+.right-panel__tab:nth-child(1).right-panel__tab--active { border-color: rgb(100 170 100) !important; color: rgb(100 170 100) !important; }   /* File = 绿 */
+.right-panel__tab:nth-child(2).right-panel__tab--active { border-color: rgb(199 50 43) !important; color: rgb(199 50 43) !important; }     /* Git = 红 */
+.right-panel__tab:nth-child(3).right-panel__tab--active { border-color: rgb(210 165 50) !important; color: rgb(210 165 50) !important; }   /* Aux = 金 */
+.right-panel__tab:nth-child(4).right-panel__tab--active { border-color: rgb(150 120 180) !important; color: rgb(150 120 180) !important; } /* Search = 紫 */
+
+.right-panel__tab--active {
+  font-weight: 700 !important;
+  background: rgb(30 28 20) !important;
+}
+
+/* ═══════════════════════════════════════════
+   滚动条 — 金条
+   ═══════════════════════════════════════════ */
+::-webkit-scrollbar { width: 10px !important; height: 10px !important; }
+::-webkit-scrollbar-track { background: rgb(18 16 14) !important; }
+::-webkit-scrollbar-thumb { background: rgb(70 58 40) !important; }
+::-webkit-scrollbar-thumb:hover { background: rgb(210 165 50) !important; }
+::-webkit-scrollbar-corner { background: rgb(18 16 14) !important; }
+
+/* ═══════════════════════════════════════════
+   模态框 & 输入
+   ═══════════════════════════════════════════ */
+.fixed.inset-0.z-50 > div[class*="bg-ide-bg"] { border: 2px solid rgb(70 58 40) !important; }
+.fixed.inset-0.z-50 button { border-radius: 0 !important; }
+.fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] { border: 2px solid rgb(70 58 40) !important; }
+input, select, textarea { border: 1px solid rgb(70 58 40) !important; }
+input:focus, select:focus, textarea:focus { border-color: rgb(199 50 43) !important; outline: none !important; }
+input[type="checkbox"] { accent-color: rgb(199 50 43); }
+.monaco-editor input, .monaco-editor select, .monaco-editor textarea { border: revert !important; }
+.monaco-editor input:focus, .monaco-editor select:focus, .monaco-editor textarea:focus { border-color: revert !important; outline: revert !important; }
+.monaco-editor input[type="checkbox"] { accent-color: revert; }
+*:focus-visible { outline: 1px solid rgb(210 165 50) !important; }
+.monaco-editor *:focus-visible { outline: revert !important; }
+
+/* 成功/危险/警告语义 = 绿/红/金 */
+.text-ide-success { color: rgb(130 200 130) !important; }
+.text-ide-danger { color: rgb(199 50 43) !important; }
+.text-ide-warning { color: rgb(210 165 50) !important; }
+
+/* ═══════════════════════════════════════════
+   Markdown 预览 — 国风彩虹色
+   彻底打破单一 accent 色
+   ═══════════════════════════════════════════ */
+
+/* 标题层级 = 红金绿蓝紫渐变，对应《大闹天宫》角色色系 */
+.md-preview h1 { color: rgb(199 50 43) !important; border-bottom-color: rgb(199 50 43) !important; }
+.md-preview h1 strong { color: rgb(199 50 43) !important; }
+.md-preview h2 { color: rgb(210 165 50) !important; border-bottom-color: rgb(210 165 50) !important; }
+.md-preview h2 strong { color: rgb(210 165 50) !important; }
+.md-preview h3 { color: rgb(130 200 130) !important; }
+.md-preview h3 strong { color: rgb(130 200 130) !important; }
+.md-preview h4 { color: rgb(130 180 230) !important; }
+.md-preview h4 strong { color: rgb(130 180 230) !important; }
+.md-preview h5 { color: rgb(180 150 210) !important; }
+.md-preview h5 strong { color: rgb(180 150 210) !important; }
+.md-preview h6 { color: rgb(200 165 130) !important; }
+.md-preview h6 strong { color: rgb(200 165 130) !important; }
+
+/* 链接 = 朱红，hover 变金 */
+.md-preview a { color: rgb(199 50 43) !important; text-decoration-color: rgb(199 50 43 / 0.5) !important; }
+.md-preview a:hover { color: rgb(210 165 50) !important; text-decoration-color: rgb(210 165 50) !important; }
+
+/* 粗体 = 赤金，斜体 = 翠绿 */
+.md-preview strong { color: rgb(210 165 50) !important; }
+.md-preview em { color: rgb(130 200 130) !important; }
+
+/* 删除线 = 暗红 */
+.md-preview del { color: rgb(210 100 90) !important; }
+
+/* 列表标记 = 金/绿交替深浅 */
+.md-preview li::marker { color: rgb(210 165 50) !important; }
+.md-preview li li::marker { color: rgb(130 200 130) !important; }
+.md-preview li li li::marker { color: rgb(199 50 43) !important; }
+
+/* 代码 = 深绿底 + 金字 */
+.md-preview code {
+  background: rgb(25 35 22) !important;
+  color: rgb(210 165 50) !important;
+  border: 1px solid rgb(55 70 42) !important;
+  padding: 1px 4px !important;
+}
+.md-code-block {
+  border: 2px solid rgb(55 70 42) !important;
+  background: rgb(16 22 14) !important;
+}
+.md-code-block pre { background: transparent !important; }
+.md-code-block code { color: rgb(180 200 160) !important; }
+.md-code-lang {
+  background: rgb(25 35 22) !important;
+  color: rgb(100 170 100) !important;
+  border-bottom: 1px solid rgb(55 70 42) !important;
+  font-family: 'Cascadia Code', monospace !important;
+}
+
+/* 引用块 = 左绿边金底 */
+.md-preview blockquote {
+  border-left: 4px solid rgb(100 170 100) !important;
+  background: rgb(30 28 18) !important;
+  color: rgb(200 185 150) !important;
+}
+.md-preview blockquote strong { color: rgb(210 165 50) !important; }
+
+/* 表格 = 红头绿行 */
+.md-preview thead { background: rgb(199 50 43 / 0.2) !important; }
+.md-preview th { color: rgb(210 165 50) !important; border-color: rgb(70 58 40) !important; }
+.md-preview td { border-color: rgb(55 50 35) !important; }
+.md-preview tbody tr:hover { background: rgb(40 38 22) !important; }
+
+/* 分割线 = 赤金 */
+.md-preview hr { border-top-color: rgb(210 165 50 / 0.5) !important; }
+
+/* 选中高亮 */
+.md-search-match { background: rgb(199 50 43 / 0.35) !important; }
+.md-search-match-current { background: rgb(210 165 50 / 0.4) !important; }
+
+/* checkbox = 绿 */
+.md-preview input[type="checkbox"] { accent-color: rgb(100 170 100) !important; }

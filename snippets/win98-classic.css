@@ -1,0 +1,425 @@
+/*
+  Win98 Classic — 复古 Windows 98 灰蓝风格
+  从 Windows Classic 主题提取设计语言：
+    · 经典 ButtonFace 暖灰 + 海军蓝标题栏
+    · 凸起 3D 边框：左上白/亮，右下黑/暗
+    · 凹陷 3D 边框：左上黑/暗，右下白/亮
+    · 直角 + 粗边框 + 祖母绿芯片感
+
+  Win98 默认色板（暗色适配版）：
+    ButtonFace  → 212 208 200 (转暗: 45 45 48)
+    ButtonHighlight → 255 255 255 (转暗: 90 90 95)
+    ButtonShadow  → 128 128 128 (转暗: 25 25 28)
+    ButtonDkShadow → 64 64 64   (转暗: 10 10 12)
+    ActiveTitle  → 0 0 128 (保留: 20 40 120)
+    TitleText    → 255 255 255
+    Window       → 255 255 255 (转暗: 35 35 38)
+    WindowText   → 0 0 0 (转暗: 215 215 215)
+*/
+
+/* ════════════════════════════════════════════════════
+   主题色 — Win98 经典色板暗色适配
+   ════════════════════════════════════════════════════ */
+:root {
+  --ide-bg: 35 35 38 !important;
+  --ide-sidebar: 42 42 45 !important;
+  --ide-panel: 48 48 52 !important;
+  --ide-border: 72 72 78 !important;
+  --ide-text: 220 220 222 !important;
+  --ide-text-muted: 160 160 165 !important;
+  --ide-accent: 30 65 150 !important;
+  --ide-accent-hover: 50 95 190 !important;
+  --ide-success: 60 140 80 !important;
+  --ide-danger: 200 50 50 !important;
+  --ide-warning: 200 150 30 !important;
+  --ide-hover: 58 58 62 !important;
+  --ide-active: 38 55 90 !important;
+  --scrollbar-track: 48 48 52 !important;
+  --scrollbar-thumb: 85 85 90 !important;
+  --scrollbar-thumb-hover: 110 110 118 !important;
+  --selection-bg: 30 65 150 !important;
+  --selection-opacity: 0.4 !important;
+  --monaco-margin-bg: 42 42 45 !important;
+}
+
+/* ════════════════════════════════════════════════════
+   全局 — 直角 + 系统字体
+   ════════════════════════════════════════════════════ */
+* { border-radius: 0 !important; }
+
+html, body, #root {
+  font-family: 'Microsoft Sans Serif', 'Segoe UI', 'Tahoma', sans-serif !important;
+  font-size: 13px !important;
+}
+
+/* ════════════════════════════════════════════════════
+   代码字体 — 保留等宽
+   ════════════════════════════════════════════════════ */
+.font-mono, code, pre, .git-fname, .git-fdir, .ft-fname, .term-view__search-input,
+.git-tab__commit-input, input, select, textarea {
+  font-family: 'Courier New', 'Lucida Console', monospace !important;
+}
+
+/* ════════════════════════════════════════════════════
+   标题栏 — 海军蓝 经典
+   Win98: ActiveTitle = 0 0 128
+   ════════════════════════════════════════════════════ */
+.titlebar-drag[class*="h-9"] {
+  border-bottom: 2px solid rgb(20 20 25) !important;
+  background: rgb(20 40 120) !important;
+}
+
+.titlebar-drag * {
+  color: #fff !important;
+}
+
+/* ════════════════════════════════════════════════════
+   会话面板 — Win98 凸起/凹陷体系
+   凸起 = 上左亮 + 下右暗  (outset bevel)
+   凹陷 = 上左暗 + 下右亮  (inset bevel)
+   ════════════════════════════════════════════════════ */
+
+/* 列表容器 = 凹陷区域 (inset) */
+.session-panel__list-wrapper {
+  border: 2px solid !important;
+  border-color: rgb(25 25 28) rgb(72 72 78) rgb(72 72 78) rgb(25 25 28) !important;
+  background: rgb(var(--ide-bg)) !important;
+}
+
+/* 统计徽章 = 凸起按钮 (outset) */
+.session-panel__stat {
+  border: 2px solid !important;
+  border-color: rgb(90 90 95) rgb(25 25 28) rgb(25 25 28) rgb(90 90 95) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 11px !important;
+}
+
+/* 齿轮和新建 = 凸起 */
+.session-panel__config-btn,
+.session-panel__new-btn {
+  border: 2px solid !important;
+  border-color: rgb(90 90 95) rgb(25 25 28) rgb(25 25 28) rgb(90 90 95) !important;
+}
+
+.session-panel__config-btn:active,
+.session-panel__new-btn:active {
+  border-color: rgb(25 25 28) rgb(90 90 95) rgb(90 90 95) rgb(25 25 28) !important;
+}
+
+/* 会话项 */
+.session-item {
+  border-bottom: 1px solid rgb(var(--ide-border));
+  padding: 2px 0 !important;
+}
+
+/* 活跃 = 左侧海军蓝条 */
+.session-item--active {
+  border-left: 3px solid rgb(var(--ide-accent)) !important;
+  background: rgb(var(--ide-active)) !important;
+}
+
+.session-item--active .session-item__name {
+  font-weight: 700;
+  color: rgb(120 160 220);
+}
+
+/* 文件夹分组 = 凸起面板 */
+.session-group {
+  border: 2px solid !important;
+  border-color: rgb(72 72 78) rgb(25 25 28) rgb(25 25 28) rgb(72 72 78) !important;
+  margin-top: 3px;
+  background: rgb(var(--ide-panel)) !important;
+}
+
+.session-group__header {
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
+  background: rgb(40 40 43) !important;
+}
+
+/* 设置菜单 = 凸起 */
+.session-panel__config-menu {
+  border: 2px solid !important;
+  border-color: rgb(72 72 78) rgb(25 25 28) rgb(25 25 28) rgb(72 72 78) !important;
+  box-shadow: 2px 2px 0 rgb(20 20 22) !important;
+}
+
+.session-panel__config-menu button {
+  border-bottom: 1px solid rgb(var(--ide-border));
+  font-size: 11px !important;
+}
+
+/* ════════════════════════════════════════════════════
+   终端 — 凹陷显示区域
+   ════════════════════════════════════════════════════ */
+
+.term-view__canvas {
+  border: 2px solid !important;
+  border-color: rgb(25 25 28) rgb(72 72 78) rgb(72 72 78) rgb(25 25 28) !important;
+  background: rgb(28 28 30) !important;
+}
+
+.term-view__header {
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
+  background: rgb(40 40 43) !important;
+}
+
+.term-view__search {
+  border: 2px solid !important;
+  border-color: rgb(72 72 78) rgb(25 25 28) rgb(25 25 28) rgb(72 72 78) !important;
+  background: rgb(var(--ide-panel)) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   文件树 — 经典 Explorer 风格
+   ════════════════════════════════════════════════════ */
+
+.file-tab__header {
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
+  background: rgb(40 40 43) !important;
+}
+
+.file-tree-item {
+  font-size: 12px !important;
+  padding: 1px 0 !important;
+}
+
+.file-tree-item--active {
+  background: rgb(var(--ide-accent)) !important;
+  color: #fff !important;
+  outline: 1px solid rgb(60 100 180) !important;
+}
+
+.file-tree-item--active .file-tree-item__name,
+.file-tree-item--active .ft-icon {
+  color: #fff !important;
+}
+
+.file-tree-item--folder > .file-tree-item__name {
+  font-weight: 700 !important;
+}
+
+.file-tab__section {
+  border-top: 1px solid rgb(var(--ide-border)) !important;
+}
+
+.file-tab__section-header {
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
+  background: rgb(45 45 48) !important;
+  font-size: 11px !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+/* ════════════════════════════════════════════════════
+   Git 面板 — Win98 经典
+   ════════════════════════════════════════════════════ */
+
+.git-tab__header {
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
+  background: rgb(40 40 43) !important;
+}
+
+.git-tab__branch-name {
+  font-weight: 700 !important;
+}
+
+/* 区块 = 凸起分界线 */
+.git-tab__section {
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
+}
+
+.git-tab__section-header {
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
+  background: rgb(45 45 48) !important;
+  font-size: 11px !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  padding: 3px 4px !important;
+}
+
+.git-tab__file-item {
+  border-bottom: 1px solid rgb(55 55 58);
+  font-size: 12px !important;
+  padding: 2px 0 !important;
+}
+
+.git-tab__file-item:hover {
+  background: rgb(var(--ide-hover)) !important;
+}
+
+/* 提交区 = 底部面板 */
+.git-tab__commit-area {
+  border-top: 2px solid !important;
+  border-color: rgb(72 72 78) rgb(25 25 28) rgb(25 25 28) rgb(72 72 78) !important;
+  background: rgb(40 40 43) !important;
+}
+
+/* textarea = 凹陷输入框 */
+.git-tab__commit-input {
+  border: 2px solid !important;
+  border-color: rgb(25 25 28) rgb(72 72 78) rgb(72 72 78) rgb(25 25 28) !important;
+  background: rgb(30 30 32) !important;
+  font-size: 12px !important;
+}
+
+.git-tab__commit-input:focus {
+  border-color: rgb(30 65 150) !important;
+}
+
+/* 提交按钮 = 凸起 Win98 风格 */
+.git-tab__commit-btn {
+  border: 2px solid !important;
+  border-color: rgb(90 90 95) rgb(25 25 28) rgb(25 25 28) rgb(90 90 95) !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  background: rgb(45 45 48) !important;
+  color: rgb(var(--ide-text)) !important;
+  font-size: 12px !important;
+}
+
+.git-tab__commit-btn:active {
+  border-color: rgb(25 25 28) rgb(90 90 95) rgb(90 90 95) rgb(25 25 28) !important;
+  color: rgb(var(--ide-accent)) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   右侧面板 — Explorer 侧栏风格
+   ════════════════════════════════════════════════════ */
+
+.right-panel__content {
+  border: 2px solid !important;
+  border-color: rgb(25 25 28) rgb(72 72 78) rgb(72 72 78) rgb(25 25 28) !important;
+}
+
+.right-panel__tab-bar {
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
+}
+
+.right-panel__tab {
+  border: 2px solid !important;
+  border-color: rgb(72 72 78) rgb(25 25 28) rgb(25 25 28) rgb(72 72 78) !important;
+  font-size: 11px !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  padding: 2px 8px !important;
+}
+
+.right-panel__tab--active {
+  border-color: rgb(25 25 28) rgb(72 72 78) rgb(72 72 78) rgb(25 25 28) !important;
+  background: rgb(var(--ide-bg)) !important;
+  font-weight: 700 !important;
+}
+
+/* ════════════════════════════════════════════════════
+   滚动条 — Win98 灰滑块
+   ════════════════════════════════════════════════════ */
+::-webkit-scrollbar {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(55 55 58) !important;
+  border: 1px solid rgb(25 25 28) !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(78 78 82) !important;
+  border: 2px solid !important;
+  border-color: rgb(90 90 95) rgb(25 25 28) rgb(25 25 28) rgb(90 90 95) !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(90 90 95) !important;
+}
+
+::-webkit-scrollbar-button {
+  display: block !important;
+  background: rgb(78 78 82) !important;
+  height: 14px !important;
+  border: 2px solid !important;
+  border-color: rgb(90 90 95) rgb(25 25 28) rgb(25 25 28) rgb(90 90 95) !important;
+}
+
+::-webkit-scrollbar-corner {
+  background: rgb(55 55 58) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   模态框 — 经典灰色窗口
+   ════════════════════════════════════════════════════ */
+.fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
+  border: 3px solid !important;
+  border-color: rgb(72 72 78) rgb(25 25 28) rgb(25 25 28) rgb(72 72 78) !important;
+  box-shadow: 3px 3px 0 rgb(20 20 22), 6px 6px 6px rgba(0,0,0,0.4) !important;
+}
+
+.fixed.inset-0.z-50 button { border-radius: 0 !important; }
+
+/* 上下文菜单 */
+.fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
+  border: 2px solid !important;
+  border-color: rgb(72 72 78) rgb(25 25 28) rgb(25 25 28) rgb(72 72 78) !important;
+  box-shadow: 2px 2px 0 rgb(20 20 22) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   输入框 — 经典凹陷 (inset)
+   ════════════════════════════════════════════════════ */
+input, select, textarea {
+  border: 2px solid !important;
+  border-color: rgb(25 25 28) rgb(72 72 78) rgb(72 72 78) rgb(25 25 28) !important;
+  background: rgb(30 30 32) !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: rgb(30 65 150) !important;
+  outline: none !important;
+}
+
+input[type="checkbox"] {
+  accent-color: rgb(var(--ide-accent));
+}
+
+/* 复选框 — Win98 经典方块 */
+input[type="checkbox"] {
+  accent-color: rgb(30 65 150);
+}
+
+/* ════════════════════════════════════════════════════
+   按钮 — 凸起 (outset)
+   ════════════════════════════════════════════════════ */
+button, .border-ide-accent {
+  border: 2px solid !important;
+  border-color: rgb(90 90 95) rgb(25 25 28) rgb(25 25 28) rgb(90 90 95) !important;
+}
+
+button:active, button[class*="bg-ide-accent"]:active {
+  border-color: rgb(25 25 28) rgb(90 90 95) rgb(90 90 95) rgb(25 25 28) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   分割线
+   ════════════════════════════════════════════════════ */
+.border-t { border-top: 1px solid rgb(var(--ide-border)) !important; }
+.border-b { border-bottom: 1px solid rgb(var(--ide-border)) !important; }
+
+/* ════════════════════════════════════════════════════
+   细节 — Win98 特有
+   ════════════════════════════════════════════════════ */
+*:focus-visible {
+  outline: 1px dotted rgb(var(--ide-accent)) !important;
+  outline-offset: 0 !important;
+}
+
+::selection {
+  background: rgb(var(--ide-accent)) !important;
+  color: #fff !important;
+}
+
+/* 链接/可点击文字 — 经典蓝色 */
+[class*="text-ide-accent"] {
+  color: rgb(100 150 230) !important;
+}
