@@ -1829,7 +1829,7 @@ export default function App() {
       {/* Main Content - 3 Panels */}
       <div className="flex flex-1 overflow-hidden" style={{ cursor: isDragging ? 'col-resize' : 'default' }}>
         {/* Left Panel: Session + Outline */}
-        <div className="shrink-0 flex flex-col relative" style={{ width: leftPanelWidth, display: isWelcome ? 'none' : undefined }}>
+        <div className="shrink-0 flex flex-col relative" data-panel="left" style={{ width: leftPanelWidth, display: isWelcome ? 'none' : undefined }}>
           {/* SessionPanel: always full height */}
           <div className="flex-1 overflow-hidden">
             <SessionPanel
@@ -2069,6 +2069,7 @@ export default function App() {
         <div ref={rightPanelRef}
           className="shrink-0 flex flex-col overflow-hidden focus-frame"
           style={{ width: rightPanelWidth }}
+          data-panel="right"
           data-focused={focusedPanel === 'right' ? 'true' : undefined}
           onFocus={handleRightFocus}
           onBlur={handleRightBlur}>

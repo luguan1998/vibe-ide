@@ -109,11 +109,11 @@ function RootInput({ editingState, onEditSubmit, onEditCancel, t }: {
       <div className="pr-2 py-0.5 text-xs flex items-center gap-0.5 bg-ide-accent/10" style={{ paddingLeft: 16 }}>
         <span className="w-3 shrink-0" />
         {editingState.type === 'newFolder' ? (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>
         ) : (
-          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 text-ide-text-muted"
+          <svg viewBox="0 0 16 16" fill="currentColor" className="ft-icon shrink-0 text-ide-text-muted"
             dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS.default }} />
         )}
         <input
@@ -201,7 +201,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   return (
     <>
       <div
-        className={`group pr-2 py-0.5 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none ${highlightedFilePath === norm(node.path) ? 'bg-ide-accent/20' : ''}`}
+        className={`group pr-2 py-0.5 ft-fname cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none ${highlightedFilePath === norm(node.path) ? 'bg-ide-accent/20' : ''}`}
         style={{ paddingLeft }}
         onClick={handleClick}
         onContextMenu={(e) => { if (!isRenaming && !isCreating) onContextMenu(e, node) }}
@@ -217,12 +217,12 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
         {isRenaming ? (
           isDir ? (
             isExpanded ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 <path d="M2 10h12l2 4h6" />
               </svg>
             ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
               </svg>
             )
@@ -230,7 +230,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
             (() => {
               const info = getFileInfo(node.name)
               return (
-                <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
+                <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
                   dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
               )
             })()
@@ -238,12 +238,12 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
         ) : (
           isDir ? (
             isExpanded ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 <path d="M2 10h12l2 4h6" />
               </svg>
             ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
               </svg>
             )
@@ -251,7 +251,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
             (() => {
               const info = getFileInfo(node.name)
               return (
-                <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
+                <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
                   dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
               )
             })()
@@ -310,7 +310,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                 }}
                 title={t('Search in folder')}
               >
-                <Search className="w-3.5 h-3.5" />
+                <Search className="ft-icon" />
               </button>
             ) : null}
             {!isDir && node.name.toLowerCase().endsWith('.md') && onPreviewMarkdown && (
@@ -322,7 +322,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                 }}
                 title="Preview Markdown"
               >
-                <Eye className="w-3.5 h-3.5" />
+                <Eye className="ft-icon" />
               </button>
             )}
             {!isDir && getFileInfo(node.name).kind === 'image' && onPreviewImage && (
@@ -334,7 +334,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                 }}
                 title="Preview Image"
               >
-                <Eye className="w-3.5 h-3.5" />
+                <Eye className="ft-icon" />
               </button>
             )}
           </>
@@ -354,11 +354,11 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
             >
               <span className="w-3 shrink-0" />
               {editingState!.type === 'newFolder' ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
               ) : (
-                <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 text-ide-text-muted"
+                <svg viewBox="0 0 16 16" fill="currentColor" className="ft-icon shrink-0 text-ide-text-muted"
                   dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS.default }} />
               )}
               <input
@@ -470,7 +470,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
   return (
     <>
       <div
-        className="group pr-2 py-0.5 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none"
+        className="group pr-2 py-0.5 ft-fname cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none"
         style={{ paddingLeft }}
         onClick={() => isDir ? onToggleDir(node.path) : onToggleFile(node.path)}
       >
@@ -479,12 +479,12 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
         </svg>
         {isDir ? (
           expanded ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
               <path d="M2 10h12l2 4h6" />
             </svg>
           ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-warning shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
             </svg>
           )
@@ -492,7 +492,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
           (() => {
             const info = getFileInfo(node.name)
             return (
-              <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
+              <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
                 dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
             )
           })()
@@ -1035,7 +1035,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           onMouseLeave={() => setSearchJustClosed(false)}
         >
           <div className="flex items-center gap-1 min-w-0 flex-1">
-            <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent shrink-0">
+            <svg viewBox="0 0 16 16" fill="currentColor" className="ft-icon text-ide-accent shrink-0">
               <path d="M14.5 3H7.71L6.86 2.15L6.51 2H1.51L1.01 2.5V6.5V13.5L1.51 14H14.51L15.01 13.5V9V3.5L14.5 3ZM13.99 11.49V13H1.99V11.49V7.49V7H6.48L6.83 6.85L7.69 5.99H14V7.49L13.99 11.49ZM13.99 5H7.49L7.14 5.15L6.28 6.01H2V3.01H6.29L7.14 3.86L7.5 4.01H14L13.99 5Z" />
             </svg>
             <span className="text-sm text-ide-text font-medium truncate">
@@ -1045,7 +1045,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           <div
             className={`items-center gap-0.5 bg-ide-border/30 border border-ide-border group-focus-within:border-ide-accent rounded-full px-2 py-0.5 shrink-0 transition-colors ${searchScope === null && !searchJustClosed ? (searchQuery.trim() ? 'flex' : 'hidden group-hover:flex group-focus-within:flex') : 'hidden'}`}
           >
-            <Search className="w-3.5 h-3.5 text-ide-text-muted shrink-0" />
+            <Search className="ft-icon text-ide-text-muted shrink-0" />
             <input
               ref={searchInputRef}
               value={searchQuery}
@@ -1087,7 +1087,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
               onClick={onRefresh}
               title={t('Refresh')}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon">
                 <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
               </svg>
             </button>
@@ -1189,11 +1189,11 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
               <div
                 key={f.path}
                 data-recent-idx={i}
-                className={`group pl-[30px] pr-2 py-0.5 flex items-center gap-1.5 cursor-pointer hover:bg-ide-hover text-xs ${selectedRecentIndex === i ? 'bg-ide-accent/10 text-ide-text' : ''}`}
+                className={`group pl-[30px] pr-2 py-0.5 flex items-center gap-1.5 cursor-pointer hover:bg-ide-hover ft-fname ${selectedRecentIndex === i ? 'bg-ide-accent/10 text-ide-text' : ''}`}
                 title={`${f.path}${f.line ? ':' + f.line : ''}`}
                 onClick={() => onOpenRecentFile?.(f.path, f.line)}
               >
-                <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 shrink-0 ${info.color}`}
+                <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
                   dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
                 <span className="truncate text-ide-text min-w-0 flex-1">{baseName}</span>
                 {onEditRecentFile && baseName.toLowerCase().endsWith('.md') && (
@@ -1399,13 +1399,13 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
                 onClick={() => toggleSection('recently')}
               >
-                <span className={`w-3.5 h-3.5 flex items-center justify-center ${sectionVis.recently ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
+                <span className={`ft-icon flex items-center justify-center ${sectionVis.recently ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
                   {sectionVis.recently ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-30" />
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon opacity-30" />
                   )}
                 </span>
                 <span>{t('Recently')}</span>
@@ -1414,13 +1414,13 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
                 onClick={() => toggleSection('arch')}
               >
-                <span className={`w-3.5 h-3.5 flex items-center justify-center ${sectionVis.arch ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
+                <span className={`ft-icon flex items-center justify-center ${sectionVis.arch ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
                   {sectionVis.arch ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-30" />
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon opacity-30" />
                   )}
                 </span>
                 <span>arch</span>
@@ -1442,13 +1442,13 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
             onClick={() => toggleSection('recently')}
           >
-            <span className={`w-3.5 h-3.5 flex items-center justify-center ${sectionVis.recently ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
+            <span className={`ft-icon flex items-center justify-center ${sectionVis.recently ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
               {sectionVis.recently ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-30" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon opacity-30" />
               )}
             </span>
             <span>{t('Recently')}</span>
@@ -1457,13 +1457,13 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
             onClick={() => toggleSection('arch')}
           >
-            <span className={`w-3.5 h-3.5 flex items-center justify-center ${sectionVis.arch ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
+            <span className={`ft-icon flex items-center justify-center ${sectionVis.arch ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
               {sectionVis.arch ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-30" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon opacity-30" />
               )}
             </span>
             <span>arch</span>

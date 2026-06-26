@@ -403,3 +403,7 @@ html, body, #root {
 .git-fname { font-size: var(--git-fname-size, 11px); }
 .git-fdir { font-size: var(--git-fdir-size, 10px); }
 
+/* ── File 文件名/图标尺寸 — user.css 可通过 --ft-fname-size / --ft-icon-size 覆盖 ── */
+.ft-fname { font-size: var(--ft-fname-size, 12px); }
+.ft-icon  { width: var(--ft-icon-size, 14px); height: var(--ft-icon-size, 14px); }
+

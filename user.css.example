@@ -100,22 +100,39 @@ html, body, #root {
 
 
 /* ═══════════════════════════════════════════════════
-   6. 终端（xterm.js）
+   6. 左右两侧栏 — 发光分隔 + 渐变高光（显眼特点）
+   ──────────────────────────────────────────────
+   左侧 Session 栏 [data-panel="left"]、右侧 Right 栏
+   [data-panel="right"]（App.tsx 三栏布局外层 div 的钩子）。
+   强调色由 --ide-accent 驱动，换主题色变量即同步变色。
    ═══════════════════════════════════════════════════ */
-/* 6a. 背景图：设了 --terminal-bg-image 即开启，canvas 自动透明，图铺满。
-       --terminal-bg-overlay 是叠在图上的半透明遮罩，调到看清文字。
-       不想要：注释掉 --terminal-bg-image 即恢复纯色终端。 */
-:root {
-  --terminal-bg-image: url('file:///D:/pics/terminal-bg.jpg');
-  --terminal-bg-overlay: rgba(0, 0, 0, 0.55);
+/* 6a. 左侧栏：右缘发光分隔 + 由左向右淡入的强调色渐变 */
+[data-panel="left"] {
+  position: relative;
+  border-right: 1px solid rgb(var(--ide-accent) / 0.4);
+  box-shadow: inset -2px 0 18px -4px rgb(var(--ide-accent) / 0.28);
+  background-image: linear-gradient(to right, rgb(var(--ide-accent) / 0.06), transparent 35%);
 }
 
-/* 6b. 终端内边距 */
-.xterm { padding: 4px 8px; }
+/* 6b. 右侧栏：左缘发光分隔 + 由右向左淡入的强调色渐变 */
+[data-panel="right"] {
+  position: relative;
+  border-left: 1px solid rgb(var(--ide-accent) / 0.4);
+  box-shadow: inset 2px 0 18px -4px rgb(var(--ide-accent) / 0.28);
+  background-image: linear-gradient(to left, rgb(var(--ide-accent) / 0.06), transparent 35%);
+}
 
-/* 6c. Alt 画笔模式光标（globals 用 --brush-cursor，默认 crosshair） */
-:root {
-  --brush-cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M4 20l5-5 8-8-4-4-8 8z' fill='%2316b981' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E") 2 18, text;
+/* 6c. 两侧顶部强调色发光条（醒目收口） */
+[data-panel="left"]::before,
+[data-panel="right"]::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(to right, transparent, rgb(var(--ide-accent)), transparent);
+  box-shadow: 0 0 10px rgb(var(--ide-accent) / 0.7);
+  pointer-events: none;
+  z-index: 50;
 }
 
 
@@ -196,6 +213,15 @@ html, body, #root {
   .git-stats { display: inline-flex !important; }
 }
 */
+
+
+/* ═══════════════════════════════════════════════════
+   9b. File 面板（文件名字号 / 图标尺寸）
+   ═══════════════════════════════════════════════════ */
+:root {
+  --ft-fname-size: 13px;   /* 文件名/目录名字号，默认 12 */
+  --ft-icon-size: 16px;    /* 文件/目录图标尺寸，默认 14 */
+}
 
 
 /* ═══════════════════════════════════════════════════
