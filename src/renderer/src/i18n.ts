@@ -149,6 +149,9 @@ const ZH_MAP: Record<string, string> = {
   'UI Style Settings': 'UI 样式设置',
   'Terminal Font Size': '终端字体大小',
   'Editor Font Size': '编辑器字体大小',
+  'Session Font': '会话字体',
+  'UI Font': '界面字体',
+  'Terminal Font': '终端字体',
   'ESC Auto @ Selection': 'ESC 自动 @ 选中行',
   'When pressing ESC in diff view with text selected, auto-insert @filepath:line into the terminal.': '在 diff 界面选中文字后按 ESC，自动将 @文件路径:行号 输入到终端。',
 

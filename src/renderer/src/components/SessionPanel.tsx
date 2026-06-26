@@ -160,6 +160,12 @@ interface SessionPanelProps {
   editorFontSize?: number
   onAdjustTerminalFontSize?: (delta: number) => void
   onAdjustEditorFontSize?: (delta: number) => void
+  fontFamily?: string
+  onSetFontFamily?: (font: string) => void
+  uiFontFamily?: string
+  onSetUiFontFamily?: (font: string) => void
+  termFontFamily?: string
+  onSetTermFontFamily?: (font: string) => void
 }
 
 const SessionPanel = React.memo(function SessionPanel({
@@ -207,6 +213,12 @@ const SessionPanel = React.memo(function SessionPanel({
   editorFontSize = 14,
   onAdjustTerminalFontSize,
   onAdjustEditorFontSize,
+  fontFamily = 'Consolas',
+  onSetFontFamily,
+  uiFontFamily = 'Cascadia Code',
+  onSetUiFontFamily,
+  termFontFamily = 'Cascadia Code',
+  onSetTermFontFamily,
 }: SessionPanelProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [appVersion, setAppVersion] = useState('')
@@ -548,7 +560,7 @@ const SessionPanel = React.memo(function SessionPanel({
       }}
     >
       <div className={`flex items-center justify-between ${opts.minHeightClass}`}>
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        <div className={`flex items-center gap-1.5 min-w-0 flex-1 ${opts.showCwd ? 'pr-12' : ''}`}>
           {renaming === session.id ? (
             <input
               ref={inputRef}
@@ -591,7 +603,7 @@ const SessionPanel = React.memo(function SessionPanel({
             </>
           )}
         </div>
-        <div className="flex items-center">
+        <div className={`flex items-center ${opts.showCwd ? 'absolute right-3 top-1/2 -translate-y-1/2' : ''}`}>
           {opts.showAutoApprove && onToggleAutoApprove && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleAutoApprove(session.id, session.cwd) }}
@@ -658,7 +670,7 @@ const SessionPanel = React.memo(function SessionPanel({
   )
 
   return (
-    <div className={`flex flex-col${compact ? '' : ' h-full'}`}>
+    <div className={`flex flex-col${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
       {/* Header + Dashboard merged */}
       <div className="h-10 px-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-1.5">
@@ -1038,7 +1050,7 @@ const SessionPanel = React.memo(function SessionPanel({
           })
         ) : (
           <div className="bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden">
-            {sessions.map((session, index) => renderSessionItem(session, index, { showAutoApprove: true, showCwd: true, outerClass: 'px-3 py-1 cursor-pointer transition-colors', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[32px]' }))}
+            {sessions.map((session, index) => renderSessionItem(session, index, { showAutoApprove: true, showCwd: true, outerClass: 'px-3 py-1 cursor-pointer transition-colors relative', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[32px]' }))}
           </div>
         )}
         {dropGroupIndex !== null && dropGroupIndex === sessionGroups.length && dropGroupIndex !== dragGroupIndex && (
@@ -1636,6 +1648,78 @@ const SessionPanel = React.memo(function SessionPanel({
                       onClick={(e) => { e.stopPropagation(); onAdjustEditorFontSize(1) }}
                     >{'>'}</button>
                   </div>
+                </div>
+              )}
+              {onSetFontFamily && (
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-xs text-ide-text">
+                    <span className="whitespace-nowrap shrink-0">{t('Session Font')}</span>
+                    <select
+                      className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
+                      value={fontFamily}
+                      onChange={(e) => { if (e.target.value) onSetFontFamily(e.target.value) }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {['Consolas', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Courier New', 'monospace'].map(f => (
+                        <option key={f} value={f}>{f}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent"
+                    placeholder={t('Or type any font name…')}
+                    value={fontFamily}
+                    onChange={(e) => onSetFontFamily(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )}
+              {onSetUiFontFamily && (
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-xs text-ide-text">
+                    <span className="whitespace-nowrap shrink-0">{t('UI Font')}</span>
+                    <select
+                      className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
+                      value={uiFontFamily}
+                      onChange={(e) => { if (e.target.value) onSetUiFontFamily(e.target.value) }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {['Cascadia Code', 'Consolas', 'JetBrains Mono', 'Fira Code', 'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Courier New', 'monospace'].map(f => (
+                        <option key={f} value={f}>{f}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent"
+                    placeholder={t('Or type any font name…')}
+                    value={uiFontFamily}
+                    onChange={(e) => onSetUiFontFamily(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )}
+              {onSetTermFontFamily && (
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-xs text-ide-text">
+                    <span className="whitespace-nowrap shrink-0">{t('Terminal Font')}</span>
+                    <select
+                      className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
+                      value={termFontFamily}
+                      onChange={(e) => { if (e.target.value) onSetTermFontFamily(e.target.value) }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {['Cascadia Code', 'Consolas', 'JetBrains Mono', 'Fira Code', 'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Courier New', 'monospace'].map(f => (
+                        <option key={f} value={f}>{f}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent"
+                    placeholder={t('Or type any font name…')}
+                    value={termFontFamily}
+                    onChange={(e) => onSetTermFontFamily(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
                 </div>
               )}
             </div>

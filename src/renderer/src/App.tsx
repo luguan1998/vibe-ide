@@ -403,6 +403,21 @@ export default function App() {
       return v ? Math.max(8, Math.min(30, Number(v))) : 14
     } catch { return 14 }
   })
+  const [sessionFontFamily, setSessionFontFamily] = useState(() => {
+    try {
+      return localStorage.getItem('vibe-ide-session-font') || 'Consolas'
+    } catch { return 'Consolas' }
+  })
+  const [fontFamily, setFontFamily] = useState(() => {
+    try {
+      return localStorage.getItem('vibe-ide-font-family') || 'Cascadia Code'
+    } catch { return 'Cascadia Code' }
+  })
+  const [termFontFamily, setTermFontFamily] = useState(() => {
+    try {
+      return localStorage.getItem('vibe-ide-term-font') || 'Cascadia Code'
+    } catch { return 'Cascadia Code' }
+  })
   const centerViewRef = React.useRef<CenterView>('terminal')
 
   // Keep ref in sync so IPC listener always sees latest centerView
@@ -568,6 +583,24 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-editor-font-size', String(editorFontSize)) } catch {}
   }, [editorFontSize])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-session-font', sessionFontFamily) } catch {}
+  }, [sessionFontFamily])
+  React.useEffect(() => {
+    document.documentElement.style.setProperty('--ide-session-font', sessionFontFamily)
+  }, [sessionFontFamily])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-font-family', fontFamily) } catch {}
+  }, [fontFamily])
+  React.useEffect(() => {
+    document.documentElement.style.setProperty('--ide-font-family', fontFamily)
+  }, [fontFamily])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-term-font', termFontFamily) } catch {}
+  }, [termFontFamily])
+  React.useEffect(() => {
+    document.documentElement.style.setProperty('--ide-term-font', termFontFamily)
+  }, [termFontFamily])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-word-wrap', String(wordWrap)) } catch {}
   }, [wordWrap])
@@ -1824,6 +1857,12 @@ export default function App() {
             editorFontSize={editorFontSize}
             onAdjustTerminalFontSize={(delta: number) => setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))}
             onAdjustEditorFontSize={(delta: number) => setEditorFontSize(prev => Math.max(8, Math.min(30, prev + delta)))}
+            fontFamily={sessionFontFamily}
+            onSetFontFamily={setSessionFontFamily}
+            uiFontFamily={fontFamily}
+            onSetUiFontFamily={setFontFamily}
+            termFontFamily={termFontFamily}
+            onSetTermFontFamily={setTermFontFamily}
             fileTreeDepth={fileTreeDepth}
             onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}
@@ -1979,7 +2018,7 @@ export default function App() {
                         onAgentStatusChange={handleAiAgentStatusChange}
                       />
                     ) : (
-                      <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
+                      <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={(cmd) => handleCommandEntered(session.id, cmd)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
                     )}
                   </div>
                 )
