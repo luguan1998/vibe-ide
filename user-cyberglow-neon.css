@@ -1,30 +1,32 @@
 /*
   Vibe IDE 用户主题 — CyberGlow Neon（霓虹赛博）
   ─────────────────────────────────────────────────────
-  灵感：Obsidian「CyberGlow」主题 —— 纯黑底 / 霓虹青 + 品红 / 发光与渐变。
-        未来都市雨夜的广告牌。本文件把发光做到 user.css 能给的极致：
-        Markdown 标题青→品红渐变、焦点框霓虹光晕、标题栏霓虹底边、
-        终端背景两束霓虹光晕、滚动条 hover 发光。
+  灵感：Obsidian「CyberGlow」—— 纯黑底 / 霓虹青 + 品红 / 发光与渐变。
+        未来都市雨夜的广告牌。
   来源：https://github.com/ThePharaohArt/Obsidian-CyberGlow
+
+  一眼差异（对比其他 user 主题）：
+    • 近纯黑底（#0a0a0f）—— 最深最暗
+    • 左栏霓虹青、右栏品红 —— 双色区分，强外发光 + 顶部青→紫→品红光条
+    • 标题栏缓慢呼吸、Markdown 标题青→紫→品红渐变、终端两束霓虹光晕
+    • 推荐 配内置「Dracula」
 
   用法：
     1. 复制此文件到 vibe-ide.exe 所在目录（dev 模式放 node_modules/electron/dist/）
     2. 重命名为 user.css
     3. 重启 Vibe IDE 生效（不支持热加载）
-    4. 推荐搭配内置主题「Dracula」：设置 → 主题选 Dracula。
-       Dracula 的 token（粉/绿/青/紫）高饱和，在近纯黑底上像霓虹，与本外壳一致。
-       ※ Monaco 语法 token 色 / 终端文字色由内置主题驱动，user.css 不覆盖它们。
+    4. 设置 → 主题选 Dracula（Monaco token / 终端文字色由内置主题驱动）
 
   规则：
-    - 主题色变量值必须 "R G B" 空格分隔
+    - 主题色变量值 "R G B" 空格分隔
     - 不想要终端背景图：删掉 --terminal-bg-image 一行
-    - 觉得太晃：删掉第 9 节焦点框 / 第 10 节标题霓虹呼吸动画
+    - 觉得太晃：删掉第 10 节焦点框 / 第 11 节标题呼吸
     - 全部恢复：删除/清空 user.css
 */
 
 
 /* ═══════════════════════════════════════════════════
-   1. 主题色变量（近纯黑机身 + 霓虹）
+   1. 主题色变量（近纯黑机身 + 霓虹 + 终端背景）
    ═══════════════════════════════════════════════════ */
 :root {
   /* ── 背景 ── */
@@ -121,9 +123,33 @@ html, body, #root {
 
 
 /* ═══════════════════════════════════════════════════
-   6. 终端内边距
+   6. 左右两侧栏 — 左霓虹青 / 右品红，强外发光 + 顶部双色光条
    ═══════════════════════════════════════════════════ */
-.xterm { padding: 6px 10px; }
+[data-panel="left"] {
+  position: relative;
+  border-right: 1px solid rgba(0, 255, 255, 0.5);
+  box-shadow: inset -2px 0 20px -4px rgba(0, 255, 255, 0.35),
+              2px 0 16px -6px rgba(0, 255, 255, 0.25);
+  background-image: linear-gradient(to right, rgba(0, 255, 255, 0.05), transparent 35%);
+}
+[data-panel="right"] {
+  position: relative;
+  border-left: 1px solid rgba(255, 0, 255, 0.45);
+  box-shadow: inset 2px 0 20px -4px rgba(255, 0, 255, 0.3),
+              -2px 0 16px -6px rgba(255, 0, 255, 0.25);
+  background-image: linear-gradient(to left, rgba(255, 0, 255, 0.05), transparent 35%);
+}
+[data-panel="left"]::before,
+[data-panel="right"]::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(to right, transparent, #00FFFF, #B26CFF, #FF00FF, transparent);
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.8);
+  pointer-events: none;
+  z-index: 50;
+}
 
 
 /* ═══════════════════════════════════════════════════
@@ -197,7 +223,25 @@ html, body, #root {
 
 
 /* ═══════════════════════════════════════════════════
-   9. 焦点框：强霓虹光晕（内描边 + 外发光 + 内渗透）
+   9. Git 面板（文件名 / 目录名字号）
+   ═══════════════════════════════════════════════════ */
+:root {
+  --git-fname-size: 12px;
+  --git-fdir-size: 10px;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   9b. File 面板（文件名字号 / 图标尺寸）
+   ═══════════════════════════════════════════════════ */
+:root {
+  --ft-fname-size: 13px;
+  --ft-icon-size: 16px;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   10. 焦点框：强霓虹光晕（内描边 + 外发光 + 内渗透）
    ═══════════════════════════════════════════════════ */
 .focus-frame::before {
   box-shadow:
@@ -208,7 +252,7 @@ html, body, #root {
 
 
 /* ═══════════════════════════════════════════════════
-   10. 标题栏霓虹呼吸（缓慢，不晃眼；觉得晃可删本节）
+   11. 标题栏霓虹呼吸（缓慢，不晃眼；觉得晃可删本节）
    ═══════════════════════════════════════════════════ */
 @keyframes cyberBreathe {
   0%, 100% { box-shadow: 0 1px 6px -3px rgba(0, 255, 255, 0.3); }
@@ -220,7 +264,7 @@ html, body, #root {
 
 
 /* ═══════════════════════════════════════════════════
-   11. 画笔光标也变霓虹青（Alt 画笔模式）
+   12. 画笔光标也变霓虹青（Alt 画笔模式）
        --brush-cursor 由 ThemeProvider 内联注入，须 !important 才能覆盖
    ═══════════════════════════════════════════════════ */
 :root {

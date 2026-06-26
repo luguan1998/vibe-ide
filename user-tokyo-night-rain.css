@@ -1,28 +1,31 @@
 /*
   Vibe IDE 用户主题 — Tokyo Night Rain（冷夜雨城）
   ─────────────────────────────────────────────────────
-  灵感：Obsidian「Tokyo Night」主题 —— 深蓝黑底 / Tokyo Blue 强调 / 冷静夜色。
-        本文件在其基础上加了一层「窗外东京夜」：终端区用纯 CSS 渐变模拟
-        深蓝夜空 + 远处冷暖光晕，让终端像雨夜城市的一扇窗。
+  灵感：Obsidian「Tokyo Night」—— 深蓝黑底 / Tokyo Blue 强调 / 冷静夜色。
+        终端区用纯 CSS 渐变模拟深蓝夜空 + 远处冷暖光晕，像雨夜城市的一扇窗。
   来源：https://github.com/tcmmichaelb139/obsidian-tokyonight
+
+  一眼差异（对比其他 user 主题）：
+    • 深蓝黑底（#1a1b26）—— 不是纯黑，带蓝调夜色
+    • Tokyo Blue 强调（#7aa2f7），左右栏冷蓝内发光 + 顶部蓝条微光
+    • 终端区有「夜空 + 远处光晕」渐变背景（无需图片）
+    • 推荐 配内置「Tokyo Night」
 
   用法：
     1. 复制此文件到 vibe-ide.exe 所在目录（dev 模式放 node_modules/electron/dist/）
     2. 重命名为 user.css
     3. 重启 Vibe IDE 生效（不支持热加载）
-    4. 推荐搭配内置主题「Tokyo Night」：设置 → 主题选 Tokyo Night。
-       代码编辑区 token 色（蓝/紫/青/绿）与外壳冷调一致。
-       ※ Monaco 语法 token 色 / 终端文字色由内置主题驱动，user.css 不覆盖它们。
+    4. 设置 → 主题选 Tokyo Night（Monaco token / 终端文字色由内置主题驱动）
 
   规则：
-    - 主题色变量值必须 "R G B" 空格分隔
+    - 主题色变量值 "R G B" 空格分隔
     - 不想要终端背景图：删掉 --terminal-bg-image 一行即恢复纯色终端
     - 全部恢复：删除/清空 user.css
 */
 
 
 /* ═══════════════════════════════════════════════════
-   1. 主题色变量（深蓝黑夜）
+   1. 主题色变量（深蓝黑夜 + 终端夜空渐变）
    ═══════════════════════════════════════════════════ */
 :root {
   /* ── 背景 ── */
@@ -62,6 +65,13 @@
 
   /* ── Monaco 行号区 ── */
   --monaco-margin-bg: 22 22 30;
+
+  /* ── 终端背景：东京夜空 + 远处冷暖光晕（纯 CSS 渐变，无需图片） ── */
+  --terminal-bg-image:
+    radial-gradient(circle at 18% 82%, rgba(122,162,247,0.16), transparent 42%),
+    radial-gradient(circle at 82% 18%, rgba(187,154,247,0.13), transparent 46%),
+    linear-gradient(180deg, #16161e 0%, #1a1b26 55%, #0d0f16 100%);
+  --terminal-bg-overlay: rgba(22, 22, 30, 0.55);
 }
 
 
@@ -103,19 +113,31 @@ html, body, #root {
 
 
 /* ═══════════════════════════════════════════════════
-   6. 终端：纯 CSS 渐变「东京夜空 + 远处光晕」，无需外部图片
-      设了 --terminal-bg-image 即自动让终端 canvas 透明、背后铺此渐变。
-      --terminal-bg-overlay 是叠在渐变上的半透明遮罩，调到看清文字。
-      不想要：删掉 --terminal-bg-image 一行即恢复纯色终端。
+   6. 左右两侧栏 — 冷蓝内发光 + 顶部蓝条微光（夜色里的微光）
    ═══════════════════════════════════════════════════ */
-:root {
-  --terminal-bg-image:
-    radial-gradient(circle at 18% 82%, rgba(122,162,247,0.16), transparent 42%),
-    radial-gradient(circle at 82% 18%, rgba(187,154,247,0.13), transparent 46%),
-    linear-gradient(180deg, #16161e 0%, #1a1b26 55%, #0d0f16 100%);
-  --terminal-bg-overlay: rgba(22, 22, 30, 0.55);
+[data-panel="left"] {
+  position: relative;
+  border-right: 1px solid rgb(var(--ide-accent) / 0.35);
+  box-shadow: inset -2px 0 18px -4px rgb(var(--ide-accent) / 0.18);
+  background-image: linear-gradient(to right, rgb(var(--ide-accent) / 0.05), transparent 35%);
 }
-.xterm { padding: 6px 10px; }
+[data-panel="right"] {
+  position: relative;
+  border-left: 1px solid rgb(var(--ide-accent) / 0.35);
+  box-shadow: inset 2px 0 18px -4px rgb(var(--ide-accent) / 0.18);
+  background-image: linear-gradient(to left, rgb(var(--ide-accent) / 0.05), transparent 35%);
+}
+[data-panel="left"]::before,
+[data-panel="right"]::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(to right, transparent, rgb(var(--ide-accent)), transparent);
+  box-shadow: 0 0 8px rgb(var(--ide-accent) / 0.5);
+  pointer-events: none;
+  z-index: 50;
+}
 
 
 /* ═══════════════════════════════════════════════════
@@ -171,7 +193,25 @@ html, body, #root {
 
 
 /* ═══════════════════════════════════════════════════
-   9. 焦点框：冷蓝内发光（夜色里的微光）
+   9. Git 面板（文件名 / 目录名字号）
+   ═══════════════════════════════════════════════════ */
+:root {
+  --git-fname-size: 12px;
+  --git-fdir-size: 10px;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   9b. File 面板（文件名字号 / 图标尺寸）
+   ═══════════════════════════════════════════════════ */
+:root {
+  --ft-fname-size: 13px;
+  --ft-icon-size: 16px;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   10. 焦点框：冷蓝内发光（夜色里的微光）
    ═══════════════════════════════════════════════════ */
 .focus-frame::before {
   box-shadow: inset 0 0 0 1.5px rgb(var(--ide-accent) / 0.55),

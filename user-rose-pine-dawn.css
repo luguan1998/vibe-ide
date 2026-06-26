@@ -1,22 +1,26 @@
 /*
   Vibe IDE 用户主题 — Rosé Pine Dawn（暖浅纸张）
   ─────────────────────────────────────────────────────
-  灵感：Obsidian「Rosé Pine Dawn」主题 —— 奶油底 / 紫藤字 / 玫瑰点缀，
+  灵感：Obsidian「Rosé Pine Dawn」—— 奶油底 / 紫藤字 / 玫瑰点缀，
         像被晨光照亮的旧书页，柔和、安静、文艺。
   来源：https://github.com/rose-pine/obsidian
+
+  一眼差异（对比其他 user 主题）：
+    • 浅色奶油底（#faf4ed）—— 唯一明亮纸张感主题
+    • 紫藤强调（#907aa9），左右栏无发光、仅暖灰细边 + 淡紫顶条
+    • 纸张风不该有光晕：焦点框 / 选区 / 顶条 全部柔和无 box-shadow
+    • 推荐 配内置「Solarized Light」
 
   用法：
     1. 复制此文件到 vibe-ide.exe 所在目录（dev 模式放 node_modules/electron/dist/）
     2. 重命名为 user.css
     3. 重启 Vibe IDE 生效（不支持热加载）
-    4. 推荐搭配内置主题「Solarized Light」：设置 → 主题选 Solarized Light。
-       代码编辑区语法色（绿/青/橙暖调深色）与本外壳的奶油纸张感最搭。
-       ※ Monaco 语法 token 色 / 终端文字色由内置主题驱动，user.css 不覆盖它们。
+    4. 设置 → 主题选 Solarized Light（Monaco token / 终端文字色由内置主题驱动）
 
   规则：
-    - 主题色变量值必须 "R G B" 空格分隔（globals.css 用 rgb(var(--ide-xxx)) 引用）
+    - 主题色变量值 "R G B" 空格分隔（globals.css 用 rgb(var(--ide-xxx)) 引用）
     - 覆盖带 !important 的 globals 规则时，这里也要 !important
-    - 不想要某项删掉对应规则；全部恢复：删除/清空 user.css
+    - 全部恢复：删除/清空 user.css
 */
 
 
@@ -102,9 +106,28 @@ html, body, #root {
 
 
 /* ═══════════════════════════════════════════════════
-   6. 终端：不加背景图，走内置 Solarized Light 暖米底；内边距舒展
+   6. 左右两侧栏 — 暖灰细边 + 淡紫顶条（纸张风，刻意无发光）
    ═══════════════════════════════════════════════════ */
-.xterm { padding: 6px 10px; }
+[data-panel="left"] {
+  position: relative;
+  border-right: 1px solid rgb(var(--ide-border));
+  background-image: linear-gradient(to right, rgb(var(--ide-accent) / 0.04), transparent 30%);
+}
+[data-panel="right"] {
+  position: relative;
+  border-left: 1px solid rgb(var(--ide-border));
+  background-image: linear-gradient(to left, rgb(var(--ide-accent) / 0.04), transparent 30%);
+}
+[data-panel="left"]::before,
+[data-panel="right"]::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(to right, transparent, rgb(var(--ide-accent) / 0.5), transparent);
+  pointer-events: none;
+  z-index: 50;
+}
 
 
 /* ═══════════════════════════════════════════════════
@@ -162,7 +185,25 @@ html, body, #root {
 
 
 /* ═══════════════════════════════════════════════════
-   9. 焦点框：柔和不发光（纸张风不该有光晕）
+   9. Git 面板（文件名 / 目录名字号）
+   ═══════════════════════════════════════════════════ */
+:root {
+  --git-fname-size: 12px;
+  --git-fdir-size: 10px;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   9b. File 面板（文件名字号 / 图标尺寸）
+   ═══════════════════════════════════════════════════ */
+:root {
+  --ft-fname-size: 13px;
+  --ft-icon-size: 16px;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   10. 焦点框：柔和不发光（纸张风不该有光晕）
    ═══════════════════════════════════════════════════ */
 .focus-frame::before {
   box-shadow: inset 0 0 0 1.5px rgb(var(--ide-accent) / 0.5),
