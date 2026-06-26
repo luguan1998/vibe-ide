@@ -1,0 +1,188 @@
+/*
+  Vibe IDE 用户主题 — Tokyo Night Rain（冷夜雨城）
+  ─────────────────────────────────────────────────────
+  灵感：Obsidian「Tokyo Night」主题 —— 深蓝黑底 / Tokyo Blue 强调 / 冷静夜色。
+        本文件在其基础上加了一层「窗外东京夜」：终端区用纯 CSS 渐变模拟
+        深蓝夜空 + 远处冷暖光晕，让终端像雨夜城市的一扇窗。
+  来源：https://github.com/tcmmichaelb139/obsidian-tokyonight
+
+  用法：
+    1. 复制此文件到 vibe-ide.exe 所在目录（dev 模式放 node_modules/electron/dist/）
+    2. 重命名为 user.css
+    3. 重启 Vibe IDE 生效（不支持热加载）
+    4. 推荐搭配内置主题「Tokyo Night」：设置 → 主题选 Tokyo Night。
+       代码编辑区 token 色（蓝/紫/青/绿）与外壳冷调一致。
+       ※ Monaco 语法 token 色 / 终端文字色由内置主题驱动，user.css 不覆盖它们。
+
+  规则：
+    - 主题色变量值必须 "R G B" 空格分隔
+    - 不想要终端背景图：删掉 --terminal-bg-image 一行即恢复纯色终端
+    - 全部恢复：删除/清空 user.css
+*/
+
+
+/* ═══════════════════════════════════════════════════
+   1. 主题色变量（深蓝黑夜）
+   ═══════════════════════════════════════════════════ */
+:root {
+  /* ── 背景 ── */
+  --ide-bg: 26 27 38;             /* #1a1b26 night */
+  --ide-sidebar: 22 22 30;        /* #16161e 更深 */
+  --ide-panel: 31 35 53;          /* #1f2335 storm */
+  --ide-border: 59 66 97;         /* #3b4261 */
+
+  /* ── 文字 ── */
+  --ide-text: 192 202 245;        /* #c0caf5 柔蓝白 */
+  --ide-text-muted: 86 95 137;    /* #565f89 暗蓝灰 */
+
+  /* ── 强调（Tokyo Blue） ── */
+  --ide-accent: 122 162 247;      /* #7aa2f7 */
+  --ide-accent-hover: 137 180 250;/* #89b4fa */
+
+  /* ── 语义色 ── */
+  --ide-success: 158 206 106;     /* #9ece6a 黄绿 */
+  --ide-danger: 247 118 142;      /* #f7768e 粉红 */
+  --ide-warning: 224 175 104;     /* #e0af68 橙 */
+
+  /* ── 交互态 ── */
+  --ide-hover: 41 46 66;          /* #292e42 */
+  --ide-active: 59 66 97;         /* #3b4261 */
+
+  /* ── 滚动条 ── */
+  --scrollbar-track: 26 27 38;
+  --scrollbar-thumb: 59 66 97;
+  --scrollbar-thumb-hover: 86 95 137;
+
+  /* ── 文本选区 ── */
+  --selection-bg: 122 162 247;
+  --selection-opacity: 0.3;
+
+  /* ── focus ── */
+  --focus-outline: 122 162 247;
+
+  /* ── Monaco 行号区 ── */
+  --monaco-margin-bg: 22 22 30;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   2. 字体（利落等宽无衬线；Consolas 排在 Cascadia Code 前）
+   ═══════════════════════════════════════════════════ */
+html, body, #root {
+  font-family: 'JetBrains Mono', 'Consolas', 'Cascadia Code',
+               'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC',
+               monospace, sans-serif;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   3. 滚动条：细而利落
+   ═══════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { border-radius: 4px; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+
+/* ═══════════════════════════════════════════════════
+   4. 文本选区 + focus
+   ═══════════════════════════════════════════════════ */
+::selection { background: rgb(var(--ide-accent) / 0.45); }
+*:focus-visible { outline-width: 1px; outline-offset: -1px; }
+
+
+/* ═══════════════════════════════════════════════════
+   5. 标题栏：去毛玻璃，纯深蓝底 + 底部 Tokyo Blue 细线
+   ═══════════════════════════════════════════════════ */
+.acrylic-titlebar,
+.acrylic-titlebar-clean {
+  background: rgb(var(--ide-sidebar));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid rgb(var(--ide-accent) / 0.4);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   6. 终端：纯 CSS 渐变「东京夜空 + 远处光晕」，无需外部图片
+      设了 --terminal-bg-image 即自动让终端 canvas 透明、背后铺此渐变。
+      --terminal-bg-overlay 是叠在渐变上的半透明遮罩，调到看清文字。
+      不想要：删掉 --terminal-bg-image 一行即恢复纯色终端。
+   ═══════════════════════════════════════════════════ */
+:root {
+  --terminal-bg-image:
+    radial-gradient(circle at 18% 82%, rgba(122,162,247,0.16), transparent 42%),
+    radial-gradient(circle at 82% 18%, rgba(187,154,247,0.13), transparent 46%),
+    linear-gradient(180deg, #16161e 0%, #1a1b26 55%, #0d0f16 100%);
+  --terminal-bg-overlay: rgba(22, 22, 30, 0.55);
+}
+.xterm { padding: 6px 10px; }
+
+
+/* ═══════════════════════════════════════════════════
+   7. Monaco 行号区
+   ═══════════════════════════════════════════════════ */
+.monaco-editor .margin {
+  background-color: rgb(var(--monaco-margin-bg)) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   8. Markdown 预览：冷调
+   ═══════════════════════════════════════════════════ */
+.md-preview { font-size: 15px; line-height: 1.8; }
+.md-preview h1 { border-bottom: 2px solid rgb(var(--ide-accent)); }
+.md-preview h2 { border-bottom: 1px solid rgb(var(--ide-accent) / 0.5); }
+.md-preview h3, .md-preview h4 { color: rgb(var(--ide-accent)); }
+.md-preview a { color: rgb(var(--ide-accent)); }
+.md-preview a:hover { color: rgb(var(--ide-accent-hover)); }
+.md-preview strong { color: rgb(var(--ide-warning)); }
+.md-preview em { color: rgb(var(--ide-success)); font-style: italic; }
+.md-preview code {
+  background-color: rgb(var(--ide-active));
+  border: 1px solid rgb(var(--ide-border));
+  border-radius: 4px;
+}
+.md-preview pre { border: 1px solid rgb(var(--ide-border)); border-radius: 6px; }
+.md-preview blockquote {
+  border-left: 3px solid rgb(var(--ide-accent));
+  background-color: rgb(var(--ide-hover));
+  border-radius: 0 4px 4px 0;
+}
+.md-preview th { color: rgb(var(--ide-accent)); }
+.md-preview li::marker { color: rgb(var(--ide-accent)); }
+.md-preview hr { border-top: 1px solid rgb(var(--ide-accent)); opacity: 0.5; }
+.md-preview del { color: rgb(var(--ide-danger)); }
+
+.md-code-lang {
+  background-color: rgb(var(--ide-accent) / 0.2);
+  color: rgb(var(--ide-accent));
+}
+.md-code-block { border-color: rgb(var(--ide-border)); }
+
+.md-search-match { background-color: rgb(var(--ide-warning) / 0.35); }
+.md-search-match-current { background-color: rgb(var(--ide-warning) / 0.65); }
+
+.md-mermaid {
+  background-color: rgb(var(--ide-sidebar));
+  border-color: rgb(var(--ide-border));
+}
+.md-frontmatter { border-color: rgb(var(--ide-border)); }
+.md-fm-key { color: rgb(var(--ide-accent)); background-color: rgb(var(--ide-hover)); }
+
+
+/* ═══════════════════════════════════════════════════
+   9. 焦点框：冷蓝内发光（夜色里的微光）
+   ═══════════════════════════════════════════════════ */
+.focus-frame::before {
+  box-shadow: inset 0 0 0 1.5px rgb(var(--ide-accent) / 0.55),
+              inset 0 0 22px rgb(var(--ide-accent) / 0.1);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   改不到的（由内置主题 / main 进程驱动）
+   ═══════════════════════════════════════════════════
+   • Monaco 语法高亮 token 色 —— 走内置 IDETheme（本主题建议配 Tokyo Night）
+   • xterm 终端文字 / 光标 / 选中色 —— 走内置 IDETheme.terminal
+   • 窗口标题栏 overlay 色 —— main/index.ts titleBarOverlay
+   ═══════════════════════════════════════════════════ */

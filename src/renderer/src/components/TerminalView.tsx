@@ -308,6 +308,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   const searchAddonRef = useRef<SearchAddon | null>(null)
   const webglAddonRef = useRef<WebglAddon | null>(null)
   const searchDecoRef = useRef<any>({})
+  // 背景图只在 mount 时读一次 CSS 变量（重启生效，不热加载），避免每次 render 调 getComputedStyle
+  const [bgImage] = useState(() => readTerminalBgImage())
   const [searchState, setSearchState] = useState<{ visible: boolean; query: string; index: number; count: number } | null>(null)
   const searchStateRef = useRef(searchState)
   searchStateRef.current = searchState
@@ -424,7 +426,6 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       xtermRef.current.dispose()
     }
 
-    const bgImage = readTerminalBgImage()
     const term = new Terminal({
       theme: bgImage ? { ...currentTheme.terminal, background: 'transparent' } : currentTheme.terminal,
       fontFamily: `${fontFamily}, Consolas, JetBrains Mono, Fira Code, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace`,
@@ -761,7 +762,6 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   // Update terminal theme when it changes
   useEffect(() => {
     if (xtermRef.current) {
-      const bgImage = readTerminalBgImage()
       xtermRef.current.options.theme = bgImage
         ? { ...currentTheme.terminal, background: 'transparent' }
         : currentTheme.terminal
@@ -1108,7 +1108,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         onContextMenu={handleContextMenu}
       >
         <div ref={terminalRef} className="flex-1 min-h-0 relative">
-          {readTerminalBgImage() && (
+          {bgImage && (
             <div className="absolute inset-0 -z-10 pointer-events-none" style={{
               backgroundImage: `linear-gradient(var(--terminal-bg-overlay, transparent), var(--terminal-bg-overlay, transparent)), var(--terminal-bg-image)`,
               backgroundSize: 'cover, cover',

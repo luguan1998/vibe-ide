@@ -1,0 +1,237 @@
+/*
+  Vibe IDE 用户主题 — CyberGlow Neon（霓虹赛博）
+  ─────────────────────────────────────────────────────
+  灵感：Obsidian「CyberGlow」主题 —— 纯黑底 / 霓虹青 + 品红 / 发光与渐变。
+        未来都市雨夜的广告牌。本文件把发光做到 user.css 能给的极致：
+        Markdown 标题青→品红渐变、焦点框霓虹光晕、标题栏霓虹底边、
+        终端背景两束霓虹光晕、滚动条 hover 发光。
+  来源：https://github.com/ThePharaohArt/Obsidian-CyberGlow
+
+  用法：
+    1. 复制此文件到 vibe-ide.exe 所在目录（dev 模式放 node_modules/electron/dist/）
+    2. 重命名为 user.css
+    3. 重启 Vibe IDE 生效（不支持热加载）
+    4. 推荐搭配内置主题「Dracula」：设置 → 主题选 Dracula。
+       Dracula 的 token（粉/绿/青/紫）高饱和，在近纯黑底上像霓虹，与本外壳一致。
+       ※ Monaco 语法 token 色 / 终端文字色由内置主题驱动，user.css 不覆盖它们。
+
+  规则：
+    - 主题色变量值必须 "R G B" 空格分隔
+    - 不想要终端背景图：删掉 --terminal-bg-image 一行
+    - 觉得太晃：删掉第 9 节焦点框 / 第 10 节标题霓虹呼吸动画
+    - 全部恢复：删除/清空 user.css
+*/
+
+
+/* ═══════════════════════════════════════════════════
+   1. 主题色变量（近纯黑机身 + 霓虹）
+   ═══════════════════════════════════════════════════ */
+:root {
+  /* ── 背景 ── */
+  --ide-bg: 10 10 15;             /* #0a0a0f 近纯黑 */
+  --ide-sidebar: 18 18 26;        /* #12121a */
+  --ide-panel: 24 24 37;          /* #181825 面板 */
+  --ide-border: 42 42 60;         /* #2a2a3c */
+
+  /* ── 文字 ── */
+  --ide-text: 224 224 232;        /* #e0e0e8 冷白 */
+  --ide-text-muted: 98 114 164;   /* #6272a4 暗蓝灰 */
+
+  /* ── 强调（霓虹青 cyan） ── */
+  --ide-accent: 0 255 255;        /* #00FFFF */
+  --ide-accent-hover: 51 255 255; /* #33FFFF */
+
+  /* ── 语义色（霓虹系） ── */
+  --ide-success: 80 250 123;      /* #50FA7B 荧光绿 */
+  --ide-danger: 255 85 85;        /* #FF5555 红 */
+  --ide-warning: 255 184 108;    /* #FFB86C 橙 */
+
+  /* ── 交互态 ── */
+  --ide-hover: 30 30 46;          /* #1e1e2e */
+  --ide-active: 42 42 64;         /* #2a2a40 */
+
+  /* ── 滚动条（hover 时霓虹青发光） ── */
+  --scrollbar-track: 10 10 15;
+  --scrollbar-thumb: 40 40 56;    /* #282838 中性深 */
+  --scrollbar-thumb-hover: 0 255 255; /* #00FFFF hover 霓虹 */
+
+  /* ── 文本选区 ── */
+  --selection-bg: 0 255 255;
+  --selection-opacity: 0.3;
+
+  /* ── focus ── */
+  --focus-outline: 0 255 255;
+
+  /* ── Monaco 行号区 ── */
+  --monaco-margin-bg: 18 18 26;
+
+  /* ── 终端背景：两束霓虹光晕 + 纯黑深空 ── */
+  --terminal-bg-image:
+    radial-gradient(circle at 15% 85%, rgba(0,255,255,0.20), transparent 42%),
+    radial-gradient(circle at 85% 15%, rgba(255,0,255,0.16), transparent 46%),
+    linear-gradient(180deg, #12121a 0%, #0a0a0f 65%, #050507 100%);
+  --terminal-bg-overlay: rgba(10, 10, 15, 0.5);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   2. 字体（赛博等宽；Consolas 排在 Cascadia Code 前）
+   ═══════════════════════════════════════════════════ */
+html, body, #root {
+  font-family: 'Fira Code', 'JetBrains Mono', 'Consolas', 'Cascadia Code',
+               'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC',
+               monospace, sans-serif;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   3. 滚动条：细，hover 发光
+   ═══════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover {
+  border-radius: 4px;
+  box-shadow: 0 0 6px rgba(0, 255, 255, 0.7);
+}
+::-webkit-scrollbar-corner { background: transparent; }
+
+
+/* ═══════════════════════════════════════════════════
+   4. 文本选区 + focus（霓虹描边）
+   ═══════════════════════════════════════════════════ */
+::selection { background: rgb(var(--ide-accent) / 0.4); }
+*:focus-visible {
+  outline-width: 1px;
+  outline-offset: -1px;
+  box-shadow: 0 0 6px rgba(0, 255, 255, 0.5);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   5. 标题栏：去毛玻璃，纯黑底 + 霓虹青底边
+   ═══════════════════════════════════════════════════ */
+.acrylic-titlebar,
+.acrylic-titlebar-clean {
+  background: rgb(var(--ide-sidebar));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid rgb(var(--ide-accent) / 0.7);
+  box-shadow: 0 1px 8px -2px rgba(0, 255, 255, 0.45);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   6. 终端内边距
+   ═══════════════════════════════════════════════════ */
+.xterm { padding: 6px 10px; }
+
+
+/* ═══════════════════════════════════════════════════
+   7. Monaco 行号区
+   ═══════════════════════════════════════════════════ */
+.monaco-editor .margin {
+  background-color: rgb(var(--monaco-margin-bg)) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   8. Markdown 预览：霓虹渐变标题 + 发光链接
+   ═══════════════════════════════════════════════════ */
+.md-preview { font-size: 15px; line-height: 1.8; }
+
+/* 标题青→紫→品红渐变（CyberGlow 招牌） */
+.md-preview h1, .md-preview h2, .md-preview h3, .md-preview h4 {
+  background-image: linear-gradient(90deg, #00FFFF 0%, #B26CFF 55%, #FF00FF 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+}
+.md-preview h1 { border-bottom: 2px solid rgba(0, 255, 255, 0.5); padding-bottom: 0.3em; }
+.md-preview h2 { border-bottom: 1px solid rgba(255, 0, 255, 0.35); padding-bottom: 0.3em; }
+
+.md-preview a {
+  color: #00FFFF;
+  text-shadow: 0 0 6px rgba(0, 255, 255, 0.5);
+}
+.md-preview a:hover { color: #FF00FF; text-shadow: 0 0 8px rgba(255, 0, 255, 0.6); }
+.md-preview strong { color: rgb(var(--ide-warning)); }
+.md-preview em { color: rgb(var(--ide-success)); font-style: italic; }
+.md-preview code {
+  background-color: rgb(var(--ide-active));
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  border-radius: 4px;
+}
+.md-preview pre { border: 1px solid rgba(0, 255, 255, 0.25); border-radius: 6px; }
+.md-preview blockquote {
+  border-left: 3px solid #FF00FF;
+  background-color: rgb(var(--ide-hover));
+  border-radius: 0 4px 4px 0;
+  box-shadow: inset 2px 0 8px -4px rgba(255, 0, 255, 0.5);
+}
+.md-preview th {
+  color: #00FFFF;
+  text-shadow: 0 0 4px rgba(0, 255, 255, 0.4);
+}
+.md-preview li::marker { color: #00FFFF; }
+.md-preview hr { border-top: 1px solid rgba(0, 255, 255, 0.5); }
+.md-preview del { color: rgb(var(--ide-danger)); }
+
+.md-code-lang {
+  background-color: rgba(0, 255, 255, 0.15);
+  color: #00FFFF;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  border-radius: 10px;
+}
+.md-code-block { border-color: rgba(0, 255, 255, 0.2); }
+
+.md-search-match { background-color: rgba(255, 184, 108, 0.3); }
+.md-search-match-current { background-color: rgba(255, 184, 108, 0.6); }
+
+.md-mermaid {
+  background-color: rgb(var(--ide-sidebar));
+  border: 1px solid rgba(0, 255, 255, 0.2);
+}
+.md-frontmatter { border-color: rgba(0, 255, 255, 0.2); }
+.md-fm-key { color: #00FFFF; background-color: rgb(var(--ide-hover)); }
+
+
+/* ═══════════════════════════════════════════════════
+   9. 焦点框：强霓虹光晕（内描边 + 外发光 + 内渗透）
+   ═══════════════════════════════════════════════════ */
+.focus-frame::before {
+  box-shadow:
+    inset 0 0 0 1.5px rgba(0, 255, 255, 0.75),
+    0 0 18px -2px rgba(0, 255, 255, 0.35),
+    inset 0 0 28px rgba(0, 255, 255, 0.12);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   10. 标题栏霓虹呼吸（缓慢，不晃眼；觉得晃可删本节）
+   ═══════════════════════════════════════════════════ */
+@keyframes cyberBreathe {
+  0%, 100% { box-shadow: 0 1px 6px -3px rgba(0, 255, 255, 0.3); }
+  50%      { box-shadow: 0 1px 12px -2px rgba(0, 255, 255, 0.6); }
+}
+.acrylic-titlebar, .acrylic-titlebar-clean {
+  animation: cyberBreathe 3.5s ease-in-out infinite;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   11. 画笔光标也变霓虹青（Alt 画笔模式）
+       --brush-cursor 由 ThemeProvider 内联注入，须 !important 才能覆盖
+   ═══════════════════════════════════════════════════ */
+:root {
+  --brush-cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M4 20l5-5 8-8-4-4-8 8z' fill='%2300ffff' stroke='%23ffffff' stroke-width='0.6'/%3E%3C/svg%3E") 2 18, crosshair !important;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   改不到的（由内置主题 / main 进程驱动）
+   ═══════════════════════════════════════════════════
+   • Monaco 语法高亮 token 色 —— 走内置 IDETheme（本主题建议配 Dracula）
+   • xterm 终端文字 / 光标 / 选中色 —— 走内置 IDETheme.terminal
+   • 窗口标题栏 overlay 色 —— main/index.ts titleBarOverlay
+   ═══════════════════════════════════════════════════ */

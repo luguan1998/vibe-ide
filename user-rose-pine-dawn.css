@@ -1,0 +1,179 @@
+/*
+  Vibe IDE 用户主题 — Rosé Pine Dawn（暖浅纸张）
+  ─────────────────────────────────────────────────────
+  灵感：Obsidian「Rosé Pine Dawn」主题 —— 奶油底 / 紫藤字 / 玫瑰点缀，
+        像被晨光照亮的旧书页，柔和、安静、文艺。
+  来源：https://github.com/rose-pine/obsidian
+
+  用法：
+    1. 复制此文件到 vibe-ide.exe 所在目录（dev 模式放 node_modules/electron/dist/）
+    2. 重命名为 user.css
+    3. 重启 Vibe IDE 生效（不支持热加载）
+    4. 推荐搭配内置主题「Solarized Light」：设置 → 主题选 Solarized Light。
+       代码编辑区语法色（绿/青/橙暖调深色）与本外壳的奶油纸张感最搭。
+       ※ Monaco 语法 token 色 / 终端文字色由内置主题驱动，user.css 不覆盖它们。
+
+  规则：
+    - 主题色变量值必须 "R G B" 空格分隔（globals.css 用 rgb(var(--ide-xxx)) 引用）
+    - 覆盖带 !important 的 globals 规则时，这里也要 !important
+    - 不想要某项删掉对应规则；全部恢复：删除/清空 user.css
+*/
+
+
+/* ═══════════════════════════════════════════════════
+   1. 主题色变量（暖奶油纸张）
+   ═══════════════════════════════════════════════════ */
+:root {
+  /* ── 背景 ── */
+  --ide-bg: 250 244 237;          /* #faf4ed base 奶油 */
+  --ide-sidebar: 255 250 243;     /* #fffaf3 surface 更浅暖白 */
+  --ide-panel: 242 233 222;       /* #f2e9de overlay 卡片 / 输入框 */
+  --ide-border: 232 221 216;      /* #e8ddd8 暖灰边框 */
+
+  /* ── 文字 ── */
+  --ide-text: 87 82 121;          /* #575279 深紫灰 */
+  --ide-text-muted: 152 147 165;  /* #9893a5 灰紫 */
+
+  /* ── 强调（紫藤 iris） ── */
+  --ide-accent: 144 122 169;      /* #907aa9 */
+  --ide-accent-hover: 123 99 147; /* #7b6393 深一档 */
+
+  /* ── 语义色 ── */
+  --ide-success: 86 148 159;      /* #56949f foam 青绿 */
+  --ide-danger: 180 99 122;       /* #b4637a love 玫红 */
+  --ide-warning: 234 157 52;      /* #ea9d34 gold 暖金 */
+
+  /* ── 交互态 ── */
+  --ide-hover: 242 233 222;       /* overlay */
+  --ide-active: 235 224 212;      /* #ebe0d4 稍深 */
+
+  /* ── 滚动条（柔细） ── */
+  --scrollbar-track: 250 244 237;
+  --scrollbar-thumb: 215 202 190; /* #d7cabe */
+  --scrollbar-thumb-hover: 185 170 155;
+
+  /* ── 文本选区 ── */
+  --selection-bg: 144 122 169;
+  --selection-opacity: 0.25;
+
+  /* ── focus 描边 ── */
+  --focus-outline: 144 122 169;
+
+  /* ── Monaco 行号区 ── */
+  --monaco-margin-bg: 242 233 222;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   2. 字体（圆润等宽，配纸张感；Consolas 排在 Cascadia Code 前）
+   ═══════════════════════════════════════════════════ */
+html, body, #root {
+  font-family: 'JetBrains Mono', 'Consolas', 'Cascadia Code',
+               'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC',
+               monospace, sans-serif;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   3. 滚动条：偏细、圆角更大，纸面更柔
+   ═══════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { border-radius: 6px; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+
+/* ═══════════════════════════════════════════════════
+   4. 文本选区 + focus（柔和，无强发光）
+   ═══════════════════════════════════════════════════ */
+::selection { background: rgb(var(--ide-accent) / 0.35); }
+*:focus-visible { outline-width: 1px; outline-offset: -1px; }
+
+
+/* ═══════════════════════════════════════════════════
+   5. 标题栏：去毛玻璃，纯暖底 + 暖灰底边
+   ═══════════════════════════════════════════════════ */
+.acrylic-titlebar,
+.acrylic-titlebar-clean {
+  background: rgb(var(--ide-sidebar));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid rgb(var(--ide-border));
+}
+
+
+/* ═══════════════════════════════════════════════════
+   6. 终端：不加背景图，走内置 Solarized Light 暖米底；内边距舒展
+   ═══════════════════════════════════════════════════ */
+.xterm { padding: 6px 10px; }
+
+
+/* ═══════════════════════════════════════════════════
+   7. Monaco 行号区（变量已驱动，保险覆盖）
+   ═══════════════════════════════════════════════════ */
+.monaco-editor .margin {
+  background-color: rgb(var(--monaco-margin-bg)) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   8. Markdown 预览：重排成「书页」
+   ═══════════════════════════════════════════════════ */
+.md-preview { font-size: 15px; line-height: 1.85; }
+.md-preview h1 { border-bottom: 2px solid rgb(var(--ide-accent)); padding-bottom: 0.3em; }
+.md-preview h2 { border-bottom: 1px solid rgb(var(--ide-accent) / 0.5); padding-bottom: 0.3em; }
+.md-preview h3, .md-preview h4 { color: rgb(var(--ide-accent)); }
+.md-preview a { color: rgb(var(--ide-danger)); }                /* 玫瑰链接 */
+.md-preview a:hover { color: rgb(var(--ide-accent)); }
+.md-preview strong { color: rgb(var(--ide-warning)); }
+.md-preview em { color: rgb(var(--ide-success)); font-style: italic; }
+.md-preview code {
+  background-color: rgb(var(--ide-panel));
+  border: 1px solid rgb(var(--ide-border));
+  border-radius: 4px;
+}
+.md-preview pre { border: 1px solid rgb(var(--ide-border)); border-radius: 8px; }
+.md-preview blockquote {
+  border-left: 3px solid rgb(var(--ide-danger));
+  background-color: rgb(var(--ide-panel) / 0.6);
+  border-radius: 0 6px 6px 0;
+}
+.md-preview th { color: rgb(var(--ide-accent)); }
+.md-preview li::marker { color: rgb(var(--ide-accent)); }
+.md-preview hr { border-top: 1px solid rgb(var(--ide-border)); opacity: 0.8; }
+.md-preview del { color: rgb(var(--ide-danger)); }
+
+.md-code-lang {
+  background-color: rgb(var(--ide-accent) / 0.15);
+  color: rgb(var(--ide-accent));
+  border-radius: 8px;
+}
+.md-code-block { border-color: rgb(var(--ide-border)); border-radius: 8px; }
+
+.md-search-match { background-color: rgb(var(--ide-warning) / 0.3); }
+.md-search-match-current { background-color: rgb(var(--ide-warning) / 0.55); }
+
+.md-mermaid {
+  background-color: rgb(var(--ide-sidebar));
+  border-color: rgb(var(--ide-border));
+  border-radius: 8px;
+}
+.md-frontmatter { border-color: rgb(var(--ide-border)); border-radius: 8px; }
+.md-fm-key { color: rgb(var(--ide-accent)); background-color: rgb(var(--ide-hover)); }
+
+
+/* ═══════════════════════════════════════════════════
+   9. 焦点框：柔和不发光（纸张风不该有光晕）
+   ═══════════════════════════════════════════════════ */
+.focus-frame::before {
+  box-shadow: inset 0 0 0 1.5px rgb(var(--ide-accent) / 0.5),
+              inset 0 0 18px rgb(var(--ide-accent) / 0.05);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   改不到的（由内置主题 / main 进程驱动）
+   ═══════════════════════════════════════════════════
+   • Monaco 语法高亮 token 色 —— 走内置 IDETheme（本主题建议配 Solarized Light）
+   • xterm 终端文字 / 光标 / 选中色 —— 走内置 IDETheme.terminal
+   • 窗口标题栏 overlay 色 —— main/index.ts titleBarOverlay
+   ═══════════════════════════════════════════════════ */
