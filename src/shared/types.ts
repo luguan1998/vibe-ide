@@ -69,6 +69,7 @@ export const IPC_CHANNELS = {
 
   // Font
   FONT_ADJUST: 'font:adjust',
+  FONT_LIST: 'font:list',
 
   // Focus
   FOCUS_SETTINGS: 'focus:settings',

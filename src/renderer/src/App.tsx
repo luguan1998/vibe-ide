@@ -132,6 +132,7 @@ declare global {
       }
       appVersion: () => Promise<string>
       perf: { snapshot: () => Promise<any> }
+      system: { listFonts: () => Promise<string[]> }
       onFontAdjust: (callback: (delta: number) => void) => any
       removeFontAdjustListener: (handler?: any) => void
       onFocusSettings: (callback: () => void) => any
@@ -1863,6 +1864,16 @@ export default function App() {
             onSetUiFontFamily={setFontFamily}
             termFontFamily={termFontFamily}
             onSetTermFontFamily={setTermFontFamily}
+            onResetUiStyle={() => {
+              setTerminalFontSize(14)
+              setEditorFontSize(14)
+              setCapsuleTabs(true)
+              setGroupSessionsByCwd(true)
+              setInlineDiff(false)
+              setSessionFontFamily('Consolas')
+              setFontFamily('Cascadia Code')
+              setTermFontFamily('Cascadia Code')
+            }}
             fileTreeDepth={fileTreeDepth}
             onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}

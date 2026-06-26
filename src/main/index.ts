@@ -24,6 +24,7 @@ const exeHash = createHash('md5').update(exePath).digest('hex').slice(0, 8)
 app.name = `vibe-ide-${exeHash}`
 
 let mainWindow: BrowserWindow | null = null
+let cachedFontList: string[] | null = null
 
 // Fix Windows permission issues
 app.commandLine.appendSwitch('no-sandbox')
@@ -277,6 +278,23 @@ app.whenReady().then(() => {
       return readFileSync(userCssPath, 'utf8')
     } catch {
       return ''
+    }
+  })
+
+  // System fonts — list installed font families via PowerShell (cached for process lifetime)
+  ipcMain.handle(IPC_CHANNELS.FONT_LIST, async () => {
+    if (process.platform !== 'win32') return []
+    if (cachedFontList) return cachedFontList
+    try {
+      const psCmd = 'powershell -NoProfile -Command "Add-Type -AssemblyName System.Drawing; [System.Drawing.Text.InstalledFontCollection]::new().Families | ForEach-Object { $_.Name } | Sort-Object"'
+      const { stdout } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+        exec(psCmd, { timeout: 5000 }, (err, stdout, stderr) => err ? reject(err) : resolve({ stdout, stderr }))
+      })
+      cachedFontList = Array.from(new Set(stdout.split('\n').map(s => s.trim()).filter(s => s.length > 0)))
+      return cachedFontList
+    } catch (err) {
+      console.error('[FONT_LIST] fetch failed:', err)
+      return []
     }
   })
 

@@ -179,6 +179,11 @@ const api = {
     snapshot: () => ipcRenderer.invoke(IPC_CHANNELS.PERF_SNAPSHOT)
   },
 
+  // System info
+  system: {
+    listFonts: () => ipcRenderer.invoke(IPC_CHANNELS.FONT_LIST) as Promise<string[]>
+  },
+
   // CodeGraph operations
   code: {
     setWorkspace: (root: string) => ipcRenderer.invoke(IPC_CHANNELS.CODE_SET_WORKSPACE, root),

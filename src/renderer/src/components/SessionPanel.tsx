@@ -96,6 +96,12 @@ const FALLBACK_SHELLS = [
   { value: 'powershell', label: 'PowerShell 5' },
 ]
 
+// 🌀 fallback — 系统字体取不到时兜底
+const FALLBACK_FONTS = [
+  'Consolas', 'Cascadia Code', 'JetBrains Mono', 'Fira Code',
+  'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Courier New', 'monospace',
+]
+
 function pickEmoji(index: number, pool: string[], override?: string): string {
   if (pool.length === 0) return ''
   if (override && pool.includes(override)) return override
@@ -166,6 +172,7 @@ interface SessionPanelProps {
   onSetUiFontFamily?: (font: string) => void
   termFontFamily?: string
   onSetTermFontFamily?: (font: string) => void
+  onResetUiStyle?: () => void
 }
 
 const SessionPanel = React.memo(function SessionPanel({
@@ -219,6 +226,7 @@ const SessionPanel = React.memo(function SessionPanel({
   onSetUiFontFamily,
   termFontFamily = 'Cascadia Code',
   onSetTermFontFamily,
+  onResetUiStyle,
 }: SessionPanelProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [appVersion, setAppVersion] = useState('')
@@ -240,11 +248,15 @@ const SessionPanel = React.memo(function SessionPanel({
   const [sessionEmojis, setSessionEmojis] = useState<string[]>(() => loadSessionEmojis())
   const [cwdEmojiOverrides, setCwdEmojiOverrides] = useState<Record<string, string>>({})
   const [sessionEmojiOverrides, setSessionEmojiOverrides] = useState<Record<string, string>>({})
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [cwdEmojiDraft, setCwdEmojiDraft] = useState('')
   const [sessionEmojiDraft, setSessionEmojiDraft] = useState('')
   const [showOtherOptions, setShowOtherOptions] = useState(false)
   const [showUiStyleModal, setShowUiStyleModal] = useState(false)
+  const [uiStyleTab, setUiStyleTab] = useState<'style' | 'emoji'>('style')
+  const [systemFonts, setSystemFonts] = useState<string[]>([])
+  const fontsLoadedRef = useRef(false)
+  const fontsLoadingRef = useRef(false)
+  const pendingFontsRef = useRef(0)
 
   // 池变更时清理失效 override（用户在 modal 删了被 override 引用的 emoji 时）
   useEffect(() => {
@@ -277,6 +289,33 @@ const SessionPanel = React.memo(function SessionPanel({
       }
     }).catch(() => {})
   }, [])
+
+  // 点击字体下拉时从主进程获取本机已安装字体（主进程缓存，仅加载一次）
+  const loadSystemFonts = () => {
+    if (fontsLoadedRef.current || fontsLoadingRef.current) return
+    fontsLoadingRef.current = true
+    const target = ++pendingFontsRef.current
+    window.api.system.listFonts()
+      .then((fonts) => {
+        if (pendingFontsRef.current !== target) return
+        if (fonts.length > 0) { setSystemFonts(fonts); fontsLoadedRef.current = true }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (pendingFontsRef.current !== target) return
+        fontsLoadingRef.current = false
+      })
+  }
+
+  const renderFontOptions = (currentValue: string, recommended?: string) => {
+    const list = systemFonts.length > 0 ? systemFonts : FALLBACK_FONTS
+    const prepend = !!currentValue && !list.includes(currentValue)
+    const mark = (f: string) => f === recommended ? ` (${t('Recommended')})` : ''
+    return (<>
+      {prepend && <option key={`__cur__${currentValue}`} value={currentValue}>{currentValue}{mark(currentValue)}</option>}
+      {list.map((f) => <option key={f} value={f}>{f}{mark(f)}</option>)}
+    </>)
+  }
 
   // Sync filter rules to git watcher (main process) on mount and when rules change
   useEffect(() => {
@@ -772,20 +811,22 @@ const SessionPanel = React.memo(function SessionPanel({
                   )}
                 </div>
                 </div>
-                {/* Emoji Text */}
-                <div className="border-t border-ide-border mt-1 pt-1">
-                  <button
-                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
-                    onClick={() => {
-                      setCwdEmojiDraft(cwdEmojis.join('\n'))
-                      setSessionEmojiDraft(sessionEmojis.join('\n'))
-                      setShowEmojiPicker(true)
-                      setShowConfigMenu(false)
-                    }}
-                  >
-                    {t('Emoji Text')}
-                  </button>
-                </div>
+                {/* UI Style */}
+                {(onToggleCapsuleTabs || onToggleGroupSessionsByCwd || onToggleInlineDiff || onAdjustTerminalFontSize || onAdjustEditorFontSize) && (
+                  <div className="border-t border-ide-border mt-1 pt-1">
+                    <button
+                      className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                      onClick={() => {
+                        setCwdEmojiDraft(cwdEmojis.join('\n'))
+                        setSessionEmojiDraft(sessionEmojis.join('\n'))
+                        setShowUiStyleModal(true)
+                        setShowConfigMenu(false)
+                      }}
+                    >
+                      {t('UI Style')}
+                    </button>
+                  </div>
+                )}
                 <div className="border-t border-ide-border mt-1 pt-1">
                 {/* 命令行配置 */}
                 <button
@@ -842,17 +883,6 @@ const SessionPanel = React.memo(function SessionPanel({
                     {t('File Filter Rules')}
                   </button>
                 </div>
-                {/* UI Style Settings */}
-                {(onToggleCapsuleTabs || onToggleGroupSessionsByCwd || onToggleInlineDiff || onAdjustTerminalFontSize || onAdjustEditorFontSize) && (
-                  <div className="border-t border-ide-border mt-1 pt-1">
-                    <button
-                      className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
-                      onClick={() => { setShowUiStyleModal(true); setShowConfigMenu(false) }}
-                    >
-                      {t('UI Style Settings')}
-                    </button>
-                  </div>
-                )}
                 {/* Other Options */}
                 {(onToggleWordWrap || onToggleAutoUtf8 || onTogglePolling || onToggleInlineDiff) && (
                   <div className="border-t border-ide-border mt-1 pt-1">
@@ -1345,106 +1375,6 @@ const SessionPanel = React.memo(function SessionPanel({
         </div>
       )}
 
-      {/* Emoji Picker Modal */}
-      {showEmojiPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowEmojiPicker(false)}>
-          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-              <span className="text-sm font-semibold text-ide-text">{t('Emoji Text')}</span>
-              <button
-                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
-                onClick={() => setShowEmojiPicker(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-3 space-y-3">
-              <p className="text-xs text-ide-text-muted">{t('Click any emoji in the sidebar to cycle.')}</p>
-
-              {/* Folder / cwd pool */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-ide-text">{t('Folder Icons (per cwd)')}</span>
-                  <span className="text-[10px] text-ide-text-muted">{t('One per line')}</span>
-                </div>
-                <div className="flex flex-wrap gap-1 mb-2 bg-ide-hover rounded p-2 min-h-[36px]">
-                  {(() => {
-                    const pool = cwdEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
-                    return pool.length === 0
-                      ? <span className="text-xs text-ide-text-muted py-1">{t('No emojis')}</span>
-                      : pool.map((emoji, i) => (
-                        <span key={`c${i}`} className="text-lg bg-ide-accent/15 rounded px-0.5">{emoji}</span>
-                      ))
-                  })()}
-                </div>
-                <textarea
-                  className="w-full h-20 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
-                  value={cwdEmojiDraft}
-                  onChange={(e) => setCwdEmojiDraft(e.target.value)}
-                  placeholder={'📁\n📍\n🏷️'}
-                />
-              </div>
-
-              {/* Session pool */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-ide-text">{t('Session Icons')}</span>
-                  <span className="text-[10px] text-ide-text-muted">{t('One per line')}</span>
-                </div>
-                <div className="flex flex-wrap gap-1 mb-2 bg-ide-hover rounded p-2 min-h-[36px]">
-                  {(() => {
-                    const pool = sessionEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
-                    return pool.length === 0
-                      ? <span className="text-xs text-ide-text-muted py-1">{t('No emojis')}</span>
-                      : pool.map((emoji, i) => (
-                        <span key={`s${i}`} className="text-lg">{emoji}</span>
-                      ))
-                  })()}
-                </div>
-                <textarea
-                  className="w-full h-20 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
-                  value={sessionEmojiDraft}
-                  onChange={(e) => setSessionEmojiDraft(e.target.value)}
-                  placeholder={'🔥\n💀\n🗿'}
-                />
-              </div>
-
-              <div className="flex justify-between gap-2 pt-1">
-                <button
-                  className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
-                  onClick={() => {
-                    setCwdEmojiDraft(DEFAULT_CWD_EMOJIS.join('\n'))
-                    setSessionEmojiDraft(DEFAULT_SESSION_EMOJIS.join('\n'))
-                  }}
-                >
-                  {t('Reset Defaults')}
-                </button>
-                <div className="flex gap-2">
-                  <button
-                    className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
-                    onClick={() => setShowEmojiPicker(false)}
-                  >
-                    {t('Cancel')}
-                  </button>
-                  <button
-                    className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
-                    onClick={() => {
-                      const cwd = cwdEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
-                      const session = sessionEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
-                      if (cwd.length > 0) { setCwdEmojis(cwd); saveCwdEmojis(cwd) }
-                      if (session.length > 0) { setSessionEmojis(session); saveSessionEmojis(session) }
-                      setShowEmojiPicker(false)
-                    }}
-                  >
-                    {t('Save')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* File Filter Rules Modal */}
       {showFileFilterRules && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowFileFilterRules(false)}>
@@ -1576,9 +1506,9 @@ const SessionPanel = React.memo(function SessionPanel({
       {/* UI Style Modal */}
       {showUiStyleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowUiStyleModal(false)}>
-          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[400px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-              <span className="text-sm font-semibold text-ide-text">{t('UI Style Settings')}</span>
+              <span className="text-sm font-semibold text-ide-text">{t('UI Style')}</span>
               <button
                 className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
                 onClick={() => setShowUiStyleModal(false)}
@@ -1586,7 +1516,22 @@ const SessionPanel = React.memo(function SessionPanel({
                 ×
               </button>
             </div>
-            <div className="p-4 flex flex-col gap-4">
+            <div className="flex shrink-0 border-b border-ide-border">
+              <button
+                className={`flex-1 px-3 py-2 text-xs transition-colors ${uiStyleTab === 'style' ? 'text-ide-accent border-b-2 border-ide-accent font-medium' : 'text-ide-text-muted hover:text-ide-text'}`}
+                onClick={() => setUiStyleTab('style')}
+              >
+                {t('UI Style')}
+              </button>
+              <button
+                className={`flex-1 px-3 py-2 text-xs transition-colors ${uiStyleTab === 'emoji' ? 'text-ide-accent border-b-2 border-ide-accent font-medium' : 'text-ide-text-muted hover:text-ide-text'}`}
+                onClick={() => setUiStyleTab('emoji')}
+              >
+                {t('Emoji Text')}
+              </button>
+            </div>
+            <div className="p-4 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
+              {uiStyleTab === 'style' && (<>
               {onToggleCapsuleTabs && (
                 <label className="flex flex-col gap-0.5 cursor-pointer">
                   <div className="flex items-center gap-2">
@@ -1651,77 +1596,142 @@ const SessionPanel = React.memo(function SessionPanel({
                 </div>
               )}
               {onSetFontFamily && (
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between text-xs text-ide-text">
-                    <span className="whitespace-nowrap shrink-0">{t('Session Font')}</span>
-                    <select
-                      className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
-                      value={fontFamily}
-                      onChange={(e) => { if (e.target.value) onSetFontFamily(e.target.value) }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {['Consolas', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Courier New', 'monospace'].map(f => (
-                        <option key={f} value={f}>{f}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <input
-                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent"
-                    placeholder={t('Or type any font name…')}
+                <div className="flex items-center justify-between text-xs text-ide-text">
+                  <span className="whitespace-nowrap shrink-0">{t('Session Font')}</span>
+                  <select
+                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
                     value={fontFamily}
-                    onChange={(e) => onSetFontFamily(e.target.value)}
+                    onChange={(e) => { if (e.target.value) onSetFontFamily(e.target.value) }}
                     onClick={(e) => e.stopPropagation()}
-                  />
+                    onFocus={loadSystemFonts}
+                  >
+                    {renderFontOptions(fontFamily, 'Consolas')}
+                  </select>
                 </div>
               )}
               {onSetUiFontFamily && (
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between text-xs text-ide-text">
-                    <span className="whitespace-nowrap shrink-0">{t('UI Font')}</span>
-                    <select
-                      className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
-                      value={uiFontFamily}
-                      onChange={(e) => { if (e.target.value) onSetUiFontFamily(e.target.value) }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {['Cascadia Code', 'Consolas', 'JetBrains Mono', 'Fira Code', 'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Courier New', 'monospace'].map(f => (
-                        <option key={f} value={f}>{f}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <input
-                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent"
-                    placeholder={t('Or type any font name…')}
+                <div className="flex items-center justify-between text-xs text-ide-text">
+                  <span className="whitespace-nowrap shrink-0">{t('UI Font')}</span>
+                  <select
+                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
                     value={uiFontFamily}
-                    onChange={(e) => onSetUiFontFamily(e.target.value)}
+                    onChange={(e) => { if (e.target.value) onSetUiFontFamily(e.target.value) }}
                     onClick={(e) => e.stopPropagation()}
-                  />
+                    onFocus={loadSystemFonts}
+                  >
+                    {renderFontOptions(uiFontFamily, 'Cascadia Code')}
+                  </select>
                 </div>
               )}
               {onSetTermFontFamily && (
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between text-xs text-ide-text">
-                    <span className="whitespace-nowrap shrink-0">{t('Terminal Font')}</span>
-                    <select
-                      className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
-                      value={termFontFamily}
-                      onChange={(e) => { if (e.target.value) onSetTermFontFamily(e.target.value) }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {['Cascadia Code', 'Consolas', 'JetBrains Mono', 'Fira Code', 'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Courier New', 'monospace'].map(f => (
-                        <option key={f} value={f}>{f}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <input
-                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent"
-                    placeholder={t('Or type any font name…')}
+                <div className="flex items-center justify-between text-xs text-ide-text">
+                  <span className="whitespace-nowrap shrink-0">{t('Terminal Font')}</span>
+                  <select
+                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
                     value={termFontFamily}
-                    onChange={(e) => onSetTermFontFamily(e.target.value)}
+                    onChange={(e) => { if (e.target.value) onSetTermFontFamily(e.target.value) }}
                     onClick={(e) => e.stopPropagation()}
-                  />
+                    onFocus={loadSystemFonts}
+                  >
+                    {renderFontOptions(termFontFamily, 'Cascadia Code')}
+                  </select>
                 </div>
               )}
+
+              {/* 恢复默认：字体 / 字号 / 开关 */}
+              {onResetUiStyle && (
+                <div className="flex justify-end pt-3 border-t border-ide-border">
+                  <button
+                    className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover rounded transition-colors"
+                    onClick={onResetUiStyle}
+                  >
+                    {t('Reset Defaults')}
+                  </button>
+                </div>
+              )}
+              </>)}
+
+              {uiStyleTab === 'emoji' && (<>
+              {/* 会话图标 */}
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-medium text-ide-text">{t('Emoji Text')}</span>
+                <p className="text-[11px] text-ide-text-muted">{t('Click any emoji in the sidebar to cycle.')}</p>
+
+                {/* Folder / cwd pool */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-ide-text-muted">{t('Folder Icons (per cwd)')}</span>
+                    <span className="text-[10px] text-ide-text-muted">{t('One per line')}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mb-2 bg-ide-hover rounded p-2 min-h-[36px]">
+                    {(() => {
+                      const pool = cwdEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
+                      return pool.length === 0
+                      ? <span className="text-xs text-ide-text-muted py-1">{t('No emojis')}</span>
+                      : pool.map((emoji, i) => (
+                        <span key={`c${i}`} className="text-lg bg-ide-accent/15 rounded px-0.5">{emoji}</span>
+                      ))
+                    })()}
+                  </div>
+                  <textarea
+                    className="w-full h-16 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
+                    value={cwdEmojiDraft}
+                    onChange={(e) => {
+                      setCwdEmojiDraft(e.target.value)
+                      const cwd = e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                      setCwdEmojis(cwd)
+                      saveCwdEmojis(cwd)
+                    }}
+                    placeholder={'📁\n📍\n🏷️'}
+                  />
+                </div>
+
+                {/* Session pool */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-ide-text-muted">{t('Session Icons')}</span>
+                    <span className="text-[10px] text-ide-text-muted">{t('One per line')}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mb-2 bg-ide-hover rounded p-2 min-h-[36px]">
+                    {(() => {
+                      const pool = sessionEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
+                      return pool.length === 0
+                      ? <span className="text-xs text-ide-text-muted py-1">{t('No emojis')}</span>
+                      : pool.map((emoji, i) => (
+                        <span key={`s${i}`} className="text-lg">{emoji}</span>
+                      ))
+                    })()}
+                  </div>
+                  <textarea
+                    className="w-full h-16 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
+                    value={sessionEmojiDraft}
+                    onChange={(e) => {
+                      setSessionEmojiDraft(e.target.value)
+                      const session = e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                      setSessionEmojis(session)
+                      saveSessionEmojis(session)
+                    }}
+                    placeholder={'🔥\n💀\n🗿'}
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
+                    onClick={() => {
+                      setCwdEmojiDraft(DEFAULT_CWD_EMOJIS.join('\n'))
+                      setSessionEmojiDraft(DEFAULT_SESSION_EMOJIS.join('\n'))
+                      setCwdEmojis([...DEFAULT_CWD_EMOJIS])
+                      saveCwdEmojis([...DEFAULT_CWD_EMOJIS])
+                      setSessionEmojis([...DEFAULT_SESSION_EMOJIS])
+                      saveSessionEmojis([...DEFAULT_SESSION_EMOJIS])
+                    }}
+                  >
+                    {t('Reset Defaults')}
+                  </button>
+                </div>
+              </div>
+              </>)}
             </div>
           </div>
         </div>
