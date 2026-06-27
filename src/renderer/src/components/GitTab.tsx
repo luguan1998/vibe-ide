@@ -98,6 +98,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const pendingGitPathRef = useRef<string | null>(null)
+  const notGitRef = useRef<boolean>(false)
+  const notGitPathRef = useRef<string | null>(null)
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
   const [commitIsRoot, setCommitIsRoot] = useState(false)
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
@@ -125,6 +127,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   // Error auto-dismiss after 5 seconds
   useEffect(() => {
     if (!error) return
+    if (/not a git/i.test(error)) return
     const timer = setTimeout(() => setError(null), 5000)
     return () => clearTimeout(timer)
   }, [error])
@@ -212,6 +215,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
   // Refresh git status
   const refreshStatus = useCallback(async () => {
+    if (notGitRef.current && notGitPathRef.current === effectiveGitPath) return
     setLoading(true)
     setError(null)
     try {
@@ -219,15 +223,23 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       if (result.error) {
         setError(result.error)
         setStatus(null)
+        const isNotGit = /not a git/i.test(result.error)
+        notGitRef.current = isNotGit
+        notGitPathRef.current = isNotGit ? effectiveGitPath : null
       } else {
         setStatus(result)
+        notGitRef.current = false
+        notGitPathRef.current = null
       }
     } catch (err: any) {
       setError(err.message)
       setStatus(null)
+      const isNotGit = /not a git/i.test(err.message)
+      notGitRef.current = isNotGit
+      notGitPathRef.current = isNotGit ? effectiveGitPath : null
     }
     setLoading(false)
-  }, [])
+  }, [effectiveGitPath])
 
   // Refresh git log
   const refreshLog = useCallback(async () => {
@@ -611,6 +623,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       const result = await window.api.git.init()
       if (result.success) {
         setError(null)
+        notGitRef.current = false
+        notGitPathRef.current = null
         pendingGitPathRef.current = workspacePath
         await refreshStatus()
         await refreshLog()
@@ -624,6 +638,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     if (!effectiveGitPath || pendingGitPathRef.current === effectiveGitPath) return
 
     pendingGitPathRef.current = effectiveGitPath
+    notGitRef.current = false
+    notGitPathRef.current = null
     const targetPath = effectiveGitPath
 
     setLogs([])

@@ -1193,7 +1193,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
             </div>
             {searchState.count > 0 && (
               <span className="text-[11px] text-ide-text-muted/50 tabular-nums shrink-0 mr-1">
-                {searchState.resultIndex >= 0 ? searchState.resultIndex + 1 : '?'} of {searchState.count}
+                {searchState.index >= 0 ? searchState.index + 1 : '?'} of {searchState.count}
               </span>
             )}
             <div className="flex items-center border-l border-ide-border/60 pl-0.5 pr-1 gap-0.5 py-0.5">

@@ -12,6 +12,7 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "downlevelIteration": true,
     "paths": {
       "@renderer/*": ["src/renderer/src/*"],
       "@shared/*": ["src/shared/*"]

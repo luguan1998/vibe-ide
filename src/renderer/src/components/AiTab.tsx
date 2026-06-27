@@ -1172,7 +1172,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     const s = sessionStates[activeSessionId]
     if (!s) return
     onAgentStatusChange(activeSessionId, s.busy ? 'running' : 'idle')
-  }, [activeSessionId, sessionStates[activeSessionId]?.busy, onAgentStatusChange])
+  }, [activeSessionId, sessionStates[activeSessionId ?? '']?.busy, onAgentStatusChange])
 
   // Session history
   const [sessionHistoryOpen, setSessionHistoryOpen] = useState(false)
