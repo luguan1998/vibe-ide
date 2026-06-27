@@ -12,7 +12,6 @@ export interface ThemeCSSVariables {
   'ide-warning': string
   'ide-hover': string
   'ide-active': string
-  'scrollbar-track': string
   'scrollbar-thumb': string
   'scrollbar-thumb-hover': string
   'selection-bg': string

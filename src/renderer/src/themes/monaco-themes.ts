@@ -23,7 +23,7 @@ export function registerMonacoThemes(monaco: any): void {
     const panel = rgbToHex(css['ide-panel'])
     const scrollThumb = rgbToHex(css['scrollbar-thumb'])
     const scrollThumbHover = rgbToHex(css['scrollbar-thumb-hover'])
-    const isLight = theme.id === 'github-light' || theme.id === 'solarized-light' || theme.id === 'miku-light'
+    const isLight = theme.id === 'github-light' || theme.id === 'solarized-light' || theme.id === 'miku-light' || theme.id === 'monkey-king'
 
     monaco.editor.defineTheme(theme.monacoTheme, {
       base: isLight ? 'vs' : 'vs-dark',

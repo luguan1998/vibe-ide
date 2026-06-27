@@ -34,6 +34,13 @@
       "!node_modules/dagre/**",
       "!node_modules/@types/dagre/**"
     ],
+    "extraFiles": [
+      {
+        "from": "snippets",
+        "to": "snippets",
+        "filter": ["*.css"]
+      }
+    ],
     "icon": "build/icon.ico",
     "win": {
       "target": [

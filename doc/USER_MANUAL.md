@@ -310,7 +310,7 @@
 
 ## 13. 14 套主题
 
-Vibe Dark、VS Code Dark、One Dark、Dracula、Nord、Solarized Dark/Light、Monokai、Monokai Pro、GitHub Light、Tokyo Night、Catppuccin、Hatsune Miku、Hatsune Light。
+Vibe Dark、VS Code Dark、One Dark、Dracula、Nord、Solarized Dark/Light、Monokai、Monokai Pro、GitHub Light、Monkey King、Retro Chinese、Hatsune Miku、Hatsune Light。
 
 总有你喜欢的一款。
 
