@@ -436,7 +436,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       cursorBlink: false,
       cursorStyle: 'bar',
       scrollback: isAux ? 500 : 10000,
-      allowTransparency: currentTheme.terminal.allowTransparency ?? true,
+      allowTransparency: bgImage ? true : (currentTheme.terminal.allowTransparency ?? true),
       allowProposedApi: true,
       windowsMode: true,
       drawBoldTextInBrightColors: false,
@@ -765,10 +765,14 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       xtermRef.current.options.theme = bgImage
         ? { ...currentTheme.terminal, background: 'transparent' }
         : currentTheme.terminal
-      xtermRef.current.options.allowTransparency = currentTheme.terminal.allowTransparency ?? true
+      xtermRef.current.options.allowTransparency = bgImage ? true : (currentTheme.terminal.allowTransparency ?? true)
       xtermRef.current.options.fontWeight = currentTheme.terminal.fontWeight || '400'
-      const el = terminalRef.current?.querySelector('.xterm') as HTMLElement | null
-      if (el) el.style.backgroundColor = bgImage ? 'transparent' : currentTheme.terminal.background
+      if (!bgImage) {
+        const el = terminalRef.current?.querySelector('.xterm') as HTMLElement | null
+        if (el) el.style.backgroundColor = currentTheme.terminal.background
+        const vp = terminalRef.current?.querySelector('.xterm-viewport') as HTMLElement | null
+        if (vp) vp.style.backgroundColor = currentTheme.terminal.background
+      }
     }
   }, [currentTheme])
 
@@ -1107,13 +1111,6 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         onContextMenu={handleContextMenu}
       >
         <div ref={terminalRef} className="flex-1 min-h-0 relative">
-          {bgImage && (
-            <div className="absolute inset-0 -z-10 pointer-events-none term-view__bg-overlay" style={{
-              backgroundImage: `linear-gradient(var(--terminal-bg-overlay, transparent), var(--terminal-bg-overlay, transparent)), var(--terminal-bg-image)`,
-              backgroundSize: 'cover, cover',
-              backgroundPosition: 'center, center',
-            }} />
-          )}
           {/* OCR drag overlay */}
           {ocrState !== 'idle' && (
             <div

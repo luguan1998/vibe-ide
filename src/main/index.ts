@@ -289,6 +289,29 @@ app.whenReady().then(() => {
     try { writeFileSync(snippetsJsonPath, JSON.stringify(state, null, 2), 'utf8') } catch {}
   }
 
+  function resolveCssUrls(css: string, baseDir: string): string {
+    return css.replace(/url\(['"]?([^'"()]+)['"]?\)/g, (match, url) => {
+      if (/^(data:|https?:|http?:)/.test(url)) return match
+      let filePath = url
+      if (filePath.startsWith('file:///')) {
+        filePath = filePath.replace(/^file:\/\/\//, '')
+      }
+      if (!existsSync(filePath) && !existsSync(join(baseDir, filePath))) return match
+      const resolved = existsSync(filePath) ? filePath : join(baseDir, filePath)
+      const ext = (resolved.match(/\.(\w+)$/)?.[1] || '').toLowerCase()
+      const mimeMap: Record<string, string> = {
+        png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+        gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
+        bmp: 'image/bmp', ico: 'image/x-icon',
+      }
+      if (!mimeMap[ext]) return match
+      try {
+        const data = readFileSync(resolved).toString('base64')
+        return `url('data:${mimeMap[ext]};base64,${data}')`
+      } catch { return match }
+    })
+  }
+
   function buildSnippetsResult() {
     if (!existsSync(snippetsDir)) {
       mkdirSync(snippetsDir, { recursive: true })
@@ -306,7 +329,10 @@ app.whenReady().then(() => {
     // 仅拼接启用的
     const enabledFiles = snippets.filter(s => s.enabled).map(s => s.name)
     const css = enabledFiles
-      .map(f => `/* ${f} */\n${readFileSync(join(snippetsDir, f), 'utf8')}`)
+      .map(f => {
+        const raw = readFileSync(join(snippetsDir, f), 'utf8')
+        return `/* ${f} */\n${resolveCssUrls(raw, snippetsDir)}`
+      })
       .join('\n\n')
     return { css, snippets }
   }

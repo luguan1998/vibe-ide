@@ -217,3 +217,31 @@ background: rgb(199 50 43 / 0.3);             /* 直接写色值 + 透明度 */
 | `retroma.css` / `retroma-cyan.css` / `retroma-chromatic.css` | retro 调色变体（基础 / 青色 / 多彩） |
 
 > 各文件的配色意图和设计说明写在文件头部注释里，打开即可看。
+
+
+## opencode 透明背景图片设置
+
+~\.config\opencode\themes 新增一个如 my.json 然后主题切到my
+
+```json
+{
+  "$schema": "https://opencode.ai/theme.json",
+  "theme": {
+    "primary": "#64b5f6",
+    "secondary": "#ce93d8",
+    "accent": "#ffd54f",
+    "error": "#ef5350",
+    "warning": "#ffd54f",
+    "success": "#81c784",
+    "info": "#64b5f6",
+    "text": "#e0e0e0",
+    "textMuted": "#6a7a9a",
+    "background": "none",
+    "backgroundPanel": "none",
+    "backgroundElement": "none",
+    "border": "#2a3a5c",
+    "borderActive": "#64b5f6",
+    "borderSubtle": "#1e2a45"
+  }
+}
+```

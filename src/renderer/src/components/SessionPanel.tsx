@@ -977,11 +977,7 @@ const SessionPanel = React.memo(function SessionPanel({
           </div>
           <button
             onClick={() => onCreateSession(termType)}
-            className={`w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 session-panel__new-btn ${
-              sessions.length === 0
-                ? 'text-white bg-ide-accent hover:bg-ide-accent-hover'
-                : 'text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white'
-            }`}
+            className="w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 session-panel__new-btn text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white"
             title={`${t('New Terminal')} (${shellOptions.find(tt => tt.value === termType)?.label || termType})`}
           >
             <Plus size={14} />

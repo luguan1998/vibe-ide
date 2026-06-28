@@ -69,6 +69,7 @@ src/
 **IPC 频道**（`src/shared/types.ts`）：pty（create/write/resize/rename/close/data/exit）、git（setWorkspace/status/log/diff/add/reset/commit/branches/checkout/stash/init/show/changed）、file（read/write/list/tree）、workspace（open/current/pickDir）、search（grep）
 
 **关键依赖：** `node-pty`（external from Rollup）、`@xterm/xterm`、`@monaco-editor/react`、`simple-git`、`electron-updater`
+- **终端背景图 (`--terminal-bg-image`)**：xterm.js >= 6.1.0-beta 已修复 CSS 黑底 + WebGL 透明问题（`.xterm:not(.allow-transparency) .xterm-viewport` 条件化 + PR #5561）。背景图 CSS 变量由主进程 `resolveCssUrls()` 将 `url()` 转 base64 以绕过 dev 模式跨域。详见 `terminal-bg-image` 记忆
 
 **路径别名：** `@renderer/*` → `src/renderer/src/*`、`@shared/*` → `src/shared/*`
 

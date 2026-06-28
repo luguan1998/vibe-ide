@@ -160,11 +160,11 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, name: 
       }
       const shellName = shell.toLowerCase()
       if (shellName.includes('powershell') || shellName.includes('pwsh')) {
-        managed.pty.write('chcp 65001 >$null\r')
-        managed.pty.write('Clear-Host\r')
+        try { managed.pty.write('chcp 65001 >$null\r') } catch {}
+        try { managed.pty.write('Clear-Host\r') } catch {}
       } else if (shellName.includes('cmd')) {
-        managed.pty.write('chcp 65001 >nul\r')
-        managed.pty.write('cls\r')
+        try { managed.pty.write('chcp 65001 >nul\r') } catch {}
+        try { managed.pty.write('cls\r') } catch {}
       }
     }, 600)
   }
@@ -285,7 +285,7 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
     const { id, data } = payload
     const managed = terminals.get(id)
     if (managed) {
-      managed.pty.write(data)
+      try { managed.pty.write(data) } catch {}
     }
   })
 
