@@ -40,7 +40,14 @@
         "from": "snippets",
         "to": "snippets",
         "filter": [
-          "*.css"
+          "*.css",
+          "*.jpg",
+          "*.jpeg",
+          "*.png",
+          "*.svg",
+          "*.gif",
+          "*.webp",
+          "*.bmp"
         ]
       }
     ],
