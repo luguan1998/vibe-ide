@@ -291,24 +291,16 @@ app.whenReady().then(() => {
 
   function resolveCssUrls(css: string, baseDir: string): string {
     return css.replace(/url\(['"]?([^'"()]+)['"]?\)/g, (match, url) => {
-      if (/^(data:|https?:|http?:)/.test(url)) return match
-      let filePath = url
-      if (filePath.startsWith('file:///')) {
-        filePath = filePath.replace(/^file:\/\/\//, '')
-      }
-      if (!existsSync(filePath) && !existsSync(join(baseDir, filePath))) return match
-      const resolved = existsSync(filePath) ? filePath : join(baseDir, filePath)
+      if (/^(data:|https?:|http?:|file:)/.test(url)) return match
+      const resolved = existsSync(url) ? url : join(baseDir, url)
       const ext = (resolved.match(/\.(\w+)$/)?.[1] || '').toLowerCase()
       const mimeMap: Record<string, string> = {
         png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
         gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
         bmp: 'image/bmp', ico: 'image/x-icon',
       }
-      if (!mimeMap[ext]) return match
-      try {
-        const data = readFileSync(resolved).toString('base64')
-        return `url('data:${mimeMap[ext]};base64,${data}')`
-      } catch { return match }
+      if (!mimeMap[ext] || !existsSync(resolved)) return match
+      return `url('file:///${resolved.replace(/\\/g, '/')}')`
     })
   }
 

@@ -28,7 +28,7 @@
   --monaco-margin-bg: 20 24 52 !important;
 
   /* ── 终端背景图 ──
-     url() 支持相对路径（相对 snippets 目录），主进程自动转 base64 */
+     url() 支持相对路径（相对 snippets 目录），主进程自动转 file:// */
   --terminal-bg-image: url('night.jpg');
   --terminal-bg-overlay: rgba(15, 18, 42, 0.7);
 }
@@ -376,21 +376,7 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
 .text-ide-danger { color: rgb(var(--ide-danger)) !important; }
 .text-ide-warning { color: rgb(var(--ide-warning)) !important; }
 
-/* ════════════════════════════════════════════════════
-   画布纹理 — impasto 笔触 + 油画颗粒
-   ════════════════════════════════════════════════════ */
-
-/* 全局油画布颗粒 — SVG feTurbulence 模拟厚涂纹理，挂 body 避免污染 fixed 定位元素 */
-body::before {
-  content: '' !important;
-  position: fixed !important;
-  inset: 0 !important;
-  pointer-events: none !important;
-  z-index: 9999 !important;
-  opacity: 0.025 !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27300%27 height=%27300%27%3E%3Cfilter id=%27n%27%3E%3CfeTurbulence type=%27fractalNoise%27 baseFrequency=%270.65%27 numOctaves=%274%27 stitchTiles=%27stitch%27/%3E%3C/filter%3E%3Crect width=%27300%27 height=%27300%27 filter=%27url(%23n)%27/%3E%3C/svg%3E") !important;
-  background-repeat: repeat !important;
-}
+/* 画布纹理 — 无动画/滤镜，性能优先 */
 
 /* ════════════════════════════════════════════════════
    左侧会话面板 — 活跃项漩涡 + 星群底纹
@@ -416,8 +402,6 @@ body::before {
     radial-gradient(1px 1px at 90% 48%, rgba(255,195,40,0.45), transparent),
     radial-gradient(1.2px 1.2px at 15% 70%, rgba(255,210,70,0.5), transparent),
     radial-gradient(1px 1px at 70% 65%, rgba(255,220,90,0.4), transparent) !important;
-  animation: stars-twinkle 6.5s ease-in-out infinite !important;
-  animation-delay: 2s !important;
 }
 
 /* 忙碌非选中 — 右侧小画笔螺旋（金星同款风格，静态无动画） */
@@ -449,7 +433,6 @@ body::before {
   background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 40 40%27%3E%3Cdefs%3E%3CradialGradient id=%27sa%27 cx=%2750%25%27 cy=%2750%25%27 r=%2750%25%27%3E%3Cstop offset=%270%25%27 stop-color=%27%23FFFFFF%27/%3E%3Cstop offset=%2730%25%27 stop-color=%27%23FFF9C4%27/%3E%3Cstop offset=%2760%25%27 stop-color=%27%23FFEE58%27/%3E%3Cstop offset=%27100%25%27 stop-color=%27%23FFC107%27 stop-opacity=%270%27/%3E%3C/radialGradient%3E%3CradialGradient id=%27sb%27 cx=%2750%25%27 cy=%2750%25%27 r=%2750%25%27%3E%3Cstop offset=%270%25%27 stop-color=%27%2364B5F6%27 stop-opacity=%270.4%27/%3E%3Cstop offset=%27100%25%27 stop-color=%27%231E88E5%27 stop-opacity=%270%27/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx=%2720%27 cy=%2720%27 r=%2716%27 fill=%27url(%23sb)%27/%3E%3Cellipse cx=%2720%27 cy=%2720%27 rx=%2717%27 ry=%277%27 fill=%27none%27 stroke=%27%231E88E5%27 stroke-width=%272%27 transform=%27rotate(30,20,20)%27 opacity=%270.6%27/%3E%3Cellipse cx=%2720%27 cy=%2720%27 rx=%2717%27 ry=%277%27 fill=%27none%27 stroke=%27%2342A5F5%27 stroke-width=%271.5%27 transform=%27rotate(90,20,20)%27 opacity=%270.5%27/%3E%3Ccircle cx=%2720%27 cy=%2720%27 r=%2713%27 fill=%27none%27 stroke=%27%231E88E5%27 stroke-width=%271.5%27 stroke-dasharray=%274 8%27 transform=%27rotate(10,20,20)%27 opacity=%270.7%27/%3E%3Ccircle cx=%2720%27 cy=%2720%27 r=%2710%27 fill=%27none%27 stroke=%27%2342A5F5%27 stroke-width=%271.2%27 stroke-dasharray=%273 6%27 transform=%27rotate(40,20,20)%27 opacity=%270.8%27/%3E%3Ccircle cx=%2720%27 cy=%2720%27 r=%277%27 fill=%27none%27 stroke=%27%23FFEE58%27 stroke-width=%271.2%27 stroke-dasharray=%272.5 5%27 transform=%27rotate(25,20,20)%27/%3E%3Cellipse cx=%2720%27 cy=%2720%27 rx=%279%27 ry=%274%27 fill=%27none%27 stroke=%27%23FFEE58%27 stroke-width=%271%27 transform=%27rotate(60,20,20)%27/%3E%3Ccircle cx=%2720%27 cy=%2720%27 r=%2710%27 fill=%27url(%23sa)%27/%3E%3Ccircle cx=%2720%27 cy=%2720%27 r=%272.5%27 fill=%27%23FFFFFF%27/%3E%3C/svg%3E") !important;
   background-size: 100% 100% !important;
   background-repeat: no-repeat !important;
-  animation: star-halo-breathe 4s ease-in-out infinite !important;
 }
 .session-item--active {
   box-shadow: 0 0 18px rgba(255,195,40,0.05) !important;
@@ -488,8 +471,6 @@ body::before {
     radial-gradient(1px 1px at 14px 22px, rgba(255,195,40,0.45), transparent),
     radial-gradient(1.3px 1.3px at 44px 24px, rgba(255,210,70,0.5), transparent),
     radial-gradient(1px 1px at 72px 26px, rgba(255,200,50,0.4), transparent) !important;
-  animation: stars-twinkle 7s ease-in-out infinite !important;
-  animation-delay: 3s !important;
 }
 
 /* 文件树 — 底部 螺旋笔触纹理 可见漩涡曲线 */
@@ -610,7 +591,6 @@ body::before {
     0 0 8px rgba(255,210,70,0.5),
     0 0 20px rgba(255,195,40,0.2),
     0 0 35px rgba(255,180,30,0.1) !important;
-  animation: moon-glow 5s ease-in-out infinite !important;
 }
 
 /* ════════════════════════════════════════════════════
@@ -625,21 +605,4 @@ body::before {
 }
 
 
-/* ════════════════════════════════════════════════════
-   动画 — 星光呼吸 + 星群闪烁 + 月华明暗
-   ════════════════════════════════════════════════════ */
 
-@keyframes star-halo-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.7; }
-  50% { transform: scale(1.12); opacity: 0.95; }
-}
-@keyframes stars-twinkle {
-  0%, 100% { opacity: 0.55; }
-  25% { opacity: 0.9; }
-  55% { opacity: 0.45; }
-  80% { opacity: 0.8; }
-}
-@keyframes moon-glow {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.45; }
-}

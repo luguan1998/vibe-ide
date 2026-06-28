@@ -13,7 +13,6 @@ import { loadFilterRules } from './FileTab'
 import { EDITABLE_EXTENSIONS, FILE_PATH_REGEX, parseFilePath, isBareFilename } from '../utils/filePathUtils'
 import '@xterm/xterm/css/xterm.css'
 
-// 读取 snippets CSS 设的终端背景图变量；为空则无背景图（重启生效，不热加载）
 function readTerminalBgImage(): string {
   try {
     return getComputedStyle(document.documentElement).getPropertyValue('--terminal-bg-image').trim()
@@ -308,7 +307,6 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   const searchAddonRef = useRef<SearchAddon | null>(null)
   const webglAddonRef = useRef<WebglAddon | null>(null)
   const searchDecoRef = useRef<any>({})
-  // 背景图只在 mount 时读一次 CSS 变量（重启生效，不热加载），避免每次 render 调 getComputedStyle
   const [bgImage] = useState(() => readTerminalBgImage())
   const [searchState, setSearchState] = useState<{ visible: boolean; query: string; index: number; count: number } | null>(null)
   const searchStateRef = useRef(searchState)
