@@ -69,7 +69,6 @@ interface FileTabProps {
   currentEditFilePath?: string | null
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
   onPreviewImage?: (fullPath: string, fileName: string) => void
-  fileTreeDepth: number
   refreshKey?: number
   navigateToFile?: { trigger: number; filePath: string } | null
   onRefresh?: () => void
@@ -137,6 +136,41 @@ function RootInput({ editingState, onEditSubmit, onEditCancel, t }: {
 // Normalize path separators for cross-platform comparison
 function norm(p: string): string {
   return p.replace(/\\/g, '/')
+}
+
+function findNodeByPath(nodes: FileNode[], targetPath: string): FileNode | null {
+  const t = norm(targetPath)
+  for (const n of nodes) {
+    if (norm(n.path) === t) return n
+    if (n.children) {
+      const found = findNodeByPath(n.children, targetPath)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+function setNodeChildren(nodes: FileNode[], targetPath: string, children: FileNode[]): FileNode[] {
+  const t = norm(targetPath)
+  let changed = false
+  const next = nodes.map(n => {
+    if (norm(n.path) === t) { changed = true; return { ...n, children } }
+    if (n.children && findNodeByPath(n.children, targetPath)) {
+      changed = true
+      return { ...n, children: setNodeChildren(n.children, targetPath, children) }
+    }
+    return n
+  })
+  return changed ? next : nodes
+}
+
+function setNodesChildrenMap(nodes: FileNode[], map: Map<string, FileNode[]>): FileNode[] {
+  if (map.size === 0) return nodes
+  return nodes.map(n => {
+    const key = norm(n.path)
+    if (map.has(key)) return { ...n, children: setNodesChildrenMap(map.get(key)!, map) }
+    return n
+  })
 }
 
 // File tree item component
@@ -537,7 +571,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, fileTreeDepth, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -571,6 +605,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
 
+  const treeCacheRef = useRef<Map<string, { tree: FileNode[]; expanded: string[] }>>(new Map())
+  const prevWsRef = useRef<string | null>(null)
+  const navAbortRef = useRef<AbortController | null>(null)
+  const fileTreeRef = useRef<FileNode[]>([])
+  fileTreeRef.current = fileTree
+  const expandedDirsRef = useRef<Set<string>>(new Set())
+  expandedDirsRef.current = expandedDirs
+
   // recently files filtered to current workspace
   const wsRecent = useMemo(() => recentFiles.filter(f => {
     const p = norm(f.path)
@@ -579,46 +621,135 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     return p === w || p.startsWith(w + '/')
   }), [recentFiles, workspacePath])
 
-  // Load file tree
-  const loadFileTree = useCallback(async () => {
+  // Load file tree (root level only, depth=1 lazy load).
+  const loadFileTree = useCallback(async (): Promise<void> => {
     if (!workspacePath) return
     try {
       const skipPatterns = loadFilterRules()
-      const result = await window.api.file.tree(workspacePath, fileTreeDepth, skipPatterns)
+      const result = await window.api.file.tree(workspacePath, 1, skipPatterns)
       if (!result.error) {
+        fileTreeRef.current = result
         setFileTree(result)
+        treeCacheRef.current.set(norm(workspacePath), {
+          tree: structuredClone(result),
+          expanded: [...expandedDirsRef.current],
+        })
       }
     } catch {}
-  }, [workspacePath, fileTreeDepth])
+  }, [workspacePath])
+
+  // Lazy-load children of a directory (single level); no-op if already loaded.
+  // Syncs fileTreeRef before setFileTree so consecutive awaits (navigateToFile) see the latest tree.
+  const ensureChildrenLoaded = useCallback(async (dirPath: string, signal?: AbortSignal): Promise<void> => {
+    const node = findNodeByPath(fileTreeRef.current, dirPath)
+    if (!node || node.children !== undefined) return
+    if (signal?.aborted) return
+    try {
+      const skipPatterns = loadFilterRules()
+      const result = await window.api.file.tree(dirPath, 1, skipPatterns)
+      if (signal?.aborted) return
+      if (!result.error) {
+        const next = setNodeChildren(fileTreeRef.current, dirPath, result)
+        fileTreeRef.current = next
+        setFileTree(next)
+      }
+    } catch {}
+  }, [])
+
+  // Reload a single directory's children (local refresh after file ops); invalidates cwd cache.
+  const refreshDir = useCallback(async (dirPath: string): Promise<void> => {
+    try {
+      const skipPatterns = loadFilterRules()
+      const result = await window.api.file.tree(dirPath, 1, skipPatterns)
+      if (!result.error) {
+        if (workspacePath && norm(dirPath) === norm(workspacePath)) {
+          fileTreeRef.current = result
+          setFileTree(result)
+        } else {
+          const next = setNodeChildren(fileTreeRef.current, dirPath, result)
+          fileTreeRef.current = next
+          setFileTree(next)
+        }
+      }
+    } catch {}
+    if (workspacePath) treeCacheRef.current.delete(norm(workspacePath))
+  }, [workspacePath])
+
+  // Coarse refresh: reload root + every expanded directory in one pass (filter/refresh/fs events).
+  const refreshAllExpanded = useCallback(async (): Promise<void> => {
+    if (!workspacePath) return
+    const skipPatterns = loadFilterRules()
+    let rootTree: FileNode[]
+    try {
+      const r = await window.api.file.tree(workspacePath, 1, skipPatterns)
+      if (r.error) return
+      rootTree = r
+    } catch { return }
+    const expanded = [...expandedDirsRef.current]
+    const childrenMap = new Map<string, FileNode[]>()
+    for (const dir of expanded) {
+      try {
+        const r = await window.api.file.tree(dir, 1, skipPatterns)
+        if (!r.error) childrenMap.set(norm(dir), r)
+      } catch {}
+    }
+    const next = setNodesChildrenMap(rootTree, childrenMap)
+    fileTreeRef.current = next
+    setFileTree(next)
+    treeCacheRef.current.set(norm(workspacePath), {
+      tree: structuredClone(next),
+      expanded: [...expandedDirsRef.current],
+    })
+  }, [workspacePath])
 
   useEffect(() => {
-    if (workspacePath) {
+    if (!workspacePath) return
+    const nws = norm(workspacePath)
+    if (prevWsRef.current && prevWsRef.current !== nws && fileTreeRef.current.length > 0) {
+      treeCacheRef.current.set(prevWsRef.current, {
+        tree: structuredClone(fileTreeRef.current),
+        expanded: [...expandedDirsRef.current],
+      })
+    }
+    prevWsRef.current = nws
+    const cached = treeCacheRef.current.get(nws)
+    if (cached) {
+      const restored = structuredClone(cached.tree)
+      fileTreeRef.current = restored
+      setFileTree(restored)
+      setExpandedDirs(new Set(cached.expanded))
+    } else {
       loadFileTree()
     }
   }, [workspacePath, loadFileTree])
 
   // Reload file tree when filter rules change
   useEffect(() => {
-    const handler = () => loadFileTree()
+    const handler = () => { treeCacheRef.current.clear(); refreshAllExpanded() }
     window.addEventListener('file-filter-rules-changed', handler)
     return () => window.removeEventListener('file-filter-rules-changed', handler)
-  }, [loadFileTree])
+  }, [refreshAllExpanded])
 
   // Reload when manual refresh triggered
   useEffect(() => {
     if (refreshKey !== undefined && refreshKey > 0) {
-      loadFileTree()
+      refreshAllExpanded()
       loadClaudeDocTree()
     }
   }, [refreshKey])
 
   // Reload when filesystem changes (file watcher push from main process)
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
     const handler = window.api.file.onChanged(() => {
-      loadFileTree()
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        if (workspacePath) treeCacheRef.current.delete(norm(workspacePath))
+        refreshAllExpanded()
+      }, 300)
     })
-    return () => { window.api.file.removeChangedListener(handler) }
-  }, [loadFileTree])
+    return () => { clearTimeout(timer); window.api.file.removeChangedListener(handler) }
+  }, [workspacePath, refreshAllExpanded])
 
   // Load CLAUDE.md (or AGENTS.md) doc tree
   const loadClaudeDocTree = useCallback(async () => {
@@ -633,15 +764,17 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   useEffect(() => { loadClaudeDocTree() }, [workspacePath])
 
   // Toggle directory expand
-  const toggleDir = useCallback((path: string) => {
+  const toggleDir = useCallback(async (path: string) => {
     const n = norm(path)
+    const willExpand = !expandedDirsRef.current.has(n)
     setExpandedDirs(prev => {
       const next = new Set(prev)
       if (next.has(n)) next.delete(n)
       else next.add(n)
       return next
     })
-  }, [])
+    if (willExpand) await ensureChildrenLoaded(path)
+  }, [ensureChildrenLoaded])
 
   // ── in-tree search handlers (被调先于主调:定义在 return 之前) ──
   const openSearch = useCallback((scope: string | null) => {
@@ -801,13 +934,23 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       dirPaths.push(normalizedWs + '/' + segments.slice(0, i + 1).join('/'))
     }
 
-    setExpandedDirs(prev => {
-      const next = new Set(prev)
-      dirPaths.forEach(p => next.add(p))
-      return next
-    })
-    setHighlightedFilePath(normalizedTarget)
-  }, [navigateToFile, workspacePath])
+    navAbortRef.current?.abort()
+    const ac = new AbortController()
+    navAbortRef.current = ac
+    ;(async () => {
+      for (const dp of dirPaths) {
+        if (ac.signal.aborted) return
+        await ensureChildrenLoaded(dp, ac.signal)
+      }
+      if (ac.signal.aborted) return
+      setExpandedDirs(prev => {
+        const next = new Set(prev)
+        dirPaths.forEach(p => next.add(p))
+        return next
+      })
+      setHighlightedFilePath(normalizedTarget)
+    })()
+  }, [navigateToFile, workspacePath, ensureChildrenLoaded])
 
   // Scroll highlighted file into view after it appears in the DOM
   useEffect(() => {
@@ -961,7 +1104,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
         }
         setEditingState(null)
         setExpandedDirs(prev => { const next = new Set(prev); next.delete(norm(nodePath)); return next })
-        await loadFileTree()
+        await refreshDir(dir)
         break
       }
       case 'newFile': {
@@ -973,7 +1116,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           return
         }
         setEditingState(null)
-        await loadFileTree()
+        await refreshDir(editingState.nodePath)
         break
       }
       case 'newFolder': {
@@ -985,11 +1128,11 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           return
         }
         setEditingState(null)
-        await loadFileTree()
+        await refreshDir(editingState.nodePath)
         break
       }
     }
-  }, [editingState, loadFileTree])
+  }, [editingState, refreshDir])
 
   const handleEditCancel = useCallback(() => {
     setEditingState(null)
@@ -1023,9 +1166,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     }
     if (!result.error) {
       setFileClipboard(null)
-      await loadFileTree()
+      await refreshDir(destDir)
     }
-  }, [fileClipboard, loadFileTree])
+  }, [fileClipboard, refreshDir])
 
   return (
     <div className="flex-1 flex flex-col min-h-0 file-tab">
@@ -1268,7 +1411,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                   const { filePath } = confirmAction
                   setConfirmAction(null)
                   await window.api.file.delete(filePath)
-                  await loadFileTree()
+                  const sep = filePath.includes('\\') ? '\\' : '/'
+                  const parentDir = filePath.substring(0, filePath.lastIndexOf(sep))
+                  await refreshDir(parentDir)
                 }}
               >
                 {t('Confirm')}

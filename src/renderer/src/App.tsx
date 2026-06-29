@@ -385,21 +385,6 @@ export default function App() {
     try { return localStorage.getItem('vibe-ide-cg-enabled') !== '0' } catch { return true }
   })
 
-  const [fileTreeDepth, setFileTreeDepth] = useState(() => {
-    try {
-      const v = localStorage.getItem('vibe-ide-file-tree-depth')
-      return v ? Math.max(1, Math.min(12, Number(v))) : 5
-    } catch { return 3 }
-  })
-
-  const handleFileTreeDepthChange = useCallback((delta: number) => {
-    setFileTreeDepth(prev => {
-      const next = Math.max(1, Math.min(12, prev + delta))
-      try { localStorage.setItem('vibe-ide-file-tree-depth', String(next)) } catch {}
-      return next
-    })
-  }, [])
-
   const [terminalFontSize, setTerminalFontSize] = useState(() => {
     try {
       const v = localStorage.getItem('vibe-ide-terminal-font-size')
@@ -1948,8 +1933,6 @@ export default function App() {
               setFontFamily('Cascadia Code')
               setTermFontFamily('Cascadia Code')
             }}
-            fileTreeDepth={fileTreeDepth}
-            onChangeFileTreeDepth={handleFileTreeDepthChange}
             focusSettingsTrigger={focusSettingsTrigger}
             onExecuteCommand={handleExecuteCommand}
             onInitCommand={handleInitCommand}
@@ -2167,7 +2150,6 @@ export default function App() {
             onExploreNode={(node) => setCallGraphFocalNode(node)}
             lineHistoryPayload={lineHistoryPayload}
 
-            fileTreeDepth={fileTreeDepth}
             onDiffScroll={handleDiffScroll}
             onToggleCollapse={handleToggleRightPanel}
             capsuleTabs={capsuleTabs}

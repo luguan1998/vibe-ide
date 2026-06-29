@@ -153,8 +153,6 @@ interface SessionPanelProps {
   onToggleOcrEnabled?: (value: boolean) => void
   escAutoAt?: boolean
   onToggleEscAutoAt?: (value: boolean) => void
-  fileTreeDepth?: number
-  onChangeFileTreeDepth?: (delta: number) => void
   focusSettingsTrigger?: number
   onExecuteCommand?: (command: string) => void
   onInitCommand?: (command: string) => void
@@ -211,8 +209,6 @@ const SessionPanel = React.memo(function SessionPanel({
   onToggleCapsuleTabs,
   escAutoAt = false,
   onToggleEscAutoAt,
-  fileTreeDepth = 5,
-  onChangeFileTreeDepth,
   focusSettingsTrigger = 0,
   onExecuteCommand,
   onInitCommand,
@@ -948,27 +944,6 @@ const SessionPanel = React.memo(function SessionPanel({
                     {t('Keyboard Shortcuts')}
                   </button>
                 </div>
-                {/* File Tree Depth */}
-                {onChangeFileTreeDepth && (
-                  <div className="border-t border-ide-border mt-1 pt-1">
-                    <div className="flex items-center justify-between px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover">
-                      <span className="whitespace-nowrap shrink-0">{t('File Tree Depth')}</span>
-                      <div className="flex items-center gap-px">
-                        <button
-                          className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
-                          disabled={fileTreeDepth <= 1}
-                          onClick={(e) => { e.stopPropagation(); onChangeFileTreeDepth(-1) }}
-                        >{'<'}</button>
-                        <span className="text-center font-mono text-ide-accent font-bold text-xs leading-none">{fileTreeDepth}</span>
-                        <button
-                          className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
-                          disabled={fileTreeDepth >= 12}
-                          onClick={(e) => { e.stopPropagation(); onChangeFileTreeDepth(1) }}
-                        >{'>'}</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
                 {/* File Filter Rules */}
                 <div className="border-t border-ide-border mt-1 pt-1">
                   <button
