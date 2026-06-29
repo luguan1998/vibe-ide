@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react'
-import { Pencil, X, MessageSquarePlus } from 'lucide-react'
+import React, { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
+import { Pencil, X, MessageSquarePlus, ListOrdered } from 'lucide-react'
 import { useI18n } from '../i18n'
 
 export interface CustomCommand {
   id: string
   name: string
   command: string
-  type: 'simple' | 'init'
+  type: 'simple' | 'init' | 'pipe'
 }
 
 export interface CustomCommandsHandle {
@@ -16,6 +16,7 @@ export interface CustomCommandsHandle {
 interface CustomCommandsProps {
   onExecuteCommand?: (command: string) => void
   onInitCommand?: (command: string) => void
+  onPipeCommand?: (command: string) => void
 }
 
 export function loadCustomCommands(): CustomCommand[] {
@@ -33,8 +34,14 @@ function saveCustomCommands(cmds: CustomCommand[]): void {
   try { localStorage.setItem('vibe-ide-custom-commands', JSON.stringify(cmds)) } catch {}
 }
 
+const CMD_MODAL_DEF_W = 400
+const CMD_MODAL_DEF_H = 320
+const CMD_MODAL_MIN_W = 320
+const CMD_MODAL_MIN_H = 300
+const clampNum = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
+
 const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
-  function CustomCommands({ onExecuteCommand, onInitCommand }, ref) {
+  function CustomCommands({ onExecuteCommand, onInitCommand, onPipeCommand }, ref) {
     const { t } = useI18n()
 
     const [customCommands, setCustomCommands] = useState<CustomCommand[]>(() => loadCustomCommands())
@@ -42,10 +49,56 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
     const [editingCustomCmd, setEditingCustomCmd] = useState<CustomCommand | null>(null)
     const [customCmdName, setCustomCmdName] = useState('')
     const [customCmdCommand, setCustomCmdCommand] = useState('')
-    const [customCmdType, setCustomCmdType] = useState<'simple' | 'init'>('simple')
+    const [customCmdType, setCustomCmdType] = useState<'simple' | 'init' | 'pipe'>('simple')
     const [customCmdCtxMenu, setCustomCmdCtxMenu] = useState<{ x: number; y: number; cmd: CustomCommand } | null>(null)
+    const [modalW, setModalW] = useState(CMD_MODAL_DEF_W)
+    const [modalH, setModalH] = useState(CMD_MODAL_DEF_H)
+    const [modalPos, setModalPos] = useState(() => ({
+      top: Math.max(0, (window.innerHeight - CMD_MODAL_DEF_H) / 2),
+      left: Math.max(0, (window.innerWidth - CMD_MODAL_DEF_W) / 2),
+    }))
+    const resizeCleanupRef = useRef<(() => void) | null>(null)
 
+    const resetModalSize = () => {
+      if (resizeCleanupRef.current) { resizeCleanupRef.current(); resizeCleanupRef.current = null }
+      setModalW(CMD_MODAL_DEF_W)
+      setModalH(CMD_MODAL_DEF_H)
+      setModalPos({
+        top: Math.max(0, (window.innerHeight - CMD_MODAL_DEF_H) / 2),
+        left: Math.max(0, (window.innerWidth - CMD_MODAL_DEF_W) / 2),
+      })
+    }
+    const startResize = (dir: 'e' | 's' | 'se') => (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (resizeCleanupRef.current) { resizeCleanupRef.current(); resizeCleanupRef.current = null }
+      const startX = e.clientX
+      const startY = e.clientY
+      const startW = modalW
+      const startH = modalH
+      const maxW = window.innerWidth - 32
+      const maxH = window.innerHeight - 32
+      const onMove = (ev: MouseEvent) => {
+        const dx = ev.clientX - startX
+        const dy = ev.clientY - startY
+        if (dir === 'e' || dir === 'se') setModalW(clampNum(startW + dx, CMD_MODAL_MIN_W, maxW))
+        if (dir === 's' || dir === 'se') setModalH(clampNum(startH + dy, CMD_MODAL_MIN_H, maxH))
+      }
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.body.style.userSelect = ''
+        resizeCleanupRef.current = null
+        const suppress = (ev: MouseEvent) => { ev.stopPropagation(); ev.preventDefault() }
+        document.addEventListener('click', suppress, { capture: true, once: true })
+      }
+      resizeCleanupRef.current = onUp
+      document.body.style.userSelect = 'none'
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+    }
     const openCreateModal = () => {
+      resetModalSize()
       setEditingCustomCmd(null)
       setCustomCmdName('')
       setCustomCmdCommand('')
@@ -107,8 +160,9 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
 
     const sortedCommands = useMemo(() => {
       const init = customCommands.filter(c => c.type === 'init')
-      const simple = customCommands.filter(c => c.type !== 'init')
-      return [...init, ...simple]
+      const pipe = customCommands.filter(c => c.type === 'pipe')
+      const simple = customCommands.filter(c => c.type !== 'init' && c.type !== 'pipe')
+      return [...init, ...pipe, ...simple]
     }, [customCommands])
 
     return (
@@ -122,7 +176,9 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
                   key={cmd.id}
                   className="relative group inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ide-hover hover:bg-ide-accent/20 text-ide-text-muted hover:text-ide-text cursor-pointer transition-colors text-xs max-w-full select-none"
                   onClick={() => {
-                    if (cmd.type === 'init' && onInitCommand) {
+                    if (cmd.type === 'pipe' && onPipeCommand) {
+                      onPipeCommand(cmd.command)
+                    } else if (cmd.type === 'init' && onInitCommand) {
                       onInitCommand(cmd.command)
                     } else if (onExecuteCommand) {
                       onExecuteCommand(cmd.command)
@@ -133,10 +189,12 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
                     e.stopPropagation()
                     setCustomCmdCtxMenu({ x: e.clientX, y: e.clientY, cmd })
                   }}
-                  title={`${cmd.name}: ${cmd.command}${cmd.type === 'init' ? ' (init)' : ''}`}
+                  title={`${cmd.name}: ${cmd.command}${cmd.type === 'init' ? ' (init)' : cmd.type === 'pipe' ? ' (pipe)' : ''}`}
                 >
                   {cmd.type === 'init' ? (
                     <MessageSquarePlus size={12} className="shrink-0 text-ide-accent" />
+                  ) : cmd.type === 'pipe' ? (
+                    <ListOrdered size={12} className="shrink-0 text-ide-accent" />
                   ) : (
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3 shrink-0 text-ide-accent">
                       <polyline points="4 17 10 11 4 5" />
@@ -177,6 +235,7 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
             <button
               className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
               onClick={() => {
+                resetModalSize()
                 setEditingCustomCmd(customCmdCtxMenu.cmd)
                 setCustomCmdName(customCmdCtxMenu.cmd.name)
                 setCustomCmdCommand(customCmdCtxMenu.cmd.command)
@@ -208,7 +267,11 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
         {/* Custom Command Modal */}
         {showCustomCmdModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setShowCustomCmdModal(false); setEditingCustomCmd(null) }}>
-            <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[400px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl flex flex-col absolute"
+              style={{ top: modalPos.top, left: modalPos.left, width: modalW, height: modalH }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
                 <span className="text-sm font-semibold text-ide-text">{editingCustomCmd ? t('Edit Custom Command') : t('New Custom Command')}</span>
                 <button
@@ -218,8 +281,8 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
                   ×
                 </button>
               </div>
-              <div className="p-4 flex flex-col gap-3">
-                <div className="flex items-center gap-4">
+              <div className="p-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto">
+                <div className="flex items-center gap-4 shrink-0">
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
@@ -240,8 +303,18 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
                     />
                     <span className="text-xs text-ide-text">{t('Init Session')}</span>
                   </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="cmdType"
+                      checked={customCmdType === 'pipe'}
+                      onChange={() => setCustomCmdType('pipe')}
+                      className="accent-ide-accent"
+                    />
+                    <span className="text-xs text-ide-text">{t('Pipe')}</span>
+                  </label>
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 shrink-0">
                   <label className="text-xs text-ide-text-muted">{t('Command Name')}</label>
                   <input
                     type="text"
@@ -252,16 +325,16 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
                     autoFocus
                   />
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-ide-text-muted">{t('Command')}</label>
+                <div className="flex flex-col gap-1 flex-1 min-h-0">
+                  <label className="text-xs text-ide-text-muted shrink-0">{t('Command')}</label>
                   <textarea
-                    className="w-full h-24 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
+                    className="w-full flex-1 min-h-[6rem] bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
                     placeholder={t('Enter command to execute')}
                     value={customCmdCommand}
                     onChange={(e) => setCustomCmdCommand(e.target.value)}
                   />
                 </div>
-                <div className="flex justify-end gap-2 mt-1">
+                <div className="flex justify-end gap-2 mt-1 shrink-0">
                   <button
                     className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
                     onClick={() => { setShowCustomCmdModal(false); setEditingCustomCmd(null) }}
@@ -277,6 +350,9 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
                   </button>
                 </div>
               </div>
+              <div onMouseDown={startResize('e')} onClick={(e) => e.stopPropagation()} className="absolute top-0 right-0 h-full w-1.5 cursor-ew-resize hover:bg-ide-accent/40" />
+              <div onMouseDown={startResize('s')} onClick={(e) => e.stopPropagation()} className="absolute bottom-0 left-0 w-full h-1.5 cursor-ns-resize hover:bg-ide-accent/40" />
+              <div onMouseDown={startResize('se')} onClick={(e) => e.stopPropagation()} className="absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize hover:bg-ide-accent" />
             </div>
           </div>
         )}

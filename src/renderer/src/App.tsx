@@ -342,6 +342,10 @@ export default function App() {
   const historyListRef = useRef<HTMLDivElement>(null)
   const [terminalBusy, setTerminalBusy] = useState<Record<string, boolean>>({})
   const [aiBusy, setAiBusy] = useState<Record<string, boolean>>({})
+  const [pipeRunning, setPipeRunning] = useState<Record<string, boolean>>({})
+  const [pipeProgress, setPipeProgress] = useState<Record<string, { current: number; total: number }>>({})
+  const pipeRunnersRef = useRef<Map<string, { cancelled: boolean; resolveIdle: (() => void) | null; sleepTimer: ReturnType<typeof setTimeout> | null; sleepResolve: (() => void) | null }>>(new Map())
+  const terminalBusyRef = useRef<Record<string, boolean>>({})
   const agentStatus = useMemo(() => {
     const result: Record<string, 'running' | 'idle'> = {}
     for (const s of sessions) {
@@ -764,12 +768,67 @@ export default function App() {
     }
   }, [])
   const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
+    const v = status === 'running'
     setTerminalBusy(prev => {
-      const v = status === 'running'
       if (prev[sessionId] === v) return prev
       return { ...prev, [sessionId]: v }
     })
+    if (terminalBusyRef.current[sessionId] !== v) {
+      terminalBusyRef.current = { ...terminalBusyRef.current, [sessionId]: v }
+    }
+    if (status === 'idle') {
+      const runner = pipeRunnersRef.current.get(sessionId)
+      if (runner && !runner.cancelled && runner.resolveIdle) {
+        const resolve = runner.resolveIdle
+        runner.resolveIdle = null
+        resolve()
+      }
+    }
   }, [])
+
+  const cancelPipe = useCallback((sessionId: string) => {
+    const runner = pipeRunnersRef.current.get(sessionId)
+    if (!runner) return
+    runner.cancelled = true
+    if (runner.resolveIdle) { const r = runner.resolveIdle; runner.resolveIdle = null; r() }
+    if (runner.sleepTimer) { clearTimeout(runner.sleepTimer); runner.sleepTimer = null }
+    if (runner.sleepResolve) { const r = runner.sleepResolve; runner.sleepResolve = null; r() }
+  }, [])
+
+  const handlePipeCommand = useCallback(async (command: string) => {
+    const sessionId = activeSessionId
+    if (!sessionId) return
+    const PIPE_DETECT_DELAY = 2000
+    cancelPipe(sessionId)
+    const lines = command.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean)
+    if (lines.length === 0) return
+    const runner = { cancelled: false, resolveIdle: null as (() => void) | null, sleepTimer: null as ReturnType<typeof setTimeout> | null, sleepResolve: null as (() => void) | null }
+    pipeRunnersRef.current.set(sessionId, runner)
+    setPipeRunning(prev => ({ ...prev, [sessionId]: true }))
+    setPipeProgress(prev => ({ ...prev, [sessionId]: { current: 0, total: lines.length } }))
+    const sleep = (ms: number) => new Promise<void>(resolve => {
+      runner.sleepResolve = resolve
+      runner.sleepTimer = setTimeout(() => { runner.sleepResolve = null; resolve() }, ms)
+    })
+    for (let i = 0; i < lines.length; i++) {
+      if (runner.cancelled) break
+      setPipeProgress(prev => ({ ...prev, [sessionId]: { current: i + 1, total: lines.length } }))
+      window.api.terminal.write(sessionId, lines[i] + '\r')
+      await sleep(PIPE_DETECT_DELAY)
+      if (runner.cancelled) break
+      await new Promise<void>(resolve => {
+        if (runner.cancelled) { resolve(); return }
+        if (terminalBusyRef.current[sessionId] !== true) { resolve(); return }
+        runner.resolveIdle = resolve
+      })
+      if (runner.cancelled) break
+    }
+    if (pipeRunnersRef.current.get(sessionId) === runner) {
+      pipeRunnersRef.current.delete(sessionId)
+      setPipeRunning(prev => { const n = { ...prev }; delete n[sessionId]; return n })
+      setPipeProgress(prev => { const n = { ...prev }; delete n[sessionId]; return n })
+    }
+  }, [activeSessionId, cancelPipe])
 
   const handleAiAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     setAiBusy(prev => {
@@ -1443,6 +1502,7 @@ export default function App() {
 
   // Close a terminal session
   const handleCloseSession = useCallback(async (id: string) => {
+    cancelPipe(id)
     await window.api.terminal.close(id)
     // 清理 terminalRefs / aiTabRefs 中已关闭 session 的 handle 引用
     delete terminalRefs.current[id]
@@ -1893,6 +1953,10 @@ export default function App() {
             focusSettingsTrigger={focusSettingsTrigger}
             onExecuteCommand={handleExecuteCommand}
             onInitCommand={handleInitCommand}
+            onPipeCommand={handlePipeCommand}
+            pipeRunning={pipeRunning}
+            pipeProgress={pipeProgress}
+            onCancelPipe={cancelPipe}
             onCloneWithInit={handleCloneWithInit}
             sessionViewModes={sessionViewModes}
             onSwitchViewMode={handleSwitchViewMode}

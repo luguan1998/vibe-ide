@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { TerminalSession, SnippetInfo } from '@shared/types'
-import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus } from 'lucide-react'
+import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square } from 'lucide-react'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
@@ -158,6 +158,10 @@ interface SessionPanelProps {
   focusSettingsTrigger?: number
   onExecuteCommand?: (command: string) => void
   onInitCommand?: (command: string) => void
+  onPipeCommand?: (command: string) => void
+  pipeRunning?: Record<string, boolean>
+  pipeProgress?: Record<string, { current: number; total: number }>
+  onCancelPipe?: (sessionId: string) => void
   sessionViewModes?: Record<string, 'term' | 'gui'>
   onSwitchViewMode?: (sessionId: string, mode: 'term' | 'gui') => void
   groupSessionsByCwd?: boolean
@@ -212,6 +216,10 @@ const SessionPanel = React.memo(function SessionPanel({
   focusSettingsTrigger = 0,
   onExecuteCommand,
   onInitCommand,
+  onPipeCommand,
+  pipeRunning = {},
+  pipeProgress = {},
+  onCancelPipe,
   sessionViewModes = {},
   onSwitchViewMode,
   groupSessionsByCwd = true,
@@ -569,7 +577,7 @@ const SessionPanel = React.memo(function SessionPanel({
       draggable={!!onReorderSessions}
       className={`group ${opts.outerClass} session-item${
         session.id === activeSessionId ? ' session-item--active' : ''
-      } ${
+      }${pipeRunning?.[session.id] ? ' session-item--pipe-running' : ''} ${
         session.id === activeSessionId
           ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
           : agentStatus[session.id] === 'running'
@@ -680,6 +688,19 @@ const SessionPanel = React.memo(function SessionPanel({
             >
               {autoApproveSessions[session.id] ? <ShieldCheck size={13} /> : <Shield size={13} />}
             </button>
+          )}
+          {pipeRunning?.[session.id] && (
+            <div className="session-item__pipe flex items-center gap-0.5 mr-0.5 pl-1.5 pr-1 h-5 rounded bg-ide-accent/10 text-ide-accent shrink-0">
+              <Loader2 size={11} className="session-item__pipe-spinner animate-spin" />
+              <span className="session-item__pipe-progress text-[10px] tabular-nums leading-none">{pipeProgress?.[session.id]?.current}/{pipeProgress?.[session.id]?.total}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); onCancelPipe?.(session.id) }}
+                className="session-item__pipe-cancel w-4 h-4 rounded flex items-center justify-center text-ide-danger hover:bg-ide-danger/25 transition-colors"
+                title={t('Cancel')}
+              >
+                <Square size={10} className="fill-current" />
+              </button>
+            </div>
           )}
           <button
             onClick={(e) => {
@@ -1166,7 +1187,7 @@ const SessionPanel = React.memo(function SessionPanel({
         </div>
 
       {/* Custom Commands */}
-      <CustomCommands ref={commandsRef} onExecuteCommand={onExecuteCommand} onInitCommand={onInitCommand} />
+      <CustomCommands ref={commandsRef} onExecuteCommand={onExecuteCommand} onInitCommand={onInitCommand} onPipeCommand={onPipeCommand} />
 
       </div>
 
