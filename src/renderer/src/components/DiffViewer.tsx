@@ -155,6 +155,71 @@ function parseDiffStats(diff: string): { additions: number; deletions: number } 
   return { additions, deletions }
 }
 
+// 单行回退：从 ILineChange[] 构建 modified 侧改动行集合。纯 deleted（mE===0）跳过——
+// modified 侧无真实行，inline 模式虚拟行 hover 不可靠，让用户用现有 gutter 圆钮。
+function buildChangedModifiedLines(changes: any[]): Set<number> {
+  const s = new Set<number>()
+  for (const c of changes) {
+    const mE = c.modifiedEndLineNumber
+    if (!mE || mE === 0) continue
+    for (let ln = c.modifiedStartLineNumber; ln <= mE; ln++) s.add(ln)
+  }
+  return s
+}
+
+// 单行回退：计算单个 edit { range, text }，三态（纯 added 删行 / 单行替换 / 多行或 deleted 整块）
+function computeRevertEdit(monaco: any, modEd: any, origEd: any, change: any, hoverLn: number): { range: any; text: string } | null {
+  const modModel = modEd.getModel()
+  const origModel = origEd?.getModel()
+  if (!modModel || !origModel) return null
+  if (hoverLn > modModel.getLineCount()) return null
+
+  const oS = change.originalStartLineNumber
+  const oE = change.originalEndLineNumber
+  const mS = change.modifiedStartLineNumber
+  const mE = change.modifiedEndLineNumber
+
+  if (oE === 0) {
+    const lineCount = modModel.getLineCount()
+    if (hoverLn < lineCount) {
+      return { range: new monaco.Range(hoverLn, 1, hoverLn + 1, 1), text: '' }
+    }
+    return { range: new monaco.Range(hoverLn, 1, hoverLn, modModel.getLineMaxColumn(hoverLn)), text: '' }
+  }
+
+  if (mS === mE && oS === oE) {
+    return {
+      range: new monaco.Range(mS, 1, mS, modModel.getLineMaxColumn(mS)),
+      text: origModel.getLineContent(oS)
+    }
+  }
+
+  const origText = origModel.getValueInRange(
+    new monaco.Range(oS, 1, oE, origModel.getLineMaxColumn(oE))
+  )
+  if (mE === 0) {
+    const lineCount = modModel.getLineCount()
+    const suffix = mS <= lineCount ? '\n' : ''
+    return { range: new monaco.Range(mS, 1, mS, 1), text: origText + suffix }
+  }
+  return {
+    range: new monaco.Range(mS, 1, mE, modModel.getLineMaxColumn(mE)),
+    text: origText
+  }
+}
+
+// 取编辑器实际行高（EditorLayoutInfo.lineHeight 在 0.52 类型上不存在，用 getTopForLineNumber 实测）
+function getEditorLineHeight(ed: any): number {
+  try {
+    const lc = ed?.getModel()?.getLineCount?.() || 0
+    if (lc >= 2) {
+      const h = ed.getTopForLineNumber(2) - ed.getTopForLineNumber(1)
+      if (h > 0) return h
+    }
+  } catch {}
+  return 19
+}
+
 function FilePathDisplay({ filePath }: { filePath: string }) {
   const lastSep = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
   const dirPart = lastSep >= 0 ? filePath.substring(0, lastSep + 1) : ''
@@ -205,6 +270,22 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const diffDecorationsRef = useRef<string[]>([])
   const editDecorationsRef = useRef<string[]>([])
 
+  // 单行回退 hover 浮钮
+  const revertingRef = useRef(false)
+  const lineChangesRef = useRef<any[]>([])
+  const changedModifiedLinesRef = useRef<Set<number>>(new Set())
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const enabledRef = useRef(false)
+  const diffDisposablesRef = useRef<Array<{ dispose?: () => void }>>([])
+  const [revertBtn, setRevertBtn] = useState<{ visible: boolean; top: number; ln: number }>({ visible: false, top: 0, ln: 0 })
+  const revertBtnDomRef = useRef<HTMLButtonElement | null>(null)
+  const lastRevertLnRef = useRef<number | null>(null)
+
+  // 仅普通 staged/unstaged diff 启用单行回退（历史只读 / 文件对比 禁用）
+  useEffect(() => {
+    enabledRef.current = !commitHash && compareOriginalContent === undefined
+  }, [commitHash, compareOriginalContent])
+
   // Dispose Monaco editors before unmount to prevent "TextModel got disposed before DiffEditorWidget model got reset"
   // Use useLayoutEffect so cleanup runs before @monaco-editor/react's useEffect cleanup
   React.useLayoutEffect(() => {
@@ -222,6 +303,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       try {
         editEditorRef.current?._lineHistoryActionDisposable?.dispose?.()
       } catch {}
+      // 单行回退 disposable + hide timer
+      for (const d of diffDisposablesRef.current) {
+        try { d?.dispose?.() } catch {}
+      }
+      diffDisposablesRef.current = []
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
       // DiffEditor widget must be disposed before its models are disposed
       if (diffEditorRef.current) {
         try {
@@ -536,6 +623,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     setCurrentEncoding(DEFAULT_ENCODING)
     setEncodingInfo('')
     setUnreadableReason('')
+    setRevertBtn({ visible: false, top: 0, ln: 0 })
+    lastRevertLnRef.current = null
+    if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null }
   }, [fullPath])
 
   const handleReopenWithEncoding = useCallback(async (encoding: string) => {
@@ -601,6 +691,52 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     padding: { top: 8 },
     scrollbar: { verticalScrollbarSize: 12, horizontalScrollbarSize: 16, useShadows: false }
   }), [fontSize, wordWrap])
+
+  // 单行回退浮钮：延迟隐藏（从行移到按钮不闪）
+  const scheduleHide = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    hideTimerRef.current = setTimeout(() => {
+      setRevertBtn(s => (s.visible ? { ...s, visible: false } : s))
+      lastRevertLnRef.current = null
+      hideTimerRef.current = null
+    }, 150)
+  }, [])
+
+  // 单行回退：查 change → executeEdits → 写盘 → onSaved
+  const handleRevertLine = async (ln: number) => {
+    if (revertingRef.current) return
+    const diffEditor = diffEditorRef.current
+    const monaco = monacoRef.current
+    if (!diffEditor || !monaco) return
+    const modEd = diffEditor.getModifiedEditor()
+    const origEd = diffEditor.getOriginalEditor()
+    const change = lineChangesRef.current.find((c: any) => {
+      const mE = c.modifiedEndLineNumber
+      if (!mE || mE === 0) return ln === c.modifiedStartLineNumber
+      return ln >= c.modifiedStartLineNumber && ln <= mE
+    })
+    if (!change) return
+    const edit = computeRevertEdit(monaco, modEd, origEd, change, ln)
+    if (!edit) return
+
+    revertingRef.current = true
+    const pos = modEd.getPosition()
+    try {
+      modEd.executeEdits('revert-line', [edit])
+      setRevertBtn(s => ({ ...s, visible: false }))
+      if (pos) modEd.setPosition(pos)
+      const val = modEd.getValue()
+      setModifiedContent(val)
+      await window.api.file.writeWithEncoding(fullPath, val, currentEncoding)
+      savedContentRef.current = val
+      setIsDirty(false)
+      if (onSaved) await onSaved(filePath)
+    } catch {
+      setIsDirty(true)
+    } finally {
+      revertingRef.current = false
+    }
+  }
 
   // 渲染书签行的 glyph margin 📌 装饰
   const applyBookmarks = useCallback((editor: any, decorationsRef: React.MutableRefObject<string[]>) => {
@@ -700,7 +836,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         </div>
       </div>
 
-      <div className="overflow-hidden" style={{ height: 'calc(100vh - 80px)' }}>
+      <div className="relative overflow-hidden" style={{ height: 'calc(100vh - 80px)' }}>
         {viewMode === 'diff' ? (
           <DiffEditor
             height="100%"
@@ -733,6 +869,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                 visibleLineRef.current = { fullPath, line: vr && vr.length ? vr[0].startLineNumber : 1 }
               })
               modifiedEditor.onDidChangeModelContent(() => {
+                if (revertingRef.current) return
                 const val = modifiedEditor.getValue()
                 setModifiedContent(val)
                 if (justLoadedRef.current) {
@@ -782,6 +919,74 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                   }
                 }
               })
+              // 单行回退 hover 浮钮：监听 diff 变更 + 鼠标 hover + 滚动/布局跟随
+              // 先清理上一轮 diff 挂载的 disposable（viewMode 切换 edit→diff 时旧 editor 已 dispose）
+              for (const d of diffDisposablesRef.current) { try { d?.dispose?.() } catch {} }
+              diffDisposablesRef.current = []
+              const revertDisposables: Array<{ dispose?: () => void }> = []
+              revertDisposables.push(editor.onDidUpdateDiff(() => {
+                const changes = editor.getLineChanges()
+                lineChangesRef.current = changes ? changes.slice() : []
+                changedModifiedLinesRef.current = buildChangedModifiedLines(lineChangesRef.current)
+              }))
+              setTimeout(() => {
+                try {
+                  const changes = editor.getLineChanges()
+                  if (changes) {
+                    lineChangesRef.current = changes.slice()
+                    changedModifiedLinesRef.current = buildChangedModifiedLines(changes)
+                  }
+                } catch {}
+              }, 0)
+              const positionRevertBtn = (ln: number) => {
+                const top = modifiedEditor.getTopForLineNumber(ln) - modifiedEditor.getScrollTop()
+                const lh = getEditorLineHeight(modifiedEditor)
+                setRevertBtn({ visible: true, top: top + (lh - 22) / 2, ln })
+              }
+              revertDisposables.push(modifiedEditor.onMouseMove((e: any) => {
+                if (!enabledRef.current || revertingRef.current) return
+                const ln = e.target?.position?.lineNumber
+                if (!ln || !changedModifiedLinesRef.current.has(ln)) { scheduleHide(); return }
+                if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null }
+                if (lastRevertLnRef.current !== ln) {
+                  lastRevertLnRef.current = ln
+                  positionRevertBtn(ln)
+                }
+              }))
+              revertDisposables.push(modifiedEditor.onMouseLeave((e: any) => {
+                // 浮钮是编辑器的 DOM 兄弟节点（overlay 层，视觉压在编辑器上），移到按钮会触发编辑器 mouseleave。
+                // 仅当鼠标坐标真在浮钮 rect 内时跳过隐藏，否则真离开才隐藏 → 避免移到按钮时闪烁。
+                const be = e?.event?.browserEvent
+                const btn = revertBtnDomRef.current
+                if (be && btn) {
+                  const r = btn.getBoundingClientRect()
+                  if (be.clientX >= r.left && be.clientX <= r.right && be.clientY >= r.top && be.clientY <= r.bottom) {
+                    return
+                  }
+                }
+                scheduleHide()
+              }))
+              revertDisposables.push(modifiedEditor.onDidScrollChange(() => {
+                setRevertBtn(prev => {
+                  if (!prev.visible) return prev
+                  const vr = modifiedEditor.getVisibleRanges()
+                  if (!vr?.length || prev.ln < vr[0].startLineNumber || prev.ln > vr[vr.length - 1].endLineNumber) {
+                    return { ...prev, visible: false }
+                  }
+                  const top = modifiedEditor.getTopForLineNumber(prev.ln) - modifiedEditor.getScrollTop()
+                  const lh = getEditorLineHeight(modifiedEditor)
+                  return { ...prev, top: top + (lh - 22) / 2 }
+                })
+              }))
+              revertDisposables.push(modifiedEditor.onDidLayoutChange(() => {
+                setRevertBtn(prev => {
+                  if (!prev.visible) return prev
+                  const top = modifiedEditor.getTopForLineNumber(prev.ln) - modifiedEditor.getScrollTop()
+                  const lh = getEditorLineHeight(modifiedEditor)
+                  return { ...prev, top: top + (lh - 22) / 2 }
+                })
+              }))
+              diffDisposablesRef.current = revertDisposables
             }}
           />
         ) : editLoading ? (
@@ -872,6 +1077,22 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               })
             }}
           />
+        )}
+        {viewMode === 'diff' && revertBtn.visible && (
+          <div className="diff-revert-overlay">
+            <button
+              ref={revertBtnDomRef}
+              className="diff-revert-btn"
+              style={{ top: revertBtn.top }}
+              title={t('Revert this line')}
+              onMouseEnter={() => { if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null } }}
+              onMouseLeave={() => scheduleHide()}
+              onClick={() => handleRevertLine(revertBtn.ln)}
+            >
+              <span aria-hidden>↩</span>
+              <span>{t('Revert')}</span>
+            </button>
+          </div>
         )}
       </div>
 

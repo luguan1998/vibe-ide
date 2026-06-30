@@ -253,6 +253,8 @@ const ZH_MAP: Record<string, string> = {
   'View Line History': '查看这行修改记录',
   'Line History ({file}:{line})': '行修改记录 ({file}:{line})',
   'No line history': '无行修改记录',
+  'Revert': '回退',
+  'Revert this line': '回退此行',
 
   // CodeGraphSearch
   'Initializing CodeGraph...': '正在初始化代码图...',
