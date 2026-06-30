@@ -24,6 +24,7 @@
     },
     "files": [
       "out/**/*",
+      "build/icon.ico",
       "!node_modules/monaco-editor/**",
       "!node_modules/@monaco-editor/**",
       "!node_modules/@xterm/**",

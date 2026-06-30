@@ -113,7 +113,8 @@ function createWindow(): void {
       contextIsolation: true,
       webSecurity: !is.dev,
     },
-    backgroundColor: '#1a1a2e'
+    backgroundColor: '#1a1a2e',
+    icon: join(__dirname, '../../build/icon.ico')
   })
 
   // Center window within the work area (excludes taskbar) on first launch
