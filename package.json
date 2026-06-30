@@ -24,7 +24,6 @@
     },
     "files": [
       "out/**/*",
-      "build/icon.ico",
       "!node_modules/monaco-editor/**",
       "!node_modules/@monaco-editor/**",
       "!node_modules/@xterm/**",
@@ -35,6 +34,12 @@
       "!node_modules/lucide-react/**",
       "!node_modules/dagre/**",
       "!node_modules/@types/dagre/**"
+    ],
+    "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      }
     ],
     "extraFiles": [
       {

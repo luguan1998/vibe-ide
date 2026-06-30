@@ -114,7 +114,7 @@ function createWindow(): void {
       webSecurity: !is.dev,
     },
     backgroundColor: '#1a1a2e',
-    icon: join(__dirname, '../../build/icon.ico')
+    icon: app.isPackaged ? join(process.resourcesPath, 'icon.ico') : join(__dirname, '../../build/icon.ico')
   })
 
   // Center window within the work area (excludes taskbar) on first launch
