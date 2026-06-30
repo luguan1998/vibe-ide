@@ -9,8 +9,14 @@ export interface CustomCommand {
   type: 'simple' | 'init' | 'pipe'
 }
 
+export interface CustomCommandPrefill {
+  name?: string
+  command?: string
+  type?: 'simple' | 'init' | 'pipe'
+}
+
 export interface CustomCommandsHandle {
-  openCreateModal: () => void
+  openCreateModal: (prefill?: CustomCommandPrefill) => void
 }
 
 interface CustomCommandsProps {
@@ -97,16 +103,26 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
       document.addEventListener('mousemove', onMove)
       document.addEventListener('mouseup', onUp)
     }
-    const openCreateModal = () => {
+    const openCreateModal = (prefill?: CustomCommandPrefill) => {
       resetModalSize()
       setEditingCustomCmd(null)
-      setCustomCmdName('')
-      setCustomCmdCommand('')
-      setCustomCmdType('simple')
+      setCustomCmdName(prefill?.name ?? '')
+      setCustomCmdCommand(prefill?.command ?? '')
+      setCustomCmdType(prefill?.type ?? 'simple')
       setShowCustomCmdModal(true)
     }
 
     useImperativeHandle(ref, () => ({ openCreateModal }))
+
+    const openCreateModalRef = useRef(openCreateModal)
+    openCreateModalRef.current = openCreateModal
+    useEffect(() => {
+      const handler = (e: Event) => {
+        openCreateModalRef.current((e as CustomEvent).detail as CustomCommandPrefill | undefined)
+      }
+      window.addEventListener('vibe-ide-open-custom-command-modal', handler)
+      return () => window.removeEventListener('vibe-ide-open-custom-command-modal', handler)
+    }, [])
 
     const handleSaveCustomCommand = () => {
       const name = customCmdName.trim()

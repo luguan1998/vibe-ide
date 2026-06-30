@@ -2,8 +2,9 @@ import React, { useState } from 'react'
 import Game2048 from './Game2048'
 import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
+import GameDraftPlan from './GameDraftPlan'
 
-type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro'
+type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro' | 'draft'
 
 interface GameCard {
   id: Exclude<GameId, 'menu'>
@@ -16,6 +17,7 @@ const GAMES: GameCard[] = [
   { id: 'balatro', icon: '🃏', name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: '🏖️', name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: '🧩', name: '2048', desc: 'Slide tiles to merge them' },
+  { id: 'draft', icon: '📝', name: '草稿计划', desc: '提示词草稿本 — 可转为管道命令' },
 ]
 
 export default function GameLauncher() {
@@ -27,6 +29,7 @@ export default function GameLauncher() {
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />
       case '2048': return <Game2048 onBack={back} />
+      case 'draft': return <GameDraftPlan onBack={back} />
     }
   }
 

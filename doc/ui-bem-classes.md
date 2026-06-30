@@ -65,6 +65,13 @@
 
 - `term-view__` header / canvas / ocr-overlay / search / search-input / filepicker / filepicker-item
 
+## GameDraftPlan — 草稿计划(Game tab)
+
+- `draft-plan` 根
+- `draft-plan__` header / title / add / add-sigil / add-input / add-btn / list / empty / footer / footer-hint / convert-btn
+- `draft-plan__item` · `draft-plan__item--drag-over` · `draft-plan__item--editing`
+- `draft-plan__item-` accent / handle / index / sigil / text / edit / actions / btn
+
 ## 尚未覆盖(按需续补)
 
 NavBar 顶栏 · CustomCommands 命令胶囊+Modal · SearchPanel · AuxTab · DiffViewer · SettingsPanel · DocTree
