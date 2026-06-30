@@ -183,10 +183,11 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.vibe-ide')
+// Set app user model id BEFORE ready — Electron docs require this,
+// otherwise Windows caches taskbar icon under a default/shared AUMID.
+electronApp.setAppUserModelId('com.vibe-ide')
 
+app.whenReady().then(() => {
   // Default sandbox for renderer
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
