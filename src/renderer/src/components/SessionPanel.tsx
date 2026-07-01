@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { TerminalSession, SnippetInfo } from '@shared/types'
-import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square } from 'lucide-react'
+import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw } from 'lucide-react'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
@@ -137,6 +137,7 @@ interface SessionPanelProps {
   agentStatus?: Record<string, 'running' | 'idle'>
   autoApproveSessions?: Record<string, boolean>
   onToggleAutoApprove?: (sessionId: string, cwd: string) => void
+  onResetCache?: (sessionId: string) => void
   pollingEnabled?: boolean
   onTogglePolling?: (value: boolean) => void
   wordWrap?: boolean
@@ -193,6 +194,7 @@ const SessionPanel = React.memo(function SessionPanel({
   agentStatus = {},
   autoApproveSessions = {},
   onToggleAutoApprove,
+  onResetCache,
   pollingEnabled = false,
   onTogglePolling,
   wordWrap = false,
@@ -1234,23 +1236,18 @@ const SessionPanel = React.memo(function SessionPanel({
               </div>
             )}
           </div>
-          {onToggleAutoApprove && (() => {
-            const session = sessions.find(s => s.id === contextMenu.sessionId)
-            const isOn = session ? autoApproveSessions[session.id] : false
-            return (
-              <button
-                className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                onClick={() => {
-                  if (session) onToggleAutoApprove(session.id, session.cwd)
-                  setContextMenu(null)
-                }}
-              >
-                {isOn ? <ShieldCheck size={14} className="text-ide-accent" /> : <Shield size={14} className="text-ide-text-muted" />}
-                <span>{t('Auto Approve')}</span>
-                {isOn && <span className="ml-auto text-ide-accent text-xs">✓</span>}
-              </button>
-            )
-          })()}
+          {onResetCache && (
+            <button
+              className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+              onClick={() => {
+                onResetCache(contextMenu.sessionId)
+                setContextMenu(null)
+              }}
+            >
+              <RotateCcw size={14} className="text-ide-text-muted" />
+              <span>{t('Clear Screen')}</span>
+            </button>
+          )}
           {onSwitchViewMode && (() => {
             const isGui = sessionViewModes[contextMenu.sessionId] === 'gui'
             return (

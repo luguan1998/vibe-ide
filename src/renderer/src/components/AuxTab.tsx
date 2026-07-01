@@ -13,9 +13,10 @@ interface AuxTabProps {
   onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
   isActive?: boolean
+  clearAuxBufferTrigger?: { sid: string; n: number }
 }
 
-export default function AuxTab({ rightTerminalSessions, activeSessionId, effectiveGitPath, worktreeNav, onCreateRightTerminal, onOpenFileFromRightTerminal, isActive }: AuxTabProps) {
+export default function AuxTab({ rightTerminalSessions, activeSessionId, effectiveGitPath, worktreeNav, onCreateRightTerminal, onOpenFileFromRightTerminal, isActive, clearAuxBufferTrigger }: AuxTabProps) {
   const [commands, setCommands] = useState<Array<{ command: string; comment: string }>>([])
   const [selectedCommandIndex, setSelectedCommandIndex] = useState<number | null>(null)
   const pendingCommandRef = useRef<string | null>(null)
@@ -134,6 +135,11 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
     if (!isActive || !activeSessionId) return
     auxTerminalRefs.current[activeSessionId]?.focus()
   }, [isActive, activeSessionId])
+
+  useEffect(() => {
+    if (!clearAuxBufferTrigger || clearAuxBufferTrigger.n === 0) return
+    auxTerminalRefs.current[clearAuxBufferTrigger.sid]?.clearBuffer()
+  }, [clearAuxBufferTrigger])
 
   return (
     <div ref={containerRef} tabIndex={-1} className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">

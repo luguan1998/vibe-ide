@@ -64,6 +64,7 @@ const ZH_MAP: Record<string, string> = {
   'Auto Approve': '自动确认',
   'Auto Approve: ON': '自动确认：开',
   'Auto Approve: OFF': '自动确认：关',
+  'Clear Screen': '清屏',
 
   // SettingsPanel
   'Press keys...': '按按键...',

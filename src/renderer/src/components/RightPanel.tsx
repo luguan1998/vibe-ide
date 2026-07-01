@@ -21,6 +21,7 @@ interface RightPanelProps {
   onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
   onCloseRightTerminal?: (sessionId: string) => void
   searchFocusTrigger?: number
+  clearAuxBufferTrigger?: { sid: string; n: number }
 
   onOpenFileFromExplorer?: (fullPath: string) => void
   onCompareWithCurrent?: (fullPath: string) => void
@@ -405,7 +406,7 @@ function RightPanel({
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
   rightTerminalSessions, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
-  searchFocusTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage,
+  searchFocusTrigger, clearAuxBufferTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage,
   onDiffScroll,
   onToggleCollapse,
   capsuleTabs = true,
@@ -620,6 +621,7 @@ function RightPanel({
           onCreateRightTerminal={onCreateRightTerminal}
           onOpenFileFromRightTerminal={onOpenFileFromRightTerminal}
           isActive={activeSection === 'terminal'}
+          clearAuxBufferTrigger={clearAuxBufferTrigger}
         />
       </div>
 

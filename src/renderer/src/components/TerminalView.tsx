@@ -42,6 +42,7 @@ interface TerminalViewProps {
 
 export interface TerminalViewHandle {
   focus: () => void
+  clearBuffer: () => void
 }
 
 
@@ -411,6 +412,21 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   useImperativeHandle(ref, () => ({
     focus: () => {
       xtermRef.current?.focus()
+    },
+    clearBuffer: () => {
+      const term = xtermRef.current
+      if (!term) return
+      const buf = term.buffer.active
+      const keepLines = 7
+      const lines: string[] = []
+      for (let y = Math.max(0, buf.length - keepLines); y < buf.length; y++) {
+        const line = buf.getLine(y)
+        if (line) lines.push(line.translateToString(true))
+      }
+      term.reset()
+      if (lines.length > 0) term.write(lines.join('\r\n'))
+      try { fitAddonRef.current?.fit() } catch {}
+      try { searchAddonRef.current?.clearDecorations() } catch {}
     }
   }), [])
 

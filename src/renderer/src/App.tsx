@@ -329,6 +329,7 @@ export default function App() {
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
   const [diffScrollTrigger, setDiffScrollTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
+  const [clearAuxBufferTrigger, setClearAuxBufferTrigger] = useState<{ sid: string; n: number }>({ sid: '', n: 0 })
   const [showHistory, setShowHistory] = useState(false)
   const [historySelectedIndex, setHistorySelectedIndex] = useState(0)
   const showHistoryRef = useRef(false)
@@ -809,6 +810,16 @@ export default function App() {
         delete updated[sessionId]
       }
       return updated
+    })
+  }, [])
+
+  const handleResetCache = useCallback((sessionId: string) => {
+    terminalRefs.current[sessionId]?.clearBuffer()
+    setClearAuxBufferTrigger(prev => ({ sid: sessionId, n: prev.n + 1 }))
+    setCommandHistory(prev => {
+      const next = { ...prev }
+      delete next[sessionId]
+      return next
     })
   }, [])
 
@@ -1847,6 +1858,7 @@ export default function App() {
             agentStatus={agentStatus}
             autoApproveSessions={autoApproveSessions}
             onToggleAutoApprove={handleToggleAutoApprove}
+            onResetCache={handleResetCache}
             pollingEnabled={pollingEnabled}
             onTogglePolling={(v) => { setPollingEnabled(v); try { localStorage.setItem('vibe-ide-polling', v ? '1' : '0') } catch {} }}
             wordWrap={wordWrap}
@@ -2096,6 +2108,7 @@ export default function App() {
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
             searchFocusTrigger={searchFocusTrigger}
+            clearAuxBufferTrigger={clearAuxBufferTrigger}
             navigateToFilePayload={navigateToFilePayload}
             onNavigateToFile={handleNavigateToFile}
             onExploreNode={(node) => setCallGraphFocalNode(node)}
