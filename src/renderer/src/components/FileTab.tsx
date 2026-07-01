@@ -36,29 +36,9 @@ export function saveFilterRules(rules: string[]) {
 
 // ── FileTab section visibility (recently / arch) ──
 
-const SECTION_VIS_KEY = 'vibe-ide-filetab-sections'
-
 interface FileTabSectionVis { recently: boolean; arch: boolean }
 
-export function loadSectionVis(): FileTabSectionVis {
-  try {
-    const raw = localStorage.getItem(SECTION_VIS_KEY)
-    if (raw) {
-      const obj = JSON.parse(raw)
-      if (obj && typeof obj === 'object') {
-        return {
-          recently: typeof obj.recently === 'boolean' ? obj.recently : true,
-          arch: typeof obj.arch === 'boolean' ? obj.arch : true,
-        }
-      }
-    }
-  } catch {}
-  return { recently: true, arch: true }
-}
-
-export function saveSectionVis(v: FileTabSectionVis) {
-  try { localStorage.setItem(SECTION_VIS_KEY, JSON.stringify(v)) } catch {}
-}
+const DEFAULT_SECTION_VIS: FileTabSectionVis = { recently: true, arch: true }
 
 // ──
 
@@ -599,7 +579,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   // ── recently file section ──
   const [recentExpanded, setRecentExpanded] = useState(true)
   const [selectedRecentIndex, setSelectedRecentIndex] = useState<number | null>(null)
-  const [sectionVis, setSectionVis] = useState<FileTabSectionVis>(loadSectionVis)
+  const [sectionVis, setSectionVis] = useState<FileTabSectionVis>(DEFAULT_SECTION_VIS)
   const [sectionMenu, setSectionMenu] = useState<{ x: number; y: number } | null>(null)
   const selectedRecentIndexRef = useRef<number | null>(null)
   const isActiveRef = useRef(isActive)
@@ -1041,7 +1021,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const toggleSection = useCallback((key: 'recently' | 'arch') => {
     setSectionVis(prev => {
       const next = { ...prev, [key]: !prev[key] }
-      saveSectionVis(next)
       return next
     })
   }, [])

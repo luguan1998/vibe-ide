@@ -269,20 +269,8 @@ export default function App() {
   }, [])
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
 
-  // ── Recently opened files (global, persisted) ──
-  const RECENT_FILES_KEY = 'vibe-ide-recent-files'
-  const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>(() => {
-    try {
-      const raw = localStorage.getItem(RECENT_FILES_KEY)
-      if (raw) {
-        const arr = JSON.parse(raw)
-        if (Array.isArray(arr) && arr.every((v: any) => v && typeof v.path === 'string')) {
-          return arr.map((v: any) => ({ path: v.path, line: typeof v.line === 'number' && v.line > 0 ? v.line : undefined }))
-        }
-      }
-    } catch {}
-    return []
-  })
+  // ── Recently opened files (in-memory only, not persisted) ──
+  const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>([])
 
   const recordRecentFile = useCallback((fullPath: string, lineNumber?: number) => {
     if (!fullPath) return
@@ -297,14 +285,10 @@ export default function App() {
         const existing = prev[existingIdx]
         const mergedLine = line ?? existing.line
         if (existing.line === mergedLine) return prev
-        const next = prev.map((r, i) => i === existingIdx ? { ...r, line: mergedLine } : r)
-        try { localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next)) } catch {}
-        return next
+        return prev.map((r, i) => i === existingIdx ? { ...r, line: mergedLine } : r)
       }
       // 新文件：置顶
-      const next = [{ path: fullPath, line }, ...prev].slice(0, 10)
-      try { localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next)) } catch {}
-      return next
+      return [{ path: fullPath, line }, ...prev].slice(0, 10)
     })
   }, [])
 
@@ -316,7 +300,6 @@ export default function App() {
     setRecentFiles(prev => {
       const next = prev.filter(r => norm(r.path) !== target)
       if (next.length === prev.length) return prev
-      try { localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next)) } catch {}
       return next
     })
   }, [])
@@ -445,20 +428,6 @@ export default function App() {
     prevDiffPathRef.current = diffFile?.fullPath ?? null
   }, [diffFile?.fullPath, recordRecentFile])
 
-  // ── 关 app / 切后台时兜底落盘当前文件视口可见行号 ──
-  useEffect(() => {
-    const save = () => {
-      const cur = visibleLineRef.current
-      if (cur && cur.line > 0) recordRecentFile(cur.fullPath, cur.line)
-    }
-    const onHide = () => { if (document.visibilityState === 'hidden') save() }
-    window.addEventListener('beforeunload', save)
-    document.addEventListener('visibilitychange', onHide)
-    return () => {
-      window.removeEventListener('beforeunload', save)
-      document.removeEventListener('visibilitychange', onHide)
-    }
-  }, [recordRecentFile])
 
   // ── NavBar 数据源：当前 session cwd 下的最近打开文件（复用 recentFiles）──
   const navBarEntries = useMemo<NavEntry[]>(() => {

@@ -126,26 +126,7 @@ function saveTabOrder(order: GitSection[]) {
   try { localStorage.setItem('vibe-ide-right-tab-order', JSON.stringify(order)) } catch {}
 }
 
-function loadVisibleTabs(): Record<GitSection, boolean> {
-  try {
-    const raw = localStorage.getItem('vibe-ide-right-tab-visible')
-    if (raw) {
-      const obj = JSON.parse(raw)
-      const result = {} as Record<GitSection, boolean>
-      for (const s of ALL_SECTIONS) {
-        result[s] = typeof obj[s] === 'boolean' ? obj[s] : true
-      }
-      // 至少保留一个可见
-      if (!Object.values(result).some(Boolean)) result['git'] = true
-      return result
-    }
-  } catch {}
-  return { git: true, terminal: true, file: true, search: true, game: false }
-}
-
-function saveVisibleTabs(v: Record<GitSection, boolean>) {
-  try { localStorage.setItem('vibe-ide-right-tab-visible', JSON.stringify(v)) } catch {}
-}
+const DEFAULT_VISIBLE_TABS: Record<GitSection, boolean> = { git: true, terminal: true, file: true, search: true, game: false }
 
 // ── Context Menu ──
 
@@ -420,7 +401,7 @@ function RightPanel({
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
-  const [visibleTabs, setVisibleTabs] = useState<Record<GitSection, boolean>>(loadVisibleTabs)
+  const [visibleTabs, setVisibleTabs] = useState<Record<GitSection, boolean>>(DEFAULT_VISIBLE_TABS)
   const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
   const [fileRefreshKey, setFileRefreshKey] = useState(0)
 
@@ -467,7 +448,6 @@ function RightPanel({
       const next = { ...prev, [section]: !prev[section] }
       // 至少保留一个可见
       if (!Object.values(next).some(Boolean)) return prev
-      saveVisibleTabs(next)
       return next
     })
   }, [])
@@ -517,7 +497,6 @@ function RightPanel({
       setVisibleTabs(prev => {
         if (prev['search']) return prev
         const next = { ...prev, search: true }
-        saveVisibleTabs(next)
         return next
       })
       setActiveSection('search')
@@ -530,7 +509,6 @@ function RightPanel({
       setVisibleTabs(prev => {
         if (prev['file']) return prev
         const next = { ...prev, file: true }
-        saveVisibleTabs(next)
         return next
       })
       setActiveSection('file')
@@ -543,7 +521,6 @@ function RightPanel({
       setVisibleTabs(prev => {
         if (prev['git']) return prev
         const next = { ...prev, git: true }
-        saveVisibleTabs(next)
         return next
       })
       setActiveSection('git')

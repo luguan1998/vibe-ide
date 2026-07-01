@@ -649,5 +649,15 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
   border-bottom-color: rgb(var(--ide-success)) !important;
 }
 
+/* ════════════════════════════════════════════════════
+   AiTab — 星月夜背景图（复用终端变量，overlay 压暗保可读）
+   ════════════════════════════════════════════════════ */
+.ai-tab {
+  position: relative !important;
+  background-image: linear-gradient(var(--terminal-bg-overlay), var(--terminal-bg-overlay)), var(--terminal-bg-image) !important;
+  background-size: cover, cover !important;
+  background-position: center, center !important;
+}
+
 
 
