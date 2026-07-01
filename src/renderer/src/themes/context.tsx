@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { IDETheme } from './types'
 import { THEMES, DEFAULT_THEME_ID } from './definitions'
+import { getMonaco } from '@renderer/utils/monacoSingleton'
 
 interface ThemeContextValue {
   theme: IDETheme
@@ -49,6 +50,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     applyCSSVariables(currentTheme)
   }, [currentThemeId, currentTheme])
+
+  // monaco 全局主题随 IDE 同步：colorize 的 token 颜色解析走全局 theme service，
+  // options.theme 参数无法完全覆盖；不同步会导致主题切换后首个代码段颜色错。
+  useEffect(() => {
+    let cancelled = false
+    getMonaco().then(monaco => {
+      if (!cancelled) monaco.editor.setTheme(currentTheme.monacoTheme)
+    })
+    return () => { cancelled = true }
+  }, [currentTheme.monacoTheme])
 
   useEffect(() => {
     try {

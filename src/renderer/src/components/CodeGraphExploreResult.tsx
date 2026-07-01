@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
+import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { parseFrontmatter } from '@renderer/utils/frontmatter'
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
 function CodeGraphExploreResult({ query, content, onClose }: Props) {
   const { meta: frontmatter, body: mdBody } = parseFrontmatter(content)
   const contentRef = useRef<HTMLDivElement>(null)
+  const codeOverrides = useStableCodeOverrides()
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -70,7 +71,7 @@ function CodeGraphExploreResult({ query, content, onClose }: Props) {
                 ))}
               </div>
             )}
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownCodeOverrides()}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={codeOverrides}>
               {mdBody}
             </ReactMarkdown>
           </div>

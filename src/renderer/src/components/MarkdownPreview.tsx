@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
+import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { type Frontmatter, parseFrontmatter } from '@renderer/utils/frontmatter'
 
@@ -182,7 +182,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   // 回调与 overrides 都 memoize：保证 components.code 引用稳定，CodeBlock 不会因
   // MarkdownPreview 重渲染而 remount → 不反复 colorize（fallback↔HTML 闪烁、mark 反复丢失）。
   const handleColorized = useCallback(() => refreshHighlight(false, false), [refreshHighlight])
-  const codeOverrides = useMemo(() => getMarkdownCodeOverrides(handleColorized), [handleColorized])
+  const codeOverrides = useStableCodeOverrides(handleColorized)
   // 整个 components + remarkPlugins 都 memoize：MarkdownPreview 每次重渲染时引用不变，
   // ReactMarkdown 不重渲染子树 → CodeBlock/h1/img 都不 remount → 无 colorize 闪烁、图片不重载。
   const remarkPlugins = useMemo(() => [remarkGfm], [])

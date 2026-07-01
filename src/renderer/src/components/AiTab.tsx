@@ -3,7 +3,7 @@ import type { AiMessage, AiToolUse, AiSessionState, AiPermissionRequest, AiPermi
 import { AI_FILE_EDIT_TOOLS } from '@shared/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { getMarkdownCodeOverrides } from './MarkdownCodeBlock'
+import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { useI18n } from '../i18n'
 import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
 import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff } from 'lucide-react'
@@ -92,6 +92,7 @@ function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
 }) {
+  const codeOverrides = useStableCodeOverrides()
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (!workspacePath || !onOpenFile) return
     const target = e.target as HTMLElement
@@ -113,7 +114,7 @@ function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
 
   return (
     <div className={`ai-tab__markdown md-preview text-sm ${className}`} onClick={handleClick}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownCodeOverrides()}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={codeOverrides}>
         {text}
       </ReactMarkdown>
     </div>
@@ -128,6 +129,7 @@ function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: 
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
 }) {
+  const codeOverrides = useStableCodeOverrides()
   const fenceRe = /```/g
   let count = 0
   let lastCloseIdx = -1
@@ -162,7 +164,7 @@ function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: 
   return (
     <div className={`ai-tab__markdown ai-tab__markdown--streaming md-preview text-sm ${className}`} onClick={handleClick}>
       {safePart && (
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownCodeOverrides()}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={codeOverrides}>
           {safePart}
         </ReactMarkdown>
       )}

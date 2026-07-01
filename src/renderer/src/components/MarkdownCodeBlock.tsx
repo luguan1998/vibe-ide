@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTheme } from '@renderer/themes/context'
 import { getMonaco } from '@renderer/utils/monacoSingleton'
 import mermaid from 'mermaid'
@@ -336,6 +336,10 @@ function getMarkdownCodeOverrides(onColorized?: () => void): Record<string, Reac
       return <code className={className} {...props}>{children}</code>
     },
   }
+}
+
+export function useStableCodeOverrides(onColorized?: () => void) {
+  return useMemo(() => getMarkdownCodeOverrides(onColorized), [onColorized])
 }
 
 export { CodeBlock, MermaidBlock, getMarkdownCodeOverrides }
