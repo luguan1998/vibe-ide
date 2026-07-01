@@ -265,6 +265,7 @@ const ZH_MAP: Record<string, string> = {
   'Loading...': '加载中...',
   'No outline': '无大纲',
   'Search symbols...': '搜索符号...',
+  'Search symbols... (Enter to jump, Esc to close)': '搜索符号...（回车跳转，Esc 关闭）',
   'No symbols found': '未找到符号',
   'symbols': '个符号',
   'edges': '条边',

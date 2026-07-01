@@ -1,19 +1,18 @@
 import React from 'react'
 
-interface BookmarkEntry {
+export interface NavEntry {
   fullPath: string
   line: number
 }
 
 interface NavBarProps {
-  entries: BookmarkEntry[]
+  entries: NavEntry[]
   selectedIndex: number
   visible: boolean
   onSelect: (index: number) => void
-  onClearAll?: () => void
 }
 
-const NavBar = React.memo(function NavBar({ entries, selectedIndex, visible, onSelect, onClearAll }: NavBarProps) {
+const NavBar = React.memo(function NavBar({ entries, selectedIndex, visible, onSelect }: NavBarProps) {
   if (!visible || entries.length === 0) return null
 
   return (
@@ -43,18 +42,6 @@ const NavBar = React.memo(function NavBar({ entries, selectedIndex, visible, onS
             </React.Fragment>
           )
         })}
-        {onClearAll && (
-          <button
-            onClick={onClearAll}
-            className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-ide-sidebar border border-ide-border flex items-center justify-center text-ide-text-muted hover:bg-ide-danger hover:text-white hover:border-ide-danger transition-colors"
-            title="清除所有标记"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3">
-              <line x1="6" y1="6" x2="18" y2="18" />
-              <line x1="18" y1="6" x2="6" y2="18" />
-            </svg>
-          </button>
-        )}
       </div>
     </div>
   )

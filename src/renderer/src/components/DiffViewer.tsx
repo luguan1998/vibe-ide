@@ -80,14 +80,13 @@ interface DiffViewerProps {
   defaultEdit?: boolean
   inlineDiff?: boolean      // 强制内联 diff 模式
   cursorRef?: React.MutableRefObject<{ fullPath: string; line: number; column: number } | null>
-  visibleLineRef?: React.MutableRefObject<{ fullPath: string; line: number } | null>  // 视口顶部可见行（滚轮实际看到的位置），供最近文件回写行号
+  visibleLineRef?: React.MutableRefObject<{ fullPath: string; line: number } | null>  // 视口中间可见行（居中还原用），供最近文件回写行号
   onContentLoaded?: (content: string) => void  // 回传文件内容给父组件（供 OutlinePanel 使用）
   onOpenCallGraph?: (word: string) => void     // 右键菜单 → 打开 call graph
   onViewLineHistory?: (filePath: string, lineNumber: number) => void  // 右键菜单 → 查看这行修改记录
   compareOriginalContent?: string  // 左侧对比文件内容（文件对比模式）
   compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
-  bookmarks?: Set<number>          // 当前文件的书签行号集合（渲染 glyph margin 📌）
-  onToggleBookmark?: (line: number) => void  // Alt+点击行 → toggle 书签
+  cwd?: string                     // 当前 session 工作目录（Alt+click 复制 @相对路径:line 用）
   altBrush?: boolean               // Alt 按住中 → 鼠标变 🖌️ 画笔
 }
 
@@ -235,7 +234,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, bookmarks, onToggleBookmark, altBrush }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, cwd, altBrush }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -266,9 +265,25 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const diffEditorRef = useRef<any>(null)
   const editEditorRef = useRef<any>(null)
   const monacoRef = useRef<any>(null)
-  // Bookmark glyph margin decorations (per editor)
-  const diffDecorationsRef = useRef<string[]>([])
-  const editDecorationsRef = useRef<string[]>([])
+  const cwdRef = useRef(cwd)
+  cwdRef.current = cwd
+  const fullPathRef = useRef(fullPath)
+  fullPathRef.current = fullPath
+  const [copyToast, setCopyToast] = useState<{ text: string } | null>(null)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleAltLineClick = (ln: number) => {
+    const full = (fullPathRef.current || '').replace(/\\/g, '/')
+    const w = cwdRef.current ? cwdRef.current.replace(/\\/g, '/').replace(/\/$/, '') : ''
+    const rel = w && (full === w || full.startsWith(w + '/')) ? full.slice(w.length).replace(/^\//, '') : full
+    const text = `@${rel}:${ln}`
+    navigator.clipboard?.writeText(text).catch(() => {})
+    setCopyToast({ text })
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+    copyTimerRef.current = setTimeout(() => setCopyToast(null), 1200)
+  }
+  const handleAltLineClickRef = useRef(handleAltLineClick)
+  handleAltLineClickRef.current = handleAltLineClick
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }, [])
 
   // 单行回退 hover 浮钮
   const revertingRef = useRef(false)
@@ -529,8 +544,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   onOpenCallGraphRef.current = onOpenCallGraph
   const onViewLineHistoryRef = useRef(onViewLineHistory)
   onViewLineHistoryRef.current = onViewLineHistory
-  const onToggleBookmarkRef = useRef(onToggleBookmark)
-  onToggleBookmarkRef.current = onToggleBookmark
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -749,29 +762,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     }
   }
 
-  // 渲染书签行的 glyph margin 📌 装饰
-  const applyBookmarks = useCallback((editor: any, decorationsRef: React.MutableRefObject<string[]>) => {
-    const monaco = monacoRef.current
-    if (!editor || !monaco) return
-    const lines = bookmarks ? Array.from(bookmarks) : []
-    try {
-      decorationsRef.current = editor.deltaDecorations(decorationsRef.current, lines.map((ln: number) => ({
-        range: new monaco.Range(ln, 1, ln, 1),
-        options: {
-          isWholeLine: true,
-          glyphMarginClassName: 'bookmark-glyph',
-          glyphMarginHoverMessage: '📌 书签'
-        }
-      })))
-    } catch {}
-  }, [bookmarks])
-
-  // bookmarks 变化 → 重新渲染两个 editor 的装饰
-  useEffect(() => {
-    if (editEditorRef.current) applyBookmarks(editEditorRef.current, editDecorationsRef)
-    if (diffEditorRef.current) applyBookmarks(diffEditorRef.current.getModifiedEditor?.() ?? null, diffDecorationsRef)
-  }, [applyBookmarks, bookmarks, viewMode])
-
   return (
     <div ref={containerRef} className={`flex flex-col animate-fade-in${altBrush ? ' diff-brush-mode' : ''}`}>
       <div
@@ -866,18 +856,18 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                   e.event.preventDefault()
                   e.event.stopPropagation()
                   const ln = e.target?.position?.lineNumber
-                  if (ln) onToggleBookmarkRef.current?.(ln)
+                  if (ln) handleAltLineClickRef.current?.(ln)
                 }
               })
-              applyBookmarks(modifiedEditor, diffDecorationsRef)
               modifiedEditor.onDidChangeCursorPosition((e: any) => {
                 if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
               })
               // 滚动时回写视口顶部可见行（用户眼睛实际看到的位置）→ 最近文件行号
               modifiedEditor.onDidScrollChange(() => {
                 if (!visibleLineRef) return
-                const vr = modifiedEditor.getVisibleRanges()
-                visibleLineRef.current = { fullPath, line: vr && vr.length ? vr[0].startLineNumber : 1 }
+                const r = modifiedEditor.getVisibleRanges()
+                const v = r && r.length ? r[0] : null
+                visibleLineRef.current = { fullPath, line: v ? v.startLineNumber + Math.round((v.endLineNumber - v.startLineNumber) / 2) : 1 }
               })
               modifiedEditor.onDidChangeModelContent(() => {
                 if (revertingRef.current) return
@@ -1032,18 +1022,18 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                   e.event.preventDefault()
                   e.event.stopPropagation()
                   const ln = e.target?.position?.lineNumber
-                  if (ln) onToggleBookmarkRef.current?.(ln)
+                  if (ln) handleAltLineClickRef.current?.(ln)
                 }
               })
-              applyBookmarks(editor, editDecorationsRef)
               editor.onDidChangeCursorPosition((e: any) => {
                 if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
               })
               // 滚动时回写视口顶部可见行（用户眼睛实际看到的位置）→ 最近文件行号
               editor.onDidScrollChange(() => {
                 if (!visibleLineRef) return
-                const vr = editor.getVisibleRanges()
-                visibleLineRef.current = { fullPath, line: vr && vr.length ? vr[0].startLineNumber : 1 }
+                const r = editor.getVisibleRanges()
+                const v = r && r.length ? r[0] : null
+                visibleLineRef.current = { fullPath, line: v ? v.startLineNumber + Math.round((v.endLineNumber - v.startLineNumber) / 2) : 1 }
               })
               if (lineNumber && lineNumber > 0) {
                 try {
@@ -1103,6 +1093,18 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               <span aria-hidden>↩</span>
               <span>{t('Revert')}</span>
             </button>
+          </div>
+        )}
+        {copyToast && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div className="flex flex-col items-center gap-2 px-6 py-4 rounded-xl border shadow-2xl"
+              style={{ backgroundColor: currentTheme.terminal.background, borderColor: 'rgba(34,197,94,0.5)' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8 text-emerald-400">
+                <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span className="text-sm text-emerald-400 font-medium">已复制到剪贴板</span>
+              <span className="text-xs text-ide-text-muted truncate max-w-[280px]" title={copyToast.text}>{copyToast.text}</span>
+            </div>
           </div>
         )}
       </div>

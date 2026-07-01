@@ -79,11 +79,6 @@ html, body, #root {
   background-color: rgb(var(--monaco-margin-bg)) !important;
 }
 
-/* 行书签 glyph margin 📌 图标（图钉头 + 针） */
-.bookmark-glyph {
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='5' cy='5' r='3.2' fill='%23e8833a' stroke='%23b5601a' stroke-width='0.6'/%3E%3Cline x1='7' y1='7' x2='13' y2='13' stroke='%23888' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / 14px no-repeat;
-}
-
 /* Alt 画笔模式：编辑器鼠标变 🖌️ 羽毛笔（主题色，由 ThemeProvider 注入 --brush-cursor） */
 .diff-brush-mode .monaco-editor,
 .diff-brush-mode .monaco-editor * {

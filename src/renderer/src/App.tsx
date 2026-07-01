@@ -6,7 +6,7 @@ import DiffViewer from './components/DiffViewer'
 import MarkdownPreview from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
 import OutlinePanel, { isCode, isMarkdown } from './components/OutlinePanel'
-import NavBar from './components/NavBar'
+import NavBar, { NavEntry } from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import AiTab, { AiTabHandle } from './components/AiTab'
@@ -262,11 +262,9 @@ export default function App() {
   const [exploreResult, setExploreResult] = useState<{ query: string; content: string } | null>(null)
 
   const showCodeSearchRef = useRef(false); showCodeSearchRef.current = showCodeSearch
-  const codeSearchActivatedRef = useRef(false)
   const exploreResultRef = useRef(exploreResult); exploreResultRef.current = exploreResult
   const closeCodeSearch = useCallback(() => {
     setShowCodeSearch(false)
-    codeSearchActivatedRef.current = false
     setCodeSearchFocusTrigger(0)
   }, [])
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
@@ -427,7 +425,7 @@ export default function App() {
   // Cursor position (DiffViewer 回传，供行历史等使用)
   interface CursorHistoryEntry { fullPath: string; line: number; column: number }
   const cursorRef = useRef<CursorHistoryEntry | null>(null)
-  // 视口顶部可见行（滚轮实际看到的位置，非光标）— DiffViewer 的 onDidScrollChange 实时回写，供最近文件行号
+  // 视口中间可见行（居中还原用）— DiffViewer 的 onDidScrollChange 实时回写，供最近文件行号
   interface VisibleLineEntry { fullPath: string; line: number }
   const visibleLineRef = useRef<VisibleLineEntry | null>(null)
   const diffFileRef = useRef(diffFile)
@@ -461,39 +459,17 @@ export default function App() {
     }
   }, [recordRecentFile])
 
-  // ── 行书签（手动钉选 📌，跨重启持久化，全局不按 session 隔离）──
-  const BOOKMARKS_KEY = 'vibe-ide-bookmarks'
-  interface BookmarkEntry { fullPath: string; line: number }
-  const loadBookmarks = (): BookmarkEntry[] => {
-    try {
-      const raw = localStorage.getItem(BOOKMARKS_KEY)
-      if (raw) {
-        const arr = JSON.parse(raw)
-        if (Array.isArray(arr)) {
-          return arr.filter((b: any) => b && typeof b.fullPath === 'string' && typeof b.line === 'number')
-        }
-      }
-    } catch {}
-    return []
-  }
-  const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>(() => loadBookmarks())
-  const bookmarksRef = useRef(bookmarks)
-  bookmarksRef.current = bookmarks
-  React.useEffect(() => {
-    try { localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks)) } catch {}
-  }, [bookmarks])
-  const toggleBookmark = useCallback((fullPath: string, line: number) => {
-    setBookmarks(prev => {
-      const idx = prev.findIndex(b => b.fullPath === fullPath && b.line === line)
-      if (idx >= 0) { const next = [...prev]; next.splice(idx, 1); return next }
-      return [...prev, { fullPath, line }]
-    })
-  }, [])
-  // 当前文件的书签行号集合（传给 DiffViewer 渲染 glyph margin 📌）
-  const currentFileBookmarks = useMemo(
-    () => new Set(bookmarks.filter(b => b.fullPath === diffFile?.fullPath).map(b => b.line)),
-    [bookmarks, diffFile]
-  )
+  // ── NavBar 数据源：当前 session cwd 下的最近打开文件（复用 recentFiles）──
+  const navBarEntries = useMemo<NavEntry[]>(() => {
+    const cwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
+    const w = cwd ? cwd.replace(/\\/g, '/').replace(/\/$/, '') : ''
+    if (!w) return []
+    return recentFiles
+      .filter(f => { const p = f.path.replace(/\\/g, '/'); return p === w || p.startsWith(w + '/') })
+      .map(f => ({ fullPath: f.path, line: f.line ?? 1 }))
+  }, [recentFiles, sessions, activeSessionId])
+  const navBarEntriesRef = useRef(navBarEntries)
+  navBarEntriesRef.current = navBarEntries
   // Alt 画笔模式（按住 Alt 时编辑器鼠标变 🖌️）
   const [altBrush, setAltBrush] = useState(false)
   const altBrushRef = useRef(false)
@@ -505,7 +481,6 @@ export default function App() {
   const navBarIndexRef = useRef(0)
   const navBarCwdRef = useRef<string | null>(null)
   const navBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const navBarCancelledRef = useRef(false)
   const navBarUsedRef = useRef(false)  // true when user actually navigated with arrows
   navBarVisibleRef.current = navBarVisible
   navBarIndexRef.current = navBarIndex
@@ -884,23 +859,19 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const bindings = getShortcuts()
 
-      // ── Alt keydown: start long-press timer to show code search (and nav bar if history) ──
+      // ── Alt keydown: 画笔模式 + 长按 300ms 显示 NavBar（Alt+click 复制行位置，Alt+←/→ 导航）──
       if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        navBarCancelledRef.current = false
         setAltBrush(true)
         e.preventDefault()
         e.stopImmediatePropagation()
         if (navBarTimerRef.current) clearTimeout(navBarTimerRef.current)
         navBarTimerRef.current = setTimeout(() => {
           navBarTimerRef.current = null
-          codeSearchActivatedRef.current = false
-          setShowCodeSearch(true)
-          if (bookmarksRef.current.length > 0) {
+          if (navBarEntriesRef.current.length > 0) {
             const idx = navBarIndexRef.current
-            if (idx >= 0 && idx < bookmarksRef.current.length) {
+            if (idx >= 0 && idx < navBarEntriesRef.current.length) {
               navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
               navBarVisibleRef.current = true
-              navBarCancelledRef.current = false
               navBarUsedRef.current = false
               navBarIndexRef.current = idx
               setNavBarVisible(true)
@@ -918,7 +889,7 @@ export default function App() {
           e.stopImmediatePropagation()
           navBarUsedRef.current = true
           setNavBarIndex(prev => {
-            const len = bookmarksRef.current.length
+            const len = navBarEntriesRef.current.length
             return prev <= 0 ? len - 1 : prev - 1
           })
           return
@@ -928,7 +899,7 @@ export default function App() {
           e.stopImmediatePropagation()
           navBarUsedRef.current = true
           setNavBarIndex(prev => {
-            const len = bookmarksRef.current.length
+            const len = navBarEntriesRef.current.length
             return prev >= len - 1 ? 0 : prev + 1
           })
           return
@@ -946,7 +917,6 @@ export default function App() {
       if (eventMatchesBinding(e, bindings['codegraph.open'])) {
         e.preventDefault()
         e.stopImmediatePropagation()
-        codeSearchActivatedRef.current = true
         setShowCodeSearch(true)
         setCodeSearchFocusTrigger(k => k + 1)
         return
@@ -1134,7 +1104,7 @@ export default function App() {
       }
 
       // navigate.back / navigate.forward — show nav bar (commit on Alt release)
-      if (!navBarVisibleRef.current && bookmarksRef.current.length > 0) {
+      if (!navBarVisibleRef.current && navBarEntriesRef.current.length > 0) {
         const isBack = eventMatchesBinding(e, bindings['navigate.back'])
         const isForward = eventMatchesBinding(e, bindings['navigate.forward'])
         if (isBack || isForward) {
@@ -1143,11 +1113,11 @@ export default function App() {
           if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
           const delta = isBack ? -1 : 1
           const startIdx = navBarIndexRef.current + delta
-          const hist = bookmarksRef.current
+          const hist = navBarEntriesRef.current
           if (startIdx >= 0 && startIdx < hist.length) {
             navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
             navBarVisibleRef.current = true
-            navBarCancelledRef.current = false
+            navBarUsedRef.current = true
             setNavBarIndex(startIdx)
             setNavBarVisible(true)
           }
@@ -1201,23 +1171,14 @@ export default function App() {
   // Alt keyup → commit nav bar selection
   React.useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key !== 'Alt') {
-        if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
-        return
-      }
-      // Alt released: cancel pending timer (short tap should not trigger overlay)
+      if (e.key !== 'Alt') return
       setAltBrush(false)
       if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
-      // Dismiss CodeGraphSearch on Alt release if not activated (clicked/focused)
-      if (showCodeSearchRef.current && !codeSearchActivatedRef.current) {
-        closeCodeSearch()
-      }
 
       if (!navBarVisibleRef.current) return
-      if (navBarCancelledRef.current) { setNavBarVisible(false); return }
       if (!navBarUsedRef.current) { setNavBarVisible(false); return }
       const idx = navBarIndexRef.current
-      const hist = bookmarksRef.current
+      const hist = navBarEntriesRef.current
       if (idx >= 0 && idx < hist.length) {
         const entry = hist[idx]
         const cwd = navBarCwdRef.current
@@ -1247,7 +1208,7 @@ export default function App() {
     if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
     navBarVisibleRef.current = false
     setNavBarVisible(false)
-    const hist = bookmarksRef.current
+    const hist = navBarEntriesRef.current
     if (idx >= 0 && idx < hist.length) {
       const entry = hist[idx]
       const cwd = navBarCwdRef.current
@@ -1266,14 +1227,6 @@ export default function App() {
       })
       setCenterView('diff')
     }
-  }, [])
-
-  // 清除所有书签（NavBar 右上角 X）
-  const handleClearBookmarks = useCallback(() => {
-    if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
-    navBarVisibleRef.current = false
-    setNavBarVisible(false)
-    setBookmarks([])
   }, [])
 
   // Get cwd of the currently active session
@@ -2009,8 +1962,7 @@ export default function App() {
                 onViewLineHistory={handleViewLineHistory}
                 compareOriginalContent={diffFile.compareOriginalContent}
                 compareOriginalPath={diffFile.compareOriginalPath}
-                bookmarks={currentFileBookmarks}
-                onToggleBookmark={(line) => toggleBookmark(diffFile.fullPath, line)}
+                cwd={activeSessionCwd}
                 altBrush={altBrush}
               />
             </div>
@@ -2208,13 +2160,12 @@ export default function App() {
         )
       })()}
 
-      {/* Nav Bar — 书签列表，Alt+←/→ 切换并跳转 */}
+      {/* Nav Bar — 当前 cwd 最近文件，Alt+←/→ 切换并跳转 */}
       <NavBar
-        entries={bookmarks}
+        entries={navBarEntries}
         selectedIndex={navBarIndex}
         visible={navBarVisible}
         onSelect={handleNavBarSelect}
-        onClearAll={handleClearBookmarks}
       />
 
       {/* Call Graph Overlay — rendered at App level like NavBar to stay on top */}
@@ -2250,7 +2201,6 @@ export default function App() {
               : cwd + sep + filePath.replace(/\//g, sep)
             handleOpenFileFromSearch(absPath, node.line)
           }}
-          onActivated={() => { codeSearchActivatedRef.current = true }}
           onExploreResult={(result) => { setExploreResult(result); closeCodeSearch() }}
           focusTrigger={codeSearchFocusTrigger}
         />

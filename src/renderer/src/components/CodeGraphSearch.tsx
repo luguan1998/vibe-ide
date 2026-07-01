@@ -390,7 +390,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
         ? t('Indexing...')
         : status === 'loading'
           ? t('Loading...')
-          : t('Search symbols... (Enter to jump)')
+          : t('Search symbols... (Enter to jump, Esc to close)')
 
   return (
     <>
