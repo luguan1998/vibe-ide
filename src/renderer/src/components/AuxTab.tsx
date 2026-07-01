@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 const TerminalView = React.lazy(() => import('./TerminalView'))
+import type { TerminalViewHandle } from './TerminalView'
 import { TerminalSession } from '@shared/types'
 import { parseCommands, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
 
 interface AuxTabProps {
-  rightTerminalSession: TerminalSession | null
+  rightTerminalSessions: Record<string, TerminalSession>
   activeSessionId: string | null
   effectiveGitPath: string | null
   worktreeNav: { originalPath: string; worktreePath: string; originalBranch: string } | null
@@ -14,10 +15,11 @@ interface AuxTabProps {
   isActive?: boolean
 }
 
-export default function AuxTab({ rightTerminalSession, activeSessionId, effectiveGitPath, worktreeNav, onCreateRightTerminal, onOpenFileFromRightTerminal, isActive }: AuxTabProps) {
+export default function AuxTab({ rightTerminalSessions, activeSessionId, effectiveGitPath, worktreeNav, onCreateRightTerminal, onOpenFileFromRightTerminal, isActive }: AuxTabProps) {
   const [commands, setCommands] = useState<Array<{ command: string; comment: string }>>([])
   const [selectedCommandIndex, setSelectedCommandIndex] = useState<number | null>(null)
   const pendingCommandRef = useRef<string | null>(null)
+  const auxTerminalRefs = useRef<Record<string, TerminalViewHandle>>({})
   const selectedCommandIndexRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isActiveRef = useRef(isActive)
@@ -25,8 +27,9 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
   const { t } = useI18n()
 
   const handleRunCommand = useCallback((command: string) => {
-    if (rightTerminalSession) {
-      window.api.terminal.write(rightTerminalSession.id, command + '\r')
+    const activeRightTerminal = activeSessionId ? rightTerminalSessions[activeSessionId] : undefined
+    if (activeRightTerminal) {
+      window.api.terminal.write(activeRightTerminal.id, command + '\r')
     } else if (activeSessionId) {
       pendingCommandRef.current = command
       if (worktreeNav) {
@@ -35,7 +38,7 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
         onCreateRightTerminal?.(activeSessionId)
       }
     }
-  }, [rightTerminalSession, activeSessionId, onCreateRightTerminal, worktreeNav, effectiveGitPath])
+  }, [rightTerminalSessions, activeSessionId, onCreateRightTerminal, worktreeNav, effectiveGitPath])
 
   // 右侧终端打开文件的回调 - 触发中间终端切换到 edit
   const handleRightTerminalOpenFile = useCallback(async (fullPath: string, lineNumber?: number) => {
@@ -116,50 +119,64 @@ export default function AuxTab({ rightTerminalSession, activeSessionId, effectiv
 
   // Execute pending command when aux terminal becomes ready
   useEffect(() => {
-    if (rightTerminalSession && pendingCommandRef.current) {
+    const activeRightTerminal = activeSessionId ? rightTerminalSessions[activeSessionId] : undefined
+    if (activeRightTerminal && pendingCommandRef.current) {
       const cmd = pendingCommandRef.current
       pendingCommandRef.current = null
       setTimeout(() => {
-        window.api.terminal.write(rightTerminalSession.id, cmd + '\r')
+        window.api.terminal.write(activeRightTerminal.id, cmd + '\r')
       }, 1200)
     }
-  }, [rightTerminalSession])
+  }, [rightTerminalSessions, activeSessionId])
+
+  // 切 session 时聚焦新 active 的 aux 终端（照抄主终端 terminalRefs 模式）
+  useEffect(() => {
+    if (!isActive || !activeSessionId) return
+    auxTerminalRefs.current[activeSessionId]?.focus()
+  }, [isActive, activeSessionId])
 
   return (
     <div ref={containerRef} tabIndex={-1} className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
       <div className="flex-1 min-h-0 overflow-hidden">
-        {rightTerminalSession ? (
-          <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">Loading...</div>}>
-            <TerminalView
-              sessionId={rightTerminalSession.id}
-              sessionName="Right Terminal"
-              sessionCwd={rightTerminalSession.cwd}
-              onOpenFile={handleRightTerminalOpenFile}
-              showHeader={false}
-              fontSize={12}
-              isAux={true}
-            />
-          </React.Suspense>
-        ) : effectiveGitPath ? (
-          <div className="h-full flex items-center justify-center">
-            <button
-              onClick={() => {
-                if (!activeSessionId) return
-                if (worktreeNav) {
-                  onCreateRightTerminal?.(activeSessionId, effectiveGitPath)
-                } else {
-                  onCreateRightTerminal?.(activeSessionId)
-                }
-              }}
-              className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
-            >
-              {t('Launch Terminal')}
-            </button>
+        {Object.entries(rightTerminalSessions).map(([sid, term]) => (
+          <div key={sid} className="h-full flex flex-col overflow-hidden" style={{ display: sid === activeSessionId ? 'flex' : 'none' }}>
+            <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">Loading...</div>}>
+              <TerminalView
+                ref={(node) => { if (node) auxTerminalRefs.current[sid] = node }}
+                sessionId={term.id}
+                sessionName="Right Terminal"
+                sessionCwd={term.cwd}
+                onOpenFile={handleRightTerminalOpenFile}
+                showHeader={false}
+                fontSize={12}
+                isAux={true}
+                isActive={sid === activeSessionId}
+              />
+            </React.Suspense>
           </div>
-        ) : (
-          <div className="h-full flex items-center justify-center text-ide-text-muted text-xs">
-            {t('Please select a workspace first')}
-          </div>
+        ))}
+        {!(activeSessionId && rightTerminalSessions[activeSessionId]) && (
+          effectiveGitPath ? (
+            <div className="h-full flex items-center justify-center">
+              <button
+                onClick={() => {
+                  if (!activeSessionId) return
+                  if (worktreeNav) {
+                    onCreateRightTerminal?.(activeSessionId, effectiveGitPath)
+                  } else {
+                    onCreateRightTerminal?.(activeSessionId)
+                  }
+                }}
+                className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+              >
+                {t('Launch Terminal')}
+              </button>
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center text-ide-text-muted text-xs">
+              {t('Please select a workspace first')}
+            </div>
+          )
         )}
       </div>
       {commands.length > 0 && (

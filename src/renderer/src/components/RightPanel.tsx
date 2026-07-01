@@ -16,7 +16,7 @@ interface RightPanelProps {
   pollingTick?: number
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
   onOpenFileFromSearch?: (fullPath: string, lineNumber?: number) => void
-  rightTerminalSession?: TerminalSession | null
+  rightTerminalSessions?: Record<string, TerminalSession>
   activeSessionId?: string | null
   onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
   onCloseRightTerminal?: (sessionId: string) => void
@@ -403,7 +403,7 @@ function TabBar({
 function RightPanel({
   workspacePath, onFileSelect, refreshKey, pollingTick,
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
-  rightTerminalSession, activeSessionId,
+  rightTerminalSessions, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
   searchFocusTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage,
   onDiffScroll,
@@ -432,6 +432,7 @@ function RightPanel({
 
   const worktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
   const effectiveGitPath = worktreeNav?.worktreePath || workspacePath
+  const activeRightTerminal = activeSessionId && rightTerminalSessions ? rightTerminalSessions[activeSessionId] ?? null : null
 
   const visibleList = tabOrder.filter(s => visibleTabs[s])
 
@@ -601,7 +602,7 @@ function RightPanel({
           refreshKey={refreshKey}
           activeSessionId={activeSessionId ?? null}
           isActive={activeSection === 'git'}
-          rightTerminalSession={rightTerminalSession ?? null}
+          rightTerminalSession={activeRightTerminal}
           onCloseRightTerminal={onCloseRightTerminal}
           onWorktreeNavChange={setSessionWorktreeNav}
           onDiffScroll={onDiffScroll}
@@ -612,7 +613,7 @@ function RightPanel({
 
       <div ref={terminalContentRef} tabIndex={-1} style={{ display: activeSection === 'terminal' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <AuxTab
-          rightTerminalSession={rightTerminalSession ?? null}
+          rightTerminalSessions={rightTerminalSessions ?? {}}
           activeSessionId={activeSessionId ?? null}
           effectiveGitPath={effectiveGitPath}
           worktreeNav={worktreeNav}

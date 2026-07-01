@@ -1710,8 +1710,7 @@ export default function App() {
     const cwd = cwdOverride || session?.cwd
     if (!cwd) return
     try {
-      // 🌀 从 localStorage 读取用户选择的 shell 类型
-      const shell = (() => { try { return localStorage.getItem('vibe-ide-term-type') || undefined } catch { return undefined } })()
+      const shell = 'cmd'
       const term = await window.api.terminal.create({ cwd, shell, autoUtf8 })
       setRightTerminalSessions(prev => ({ ...prev, [sessionId]: term }))
     } catch (err) {
@@ -2141,7 +2140,7 @@ export default function App() {
             currentEditFilePath={diffFile?.defaultEdit ? diffFile.fullPath : null}
             onPreviewMarkdown={handlePreviewMarkdown}
             onPreviewImage={handlePreviewImage}
-            rightTerminalSession={activeSessionId ? rightTerminalSessions[activeSessionId] : undefined}
+            rightTerminalSessions={rightTerminalSessions}
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
             searchFocusTrigger={searchFocusTrigger}
