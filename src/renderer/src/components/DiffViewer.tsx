@@ -309,6 +309,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       }
       diffDisposablesRef.current = []
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+      // 抓取 model 引用：widget dispose 后 getModel 链路不可靠，必须先抓
+      let diffOrigModel: any = null
+      let diffModModel: any = null
+      let editModel: any = null
+      try { diffOrigModel = diffEditorRef.current?.getOriginalEditor?.()?.getModel?.() } catch {}
+      try { diffModModel = diffEditorRef.current?.getModifiedEditor?.()?.getModel?.() } catch {}
+      try { editModel = editEditorRef.current?.getModel?.() } catch {}
       // DiffEditor widget must be disposed before its models are disposed
       if (diffEditorRef.current) {
         try {
@@ -322,6 +329,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         } catch {}
         editEditorRef.current = null
       }
+      // widget 已 dispose，显式释放 model：库 cleanup 此时拿不到 model，不补则每开一文件泄漏一份
+      try { diffOrigModel?.dispose?.() } catch {}
+      try { diffModModel?.dispose?.() } catch {}
+      try { editModel?.dispose?.() } catch {}
     }
   }, [])
 

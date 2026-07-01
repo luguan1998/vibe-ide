@@ -604,5 +604,23 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
   border-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect x=%271.5%27 y=%271.5%27 width=%2797%27 height=%2797%27 fill=%27none%27 stroke=%27%232d3050%27 stroke-width=%271.5%27/%3E%3C/svg%3E") 1.5 stretch !important;
 }
 
+/* ════════════════════════════════════════════════════
+   Markdown 标题 — 柏树绿
+   ════════════════════════════════════════════════════ */
+
+.md-preview h1,
+.md-preview h2,
+.md-preview h3,
+.md-preview h4,
+.md-preview h5,
+.md-preview h6 {
+  color: rgb(var(--ide-success)) !important;
+  opacity: 1 !important;
+}
+.md-preview h1,
+.md-preview h2 {
+  border-bottom-color: rgb(var(--ide-success)) !important;
+}
+
 
 
