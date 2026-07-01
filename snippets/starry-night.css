@@ -36,8 +36,35 @@
 /* ════════════════════════════════════════════════════
    全局 — 漩涡笔触：微量圆角 + 字体
    ════════════════════════════════════════════════════ */
-* { border-radius: 4px !important; }
-.monaco-editor * { border-radius: revert !important; }
+/* 微量圆角 — 仅列 UI 容器，不命中 .monaco-editor 内部节点
+   通配符 * 会扫描 Monaco 渲染文件时的数千 DOM 节点（view-line/span/装饰），
+   开文件瞬间 style recalc 成本被放大成 CPU 抖升；改用具体容器即可断掉扫描路径 */
+.titlebar-drag,
+.session-panel__stat,
+.session-panel__config-btn,
+.session-panel__new-btn,
+.session-panel__config-menu,
+.session-panel__config-menu button,
+.session-group,
+.session-group__header,
+.file-tab__header,
+.file-tab__section,
+.file-tab__section-header,
+.file-tree-item,
+.git-tab__header,
+.git-tab__section,
+.git-tab__section-header,
+.git-tab__file-item,
+.git-tab__commit-area,
+.git-tab__commit-input,
+.git-tab__commit-btn,
+.right-panel__tab-bar,
+.right-panel__tab,
+input,
+select,
+textarea {
+  border-radius: 4px !important;
+}
 
 
 /* ════════════════════════════════════════════════════
@@ -361,7 +388,7 @@ input:focus, select:focus, textarea:focus {
 input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
 
 /* Monaco 内部表单不污染 */
-.monaco-editor input, .monaco-editor select, .monaco-editor textarea { border: revert !important; background: revert !important; }
+.monaco-editor input, .monaco-editor select, .monaco-editor textarea { border: revert !important; background: revert !important; border-radius: revert !important; }
 .monaco-editor input:focus, .monaco-editor select:focus, .monaco-editor textarea:focus { border-color: revert !important; box-shadow: revert !important; outline: revert !important; }
 .monaco-editor input[type="checkbox"] { accent-color: revert; }
 
