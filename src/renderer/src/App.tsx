@@ -454,6 +454,15 @@ export default function App() {
   const navBarUsedRef = useRef(false)  // true when user actually navigated with arrows
   navBarVisibleRef.current = navBarVisible
   navBarIndexRef.current = navBarIndex
+  // navBarEntries 缩短（删最近文件）或重排（置顶）时 clamp navBarIndex，防越界致长按 alt 呼不出 NavBar
+  useEffect(() => {
+    setNavBarIndex(prev => {
+      const len = navBarEntries.length
+      if (len > 0 && prev >= len) return len - 1
+      if (prev < 0) return 0
+      return prev
+    })
+  }, [navBarEntries])
   const flashPanelRef = useRef<'term' | 'right' | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingBlurRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -847,16 +856,16 @@ export default function App() {
         if (navBarTimerRef.current) clearTimeout(navBarTimerRef.current)
         navBarTimerRef.current = setTimeout(() => {
           navBarTimerRef.current = null
-          if (navBarEntriesRef.current.length > 0) {
-            const idx = navBarIndexRef.current
-            if (idx >= 0 && idx < navBarEntriesRef.current.length) {
-              navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
-              navBarVisibleRef.current = true
-              navBarUsedRef.current = false
-              navBarIndexRef.current = idx
-              setNavBarVisible(true)
-              setNavBarIndex(idx)
-            }
+          const hist = navBarEntriesRef.current
+          if (hist.length > 0) {
+            let idx = navBarIndexRef.current
+            if (idx < 0 || idx >= hist.length) idx = 0
+            navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
+            navBarVisibleRef.current = true
+            navBarUsedRef.current = false
+            navBarIndexRef.current = idx
+            setNavBarVisible(true)
+            setNavBarIndex(idx)
           }
         }, 300)
         return
