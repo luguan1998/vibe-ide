@@ -105,7 +105,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   const [ante, setAnte] = useState(0)
   const [roundScore, setRoundScore] = useState(0)
   const [target, setTarget] = useState(ANTE_TARGETS[0])
-  const [gameState, setGameState] = useState<'idle' | 'playing' | 'won' | 'lost'>('idle')
+  const [gameState, setGameState] = useState<'idle' | 'playing' | 'won' | 'lost'>('playing')
   const [lastHand, setLastHand] = useState<HandType | null>(null)
   const [handsLeft, setHandsLeft] = useState(4)
   const [discardsLeft, setDiscardsLeft] = useState(3)
@@ -332,13 +332,6 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           {hand.length === 0 && gameState === 'playing' && deckRef.current.length > 0 && (
             <div className="text-sm text-ide-text-muted/50 italic">Drawing cards...</div>
           )}
-          {gameState === 'idle' && (
-            <div className="flex items-center gap-2 opacity-30">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="w-14 h-20 rounded-lg border-2 border-ide-border/30 bg-ide-bg/20" />
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Action buttons */}
@@ -362,21 +355,6 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           </div>
         </div>
       </div>
-
-      {/* Idle overlay */}
-      {gameState === 'idle' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-ide-bg/80 backdrop-blur-sm z-10">
-          <div className="text-3xl">{'\uD83C\uDCCF'}</div>
-          <div className="text-sm text-ide-text-muted/70">A poker roguelike — build the best hands to beat the ante!</div>
-          <div className="text-[11px] text-ide-text-muted/50">Select cards and play poker hands to score points</div>
-          <button
-            onClick={startGame}
-            className="px-6 py-2 text-sm bg-ide-accent hover:bg-ide-accent-hover text-white rounded-lg transition-colors font-medium"
-          >
-            Start Game
-          </button>
-        </div>
-      )}
 
       {/* Win overlay */}
       {gameState === 'won' && (

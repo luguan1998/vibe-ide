@@ -139,7 +139,7 @@ function loadVisibleTabs(): Record<GitSection, boolean> {
       return result
     }
   } catch {}
-  return { git: true, terminal: true, file: true, search: true, game: true }
+  return { git: true, terminal: true, file: true, search: true, game: false }
 }
 
 function saveVisibleTabs(v: Record<GitSection, boolean>) {
