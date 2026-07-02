@@ -15,7 +15,7 @@
 
 import { spawn, execSync } from 'child_process'
 import { join, resolve } from 'path'
-import { existsSync, readdirSync, statSync } from 'fs'
+import { existsSync, readdirSync, statSync, appendFileSync, readFileSync, mkdirSync } from 'fs'
 import { cpus } from 'os'
 
 const projectRoot = resolve(import.meta.dirname, '..')
@@ -26,6 +26,36 @@ const rounds = parseInt(process.argv.find(a => a.startsWith('--rounds'))?.split(
 const intervalMs = parseInt(process.argv.find(a => a.startsWith('--interval'))?.split('=')[1] || '300', 10)
 const workspace = projectRoot
 const cdpPort = 9222
+
+// ─── perf 日志（doc/perf-log.md 追加）───
+const perfLogPath = join(projectRoot, 'doc', 'perf-log.md')
+
+function getTag() {
+  let commit = 'unknown', version = 'unknown'
+  try { commit = execSync('git rev-parse --short HEAD', { cwd: projectRoot }).toString().trim() } catch {}
+  try { version = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')).version } catch {}
+  return `${version}(${commit})`
+}
+
+function nowStamp() {
+  const d = new Date()
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+function appendPerfRow(fields) {
+  try {
+    if (!existsSync(perfLogPath) || statSync(perfLogPath).size === 0) {
+      mkdirSync(join(projectRoot, 'doc'), { recursive: true })
+      appendFileSync(perfLogPath, `# Perf 测试日志\n\n| 时间 | tag | 结果 | 耗时avg | 主RSSΔ | 渲染JSHeapΔ | 总内存Δ | 主CPUavg | 渲染CPUavg |\n|------|-----|------|---------|--------|-----------|---------|----------|------------|\n`, 'utf8')
+    }
+    appendFileSync(perfLogPath, `| ${fields.join(' | ')} |\n`, 'utf8')
+  } catch {}
+}
+
+function appendPerfError(msg) {
+  appendPerfRow([nowStamp(), getTag(), `ERROR: ${String(msg).slice(0, 60)}`, '-', '-', '-', '-', '-', '-'])
+}
 
 // ─── CDP 连接 ───
 async function connectCDP(port) {
@@ -90,18 +120,19 @@ async function mouseClick(cdp, x, y) {
 }
 
 // ─── 切换到 File tab ───
-async function switchToFileTab(cdp) {
-  const rect = await evalInRenderer(cdp, `
+// RightPanel 在 sessions.length > 0 时才渲染（isWelcome 时整栏不挂载），
+// 而会话由 startup:openPath IPC 在 did-finish-load + 800ms 后异步创建，
+// 早于 waitForAPI 返回。故此处需轮询等待按钮出现，而非立即判定失败。
+async function findFileTabButton(cdp) {
+  return evalInRenderer(cdp, `
     (() => {
       const buttons = document.querySelectorAll('button');
       for (const btn of buttons) {
-        // capsuleTabs 模式：按钮含 <span> 文本
         const span = btn.querySelector('span');
         if (span && span.textContent === 'File') {
           const r = btn.getBoundingClientRect();
           return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
         }
-        // 图标模式：按钮用 title 属性（无 span）
         if (btn.title === 'File') {
           const r = btn.getBoundingClientRect();
           return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
@@ -110,6 +141,15 @@ async function switchToFileTab(cdp) {
       return null;
     })()
   `)
+}
+
+async function switchToFileTab(cdp) {
+  let rect = null
+  for (let i = 0; i < 40; i++) {
+    rect = await findFileTabButton(cdp)
+    if (rect) break
+    await new Promise(r => setTimeout(r, 500))
+  }
   if (!rect) throw new Error('File tab button not found')
   await mouseClick(cdp, rect.x, rect.y)
   await new Promise(r => setTimeout(r, 500))
@@ -339,7 +379,7 @@ async function main() {
         console.log('应用已启动')
         break
       } catch {
-        if (i === 29) { console.error('启动超时'); proc.kill(); process.exit(1) }
+        if (i === 29) { console.error('启动超时'); appendPerfError('启动超时'); proc.kill(); process.exit(1) }
       }
     }
   }
@@ -349,6 +389,7 @@ async function main() {
   const ready = await waitForAPI(cdp)
   if (!ready) {
     console.error('API 加载超时')
+    appendPerfError('API 加载超时')
     cdp.close(); proc?.kill(); process.exit(1)
   }
 
@@ -398,6 +439,7 @@ async function main() {
 
   if (fileItems.length < 2) {
     console.error(`需要至少 2 个可点击的文件项，当前只有 ${fileItems.length} 个`)
+    appendPerfError(`文件项不足:${fileItems.length}`)
     cdp.close(); proc?.kill(); process.exit(1)
   }
   console.log(`找到 ${fileItems.length} 个可点击文件项`)
@@ -545,6 +587,18 @@ async function main() {
   const allPass = passRss && passHeap && passTotalMem && passTime && passMainCpu && passRendererCpu
   console.log(allPass ? '\n✅ 总体通过' : '\n❌ 总体未通过')
 
+  appendPerfRow([
+    nowStamp(),
+    getTag(),
+    allPass ? 'PASS' : 'FAIL',
+    `${avgTime.toFixed(0)}ms`,
+    `${fmtMB(rssGrowth)}MB`,
+    final.renderer ? `${fmtMB(rendererHeapGrowth)}MB` : '-',
+    `${totalMemGrowthMB.toFixed(0)}MB`,
+    `${avgMainCpu.toFixed(1)}%`,
+    avgRendererCpu != null ? `${avgRendererCpu.toFixed(1)}%` : '-',
+  ])
+
   // 清理
   cdp.close()
   if (proc) proc.kill()
@@ -552,4 +606,4 @@ async function main() {
   process.exit(allPass ? 0 : 1)
 }
 
-main().catch(err => { console.error('测试失败:', err); process.exit(1) })
+main().catch(err => { appendPerfError(err.message || err); console.error('测试失败:', err); process.exit(1) })
