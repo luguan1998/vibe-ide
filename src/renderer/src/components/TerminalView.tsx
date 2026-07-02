@@ -492,6 +492,22 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       term.loadAddon(searchAddon)
     }
 
+    // WebGL 渲染器在 term.open 之前挂载 → 从首帧起即为 renderer。
+    // 若在 open 之后挂载(canvas 已画过),canvas→WebGL 切换会对已有 buffer 首帧渲染乱码,
+    // 直到下一次 resize/refresh 才恢复 —— 即"第一次打开乱码、最大化最小化后正常"bug。
+    try {
+      const webglAddon = new WebglAddon()
+      webglAddon.onContextLoss(() => {
+        webglAddon.dispose()
+        if (webglAddonRef.current === webglAddon) webglAddonRef.current = null
+        term.refresh(0, term.rows - 1)
+      })
+      term.loadAddon(webglAddon)
+      webglAddonRef.current = webglAddon
+    } catch {
+      // WebGL 不可用 → 回退内置 canvas 渲染器
+    }
+
     term.open(terminalRef.current)
     fitAddon.fit()
 
@@ -799,39 +815,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     }
   }, [currentTheme])
 
-  // WebGL addon lifecycle: only load when active, dispose when inactive.
-  // This limits GPU resource usage to one WebGL context at a time.
-  useEffect(() => {
-    const term = xtermRef.current
-    if (!term || !isReady) return
+  // WebGL 在 init effect 的 term.open 之前挂载(见上),此处不再懒加载/Dispose。
+  // 曾用 isActive 懒加载省显存(ef0027f),但 canvas→WebGL 切换会首帧乱码,故回退为常驻。
 
-    if (isActive && !webglAddonRef.current) {
-      try {
-        const webglAddon = new WebglAddon()
-        webglAddon.onContextLoss(() => {
-          webglAddon.dispose()
-          webglAddonRef.current = null
-          term.refresh(0, term.rows - 1)
-        })
-        term.loadAddon(webglAddon)
-        webglAddonRef.current = webglAddon
-        // WebGL renderer needs a fresh fit after canvas is created
-        try { fitAddonRef.current?.fit() } catch {}
-      } catch {}
-    } else if (!isActive && webglAddonRef.current) {
-      try {
-        webglAddonRef.current.dispose()
-      } catch {}
-      webglAddonRef.current = null
-    }
-
-    return () => {
-      if (webglAddonRef.current) {
-        try { webglAddonRef.current.dispose() } catch {}
-        webglAddonRef.current = null
-      }
-    }
-  }, [isActive, isReady])
 
 
   // Update font size dynamically without recreating terminal
