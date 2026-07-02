@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { Copy, Check, Pencil, X, GripVertical, Plus, ListOrdered } from 'lucide-react'
+import { Copy, Check, Pencil, X, GripVertical, Plus, ListOrdered, Send } from 'lucide-react'
 
 interface DraftItem {
   id: string
@@ -13,6 +13,7 @@ interface DraftPrefill {
 }
 
 const OPEN_CMD_MODAL_EVENT = 'vibe-ide-open-custom-command-modal'
+export const EXECUTE_COMMAND_EVENT = 'vibe-ide-execute-command'
 
 function autoGrow(el: HTMLTextAreaElement | null) {
   if (!el) return
@@ -27,11 +28,13 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   const [editText, setEditText] = useState('')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [copiedAll, setCopiedAll] = useState(false)
 
   const dragFromRef = useRef<number | null>(null)
   const addInputRef = useRef<HTMLTextAreaElement>(null)
   const editInputRef = useRef<HTMLTextAreaElement>(null)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const copiedAllTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { addInputRef.current?.focus() }, [])
 
@@ -76,11 +79,27 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
     copiedTimerRef.current = setTimeout(() => setCopiedId(null), 1200)
   }, [])
 
+  const handleCopyAll = useCallback(() => {
+    const md = items.map(it => `- ${it.text}`).join('\n')
+    if (!md.trim()) return
+    navigator.clipboard?.writeText(md).catch(() => {})
+    setCopiedAll(true)
+    if (copiedAllTimerRef.current) clearTimeout(copiedAllTimerRef.current)
+    copiedAllTimerRef.current = setTimeout(() => setCopiedAll(false), 1200)
+  }, [items])
+
   const handleConvert = useCallback(() => {
     const command = items.map(it => it.text).filter(t => t.trim()).join('\n')
     if (!command) return
     const prefill: DraftPrefill = { name: '草稿计划', command, type: 'pipe' }
     window.dispatchEvent(new CustomEvent(OPEN_CMD_MODAL_EVENT, { detail: prefill }))
+  }, [items])
+
+  const handleSendNext = useCallback(() => {
+    const first = items[0]
+    if (!first) return
+    window.dispatchEvent(new CustomEvent(EXECUTE_COMMAND_EVENT, { detail: first.text }))
+    setItems(prev => prev.slice(1))
   }, [items])
 
   const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
@@ -121,7 +140,10 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   }, [])
 
   useEffect(() => {
-    return () => { if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current) }
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current)
+      if (copiedAllTimerRef.current) clearTimeout(copiedAllTimerRef.current)
+    }
   }, [])
 
   const onAddKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -168,30 +190,6 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
             <div className="text-ide-accent font-bold tabular-nums">{items.length}</div>
           </div>
         </div>
-      </div>
-
-      <div className="shrink-0 px-2 py-2 border-b border-ide-border draft-plan__add">
-        <div className="flex items-start gap-2 bg-ide-bg border border-ide-border rounded-md pl-2 pr-1 py-1 focus-within:border-ide-accent/60 transition-colors">
-          <span className="shrink-0 mt-1 text-sm text-ide-accent/70 leading-none select-none draft-plan__add-sigil">›</span>
-          <textarea
-            ref={addInputRef}
-            value={draft}
-            onChange={(e) => { setDraft(e.target.value); autoGrow(e.target) }}
-            onKeyDown={onAddKeyDown}
-            placeholder="写一条提示词…"
-            rows={1}
-            className="flex-1 min-h-[1.5rem] max-h-[10rem] bg-transparent py-1 text-sm text-ide-text placeholder:text-ide-text-muted/40 focus:outline-none resize-none whitespace-pre-wrap break-words draft-plan__add-input"
-          />
-          <button
-            onClick={handleAdd}
-            disabled={!draft.trim()}
-            className="shrink-0 self-start mt-0.5 h-7 px-2 inline-flex items-center gap-1 rounded bg-ide-accent/15 hover:bg-ide-accent/25 text-ide-accent text-[11px] transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__add-btn"
-          >
-            <Plus size={12} />
-            添加
-          </button>
-        </div>
-        <div className="mt-1 px-1 text-[10px] text-ide-text-muted/40">Ctrl+Enter 添加 · 双击编辑 · 拖拽排序</div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1 draft-plan__list">
@@ -272,20 +270,59 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
         )}
       </div>
 
-      <div className="shrink-0 px-2 py-2 border-t border-ide-border draft-plan__footer">
-        <div className="mb-1 px-1 text-[10px] text-ide-text-muted/40 flex items-center justify-between draft-plan__footer-hint">
-          <span>{items.length > 0 ? `${items.length} 条提示词` : '空'}</span>
-          <span>→ 管道命令</span>
+      <div className="shrink-0 px-2 py-1.5 border-t border-ide-border draft-plan__add">
+        <div className="flex items-start gap-2 bg-ide-bg border border-ide-border rounded-md pl-2 pr-1 py-1 focus-within:border-ide-accent/60 transition-colors">
+          <textarea
+            ref={addInputRef}
+            value={draft}
+            onChange={(e) => { setDraft(e.target.value); autoGrow(e.target) }}
+            onKeyDown={onAddKeyDown}
+            placeholder={"写一条提示词…\nCtrl+Enter 添加 · 双击编辑 · 拖拽排序"}
+            rows={3}
+            className="flex-1 min-h-[4.5rem] max-h-[10rem] bg-transparent py-1 text-sm text-ide-text placeholder:text-ide-text-muted/40 focus:outline-none resize-none whitespace-pre-wrap break-words draft-plan__add-input"
+          />
+          <div className="flex flex-col gap-1 shrink-0 self-start mt-0.5">
+            <button
+              onClick={handleAdd}
+              disabled={!draft.trim()}
+              title="添加 (Ctrl+Enter)"
+              className="w-7 h-7 inline-flex items-center justify-center rounded bg-ide-accent/15 hover:bg-ide-accent/25 text-ide-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__add-btn"
+            >
+              <Plus size={14} />
+            </button>
+            <button
+              onClick={handleCopyAll}
+              disabled={items.length === 0}
+              title="复制全部为 Markdown 列表"
+              className="w-7 h-7 inline-flex items-center justify-center rounded bg-ide-accent/15 hover:bg-ide-accent/25 text-ide-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__copy-all-btn"
+            >
+              {copiedAll ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleConvert}
-          disabled={items.length === 0}
-          className="w-full h-9 inline-flex items-center justify-center gap-1.5 rounded-md border border-ide-accent/40 bg-ide-accent/10 hover:bg-ide-accent/20 text-ide-accent text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__convert-btn"
-          title="把列表拼成多行管道命令，存为 CustomCommand (pipe)"
-        >
-          <ListOrdered size={14} />
-          转为管道命令
-        </button>
+      </div>
+
+      <div className="shrink-0 px-2 py-1.5 border-t border-ide-border draft-plan__footer">
+        <div className="flex gap-2">
+          <button
+            onClick={handleConvert}
+            disabled={items.length === 0}
+            className="flex-1 h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-ide-accent/40 bg-ide-accent/10 hover:bg-ide-accent/20 text-ide-accent text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__convert-btn"
+            title="把列表拼成多行管道命令，存为 CustomCommand (pipe)"
+          >
+            <ListOrdered size={14} />
+            转为管道命令
+          </button>
+          <button
+            onClick={handleSendNext}
+            disabled={items.length === 0}
+            className="flex-1 h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-ide-accent/40 bg-ide-accent/10 hover:bg-ide-accent/20 text-ide-accent text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__send-next-btn"
+            title="发送最上面一条到终端并聚焦，然后从列表清除"
+          >
+            <Send size={14} />
+            逐条发送
+          </button>
+        </div>
       </div>
     </div>
   )

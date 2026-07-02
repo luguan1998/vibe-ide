@@ -12,6 +12,7 @@ import CallGraphOverlay from './components/CallGraphOverlay'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
+import { EXECUTE_COMMAND_EVENT } from './components/GameDraftPlan'
 import { TerminalSession, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
 import { useI18n } from './i18n'
@@ -1366,6 +1367,17 @@ export default function App() {
       setTimeout(() => terminalRefs.current[activeSessionId]?.focus(), 0)
     }
   }, [activeSessionId, sessionViewModes])
+
+  const handleExecuteCommandRef = useRef(handleExecuteCommand)
+  handleExecuteCommandRef.current = handleExecuteCommand
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const command = (e as CustomEvent).detail
+      if (typeof command === 'string') handleExecuteCommandRef.current(command)
+    }
+    window.addEventListener(EXECUTE_COMMAND_EVENT, handler)
+    return () => window.removeEventListener(EXECUTE_COMMAND_EVENT, handler)
+  }, [])
 
   // Clone with init: clone specific session and write command into the new clone
   const handleCloneWithInit = useCallback(async (sessionId: string, cwd: string, shell: string | undefined, command: string) => {
