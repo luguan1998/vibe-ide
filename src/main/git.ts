@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import simpleGit, { SimpleGit } from 'simple-git'
-import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, GitShowResult, GitCommitFile, GitLineLogEntry } from '../shared/types'
+import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, AmendOptions, GitShowResult, GitCommitFile, GitLineLogEntry } from '../shared/types'
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
@@ -353,6 +353,22 @@ export function registerGitHandlers(): void {
         await git.add(options.files)
       }
       await git.commit(options.message)
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Git amend — 有 message 用 -m 改写信息，无 message 用 --no-edit 保留原信息
+  ipcMain.handle(IPC_CHANNELS.GIT_AMEND, async (_event, options: AmendOptions) => {
+    try {
+      const git = getGit()
+      const msg = options?.message?.trim()
+      if (msg) {
+        await git.raw(['commit', '--amend', '-m', msg])
+      } else {
+        await git.raw(['commit', '--amend', '--no-edit'])
+      }
       return { success: true }
     } catch (err: any) {
       return { error: err.message }

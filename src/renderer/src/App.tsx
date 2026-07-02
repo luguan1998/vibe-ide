@@ -45,6 +45,7 @@ declare global {
         add: (files: string | string[]) => Promise<any>
         reset: (files: string | string[]) => Promise<any>
         commit: (options: any) => Promise<any>
+        amend: (options: any) => Promise<any>
         branches: () => Promise<any>
         checkout: (branch: string) => Promise<any>
         applyBranch: (branch: string) => Promise<any>

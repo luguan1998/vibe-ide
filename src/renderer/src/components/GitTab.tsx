@@ -460,6 +460,18 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     } finally { setBusy(false) }
   }, [commitMessage, refreshStatus, refreshLog])
 
+  // Amend — 有暂存或新信息时执行：有新信息用 -m 改写，否则 --no-edit 保留原信息
+  const handleAmend = useCallback(async () => {
+    setBusy(true)
+    try {
+      const msg = commitMessage.trim()
+      await window.api.git.amend(msg ? { message: msg } : {})
+      setCommitMessage('')
+      await refreshStatus()
+      await refreshLog()
+    } finally { setBusy(false) }
+  }, [commitMessage, refreshStatus, refreshLog])
+
   // Checkout branch
   const handleCheckout = useCallback(async (branch: string) => {
     setBusy(true)
@@ -768,6 +780,22 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
   // Detect conflict markers in staged files
   const hasConflictInStaged = status?.files?.some(f => f.staged && f.status === 'conflicted') ?? false
+
+  // Amend 四场景：暂存区有无 × 提交信息有无
+  const stagedFileCount = status?.files?.filter(f => f.staged).length ?? 0
+  const hasStaged = stagedFileCount > 0
+  const hasMessage = !!commitMessage.trim()
+  const hasCommits = logs.length > 0
+  const amendDisabled = busy || !hasCommits || hasConflictInStaged || (!hasStaged && !hasMessage)
+  const amendTooltip = !hasCommits
+    ? t('Nothing to amend (no commits yet)')
+    : (!hasStaged && !hasMessage)
+    ? t('Nothing to amend (no staged changes and no new message)')
+    : hasStaged && hasMessage
+    ? t('Amend: fold {count} staged file(s) into last commit and rewrite message').replace('{count}', String(stagedFileCount))
+    : hasStaged
+    ? t('Amend: fold {count} staged file(s) into last commit, keep original message').replace('{count}', String(stagedFileCount))
+    : t('Amend: rewrite last commit message only')
 
   return (
     <>
@@ -1383,6 +1411,14 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Pop Stash{stashCount > 0 ? ` (${stashCount})` : ''}
+            </button>
+            <button
+              onClick={handleAmend}
+              disabled={amendDisabled}
+              title={amendTooltip}
+              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Amend
             </button>
           </div>
           {status.clean && status.ahead > 0 ? (

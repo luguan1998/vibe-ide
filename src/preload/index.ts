@@ -47,6 +47,7 @@ const api = {
     add: (files: string | string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_ADD, files),
     reset: (files: string | string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_RESET, files),
     commit: (options: any) => ipcRenderer.invoke(IPC_CHANNELS.GIT_COMMIT, options),
+    amend: (options: any) => ipcRenderer.invoke(IPC_CHANNELS.GIT_AMEND, options),
     branches: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_BRANCHES),
     checkout: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_CHECKOUT, branch),
     applyBranch: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_APPLY_BRANCH, branch),

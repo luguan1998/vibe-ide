@@ -18,6 +18,7 @@ export const IPC_CHANNELS = {
   GIT_LOG: 'git:log',
   GIT_DIFF: 'git:diff',
   GIT_COMMIT: 'git:commit',
+  GIT_AMEND: 'git:amend',
   GIT_ADD: 'git:add',
   GIT_RESET: 'git:reset',
   GIT_CHECKOUT: 'git:checkout',
@@ -238,6 +239,10 @@ export interface GitStatusResult {
 export interface CommitOptions {
   message: string
   files?: string[]
+}
+
+export interface AmendOptions {
+  message?: string
 }
 
 export interface GitLineLogEntry {

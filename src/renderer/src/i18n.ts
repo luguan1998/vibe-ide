@@ -189,6 +189,11 @@ const ZH_MAP: Record<string, string> = {
   // GitTab - Commit area
   'Commit message...': '输入提交信息...',
   'Commit (Ctrl+Enter)': '提交 (Ctrl+Enter)',
+  'Amend: fold {count} staged file(s) into last commit and rewrite message': 'Amend：将 {count} 个暂存文件并入上次提交并改写提交信息',
+  'Amend: fold {count} staged file(s) into last commit, keep original message': 'Amend：将 {count} 个暂存文件并入上次提交，保留原提交信息',
+  'Amend: rewrite last commit message only': 'Amend：仅改写上次提交的提交信息',
+  'Nothing to amend (no staged changes and no new message)': '无可 amend（无暂存改动且无新提交信息）',
+  'Nothing to amend (no commits yet)': '无可 amend（暂无提交）',
   'Files ({count})': '文件 ({count})',
   'Diffs skipped': '文件过多，已跳过内容展示',
   'Diff not loaded (commit too large)': '文件数目过多，跳过具体内容展示',
