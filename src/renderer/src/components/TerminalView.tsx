@@ -449,8 +449,12 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       xtermRef.current.dispose()
     }
 
+    const termBgOverride = terminalRef.current
+      ? getComputedStyle(terminalRef.current).getPropertyValue('--term-bg').trim()
+      : ''
+    const termBackground = termBgOverride ? `rgb(${termBgOverride})` : currentTheme.terminal.background
     const term = new Terminal({
-      theme: bgImage ? { ...currentTheme.terminal, background: 'transparent' } : currentTheme.terminal,
+      theme: bgImage ? { ...currentTheme.terminal, background: 'transparent' } : { ...currentTheme.terminal, background: termBackground },
       fontFamily: `${fontFamily}, Consolas, JetBrains Mono, Fira Code, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace`,
       fontSize,
       fontWeight: currentTheme.terminal.fontWeight || '400',
@@ -801,16 +805,20 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   // Update terminal theme when it changes
   useEffect(() => {
     if (xtermRef.current) {
+      const termBgOverride = terminalRef.current
+        ? getComputedStyle(terminalRef.current).getPropertyValue('--term-bg').trim()
+        : ''
+      const termBackground = termBgOverride ? `rgb(${termBgOverride})` : currentTheme.terminal.background
       xtermRef.current.options.theme = bgImage
         ? { ...currentTheme.terminal, background: 'transparent' }
-        : currentTheme.terminal
+        : { ...currentTheme.terminal, background: termBackground }
       xtermRef.current.options.allowTransparency = bgImage ? true : (currentTheme.terminal.allowTransparency ?? true)
       xtermRef.current.options.fontWeight = currentTheme.terminal.fontWeight || '400'
       if (!bgImage) {
         const el = terminalRef.current?.querySelector('.xterm') as HTMLElement | null
-        if (el) el.style.backgroundColor = currentTheme.terminal.background
+        if (el) el.style.backgroundColor = termBackground
         const vp = terminalRef.current?.querySelector('.xterm-viewport') as HTMLElement | null
-        if (vp) vp.style.backgroundColor = currentTheme.terminal.background
+        if (vp) vp.style.backgroundColor = termBackground
       }
     }
   }, [currentTheme])

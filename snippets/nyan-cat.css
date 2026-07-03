@@ -1,0 +1,550 @@
+/*
+  Nyan Cat — 彩虹猫深空主题
+  参考 CSS Nyan Cat by Michal Budzynski (2011)
+  设计语言：深蓝星空 · 粉色糖霜猫 · 彩虹拖尾 · 闪烁星群
+*/
+
+/* ════════════════════════════════════════════════════
+   主题色 — 深空蓝 + 粉色糖霜
+   ════════════════════════════════════════════════════ */
+:root {
+  --ide-bg: 15 25 50 !important;
+  --ide-sidebar: 20 32 60 !important;
+  --ide-panel: 24 38 66 !important;
+  --ide-border: 40 58 90 !important;
+  --ide-text: 220 220 230 !important;
+  --ide-text-muted: 140 150 175 !important;
+  --ide-accent: 242 140 245 !important;
+  --ide-accent-hover: 252 180 255 !important;
+  --ide-success: 86 252 1 !important;
+  --ide-danger: 217 26 18 !important;
+  --ide-warning: 242 171 3 !important;
+  --ide-hover: 32 46 78 !important;
+  --ide-active: 38 55 92 !important;
+  --scrollbar-thumb: 40 58 90 !important;
+  --scrollbar-thumb-hover: 242 140 245 !important;
+  --selection-bg: 242 140 245 !important;
+  --selection-opacity: 0.3 !important;
+  --monaco-margin-bg: 20 32 60 !important;
+}
+
+/* ════════════════════════════════════════════════════
+   标题栏 — 深蓝渐变 + 粉色发光线
+   ════════════════════════════════════════════════════ */
+.titlebar-drag[class*="h-9"] {
+  border-bottom: 1px solid rgb(242 140 245 / 0.25) !important;
+  background: linear-gradient(180deg, rgb(10 16 38), rgb(20 32 60)) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   终端 — 静态星空背景 + xterm 透明穿透
+   ════════════════════════════════════════════════════ */
+.term-view__canvas {
+  border: 1px solid rgb(40 58 90) !important;
+  background-size: cover, cover !important;
+  background-position: center, center !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/*
+  星群 — 静态 linear-gradient 方块
+  技法：linear-gradient 画白色方块，background-size/position 控制每颗星的大小和位置
+  双层（::before 亮星 + ::after 暗星）叠加出景深
+*/
+.term-view__canvas::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.9) 0%, rgb(255 255 255 / 0.9) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.8) 0%, rgb(255 255 255 / 0.8) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.75) 0%, rgb(255 255 255 / 0.75) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.85) 0%, rgb(255 255 255 / 0.85) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.7) 0%, rgb(255 255 255 / 0.7) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.8) 0%, rgb(255 255 255 / 0.8) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.65) 0%, rgb(255 255 255 / 0.65) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.75) 0%, rgb(255 255 255 / 0.75) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.85) 0%, rgb(255 255 255 / 0.85) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.7) 0%, rgb(255 255 255 / 0.7) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.8) 0%, rgb(255 255 255 / 0.8) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.75) 0%, rgb(255 255 255 / 0.75) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.65) 0%, rgb(255 255 255 / 0.65) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.8) 0%, rgb(255 255 255 / 0.8) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.7) 0%, rgb(255 255 255 / 0.7) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.75) 0%, rgb(255 255 255 / 0.75) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.8) 0%, rgb(255 255 255 / 0.8) 100%) !important;
+  background-position:
+    5% 8%, 12% 22%, 18% 5%, 25% 30%, 32% 12%,
+    40% 25%, 48% 8%, 55% 18%, 62% 6%, 70% 28%,
+    78% 14%, 85% 22%, 92% 10%, 8% 45%, 35% 40%,
+    68% 42%, 90% 38% !important;
+  background-size:
+    2px 2px, 2px 2px, 3px 2px, 2px 2px, 2px 2px,
+    2px 2px, 2px 2px, 2px 2px, 2px 2px, 2px 3px,
+    1px 2px, 2px 2px, 2px 2px, 2px 2px, 2px 2px,
+    2px 2px, 3px 2px !important;
+  background-repeat: no-repeat !important;
+}
+
+.term-view__canvas::after {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 2 !important;
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.55) 0%, rgb(255 255 255 / 0.55) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.45) 0%, rgb(255 255 255 / 0.45) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0.5) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.4) 0%, rgb(255 255 255 / 0.4) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.55) 0%, rgb(255 255 255 / 0.55) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.45) 0%, rgb(255 255 255 / 0.45) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0.5) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.4) 0%, rgb(255 255 255 / 0.4) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.55) 0%, rgb(255 255 255 / 0.55) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0.5) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.4) 0%, rgb(255 255 255 / 0.4) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.45) 0%, rgb(255 255 255 / 0.45) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0.5) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.4) 0%, rgb(255 255 255 / 0.4) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.55) 0%, rgb(255 255 255 / 0.55) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.45) 0%, rgb(255 255 255 / 0.45) 100%),
+    linear-gradient(to right, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0.5) 100%) !important;
+  background-position:
+    3% 15%, 10% 35%, 15% 55%, 22% 18%, 28% 48%,
+    35% 65%, 42% 15%, 50% 38%, 58% 58%, 65% 20%,
+    72% 50%, 80% 32%, 88% 60%, 95% 25%, 7% 72%,
+    45% 75%, 75% 70% !important;
+  background-size:
+    2px 2px, 1px 2px, 2px 2px, 1px 3px, 2px 2px,
+    1px 1px, 2px 2px, 1px 2px, 1px 2px, 2px 2px,
+    2px 2px, 1px 2px, 1px 1px, 2px 1px, 1px 2px,
+    2px 2px, 1px 2px !important;
+  background-repeat: no-repeat !important;
+}
+
+/* xterm 透明穿透 */
+.xterm .xterm-viewport,
+.xterm .xterm-screen,
+.xterm .xterm-screen canvas {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.term-view__header {
+  border-bottom: 1px solid rgb(40 58 90) !important;
+  background: linear-gradient(90deg, rgb(20 32 60), rgb(26 40 72), rgb(20 32 60)) !important;
+}
+
+.term-view__search {
+  border: 1px solid rgb(40 58 90) !important;
+  background: rgb(15 25 50) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   会话面板
+   ════════════════════════════════════════════════════ */
+.session-panel__list-wrapper {
+  border: none !important;
+  background: transparent !important;
+  position: relative !important;
+}
+
+.session-panel__stat {
+  border: 1px solid rgb(40 58 90) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 11px !important;
+  box-shadow: 0 0 6px rgb(242 140 245 / 0.08) !important;
+}
+
+.session-panel__config-btn,
+.session-panel__new-btn {
+  border: 1px solid rgb(40 58 90) !important;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s !important;
+}
+
+.session-panel__config-btn:hover,
+.session-panel__new-btn:hover {
+  border-color: rgb(242 140 245 / 0.4) !important;
+}
+
+.session-panel__config-btn svg { display: none !important; }
+.session-panel__config-btn::after {
+  content: '🎀' !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+}
+
+.session-panel__new-btn svg { display: none !important; }
+.session-panel__new-btn::after {
+  content: '✨' !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+}
+
+.session-panel__new-btn:not(:disabled) {
+  background: transparent !important;
+  color: rgb(140 150 175) !important;
+  border-color: rgb(40 58 90) !important;
+  font-weight: 400 !important;
+}
+
+.session-panel__new-btn:not(:disabled):hover {
+  background: rgb(242 140 245) !important;
+  color: rgb(15 25 50) !important;
+  border-color: rgb(242 140 245) !important;
+  font-weight: 700 !important;
+}
+
+.session-panel__config-menu {
+  border: 1px solid rgb(40 58 90) !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6) !important;
+}
+
+.session-panel__config-menu button {
+  border-bottom: 1px solid rgb(30 44 72) !important;
+  font-size: 11px !important;
+}
+
+/* 统计图标替换 */
+.session-panel__stat:first-child svg {
+  display: none !important;
+}
+.session-panel__stat:first-child::before {
+  content: '🌈' !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+}
+.session-panel__stat:last-child svg {
+  display: none !important;
+}
+.session-panel__stat:last-child::before {
+  content: '⭐' !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+
+/* ════════════════════════════════════════════════════
+   Session 项
+   ════════════════════════════════════════════════════ */
+.session-item {
+  position: relative !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: 1px solid rgb(30 44 72) !important;
+  border-radius: 0 !important;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s !important;
+  clip-path: none !important;
+}
+
+.session-item:hover {
+  background: rgb(32 46 78) !important;
+}
+
+.session-item--active {
+  font-weight: 700 !important;
+  background: rgb(38 55 92) !important;
+  border-left: 3px solid rgb(242 140 245) !important;
+  box-shadow: 0 0 18px rgb(242 140 245 / 0.06) !important;
+}
+
+.session-item--active .session-item__name {
+  color: rgb(252 180 255) !important;
+  text-shadow: 0 0 8px rgba(242,140,245,0.3) !important;
+}
+
+/* 非活跃运行中 session — 右侧 Nyan Cat */
+.session-item:not(.session-item--active).border-ide-accent\/60 {
+  background: rgb(22 36 62) url('nyan.gif') right 6px center / auto 24px no-repeat !important;
+}
+
+.session-item:not(.session-item--active).border-ide-accent\/60:hover {
+  background: rgb(32 46 78) url('nyan.gif') right 6px center / auto 24px no-repeat !important;
+}
+
+/* ════════════════════════════════════
+   Nyan Cat — 活跃+运行中 session 右侧
+   ════════════════════════════════════ */
+.session-item--active:has(.animate-text-wave)::before {
+  content: '' !important;
+  position: absolute !important;
+  right: 6px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 110px !important;
+  height: 24px !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+  background-image: url('nyan.gif') !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: right center !important;
+}
+
+/* ════════════════════════════════════════════════════
+   会话分组
+   ════════════════════════════════════════════════════ */
+.session-group {
+  border: 1px solid rgb(40 58 90) !important;
+  margin-top: 6px !important;
+  background: transparent !important;
+}
+
+.session-group__header {
+  border-bottom: 1px solid rgb(40 58 90) !important;
+  background: rgb(22 36 62) !important;
+}
+
+.session-group__path {
+  color: rgb(170 180 210) !important;
+  font-weight: 600 !important;
+}
+
+.session-panel__flat-list {
+  border: 1px solid rgb(40 58 90) !important;
+  background: transparent !important;
+}
+
+/* ════════════════════════════════════════════════════
+   右侧面板
+   ════════════════════════════════════════════════════ */
+.right-panel__content {
+  border: 1px solid rgb(40 58 90) !important;
+}
+
+.right-panel__tab-bar {
+  border-bottom: 1px solid rgb(40 58 90) !important;
+}
+
+.right-panel__tab {
+  border: 1px solid rgb(40 58 90) !important;
+  font-size: 11px !important;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s !important;
+}
+
+.right-panel__tab--active {
+  font-weight: 700 !important;
+  background: rgb(38 55 92) !important;
+  border-color: rgb(242 140 245 / 0.5) !important;
+  color: rgb(252 180 255) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   文件树
+   ════════════════════════════════════════════════════ */
+.file-tab__header {
+  border-bottom: 1px solid rgb(40 58 90) !important;
+  background: linear-gradient(90deg, rgb(20 32 60), rgb(26 40 72), rgb(20 32 60)) !important;
+}
+
+.file-tree-item { font-size: 12px !important; }
+
+.file-tree-item--active {
+  border-left: 3px solid rgb(242 140 245) !important;
+  background: rgb(38 55 92) !important;
+}
+
+.file-tree-item--active .file-tree-item__name {
+  color: rgb(252 180 255) !important;
+  font-weight: 700 !important;
+}
+
+.file-tree-item--folder > .file-tree-item__name {
+  color: rgb(130 165 200) !important;
+  font-weight: 700 !important;
+}
+
+.file-tree-item--file > .file-tree-item__name {
+  color: rgb(200 195 175) !important;
+}
+
+.file-tab__section { border-top: 2px solid rgb(35 48 78) !important; }
+
+.file-tab__section-header {
+  border-bottom: 1px solid rgb(40 58 90) !important;
+  background: rgb(22 36 62) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 11px !important;
+  color: rgb(120 130 165) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   Git 面板
+   ════════════════════════════════════════════════════ */
+.git-tab__header {
+  border-bottom: 1px solid rgb(40 58 90) !important;
+  background: linear-gradient(90deg, rgb(20 32 60), rgb(26 40 72), rgb(20 32 60)) !important;
+}
+
+.git-tab__branch-name {
+  color: rgb(242 140 245) !important;
+  font-weight: 700 !important;
+}
+
+.git-tab__section:nth-child(1) { border-left: 3px solid rgb(86 252 1) !important; }
+.git-tab__section:nth-child(2) { border-left: 3px solid rgb(242 140 245) !important; }
+.git-tab__section:nth-child(3) { border-left: 3px solid rgb(242 171 3) !important; }
+
+.git-tab__section { border-bottom: 2px solid rgb(30 44 72) !important; }
+
+.git-tab__section-header {
+  border-bottom: 1px solid rgb(40 58 90) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 11px !important;
+}
+
+.git-tab__file-item {
+  border-bottom: 1px solid rgb(28 40 64) !important;
+  font-size: 11px !important;
+  transition: background 0.15s !important;
+}
+
+.git-tab__file-item:hover { background: rgb(32 46 78) !important; }
+
+.git-tab__commit-area {
+  border-top: 2px solid rgb(40 58 90) !important;
+  background: rgb(22 36 62) !important;
+}
+
+.git-tab__commit-input {
+  border: 1px solid rgb(40 58 90) !important;
+  background: rgb(12 18 38) !important;
+  color: rgb(220 220 230) !important;
+}
+
+.git-tab__commit-input:focus {
+  border-color: rgb(242 140 245) !important;
+  box-shadow: 0 0 8px rgba(242,140,245,0.2) !important;
+}
+
+.git-tab__commit-btn {
+  border: 1px solid rgb(242 140 245) !important;
+  background: rgb(242 140 245) !important;
+  color: rgb(15 25 50) !important;
+  font-weight: 700 !important;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s !important;
+}
+
+.git-tab__commit-btn:hover {
+  background: rgb(252 180 255) !important;
+  box-shadow: 0 0 12px rgba(242,140,245,0.35) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   滚动条
+   ════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 10px !important; height: 10px !important; }
+::-webkit-scrollbar-track { background: rgb(15 25 50) !important; }
+::-webkit-scrollbar-thumb { background: rgb(40 58 90) !important; }
+::-webkit-scrollbar-thumb:hover { background: rgb(242 140 245 / 0.5) !important; }
+::-webkit-scrollbar-corner { background: rgb(15 25 50) !important; }
+
+/* ════════════════════════════════════════════════════
+   模态框 & 表单
+   ════════════════════════════════════════════════════ */
+.fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
+  border: 1px solid rgb(40 58 90) !important;
+  box-shadow: 0 0 30px rgba(10,16,38,0.7) !important;
+}
+
+.fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
+  border: 1px solid rgb(40 58 90) !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
+}
+
+input, select, textarea {
+  border: 1px solid rgb(40 58 90) !important;
+  background: rgb(12 18 38) !important;
+  color: rgb(220 220 230) !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: rgb(242 140 245) !important;
+  box-shadow: 0 0 8px rgba(242,140,245,0.15) !important;
+  outline: none !important;
+}
+
+input[type="checkbox"] { accent-color: rgb(242 140 245) !important; }
+
+/* Monaco 内部表单不污染 */
+
+
+.text-ide-success { color: rgb(86 252 1) !important; }
+.text-ide-danger { color: rgb(217 26 18) !important; }
+.text-ide-warning { color: rgb(242 171 3) !important; }
+
+/* ════════════════════════════════════════════════════
+   Markdown 渲染 — 星空彩虹调色
+   ════════════════════════════════════════════════════ */
+.md-preview h1 {
+  background: linear-gradient(90deg, rgb(242 140 245), rgb(130 200 255), rgb(242 140 245)) !important;
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  border-bottom: 2px solid rgb(242 140 245 / 0.4) !important;
+}
+.md-preview h2 {
+  color: rgb(130 200 255) !important;
+  border-bottom: 1px solid rgb(130 200 255 / 0.3) !important;
+}
+.md-preview h3 { color: rgb(200 180 255) !important; }
+.md-preview h4 { color: rgb(255 200 130) !important; }
+.md-preview h5 { color: rgb(160 210 180) !important; }
+.md-preview h6 { color: rgb(255 150 150) !important; }
+
+.md-preview strong { color: rgb(255 180 100) !important; }
+.md-preview em { color: rgb(150 230 180) !important; }
+.md-preview del { color: rgb(255 100 120) !important; text-decoration-color: rgb(255 100 120 / 0.6) !important; }
+
+.md-preview a { color: rgb(130 200 255) !important; }
+.md-preview a:hover { color: rgb(252 180 255) !important; text-shadow: 0 0 6px rgb(242 140 245 / 0.4) !important; }
+
+.md-preview blockquote {
+  border-left: 3px solid rgb(242 140 245 / 0.6) !important;
+  background: rgb(242 140 245 / 0.06) !important;
+  color: rgb(200 180 220) !important;
+}
+.md-preview blockquote strong { color: rgb(255 200 255) !important; }
+
+.md-preview li::marker { color: rgb(242 140 245) !important; }
+
+.md-preview th { color: rgb(200 180 255) !important; }
+.md-preview thead { background: rgb(30 20 55) !important; }
+.md-preview tbody tr:hover { background: rgb(242 140 245 / 0.06) !important; }
+
+.md-preview hr {
+  border-top: 1px solid rgb(242 140 245 / 0.4) !important;
+  box-shadow: 0 0 6px rgb(242 140 245 / 0.15) !important;
+}
+
+.md-frontmatter {
+  border: 1px solid rgb(80 60 120 / 0.5) !important;
+  background: rgb(20 15 35 / 0.6) !important;
+}
+.md-frontmatter .md-fm-key { color: rgb(200 160 240) !important; }
+.md-frontmatter .md-fm-val { color: rgb(180 210 230) !important; }
+
+.md-search-match {
+  background: rgb(255 200 100 / 0.35) !important;
+  border-radius: 2px !important;
+}
+.md-search-match-current {
+  background: rgb(242 140 245 / 0.5) !important;
+  border-radius: 2px !important;
+}
+
+/* ════════════════════════════════════════════════════
+   AiTab — 星空背景
+   ════════════════════════════════════════════════════ */
+.ai-tab {
+  position: relative !important;
+  background-image: linear-gradient(var(--terminal-bg-overlay), var(--terminal-bg-overlay)), var(--terminal-bg-image) !important;
+  background-size: cover, cover !important;
+  background-position: center, center !important;
+}

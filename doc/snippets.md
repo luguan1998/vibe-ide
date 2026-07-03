@@ -211,12 +211,33 @@ background: rgb(199 50 43 / 0.3);             /* 直接写色值 + 透明度 */
 
 | 文件 | 风格 |
 |------|------|
+| `nyan-cat.css` | 彩虹猫深空主题 — 深蓝星空底 + 粉色糖霜 Pop-Tart 猫 + 彩虹拖尾。活跃 session 右侧跑 Nyan Cat GIF，终端 canvas 嵌 CSS 手绘星群（`linear-gradient` 方块技法，非 `radial-gradient` 圆点），标题栏粉色发光线，emoji 替换统计图标（🌈⭐🎀✨） |
 | `retro-chinese.css` | 80s 国风暗色，大闹天宫四色（朱红/翠绿/赤金/玄青），适配 `retro-chinese` 主题 |
 | `monkey-king-bicolor.css` | 国风浅色双色（石绿侧栏 + 琥珀黄中栏 + 朱红选中），适配 `monkey-king` 主题 |
 | `win98-classic.css` | Windows 98 复古灰蓝，凸起/凹陷 3D 边框 |
 | `retroma.css` / `retroma-cyan.css` / `retroma-chromatic.css` | retro 调色变体（基础 / 青色 / 多彩） |
 
 > 各文件的配色意图和设计说明写在文件头部注释里，打开即可看。
+
+### nyan-cat 亮点
+
+nyan-cat 不是普通换色皮肤，它用了几项不太常见的 CSS 技法：
+
+- **星群用 `linear-gradient` 画方块**，不是 `radial-gradient` 圆点。每颗星是一个独立的 `background-image` 层，`background-size` / `background-position` 各控大小和位置，双层（`::before` 亮星 + `::after` 暗星）叠加出景深
+- **活跃 session 右侧跑 Nyan Cat GIF** —— `:has(.animate-text-wave)::before` 锁定 AI 正在输出的 session，`background-image: url('nyan.gif')`
+- **非活跃运行中 session 右侧静态 Nyan Cat** —— `.session-item:not(.session-item--active).border-ide-accent\/60` 选到 pipe 运行中但不在当前焦点的 session
+- **emoji 替换 SVG 图标** —— `::after { content: '🎀' }` 盖掉设置/新建按钮的 SVG，统计栏同理（🌈⭐）
+- **标题栏粉色发光线** —— `border-bottom: 1px solid rgb(242 140 245 / 0.25)` 加半透明粉边，`box-shadow: 0 0 18px` 做柔光
+
+### opencode-term
+
+纯黑终端背景 snippet，只用一行 CSS 变量桥接：
+
+```css
+.term-view__canvas { --term-bg: 10 10 10; }
+```
+
+`--term-bg` 是 TerminalView 读取的 CSS 变量，有值时直接覆盖 xterm.js 的 `theme.background`，传给 WebGL 渲染器。比 `:root { --ide-bg: ... }` 精准——只改终端 canvas，不影响侧栏/面板背景。
 
 
 ## opencode 透明背景图片设置
