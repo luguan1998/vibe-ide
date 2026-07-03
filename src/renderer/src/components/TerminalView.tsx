@@ -465,11 +465,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       scrollback: isAux ? 500 : 10000,
       allowTransparency: bgImage ? true : (currentTheme.terminal.allowTransparency ?? true),
       allowProposedApi: true,
-      windowsMode: true,
       drawBoldTextInBrightColors: false,
       rescaleOverlappingGlyphs: true,
-      customGlyphs: true
-    })
+    } as any)
 
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)

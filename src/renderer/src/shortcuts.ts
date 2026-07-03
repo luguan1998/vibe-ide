@@ -170,6 +170,31 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     label: 'Panel Tab Left',
     defaultKeys: 'Ctrl+ArrowLeft',
   },
+  {
+    id: 'panel.tab1',
+    label: 'Panel Tab 1',
+    defaultKeys: 'Ctrl+Digit1',
+  },
+  {
+    id: 'panel.tab2',
+    label: 'Panel Tab 2',
+    defaultKeys: 'Ctrl+Digit2',
+  },
+  {
+    id: 'panel.tab3',
+    label: 'Panel Tab 3',
+    defaultKeys: 'Ctrl+Digit3',
+  },
+  {
+    id: 'panel.tab4',
+    label: 'Panel Tab 4',
+    defaultKeys: 'Ctrl+Digit4',
+  },
+  {
+    id: 'panel.tab5',
+    label: 'Panel Tab 5',
+    defaultKeys: 'Ctrl+Digit5',
+  },
 
   {
     id: 'terminal.newline',

@@ -486,6 +486,15 @@ function RightPanel({
           setActiveSection(visibleList[(idx - 1 + visibleList.length) % visibleList.length])
         }
       }
+      for (let i = 1; i <= 5; i++) {
+        if (eventMatchesBinding(e, bindings[`panel.tab${i}`])) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          if (visibleList[i - 1]) {
+            setActiveSection(visibleList[i - 1])
+          }
+        }
+      }
     }
     window.addEventListener('keydown', handleKey, true)
     return () => window.removeEventListener('keydown', handleKey, true)
