@@ -79,6 +79,7 @@ interface DiffViewerProps {
   onSaved?: (path: string) => Promise<void>
   defaultEdit?: boolean
   inlineDiff?: boolean      // 强制内联 diff 模式
+  diffSplitRatio?: number   // 左右分栏占比（0.1~0.9，分隔线位置=左边占比）
   cursorRef?: React.MutableRefObject<{ fullPath: string; line: number; column: number } | null>
   visibleLineRef?: React.MutableRefObject<{ fullPath: string; line: number } | null>  // 视口中间可见行（居中还原用），供最近文件回写行号
   onContentLoaded?: (content: string) => void  // 回传文件内容给父组件（供 OutlinePanel 使用）
@@ -234,7 +235,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, cwd, altBrush }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, cwd, altBrush }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -689,6 +690,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
 
   const diffOptions = useMemo(() => ({
     renderSideBySide: !inlineDiff,
+    splitViewDefaultRatio: diffSplitRatio,
     readOnly: !!commitHash,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
@@ -702,7 +704,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     ignoreTrimWhitespace: false,
     diffAlgorithm: 'advanced' as const,
     scrollbar: { verticalScrollbarSize: 5, horizontalScrollbarSize: 16, useShadows: false }
-  }), [inlineDiff, commitHash, fontSize, wordWrap])
+  }), [inlineDiff, commitHash, fontSize, wordWrap, diffSplitRatio])
 
   const editOptions = useMemo(() => ({
     minimap: { enabled: false },

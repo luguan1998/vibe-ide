@@ -350,6 +350,11 @@ export default function App() {
   const [inlineDiff, setInlineDiff] = useState(() => {
     try { return localStorage.getItem('vibe-ide-inline-diff') === 'true' } catch { return false }
   })
+  const [diffSplitRatio, setDiffSplitRatio] = useState(() => {
+    const v = Number(localStorage.getItem('vibe-ide-diff-split-ratio'))
+    const r = Number.isFinite(v) && v > 0 ? v : 0.3
+    return Math.min(0.9, Math.max(0.1, Math.round(r * 10) / 10))
+  })
   const [capsuleTabs, setCapsuleTabs] = useState(() => {
     try { return localStorage.getItem('vibe-ide-capsule-tabs') !== 'false' } catch { return true }
   })
@@ -567,6 +572,9 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-inline-diff', String(inlineDiff)) } catch {}
   }, [inlineDiff])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-diff-split-ratio', String(diffSplitRatio)) } catch {}
+  }, [diffSplitRatio])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-capsule-tabs', String(capsuleTabs)) } catch {}
   }, [capsuleTabs])
@@ -1862,6 +1870,8 @@ export default function App() {
             onToggleOcrEnabled={setOcrEnabled}
             inlineDiff={inlineDiff}
             onToggleInlineDiff={setInlineDiff}
+            diffSplitRatio={diffSplitRatio}
+            onSetDiffSplitRatio={setDiffSplitRatio}
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={setCapsuleTabs}
             groupSessionsByCwd={groupSessionsByCwd}
@@ -1884,6 +1894,7 @@ export default function App() {
               setCapsuleTabs(true)
               setGroupSessionsByCwd(true)
               setInlineDiff(false)
+              setDiffSplitRatio(0.3)
               setSessionFontFamily('Consolas')
               setFontFamily('Cascadia Code')
               setTermFontFamily('Cascadia Code')
@@ -1957,6 +1968,7 @@ export default function App() {
                 fontSize={editorFontSize}
                 wordWrap={wordWrap}
                 inlineDiff={inlineDiff}
+                diffSplitRatio={diffSplitRatio}
                 scrollTrigger={diffScrollTrigger}
                 cursorRef={cursorRef}
                 visibleLineRef={visibleLineRef}

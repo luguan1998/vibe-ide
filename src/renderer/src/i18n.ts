@@ -151,6 +151,8 @@ const ZH_MAP: Record<string, string> = {
   'CSS Snippets': 'CSS 片段',
   'Terminal Font Size': '终端字体大小',
   'Editor Font Size': '编辑器字体大小',
+  'Diff Split Ratio': 'Diff 左右占比',
+  'Left/right ratio of the diff editor. Smaller = narrower left (original). Side-by-side only.': 'Diff 编辑器左右占比。越小则左侧（原文）越窄。仅并排模式生效。',
   'Recommended': '推荐',
   'Session Font': '会话字体',
   'UI Font': '界面字体',

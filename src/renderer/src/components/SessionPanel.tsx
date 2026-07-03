@@ -148,6 +148,8 @@ interface SessionPanelProps {
   onToggleCgEnabled?: (value: boolean) => void
   inlineDiff?: boolean
   onToggleInlineDiff?: (value: boolean) => void
+  diffSplitRatio?: number
+  onSetDiffSplitRatio?: (value: number) => void
   capsuleTabs?: boolean
   onToggleCapsuleTabs?: (value: boolean) => void
   ocrEnabled?: boolean
@@ -207,6 +209,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onToggleOcrEnabled,
   inlineDiff = false,
   onToggleInlineDiff,
+  diffSplitRatio = 0.3,
+  onSetDiffSplitRatio,
   capsuleTabs = true,
   onToggleCapsuleTabs,
   escAutoAt = false,
@@ -1658,6 +1662,27 @@ const SessionPanel = React.memo(function SessionPanel({
                       className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
                       disabled={editorFontSize >= 30}
                       onClick={(e) => { e.stopPropagation(); onAdjustEditorFontSize(1) }}
+                    >{'>'}</button>
+                  </div>
+                </div>
+              )}
+              {onSetDiffSplitRatio && (
+                <div className="flex items-center justify-between text-xs text-ide-text">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="whitespace-nowrap shrink-0">{t('Diff Split Ratio')}</span>
+                    <p className="text-[11px] text-ide-text-muted">{t('Left/right ratio of the diff editor. Smaller = narrower left (original). Side-by-side only.')}</p>
+                  </div>
+                  <div className="flex items-center gap-px shrink-0">
+                    <button
+                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
+                      disabled={diffSplitRatio <= 0.1}
+                      onClick={(e) => { e.stopPropagation(); onSetDiffSplitRatio(Math.round((diffSplitRatio - 0.1) * 10) / 10) }}
+                    >{'<'}</button>
+                    <span className="text-center font-mono text-ide-accent font-bold text-xs leading-none w-5">{diffSplitRatio.toFixed(1)}</span>
+                    <button
+                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
+                      disabled={diffSplitRatio >= 0.9}
+                      onClick={(e) => { e.stopPropagation(); onSetDiffSplitRatio(Math.round((diffSplitRatio + 0.1) * 10) / 10) }}
                     >{'>'}</button>
                   </div>
                 </div>
