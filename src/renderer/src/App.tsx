@@ -455,10 +455,10 @@ export default function App() {
   // Nav bar state
   const [navBarVisible, setNavBarVisible] = useState(false)
   const [navBarIndex, setNavBarIndex] = useState(0)
+  const [navBarSolid, setNavBarSolid] = useState(false)
   const navBarVisibleRef = useRef(false)
   const navBarIndexRef = useRef(0)
   const navBarCwdRef = useRef<string | null>(null)
-  const navBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const navBarUsedRef = useRef(false)  // true when user actually navigated with arrows
   navBarVisibleRef.current = navBarVisible
   navBarIndexRef.current = navBarIndex
@@ -471,6 +471,9 @@ export default function App() {
       return prev
     })
   }, [navBarEntries])
+  useEffect(() => {
+    if (!navBarVisible) setNavBarSolid(false)
+  }, [navBarVisible])
   const flashPanelRef = useRef<'term' | 'right' | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingBlurRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -859,26 +862,23 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const bindings = getShortcuts()
 
-      // ── Alt keydown: 画笔模式 + 长按 300ms 显示 NavBar（Alt+click 复制行位置，Alt+←/→ 导航）──
+      // ── Alt keydown: 画笔模式 + 立即显示 NavBar（虚线，Alt+←/→ 变实线）──
       if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         setAltBrush(true)
         e.preventDefault()
         e.stopImmediatePropagation()
-        if (navBarTimerRef.current) clearTimeout(navBarTimerRef.current)
-        navBarTimerRef.current = setTimeout(() => {
-          navBarTimerRef.current = null
-          const hist = navBarEntriesRef.current
-          if (hist.length > 0) {
-            let idx = navBarIndexRef.current
-            if (idx < 0 || idx >= hist.length) idx = 0
-            navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
-            navBarVisibleRef.current = true
-            navBarUsedRef.current = false
-            navBarIndexRef.current = idx
-            setNavBarVisible(true)
-            setNavBarIndex(idx)
-          }
-        }, 300)
+        const hist = navBarEntriesRef.current
+        if (hist.length > 0) {
+          let idx = navBarIndexRef.current
+          if (idx < 0 || idx >= hist.length) idx = 0
+          navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
+          navBarVisibleRef.current = true
+          navBarUsedRef.current = false
+          navBarIndexRef.current = idx
+          setNavBarSolid(false)
+          setNavBarVisible(true)
+          setNavBarIndex(idx)
+        }
         return
       }
 
@@ -888,6 +888,7 @@ export default function App() {
           e.preventDefault()
           e.stopImmediatePropagation()
           navBarUsedRef.current = true
+          setNavBarSolid(true)
           setNavBarIndex(prev => {
             const len = navBarEntriesRef.current.length
             return prev <= 0 ? len - 1 : prev - 1
@@ -898,6 +899,7 @@ export default function App() {
           e.preventDefault()
           e.stopImmediatePropagation()
           navBarUsedRef.current = true
+          setNavBarSolid(true)
           setNavBarIndex(prev => {
             const len = navBarEntriesRef.current.length
             return prev >= len - 1 ? 0 : prev + 1
@@ -907,7 +909,6 @@ export default function App() {
         if (e.key === 'Escape') {
           e.preventDefault()
           e.stopImmediatePropagation()
-          if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
           setNavBarVisible(false)
           return
         }
@@ -1103,28 +1104,6 @@ export default function App() {
         }
       }
 
-      // navigate.back / navigate.forward — show nav bar (commit on Alt release)
-      if (!navBarVisibleRef.current && navBarEntriesRef.current.length > 0) {
-        const isBack = eventMatchesBinding(e, bindings['navigate.back'])
-        const isForward = eventMatchesBinding(e, bindings['navigate.forward'])
-        if (isBack || isForward) {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-          if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
-          const delta = isBack ? -1 : 1
-          const startIdx = navBarIndexRef.current + delta
-          const hist = navBarEntriesRef.current
-          if (startIdx >= 0 && startIdx < hist.length) {
-            navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
-            navBarVisibleRef.current = true
-            navBarUsedRef.current = true
-            setNavBarIndex(startIdx)
-            setNavBarVisible(true)
-          }
-          return
-        }
-      }
-
       // Escape priority: call graph → code search → explore result → focus return
       if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         if (callGraphFocalNodeRef.current) {
@@ -1173,7 +1152,6 @@ export default function App() {
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key !== 'Alt') return
       setAltBrush(false)
-      if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
 
       if (!navBarVisibleRef.current) return
       if (!navBarUsedRef.current) { setNavBarVisible(false); return }
@@ -1205,7 +1183,6 @@ export default function App() {
 
   // NavBar click → navigate to file (same as Alt keyup commit)
   const handleNavBarSelect = useCallback((idx: number) => {
-    if (navBarTimerRef.current) { clearTimeout(navBarTimerRef.current); navBarTimerRef.current = null }
     navBarVisibleRef.current = false
     setNavBarVisible(false)
     const hist = navBarEntriesRef.current
@@ -2208,6 +2185,7 @@ export default function App() {
         entries={navBarEntries}
         selectedIndex={navBarIndex}
         visible={navBarVisible}
+        solid={navBarSolid}
         onSelect={handleNavBarSelect}
       />
 

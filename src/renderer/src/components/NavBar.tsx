@@ -9,10 +9,11 @@ interface NavBarProps {
   entries: NavEntry[]
   selectedIndex: number
   visible: boolean
+  solid: boolean
   onSelect: (index: number) => void
 }
 
-const NavBar = React.memo(function NavBar({ entries, selectedIndex, visible, onSelect }: NavBarProps) {
+const NavBar = React.memo(function NavBar({ entries, selectedIndex, visible, solid, onSelect }: NavBarProps) {
   if (!visible || entries.length === 0) return null
 
   return (
@@ -29,9 +30,9 @@ const NavBar = React.memo(function NavBar({ entries, selectedIndex, visible, onS
               <span
                 className={`px-2 py-1 rounded text-xs whitespace-nowrap transition-colors cursor-pointer ${
                   isSelected
-                    ? 'bg-ide-accent text-white'
-                    : 'text-ide-text-muted hover:bg-ide-accent/20'
-                }`}
+                    ? solid ? 'bg-ide-accent text-white' : 'bg-ide-accent/20'
+                    : 'text-ide-text-muted'
+                } hover:bg-ide-accent hover:text-white`}
                 onMouseDown={(e) => {
                   e.preventDefault()
                   onSelect(i)
