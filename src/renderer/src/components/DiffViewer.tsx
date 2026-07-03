@@ -87,7 +87,7 @@ interface DiffViewerProps {
   onViewLineHistory?: (filePath: string, lineNumber: number) => void  // 右键菜单 → 查看这行修改记录
   compareOriginalContent?: string  // 左侧对比文件内容（文件对比模式）
   compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
-  cwd?: string                     // 当前 session 工作目录（Alt+click 复制 @相对路径:line 用）
+  onAnnotationTrigger?: (start: number, end: number) => void  // Alt+左键 → 通知 App 开批注面板（start/end 相同为单行）
   altBrush?: boolean               // Alt 按住中 → 鼠标变 🖌️ 画笔
 }
 
@@ -235,7 +235,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, cwd, altBrush }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, altBrush }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -266,25 +266,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const diffEditorRef = useRef<any>(null)
   const editEditorRef = useRef<any>(null)
   const monacoRef = useRef<any>(null)
-  const cwdRef = useRef(cwd)
-  cwdRef.current = cwd
-  const fullPathRef = useRef(fullPath)
-  fullPathRef.current = fullPath
-  const [copyToast, setCopyToast] = useState<{ text: string } | null>(null)
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const handleAltLineClick = (ln: number) => {
-    const full = (fullPathRef.current || '').replace(/\\/g, '/')
-    const w = cwdRef.current ? cwdRef.current.replace(/\\/g, '/').replace(/\/$/, '') : ''
-    const rel = w && (full === w || full.startsWith(w + '/')) ? full.slice(w.length).replace(/^\//, '') : full
-    const text = `@${rel}:${ln}`
-    navigator.clipboard?.writeText(text).catch(() => {})
-    setCopyToast({ text })
-    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
-    copyTimerRef.current = setTimeout(() => setCopyToast(null), 1200)
-  }
+  const onAnnotationTriggerRef = useRef(onAnnotationTrigger)
+  onAnnotationTriggerRef.current = onAnnotationTrigger
+  const handleAltLineClick = useCallback((start: number, end: number) => {
+    onAnnotationTriggerRef.current?.(start, end)
+  }, [])
   const handleAltLineClickRef = useRef(handleAltLineClick)
   handleAltLineClickRef.current = handleAltLineClick
-  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }, [])
 
   // 单行回退 hover 浮钮
   const revertingRef = useRef(false)
@@ -857,8 +845,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                 if (e.event?.altKey) {
                   e.event.preventDefault()
                   e.event.stopPropagation()
-                  const ln = e.target?.position?.lineNumber
-                  if (ln) handleAltLineClickRef.current?.(ln)
+                  const sel = modifiedEditor.getSelection()
+                  const clicked = e.target?.position?.lineNumber
+                  if (sel && sel.startLineNumber !== sel.endLineNumber) {
+                    handleAltLineClickRef.current?.(sel.startLineNumber, sel.endLineNumber)
+                  } else if (clicked) {
+                    handleAltLineClickRef.current?.(clicked, clicked)
+                  }
                 }
               })
               modifiedEditor.onDidChangeCursorPosition((e: any) => {
@@ -1023,8 +1016,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                 if (e.event?.altKey) {
                   e.event.preventDefault()
                   e.event.stopPropagation()
-                  const ln = e.target?.position?.lineNumber
-                  if (ln) handleAltLineClickRef.current?.(ln)
+                  const sel = editor.getSelection()
+                  const clicked = e.target?.position?.lineNumber
+                  if (sel && sel.startLineNumber !== sel.endLineNumber) {
+                    handleAltLineClickRef.current?.(sel.startLineNumber, sel.endLineNumber)
+                  } else if (clicked) {
+                    handleAltLineClickRef.current?.(clicked, clicked)
+                  }
                 }
               })
               editor.onDidChangeCursorPosition((e: any) => {
@@ -1095,18 +1093,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               <span aria-hidden>↩</span>
               <span>{t('Revert')}</span>
             </button>
-          </div>
-        )}
-        {copyToast && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
-            <div className="flex flex-col items-center gap-2 px-6 py-4 rounded-xl border shadow-2xl"
-              style={{ backgroundColor: currentTheme.terminal.background, borderColor: 'rgba(34,197,94,0.5)' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8 text-emerald-400">
-                <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span className="text-sm text-emerald-400 font-medium">已复制到剪贴板</span>
-              <span className="text-xs text-ide-text-muted truncate max-w-[280px]" title={copyToast.text}>{copyToast.text}</span>
-            </div>
           </div>
         )}
       </div>

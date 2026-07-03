@@ -3,6 +3,7 @@ import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffec
 import SessionPanel from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
+import AnnotationPanel from './components/AnnotationPanel'
 import MarkdownPreview from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
 import OutlinePanel, { isCode, isMarkdown } from './components/OutlinePanel'
@@ -1625,6 +1626,22 @@ export default function App() {
     }
   }, [centerView, diffFile])
 
+  const [annotationPanelOpen, setAnnotationPanelOpen] = useState(false)
+  const [annotationActiveRange, setAnnotationActiveRange] = useState<{ start: number; end: number } | null>(null)
+  const handleAnnotationTrigger = useCallback((start: number, end: number) => {
+    setRightPanelCollapsed(false)
+    setAnnotationPanelOpen(true)
+    setAnnotationActiveRange({ start, end })
+  }, [])
+  const handleAnnotationClose = useCallback(() => {
+    setAnnotationPanelOpen(false)
+    setAnnotationActiveRange(null)
+  }, [])
+  useEffect(() => {
+    setAnnotationActiveRange(null)
+    setAnnotationPanelOpen(false)
+  }, [diffFile?.fullPath, centerView])
+
   const [mdScrollHeading, setMdScrollHeading] = useState<string | undefined>(undefined)
   const [outlineScrollTrigger, setOutlineScrollTrigger] = useState(0)
 
@@ -1977,7 +1994,7 @@ export default function App() {
                 onViewLineHistory={handleViewLineHistory}
                 compareOriginalContent={diffFile.compareOriginalContent}
                 compareOriginalPath={diffFile.compareOriginalPath}
-                cwd={activeSessionCwd}
+                onAnnotationTrigger={handleAnnotationTrigger}
                 altBrush={altBrush}
               />
             </div>
@@ -2084,7 +2101,7 @@ export default function App() {
         {/* Right Panel */}
         {rightPanelCollapsed || isWelcome ? null : (
         <div ref={rightPanelRef}
-          className="shrink-0 flex flex-col overflow-hidden focus-frame"
+          className="shrink-0 flex flex-col overflow-hidden focus-frame relative"
           style={{ width: rightPanelWidth }}
           data-panel="right"
           data-focused={focusedPanel === 'right' ? 'true' : undefined}
@@ -2114,7 +2131,7 @@ export default function App() {
             clearAuxBufferTrigger={clearAuxBufferTrigger}
             navigateToFilePayload={navigateToFilePayload}
             onNavigateToFile={handleNavigateToFile}
-            onExploreNode={(node) => setCallGraphFocalNode(node)}
+            onExploreNode={(node: any) => setCallGraphFocalNode(node)}
             lineHistoryPayload={lineHistoryPayload}
 
             onDiffScroll={handleDiffScroll}
@@ -2122,6 +2139,16 @@ export default function App() {
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
           />
+          {centerView === 'diff' && annotationPanelOpen && (
+            <div className="absolute left-2 right-2 bottom-2 border border-ide-border rounded-lg overflow-hidden z-10 bg-ide-sidebar" style={{ top: 44 }}>
+              <AnnotationPanel
+                activeRange={annotationActiveRange}
+                fullPath={diffFile?.fullPath}
+                cwd={activeSessionCwd}
+                onClose={handleAnnotationClose}
+              />
+            </div>
+          )}
         </div>
         )}
       </div>
