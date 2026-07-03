@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="vibe-ide" version="0.8.6">
+  <description>Electron-based desktop IDE</description>
+  <settings>
+    <theme>dark</theme>
+    <fontSize>14</fontSize>
+    <tabSize>2</tabSize>
+  </settings>
+  <modules>
+    <module name="terminal" enabled="true" />
+    <module name="git" enabled="true" />
+    <module name="search" enabled="true" />
+    <module name="ai" enabled="false" />
+  </modules>
+</project>

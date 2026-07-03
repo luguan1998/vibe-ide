@@ -1,0 +1,13 @@
+name: vibe-ide
+version: 0.8.6
+dependencies:
+  electron: ^28.0.0
+  node-pty: ^1.0.0
+  xterm: ^5.4.0
+  monaco-editor: ^0.45.0
+  simple-git: ^3.22.0
+settings:
+  theme: dark
+  fontSize: 14
+  tabSize: 2
+  wordWrap: off

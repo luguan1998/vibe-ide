@@ -1,0 +1,15 @@
+Welcome to Vibe IDE
+
+Vibe IDE is an Electron-based desktop IDE with native terminal,
+git integration, file diff/edit, content search, and session management.
+
+Features:
+- Native terminal with xterm.js
+- Git version control with simple-git
+- Monaco editor for code editing and diff
+- Ripgrep-based content search
+- Multi-session management
+- 11 built-in themes
+- CSS snippets system
+
+License: MIT

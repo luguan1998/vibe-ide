@@ -1,0 +1,35 @@
+@primary: #ff6b35;
+@bg: #1a1a2e;
+@fg: #e0e0e0;
+@radius: 4px;
+
+.mixin() {
+  padding: 0.5em 1em;
+  border-radius: @radius;
+}
+
+body {
+  background: @bg;
+  color: @fg;
+  font-family: Consolas, monospace;
+}
+
+.button {
+  .mixin();
+  background: @primary;
+  color: white;
+
+  &:hover {
+    opacity: 0.9;
+  }
+}
+
+.card {
+  .mixin();
+  border: 1px solid lighten(@bg, 20%);
+
+  h2 {
+    margin-top: 0;
+    color: @primary;
+  }
+}

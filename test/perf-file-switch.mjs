@@ -1,7 +1,8 @@
 /**
- * 性能测试：快速切换文件时 CPU 和内存占用
+ * 性能测试：连续点击 test/icon-test 目录下各类型文件时的 CPU 和内存占用
  *
- * 使用 CDP 鼠标注入模拟真实用户点击 FileTab 文件项，
+ * 工作区固定为 test/icon-test（文件树根级直接列出全部测试文件），
+ * 使用 CDP 鼠标注入模拟真实用户顺序点击 FileTab 文件项，
  * 触发完整的 DiffViewer + Monaco + OutlinePanel 渲染链路。
  *
  * 使用方式：
@@ -9,32 +10,39 @@
  *   node test/perf-file-switch.mjs      # 同上（已编译时跳过 build）
  *
  * 可选参数：
- *   --rounds=10    切换轮数
- *   --interval=300 每次切换间隔 ms
+ *   --rounds=2     遍历全部文件的轮数（每轮顺序点击所有文件一次）
+ *   --interval=300 每次点击间隔 ms
  */
 
 import { spawn, execSync } from 'child_process'
 import { join, resolve } from 'path'
 import { existsSync, readdirSync, statSync, appendFileSync, readFileSync, mkdirSync } from 'fs'
-import { cpus } from 'os'
+import { cpus, tmpdir } from 'os'
 
 const projectRoot = resolve(import.meta.dirname, '..')
 const numCores = cpus().length
 
 // ─── 参数 ───
-const rounds = parseInt(process.argv.find(a => a.startsWith('--rounds'))?.split('=')[1] || '10', 10)
+const rounds = parseInt(process.argv.find(a => a.startsWith('--rounds'))?.split('=')[1] || '2', 10)
 const intervalMs = parseInt(process.argv.find(a => a.startsWith('--interval'))?.split('=')[1] || '300', 10)
-const workspace = projectRoot
+const workspace = join(projectRoot, 'test', 'icon-test')
 const cdpPort = 9222
+// 独立 user-data-dir：单实例锁按此目录区分，避免与正在运行的 dev 实例冲突
+const perfUserDataDir = join(tmpdir(), 'vibe-ide-perf')
+mkdirSync(perfUserDataDir, { recursive: true })
 
 // ─── perf 日志（doc/perf-log.md 追加）───
 const perfLogPath = join(projectRoot, 'doc', 'perf-log.md')
 
+// tag = 最近 git tag，commit = 实际 HEAD（非 tag 指向的 commit），格式 tag+commit
 function getTag() {
-  let commit = 'unknown', version = 'unknown'
+  let tag = 'unknown', commit = 'unknown'
+  try { tag = execSync('git describe --tags --abbrev=0', { cwd: projectRoot }).toString().trim() } catch {}
   try { commit = execSync('git rev-parse --short HEAD', { cwd: projectRoot }).toString().trim() } catch {}
-  try { version = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')).version } catch {}
-  return `${version}(${commit})`
+  if (!tag || tag.startsWith('fatal') || tag === 'unknown') {
+    try { tag = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')).version } catch {}
+  }
+  return `${tag}+${commit}`
 }
 
 function nowStamp() {
@@ -348,24 +356,48 @@ async function main() {
     execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' })
   }
 
-  // 2. 启动 Electron（带 CDP）
+  // 2. 启动 Electron（带 CDP），工作区固定为 icon-test
   let cdp, proc
   try {
     console.log(`尝试连接已有应用 (CDP ${cdpPort})...`)
     cdp = await connectCDP(cdpPort)
-    console.log('已连接到运行中的应用')
-    proc = null
+    // 校验已连接应用的工作区是否为 icon-test，不匹配则关闭重启
+    let wsMatch = false
+    try {
+      const cur = await evalInRenderer(cdp, `window.api.workspace.current()`)
+      const p = cur?.path ? String(cur.path) : (cur ? String(cur) : '')
+      wsMatch = p.replace(/\\/g, '/').endsWith('test/icon-test')
+      if (!wsMatch) console.log(`  已有应用工作区不匹配: ${p || '(空)'}`)
+    } catch (e) { console.log(`  无法读取工作区: ${e.message}`) }
+    if (wsMatch) {
+      console.log('已连接到运行中的应用（工作区匹配 icon-test）')
+      proc = null
+    } else {
+      console.log('  关闭已有应用，将以 icon-test 工作区重启...')
+      try { await cdp.send('Browser.close') } catch {}
+      cdp.close()
+      cdp = null
+      await new Promise(r => setTimeout(r, 2000))
+    }
   } catch {
-    console.log('启动 Electron...')
+    cdp = null
+  }
+
+  if (!cdp) {
+    console.log(`启动 Electron（工作区: ${workspace}）...`)
     const electronExe = process.platform === 'win32'
       ? join(projectRoot, 'node_modules', 'electron', 'dist', 'electron.exe')
       : join(projectRoot, 'node_modules', 'electron', 'dist', 'electron')
+    // app 路径必须是 projectRoot（含 package.json）；workspace 作为启动参数
+    // 交由 main 进程 parseStartupPath 解析（取最后一个存在的位置参数）
     proc = spawn(electronExe, [
       `--remote-debugging-port=${cdpPort}`,
       '--enable-precise-memory-info',
       '--no-sandbox',
+      `--user-data-dir=${perfUserDataDir}`,
+      projectRoot,
       workspace
-    ], { stdio: 'pipe', detached: false })
+    ], { stdio: 'pipe', detached: false, env: { ...process.env, ELECTRON_IS_DEV: '0' } })
 
     proc.stderr?.on('data', d => {
       const s = d.toString()
@@ -407,36 +439,6 @@ async function main() {
     if (fileItems.length >= 2) break
   }
 
-  // 6. 如果文件项不足，尝试展开目录
-  if (fileItems.length < 2) {
-    // 可能需要展开目录才能看到文件
-    // 点击根目录展开
-    console.log('文件项不足，尝试展开目录...')
-    const dirItems = await evalInRenderer(cdp, `
-      (() => {
-        // 降级查找所有目录项（RightPanel 区域内，x > 900）
-        const allRows = document.querySelectorAll('div.cursor-pointer');
-        const dirs = [];
-        for (const row of allRows) {
-          const rect = row.getBoundingClientRect();
-          if (rect.height === 0 || rect.x < 900) continue;
-          const firstChild = row.children[0];
-          const isDir = (firstChild?.tagName === 'SVG' || firstChild?.tagName === 'svg')
-            && firstChild?.getAttribute?.('viewBox') === '0 0 16 16';
-          if (!isDir) continue;
-          dirs.push({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
-        }
-        return dirs.slice(0, 3);
-      })()
-    `)
-
-    for (const dir of (dirItems || [])) {
-      await mouseClick(cdp, dir.x, dir.y)
-      await new Promise(r => setTimeout(r, 300))
-    }
-    fileItems = await getFileItems(cdp)
-  }
-
   if (fileItems.length < 2) {
     console.error(`需要至少 2 个可点击的文件项，当前只有 ${fileItems.length} 个`)
     appendPerfError(`文件项不足:${fileItems.length}`)
@@ -452,53 +454,47 @@ async function main() {
     console.log(`  渲染进程: JSHeap=${fmtMB(baseline.renderer.usedJSHeap)}MB / ${fmtMB(baseline.renderer.totalJSHeap)}MB`)
   }
 
-  // 7. 切换测试
+  // 7. 连续点击测试：顺序遍历所有 icon-test 文件，循环 rounds 轮
   const allBefore = []
   const allAfter = []
   const allDeltas = []
 
-  console.log(`\n开始 ${rounds} 轮文件切换（鼠标注入）...`)
+  const totalClicks = rounds * fileItems.length
+  console.log(`\n开始连续点击 ${fileItems.length} 个文件，${rounds} 轮共 ${totalClicks} 次点击...`)
   console.log('─'.repeat(90))
 
-  for (let i = 0; i < rounds; i++) {
-    // 随机选两个不同的文件项
-    const idxA = i % fileItems.length
-    const idxB = (i + 1) % fileItems.length === idxA
-      ? (i + 2) % fileItems.length
-      : (i + 1) % fileItems.length
+  for (let i = 0; i < totalClicks; i++) {
+    const item = fileItems[i % fileItems.length]
+    const pass = Math.floor(i / fileItems.length) + 1
+    const stepInPass = (i % fileItems.length) + 1
 
-    const itemA = fileItems[idxA]
-    const itemB = fileItems[idxB]
+    const before = await takeSnapshot(cdp)
 
-    for (const item of [itemA, itemB]) {
-      const before = await takeSnapshot(cdp)
+    // 鼠标注入点击文件项
+    await mouseClick(cdp, item.x, item.y)
 
-      // 鼠标注入点击文件项
-      await mouseClick(cdp, item.x, item.y)
+    // 等待 Monaco 渲染完成
+    await new Promise(r => setTimeout(r, 400))
 
-      // 等待 Monaco 渲染完成
-      await new Promise(r => setTimeout(r, 400))
+    const after = await takeSnapshot(cdp)
+    const delta = computeDelta(before, after)
 
-      const after = await takeSnapshot(cdp)
-      const delta = computeDelta(before, after)
+    allBefore.push(before)
+    allAfter.push(after)
+    allDeltas.push(delta)
 
-      allBefore.push(before)
-      allAfter.push(after)
-      allDeltas.push(delta)
+    const mainCpu = `${delta.mainCpuPercent.toFixed(1)}%`
+    const rHeap = after.renderer ? fmtMB(after.renderer.usedJSHeap) : 'N/A'
+    const rCpu = delta.rendererCpuPercent != null ? `${delta.rendererCpuPercent.toFixed(1)}%` : 'N/A'
+    const gpuCpu = delta.gpuCpuPercent != null ? `${delta.gpuCpuPercent.toFixed(1)}%` : 'N/A'
 
-      const mainCpu = `${delta.mainCpuPercent.toFixed(1)}%`
-      const rHeap = after.renderer ? fmtMB(after.renderer.usedJSHeap) : 'N/A'
-      const rCpu = delta.rendererCpuPercent != null ? `${delta.rendererCpuPercent.toFixed(1)}%` : 'N/A'
-      const gpuCpu = delta.gpuCpuPercent != null ? `${delta.gpuCpuPercent.toFixed(1)}%` : 'N/A'
+    console.log(
+      `  [${i + 1}/${totalClicks}] 轮${pass} ${stepInPass}/${fileItems.length} ${item.name || `item@(${item.x.toFixed(0)},${item.y.toFixed(0)})`} → ${delta.wallMs}ms | ` +
+      `主cpu=${mainCpu} 渲染cpu=${rCpu} GPUcpu=${gpuCpu} | ` +
+      `主RSS=${fmtMB(after.main.rss)}MB 渲染JSHeap=${rHeap}MB 总内存=${delta.totalWorkingSetMB.toFixed(0)}MB`
+    )
 
-      console.log(
-        `  [${i + 1}/${rounds}] ${item.name || `item@(${item.x.toFixed(0)},${item.y.toFixed(0)})`} → ${delta.wallMs}ms | ` +
-        `主cpu=${mainCpu} 渲染cpu=${rCpu} GPUcpu=${gpuCpu} | ` +
-        `主RSS=${fmtMB(after.main.rss)}MB 渲染JSHeap=${rHeap}MB 总内存=${delta.totalWorkingSetMB.toFixed(0)}MB`
-      )
-
-      await new Promise(r => setTimeout(r, intervalMs))
-    }
+    await new Promise(r => setTimeout(r, intervalMs))
   }
 
   // 8. 最终快照

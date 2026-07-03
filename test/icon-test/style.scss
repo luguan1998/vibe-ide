@@ -1,0 +1,39 @@
+$primary: #ff6b35;
+$bg: #1a1a2e;
+$fg: #e0e0e0;
+$radius: 4px;
+
+@mixin panel($padding: 1em) {
+  padding: $padding;
+  border-radius: $radius;
+}
+
+body {
+  background: $bg;
+  color: $fg;
+  font-family: Consolas, monospace;
+}
+
+.button {
+  @include panel(0.5em 1em);
+  background: $primary;
+  color: white;
+
+  &:hover {
+    opacity: 0.9;
+  }
+}
+
+.card {
+  @include panel;
+  border: 1px solid lighten($bg, 20%);
+
+  h2 {
+    margin-top: 0;
+    color: $primary;
+  }
+
+  .content {
+    line-height: 1.6;
+  }
+}

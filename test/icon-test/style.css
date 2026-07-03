@@ -1,0 +1,33 @@
+:root {
+  --bg: #1a1a2e;
+  --fg: #e0e0e0;
+  --accent: #ff6b35;
+  --muted: #888;
+}
+
+body {
+  margin: 0;
+  font-family: Consolas, 'Courier New', monospace;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.button {
+  display: inline-block;
+  padding: 0.5em 1em;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.button:hover {
+  opacity: 0.9;
+}
