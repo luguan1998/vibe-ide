@@ -1421,8 +1421,45 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               Amend
             </button>
           </div>
+          <textarea
+            ref={textareaRef}
+            value={commitMessage}
+            onChange={(e) => setCommitMessage(e.target.value)}
+            disabled={busy}
+            placeholder={t('Commit message...')}
+            onContextMenu={async (e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              const el = e.currentTarget as HTMLTextAreaElement
+              el.focus()
+              if (document.execCommand('paste')) return
+              try {
+                const text = await navigator.clipboard.readText()
+                if (text) el.setRangeText(text, el.selectionStart, el.selectionEnd, 'end')
+              } catch {}
+              el.dispatchEvent(new Event('input', { bubbles: true }))
+            }}
+            className={`w-full h-20 text-xs bg-ide-bg border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50 disabled:opacity-40 git-tab__commit-input ${focusedCommit ? 'border-ide-accent bg-ide-accent/5' : 'border-ide-border'}`}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && e.ctrlKey) handleCommit()
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                e.currentTarget.blur()
+              }
+            }}
+          />
+          {hasConflictInStaged && (
+            <div className="mt-2 px-2 py-1.5 text-[11px] text-ide-danger bg-ide-danger/10 rounded animate-fade-in flex items-center gap-1.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 shrink-0">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              {t('Conflicted files in staged area. Please resolve conflicts before committing.')}
+            </div>
+          )}
           {status.clean && status.ahead > 0 ? (
-            <div className="relative">
+            <div className="relative mt-2">
               <div className="flex">
                 <button
                   onClick={handlePush}
@@ -1430,8 +1467,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   className="flex-1 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-l transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                    <line x1="12" y1="19" x2="12" y2="5" />
-                    <polyline points="5 12 12 5 19 12" />
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
                   </svg>
                   Push{status.ahead > 0 ? ` (${status.ahead})` : ''}
                 </button>
@@ -1471,52 +1507,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               )}
             </div>
           ) : (
-            <>
-              <textarea
-                ref={textareaRef}
-                value={commitMessage}
-                onChange={(e) => setCommitMessage(e.target.value)}
-                disabled={busy}
-                placeholder={t('Commit message...')}
-                onContextMenu={async (e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  const el = e.currentTarget as HTMLTextAreaElement
-                  el.focus()
-                  if (document.execCommand('paste')) return
-                  try {
-                    const text = await navigator.clipboard.readText()
-                    if (text) el.setRangeText(text, el.selectionStart, el.selectionEnd, 'end')
-                  } catch {}
-                  el.dispatchEvent(new Event('input', { bubbles: true }))
-                }}
-                className={`w-full h-20 text-xs bg-ide-bg border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50 disabled:opacity-40 git-tab__commit-input ${focusedCommit ? 'border-ide-accent bg-ide-accent/5' : 'border-ide-border'}`}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.ctrlKey) handleCommit()
-                  if (e.key === 'Escape') {
-                    e.preventDefault()
-                    e.currentTarget.blur()
-                  }
-                }}
-              />
-              {hasConflictInStaged && (
-                <div className="mt-2 px-2 py-1.5 text-[11px] text-ide-danger bg-ide-danger/10 rounded animate-fade-in flex items-center gap-1.5">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 shrink-0">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-                  {t('Conflicted files in staged area. Please resolve conflicts before committing.')}
-                </div>
-              )}
-              <button
-                onClick={handleCommit}
-                disabled={busy || !commitMessage.trim() || !status?.files?.some(f => f.staged) || hasConflictInStaged}
-                className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed git-tab__commit-btn"
-              >
-                {t('Commit (Ctrl+Enter)')}
-              </button>
-            </>
+            <button
+              onClick={handleCommit}
+              disabled={busy || !commitMessage.trim() || !status?.files?.some(f => f.staged) || hasConflictInStaged}
+              className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed git-tab__commit-btn"
+            >
+              {t('Commit (Ctrl+Enter)')}
+            </button>
           )}
         </div>
       )}
