@@ -64,7 +64,7 @@ const vibeDark: IDETheme = {
     { token: 'constant', foreground: '#3b82f6' },
     { token: 'regexp', foreground: '#ef4444' }
   ],
-  titleBar: { color: '#1a1a2e', symbolColor: '#8888aa', backgroundColor: '#1a1a2e' }
+  titleBar: { color: '#16213e', symbolColor: '#8888aa', backgroundColor: '#16213e' }
 }
 
 const oneDark: IDETheme = {
@@ -530,7 +530,7 @@ const monkeyKing: IDETheme = {
     { token: 'constant', foreground: '#6a3a8c' },
     { token: 'regexp', foreground: '#b43c28' }
   ],
-  titleBar: { color: '#96b482', symbolColor: '#c7232b', backgroundColor: '#96b482' }
+  titleBar: { color: '#b9d7aa', symbolColor: '#c7232b', backgroundColor: '#b9d7aa' }
 }
 
 // 🎵 Hatsune Miku — 初音未来印象色主题
