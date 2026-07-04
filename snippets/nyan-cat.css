@@ -186,20 +186,6 @@
   line-height: 1 !important;
 }
 
-.session-panel__new-btn:not(:disabled) {
-  background: transparent !important;
-  color: rgb(140 150 175) !important;
-  border-color: rgb(40 58 90) !important;
-  font-weight: 400 !important;
-}
-
-.session-panel__new-btn:not(:disabled):hover {
-  background: rgb(242 140 245) !important;
-  color: rgb(15 25 50) !important;
-  border-color: rgb(242 140 245) !important;
-  font-weight: 700 !important;
-}
-
 .session-panel__config-menu {
   border: 1px solid rgb(40 58 90) !important;
   box-shadow: 0 4px 16px rgba(0,0,0,0.6) !important;
