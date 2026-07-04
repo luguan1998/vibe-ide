@@ -220,6 +220,18 @@ function getEditorLineHeight(ed: any): number {
   return 19
 }
 
+// 单行回退浮钮：根据编辑器当前视口计算行的绝对 top
+function computeRevertBtnTop(editor: any, ln: number): number {
+  const top = editor.getTopForLineNumber(ln) - editor.getScrollTop()
+  const lh = getEditorLineHeight(editor)
+  return top + (lh - 22) / 2
+}
+
+function computeRevertBtnLeft(editorDom: HTMLElement | null, containerDom: HTMLElement | null): number {
+  if (!editorDom || !containerDom) return 56
+  return editorDom.getBoundingClientRect().left - containerDom.getBoundingClientRect().left + 56
+}
+
 function FilePathDisplay({ filePath }: { filePath: string }) {
   const lastSep = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
   const dirPart = lastSep >= 0 ? filePath.substring(0, lastSep + 1) : ''
@@ -281,7 +293,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const enabledRef = useRef(false)
   const diffDisposablesRef = useRef<Array<{ dispose?: () => void }>>([])
-  const [revertBtn, setRevertBtn] = useState<{ visible: boolean; top: number; ln: number }>({ visible: false, top: 0, ln: 0 })
+  const [revertBtn, setRevertBtn] = useState<{ visible: boolean; top: number; left: number; ln: number }>({ visible: false, top: 0, left: 56, ln: 0 })
   const revertBtnDomRef = useRef<HTMLButtonElement | null>(null)
   const lastRevertLnRef = useRef<number | null>(null)
 
@@ -636,7 +648,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     setCurrentEncoding(DEFAULT_ENCODING)
     setEncodingInfo('')
     setUnreadableReason('')
-    setRevertBtn({ visible: false, top: 0, ln: 0 })
+    setRevertBtn({ visible: false, top: 0, left: 56, ln: 0 })
     lastRevertLnRef.current = null
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null }
   }, [fullPath])
@@ -712,7 +724,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const scheduleHide = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
     hideTimerRef.current = setTimeout(() => {
-      setRevertBtn(s => (s.visible ? { ...s, visible: false } : s))
+        setRevertBtn(s => (s.visible ? { ...s, visible: false } : s))
       lastRevertLnRef.current = null
       hideTimerRef.current = null
     }, 150)
@@ -739,6 +751,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     const pos = modEd.getPosition()
     try {
       modEd.executeEdits('revert-line', [edit])
+      lastRevertLnRef.current = null
       setRevertBtn(s => ({ ...s, visible: false }))
       if (pos) modEd.setPosition(pos)
       const val = modEd.getValue()
@@ -937,17 +950,25 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                 } catch {}
               }, 0)
               const positionRevertBtn = (ln: number) => {
-                const top = modifiedEditor.getTopForLineNumber(ln) - modifiedEditor.getScrollTop()
-                const lh = getEditorLineHeight(modifiedEditor)
-                setRevertBtn({ visible: true, top: top + (lh - 22) / 2, ln })
+                lastRevertLnRef.current = ln
+                setRevertBtn({
+                  visible: true,
+                  top: computeRevertBtnTop(modifiedEditor, ln),
+                  left: computeRevertBtnLeft(modifiedEditor.getDomNode(), containerRef.current),
+                  ln
+                })
               }
               revertDisposables.push(modifiedEditor.onMouseMove((e: any) => {
                 if (!enabledRef.current || revertingRef.current) return
                 const ln = e.target?.position?.lineNumber
                 if (!ln || !changedModifiedLinesRef.current.has(ln)) { scheduleHide(); return }
+                const dom = modifiedEditor.getDomNode()
+                if (dom) {
+                  const rect = dom.getBoundingClientRect()
+                  if (e.event.browserEvent.clientX - rect.left > rect.width / 2) { scheduleHide(); return }
+                }
                 if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null }
                 if (lastRevertLnRef.current !== ln) {
-                  lastRevertLnRef.current = ln
                   positionRevertBtn(ln)
                 }
               }))
@@ -964,26 +985,24 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                 }
                 scheduleHide()
               }))
-              revertDisposables.push(modifiedEditor.onDidScrollChange(() => {
+              const updateVisibleRevertBtn = () => {
+                if (lastRevertLnRef.current === null) return
                 setRevertBtn(prev => {
-                  if (!prev.visible) return prev
+                  if (!prev.visible) { lastRevertLnRef.current = null; return prev }
                   const vr = modifiedEditor.getVisibleRanges()
                   if (!vr?.length || prev.ln < vr[0].startLineNumber || prev.ln > vr[vr.length - 1].endLineNumber) {
+                    lastRevertLnRef.current = null
                     return { ...prev, visible: false }
                   }
-                  const top = modifiedEditor.getTopForLineNumber(prev.ln) - modifiedEditor.getScrollTop()
-                  const lh = getEditorLineHeight(modifiedEditor)
-                  return { ...prev, top: top + (lh - 22) / 2 }
+                  return {
+                    ...prev,
+                    top: computeRevertBtnTop(modifiedEditor, prev.ln),
+                    left: computeRevertBtnLeft(modifiedEditor.getDomNode(), containerRef.current)
+                  }
                 })
-              }))
-              revertDisposables.push(modifiedEditor.onDidLayoutChange(() => {
-                setRevertBtn(prev => {
-                  if (!prev.visible) return prev
-                  const top = modifiedEditor.getTopForLineNumber(prev.ln) - modifiedEditor.getScrollTop()
-                  const lh = getEditorLineHeight(modifiedEditor)
-                  return { ...prev, top: top + (lh - 22) / 2 }
-                })
-              }))
+              }
+              revertDisposables.push(modifiedEditor.onDidScrollChange(updateVisibleRevertBtn))
+              revertDisposables.push(modifiedEditor.onDidLayoutChange(updateVisibleRevertBtn))
               diffDisposablesRef.current = revertDisposables
             }}
           />
@@ -1086,7 +1105,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
             <button
               ref={revertBtnDomRef}
               className="diff-revert-btn"
-              style={{ top: revertBtn.top }}
+              style={{ top: revertBtn.top, left: revertBtn.left }}
               title={t('Revert this line')}
               onMouseEnter={() => { if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null } }}
               onMouseLeave={() => scheduleHide()}
