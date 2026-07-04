@@ -830,10 +830,28 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     }
   }, [currentTheme])
 
-  // WebGL 在 init effect 的 term.open 之前挂载(见上),此处不再懒加载/Dispose。
-  // 曾用 isActive 懒加载省显存(ef0027f),但 canvas→WebGL 切换会首帧乱码,故回退为常驻。
+  // 切回 session 时 display:none→flex，需恢复尺寸 + 重建可能丢失的 WebGL context
+  useEffect(() => {
+    if (!isActive || !xtermRef.current || !isReady) return
+    const term = xtermRef.current
 
+    if (!webglAddonRef.current) {
+      try {
+        const webglAddon = new WebglAddon()
+        webglAddon.onContextLoss(() => {
+          webglAddon.dispose()
+          if (webglAddonRef.current === webglAddon) webglAddonRef.current = null
+          term.refresh(0, term.rows - 1)
+        })
+        term.loadAddon(webglAddon)
+        webglAddonRef.current = webglAddon
+      } catch {}
+    }
 
+    try { fitAddonRef.current?.fit() } catch {}
+    try { term.clearTextureAtlas() } catch {}
+    term.refresh(0, term.rows - 1)
+  }, [isActive, isReady])
 
   // Update font size dynamically without recreating terminal
   useEffect(() => {
