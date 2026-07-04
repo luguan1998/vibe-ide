@@ -513,6 +513,15 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     term.open(terminalRef.current)
     fitAddon.fit()
 
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (fitAddonRef.current && xtermRef.current) {
+          fitAddonRef.current.fit()
+          xtermRef.current.refresh(0, xtermRef.current.rows - 1)
+        }
+      })
+    })
+
     // 聚焦感知光标闪烁：失焦时静默以降低空闲渲染开销
     let textareaEl: HTMLTextAreaElement | undefined
     const onTextareaFocus = () => { term.options.cursorBlink = true }
@@ -1125,7 +1134,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         className="flex-1 overflow-hidden flex flex-col relative term-view__canvas"
         onContextMenu={handleContextMenu}
       >
-        <div ref={terminalRef} className="flex-1 min-h-0 relative">
+        <div ref={terminalRef} className="flex-1 min-h-0 relative overflow-hidden">
           {/* OCR drag overlay */}
           {ocrState !== 'idle' && (
             <div

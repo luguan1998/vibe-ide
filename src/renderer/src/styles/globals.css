@@ -73,6 +73,7 @@ html, body, #root {
   height: 100%;
 }
 .xterm .xterm-viewport::-webkit-scrollbar-track { background: transparent !important; }
+.xterm .xterm-viewport::-webkit-scrollbar { display: none !important; }
 
 /* Monaco editor overrides */
 .monaco-editor .margin {

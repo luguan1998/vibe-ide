@@ -70,6 +70,7 @@ src/
 
 **关键依赖：** `node-pty`（external from Rollup）、`@xterm/xterm`、`@monaco-editor/react`、`simple-git`、`electron-updater`
 - **终端背景图 (`--terminal-bg-image`)**：xterm.js >= 6.1.0-beta 已修复 CSS 黑底 + WebGL 透明问题（`.xterm:not(.allow-transparency) .xterm-viewport` 条件化 + PR #5561）。背景图 CSS 变量由主进程 `resolveCssUrls()` 将 `url()` 转 base64 以绕过 dev 模式跨域。详见 `terminal-bg-image` 记忆
+- **xterm 自绘滚动条**：xterm.js 6.x 使用自定义 DOM 滚动条（`.xterm-scrollable-element > .xterm-scrollbar > .xterm-slider`），而非浏览器原生滚动条。`::-webkit-scrollbar-*` 伪元素对其无效。xterm 运行时动态注入 `<style>` 设置 `.xterm-slider` 的 `background`，snippets CSS 需 `!important` 覆盖。原生 `.xterm-viewport` 滚动条应 `display: none` 隐藏，否则底部会露出多余轨道空隙
 
 **路径别名：** `@renderer/*` → `src/renderer/src/*`、`@shared/*` → `src/shared/*`
 
