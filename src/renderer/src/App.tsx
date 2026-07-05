@@ -54,6 +54,7 @@ declare global {
         stashList: () => Promise<any>
         stashPush: (message?: string) => Promise<any>
         stashPop: () => Promise<any>
+        stashDrop: () => Promise<any>
         push: (remote?: string, branch?: string) => Promise<any>
         remoteBranches: () => Promise<any>
         init: () => Promise<any>

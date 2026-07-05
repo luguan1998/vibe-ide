@@ -179,6 +179,8 @@ const ZH_MAP: Record<string, string> = {
   'Discard changes to {fileName}? This cannot be undone.': '确定撤销对 {fileName} 的修改？此操作不可恢复。',
   'Discard all {count} changes? This cannot be undone.': '确定撤销全部 {count} 个文件的修改？此操作不可恢复。',
   'Delete all {count} untracked files?': '确定删除全部 {count} 个未跟踪文件？',
+  'Drop stash': '丢弃暂存',
+  'Drop the latest stash? This cannot be undone.': '确定丢弃最近一条 stash？此操作不可恢复。',
 
   // GitTab - Conflict dialog
   'Conflicts detected while merging {branch}': '合并 {branch} 时检测到冲突',

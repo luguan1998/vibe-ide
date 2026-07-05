@@ -27,6 +27,7 @@ export const IPC_CHANNELS = {
   GIT_STASH_LIST: 'git:stashList',
   GIT_STASH_PUSH: 'git:stashPush',
   GIT_STASH_POP: 'git:stashPop',
+  GIT_STASH_DROP: 'git:stashDrop',
   GIT_PUSH: 'git:push',
   GIT_INIT: 'git:init',
   GIT_SHOW: 'git:show',

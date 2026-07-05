@@ -55,6 +55,7 @@ const api = {
     stashList: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_LIST),
     stashPush: (message?: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_PUSH, message),
     stashPop: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_POP),
+    stashDrop: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_DROP),
     push: (remote?: string, branch?: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_PUSH, remote, branch),
     remoteBranches: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_REMOTE_BRANCHES),
     init: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_INIT),

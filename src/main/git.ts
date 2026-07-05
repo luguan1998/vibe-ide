@@ -652,6 +652,17 @@ export function registerGitHandlers(): void {
     }
   })
 
+  // Git stash drop
+  ipcMain.handle(IPC_CHANNELS.GIT_STASH_DROP, async () => {
+    try {
+      const git = getGit()
+      await git.stash(['drop'])
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
   // Git init
   ipcMain.handle(IPC_CHANNELS.GIT_INIT, async () => {
     try {

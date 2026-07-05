@@ -608,6 +608,16 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     } finally { setBusy(false) }
   }, [refreshStatus, refreshStashCount])
 
+  // Drop stash
+  const handleStashDrop = useCallback(async () => {
+    setBusy(true)
+    try {
+      await window.api.git.stashDrop()
+      await refreshStatus()
+      await refreshStashCount()
+    } finally { setBusy(false) }
+  }, [refreshStatus, refreshStashCount])
+
   // Push
   const handlePush = useCallback(async () => {
     setBusy(true)
@@ -1379,13 +1389,25 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             >
               Stash
             </button>
-            <button
-              onClick={handleStashPop}
-              disabled={busy}
-              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Pop Stash{stashCount > 0 ? ` (${stashCount})` : ''}
-            </button>
+            <div className="relative inline-flex group">
+              <button
+                onClick={handleStashPop}
+                disabled={busy}
+                className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Pop Stash{stashCount > 0 ? ` (${stashCount})` : ''}
+              </button>
+              {stashCount > 0 && (
+                <button
+                  onClick={() => setConfirmAction({ type: 'stashDrop' })}
+                  disabled={busy}
+                  title={t('Drop stash')}
+                  className="absolute -top-1.5 -right-1.5 text-[10px] leading-none text-ide-text-muted hover:text-ide-danger bg-ide-bg border border-ide-border rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0 disabled:cursor-not-allowed"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
             <button
               onClick={handleAmend}
               disabled={amendDisabled}
@@ -1586,6 +1608,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 ? t('Discard changes to {fileName}? This cannot be undone.').replace('{fileName}', confirmAction.fileName!)
                 : confirmAction.type === 'discardAll'
                 ? t('Discard all {count} changes? This cannot be undone.').replace('{count}', String(confirmAction.count))
+                : confirmAction.type === 'stashDrop'
+                ? t('Drop the latest stash? This cannot be undone.')
                 : confirmAction.type === 'deleteAll'
                 ? t('Delete all {count} untracked files?').replace('{count}', String(confirmAction.count))
                 : t('Delete {fileName}?').replace('{fileName}', confirmAction.fileName!)
@@ -1607,6 +1631,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     await handleDiscard(filePath!)
                   } else if (type === 'discardAll') {
                     await handleDiscardAll(filePaths!)
+                  } else if (type === 'stashDrop') {
+                    await handleStashDrop()
                   } else if (type === 'deleteAll') {
                     await handleDeleteAllUntracked(filePaths!)
                   } else {
