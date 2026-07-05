@@ -66,6 +66,7 @@ declare global {
         setFilterRules: (rules: string[]) => Promise<any>
         diffCommitFile: (hash: string, filePath: string, isRoot: boolean) => Promise<any>
         lineLog: (filePath: string, startLine: number, endLine: number) => Promise<any>
+        graph: (opts?: { count?: number; skip?: number }) => Promise<any>
       }
       file: {
         read: (filePath: string) => Promise<any>
@@ -1524,7 +1525,7 @@ export default function App() {
 
     const onMouseMove = (ev: MouseEvent) => {
       const delta = startX - ev.clientX
-      const newWidth = Math.max(280, Math.min(600, startWidth + delta))
+      const newWidth = Math.max(280, Math.min(800, startWidth + delta))
       setRightPanelWidth(newWidth)
     }
 

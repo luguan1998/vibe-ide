@@ -245,6 +245,36 @@ export function registerGitHandlers(): void {
     }
   })
 
+  ipcMain.handle(IPC_CHANNELS.GIT_GRAPH, async (_event, opts?: { count?: number; skip?: number }) => {
+    try {
+      const git = getGit()
+      const count = opts?.count ?? 50
+      const skip = opts?.skip ?? 0
+      const output = await git.raw([
+        'log', '--all', '--topo-order', '--date-order',
+        `--skip=${skip}`, `--max-count=${count}`,
+        '--pretty=format:%H%x00%P%x00%D%x00%s%x00%aN%x00%aI%x1e'
+      ])
+      const entries: import('@shared/types').GitGraphEntry[] = []
+      for (const rec of output.split('\x1e')) {
+        if (!rec.trim()) continue
+        const [hash, parents, refs, message, author, date] = rec.split('\x00')
+        const parentList = (parents || '').trim()
+        entries.push({
+          hash: (hash || '').trim(),
+          parents: parentList ? parentList.split(/\s+/) : [],
+          refs: (refs || '').trim(),
+          message: (message || '').trim(),
+          author: (author || '').trim(),
+          date: (date || '').trim()
+        })
+      }
+      return entries
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
   // Git line log - get commit history for a specific line range
   ipcMain.handle(IPC_CHANNELS.GIT_LINE_LOG, async (_event, filePath: string, startLine: number, endLine: number) => {
     try {

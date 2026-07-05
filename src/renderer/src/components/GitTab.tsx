@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useI18n } from '../i18n'
-import { GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
+import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
+import GitGraph from './GitGraph'
 
 interface GitTabProps {
   workspacePath: string | null
@@ -58,7 +59,7 @@ const splitPath = (filePath: string): { name: string; dir: string } => {
   return { name: filePath.slice(idx + 1), dir: filePath.slice(0, idx + 1) }
 }
 
-const LOG_PAGE_SIZE = 50
+const GRAPH_PAGE_SIZE = 50
 
 export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, isActive, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll, onNavigateToFile, lineHistoryPayload }: GitTabProps) {
   const isActiveRef = useRef(isActive)
@@ -85,9 +86,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     if (status.unstaged > LARGE_SECTION) setChangesExpanded(false)
     if (status.staged > LARGE_SECTION) setStagedExpanded(false)
   }, [status])
-  const [logs, setLogs] = useState<GitLogEntry[]>([])
-  const [hasMoreLog, setHasMoreLog] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
+  const [graphEntries, setGraphEntries] = useState<GitGraphEntry[]>([])
+  const [hasMoreGraph, setHasMoreGraph] = useState(true)
+  const [loadingMoreGraph, setLoadingMoreGraph] = useState(false)
   const loadingMoreRef = useRef(false)
   const [branches, setBranches] = useState<GitBranch[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -241,47 +242,45 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     setLoading(false)
   }, [effectiveGitPath])
 
-  // Refresh git log
-  const refreshLog = useCallback(async () => {
+  const refreshGraph = useCallback(async () => {
     try {
-      const result = await window.api.git.log({ count: LOG_PAGE_SIZE, skip: 0 })
+      const result = await window.api.git.graph({ count: GRAPH_PAGE_SIZE, skip: 0 })
       if (result.error) {
         if (!/does not have any commits/.test(result.error)) {
           setError(result.error)
         }
       } else {
-        setLogs(result)
-        setHasMoreLog(result.length >= LOG_PAGE_SIZE)
+        setGraphEntries(result)
+        setHasMoreGraph(result.length >= GRAPH_PAGE_SIZE)
       }
     } catch (err: any) {
       setError(err.message)
     }
   }, [])
 
-  // Load older commits — append next page via --skip
-  const loadMoreLog = useCallback(async () => {
-    if (loadingMoreRef.current || !hasMoreLog) return
+  const loadMoreGraph = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreGraph) return
     loadingMoreRef.current = true
-    setLoadingMore(true)
+    setLoadingMoreGraph(true)
     try {
-      const result = await window.api.git.log({ count: LOG_PAGE_SIZE, skip: logs.length })
+      const result = await window.api.git.graph({ count: GRAPH_PAGE_SIZE, skip: graphEntries.length })
       if (result.error) {
         if (!/does not have any commits/.test(result.error)) {
           setError(result.error)
         }
       } else if (result.length > 0) {
-        setLogs(prev => [...prev, ...result])
-        setHasMoreLog(result.length >= LOG_PAGE_SIZE)
+        setGraphEntries(prev => [...prev, ...result])
+        setHasMoreGraph(result.length >= GRAPH_PAGE_SIZE)
       } else {
-        setHasMoreLog(false)
+        setHasMoreGraph(false)
       }
     } catch (err: any) {
       setError(err.message)
     } finally {
       loadingMoreRef.current = false
-      setLoadingMore(false)
+      setLoadingMoreGraph(false)
     }
-  }, [hasMoreLog, logs.length])
+  }, [hasMoreGraph, graphEntries.length])
 
   // Refresh branches
   const refreshBranches = useCallback(async () => {
@@ -456,9 +455,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       await window.api.git.commit({ message: commitMessage })
       setCommitMessage('')
       await refreshStatus()
-      await refreshLog()
+      await refreshGraph()
     } finally { setBusy(false) }
-  }, [commitMessage, refreshStatus, refreshLog])
+  }, [commitMessage, refreshStatus, refreshGraph])
 
   // Amend — 有暂存或新信息时执行：有新信息用 -m 改写，否则 --no-edit 保留原信息
   const handleAmend = useCallback(async () => {
@@ -468,9 +467,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       await window.api.git.amend(msg ? { message: msg } : {})
       setCommitMessage('')
       await refreshStatus()
-      await refreshLog()
+      await refreshGraph()
     } finally { setBusy(false) }
-  }, [commitMessage, refreshStatus, refreshLog])
+  }, [commitMessage, refreshStatus, refreshGraph])
 
   // Checkout branch
   const handleCheckout = useCallback(async (branch: string) => {
@@ -622,11 +621,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         await window.api.git.push()
       }
       await refreshStatus()
-      await refreshLog()
+      await refreshGraph()
       await refreshBranches()
       setShowPushDropdown(false)
     } finally { setBusy(false) }
-  }, [refreshStatus, refreshLog, refreshBranches, selectedRemote])
+  }, [refreshStatus, refreshGraph, refreshBranches, selectedRemote])
 
   // Init git repo
   const handleInit = useCallback(async () => {
@@ -639,11 +638,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         notGitPathRef.current = null
         pendingGitPathRef.current = workspacePath
         await refreshStatus()
-        await refreshLog()
+        await refreshGraph()
         await refreshBranches()
       }
     } finally { setBusy(false) }
-  }, [workspacePath, refreshStatus, refreshLog, refreshBranches])
+  }, [workspacePath, refreshStatus, refreshGraph, refreshBranches])
 
   // Switch git workspace when effective path changes
   useEffect(() => {
@@ -654,8 +653,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     notGitPathRef.current = null
     const targetPath = effectiveGitPath
 
-    setLogs([])
-    setHasMoreLog(true)
+    setGraphEntries([])
+    setHasMoreGraph(true)
     setBranches([])
     setError(null)
     setSelectedFile(null)
@@ -667,7 +666,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       if (pendingGitPathRef.current !== targetPath) return
       if (result.success) {
         await refreshStatus()
-        refreshLog()
+        refreshGraph()
         refreshBranches()
         refreshStashCount()
       }
@@ -687,7 +686,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   useEffect(() => {
     fsChangedHandlerRef.current = window.api.file.onChanged(() => {
       refreshStatus()
-      if (logExpanded) refreshLog()
+      if (logExpanded) refreshGraph()
     })
 
     return () => {
@@ -785,7 +784,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const stagedFileCount = status?.files?.filter(f => f.staged).length ?? 0
   const hasStaged = stagedFileCount > 0
   const hasMessage = !!commitMessage.trim()
-  const hasCommits = logs.length > 0
+  const hasCommits = graphEntries.length > 0
   const amendDisabled = busy || !hasCommits || hasConflictInStaged || (!hasStaged && !hasMessage)
   const amendTooltip = !hasCommits
     ? t('Nothing to amend (no commits yet)')
@@ -814,7 +813,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             {status.behind > 0 && <span className="text-ide-warning text-[11px]">↓{status.behind}</span>}
           </div>
           <button
-            onClick={() => { refreshStatus(); refreshLog(); refreshBranches() }}
+            onClick={() => { refreshStatus(); refreshGraph(); refreshBranches() }}
             className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
             title={t('Refresh')}
           >
@@ -1219,7 +1218,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             </div>
           )}
 
-          {/* Commits / Log */}
+          {/* Commits / Graph */}
           <div className="border-b border-ide-border">
             <div
               className="pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
@@ -1231,89 +1230,64 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
-                <span>{t('Commits ({count})').replace('{count}', String(logs.length))}</span>
+                <span>{t('Commits ({count})').replace('{count}', String(graphEntries.length))}</span>
               </div>
             </div>
             {logExpanded && (
-              <div className="flex flex-col">
-                {logs.length === 0 ? (
-                  <div className="px-2 py-2 text-xs text-ide-text-muted text-center">{t('No commits yet')}</div>
-                ) : (
-                  <>
-                  {logs.map(entry => (
-                  <div key={entry.hash}>
-                    <div
-                      className={`pl-5 pr-2 py-1.5 border-b border-ide-border/50 hover:bg-ide-hover cursor-pointer ${
-                        expandedCommit === entry.hash ? 'bg-ide-accent/10' : ''
-                      }`}
-                      onClick={() => handleCommitClick(entry.hash)}
-                      onContextMenu={(e) => {
-                        e.preventDefault()
-                        setCommitContextMenu({ x: e.clientX, y: e.clientY, hash: entry.hash, message: entry.message })
-                      }}
-                    >
-                      <div className="text-xs text-ide-text truncate">{entry.message}</div>
-                      <div className="flex items-center gap-1 mt-1 text-xs text-ide-text-muted">
-                        <span className="text-ide-accent">{entry.hash.slice(0, 7)}</span>
-                        <span>{entry.author}</span>
-                        <span>{new Date(entry.date).toLocaleDateString()}</span>
-                        {entry.refs && <span className="text-ide-warning">{entry.refs}</span>}
+              <GitGraph
+                entries={graphEntries}
+                hasMore={hasMoreGraph}
+                loadingMore={loadingMoreGraph}
+                expandedHash={expandedCommit}
+                onCommitClick={handleCommitClick}
+                onContextMenu={(e, hash, message) => {
+                  e.preventDefault()
+                  setCommitContextMenu({ x: e.clientX, y: e.clientY, hash, message })
+                }}
+                onLoadMore={loadMoreGraph}
+                renderExpanded={(hash) => {
+                  const MAX_RENDER_FILES = 200
+                  const totalCount = commitFileCount || commitFiles.length
+                  const displayFiles = commitFiles.slice(0, MAX_RENDER_FILES)
+                  const renderTruncated = totalCount - MAX_RENDER_FILES
+                  return (
+                    <div className="bg-ide-bg border-b border-ide-border animate-fade-in">
+                      <div className="pl-5 pr-2 py-1 text-[11px] text-ide-text-muted uppercase tracking-wider bg-ide-hover/50">
+                        {t('Files ({count})').replace('{count}', String(totalCount))}
                       </div>
-                    </div>
-                    {expandedCommit === entry.hash && (() => {
-                      const MAX_RENDER_FILES = 200
-                      const totalCount = commitFileCount || commitFiles.length
-                      const displayFiles = commitFiles.slice(0, MAX_RENDER_FILES)
-                      const renderTruncated = totalCount - MAX_RENDER_FILES
-                      return (
-                      <div className="bg-ide-bg border-b border-ide-border animate-fade-in">
-                        <div className="pl-5 pr-2 py-1 text-[11px] text-ide-text-muted uppercase tracking-wider bg-ide-hover/50">
-                          {t('Files ({count})').replace('{count}', String(totalCount))}
+                      {displayFiles.map(file => {
+                        const { name, dir } = splitPath(file.path)
+                        return (
+                        <div
+                          key={file.path}
+                          className="pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1"
+                          onClick={() => handleCommitFileClick(file)}
+                        >
+                          <span className={`text-xs font-bold w-3.5 text-center shrink-0 ${
+                            file.status === 'added' ? 'text-ide-success' :
+                            file.status === 'deleted' ? 'text-ide-danger' :
+                            file.status === 'renamed' ? 'text-ide-warning' :
+                            'text-ide-text-muted'
+                          }`}>
+                            {file.status === 'added' ? 'A' : file.status === 'deleted' ? 'D' : file.status === 'renamed' ? 'R' : 'M'}
+                          </span>
+                          <span className="shrink-0 git-fname">{name}</span>
+                          {dir && <span className="truncate text-ide-text-muted git-fdir min-w-0">{dir}</span>}
+                          <span className="shrink-0 ml-auto flex items-center gap-1 text-[11px]">
+                            {file.additions > 0 && <span className="text-ide-success font-mono">+{file.additions}</span>}
+                            {file.deletions > 0 && <span className="text-ide-danger font-mono">-{file.deletions}</span>}
+                          </span>
                         </div>
-                        {displayFiles.map(file => {
-                          const { name, dir } = splitPath(file.path)
-                          return (
-                          <div
-                            key={file.path}
-                            className="pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1"
-                            onClick={() => handleCommitFileClick(file)}
-                          >
-                            <span className={`text-xs font-bold w-3.5 text-center shrink-0 ${
-                              file.status === 'added' ? 'text-ide-success' :
-                              file.status === 'deleted' ? 'text-ide-danger' :
-                              file.status === 'renamed' ? 'text-ide-warning' :
-                              'text-ide-text-muted'
-                            }`}>
-                              {file.status === 'added' ? 'A' : file.status === 'deleted' ? 'D' : file.status === 'renamed' ? 'R' : 'M'}
-                            </span>
-                            <span className="shrink-0 git-fname">{name}</span>
-                            {dir && <span className="truncate text-ide-text-muted git-fdir min-w-0">{dir}</span>}
-                            <span className="shrink-0 ml-auto flex items-center gap-1 text-[11px]">
-                              {file.additions > 0 && <span className="text-ide-success font-mono">+{file.additions}</span>}
-                              {file.deletions > 0 && <span className="text-ide-danger font-mono">-{file.deletions}</span>}
-                            </span>
-                          </div>
-                        )})}
-                        {renderTruncated > 0 && (
-                          <div className="pl-5 pr-2 py-1 text-xs text-ide-text-muted bg-ide-hover/30 text-center">
-                            + {renderTruncated} {t('more files')}
-                          </div>
-                        )}
-                      </div>
-                    )})()}
-                  </div>
-                ))}
-                {hasMoreLog && (
-                  <div
-                    className="pl-5 pr-2 py-1.5 text-xs text-center text-ide-text-muted bg-ide-hover/30 cursor-pointer hover:bg-ide-hover hover:text-ide-accent"
-                    onClick={loadMoreLog}
-                  >
-                    {loadingMore ? t('Loading...') : t('Load more commits')}
-                  </div>
-                )}
-                </>
-              )}
-            </div>
+                      )})}
+                      {renderTruncated > 0 && (
+                        <div className="pl-5 pr-2 py-1 text-xs text-ide-text-muted bg-ide-hover/30 text-center">
+                          + {renderTruncated} {t('more files')}
+                        </div>
+                      )}
+                    </div>
+                  )
+                }}
+              />
             )}
           </div>
 

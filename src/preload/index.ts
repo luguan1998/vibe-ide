@@ -66,7 +66,8 @@ const api = {
     deleteWorktree: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DELETE_WORKTREE, branch),
     deleteBranch: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DELETE_BRANCH, branch),
     setFilterRules: (rules: string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_FILTER_RULES, rules),
-    lineLog: (filePath: string, startLine: number, endLine: number) => ipcRenderer.invoke(IPC_CHANNELS.GIT_LINE_LOG, filePath, startLine, endLine)
+    lineLog: (filePath: string, startLine: number, endLine: number) => ipcRenderer.invoke(IPC_CHANNELS.GIT_LINE_LOG, filePath, startLine, endLine),
+    graph: (opts?: { count?: number; skip?: number }) => ipcRenderer.invoke(IPC_CHANNELS.GIT_GRAPH, opts)
   },
 
   // File operations

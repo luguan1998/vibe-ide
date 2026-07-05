@@ -40,6 +40,7 @@ export const IPC_CHANNELS = {
   GIT_DELETE_BRANCH: 'git:deleteBranch',
   GIT_SET_FILTER_RULES: 'git:setFilterRules',
   GIT_LINE_LOG: 'git:lineLog',
+  GIT_GRAPH: 'git:graph',
 
   // File
   FILE_READ: 'file:read',
@@ -180,6 +181,15 @@ export interface GitLogEntry {
   author: string
   date: string
   refs?: string
+}
+
+export interface GitGraphEntry {
+  hash: string
+  parents: string[]
+  refs: string
+  message: string
+  author: string
+  date: string
 }
 
 export interface GitBranch {
