@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { Copy, Check, Pencil, X, GripVertical, Plus, ListOrdered, Send } from 'lucide-react'
+import { Copy, Check, Pencil, X, GripVertical, Plus, ListOrdered, Send, StopCircle } from 'lucide-react'
 
 interface DraftItem {
   id: string
@@ -14,6 +14,7 @@ interface DraftPrefill {
 
 const OPEN_CMD_MODAL_EVENT = 'vibe-ide-open-custom-command-modal'
 export const EXECUTE_COMMAND_EVENT = 'vibe-ide-execute-command'
+export const DRAFT_PIPE_STOP = 'vibe-ide-draft-pipe-stop'
 
 function autoGrow(el: HTMLTextAreaElement | null) {
   if (!el) return
@@ -30,6 +31,10 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [copiedAll, setCopiedAll] = useState(false)
 
+  const [sending, setSending] = useState(false)
+  const sendingRef = useRef(false)
+  const stopRef = useRef(false)
+
   const dragFromRef = useRef<number | null>(null)
   const addInputRef = useRef<HTMLTextAreaElement>(null)
   const editInputRef = useRef<HTMLTextAreaElement>(null)
@@ -37,6 +42,15 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   const copiedAllTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { addInputRef.current?.focus() }, [])
+
+  useEffect(() => {
+    return () => {
+      if (sendingRef.current) {
+        stopRef.current = true
+        window.dispatchEvent(new CustomEvent(DRAFT_PIPE_STOP))
+      }
+    }
+  }, [])
 
   const handleAdd = useCallback(() => {
     const text = draft.replace(/\r\n/g, '\n')
@@ -95,11 +109,28 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
     window.dispatchEvent(new CustomEvent(OPEN_CMD_MODAL_EVENT, { detail: prefill }))
   }, [items])
 
-  const handleSendNext = useCallback(() => {
-    const first = items[0]
-    if (!first) return
-    window.dispatchEvent(new CustomEvent(EXECUTE_COMMAND_EVENT, { detail: first.text }))
-    setItems(prev => prev.slice(1))
+  const handlePipelineToggle = useCallback(async () => {
+    if (sendingRef.current) {
+      stopRef.current = true
+      sendingRef.current = false
+      setSending(false)
+      window.dispatchEvent(new CustomEvent(DRAFT_PIPE_STOP))
+      return
+    }
+    const snapshot = items.filter(it => it.text.trim())
+    if (snapshot.length === 0) return
+    sendingRef.current = true
+    setSending(true)
+    stopRef.current = false
+
+    for (const item of snapshot) {
+      if (stopRef.current) break
+      setItems(prev => prev.filter(it => it.id !== item.id))
+      await (window as any).__vibeDraftPipe?.(item.text)
+    }
+
+    sendingRef.current = false
+    setSending(false)
   }, [items])
 
   const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
@@ -306,22 +337,32 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
         <div className="flex gap-2">
           <button
             onClick={handleConvert}
-            disabled={items.length === 0}
+            disabled={items.length === 0 || sending}
             className="flex-1 h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-ide-accent/40 bg-ide-accent/10 hover:bg-ide-accent/20 text-ide-accent text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__convert-btn"
             title="把列表拼成多行管道命令，存为 CustomCommand (pipe)"
           >
             <ListOrdered size={14} />
             转为管道命令
           </button>
-          <button
-            onClick={handleSendNext}
-            disabled={items.length === 0}
-            className="flex-1 h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-ide-accent/40 bg-ide-accent/10 hover:bg-ide-accent/20 text-ide-accent text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__send-next-btn"
-            title="发送最上面一条到终端并聚焦，然后从列表清除"
-          >
-            <Send size={14} />
-            逐条发送
-          </button>
+          {sending ? (
+            <button
+              onClick={handlePipelineToggle}
+              className="flex-1 h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-ide-danger/40 bg-ide-danger/10 hover:bg-ide-danger/20 text-ide-danger text-xs font-medium transition-colors draft-plan__pipe-stop-btn"
+            >
+              <StopCircle size={14} />
+              终止发送
+            </button>
+          ) : (
+            <button
+              onClick={handlePipelineToggle}
+              disabled={items.length === 0}
+              className="flex-1 h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-ide-accent/40 bg-ide-accent/10 hover:bg-ide-accent/20 text-ide-accent text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__pipe-start-btn"
+              title="将全部提示词以管道方式依次发送到终端"
+            >
+              <Send size={14} />
+              管道发送
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -13,7 +13,7 @@ import CallGraphOverlay from './components/CallGraphOverlay'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
-import { EXECUTE_COMMAND_EVENT } from './components/GameDraftPlan'
+import { EXECUTE_COMMAND_EVENT, DRAFT_PIPE_STOP } from './components/GameDraftPlan'
 import { TerminalSession, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
 import { useI18n } from './i18n'
@@ -793,6 +793,17 @@ export default function App() {
     }
   }, [activeSessionId, cancelPipe])
 
+  const handlePipeCommandRef = useRef(handlePipeCommand)
+  handlePipeCommandRef.current = handlePipeCommand
+  const cancelPipeRef = useRef(cancelPipe)
+  cancelPipeRef.current = cancelPipe
+  const activeSessionIdRef = useRef(activeSessionId)
+  activeSessionIdRef.current = activeSessionId
+
+  useEffect(() => {
+    (window as any).__vibeDraftPipe = (text: string) => handlePipeCommandRef.current(text)
+  }, [])
+
   const handleAiAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     setAiBusy(prev => {
       const v = status === 'running'
@@ -1376,7 +1387,14 @@ export default function App() {
     return () => window.removeEventListener(EXECUTE_COMMAND_EVENT, handler)
   }, [])
 
-  // Clone with init: clone specific session and write command into the new clone
+  useEffect(() => {
+    const handler = () => {
+      const sessionId = activeSessionIdRef.current
+      if (sessionId) cancelPipeRef.current(sessionId)
+    }
+    window.addEventListener(DRAFT_PIPE_STOP, handler)
+    return () => window.removeEventListener(DRAFT_PIPE_STOP, handler)
+  }, [])
   const handleCloneWithInit = useCallback(async (sessionId: string, cwd: string, shell: string | undefined, command: string) => {
     try {
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8 })
