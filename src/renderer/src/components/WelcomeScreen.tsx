@@ -60,8 +60,9 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ onOpenFolder, onOpenPa
   }
 
   return (
-    <div className="flex-1 flex items-center justify-center bg-ide-bg overflow-hidden">
-      <div className="w-full max-w-[520px] px-8 py-10 select-none">
+    <div className="flex-1 overflow-y-auto bg-ide-bg">
+      <div className="flex items-center justify-center min-h-full">
+        <div className="w-full max-w-[520px] px-8 py-10 select-none">
         {/* Header */}
         <div className="text-center mb-10">
           <div className="w-14 h-14 mx-auto mb-4 flex items-center justify-center rounded-lg bg-ide-accent/40 text-3xl">🤔</div>
@@ -113,6 +114,7 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ onOpenFolder, onOpenPa
                 </button>
               )
             })}
+          </div>
           </div>
         </div>
       </div>
