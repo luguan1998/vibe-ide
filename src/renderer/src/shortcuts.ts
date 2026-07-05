@@ -238,6 +238,11 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Alt+KeyK',
   },
   {
+    id: 'game.draftPlan',
+    label: 'Open Draft Plan',
+    defaultKeys: 'Alt+KeyJ',
+  },
+  {
     id: 'terminal.search',
     label: 'Search Terminal',
     defaultKeys: 'Alt+KeyF',

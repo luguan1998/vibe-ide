@@ -6,6 +6,7 @@ import GitTab from './GitTab'
 import AuxTab from './AuxTab'
 import FileTab from './FileTab'
 import GameLauncher from './GameLauncher'
+import { FOCUS_GAME_DRAFT } from './GameDraftPlan'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
 
@@ -436,7 +437,7 @@ function RightPanel({
   useEffect(() => {
     if (activeSection === 'search' || activeSection === 'game') {
       setTimeout(() => {
-        const input = (activeSection === 'game' ? gameContentRef : searchContentRef).current?.querySelector('input') as HTMLInputElement | null
+        const input = (activeSection === 'game' ? gameContentRef : searchContentRef).current?.querySelector('input, textarea') as HTMLInputElement | null
         input?.focus()
       })
     } else {
@@ -537,6 +538,20 @@ function RightPanel({
       setActiveSection('git')
     }
   }, [lineHistoryPayload])
+
+  // Alt+J → 切换到 Game 面板
+  useEffect(() => {
+    const handler = () => {
+      setVisibleTabs(prev => {
+        if (prev['game']) return prev
+        const next = { ...prev, game: true }
+        return next
+      })
+      setActiveSection('game')
+    }
+    window.addEventListener(FOCUS_GAME_DRAFT, handler)
+    return () => window.removeEventListener(FOCUS_GAME_DRAFT, handler)
+  }, [])
 
   // 确保 activeSection 始终可见（处理隐藏当前 tab 的情况）
   useEffect(() => {

@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { FOCUS_GAME_DRAFT } from './GameDraftPlan'
 import Game2048 from './Game2048'
 import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
@@ -22,6 +23,12 @@ const GAMES: GameCard[] = [
 
 export default function GameLauncher() {
   const [currentGame, setCurrentGame] = useState<GameId>('menu')
+
+  useEffect(() => {
+    const handler = () => setCurrentGame('draft')
+    window.addEventListener(FOCUS_GAME_DRAFT, handler)
+    return () => window.removeEventListener(FOCUS_GAME_DRAFT, handler)
+  }, [])
 
   if (currentGame !== 'menu') {
     const back = () => setCurrentGame('menu')

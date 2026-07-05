@@ -13,7 +13,7 @@ import CallGraphOverlay from './components/CallGraphOverlay'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
-import { EXECUTE_COMMAND_EVENT, DRAFT_PIPE_STOP } from './components/GameDraftPlan'
+import { EXECUTE_COMMAND_EVENT, DRAFT_PIPE_STOP, FOCUS_GAME_DRAFT } from './components/GameDraftPlan'
 import { TerminalSession, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
 import { useI18n } from './i18n'
@@ -941,6 +941,14 @@ export default function App() {
         e.stopImmediatePropagation()
         setShowCodeSearch(true)
         setCodeSearchFocusTrigger(k => k + 1)
+        return
+      }
+
+      // game.draftPlan → switch to game tab, open draft plan, focus input
+      if (eventMatchesBinding(e, bindings['game.draftPlan'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        window.dispatchEvent(new CustomEvent(FOCUS_GAME_DRAFT))
         return
       }
 

@@ -15,6 +15,7 @@ interface DraftPrefill {
 const OPEN_CMD_MODAL_EVENT = 'vibe-ide-open-custom-command-modal'
 export const EXECUTE_COMMAND_EVENT = 'vibe-ide-execute-command'
 export const DRAFT_PIPE_STOP = 'vibe-ide-draft-pipe-stop'
+export const FOCUS_GAME_DRAFT = 'vibe-ide-focus-game-draft'
 
 function autoGrow(el: HTMLTextAreaElement | null) {
   if (!el) return
@@ -42,6 +43,12 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   const copiedAllTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { addInputRef.current?.focus() }, [])
+
+  useEffect(() => {
+    const handler = () => addInputRef.current?.focus()
+    window.addEventListener(FOCUS_GAME_DRAFT, handler)
+    return () => window.removeEventListener(FOCUS_GAME_DRAFT, handler)
+  }, [])
 
   useEffect(() => {
     return () => {
