@@ -768,6 +768,14 @@ export default function App() {
     for (let i = 0; i < lines.length; i++) {
       if (runner.cancelled) break
       setPipeProgress(prev => ({ ...prev, [sessionId]: { current: i + 1, total: lines.length } }))
+      if (i === 0) {
+        await new Promise<void>(resolve => {
+          if (runner.cancelled) { resolve(); return }
+          if (terminalBusyRef.current[sessionId] !== true) { resolve(); return }
+          runner.resolveIdle = resolve
+        })
+        if (runner.cancelled) break
+      }
       window.api.terminal.write(sessionId, lines[i] + '\r')
       await sleep(PIPE_DETECT_DELAY)
       if (runner.cancelled) break
