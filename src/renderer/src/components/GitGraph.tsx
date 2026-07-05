@@ -5,7 +5,7 @@ import { useI18n } from '../i18n'
 const ROW_HEIGHT = 36
 const LANE_WIDTH = 20
 const CIRCLE_RADIUS = 5
-const PADDING_LEFT = 12
+const PADDING_LEFT = 8
 
 const PALETTE = [
   'rgb(var(--ide-accent))',
@@ -19,7 +19,7 @@ const PALETTE = [
 ]
 
 interface RefItem {
-  type: 'head' | 'branch' | 'remote' | 'tag'
+  type: 'branch' | 'remote' | 'tag'
   display: string
 }
 
@@ -54,7 +54,6 @@ function parseRefs(refs: string): RefItem[] {
 }
 
 const REF_STYLES: Record<RefItem['type'], string> = {
-  head: 'text-ide-accent bg-ide-accent/15',
   branch: 'text-ide-success bg-ide-success/15',
   remote: 'text-[#8b5cf6] bg-[#8b5cf6]/15',
   tag: 'text-ide-warning bg-ide-warning/15',
@@ -82,11 +81,10 @@ interface GraphRow {
   foundLane: boolean
 }
 
-function buildGraphRows(entries: GitGraphEntry[]): { rows: GraphRow[]; maxLanes: number } {
+function buildGraphRows(entries: GitGraphEntry[]): { rows: GraphRow[] } {
   const rows: GraphRow[] = []
   let prevOutput: LaneNode[] = []
   let colorIdx = 0
-  let maxLanes = 0
 
   for (const entry of entries) {
     const inputLanes = prevOutput.map(l => ({ ...l }))
@@ -127,13 +125,11 @@ function buildGraphRows(entries: GitGraphEntry[]): { rows: GraphRow[]; maxLanes:
       outputLanes.splice(laneIndex, 1)
     }
 
-    maxLanes = Math.max(maxLanes, inputLanes.length, outputLanes.length)
-
     rows.push({ entry, inputLanes, outputLanes, laneIndex, mergeToLane, foundLane: foundLane !== -1 })
     prevOutput = outputLanes
   }
 
-  return { rows, maxLanes }
+  return { rows }
 }
 
 function laneX(lane: number): number {
@@ -175,14 +171,12 @@ export default function GitGraph({
     <div className="flex flex-col">
       {rows.map(row => {
         const midY = ROW_HEIGHT / 2
-        const topY = 0
         const botY = ROW_HEIGHT
         const xc = laneX(row.laneIndex)
         const color = row.inputLanes[row.laneIndex]?.color || PALETTE[0]
         const isHead = String(row.entry.refs || '').includes('HEAD ->')
         const isMerge = row.entry.parents.length > 1
         const isExpanded = row.entry.hash === expandedHash
-        const r = CIRCLE_RADIUS
         const refItems = parseRefs(row.entry.refs)
         const rowWidth = PADDING_LEFT + Math.max(row.inputLanes.length, row.outputLanes.length) * LANE_WIDTH
 
@@ -197,7 +191,7 @@ export default function GitGraph({
 
           if (outIdx === j) {
             elements.push(
-              <line key={`pass-${j}`} x1={xj} y1={topY} x2={xj} y2={botY}
+              <line key={`pass-${j}`} x1={xj} y1={0} x2={xj} y2={botY}
                 stroke={node.color} strokeWidth={2} strokeLinecap="round"
               />
             )
@@ -205,14 +199,14 @@ export default function GitGraph({
             const xo = laneX(outIdx)
             elements.push(
               <path key={`shift-${j}`}
-                d={curvePath(xj, topY, xo, botY)}
+                d={curvePath(xj, 0, xo, botY)}
                 fill="none" stroke={node.color} strokeWidth={2} strokeLinecap="round"
               />
             )
           } else {
             elements.push(
               <path key={`end-${j}`}
-                d={curvePath(xj, topY, xc, midY)}
+                d={curvePath(xj, 0, xc, midY)}
                 fill="none" stroke={node.color} strokeWidth={2} strokeLinecap="round"
               />
             )
@@ -222,7 +216,7 @@ export default function GitGraph({
         // Commit's incoming line — only if lane was inherited from a child commit
         if (row.foundLane) {
           elements.push(
-            <line key="in" x1={xc} y1={topY} x2={xc} y2={midY - r}
+            <line key="in" x1={xc} y1={0} x2={xc} y2={midY - CIRCLE_RADIUS}
               stroke={color} strokeWidth={2} strokeLinecap="round"
             />
           )
@@ -233,7 +227,7 @@ export default function GitGraph({
           const xm = laneX(row.mergeToLane)
           elements.push(
             <path key="merge-out"
-              d={curvePath(xc, midY + r, xm, botY)}
+              d={curvePath(xc, midY + CIRCLE_RADIUS, xm, botY)}
               fill="none" stroke={color} strokeWidth={2} strokeLinecap="round"
             />
           )
@@ -243,7 +237,7 @@ export default function GitGraph({
           )
           if (parentLane === row.laneIndex || parentLane === -1) {
             elements.push(
-              <line key="out-straight" x1={xc} y1={midY + r} x2={xc} y2={botY}
+              <line key="out-straight" x1={xc} y1={midY + CIRCLE_RADIUS} x2={xc} y2={botY}
                 stroke={color} strokeWidth={2} strokeLinecap="round"
               />
             )
@@ -251,7 +245,7 @@ export default function GitGraph({
             const xp = laneX(parentLane)
             elements.push(
               <path key="out-curve"
-                d={curvePath(xc, midY + r, xp, botY)}
+                d={curvePath(xc, midY + CIRCLE_RADIUS, xp, botY)}
                 fill="none" stroke={color} strokeWidth={2} strokeLinecap="round"
               />
             )
@@ -265,7 +259,7 @@ export default function GitGraph({
               const xp = laneX(pl)
               elements.push(
                 <path key={`merge-${pi}`}
-                  d={curvePath(xc, midY + r, xp, botY)}
+                  d={curvePath(xc, midY + CIRCLE_RADIUS, xp, botY)}
                   fill="none" stroke={color} strokeWidth={2} strokeLinecap="round"
                 />
               )
@@ -279,7 +273,7 @@ export default function GitGraph({
           const node = row.outputLanes[j]
           elements.push(
             <path key={`new-${j}`}
-              d={curvePath(xc, midY + r, xj, botY)}
+              d={curvePath(xc, midY + CIRCLE_RADIUS, xj, botY)}
               fill="none" stroke={node.color} strokeWidth={2} strokeLinecap="round"
             />
           )
@@ -289,25 +283,25 @@ export default function GitGraph({
         const circleFill = isExpanded ? 'rgb(var(--ide-accent))' : color
         if (isHead) {
           elements.push(
-            <circle key="head-outer" cx={xc} cy={midY} r={r + 2.5}
+            <circle key="head-outer" cx={xc} cy={midY} r={CIRCLE_RADIUS + 2.5}
               fill="none" stroke={circleFill} strokeWidth={1.5}
             />,
-            <circle key="head-inner" cx={xc} cy={midY} r={r}
+            <circle key="head-inner" cx={xc} cy={midY} r={CIRCLE_RADIUS}
               fill={circleFill}
             />
           )
         } else if (isMerge) {
           elements.push(
-            <circle key="merge-outer" cx={xc} cy={midY} r={r + 1.5}
+            <circle key="merge-outer" cx={xc} cy={midY} r={CIRCLE_RADIUS + 1.5}
               fill="none" stroke={circleFill} strokeWidth={1.5}
             />,
-            <circle key="merge-inner" cx={xc} cy={midY} r={r - 1.5}
+            <circle key="merge-inner" cx={xc} cy={midY} r={CIRCLE_RADIUS - 1.5}
               fill={circleFill}
             />
           )
         } else {
           elements.push(
-            <circle key="circle" cx={xc} cy={midY} r={r} fill={circleFill} />
+            <circle key="circle" cx={xc} cy={midY} r={CIRCLE_RADIUS} fill={circleFill} />
           )
         }
 
@@ -332,7 +326,7 @@ export default function GitGraph({
                 {elements}
               </svg>
 
-              <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden pr-2">
+              <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden pr-2 pl-1">
                 <div className="text-xs text-ide-text truncate leading-tight">{row.entry.message}</div>
                 <div className="flex items-center gap-1 text-[11px] text-ide-text-muted leading-tight mt-px">
                   <span className="text-ide-accent shrink-0">{row.entry.hash.slice(0, 7)}</span>
