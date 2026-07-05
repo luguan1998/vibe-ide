@@ -1397,8 +1397,18 @@ const SessionPanel = React.memo(function SessionPanel({
                 displayed.map((cmd, i) => (
                   <div
                     key={`hp-${i}`}
-                    className="px-3 py-0.5 text-xs font-mono text-ide-text hover:bg-ide-hover flex items-center gap-2 group"
+                    className="px-3 py-0.5 text-xs font-mono text-ide-text hover:bg-ide-hover flex items-center gap-2 group relative"
                   >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        commandsRef.current?.openCreateModal({ command: cmd })
+                      }}
+                      className="absolute left-0.5 opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-accent shrink-0 transition-opacity p-0.5"
+                      title={t('Save to command')}
+                    >
+                      <Pencil size={12} />
+                    </button>
                     <span className="text-ide-text-muted shrink-0 select-none w-5 text-right">
                       {cmds.length - displayed.length + i + 1}
                     </span>

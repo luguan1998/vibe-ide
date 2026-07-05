@@ -65,6 +65,7 @@ const ZH_MAP: Record<string, string> = {
   'History': '历史',
   'No commands yet': '暂无命令',
   'Cut': '剪切',
+  'Save to command': '记录到命令',
   'Copy': '复制',
   'Paste': '粘贴',
   'Move': '移动',
