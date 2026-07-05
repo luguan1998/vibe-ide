@@ -82,7 +82,11 @@ html, body, #root {
 
 /* Alt 画笔模式：编辑器鼠标变 🖌️ 羽毛笔（主题色，由 ThemeProvider 注入 --brush-cursor） */
 .diff-brush-mode .monaco-editor,
-.diff-brush-mode .monaco-editor * {
+.diff-brush-mode .monaco-editor *,
+.diff-brush-mode .diff-titlebar,
+.diff-brush-mode .diff-titlebar *,
+.alt-copy-mode,
+.alt-copy-mode * {
   cursor: var(--brush-cursor, crosshair) !important;
 }
 

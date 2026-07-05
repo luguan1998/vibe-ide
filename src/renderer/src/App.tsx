@@ -2117,6 +2117,7 @@ export default function App() {
             onToggleCollapse={handleToggleRightPanel}
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
+            altBrush={altBrush}
           />
           {centerView === 'diff' && annotationPanelOpen && (
             <div className="absolute left-2 right-2 bottom-2 border border-ide-border rounded-lg overflow-hidden z-10 bg-ide-sidebar" style={{ top: 44 }}>

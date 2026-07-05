@@ -59,6 +59,7 @@ const ZH_MAP: Record<string, string> = {
   'Alt+click a code line to annotate': 'Alt+左键批注单行；拖选范围后 Alt+左键批注范围',
   'Copy annotations': '复制批注',
   'Copied': '已复制',
+  'Copied to clipboard': '已复制到剪贴板',
   'Switch to GUI Mode': '切换到 GUI 模式',
   'Switch to Terminal Mode': '切换到终端模式',
   'History': '历史',

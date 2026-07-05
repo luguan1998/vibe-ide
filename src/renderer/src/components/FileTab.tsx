@@ -58,6 +58,7 @@ interface FileTabProps {
   onEditRecentFile?: (fullPath: string, lineNumber?: number) => void
   onOpenFileAtLine?: (fullPath: string, lineNumber?: number) => void
   isActive?: boolean
+  altBrush?: boolean
 }
 
 // Workspace-root inline input (new file/folder at root level)
@@ -154,7 +155,7 @@ function setNodesChildrenMap(nodes: FileNode[], map: Map<string, FileNode[]>): F
 }
 
 // File tree item component
-function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onSearchInFolder, inlineSearch }: {
+function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onSearchInFolder, inlineSearch, onCopyPath }: {
   node: FileNode
   depth: number
   expandedDirs: Set<string>
@@ -169,6 +170,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   onPreviewImage?: (fullPath: string, fileName: string) => void
   onSearchInFolder?: (path: string) => void
   inlineSearch?: InlineSearch
+  onCopyPath?: (fullPath: string) => void
 }) {
   const { t } = useI18n()
   const isDir = node.type === 'directory'
@@ -193,8 +195,14 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
     }
   }, [isRenaming, isCreating])
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
     if (isRenaming || isCreating) return
+    if (e.altKey && onCopyPath) {
+      e.preventDefault()
+      e.stopPropagation()
+      onCopyPath(node.path)
+      return
+    }
     if (isDir) {
       onToggle(node.path)
     } else {
@@ -432,6 +440,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                 onPreviewImage={onPreviewImage}
                 onSearchInFolder={onSearchInFolder}
                 inlineSearch={inlineSearch}
+                onCopyPath={onCopyPath}
               />
             ))
           )}
@@ -551,7 +560,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, altBrush }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -574,7 +583,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
   const [archExpanded, setArchExpanded] = useState(false)
   const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(null)
+  const [toastPath, setToastPath] = useState<string | null>(null)
   const { t } = useI18n()
+
+  useEffect(() => {
+    if (!toastPath) return
+    const id = setTimeout(() => setToastPath(null), 1500)
+    return () => clearTimeout(id)
+  }, [toastPath])
 
   // ── recently file section ──
   const [recentExpanded, setRecentExpanded] = useState(true)
@@ -681,6 +697,11 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       expanded: [...expandedDirsRef.current],
     })
   }, [workspacePath])
+
+  const handleCopyPath = useCallback((fullPath: string) => {
+    setToastPath(fullPath)
+    navigator.clipboard.writeText(`@${fullPath}`).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!workspacePath) return
@@ -1150,7 +1171,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   }, [fileClipboard, refreshDir])
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 file-tab">
+    <div className={`flex-1 flex flex-col min-h-0 file-tab${altBrush ? ' alt-copy-mode' : ''}`}>
       {workspacePath && (
         <div className="group h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean file-tab__header"
           onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
@@ -1289,6 +1310,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 onPreviewImage={onPreviewImage}
                 onSearchInFolder={(p) => openSearch(p)}
                 inlineSearch={inlineSearchPayload}
+                onCopyPath={handleCopyPath}
               />
             ))}
           </div>
@@ -1313,7 +1335,10 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 data-recent-idx={i}
                 className={`group pl-[30px] pr-2 py-0.5 flex items-center gap-1.5 cursor-pointer hover:bg-ide-hover ft-fname ${selectedRecentIndex === i ? 'bg-ide-accent/10 text-ide-text' : ''}`}
                 title={`${f.path}${f.line ? ':' + f.line : ''}`}
-                onClick={() => onOpenRecentFile?.(f.path, f.line)}
+                onClick={(e) => {
+                  if (e.altKey) { e.preventDefault(); handleCopyPath(f.path); return }
+                  onOpenRecentFile?.(f.path, f.line)
+                }}
               >
                 <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
                   dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
@@ -1592,6 +1617,25 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
             </span>
             <span>arch</span>
           </button>
+        </div>
+      )}
+
+      {toastPath && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+          <div className="flex flex-col items-center gap-2 px-5 py-3 rounded-xl border shadow-2xl pointer-events-auto animate-fade-in"
+            style={{
+              backgroundColor: 'rgb(var(--ide-sidebar-bg, 30 30 30))',
+              borderColor: 'rgba(34,197,94,0.5)',
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7 text-emerald-400">
+              <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-sm text-emerald-400 font-medium">{t('Copied to clipboard')}</span>
+              <span className="text-xs text-ide-text-muted truncate max-w-[280px]" title={toastPath}>@{toastPath}</span>
+            </div>
+          </div>
         </div>
       )}
     </div>
