@@ -1,46 +1,27 @@
 /*
   Large Font — 放大 File / Git 面板字体
-  覆盖文件树、Git 文件列表、区块标题、提交区字号
+  文件夹 > 文件名，文件夹大写
 */
 
-/* ════════════════════════════════════════════════════
-   文件树
-   ════════════════════════════════════════════════════ */
-.file-tab__header {
+/* Git 面板 */
+.git-tab__file-item {
   font-size: 13px !important;
-}
-
-.file-tree-item {
-  font-size: 14px !important;
-}
-
-.file-tree-item--folder > .file-tree-item__name {
-  font-size: 13px !important;
-}
-
-.file-tab__section-header {
-  font-size: 12px !important;
-}
-
-/* ════════════════════════════════════════════════════
-   Git 面板
-   ════════════════════════════════════════════════════ */
-.git-tab__branch-name {
-  font-size: 15px !important;
 }
 
 .git-tab__section-header {
   font-size: 12px !important;
 }
 
-.git-tab__file-item {
+.git-tab__branch-name {
   font-size: 13px !important;
 }
 
-.git-tab__commit-input {
+/* 文件树 */
+.file-tree-item {
   font-size: 13px !important;
 }
 
-.git-tab__commit-btn {
+.file-tree-item--folder > .file-tree-item__name {
+  /* text-transform: uppercase; */
   font-size: 13px !important;
 }
