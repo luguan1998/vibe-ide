@@ -416,24 +416,19 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     clearBuffer: () => {
       const term = xtermRef.current
       if (!term) return
-      const buf = term.buffer.active
-      const keepLines = 7
-      // 找最后一个有内容的行;尾部空行(光标下方)不计入,据此判断实际内容量
-      let lastNonEmpty = -1
-      for (let y = buf.length - 1; y >= 0; y--) {
-        const line = buf.getLine(y)
-        if (line && line.translateToString(true).length > 0) { lastNonEmpty = y; break }
-      }
-      const contentLines = lastNonEmpty + 1
-      // 内容不多于 keepLines:跳过不清屏(清掉只剩/不及 keepLines,等于丢失当前上下文却无收益)
-      if (contentLines <= keepLines) return
-      const lines: string[] = []
-      for (let y = lastNonEmpty - keepLines + 1; y <= lastNonEmpty; y++) {
-        const line = buf.getLine(y)
-        if (line) lines.push(line.translateToString(true))
-      }
-      term.reset()
-      if (lines.length > 0) term.write(lines.join('\r\n'))
+      if (term.buffer.active.type === 'alternate') return
+
+      const origCols = term.cols
+      const origRows = term.rows
+
+      term.resize(origCols, 1)
+      window.api.terminal.resize(sessionId, origCols, 1)
+
+      term.clear()
+      term.write('\x1b[3J')
+
+      term.resize(origCols, origRows)
+      window.api.terminal.resize(sessionId, origCols, origRows)
       try { fitAddonRef.current?.fit() } catch {}
       try { searchAddonRef.current?.clearDecorations() } catch {}
     }
