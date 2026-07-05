@@ -1153,7 +1153,8 @@ export default function App() {
         const active = document.activeElement as HTMLElement | null
         if (active && rightPanelRef.current?.contains(active) && centerView === 'terminal') {
           const tag = active.tagName
-          if (tag !== 'TEXTAREA' && tag !== 'INPUT' && tag !== 'SELECT') {
+          const isDraftAddInput = active.classList.contains('draft-plan__add-input')
+          if (tag !== 'TEXTAREA' && tag !== 'INPUT' && tag !== 'SELECT' || isDraftAddInput) {
             e.preventDefault()
             e.stopImmediatePropagation()
             active.blur()

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { Copy, Check, Pencil, X, GripVertical, Plus, ListOrdered, Send, StopCircle } from 'lucide-react'
+import { Copy, Check, Pencil, X, GripVertical, Plus, Split, ListOrdered, Send, StopCircle } from 'lucide-react'
 
 interface DraftItem {
   id: string
@@ -30,7 +30,6 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   const [editText, setEditText] = useState('')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [copiedAll, setCopiedAll] = useState(false)
 
   const [sending, setSending] = useState(false)
   const sendingRef = useRef(false)
@@ -40,7 +39,6 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   const addInputRef = useRef<HTMLTextAreaElement>(null)
   const editInputRef = useRef<HTMLTextAreaElement>(null)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const copiedAllTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { addInputRef.current?.focus() }, [])
 
@@ -100,14 +98,17 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
     copiedTimerRef.current = setTimeout(() => setCopiedId(null), 1200)
   }, [])
 
-  const handleCopyAll = useCallback(() => {
-    const md = items.map(it => `- ${it.text}`).join('\n')
-    if (!md.trim()) return
-    navigator.clipboard?.writeText(md).catch(() => {})
-    setCopiedAll(true)
-    if (copiedAllTimerRef.current) clearTimeout(copiedAllTimerRef.current)
-    copiedAllTimerRef.current = setTimeout(() => setCopiedAll(false), 1200)
-  }, [items])
+  const handleSplit = useCallback(() => {
+    const lines = draft.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean)
+    if (lines.length === 0) return
+    const newItems: DraftItem[] = lines.map(text => ({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      text,
+    }))
+    setItems(prev => [...prev, ...newItems])
+    setDraft('')
+    requestAnimationFrame(() => { addInputRef.current?.focus(); autoGrow(addInputRef.current) })
+  }, [draft])
 
   const handleConvert = useCallback(() => {
     const command = items.map(it => it.text).filter(t => t.trim()).join('\n')
@@ -180,7 +181,6 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   useEffect(() => {
     return () => {
       if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current)
-      if (copiedAllTimerRef.current) clearTimeout(copiedAllTimerRef.current)
     }
   }, [])
 
@@ -329,12 +329,12 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
               <Plus size={14} />
             </button>
             <button
-              onClick={handleCopyAll}
-              disabled={items.length === 0}
-              title="复制全部为 Markdown 列表"
-              className="w-7 h-7 inline-flex items-center justify-center rounded bg-ide-accent/15 hover:bg-ide-accent/25 text-ide-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__copy-all-btn"
+              onClick={handleSplit}
+              disabled={!draft.trim()}
+              title="按行拆分并添加到列表"
+              className="w-7 h-7 inline-flex items-center justify-center rounded bg-ide-accent/15 hover:bg-ide-accent/25 text-ide-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__split-btn"
             >
-              {copiedAll ? <Check size={14} /> : <Copy size={14} />}
+              <Split size={14} />
             </button>
           </div>
         </div>
