@@ -17,7 +17,7 @@ const GAMES: GameCard[] = [
   { id: 'balatro', icon: '🃏', name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: '🏖️', name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: '🧩', name: '2048', desc: 'Slide tiles to merge them' },
-  { id: 'draft', icon: '📝', name: '草稿计划', desc: '提示词草稿本 — 可转为管道命令' },
+  { id: 'draft', icon: '📝', name: 'Draft Plan', desc: 'Prompt scratchpad — chain into a pipeline command' },
 ]
 
 export default function GameLauncher() {
