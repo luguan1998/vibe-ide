@@ -133,8 +133,10 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
 
     for (const item of snapshot) {
       if (stopRef.current) break
+      await (window as any).__vibeWaitIdle?.()
+      if (stopRef.current) break
       setItems(prev => prev.filter(it => it.id !== item.id))
-      await (window as any).__vibeDraftPipe?.(item.text)
+      await (window as any).__vibeSendLine?.(item.text)
     }
 
     sendingRef.current = false

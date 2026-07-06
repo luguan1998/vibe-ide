@@ -333,6 +333,7 @@ export default function App() {
   const [pipeProgress, setPipeProgress] = useState<Record<string, { current: number; total: number }>>({})
   const pipeRunnersRef = useRef<Map<string, { cancelled: boolean; resolveIdle: (() => void) | null; sleepTimer: ReturnType<typeof setTimeout> | null; sleepResolve: (() => void) | null }>>(new Map())
   const terminalBusyRef = useRef<Record<string, boolean>>({})
+  const aiBusyRef = useRef<Record<string, boolean>>({})
   const agentStatus = useMemo(() => {
     const result: Record<string, 'running' | 'idle'> = {}
     for (const s of sessions) {
@@ -722,6 +723,55 @@ export default function App() {
       window.api.removeFocusSettingsListener(handler)
     }
   }, [])
+
+  const draftWaitersRef = useRef<Map<string, Array<() => void>>>(new Map())
+  const draftSleepRef = useRef<Map<string, { timer: ReturnType<typeof setTimeout>; resolve: () => void } | null>>(new Map())
+
+  const notifyDraftIdle = useCallback((sessionId: string) => {
+    if (terminalBusyRef.current[sessionId] || aiBusyRef.current[sessionId]) return
+    const arr = draftWaitersRef.current.get(sessionId)
+    if (arr && arr.length) {
+      draftWaitersRef.current.delete(sessionId)
+      arr.forEach(r => r())
+    }
+  }, [])
+
+  const waitDraftIdle = useCallback(async (sessionId: string | null | undefined) => {
+    if (!sessionId) return
+    if (!terminalBusyRef.current[sessionId] && !aiBusyRef.current[sessionId]) return
+    return new Promise<void>(resolve => {
+      const arr = draftWaitersRef.current.get(sessionId) || []
+      arr.push(resolve)
+      draftWaitersRef.current.set(sessionId, arr)
+    })
+  }, [])
+
+  const sendDraftLine = useCallback(async (sessionId: string | null | undefined, text: string) => {
+    if (!sessionId) return
+    window.api.terminal.write(sessionId, text + '\r')
+    await new Promise<void>(resolve => {
+      const timer = setTimeout(() => {
+        draftSleepRef.current.delete(sessionId)
+        resolve()
+      }, 2000)
+      draftSleepRef.current.set(sessionId, { timer, resolve })
+    })
+    await waitDraftIdle(sessionId)
+  }, [waitDraftIdle])
+
+  const cancelDraftPipe = useCallback((sessionId: string) => {
+    const s = draftSleepRef.current.get(sessionId)
+    if (s) { clearTimeout(s.timer); draftSleepRef.current.delete(sessionId); s.resolve() }
+    const arr = draftWaitersRef.current.get(sessionId)
+    if (arr && arr.length) {
+      draftWaitersRef.current.delete(sessionId)
+      arr.forEach(r => r())
+    }
+  }, [])
+
+  const cancelDraftPipeRef = useRef(cancelDraftPipe)
+  cancelDraftPipeRef.current = cancelDraftPipe
+
   const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     const v = status === 'running'
     setTerminalBusy(prev => {
@@ -738,8 +788,9 @@ export default function App() {
         runner.resolveIdle = null
         resolve()
       }
+      notifyDraftIdle(sessionId)
     }
-  }, [])
+  }, [notifyDraftIdle])
 
   const cancelPipe = useCallback((sessionId: string) => {
     const runner = pipeRunnersRef.current.get(sessionId)
@@ -793,24 +844,27 @@ export default function App() {
     }
   }, [activeSessionId, cancelPipe])
 
-  const handlePipeCommandRef = useRef(handlePipeCommand)
-  handlePipeCommandRef.current = handlePipeCommand
   const cancelPipeRef = useRef(cancelPipe)
   cancelPipeRef.current = cancelPipe
   const activeSessionIdRef = useRef(activeSessionId)
   activeSessionIdRef.current = activeSessionId
 
   useEffect(() => {
-    (window as any).__vibeDraftPipe = (text: string) => handlePipeCommandRef.current(text)
-  }, [])
+    (window as any).__vibeWaitIdle = () => { return waitDraftIdle(activeSessionIdRef.current) }
+    (window as any).__vibeSendLine = (text: string) => sendDraftLine(activeSessionIdRef.current, text)
+  }, [waitDraftIdle, sendDraftLine])
 
   const handleAiAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
+    const v = status === 'running'
     setAiBusy(prev => {
-      const v = status === 'running'
       if (prev[sessionId] === v) return prev
       return { ...prev, [sessionId]: v }
     })
-  }, [])
+    if (aiBusyRef.current[sessionId] !== v) {
+      aiBusyRef.current = { ...aiBusyRef.current, [sessionId]: v }
+    }
+    if (status === 'idle') notifyDraftIdle(sessionId)
+  }, [notifyDraftIdle])
 
   const handleToggleAutoApprove = useCallback(async (sessionId: string, cwd: string) => {
     setAutoApproveSessions(prev => {
@@ -1399,7 +1453,10 @@ export default function App() {
   useEffect(() => {
     const handler = () => {
       const sessionId = activeSessionIdRef.current
-      if (sessionId) cancelPipeRef.current(sessionId)
+      if (sessionId) {
+        cancelPipeRef.current(sessionId)
+        cancelDraftPipeRef.current(sessionId)
+      }
     }
     window.addEventListener(DRAFT_PIPE_STOP, handler)
     return () => window.removeEventListener(DRAFT_PIPE_STOP, handler)
