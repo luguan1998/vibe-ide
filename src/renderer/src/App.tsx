@@ -3,7 +3,7 @@ import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffec
 import SessionPanel from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
-import AnnotationPanel from './components/AnnotationPanel'
+import AnnotationPanel, { toRelPath } from './components/AnnotationPanel'
 import MarkdownPreview from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
 import OutlinePanel, { isCode, isMarkdown } from './components/OutlinePanel'
@@ -1646,7 +1646,13 @@ export default function App() {
     setRightPanelCollapsed(false)
     setAnnotationPanelOpen(true)
     setAnnotationActiveRange({ start, end })
-  }, [])
+    const fp = diffFile?.fullPath
+    if (fp) {
+      const rel = toRelPath(fp, activeSessionCwd)
+      const ref = start === end ? `@${rel}:${start}` : `@${rel}:${start}-${end}`
+      navigator.clipboard?.writeText(ref).catch(() => {})
+    }
+  }, [diffFile?.fullPath, activeSessionCwd])
   const handleAnnotationClose = useCallback(() => {
     setAnnotationPanelOpen(false)
     setAnnotationActiveRange(null)
