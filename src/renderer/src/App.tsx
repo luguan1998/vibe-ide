@@ -3,7 +3,6 @@ import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffec
 import SessionPanel from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
-import AnnotationPanel, { toRelPath } from './components/AnnotationPanel'
 import MarkdownPreview from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
 import OutlinePanel, { isCode, isMarkdown } from './components/OutlinePanel'
@@ -13,7 +12,7 @@ import CallGraphOverlay from './components/CallGraphOverlay'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
-import { EXECUTE_COMMAND_EVENT, DRAFT_PIPE_STOP, FOCUS_GAME_DRAFT } from './components/GameDraftPlan'
+import { EXECUTE_COMMAND_EVENT, DRAFT_PIPE_STOP, FOCUS_GAME_DRAFT, ADD_ANNOTATION_EVENT, toRelPath } from './components/GameDraftPlan'
 import { TerminalSession, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
 import { useI18n } from './i18n'
@@ -1697,27 +1696,16 @@ export default function App() {
     }
   }, [centerView, diffFile])
 
-  const [annotationPanelOpen, setAnnotationPanelOpen] = useState(false)
-  const [annotationActiveRange, setAnnotationActiveRange] = useState<{ start: number; end: number } | null>(null)
   const handleAnnotationTrigger = useCallback((start: number, end: number) => {
-    setRightPanelCollapsed(false)
-    setAnnotationPanelOpen(true)
-    setAnnotationActiveRange({ start, end })
     const fp = diffFile?.fullPath
-    if (fp) {
-      const rel = toRelPath(fp, activeSessionCwd)
-      const ref = start === end ? `@${rel}:${start}` : `@${rel}:${start}-${end}`
-      navigator.clipboard?.writeText(ref).catch(() => {})
-    }
+    if (!fp) return
+    const rel = toRelPath(fp, activeSessionCwd)
+    const ref = start === end ? `@${rel}:${start}` : `@${rel}:${start}-${end}`
+    navigator.clipboard?.writeText(ref).catch(() => {})
+    setRightPanelCollapsed(false)
+    window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { fullPath: fp, rel, start, end } }))
+    window.dispatchEvent(new CustomEvent(FOCUS_GAME_DRAFT, { detail: { focus: 'annotation' } }))
   }, [diffFile?.fullPath, activeSessionCwd])
-  const handleAnnotationClose = useCallback(() => {
-    setAnnotationPanelOpen(false)
-    setAnnotationActiveRange(null)
-  }, [])
-  useEffect(() => {
-    setAnnotationActiveRange(null)
-    setAnnotationPanelOpen(false)
-  }, [diffFile?.fullPath, centerView])
 
   const [mdScrollHeading, setMdScrollHeading] = useState<string | undefined>(undefined)
   const [outlineScrollTrigger, setOutlineScrollTrigger] = useState(0)
@@ -2217,16 +2205,6 @@ export default function App() {
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
             altBrush={altBrush}
           />
-          {centerView === 'diff' && annotationPanelOpen && (
-            <div className="absolute left-2 right-2 bottom-2 border border-ide-border rounded-lg overflow-hidden z-10 bg-ide-sidebar" style={{ top: 44 }}>
-              <AnnotationPanel
-                activeRange={annotationActiveRange}
-                fullPath={diffFile?.fullPath}
-                cwd={activeSessionCwd}
-                onClose={handleAnnotationClose}
-              />
-            </div>
-          )}
         </div>
         )}
       </div>

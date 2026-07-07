@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { Copy, Check, Pencil, X, GripVertical, Plus, Split, ListOrdered, Send, StopCircle } from 'lucide-react'
+import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
+import { Copy, Check, X, GripVertical, Plus, Split, ListOrdered, Send, StopCircle } from 'lucide-react'
 
 interface DraftItem {
   id: string
@@ -25,6 +25,26 @@ const KEYPAD_ITEMS: { code: string; key: string; text: string }[] = [
 export const EXECUTE_COMMAND_EVENT = 'vibe-ide-execute-command'
 export const DRAFT_PIPE_STOP = 'vibe-ide-draft-pipe-stop'
 export const FOCUS_GAME_DRAFT = 'vibe-ide-focus-game-draft'
+export const ADD_ANNOTATION_EVENT = 'vibe-ide-add-annotation'
+
+export function toRelPath(full: string | undefined | null, cwd?: string | null): string {
+  const f = (full || '').replace(/\\/g, '/')
+  const w = cwd ? cwd.replace(/\\/g, '/').replace(/\/$/, '') : ''
+  return w && (f === w || f.startsWith(w + '/')) ? f.slice(w.length).replace(/^\//, '') : f
+}
+
+interface AnnotationEntry { id: string; start: number; end: number; opinion: string }
+interface AnnotationGroup { fullPath: string; rel: string; items: AnnotationEntry[] }
+
+function buildAnnotationCommand(group: AnnotationGroup): string {
+  const valid = group.items.filter(it => it.opinion.trim()).sort((a, b) => a.start - b.start)
+  if (valid.length === 0) return ''
+  return valid.map(it => {
+    const ref = it.start === it.end ? `@${group.rel}:${it.start}` : `@${group.rel}:${it.start}-${it.end}`
+    const opinion = it.opinion.trim().replace(/[\r\n]+/g, ' ').replace(/;/g, '，')
+    return `${ref} ${opinion}`
+  }).join('; ')
+}
 
 function autoGrow(el: HTMLTextAreaElement | null) {
   if (!el) return
@@ -51,11 +71,18 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const pressedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [pressedKey, setPressedKey] = useState<string | null>(null)
+  const [annotations, setAnnotations] = useState<AnnotationGroup[]>([])
+  const annotationsRef = useRef<AnnotationGroup[]>([])
+  annotationsRef.current = annotations
 
-  useEffect(() => { addInputRef.current?.focus() }, [])
+  useEffect(() => { requestAnimationFrame(() => addInputRef.current?.focus()) }, [])
 
   useEffect(() => {
-    const handler = () => addInputRef.current?.focus()
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { focus?: 'add' | 'annotation' } | undefined
+      if (detail?.focus === 'annotation') return
+      requestAnimationFrame(() => addInputRef.current?.focus())
+    }
     window.addEventListener(FOCUS_GAME_DRAFT, handler)
     return () => window.removeEventListener(FOCUS_GAME_DRAFT, handler)
   }, [])
@@ -117,10 +144,91 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
     ;(window as any).__vibeSendLine?.(item.text)
   }, [])
 
+  const handleAnnotationConvert = useCallback(() => {
+    const prev = annotationsRef.current
+    if (prev.length === 0) return
+    const newItems: DraftItem[] = []
+    const remaining: AnnotationGroup[] = []
+    for (const group of prev) {
+      const withOp = group.items.filter(it => it.opinion.trim()).sort((a, b) => a.start - b.start)
+      const noOp = group.items.filter(it => !it.opinion.trim())
+      if (withOp.length > 0) {
+        const cmd = buildAnnotationCommand({ ...group, items: withOp })
+        if (cmd) newItems.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text: cmd })
+      }
+      if (noOp.length > 0) remaining.push({ ...group, items: noOp })
+    }
+    if (newItems.length === 0) return
+    setItems(items => [...items, ...newItems])
+    setAnnotations(remaining)
+    setPressedKey('Numpad7')
+    if (pressedTimerRef.current) clearTimeout(pressedTimerRef.current)
+    pressedTimerRef.current = setTimeout(() => setPressedKey(null), 140)
+  }, [])
+
+  const handleAnnotationDelete = useCallback((fullPath: string, entryId: string) => {
+    setAnnotations(prev => prev.map(g =>
+      g.fullPath === fullPath
+        ? { ...g, items: g.items.filter(it => it.id !== entryId) }
+        : g
+    ).filter(g => g.items.length > 0))
+  }, [])
+
+  const handleAnnotationOpinionChange = useCallback((fullPath: string, entryId: string, opinion: string) => {
+    setAnnotations(prev => prev.map(g =>
+      g.fullPath === fullPath
+        ? { ...g, items: g.items.map(it => it.id === entryId ? { ...it, opinion } : it) }
+        : g
+    ))
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { fullPath, rel, start, end } = (e as CustomEvent).detail as { fullPath: string; rel: string; start: number; end: number }
+      const newId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+      setAnnotations(prev => {
+        const idx = prev.findIndex(g => g.fullPath === fullPath)
+        if (idx >= 0) {
+          if (prev[idx].items.some(it => it.start === start && it.end === end)) return prev
+          const next = [...prev]
+          next[idx] = { ...next[idx], items: [...next[idx].items, { id: newId, start, end, opinion: '' }] }
+          return next
+        }
+        return [...prev, { fullPath, rel, items: [{ id: newId, start, end, opinion: '' }] }]
+      })
+      requestAnimationFrame(() => {
+        const ta = containerRef.current?.querySelector<HTMLTextAreaElement>(`.draft-plan__annotation-opinion[data-id="${newId}"]`)
+        ta?.focus()
+      })
+    }
+    window.addEventListener(ADD_ANNOTATION_EVENT, handler)
+    return () => window.removeEventListener(ADD_ANNOTATION_EVENT, handler)
+  }, [])
+
+  useLayoutEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const active = document.activeElement
+      if (active?.classList.contains('draft-plan__annotation-opinion')) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        ;(active as HTMLTextAreaElement).blur()
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const el = containerRef.current
       if (!el || el.offsetParent === null) return
+      if (e.code === 'Numpad7') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        handleAnnotationConvert()
+        return
+      }
       const item = KEYPAD_ITEMS.find(k => k.code === e.code)
       if (!item) return
       e.preventDefault()
@@ -129,7 +237,7 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [handleKeypadSend])
+  }, [handleKeypadSend, handleAnnotationConvert])
 
   const handleSplit = useCallback(() => {
     const lines = draft.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean)
@@ -241,38 +349,24 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
     <div ref={containerRef} className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none draft-plan" tabIndex={-1}>
       <style>{`
         .draft-plan__key {
-          background: linear-gradient(to bottom, rgb(var(--ide-sidebar)), rgb(var(--ide-bg) / 0.94));
-          border: 1px solid rgb(var(--ide-border));
-          border-bottom-width: 2px;
-          border-radius: 6px;
-          box-shadow:
-            inset 0 1px 0 rgb(255 255 255 / 0.05),
-            inset 0 -2px 1px rgb(0 0 0 / 0.18),
-            0 2px 0 rgb(0 0 0 / 0.28),
-            0 3px 4px rgb(0 0 0 / 0.22);
-          transition: transform 80ms ease, box-shadow 80ms ease, border-color 120ms, background 120ms;
+          background: rgb(var(--ide-sidebar) / 0.45);
+          border: 1.5px dashed rgb(var(--ide-border));
+          border-radius: 8px 12px 6px 10px;
+          transition: transform 80ms ease, border-color 120ms, background 120ms;
           cursor: pointer;
         }
         .draft-plan__key:hover {
-          border-color: rgb(var(--ide-accent) / 0.55);
-          background: linear-gradient(to bottom, rgb(var(--ide-sidebar)), rgb(var(--ide-hover) / 0.55));
+          border-color: rgb(var(--ide-accent) / 0.6);
+          background: rgb(var(--ide-accent) / 0.1);
           transform: translateY(-1px);
-          box-shadow:
-            inset 0 1px 0 rgb(255 255 255 / 0.09),
-            inset 0 -2px 1px rgb(0 0 0 / 0.18),
-            0 3px 0 rgb(0 0 0 / 0.3),
-            0 5px 7px rgb(0 0 0 / 0.33);
         }
         .draft-plan__key:active,
         .draft-plan__key--pressed {
           transform: translateY(1px);
-          border-bottom-width: 1px;
-          box-shadow:
-            inset 0 1px 0 rgb(255 255 255 / 0.03),
-            inset 0 -1px 0 rgb(0 0 0 / 0.15),
-            0 1px 0 rgb(0 0 0 / 0.2),
-            0 1px 2px rgb(0 0 0 / 0.2);
+          background: rgb(var(--ide-accent) / 0.16);
+          border-color: rgb(var(--ide-accent) / 0.7);
         }
+        .draft-plan__key--wide { width: 100%; }
       `}</style>
       <div className="flex items-center justify-between px-4 py-2 bg-ide-hover/50 border-b border-ide-border shrink-0 select-none draft-plan__header">
         <div className="flex items-center gap-2">
@@ -283,14 +377,7 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
               </svg>
             </button>
           )}
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-text-muted">
-            <line x1="8" y1="6" x2="21" y2="6" />
-            <line x1="8" y1="12" x2="21" y2="12" />
-            <line x1="8" y1="18" x2="21" y2="18" />
-            <circle cx="3.5" cy="6" r="1.5" />
-            <circle cx="3.5" cy="12" r="1.5" />
-            <circle cx="3.5" cy="18" r="1.5" />
-          </svg>
+          <span className="text-[13px] leading-none">📝</span>
           <span className="text-xs font-bold text-ide-text-muted tracking-wider draft-plan__title">草稿计划</span>
         </div>
         <div className="flex items-center gap-3 text-xs">
@@ -301,12 +388,52 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
         </div>
       </div>
 
+      {annotations.length > 0 && (
+        <div className="shrink-0 border-b border-ide-border max-h-[40%] overflow-y-auto draft-plan__annotations">
+          <div className="flex items-center justify-between px-3 h-7 sticky top-0 bg-ide-sidebar z-[1] border-b border-ide-border/60">
+            <span className="text-[10px] uppercase tracking-wider text-ide-text-muted/60">
+              批注 <span className="text-ide-accent tabular-nums">{annotations.reduce((n, g) => n + g.items.length, 0)}</span>
+            </span>
+            <span className="text-[10px] text-ide-text-muted/40">Numpad7 → 转为命令</span>
+          </div>
+          {annotations.map(group => (
+            <div key={group.fullPath} className="draft-plan__annotation-group">
+              <div className="px-3 py-1 text-[11px] font-mono text-ide-text-muted truncate bg-ide-hover/30">
+                {group.rel}
+              </div>
+              {[...group.items].sort((a, b) => a.start - b.start).map(ann => (
+                <div key={ann.id} className="group flex items-start gap-1.5 px-2 py-1 mx-1 rounded hover:bg-ide-hover/40">
+                  <span className="shrink-0 text-[11px] font-mono text-ide-accent pt-1 w-14 text-right">
+                    :{ann.start === ann.end ? ann.start : `${ann.start}-${ann.end}`}
+                  </span>
+                  <textarea
+                    data-id={ann.id}
+                    className="draft-plan__annotation-opinion flex-1 min-w-0 text-xs p-1 bg-ide-bg border border-dashed border-ide-border rounded-[4px_8px_5px_7px] resize-none focus:outline-none focus:border-ide-accent text-ide-text"
+                    rows={1}
+                    placeholder="批注意见…"
+                    value={ann.opinion}
+                    onChange={(e) => { autoGrow(e.target); handleAnnotationOpinionChange(group.fullPath, ann.id, e.target.value) }}
+                  />
+                  <button
+                    className="shrink-0 text-ide-text-muted hover:text-ide-danger text-xs pt-1 px-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="删除"
+                    onClick={() => handleAnnotationDelete(group.fullPath, ann.id)}
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1 draft-plan__list">
         {items.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-1.5 text-ide-text-muted/40 draft-plan__empty">
-            <span className="text-2xl text-ide-text-muted/20 leading-none">›</span>
-            <span className="text-xs">还没有提示词</span>
-            <span className="text-[10px] text-ide-text-muted/50">写第一条，组成你的管道序列</span>
+            <span className="text-[10px] text-ide-text-muted/50">组成你的管道序列</span>
+            <div className="mt-2 flex flex-col items-center gap-0.5 text-[10px] text-ide-text-muted/40">
+              <span>副键盘 <span className="text-ide-accent/60 tabular-nums">4 5 6 / 1 2 3</span> 速发</span>
+              <span><span className="text-ide-accent/60">Numpad7</span> 批注→命令</span>
+            </div>
           </div>
         ) : (
           items.map((item, i) => {
@@ -320,7 +447,7 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => handleDragOver(e, i)}
                 onDrop={(e) => handleDrop(e, i)}
-                className={`group relative flex items-start gap-2 pl-2 pr-1 py-1.5 rounded-md border border-ide-border/60 bg-ide-bg/30 hover:bg-ide-hover hover:border-ide-accent/40 transition-colors draft-plan__item${isDragOver ? ' draft-plan__item--drag-over ring-1 ring-ide-accent/60 border-ide-accent/60' : ''}${editing ? ' draft-plan__item--editing' : ''}`}
+                className={`group relative flex items-start gap-2 pl-2 pr-1 py-1.5 rounded-[6px_10px_5px_9px] border border-dashed border-ide-border/60 hover:bg-ide-hover/50 hover:border-ide-accent/50 transition-colors draft-plan__item${isDragOver ? ' draft-plan__item--drag-over ring-1 ring-ide-accent/60 border-ide-accent/60' : ''}${editing ? ' draft-plan__item--editing' : ''}`}
               >
                 <span className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l bg-ide-accent opacity-0 group-hover:opacity-100 transition-opacity draft-plan__item-accent" />
                 <span
@@ -329,7 +456,6 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
                 >
                   <GripVertical size={14} />
                 </span>
-                <span className="shrink-0 mt-1 text-[10px] tabular-nums text-ide-text-muted/40 w-4 text-right leading-none draft-plan__item-index">{String(i + 1).padStart(2, '0')}</span>
                 <span className="shrink-0 mt-0.5 text-sm text-ide-accent/70 leading-none select-none draft-plan__item-sigil">›</span>
                 {editing ? (
                   <textarea
@@ -339,7 +465,7 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
                     onKeyDown={onEditKeyDown}
                     onBlur={handleSaveEdit}
                     rows={1}
-                    className="flex-1 min-h-[1.5rem] bg-ide-bg/60 border border-ide-accent/60 rounded px-2 py-1 text-sm text-ide-text focus:outline-none resize-none whitespace-pre-wrap break-words draft-plan__item-edit"
+                    className="flex-1 min-h-[1.5rem] bg-ide-bg/60 border border-dashed border-ide-accent/60 rounded-[4px_8px_5px_7px] px-2 py-1 text-sm text-ide-text focus:outline-none resize-none whitespace-pre-wrap break-words draft-plan__item-edit"
                   />
                 ) : (
                   <div
@@ -358,14 +484,6 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
                     {copiedId === item.id ? <Check size={13} className="text-ide-accent" /> : <Copy size={13} />}
                   </button>
                   <button
-                    onClick={() => handleStartEdit(item)}
-                    disabled={editing}
-                    className="w-6 h-6 flex items-center justify-center rounded text-ide-text-muted/40 hover:text-ide-text hover:bg-ide-hover/60 transition-colors disabled:opacity-30 draft-plan__item-btn"
-                    title="编辑"
-                  >
-                    <Pencil size={13} />
-                  </button>
-                  <button
                     onClick={() => handleDelete(item.id)}
                     className="w-6 h-6 flex items-center justify-center rounded text-ide-text-muted/40 hover:text-ide-danger hover:bg-ide-hover/60 transition-colors draft-plan__item-btn"
                     title="删除"
@@ -380,10 +498,6 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
       </div>
 
       <div className="shrink-0 px-2 py-1.5 border-t border-ide-border draft-plan__keypad">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] uppercase tracking-wider text-ide-text-muted/60">副键盘速发</span>
-          <span className="text-[10px] text-ide-accent/60 tabular-nums">4 5 6 / 1 2 3</span>
-        </div>
         <div className="grid grid-cols-3 gap-1">
           {KEYPAD_ITEMS.map(item => (
             <button
@@ -400,7 +514,7 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
       </div>
 
       <div className="shrink-0 px-2 py-1.5 border-t border-ide-border draft-plan__add">
-        <div className="flex items-start gap-2 bg-ide-bg border border-ide-border rounded-md pl-2 pr-1 py-1 focus-within:border-ide-accent/60 transition-colors">
+        <div className="flex items-start gap-2 bg-ide-bg border border-dashed border-ide-border rounded-[6px_10px_5px_9px] pl-2 pr-1 py-1 focus-within:border-ide-accent/60 transition-colors">
           <textarea
             ref={addInputRef}
             value={draft}
