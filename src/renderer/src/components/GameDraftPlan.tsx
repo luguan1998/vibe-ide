@@ -13,6 +13,15 @@ interface DraftPrefill {
 }
 
 const OPEN_CMD_MODAL_EVENT = 'vibe-ide-open-custom-command-modal'
+
+const KEYPAD_ITEMS: { code: string; key: string; text: string }[] = [
+  { code: 'Numpad4', key: '4', text: '说中文' },
+  { code: 'Numpad5', key: '5', text: '继续' },
+  { code: 'Numpad6', key: '6', text: '还是报错' },
+  { code: 'Numpad1', key: '1', text: '先别重构' },
+  { code: 'Numpad2', key: '2', text: '回滚回滚' },
+  { code: 'Numpad3', key: '3', text: '讲明白点' },
+]
 export const EXECUTE_COMMAND_EVENT = 'vibe-ide-execute-command'
 export const DRAFT_PIPE_STOP = 'vibe-ide-draft-pipe-stop'
 export const FOCUS_GAME_DRAFT = 'vibe-ide-focus-game-draft'
@@ -39,6 +48,9 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   const addInputRef = useRef<HTMLTextAreaElement>(null)
   const editInputRef = useRef<HTMLTextAreaElement>(null)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const pressedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [pressedKey, setPressedKey] = useState<string | null>(null)
 
   useEffect(() => { addInputRef.current?.focus() }, [])
 
@@ -97,6 +109,27 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current)
     copiedTimerRef.current = setTimeout(() => setCopiedId(null), 1200)
   }, [])
+
+  const handleKeypadSend = useCallback((item: { code: string; text: string }) => {
+    setPressedKey(item.code)
+    if (pressedTimerRef.current) clearTimeout(pressedTimerRef.current)
+    pressedTimerRef.current = setTimeout(() => setPressedKey(null), 140)
+    ;(window as any).__vibeSendLine?.(item.text)
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const el = containerRef.current
+      if (!el || el.offsetParent === null) return
+      const item = KEYPAD_ITEMS.find(k => k.code === e.code)
+      if (!item) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      handleKeypadSend(item)
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [handleKeypadSend])
 
   const handleSplit = useCallback(() => {
     const lines = draft.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean)
@@ -183,6 +216,7 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   useEffect(() => {
     return () => {
       if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current)
+      if (pressedTimerRef.current) clearTimeout(pressedTimerRef.current)
     }
   }, [])
 
@@ -204,7 +238,42 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none draft-plan" tabIndex={-1}>
+    <div ref={containerRef} className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none draft-plan" tabIndex={-1}>
+      <style>{`
+        .draft-plan__key {
+          background: linear-gradient(to bottom, rgb(var(--ide-sidebar)), rgb(var(--ide-bg) / 0.94));
+          border: 1px solid rgb(var(--ide-border));
+          border-bottom-width: 2px;
+          border-radius: 6px;
+          box-shadow:
+            inset 0 1px 0 rgb(255 255 255 / 0.05),
+            inset 0 -2px 1px rgb(0 0 0 / 0.18),
+            0 2px 0 rgb(0 0 0 / 0.28),
+            0 3px 4px rgb(0 0 0 / 0.22);
+          transition: transform 80ms ease, box-shadow 80ms ease, border-color 120ms, background 120ms;
+          cursor: pointer;
+        }
+        .draft-plan__key:hover {
+          border-color: rgb(var(--ide-accent) / 0.55);
+          background: linear-gradient(to bottom, rgb(var(--ide-sidebar)), rgb(var(--ide-hover) / 0.55));
+          transform: translateY(-1px);
+          box-shadow:
+            inset 0 1px 0 rgb(255 255 255 / 0.09),
+            inset 0 -2px 1px rgb(0 0 0 / 0.18),
+            0 3px 0 rgb(0 0 0 / 0.3),
+            0 5px 7px rgb(0 0 0 / 0.33);
+        }
+        .draft-plan__key:active,
+        .draft-plan__key--pressed {
+          transform: translateY(1px);
+          border-bottom-width: 1px;
+          box-shadow:
+            inset 0 1px 0 rgb(255 255 255 / 0.03),
+            inset 0 -1px 0 rgb(0 0 0 / 0.15),
+            0 1px 0 rgb(0 0 0 / 0.2),
+            0 1px 2px rgb(0 0 0 / 0.2);
+        }
+      `}</style>
       <div className="flex items-center justify-between px-4 py-2 bg-ide-hover/50 border-b border-ide-border shrink-0 select-none draft-plan__header">
         <div className="flex items-center gap-2">
           {onBack && (
@@ -308,6 +377,26 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
             )
           })
         )}
+      </div>
+
+      <div className="shrink-0 px-2 py-1.5 border-t border-ide-border draft-plan__keypad">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] uppercase tracking-wider text-ide-text-muted/60">副键盘速发</span>
+          <span className="text-[10px] text-ide-accent/60 tabular-nums">4 5 6 / 1 2 3</span>
+        </div>
+        <div className="grid grid-cols-3 gap-1">
+          {KEYPAD_ITEMS.map(item => (
+            <button
+              key={item.code}
+              onClick={() => handleKeypadSend(item)}
+              className={`group flex flex-col items-center gap-0.5 px-1.5 py-1 draft-plan__key${pressedKey === item.code ? ' draft-plan__key--pressed' : ''}`}
+              title={`Numpad ${item.key} → ${item.text}`}
+            >
+              <span className="text-xs font-bold text-ide-accent leading-none draft-plan__key-num">{item.key}</span>
+              <span className="text-[10px] text-ide-text-muted group-hover:text-ide-text leading-tight truncate w-full text-center draft-plan__key-text">{item.text}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="shrink-0 px-2 py-1.5 border-t border-ide-border draft-plan__add">
