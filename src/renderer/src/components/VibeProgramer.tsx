@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
-import { Copy, Check, X, GripVertical, Plus, Split, ListOrdered, Send, StopCircle } from 'lucide-react'
+import { X, GripVertical, Plus, Split, ListOrdered, StopCircle, Settings, Play } from 'lucide-react'
 
 interface DraftItem {
   id: string
@@ -14,15 +14,29 @@ interface DraftPrefill {
 
 const OPEN_CMD_MODAL_EVENT = 'vibe-ide-open-custom-command-modal'
 
-const KEYPAD_ITEMS: { code: string; key: string; text: string }[] = [
+const DEFAULT_KEYPAD_ITEMS: { code: string; key: string; text: string }[] = [
   { code: 'Numpad4', key: '4', text: '说中文' },
   { code: 'Numpad5', key: '5', text: '继续' },
   { code: 'Numpad6', key: '6', text: '还是报错' },
   { code: 'Numpad1', key: '1', text: '先别重构' },
-  { code: 'Numpad2', key: '2', text: '回滚回滚' },
+  { code: 'Numpad2', key: '2', text: '清理死代码' },
   { code: 'Numpad3', key: '3', text: '讲明白点' },
 ]
-export const EXECUTE_COMMAND_EVENT = 'vibe-ide-execute-command'
+
+const KEYPAD_STORAGE_KEY = 'vibe-ide-keypad-items'
+
+function loadKeypadItems(): { code: string; key: string; text: string }[] {
+  try {
+    const raw = localStorage.getItem(KEYPAD_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length === 6) {
+        return DEFAULT_KEYPAD_ITEMS.map((d, i) => ({ ...d, text: typeof parsed[i]?.text === 'string' ? parsed[i].text : d.text }))
+      }
+    }
+  } catch {}
+  return DEFAULT_KEYPAD_ITEMS
+}
 export const DRAFT_PIPE_STOP = 'vibe-ide-draft-pipe-stop'
 export const FOCUS_GAME_DRAFT = 'vibe-ide-focus-game-draft'
 export const ADD_ANNOTATION_EVENT = 'vibe-ide-add-annotation'
@@ -52,13 +66,12 @@ function autoGrow(el: HTMLTextAreaElement | null) {
   el.style.height = Math.min(el.scrollHeight, 200) + 'px'
 }
 
-export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
+export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
   const [items, setItems] = useState<DraftItem[]>([])
   const [draft, setDraft] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const [sending, setSending] = useState(false)
   const sendingRef = useRef(false)
@@ -67,13 +80,18 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   const dragFromRef = useRef<number | null>(null)
   const addInputRef = useRef<HTMLTextAreaElement>(null)
   const editInputRef = useRef<HTMLTextAreaElement>(null)
-  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const pressedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [pressedKey, setPressedKey] = useState<string | null>(null)
   const [annotations, setAnnotations] = useState<AnnotationGroup[]>([])
   const annotationsRef = useRef<AnnotationGroup[]>([])
   annotationsRef.current = annotations
+  const lastAnnotationIdRef = useRef<string | null>(null)
+  const [keypadItems, setKeypadItems] = useState(loadKeypadItems)
+  const keypadItemsRef = useRef(keypadItems)
+  keypadItemsRef.current = keypadItems
+  const [configOpen, setConfigOpen] = useState(false)
+  const [configDraft, setConfigDraft] = useState<{ code: string; key: string; text: string }[]>([])
 
   useEffect(() => { requestAnimationFrame(() => addInputRef.current?.focus()) }, [])
 
@@ -130,11 +148,10 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
     setEditingId(null)
   }, [])
 
-  const handleCopy = useCallback((item: DraftItem) => {
-    navigator.clipboard?.writeText(item.text).catch(() => {})
-    setCopiedId(item.id)
-    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current)
-    copiedTimerRef.current = setTimeout(() => setCopiedId(null), 1200)
+  const handleSendItem = useCallback((item: DraftItem) => {
+    if (!item.text.trim()) return
+    setItems(prev => prev.filter(it => it.id !== item.id))
+    ;(window as any).__vibeSendLine?.(item.text)
   }, [])
 
   const handleKeypadSend = useCallback((item: { code: string; text: string }) => {
@@ -148,19 +165,16 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
     const prev = annotationsRef.current
     if (prev.length === 0) return
     const newItems: DraftItem[] = []
-    const remaining: AnnotationGroup[] = []
     for (const group of prev) {
       const withOp = group.items.filter(it => it.opinion.trim()).sort((a, b) => a.start - b.start)
-      const noOp = group.items.filter(it => !it.opinion.trim())
       if (withOp.length > 0) {
         const cmd = buildAnnotationCommand({ ...group, items: withOp })
         if (cmd) newItems.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text: cmd })
       }
-      if (noOp.length > 0) remaining.push({ ...group, items: noOp })
     }
     if (newItems.length === 0) return
     setItems(items => [...items, ...newItems])
-    setAnnotations(remaining)
+    setAnnotations([])
     setPressedKey('Numpad7')
     if (pressedTimerRef.current) clearTimeout(pressedTimerRef.current)
     pressedTimerRef.current = setTimeout(() => setPressedKey(null), 140)
@@ -182,6 +196,33 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
     ))
   }, [])
 
+  const handleConfigOpen = useCallback(() => {
+    setConfigDraft(keypadItemsRef.current.map(k => ({ ...k })))
+    setConfigOpen(true)
+  }, [])
+
+  const handleConfigDraftChange = useCallback((code: string, text: string) => {
+    setConfigDraft(prev => prev.map(k => k.code === code ? { ...k, text } : k))
+  }, [])
+
+  const handleConfigSave = useCallback(() => {
+    setKeypadItems(configDraft)
+    try { localStorage.setItem(KEYPAD_STORAGE_KEY, JSON.stringify(configDraft)) } catch {}
+    setConfigOpen(false)
+  }, [configDraft])
+
+  useLayoutEffect(() => {
+    if (!configOpen) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      setConfigOpen(false)
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [configOpen])
+
   useEffect(() => {
     const handler = (e: Event) => {
       const { fullPath, rel, start, end } = (e as CustomEvent).detail as { fullPath: string; rel: string; start: number; end: number }
@@ -196,14 +237,18 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
         }
         return [...prev, { fullPath, rel, items: [{ id: newId, start, end, opinion: '' }] }]
       })
-      requestAnimationFrame(() => {
-        const ta = containerRef.current?.querySelector<HTMLTextAreaElement>(`.draft-plan__annotation-opinion[data-id="${newId}"]`)
-        ta?.focus()
-      })
+      lastAnnotationIdRef.current = newId
     }
     window.addEventListener(ADD_ANNOTATION_EVENT, handler)
     return () => window.removeEventListener(ADD_ANNOTATION_EVENT, handler)
   }, [])
+  useLayoutEffect(() => {
+    const id = lastAnnotationIdRef.current
+    if (!id) return
+    const ta = containerRef.current?.querySelector<HTMLTextAreaElement>(`.draft-plan__annotation-opinion[data-id="${id}"]`)
+    ta?.focus()
+    lastAnnotationIdRef.current = null
+  }, [annotations])
 
   useLayoutEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -229,7 +274,13 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
         handleAnnotationConvert()
         return
       }
-      const item = KEYPAD_ITEMS.find(k => k.code === e.code)
+      if (e.code === 'Numpad0') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        handleSingleSendRef.current()
+        return
+      }
+      const item = keypadItemsRef.current.find(k => k.code === e.code)
       if (!item) return
       e.preventDefault()
       e.stopImmediatePropagation()
@@ -254,7 +305,7 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
   const handleConvert = useCallback(() => {
     const command = items.map(it => it.text).filter(t => t.trim()).join('\n')
     if (!command) return
-    const prefill: DraftPrefill = { name: '草稿计划', command, type: 'pipe' }
+    const prefill: DraftPrefill = { name: 'vibe programer', command, type: 'pipe' }
     window.dispatchEvent(new CustomEvent(OPEN_CMD_MODAL_EVENT, { detail: prefill }))
   }, [items])
 
@@ -283,6 +334,15 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
     sendingRef.current = false
     setSending(false)
   }, [items])
+
+  const handleSingleSend = useCallback(() => {
+    const first = items.find(it => it.text.trim())
+    if (!first) return
+    setItems(prev => prev.filter(it => it.id !== first.id))
+    ;(window as any).__vibeSendLine?.(first.text)
+  }, [items])
+  const handleSingleSendRef = useRef(handleSingleSend)
+  handleSingleSendRef.current = handleSingleSend
 
   const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
     dragFromRef.current = index
@@ -323,7 +383,6 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     return () => {
-      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current)
       if (pressedTimerRef.current) clearTimeout(pressedTimerRef.current)
     }
   }, [])
@@ -366,7 +425,6 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
           background: rgb(var(--ide-accent) / 0.16);
           border-color: rgb(var(--ide-accent) / 0.7);
         }
-        .draft-plan__key--wide { width: 100%; }
       `}</style>
       <div className="flex items-center justify-between px-4 py-2 bg-ide-hover/50 border-b border-ide-border shrink-0 select-none draft-plan__header">
         <div className="flex items-center gap-2">
@@ -378,13 +436,42 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
             </button>
           )}
           <span className="text-[13px] leading-none">📝</span>
-          <span className="text-xs font-bold text-ide-text-muted tracking-wider draft-plan__title">草稿计划</span>
+          <span className="text-xs font-bold text-ide-text-muted tracking-wider draft-plan__title">vibe programer</span>
+          <button
+            onClick={handleConfigOpen}
+            className="text-ide-text-muted hover:text-ide-accent transition-colors"
+            title="配置速发键"
+          >
+            <Settings size={14} />
+          </button>
         </div>
-        <div className="flex items-center gap-3 text-xs">
-          <div className="text-center">
-            <div className="text-[10px] text-ide-text-muted/60 uppercase tracking-wider">Items</div>
-            <div className="text-ide-accent font-bold tabular-nums">{items.length}</div>
-          </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleConvert}
+            disabled={items.length === 0 || sending}
+            className="text-ide-text-muted hover:text-ide-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="转为管道命令"
+          >
+            <ListOrdered size={14} />
+          </button>
+          {sending ? (
+            <button
+              onClick={handlePipelineToggle}
+              className="text-ide-danger hover:text-ide-danger/80 transition-colors"
+              title="终止管道发送"
+            >
+              <StopCircle size={14} />
+            </button>
+          ) : (
+            <button
+              onClick={handlePipelineToggle}
+              disabled={items.length === 0}
+              className="text-ide-accent hover:text-ide-accent/80 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="管道发送全部"
+            >
+              <Play size={14} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -429,10 +516,28 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
       <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1 draft-plan__list">
         {items.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-1.5 text-ide-text-muted/40 draft-plan__empty">
-            <span className="text-[10px] text-ide-text-muted/50">组成你的管道序列</span>
-            <div className="mt-2 flex flex-col items-center gap-0.5 text-[10px] text-ide-text-muted/40">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="w-12 h-12" style={{ flex: 'none', lineHeight: 1 }}>
+              <title>HuggingFace</title>
+              <path d="M2.25 11.535c0-3.407 1.847-6.554 4.844-8.258a9.822 9.822 0 019.687 0c2.997 1.704 4.844 4.851 4.844 8.258 0 5.266-4.337 9.535-9.687 9.535S2.25 16.8 2.25 11.535z" fill="#FF9D0B" />
+              <path d="M11.938 20.086c4.797 0 8.687-3.829 8.687-8.551 0-4.722-3.89-8.55-8.687-8.55-4.798 0-8.688 3.828-8.688 8.55 0 4.722 3.89 8.55 8.688 8.55z" fill="#FFD21E" />
+              <path d="M11.875 15.113c2.457 0 3.25-2.156 3.25-3.263 0-.576-.393-.394-1.023-.089-.582.283-1.365.675-2.224.675-1.798 0-3.25-1.693-3.25-.586 0 1.107.79 3.263 3.25 3.263h-.003z" fill="#FF323D" />
+              <path d="M14.76 9.21c.32.108.445.753.767.585.447-.233.707-.708.659-1.204a1.235 1.235 0 00-.879-1.059 1.262 1.262 0 00-1.33.394c-.322.384-.377.92-.14 1.36.153.283.638-.177.925-.079l-.002.003zm-5.887 0c-.32.108-.448.753-.768.585a1.226 1.226 0 01-.658-1.204c.048-.495.395-.913.878-1.059a1.262 1.262 0 011.33.394c.322.384.377.92.14 1.36-.152.283-.64-.177-.925-.079l.003.003zm1.12 5.34a2.166 2.166 0 011.325-1.106c.07-.02.144.06.219.171l.192.306c.069.1.139.175.209.175.074 0 .15-.074.223-.172l.205-.302c.08-.11.157-.188.234-.165.537.168.986.536 1.25 1.026.932-.724 1.275-1.905 1.275-2.633 0-.508-.306-.426-.81-.19l-.616.296c-.52.24-1.148.48-1.824.48-.676 0-1.302-.24-1.823-.48l-.589-.283c-.52-.248-.838-.342-.838.177 0 .703.32 1.831 1.187 2.56l.18.14z" fill="#3A3B45" />
+              <path d="M17.812 10.366a.806.806 0 00.813-.8c0-.441-.364-.8-.813-.8a.806.806 0 00-.812.8c0 .442.364.8.812.8zm-11.624 0a.806.806 0 00.812-.8c0-.441-.364-.8-.812-.8a.806.806 0 00-.813.8c0 .442.364.8.813.8zM4.515 13.073c-.405 0-.765.162-1.017.46a1.455 1.455 0 00-.333.925 1.801 1.801 0 00-.485-.074c-.387 0-.737.146-.985.409a1.41 1.41 0 00-.2 1.722 1.302 1.302 0 00-.447.694c-.06.222-.12.69.2 1.166a1.267 1.267 0 00-.093 1.236c.238.533.81.958 1.89 1.405l.24.096c.768.3 1.473.492 1.478.494.89.243 1.808.375 2.732.394 1.465 0 2.513-.443 3.115-1.314.93-1.342.842-2.575-.274-3.763l-.151-.154c-.692-.684-1.155-1.69-1.25-1.912-.195-.655-.71-1.383-1.562-1.383-.46.007-.889.233-1.15.605-.25-.31-.495-.553-.715-.694a1.87 1.87 0 00-.993-.312zm14.97 0c.405 0 .767.162 1.017.46.216.262.333.588.333.925.158-.047.322-.071.487-.074.388 0 .738.146.985.409a1.41 1.41 0 01.2 1.722c.22.178.377.422.445.694.06.222.12.69-.2 1.166.244.37.279.836.093 1.236-.238.533-.81.958-1.889 1.405l-.239.096c-.77.3-1.475.492-1.48.494-.89.243-1.808.375-2.732.394-1.465 0-2.513-.443-3.115-1.314-.93-1.342-.842-2.575.274-3.763l.151-.154c.695-.684 1.157-1.69 1.252-1.912.195-.655.708-1.383 1.56-1.383.46.007.889.233 1.15.605.25-.31.495-.553.718-.694.244-.162.523-.265.814-.3l.176-.012z" fill="#FF9D0B" />
+              <path d="M9.785 20.132c.688-.994.638-1.74-.305-2.667-.945-.928-1.495-2.288-1.495-2.288s-.205-.788-.672-.714c-.468.074-.81 1.25.17 1.971.977.721-.195 1.21-.573.534-.375-.677-1.405-2.416-1.94-2.751-.532-.332-.907-.148-.782.541.125.687 2.357 2.35 2.14 2.707-.218.362-.983-.42-.983-.42S2.953 14.9 2.43 15.46c-.52.558.398 1.026 1.7 1.803 1.308.778 1.41.985 1.225 1.28-.187.295-3.07-2.1-3.34-1.083-.27 1.011 2.943 1.304 2.745 2.006-.2.7-2.265-1.324-2.685-.537-.425.79 2.913 1.718 2.94 1.725 1.075.276 3.813.859 4.77-.522zm4.432 0c-.687-.994-.64-1.74.305-2.667.943-.928 1.493-2.288 1.493-2.288s.205-.788.675-.714c.465.074.807 1.25-.17 1.971-.98.721.195 1.21.57.534.377-.677 1.407-2.416 1.94-2.751.532-.332.91-.148.782.541-.125.687-2.355 2.35-2.137 2.707.215.362.98-.42.98-.42S21.05 14.9 21.57 15.46c.52.558-.395 1.026-1.7 1.803-1.308.778-1.408.985-1.225 1.28.187.295 3.07-2.1 3.34-1.083.27 1.011-2.94 1.304-2.743 2.006.2.7 2.263-1.324 2.685-.537.423.79-2.912 1.718-2.94 1.725-1.077.276-3.815.859-4.77-.522z" fill="#FFD21E" />
+            </svg>
+            <span className="text-lg text-ide-text-muted/50">组成你的管道序列</span>
+            <div className="mt-2 flex flex-col items-center gap-0.5 text-sm text-ide-text-muted/40">
               <span>副键盘 <span className="text-ide-accent/60 tabular-nums">4 5 6 / 1 2 3</span> 速发</span>
-              <span><span className="text-ide-accent/60">Numpad7</span> 批注→命令</span>
+              <span className="flex items-center gap-1.5">
+                <span><span className="text-ide-accent/60">Numpad7</span> 批注→命令</span>
+                <button
+                  onClick={handleAnnotationConvert}
+                  disabled={annotations.length === 0}
+                  className={`draft-plan__key flex items-center justify-center w-5 h-5 text-[10px] font-bold text-ide-accent leading-none${annotations.length === 0 ? ' opacity-40 cursor-not-allowed' : ''}`}
+                  title="批注转为命令"
+                >7</button>
+              </span>
+              <span><span className="text-ide-accent/60">Numpad0</span> 单条发送</span>
             </div>
           </div>
         ) : (
@@ -477,11 +582,14 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
                 )}
                 <div className="shrink-0 flex items-center gap-0.5 draft-plan__item-actions">
                   <button
-                    onClick={() => handleCopy(item)}
-                    className="w-6 h-6 flex items-center justify-center rounded text-ide-text-muted/40 hover:text-ide-text hover:bg-ide-hover/60 transition-colors draft-plan__item-btn"
-                    title="复制"
+                    onClick={() => handleSendItem(item)}
+                    className="w-6 h-6 flex items-center justify-center rounded text-ide-text-muted/40 hover:text-ide-accent hover:bg-ide-accent/10 transition-colors draft-plan__item-btn"
+                    title="立即发送"
                   >
-                    {copiedId === item.id ? <Check size={13} className="text-ide-accent" /> : <Copy size={13} />}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                      <polyline points="4 17 10 11 4 5" />
+                      <line x1="12" y1="19" x2="20" y2="19" />
+                    </svg>
                   </button>
                   <button
                     onClick={() => handleDelete(item.id)}
@@ -495,22 +603,6 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
             )
           })
         )}
-      </div>
-
-      <div className="shrink-0 px-2 py-1.5 border-t border-ide-border draft-plan__keypad">
-        <div className="grid grid-cols-3 gap-1">
-          {KEYPAD_ITEMS.map(item => (
-            <button
-              key={item.code}
-              onClick={() => handleKeypadSend(item)}
-              className={`group flex flex-col items-center gap-0.5 px-1.5 py-1 draft-plan__key${pressedKey === item.code ? ' draft-plan__key--pressed' : ''}`}
-              title={`Numpad ${item.key} → ${item.text}`}
-            >
-              <span className="text-xs font-bold text-ide-accent leading-none draft-plan__key-num">{item.key}</span>
-              <span className="text-[10px] text-ide-text-muted group-hover:text-ide-text leading-tight truncate w-full text-center draft-plan__key-text">{item.text}</span>
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="shrink-0 px-2 py-1.5 border-t border-ide-border draft-plan__add">
@@ -545,38 +637,60 @@ export default function GameDraftPlan({ onBack }: { onBack?: () => void }) {
         </div>
       </div>
 
-      <div className="shrink-0 px-2 py-1.5 border-t border-ide-border draft-plan__footer">
-        <div className="flex gap-2">
-          <button
-            onClick={handleConvert}
-            disabled={items.length === 0 || sending}
-            className="flex-1 h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-ide-accent/40 bg-ide-accent/10 hover:bg-ide-accent/20 text-ide-accent text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__convert-btn"
-            title="把列表拼成多行管道命令，存为 CustomCommand (pipe)"
-          >
-            <ListOrdered size={14} />
-            转为管道命令
-          </button>
-          {sending ? (
+      <div className="shrink-0 px-2 py-1.5 border-t border-ide-border draft-plan__keypad">
+        <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-ide-bg/80 border border-ide-border shadow-[inset_0_1px_3px_rgb(0_0_0/0.5)] draft-plan__keypad-frame">
+          {keypadItems.map(item => (
             <button
-              onClick={handlePipelineToggle}
-              className="flex-1 h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-ide-danger/40 bg-ide-danger/10 hover:bg-ide-danger/20 text-ide-danger text-xs font-medium transition-colors draft-plan__pipe-stop-btn"
+              key={item.code}
+              onClick={() => handleKeypadSend(item)}
+              className={`group flex flex-col items-center gap-0.5 px-1.5 py-1 draft-plan__key${pressedKey === item.code ? ' draft-plan__key--pressed' : ''}`}
+              title={`Numpad ${item.key} → ${item.text}`}
             >
-              <StopCircle size={14} />
-              终止发送
+              <span className="text-xs font-bold text-ide-accent leading-none draft-plan__key-num">{item.key}</span>
+              <span className="text-[10px] text-ide-text-muted group-hover:text-ide-text leading-tight truncate w-full text-center draft-plan__key-text">{item.text}</span>
             </button>
-          ) : (
-            <button
-              onClick={handlePipelineToggle}
-              disabled={items.length === 0}
-              className="flex-1 h-8 inline-flex items-center justify-center gap-1.5 rounded-md border border-ide-accent/40 bg-ide-accent/10 hover:bg-ide-accent/20 text-ide-accent text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed draft-plan__pipe-start-btn"
-              title="将全部提示词以管道方式依次发送到终端"
-            >
-              <Send size={14} />
-              管道发送
-            </button>
-          )}
+          ))}
         </div>
       </div>
+
+      {configOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfigOpen(false)}>
+          <div
+            className="bg-ide-sidebar border border-dashed border-ide-border rounded-[8px_12px_6px_10px] p-4 w-80 max-h-[80%] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-ide-text-muted tracking-wider">配置速发键</span>
+              <button onClick={() => setConfigOpen(false)} className="text-ide-text-muted hover:text-ide-text transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {configDraft.map(k => (
+                <div key={k.code} className="flex items-center gap-2">
+                  <span className="w-5 text-center text-sm font-bold text-ide-accent">{k.key}</span>
+                  <input
+                    type="text"
+                    value={k.text}
+                    onChange={(e) => handleConfigDraftChange(k.code, e.target.value)}
+                    className="flex-1 min-w-0 text-xs bg-ide-bg border border-dashed border-ide-border rounded-[4px_8px_5px_7px] px-2 py-1 text-ide-text focus:outline-none focus:border-ide-accent"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handleConfigSave}
+                className="flex-1 h-8 rounded-[6px_10px_5px_9px] border border-dashed border-ide-accent/40 bg-ide-accent/10 hover:bg-ide-accent/20 text-ide-accent text-xs font-medium transition-colors"
+              >保存</button>
+              <button
+                onClick={() => setConfigOpen(false)}
+                className="flex-1 h-8 rounded-[6px_10px_5px_9px] border border-dashed border-ide-border bg-ide-bg/30 hover:bg-ide-hover text-ide-text-muted text-xs font-medium transition-colors"
+              >取消</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -88,7 +88,8 @@ interface DiffViewerProps {
   compareOriginalContent?: string  // 左侧对比文件内容（文件对比模式）
   compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
   onAnnotationTrigger?: (start: number, end: number) => void  // Alt+左键 → 通知 App 开批注面板（start/end 相同为单行）
-  altBrush?: boolean               // Alt 按住中 → 鼠标变 🖌️ 画笔
+  altBrush?: boolean               // Alt 按住中 → 标题栏鼠标变 🖌️ 画笔（复制路径）
+  annotationMode?: boolean         // 草稿计划开启 && Alt 按住 → 代码区羽毛笔 + 批注
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -247,7 +248,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, altBrush }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, altBrush, annotationMode }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -775,7 +776,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }
 
   return (
-    <div ref={containerRef} className={`flex flex-col animate-fade-in${altBrush ? ' diff-brush-mode' : ''}`}>
+    <div ref={containerRef} className={`flex flex-col animate-fade-in${altBrush ? ' diff-brush-mode' : ''}${annotationMode ? ' diff-brush-code' : ''}`}>
       <div
         className="diff-titlebar h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0"
         onContextMenu={!commitHash ? (e) => { e.preventDefault(); setEncodingContextMenu({ x: e.clientX, y: e.clientY }) } : undefined}

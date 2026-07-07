@@ -6,7 +6,7 @@ import GitTab from './GitTab'
 import AuxTab from './AuxTab'
 import FileTab from './FileTab'
 import GameLauncher from './GameLauncher'
-import { FOCUS_GAME_DRAFT } from './GameDraftPlan'
+import { FOCUS_GAME_DRAFT } from './VibeProgramer'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
 

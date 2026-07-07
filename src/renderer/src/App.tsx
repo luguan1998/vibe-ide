@@ -12,7 +12,7 @@ import CallGraphOverlay from './components/CallGraphOverlay'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
-import { EXECUTE_COMMAND_EVENT, DRAFT_PIPE_STOP, FOCUS_GAME_DRAFT, ADD_ANNOTATION_EVENT, toRelPath } from './components/GameDraftPlan'
+import { DRAFT_PIPE_STOP, FOCUS_GAME_DRAFT, ADD_ANNOTATION_EVENT, toRelPath } from './components/VibeProgramer'
 import { TerminalSession, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
 import { useI18n } from './i18n'
@@ -454,6 +454,7 @@ export default function App() {
   const [altBrush, setAltBrush] = useState(false)
   const altBrushRef = useRef(false)
   altBrushRef.current = altBrush
+  const [annotationMode, setAnnotationMode] = useState(false)
   // Nav bar state
   const [navBarVisible, setNavBarVisible] = useState(false)
   const [navBarIndex, setNavBarIndex] = useState(0)
@@ -939,6 +940,8 @@ export default function App() {
       // ── Alt keydown: 画笔模式 + 立即显示 NavBar（虚线，Alt+←/→ 变实线）──
       if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         setAltBrush(true)
+        const draftEl = document.querySelector('.draft-plan') as HTMLElement | null
+        setAnnotationMode(!!draftEl && draftEl.offsetParent !== null)
         e.preventDefault()
         e.stopImmediatePropagation()
         const hist = navBarEntriesRef.current
@@ -1235,6 +1238,7 @@ export default function App() {
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key !== 'Alt') return
       setAltBrush(false)
+      setAnnotationMode(false)
 
       if (!navBarVisibleRef.current) return
       if (!navBarUsedRef.current) { setNavBarVisible(false); return }
@@ -1437,17 +1441,6 @@ export default function App() {
       setTimeout(() => terminalRefs.current[activeSessionId]?.focus(), 0)
     }
   }, [activeSessionId, sessionViewModes])
-
-  const handleExecuteCommandRef = useRef(handleExecuteCommand)
-  handleExecuteCommandRef.current = handleExecuteCommand
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const command = (e as CustomEvent).detail
-      if (typeof command === 'string') handleExecuteCommandRef.current(command)
-    }
-    window.addEventListener(EXECUTE_COMMAND_EVENT, handler)
-    return () => window.removeEventListener(EXECUTE_COMMAND_EVENT, handler)
-  }, [])
 
   useEffect(() => {
     const handler = () => {
@@ -1699,6 +1692,8 @@ export default function App() {
   const handleAnnotationTrigger = useCallback((start: number, end: number) => {
     const fp = diffFile?.fullPath
     if (!fp) return
+    const draftEl = document.querySelector('.draft-plan') as HTMLElement | null
+    if (!draftEl || draftEl.offsetParent === null) return
     const rel = toRelPath(fp, activeSessionCwd)
     const ref = start === end ? `@${rel}:${start}` : `@${rel}:${start}-${end}`
     navigator.clipboard?.writeText(ref).catch(() => {})
@@ -2061,6 +2056,7 @@ export default function App() {
                 compareOriginalPath={diffFile.compareOriginalPath}
                 onAnnotationTrigger={handleAnnotationTrigger}
                 altBrush={altBrush}
+                annotationMode={annotationMode}
               />
             </div>
           )}

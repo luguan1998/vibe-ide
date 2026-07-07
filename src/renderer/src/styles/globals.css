@@ -80,13 +80,16 @@ html, body, #root {
   background-color: rgb(var(--monaco-margin-bg)) !important;
 }
 
-/* Alt 画笔模式：编辑器鼠标变 🖌️ 羽毛笔（主题色，由 ThemeProvider 注入 --brush-cursor） */
-.diff-brush-mode .monaco-editor,
-.diff-brush-mode .monaco-editor *,
+/* Alt 画笔模式：标题栏鼠标变 🖌️ 羽毛笔（Alt 按下即生效，复制路径用） */
 .diff-brush-mode .diff-titlebar,
 .diff-brush-mode .diff-titlebar *,
 .alt-copy-mode,
 .alt-copy-mode * {
+  cursor: var(--brush-cursor, crosshair) !important;
+}
+/* 代码区羽毛笔：仅草稿计划开启时（annotationMode） */
+.diff-brush-code .monaco-editor,
+.diff-brush-code .monaco-editor * {
   cursor: var(--brush-cursor, crosshair) !important;
 }
 

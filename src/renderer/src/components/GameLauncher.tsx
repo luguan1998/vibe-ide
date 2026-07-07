@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { FOCUS_GAME_DRAFT } from './GameDraftPlan'
+import { FOCUS_GAME_DRAFT } from './VibeProgramer'
 import Game2048 from './Game2048'
 import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
-import GameDraftPlan from './GameDraftPlan'
+import VibeProgramer from './VibeProgramer'
 
 type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro' | 'draft'
 
@@ -18,7 +18,7 @@ const GAMES: GameCard[] = [
   { id: 'balatro', icon: '🃏', name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: '🏖️', name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: '🧩', name: '2048', desc: 'Slide tiles to merge them' },
-  { id: 'draft', icon: '📝', name: 'Draft Plan', desc: 'Prompt scratchpad — chain into a pipeline command' },
+  { id: 'draft', icon: '📝', name: 'vibe programer', desc: 'Prompt scratchpad — chain into a pipeline command' },
 ]
 
 export default function GameLauncher() {
@@ -36,7 +36,7 @@ export default function GameLauncher() {
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />
       case '2048': return <Game2048 onBack={back} />
-      case 'draft': return <GameDraftPlan onBack={back} />
+      case 'draft': return <VibeProgramer onBack={back} />
     }
   }
 
