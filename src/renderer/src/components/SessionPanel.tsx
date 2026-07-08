@@ -102,6 +102,10 @@ const FALLBACK_FONTS = [
   'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Courier New', 'monospace',
 ]
 
+const MONO_KW = ['mono', 'code', 'consol', 'courier', 'fira', 'hack', 'source code',
+  'jetbrains', 'droid sans mono', 'dejavu sans mono', 'ubuntu mono', 'noto sans mono',
+  'inconsolata', 'anonymous pro', '等宽', 'monospace']
+
 function pickEmoji(index: number, pool: string[], override?: string): string {
   if (pool.length === 0) return ''
   if (override && pool.includes(override)) return override
@@ -317,8 +321,9 @@ const SessionPanel = React.memo(function SessionPanel({
       })
   }
 
-  const renderFontOptions = (currentValue: string, recommended?: string) => {
-    const list = systemFonts.length > 0 ? systemFonts : FALLBACK_FONTS
+  const renderFontOptions = (currentValue: string, recommended?: string, monoOnly?: boolean) => {
+    const raw = systemFonts.length > 0 ? systemFonts : FALLBACK_FONTS
+    const list = monoOnly ? raw.filter(f => MONO_KW.some(kw => f.toLowerCase().includes(kw))) : raw
     const prepend = !!currentValue && !list.includes(currentValue)
     const mark = (f: string) => f === recommended ? ` (${t('Recommended')})` : ''
     return (<>
@@ -1735,7 +1740,7 @@ const SessionPanel = React.memo(function SessionPanel({
                     onClick={(e) => e.stopPropagation()}
                     onFocus={loadSystemFonts}
                   >
-                    {renderFontOptions(termFontFamily, 'Cascadia Code')}
+                    {renderFontOptions(termFontFamily, 'Cascadia Code', true)}
                   </select>
                 </div>
               )}
