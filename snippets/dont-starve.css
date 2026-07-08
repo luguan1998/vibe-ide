@@ -168,6 +168,18 @@ html, body, #root {
   color: rgb(18 14 10 / 0.7) !important;
 }
 
+.session-item.border-ide-accent\/60:not(.session-item--active) {
+  font-weight: 700 !important;
+  background: rgb(231 204 123) !important;
+  color: rgb(18 14 10) !important;
+}
+.session-item.border-ide-accent\/60:not(.session-item--active) .session-item__name {
+  color: rgb(18 14 10) !important;
+}
+.session-item.border-ide-accent\/60:not(.session-item--active) .session-item__cwd {
+  color: rgb(18 14 10 / 0.7) !important;
+}
+
 /* ── 轮换色相（5色周期） ── */
 /* active 背景色轮换 */
 .session-item:nth-child(5n+1).session-item--active { background: rgb(231 204 123) !important; }
@@ -229,11 +241,20 @@ html, body, #root {
 .session-group:nth-child(5n+5) { border-color: rgb(150 130 170 / 0.4) !important; }
 
 /* ════════════════════════════════════════════════════
-   终端 — 暗木边框
+   终端 — 饑荒手繪炭筆火焰邊框
    ════════════════════════════════════════════════════ */
 .term-view__canvas {
-  border: 1px solid rgb(74 56 40) !important;
-  background: rgb(16 13 9) !important;
+  position: relative !important;
+}
+.term-view__canvas::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 100 !important;
+  pointer-events: none !important;
+  opacity: 0.4 !important;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 300' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cfilter id='c' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.05' numOctaves='3' result='n'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='n' scale='4' xChannelSelector='R' yChannelSelector='G'/%3E%3C/filter%3E%3C/defs%3E%3Cg filter='url(%23c)' stroke-linecap='round' stroke-linejoin='round' fill='none'%3E%3Cpath stroke='%23d4c8b0' stroke-width='2' d='M3,3 l10-2 l13,4 l12-5 l15,3 l13-4 l14,2 l16-5 l13,4 l12-3 l14,5 l15-4 l13,3 l16-2 l12,4 l14-5 l13,3 l15-2 l12,4 l14-5 l16,3 l13-4 l12,2 l15-3 l13,5 l14-4 l12,3 l16-2 l13,4 l14-5 l12,3 l15-2 l13,4 l14-5 l12,3 l13-2 l14,3v296H3z'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat !important;
 }
 .term-view__header {
   border-bottom: 1px solid rgb(74 56 40) !important;
@@ -404,62 +425,80 @@ input[type="checkbox"] { accent-color: rgb(231 204 123); }
 /* ════════════════════════════════════════════════════
    Markdown 预览 — 羊皮纸手稿风
    ════════════════════════════════════════════════════ */
-.md-preview h1 { color: rgb(231 204 123) !important; border-bottom-color: rgb(231 204 123) !important; }
-.md-preview h1 strong { color: rgb(231 204 123) !important; }
-.md-preview h2 { color: rgb(231 204 123) !important; border-bottom-color: rgb(231 204 123) !important; }
-.md-preview h2 strong { color: rgb(231 204 123) !important; }
+
+/* heading 层级色：金→褐→绿→红→紫→米 */
+.md-preview h1 { color: rgb(231 204 123) !important; border-bottom-color: rgb(231 204 123) !important; border-bottom-width: 2px !important; }
+.md-preview h2 { color: rgb(210 175 120) !important; border-bottom-color: rgb(210 175 120) !important; }
 .md-preview h3 { color: rgb(160 178 125) !important; }
-.md-preview h3 strong { color: rgb(160 178 125) !important; }
 .md-preview h4 { color: rgb(215 110 95) !important; }
-.md-preview h4 strong { color: rgb(215 110 95) !important; }
 .md-preview h5 { color: rgb(175 155 195) !important; }
-.md-preview h5 strong { color: rgb(175 155 195) !important; }
 .md-preview h6 { color: rgb(200 185 160) !important; }
-.md-preview h6 strong { color: rgb(200 185 160) !important; }
 
 .md-preview a { color: rgb(231 204 123) !important; text-decoration-color: rgb(231 204 123 / 0.4) !important; }
 .md-preview a:hover { color: rgb(245 222 138) !important; text-decoration-color: rgb(245 222 138) !important; }
 
 .md-preview strong { color: rgb(231 204 123) !important; }
-.md-preview em { color: rgb(160 178 125) !important; }
+.md-preview em  { color: rgb(160 178 125) !important; }
 .md-preview del { color: rgb(196 130 110) !important; }
 
+/* 列表标记轮换：金→绿→红 */
 .md-preview li::marker { color: rgb(231 204 123) !important; }
 .md-preview li li::marker { color: rgb(139 154 110) !important; }
-.md-preview li li li::marker { color: rgb(231 204 123) !important; }
+.md-preview li li li::marker { color: rgb(196 90 74) !important; }
 
+/* 内联代码 */
 .md-preview code {
   background: rgb(32 25 18) !important;
   color: rgb(231 204 123) !important;
   border: 1px solid rgb(60 45 30) !important;
-  padding: 1px 4px !important;
 }
 
+/* 代码块 */
 .md-code-block {
   border: 1px solid rgb(60 45 30) !important;
-  background: rgb(16 13 9) !important;
+  background: rgb(14 12 8) !important;
+  box-shadow: inset 0 0 12px rgb(0 0 0 / 0.3) !important;
 }
-.md-code-block pre { background: transparent !important; }
-.md-code-block code { color: rgb(185 195 160) !important; }
+.md-code-block pre {
+  background: transparent !important;
+  padding: 1em !important;
+  text-indent: 0 !important;
+}
+.md-code-block code {
+  color: rgb(185 195 160) !important;
+  text-indent: 0 !important;
+  white-space: pre !important;
+}
 .md-code-lang {
-  background: rgb(32 25 18) !important;
+  background: rgb(30 24 16) !important;
   color: rgb(160 178 125) !important;
-  border-bottom: 1px solid rgb(60 45 30) !important;
+  border: 1px solid rgb(60 45 30) !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-radius: 0 0 0 6px !important;
   font-family: 'Cascadia Code', monospace !important;
 }
 
+/* 引用块 */
 .md-preview blockquote {
   border-left: 4px solid rgb(231 204 123) !important;
   background: rgb(30 24 18) !important;
   color: rgb(200 185 160) !important;
+  border-radius: 0 4px 4px 0 !important;
 }
 
+/* 表格 */
 .md-preview thead { background: rgb(231 204 123 / 0.1) !important; }
 .md-preview th { color: rgb(231 204 123) !important; border-color: rgb(74 56 40) !important; }
 .md-preview td { border-color: rgb(55 42 30) !important; }
 .md-preview tbody tr:hover { background: rgb(40 32 22) !important; }
 
+/* 分割线 */
 .md-preview hr { border-top-color: rgb(231 204 123 / 0.3) !important; }
+
+/* 图片 */
+.md-preview img { border: 1px solid rgb(74 56 40) !important; border-radius: 2px !important; }
+
 .md-preview input[type="checkbox"] { accent-color: rgb(139 154 110) !important; }
 
 .md-search-match { background: rgb(231 204 123 / 0.25) !important; }
