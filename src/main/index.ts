@@ -42,8 +42,6 @@ if (process.argv.includes('--enable-precise-memory-info')) {
 // 创建会直接失败，TerminalView 中 try/catch 会回退到 DOM 渲染器。
 app.commandLine.appendSwitch('use-gl', 'angle')
 app.commandLine.appendSwitch('use-angle', 'd3d11')
-app.commandLine.appendSwitch('ignore-gpu-blocklist')
-app.commandLine.appendSwitch('disable-software-rasterizer')
 
 // Single instance lock — only blocks the same exe path
 const gotTheLock = app.requestSingleInstanceLock()
