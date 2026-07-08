@@ -481,7 +481,17 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
             <span className="text-[10px] uppercase tracking-wider text-ide-text-muted/60">
               批注 <span className="text-ide-accent tabular-nums">{annotations.reduce((n, g) => n + g.items.length, 0)}</span>
             </span>
-            <span className="text-[10px] text-ide-text-muted/40">Numpad7 → 转为命令</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-ide-text-muted/40">Numpad7 → 转为命令</span>
+              <button
+                onClick={handleAnnotationConvert}
+                disabled={annotations.length === 0}
+                className="flex items-center justify-center w-5 h-5 rounded text-ide-text-muted/60 hover:text-ide-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                title="转为命令 (Numpad7)"
+              >
+                <ListOrdered size={12} />
+              </button>
+            </div>
           </div>
           {annotations.map(group => (
             <div key={group.fullPath} className="draft-plan__annotation-group">
@@ -533,9 +543,11 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
                 <button
                   onClick={handleAnnotationConvert}
                   disabled={annotations.length === 0}
-                  className={`draft-plan__key flex items-center justify-center w-5 h-5 text-[10px] font-bold text-ide-accent leading-none${annotations.length === 0 ? ' opacity-40 cursor-not-allowed' : ''}`}
-                  title="批注转为命令"
-                >7</button>
+                  className="flex items-center justify-center w-5 h-5 rounded text-ide-text-muted/60 hover:text-ide-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="转为命令 (Numpad7)"
+                >
+                  <ListOrdered size={12} />
+                </button>
               </span>
               <span><span className="text-ide-accent/60">Numpad0</span> 单条发送</span>
             </div>

@@ -25,3 +25,22 @@
   /* text-transform: uppercase; */
   font-size: 13px !important;
 }
+
+/* AI 对话区 — 助手正文 / 用户气泡 / thinking / 代码块 */
+.ai-tab__markdown {
+  font-size: 16px !important;
+}
+
+.ai-tab__markdown pre,
+.ai-tab__markdown .md-code-block,
+.ai-tab__markdown table {
+  font-size: 15px !important;
+}
+
+.ai-tab__user-bubble {
+  font-size: 16px !important;
+}
+
+.ai-tab__thinking-text {
+  font-size: 15px !important;
+}
