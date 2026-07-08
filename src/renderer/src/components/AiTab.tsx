@@ -82,6 +82,24 @@ function deriveTodoList(messages: AiMessage[]): TodoItem[] {
 
 // ── Sub-components (被调先于主调) ──────────────────────────────
 
+function findFilePathAtPoint(x: number, y: number, cwd: string): { fullPath: string; lineNumber?: number } | null {
+  const doc = document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null }
+  const range = doc.caretRangeFromPoint?.(x, y) ?? null
+  const node = range?.startContainer
+  if (!node || node.nodeType !== Node.TEXT_NODE || !range) return null
+  const text = (node as Text).nodeValue || ''
+  const offset = range.startOffset
+  FILE_PATH_REGEX.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = FILE_PATH_REGEX.exec(text)) !== null) {
+    if (offset >= match.index && offset <= match.index + match[0].length) {
+      const parsed = parseFilePath(match[0], cwd)
+      if (parsed) return parsed
+    }
+  }
+  return null
+}
+
 function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
   text: string; className?: string
   workspacePath: string | null
@@ -93,18 +111,10 @@ function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
     const target = e.target as HTMLElement
     if (target.closest('a, pre')) return
     if (window.getSelection()?.toString().trim()) return
-    const block = target.closest('p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote') as HTMLElement
-    const text = block?.textContent || ''
-    FILE_PATH_REGEX.lastIndex = 0
-    let match: RegExpExecArray | null
-    while ((match = FILE_PATH_REGEX.exec(text)) !== null) {
-      const parsed = parseFilePath(match[0], workspacePath)
-      if (parsed) {
-        e.preventDefault()
-        onOpenFile(parsed.fullPath, parsed.lineNumber)
-        return
-      }
-    }
+    const parsed = findFilePathAtPoint(e.clientX, e.clientY, workspacePath)
+    if (!parsed) return
+    e.preventDefault()
+    onOpenFile(parsed.fullPath, parsed.lineNumber)
   }, [workspacePath, onOpenFile])
 
   return (
@@ -142,18 +152,10 @@ function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: 
     const target = e.target as HTMLElement
     if (target.closest('a, pre')) return
     if (window.getSelection()?.toString().trim()) return
-    const block = target.closest('p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote') as HTMLElement
-    const text = block?.textContent || ''
-    FILE_PATH_REGEX.lastIndex = 0
-    let match: RegExpExecArray | null
-    while ((match = FILE_PATH_REGEX.exec(text)) !== null) {
-      const parsed = parseFilePath(match[0], workspacePath)
-      if (parsed) {
-        e.preventDefault()
-        onOpenFile(parsed.fullPath, parsed.lineNumber)
-        return
-      }
-    }
+    const parsed = findFilePathAtPoint(e.clientX, e.clientY, workspacePath)
+    if (!parsed) return
+    e.preventDefault()
+    onOpenFile(parsed.fullPath, parsed.lineNumber)
   }, [workspacePath, onOpenFile])
 
   return (

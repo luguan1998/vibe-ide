@@ -141,6 +141,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
 
   const handleLinkClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
+    if (window.getSelection()?.toString().trim()) return
     const href = e.currentTarget.getAttribute('href')
     if (!href) return
     if (href.startsWith('#')) {
