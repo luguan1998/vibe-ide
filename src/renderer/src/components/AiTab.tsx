@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { useI18n } from '../i18n'
 import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
+import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS } from '../aiStore'
 import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff } from 'lucide-react'
 
 interface AiTabProps {
@@ -26,12 +27,6 @@ interface AiTabProps {
 export interface AiTabHandle {
   focus: () => void
   setValue: (text: string) => void
-}
-
-const EMPTY_SESSION: AiSessionState = {
-  ready: false, busy: false, messages: [],
-  streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null, pendingPermission: null,
-  slashCommands: [], model: '', contextPercent: null, name: '',
 }
 
 // ── Tool type classification ──────────────────────────────────────
@@ -805,42 +800,6 @@ function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex,
   return <>{inner}</>
 }
 
-// ── Merge tool_result into assistant message ─────────────────────
-
-function mergeToolResultIntoMessages(
-  messages: AiMessage[],
-  toolUseId: string,
-  result: { toolUseId: string; content: string; isError: boolean }
-): AiMessage[] | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i]
-    if (!msg.toolUse) continue
-    const toolIndex = msg.toolUse.findIndex(t => t.id === toolUseId)
-    if (toolIndex !== -1) {
-      const updatedToolUse = [...msg.toolUse]
-      updatedToolUse[toolIndex] = { ...updatedToolUse[toolIndex], result }
-      const updatedMessages = [...messages]
-      updatedMessages[i] = { ...msg, toolUse: updatedToolUse }
-      return updatedMessages
-    }
-  }
-  return null
-}
-
-// Find last tool_use in messages that has no result yet (for merging session-level errors)
-function findPendingToolIndex(messages: AiMessage[]): { msgIdx: number; toolIdx: number } | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i]
-    if (!msg.toolUse) continue
-    for (let j = msg.toolUse.length - 1; j >= 0; j--) {
-      if (!msg.toolUse[j].result) {
-        return { msgIdx: i, toolIdx: j }
-      }
-    }
-  }
-  return null
-}
-
 // ── Example prompts ──────────────────────────────────────────────
 
 const EXAMPLE_PROMPTS: { label: string; prompt: string }[] = [
@@ -855,37 +814,6 @@ const MODE_OPTIONS: { value: AiPermissionMode; label: string; icon: string }[] =
   { value: 'acceptEdits', label: 'Edit', icon: '✏️' },
   { value: 'bypassPermissions', label: 'Bypass', icon: '🔓' },
 ]
-
-// ── Slash command descriptions (fallback for commands without description) ──
-const SLASH_COMMAND_DESCRIPTIONS: Record<string, { description: string; argumentHint?: string }> = {
-  compact: { description: 'Compress conversation context', argumentHint: '[instructions]' },
-  clear: { description: 'Clear conversation history', argumentHint: '[name]' },
-  context: { description: 'View context usage', argumentHint: '[all]' },
-  cost: { description: 'Show session cost and usage' },
-  usage: { description: 'Show session cost and usage' },
-  model: { description: 'Switch AI model', argumentHint: '[model]' },
-  help: { description: 'Show available commands' },
-  exit: { description: 'Exit the session' },
-  init: { description: 'Initialize project CLAUDE.md' },
-  status: { description: 'Show version, model, account info' },
-  memory: { description: 'Edit CLAUDE.md memory file' },
-  doctor: { description: 'Diagnose Claude Code installation' },
-  permissions: { description: 'Manage tool permission rules' },
-  config: { description: 'Open settings', argumentHint: '[key=value]' },
-  review: { description: 'Review a pull request', argumentHint: '[PR]' },
-  plan: { description: 'Enter plan mode', argumentHint: '[description]' },
-}
-
-function enrichSlashCommands(names: string[]): AiSlashCommand[] {
-  return names.map(name => {
-    const preset = SLASH_COMMAND_DESCRIPTIONS[name]
-    return {
-      name,
-      description: preset?.description || name,
-      argumentHint: preset?.argumentHint,
-    }
-  })
-}
 
 // ── ContextBar ──────────────────────────────────────────────────────
 function ContextBar({ percent }: { percent: number | null }) {
@@ -1164,17 +1092,24 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
 
-  // Per-session AI state
-  const [sessionStates, setSessionStates] = useState<Record<string, AiSessionState>>({})
-  const state = activeSessionId ? (sessionStates[activeSessionId] || EMPTY_SESSION) : EMPTY_SESSION
+  // AI session state — shared singleton store (进程级单例,消除 N 倍冗余)
+  const state = useAiSession(activeSessionId)
 
   // Sync AI busy state to parent agentStatus (OR with terminal detection)
   useEffect(() => {
     if (!activeSessionId || !onAgentStatusChange) return
-    const s = sessionStates[activeSessionId]
-    if (!s) return
-    onAgentStatusChange(activeSessionId, s.busy ? 'running' : 'idle')
-  }, [activeSessionId, sessionStates[activeSessionId ?? '']?.busy, onAgentStatusChange])
+    onAgentStatusChange(activeSessionId, state.busy ? 'running' : 'idle')
+  }, [activeSessionId, state.busy, onAgentStatusChange])
+
+  // Auto-rename session from first user message — store 只设 state.name,
+  // 副作用(持久化 rename)在此触发。用 ref 持有 onRenameSession,避免
+  // 内联 prop 引用变化导致 effect 频繁重跑(只在 name 真正变化时触发)。
+  const onRenameSessionRef = useRef(onRenameSession)
+  onRenameSessionRef.current = onRenameSession
+  useEffect(() => {
+    if (!activeSessionId || !state.name) return
+    onRenameSessionRef.current?.(state.name)
+  }, [activeSessionId, state.name])
 
   // Session history
   const [sessionHistoryOpen, setSessionHistoryOpen] = useState(false)
@@ -1231,309 +1166,33 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     setValue: (text: string) => { setInputValue(text) },
   }), [setInputValue])
 
-  // Track which sessions have been created to avoid double-init
-  const createdSessionsRef = useRef<Set<string>>(new Set())
-
-  // ── Update session state helper ──
+  // ── Update session state helper(委托给单例 store)──
   const updateSession = useCallback((sessionId: string, updater: (s: AiSessionState) => AiSessionState) => {
-    setSessionStates(prev => ({
-      ...prev,
-      [sessionId]: updater(prev[sessionId] || { ...EMPTY_SESSION }),
-    }))
+    aiStore.updateSession(sessionId, updater)
   }, [])
 
-  // ── IPC: AI messages ──
-  useEffect(() => {
-    const handleMsg = window.api.ai.onMessage((msg: any) => {
-      if (!msg.sessionId) return
-      updateSession(msg.sessionId, (s) => {
-        const isAssistant = msg.type === 'assistant' && msg.role === 'assistant'
-
-        // Consume any pending RAF tokens that haven't been flushed to state yet.
-        // Without this, the comparison below sees stale buffer values and can
-        // incorrectly create a duplicate flushedMsg (same text renders twice).
-        const pendingTokens = pendingTokensRef.current.get(msg.sessionId)
-        if (pendingTokens) {
-          pendingTokensRef.current.delete(msg.sessionId)
-          s = {
-            ...s,
-            streamBuffer: pendingTokens.text ? s.streamBuffer + pendingTokens.text : s.streamBuffer,
-            thinkingBuffer: pendingTokens.thinking ? s.thinkingBuffer + pendingTokens.thinking : s.thinkingBuffer,
-          }
-        }
-
-        // CLI stream-json emits one assistant message per content block (thinking, then text,
-        // then tool_use), but msg.message.id stays the same. Without this merge, each block
-        // becomes a separate AiMessage and the same sentence appears twice in the UI.
-        const lastMsg = s.messages[s.messages.length - 1]
-        const isSameMessageId = isAssistant
-          && !!msg.messageId
-          && !!lastMsg
-          && lastMsg.type === 'assistant'
-          && lastMsg.messageId === msg.messageId
-
-        // Determine what the stream buffers have that the incoming message doesn't.
-        // Only flush unique content to avoid duplication. Buffer content that is a
-        // substring of the message is just a streaming preview — the message already
-        // covers it, so no need to flush.
-        // When merging with a previous message (same message ID), also check the
-        // merged result — otherwise stale buffer content from raced stream events
-        // creates duplicate thinking blocks after the response has finished rendering.
-        const coveredByMergedThinking = isSameMessageId && !!lastMsg?.thinking && lastMsg.thinking.includes(s.thinkingBuffer)
-        const coveredByMergedText = isSameMessageId && !!lastMsg?.content && lastMsg.content.includes(s.streamBuffer)
-        const extraThinking = s.thinkingBuffer
-          && (!msg.thinking || !msg.thinking.includes(s.thinkingBuffer))
-          && !coveredByMergedThinking
-          ? s.thinkingBuffer : ''
-        const extraText = s.streamBuffer
-          && (!msg.content || !msg.content.includes(s.streamBuffer))
-          && !coveredByMergedText
-          ? s.streamBuffer : ''
-        const hasExtra = extraThinking || extraText
-
-        // Flush on assistant (capture buffer content not in message) or
-        // result (fallback for interrupted streaming).
-        const flushedMsg = (hasExtra && s.streaming && (isAssistant || msg.type === 'result'))
-          ? [{ sessionId: msg.sessionId, type: 'assistant' as const, role: 'assistant' as const,
-              content: extraText || undefined,
-              thinking: extraThinking || undefined,
-              thinkingDurationMs: extraThinking && s.thinkingStartedAt ? Date.now() - s.thinkingStartedAt : undefined,
-              parentToolUseId: msg.parentToolUseId,
-              timestamp: Date.now() }]
-          : []
-
-        // Calculate thinking duration when thinking content first lands in a message
-        const thinkDuration = (isAssistant && msg.thinking && s.thinkingStartedAt)
-          ? Date.now() - s.thinkingStartedAt : undefined
-
-        let messages: AiMessage[]
-        if (isSameMessageId && lastMsg) {
-          // Merge multi-block assistant message.
-          // --include-partial-messages emits cumulative content (each message has the full
-          // text so far). If new content/thinking starts with the old value, replace rather
-          // than concatenate — otherwise the same text doubles up.
-          const mergeContent = (oldC: string | undefined, newC: string | undefined): string | undefined => {
-            const o = oldC || ''
-            const n = newC || ''
-            if (!n) return oldC
-            if (!o) return newC
-            return n.startsWith(o) ? n : o + n
-          }
-          const mergeThinking = (oldT: string | undefined, newT: string | undefined): string | undefined => {
-            const o = oldT || ''
-            const n = newT || ''
-            if (!n) return oldT
-            if (!o) return newT
-            return n.startsWith(o) ? n : o + '\n\n' + n
-          }
-          const merged: AiMessage = {
-            ...lastMsg,
-            content: mergeContent(lastMsg.content, msg.content) || undefined,
-            thinking: mergeThinking(lastMsg.thinking, msg.thinking) || undefined,
-            thinkingDurationMs: lastMsg.thinkingDurationMs ?? thinkDuration,
-            toolUse: msg.toolUse?.length ? [...(lastMsg.toolUse || []), ...msg.toolUse] : lastMsg.toolUse,
-          }
-          messages = [...s.messages.slice(0, -1), merged, ...flushedMsg]
-        } else if (msg.toolResult) {
-          const merged = mergeToolResultIntoMessages(s.messages, msg.toolResult.toolUseId, msg.toolResult)
-          messages = merged
-            ? [...merged, ...flushedMsg]
-            : [...s.messages, ...flushedMsg, msg]
-        } else {
-          messages = [...s.messages, ...flushedMsg, isAssistant ? { ...msg, thinkingDurationMs: thinkDuration } : msg]
-        }
-
-        // Clear buffers: only the fields the incoming message already covers.
-        // When merging with a previous message (same ID), also clear if the merged
-        // result already has that content — prevents stale buffer surviving across
-        // partial messages and surfacing as duplicate blocks on result flush.
-        const clearThinking = isAssistant && (!!msg.thinking || (isSameMessageId && !!lastMsg?.thinking))
-        const clearText = isAssistant && (!!msg.content || (isSameMessageId && !!lastMsg?.content))
-
-        // Auto-rename from first user message
-        const isUserMsg = msg.type === 'user' && msg.role === 'user' && typeof msg.content === 'string' && msg.content.trim()
-        const newName = isUserMsg && !s.name ? msg.content.trim().slice(0, 60) : s.name
-        if (isUserMsg && !s.name && newName) onRenameSession(newName)
-
-        return {
-          ...s,
-          messages,
-          name: newName,
-          busy: s.busy && msg.type !== 'result',
-          streaming: msg.type === 'result' ? false : s.streaming,
-          streamBuffer: clearText || msg.type === 'result' ? '' : s.streamBuffer,
-          thinkingBuffer: clearThinking || msg.type === 'result' ? '' : s.thinkingBuffer,
-          thinkingStartedAt: clearThinking || msg.type === 'result' ? null : s.thinkingStartedAt,
-          contextPercent: msg.contextPercent != null ? Math.round(msg.contextPercent) : s.contextPercent,
-        }
-      })
-    })
-    return () => window.api.ai.removeMessageListener(handleMsg)
-  }, [updateSession])
-
-  // ── IPC: Stream tokens ──
-  // Tokens arrive at high frequency during streaming. Coalesce with rAF (avoid blocking
-  // main thread per token) then throttle state updates to 200ms. Without throttling,
-  // ReactMarkdown re-parses the growing text at 60fps and flickers hard.
-  const THROTTLE_MS = 200
-  const pendingTokensRef = useRef<Map<string, { text: string; thinking: string }>>(new Map())
-  const rafScheduledRef = useRef(false)
-  const lastFlushRef = useRef(0)
-  const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => {
-    const handleToken = window.api.ai.onStreamToken(({ sessionId, token, kind }: any) => {
-      if (!token) return
-      const map = pendingTokensRef.current
-      const cur = map.get(sessionId) || { text: '', thinking: '' }
-      if (kind === 'thinking') cur.thinking += token
-      else cur.text += token
-      map.set(sessionId, cur)
-      if (rafScheduledRef.current) return
-      rafScheduledRef.current = true
-      requestAnimationFrame(() => {
-        rafScheduledRef.current = false
-        const now = Date.now()
-        const elapsed = now - lastFlushRef.current
-        if (elapsed >= THROTTLE_MS) {
-          lastFlushRef.current = now
-          flushTokens()
-        } else if (!throttleTimerRef.current) {
-          throttleTimerRef.current = setTimeout(() => {
-            throttleTimerRef.current = null
-            lastFlushRef.current = Date.now()
-            flushTokens()
-          }, THROTTLE_MS - elapsed)
-        }
-      })
-    })
-
-    function flushTokens() {
-      const batched = pendingTokensRef.current
-      pendingTokensRef.current = new Map()
-      batched.forEach((buf, sid) => {
-        updateSession(sid, (s) => ({
-          ...s,
-          streamBuffer: buf.text ? s.streamBuffer + buf.text : s.streamBuffer,
-          thinkingBuffer: buf.thinking ? s.thinkingBuffer + buf.thinking : s.thinkingBuffer,
-          thinkingStartedAt: buf.thinking && !s.thinkingBuffer ? Date.now() : s.thinkingStartedAt,
-          streaming: true,
-        }))
-      })
-    }
-
-    return () => {
-      window.api.ai.removeStreamTokenListener(handleToken)
-      if (throttleTimerRef.current) clearTimeout(throttleTimerRef.current)
-    }
-  }, [updateSession])
-
-  // ── IPC: Permission requests ──
-  useEffect(() => {
-    const handlePerm = window.api.ai.onPermission((perm: any) => {
-      // [PLAN-MODE-DEBUG] confirm permission IPC reaches renderer
-      console.log(`[PLAN-MODE-DEBUG renderer] onPermission sid=${perm.sessionId} tool=${perm.tool} reqId=${perm.requestId} toolInputKeys=${Object.keys(perm.toolInput || {}).join(',')}`)
-      updateSession(perm.sessionId, (s) => ({ ...s, pendingPermission: perm }))
-    })
-    return () => window.api.ai.removePermissionListener(handlePerm)
-  }, [updateSession])
-
-  // ── IPC: Ready ──
-  useEffect(() => {
-    const handleReady = window.api.ai.onReady(({ sessionId, slashCommands, model }: any) => {
-      const commands = enrichSlashCommands(slashCommands || [])
-      // Preserve existing model when a re-init arrives without a model field.
-      // --resume / plan clear-execute / /clear / /compact / set_model can re-emit
-      // system/init that lacks msg.model; clobbering with '' would flip the badge
-      // from the real model back to "default".
-      updateSession(sessionId, (s) => ({ ...s, ready: true, busy: s.busy, slashCommands: commands, model: model || s.model || '' }))
-    })
-    return () => window.api.ai.removeReadyListener(handleReady)
-  }, [updateSession])
-
-  // ── IPC: Errors — merge into last pending tool or show standalone ──
-  useEffect(() => {
-    const handleErr = window.api.ai.onError(({ sessionId, error, installCmd }: any) => {
-      updateSession(sessionId, (s) => {
-        const pendingToolIdx = findPendingToolIndex(s.messages)
-        let messages: AiMessage[]
-        if (pendingToolIdx != null) {
-          const { msgIdx, toolIdx } = pendingToolIdx
-          const msg = s.messages[msgIdx]
-          const tool = msg.toolUse![toolIdx]
-          const mergedToolUse = [...msg.toolUse!]
-          mergedToolUse[toolIdx] = { ...tool, result: { toolUseId: tool.id, content: error, isError: true } }
-          messages = [...s.messages]
-          messages[msgIdx] = { ...msg, toolUse: mergedToolUse }
-        } else {
-          messages = [...s.messages, { sessionId, type: 'result' as const, error, installCmd, timestamp: Date.now() }]
-        }
-        return {
-          ...s,
-          ready: true,
-          busy: false, streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null,
-          messages,
-        }
-      })
-    })
-    return () => window.api.ai.removeErrorListener(handleErr)
-  }, [updateSession])
+  // ── IPC listeners(sessionStates / onMessage / onStreamToken / onPermission /
+  // onReady / onError)已上提到 aiStore 单例,此处不再重复注册。──
 
   // ── Session lifecycle: check availability then auto-create AI session ──
   useEffect(() => {
     if (!activeSessionId || !workspacePath) return
-    if (createdSessionsRef.current.has(activeSessionId)) return
-    createdSessionsRef.current.add(activeSessionId)
-
-    // Pre-check availability
-    const sid = activeSessionId
     const cliCommand = (() => {
       try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined }
     })()
-    window.api.ai.checkAvailable(cliCommand).then((result: any) => {
-      if (!result.available) {
-        updateSession(sid, (s) => ({
-          ...s,
-          ready: true,
-          messages: [{
-            sessionId: sid, type: 'result' as const,
-            error: result.error || 'Claude CLI not found',
-            installCmd: result.installCmd,
-            timestamp: Date.now(),
-          }],
-        }))
-        return
-      }
-      window.api.ai.create({
-        sessionId: sid,
-        cwd: workspacePath,
-        autoApprove,
-        permissionMode,
-        ...(resumeSessionId ? { resumeSessionId } : {}),
-        ...(cliCommand ? { cliCommand } : {}),
-      })
-      updateSession(sid, () => ({ ...EMPTY_SESSION }))
-    }).catch(() => {
-      updateSession(sid, (s) => ({
-        ...s,
-        ready: true,
-        messages: [{
-          sessionId: sid, type: 'result' as const,
-          error: 'Failed to check CLI availability',
-          timestamp: Date.now(),
-        }],
-      }))
+    aiStore.ensureCreated(activeSessionId, {
+      cwd: workspacePath,
+      autoApprove,
+      permissionMode,
+      ...(resumeSessionId ? { resumeSessionId } : {}),
+      cliCommand,
     })
   }, [activeSessionId, workspacePath]) // intentionally omit autoApprove to not re-create
 
   // ── Cleanup destroyed sessions ──
   const handleDestroySession = useCallback((sessionId: string) => {
     window.api.ai.destroy(sessionId)
-    createdSessionsRef.current.delete(sessionId)
-    setSessionStates(prev => {
-      const next = { ...prev }
-      delete next[sessionId]
-      return next
-    })
+    aiStore.clearSession(sessionId)
   }, [])
 
   // ── Smart auto-scroll: passive listener + threshold ──
@@ -1568,7 +1227,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     setInputValue('')
     updateSession(activeSessionId, (s) => {
       const newName = !s.name ? message.slice(0, 60) : s.name
-      if (!s.name && newName) onRenameSession(newName)
       return {
         ...s, busy: true, name: newName,
         messages: [...s.messages, {
@@ -1578,14 +1236,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       }
     })
     await window.api.ai.send(activeSessionId, message)
-  }, [activeSessionId, inputValue, state.busy, updateSession, onRenameSession])
+  }, [activeSessionId, inputValue, state.busy, updateSession])
 
   // ── Send direct (for example prompts) ──
   const sendDirect = useCallback(async (text: string) => {
     if (!activeSessionId || state.busy) return
     updateSession(activeSessionId, (s) => {
       const newName = !s.name ? text.slice(0, 60) : s.name
-      if (!s.name && newName) onRenameSession(newName)
       return {
         ...s, busy: true, name: newName,
         messages: [...s.messages, {
@@ -1597,18 +1254,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     await window.api.ai.send(activeSessionId, text)
   }, [activeSessionId, state.busy, updateSession])
 
-  // ── Permission response ──
-  const handlePermissionResponse = useCallback((
-    sessionId: string, requestId: string, approved: boolean,
-    tool: string, toolInput?: Record<string, any>, feedback?: string
-  ) => {
-    window.api.ai.respondPermission(sessionId, requestId, approved, tool, toolInput, feedback)
-    updateSession(sessionId, (s) => ({ ...s, pendingPermission: null }))
-  }, [updateSession])
-
   // ── ExitPlanMode "Clear & Execute": kill plan-mode subprocess, respawn in acceptEdits,
-  // re-inject plan from disk as first message. Defined after handlePermissionResponse
-  // (被调先于主调) — AiExitPlanModeCard consumes both via onClearExecute / onDeny props.
+  // re-inject plan from disk as first message. onDeny 委托 aiStore.handlePlanDeny;
+  // onClearExecute 需切 UI permission mode 故留组件内(被调先于主调)。
   const handlePlanClearExecute = useCallback(async (sessionId: string, planFilePath: string) => {
     if (!planFilePath) return
     // Preserve messages/model/slashCommands/contextPercent — main side /clear is intentional
@@ -1628,52 +1276,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     onPermissionModeChange('acceptEdits')
     await window.api.ai.clearAndExecutePlan(sessionId, planFilePath)
   }, [updateSession, onPermissionModeChange])
-
-  const handlePlanDeny = useCallback((sessionId: string, requestId: string, feedback: string) => {
-    window.api.ai.respondPermission(sessionId, requestId, false, 'ExitPlanMode', undefined, feedback || undefined)
-    updateSession(sessionId, (s) => ({ ...s, pendingPermission: null }))
-  }, [updateSession])
-
-  // ── AskUserQuestion "Kill-and-Resume": Claude CLI auto-fills empty answers ~0.5s after
-  // the control_request, so a normal control_response arrives too late and LLM already
-  // proceeded with "I didn't receive a selection". Main process kills CLI proactively
-  // on AskUserQuestion (ai.ts:289) and we spawn `--resume` after the user answers
-  // (ai-ask-resume.ts). Same signature as handlePermissionResponse so AiAskQuestionCard's
-  // existing onRespond prop works unchanged.
-  //
-  // Important: --resume only loads history into LLM context server-side; it does NOT
-  // replay past messages via stdout. So preserve messages/name/model/slashCommands here
-  // — clearing them was a previous bug that made the whole conversation disappear after
-  // answering an AskUserQuestion card. Only flush streaming buffers and the card itself.
-  const handleAskResume = useCallback((
-    sessionId: string, requestId: string, approved: boolean,
-    tool: string, toolInput?: Record<string, any>
-  ) => {
-    const answers = (toolInput?.answers || {}) as Record<string, string>
-    updateSession(sessionId, (s) => ({
-      ...s,
-      pendingPermission: null,
-      streaming: false,
-      streamBuffer: '',
-      thinkingBuffer: '',
-      thinkingStartedAt: null,
-      busy: true,
-    }))
-    window.api.ai.askResume(sessionId, answers)
-  }, [updateSession])
-
-  // Exported for parent cleanup
-  useEffect(() => {
-    if (containerRef.current) {
-      (containerRef.current as any).__aiDestroyAll = () => {
-        createdSessionsRef.current.forEach((sid) => {
-          window.api.ai.destroy(sid)
-        })
-        createdSessionsRef.current.clear()
-        setSessionStates({})
-      }
-    }
-  }, [])
 
   // ── Revert / Fork handlers ──────────────────────────────────────
 
@@ -1801,17 +1403,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             onClick={() => {
               if (!activeSessionId || !workspacePath) return
               handleDestroySession(activeSessionId)
-              createdSessionsRef.current.delete(activeSessionId)
-              updateSession(activeSessionId, () => ({ ...EMPTY_SESSION }))
               const cliCommand = (() => {
                 try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined }
               })()
-              window.api.ai.create({
-                sessionId: activeSessionId,
+              aiStore.ensureCreated(activeSessionId, {
                 cwd: workspacePath,
                 autoApprove,
                 permissionMode,
-                ...(cliCommand ? { cliCommand } : {}),
+                cliCommand,
               })
               onViewAi()
             }}
@@ -1843,7 +1442,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       name: sessionName,
                       ready: false,
                     }))
-                    if (sessionName) onRenameSession(sessionName)
                     await window.api.ai.destroy(activeSessionId)
                     const cliCommand = (() => {
                       try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined }
@@ -1954,14 +1552,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           <AiAskQuestionCard
             perm={state.pendingPermission}
             sessionId={activeSessionId}
-            onRespond={handleAskResume}
+            onRespond={aiStore.handleAskResume}
           />
         ) : state.pendingPermission.tool === 'ExitPlanMode' ? (
           <AiExitPlanModeCard
             perm={state.pendingPermission}
             sessionId={activeSessionId}
             onClearExecute={handlePlanClearExecute}
-            onDeny={handlePlanDeny}
+            onDeny={aiStore.handlePlanDeny}
             workspacePath={workspacePath}
             onOpenFile={onOpenFile}
           />
@@ -1969,7 +1567,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           <AiPermissionCard
             perm={state.pendingPermission}
             sessionId={activeSessionId}
-            onRespond={handlePermissionResponse}
+            onRespond={aiStore.handlePermissionResponse}
           />
         )
       )}

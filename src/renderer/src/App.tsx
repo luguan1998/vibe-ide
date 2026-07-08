@@ -10,6 +10,7 @@ import NavBar, { NavEntry } from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import AiTab, { AiTabHandle } from './components/AiTab'
+import { aiStore } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { DRAFT_PIPE_STOP, FOCUS_GAME_DRAFT, ADD_ANNOTATION_EVENT, toRelPath } from './components/VibeProgramer'
@@ -1556,8 +1557,9 @@ export default function App() {
         return next
       })
     }
-    // 清理该 session 的 AI 子进程
+    // 清理该 session 的 AI 子进程 + renderer 单例 store 中的状态(消除残骸)
     window.api.ai.destroy(id)
+    aiStore.clearSession(id)
     if (activeSessionId === id) {
       const remaining = sessions.filter(s => s.id !== id)
       setActiveSessionId(remaining.length > 0 ? remaining[0].id : null)

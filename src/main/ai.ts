@@ -389,7 +389,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         costUsd: msg.total_cost_usd,
         durationMs: msg.duration_ms,
         numTurns: msg.num_turns,
-        contextPercent: calcContextPercent(msg.usage, aiSessions.get(sessionId)?.contextWindow),
+        // result.usage is cumulative across the turn — omit so renderer keeps last assistant value
         timestamp: Date.now(),
       })
       break
@@ -637,7 +637,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
           costUsd: msg.total_cost_usd,
           numTurns: msg.num_turns,
           durationMs: msg.duration_ms,
-          contextPercent: calcContextPercent(msg.usage, getContextWindowForCliSession(sid)),
+          // result.usage is cumulative across the turn — see handleNdjsonMessage result case
           timestamp: ts,
         })
       }
