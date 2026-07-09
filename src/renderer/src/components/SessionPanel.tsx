@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { TerminalSession, SnippetInfo } from '@shared/types'
 import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw } from 'lucide-react'
 import { useTheme } from '../themes'
+import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
 import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand } from './CustomCommands'
@@ -538,6 +539,7 @@ const SessionPanel = React.memo(function SessionPanel({
       s.textContent = result.css
       document.head.appendChild(s)
     }
+    syncTitleBarOverlay()
   }
 
   const handleContextMenu = (e: React.MouseEvent, sessionId: string) => {

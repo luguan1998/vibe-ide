@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { IDETheme } from './types'
 import { THEMES, DEFAULT_THEME_ID } from './definitions'
 import { getMonaco } from '@renderer/utils/monacoSingleton'
+import { syncTitleBarOverlay } from '@renderer/utils/titlebarSync'
 
 interface ThemeContextValue {
   theme: IDETheme
@@ -49,6 +50,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     applyCSSVariables(currentTheme)
+    syncTitleBarOverlay()
   }, [currentThemeId, currentTheme])
 
   // monaco 全局主题随 IDE 同步：colorize 的 token 颜色解析走全局 theme service，
@@ -60,14 +62,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     })
     return () => { cancelled = true }
   }, [currentTheme.monacoTheme])
-
-  useEffect(() => {
-    try {
-      if (window.api?.theme) {
-        window.api.theme.setTitleBar(currentTheme.titleBar)
-      }
-    } catch {}
-  }, [currentTheme])
 
   const setTheme = useCallback((id: string) => {
     setCurrentThemeId(id)
