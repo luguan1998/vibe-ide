@@ -349,7 +349,7 @@ app.whenReady().then(() => {
     if (process.platform !== 'win32') return []
     if (cachedFontList) return cachedFontList
     try {
-      const psCmd = 'powershell -NoProfile -Command "Add-Type -AssemblyName System.Drawing; [System.Drawing.Text.InstalledFontCollection]::new().Families | ForEach-Object { $_.Name } | Sort-Object"'
+      const psCmd = 'powershell -NoProfile -Command "[Console]::OutputEncoding = [Text.Encoding]::UTF8; Add-Type -AssemblyName System.Drawing; [System.Drawing.Text.InstalledFontCollection]::new().Families | ForEach-Object { $_.Name } | Sort-Object"'
       const { stdout } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
         exec(psCmd, { timeout: 5000 }, (err, stdout, stderr) => err ? reject(err) : resolve({ stdout, stderr }))
       })

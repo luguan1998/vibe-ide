@@ -1,0 +1,505 @@
+/*
+  Don't Starve — 饥荒·暗黑羊皮纸
+  配色照抄 dontstarve.huijiwiki.com 的 LESS 变量
+  Session 面板仿 Klei 官网 btn-bg clip-path 不规则手绘形状 + 颜色翻转 hover
+  设计语言：古卷羊皮纸 · 火炬金光 · 木纹棕底 · 手绘边框
+*/
+
+/* ════════════════════════════════════════════════════
+   主题色 — 饥荒 wiki 暗黑暖棕系（照抄 huijiwiki LESS 变量）
+   ════════════════════════════════════════════════════ */
+:root {
+  --ide-bg: 20 16 10 !important;
+  --ide-sidebar: 24 18 14 !important;
+  --ide-panel: 30 22 16 !important;
+  --ide-border: 74 56 40 !important;
+  --ide-text: 220 210 198 !important;
+  --ide-text-muted: 168 152 128 !important;
+  --ide-accent: 231 204 123 !important;
+  --ide-accent-hover: 245 222 138 !important;
+  --ide-success: 139 154 110 !important;
+  --ide-danger: 196 90 74 !important;
+  --ide-warning: 212 168 75 !important;
+  --ide-hover: 42 34 24 !important;
+  --ide-active: 53 42 28 !important;
+  --scrollbar-track: 18 14 10 !important;
+  --scrollbar-thumb: 74 56 40 !important;
+  --scrollbar-thumb-hover: 140 110 70 !important;
+  --selection-bg: 231 204 123 !important;
+  --selection-opacity: 0.2 !important;
+}
+
+/* ════════════════════════════════════════════════════
+   全局 — 微圆角 · 手绘字体
+   ════════════════════════════════════════════════════ */
+.titlebar-drag,
+.session-panel__stat,
+.session-panel__config-btn,
+.session-panel__new-btn,
+.session-panel__config-menu,
+.session-group,
+.session-group__header,
+.file-tab__header,
+.file-tab__section,
+.file-tab__section-header,
+.file-tree-item,
+.git-tab__header,
+.git-tab__section,
+.git-tab__section-header,
+.git-tab__file-item,
+.git-tab__commit-area,
+.git-tab__commit-input,
+.git-tab__commit-btn,
+.right-panel__tab-bar,
+.right-panel__tab,
+input, select, textarea {
+  border-radius: 2px !important;
+}
+
+html, body, #root {
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'SimSun', 'Cascadia Code', monospace !important;
+}
+
+/* ════════════════════════════════════════════════════
+   标题栏 — 暗木纹 + 橙线底边
+   ════════════════════════════════════════════════════ */
+.titlebar-drag[class*="h-9"] {
+  border-bottom: 2px solid rgb(231 204 123 / 0.35) !important;
+  background: linear-gradient(180deg, rgb(12 9 6), rgb(22 17 12)) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   会话面板 — Klei btn-bg 风格
+   不规则 clip-path · 颜色翻转 · 手绘边框
+   ════════════════════════════════════════════════════ */
+.session-panel__list-wrapper {
+  border: 1px solid rgb(74 56 40) !important;
+  background: rgb(22 17 12) !important;
+  border-radius: 3px !important;
+}
+
+.session-panel__stat {
+  border: 1px solid rgb(74 56 40) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 11px !important;
+}
+.session-panel__config-btn, .session-panel__new-btn {
+  border: 1px solid rgb(74 56 40) !important;
+  transition: all 0.3s !important;
+}
+.session-panel__config-btn:hover, .session-panel__new-btn:hover {
+  border-color: rgb(231 204 123 / 0.5) !important;
+}
+.session-panel__new-btn:not(:disabled) {
+  background: transparent !important;
+  color: rgb(var(--ide-text-muted)) !important;
+}
+.session-panel__new-btn:not(:disabled):hover {
+  background: rgb(var(--ide-accent)) !important;
+  color: rgb(255 255 255) !important;
+  border-color: rgb(var(--ide-accent)) !important;
+  font-weight: 700 !important;
+  transform: scale(1.05) !important;
+}
+.session-panel__config-menu {
+  border: 1px solid rgb(74 56 40) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.8) !important;
+}
+
+/* ── 状态图标替换：闪电 → 🔥 营火  咖啡 → 🕯️蜡烛 ── */
+.session-panel__stat:first-child svg { display: none !important; }
+.session-panel__stat:first-child::before {
+  content: '🔥' !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+}
+.session-panel__stat:last-child svg { display: none !important; }
+.session-panel__stat:last-child::before {
+  content: '🕯️' !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+
+/* ═══════════════ 会话项 — Klei btn-bg 不规则形状 + 颜色翻转 ═══════════════ */
+.session-item {
+  position: relative !important;
+  border-radius: 0 !important;
+  margin: 2px 4px !important;
+  transition: transform 0.25s, background 0.25s, color 0.25s !important;
+  background: rgb(28 22 16) !important;
+  color: rgb(var(--ide-text-muted)) !important;
+  clip-path: polygon(
+    2.5% 8%, 5% 0%, 30% 0%, 60% 1.5%, 85% 0%, 95% 2%, 98% 8%,
+    96% 18%, 100% 28%, 96% 40%, 100% 52%, 96% 65%, 100% 78%,
+    98% 92%, 95% 100%, 70% 100%, 45% 100%, 20% 100%, 5% 100%, 1.5% 92%,
+    3% 80%, 0% 68%, 2.5% 55%, 0% 40%, 3% 25%, 0% 12%
+  ) !important;
+}
+
+.session-item > div {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.session-item:hover {
+  background: rgb(34 20 12) !important;
+  color: rgb(231 204 123) !important;
+  transform: scale(1.02) !important;
+  box-shadow: 0 0 16px rgb(231 204 123 / 0.15) !important;
+}
+.session-item:hover .session-item__name {
+  color: rgb(231 204 123) !important;
+}
+.session-item:hover .session-item__cwd {
+  color: rgb(231 204 123 / 0.65) !important;
+}
+
+.session-item--active {
+  font-weight: 700 !important;
+  background: rgb(231 204 123) !important;
+  color: rgb(18 14 10) !important;
+  border-left: none !important;
+}
+.session-item--active .session-item__name {
+  color: rgb(18 14 10) !important;
+}
+.session-item--active .session-item__cwd {
+  color: rgb(18 14 10 / 0.7) !important;
+}
+
+.session-item.border-ide-accent\/60:not(.session-item--active) {
+  font-weight: 700 !important;
+  background: rgb(231 204 123) !important;
+  color: rgb(18 14 10) !important;
+}
+.session-item.border-ide-accent\/60:not(.session-item--active) .session-item__name {
+  color: rgb(18 14 10) !important;
+}
+.session-item.border-ide-accent\/60:not(.session-item--active) .session-item__cwd {
+  color: rgb(18 14 10 / 0.7) !important;
+}
+
+/* ── 轮换色相（5色周期） ── */
+/* active 背景色轮换 */
+.session-item:nth-child(5n+1).session-item--active { background: rgb(231 204 123) !important; }
+.session-item:nth-child(5n+2).session-item--active { background: rgb(196 155 108) !important; }
+.session-item:nth-child(5n+3).session-item--active { background: rgb(139 180 130) !important; }
+.session-item:nth-child(5n+4).session-item--active { background: rgb(210 100 85) !important; }
+.session-item:nth-child(5n+5).session-item--active { background: rgb(170 150 195) !important; }
+
+/* hover 文字色 + 光晕轮换 */
+.session-item:nth-child(5n+1):hover,
+.session-item:nth-child(5n+1):hover .session-item__name { color: rgb(231 204 123) !important; }
+.session-item:nth-child(5n+1):hover { box-shadow: 0 0 16px rgb(231 204 123 / 0.15) !important; }
+.session-item:nth-child(5n+2):hover,
+.session-item:nth-child(5n+2):hover .session-item__name { color: rgb(196 155 108) !important; }
+.session-item:nth-child(5n+2):hover { box-shadow: 0 0 16px rgb(196 155 108 / 0.15) !important; }
+.session-item:nth-child(5n+3):hover,
+.session-item:nth-child(5n+3):hover .session-item__name { color: rgb(139 180 130) !important; }
+.session-item:nth-child(5n+3):hover { box-shadow: 0 0 16px rgb(139 180 130 / 0.15) !important; }
+.session-item:nth-child(5n+4):hover,
+.session-item:nth-child(5n+4):hover .session-item__name { color: rgb(210 100 85) !important; }
+.session-item:nth-child(5n+4):hover { box-shadow: 0 0 16px rgb(210 100 85 / 0.15) !important; }
+.session-item:nth-child(5n+5):hover,
+.session-item:nth-child(5n+5):hover .session-item__name { color: rgb(170 150 195) !important; }
+.session-item:nth-child(5n+5):hover { box-shadow: 0 0 16px rgb(170 150 195 / 0.15) !important; }
+
+/* ═══════════════ 会话分组 — 木纹卡片 ═══════════════ */
+.session-group {
+  border: 1px solid rgb(74 56 40) !important;
+  margin: 8px 2px !important;
+  background: rgb(26 21 15) !important;
+  border-radius: 4px !important;
+  clip-path: polygon(
+    1% 3%, 3% 0%, 50% 0%, 97% 0%, 99% 3%,
+    100% 6%, 100% 50%, 100% 94%, 99% 100%, 97% 100%,
+    50% 100%, 3% 100%, 1% 97%, 0% 94%, 0% 50%, 0% 6%
+  ) !important;
+}
+.session-group__header {
+  border-bottom: 1px solid rgb(74 56 40) !important;
+  background: linear-gradient(90deg, rgb(30 24 18), rgb(40 32 24), rgb(30 24 18)) !important;
+  border-radius: 4px 4px 0 0 !important;
+}
+.session-group__path {
+  color: rgb(210 185 155) !important;
+  font-weight: 600 !important;
+}
+
+.session-panel__flat-list {
+  border: 1px solid rgb(74 56 40) !important;
+  background: rgb(26 21 15) !important;
+  border-radius: 4px !important;
+}
+
+/* 分组边框轮换 */
+.session-group:nth-child(5n+1) { border-color: rgb(231 204 123 / 0.4) !important; }
+.session-group:nth-child(5n+2) { border-color: rgb(231 204 123 / 0.4) !important; }
+.session-group:nth-child(5n+3) { border-color: rgb(139 154 110 / 0.4) !important; }
+.session-group:nth-child(5n+4) { border-color: rgb(196 90 74 / 0.4) !important; }
+.session-group:nth-child(5n+5) { border-color: rgb(150 130 170 / 0.4) !important; }
+
+/* ════════════════════════════════════════════════════
+   终端 — 饑荒手繪炭筆火焰邊框
+   ════════════════════════════════════════════════════ */
+.term-view__canvas {
+  position: relative !important;
+}
+.term-view__canvas::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 100 !important;
+  pointer-events: none !important;
+  opacity: 0.4 !important;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 300' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cfilter id='c' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.05' numOctaves='3' result='n'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='n' scale='4' xChannelSelector='R' yChannelSelector='G'/%3E%3C/filter%3E%3C/defs%3E%3Cg filter='url(%23c)' stroke-linecap='round' stroke-linejoin='round' fill='none'%3E%3Cpath stroke='%23d4c8b0' stroke-width='2' d='M3,3 l10-2 l13,4 l12-5 l15,3 l13-4 l14,2 l16-5 l13,4 l12-3 l14,5 l15-4 l13,3 l16-2 l12,4 l14-5 l13,3 l15-2 l12,4 l14-5 l16,3 l13-4 l12,2 l15-3 l13,5 l14-4 l12,3 l16-2 l13,4 l14-5 l12,3 l15-2 l13,4 l14-5 l12,3 l13-2 l14,3v296H3z'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat !important;
+}
+.term-view__header {
+  border-bottom: 1px solid rgb(74 56 40) !important;
+  background: linear-gradient(90deg, rgb(22 17 14), rgb(34 28 20), rgb(22 17 14)) !important;
+}
+.term-view__search {
+  border: 1px solid rgb(74 56 40) !important;
+  background: rgb(22 17 12) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   文件树 — 柏绿文件夹 · 米黄文件名
+   ════════════════════════════════════════════════════ */
+.file-tab__header {
+  border-bottom: 1px solid rgb(74 56 40) !important;
+  background: linear-gradient(90deg, rgb(22 17 14), rgb(34 28 20), rgb(22 17 14)) !important;
+}
+.file-tree-item { font-size: 12px !important; }
+
+.file-tree-item--active {
+  border-left: 3px solid rgb(231 204 123) !important;
+  background: rgb(42 30 20) !important;
+}
+.file-tree-item--active .file-tree-item__name {
+  color: rgb(245 222 138) !important;
+  font-weight: 700 !important;
+}
+.file-tree-item--folder > .file-tree-item__name {
+  color: rgb(160 178 130) !important;
+  font-weight: 700 !important;
+}
+.file-tree-item--file > .file-tree-item__name {
+  color: rgb(205 195 175) !important;
+}
+.file-tab__section { border-top: 1px solid rgb(60 45 30) !important; }
+.file-tab__section-header {
+  border-bottom: 1px solid rgb(74 56 40) !important;
+  background: rgb(28 22 16) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 11px !important;
+}
+
+/* ════════════════════════════════════════════════════
+   Git 面板 — 三色语义（柏绿/橙红/金）
+   ════════════════════════════════════════════════════ */
+.git-tab__header {
+  border-bottom: 1px solid rgb(74 56 40) !important;
+  background: linear-gradient(90deg, rgb(22 17 14), rgb(34 28 20), rgb(22 17 14)) !important;
+}
+.git-tab__branch-name {
+  color: rgb(231 204 123) !important;
+  font-weight: 700;
+}
+
+.git-tab__section:nth-child(1) { border-left: 3px solid rgb(139 154 110); }
+.git-tab__section:nth-child(2) { border-left: 3px solid rgb(231 204 123); }
+.git-tab__section:nth-child(3) { border-left: 3px solid rgb(231 204 123); }
+
+.git-tab__section { border-bottom: 1px solid rgb(50 38 26) !important; }
+.git-tab__section-header {
+  border-bottom: 1px solid rgb(74 56 40) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 11px !important;
+}
+.git-tab__file-item {
+  border-bottom: 1px solid rgb(40 30 20);
+  font-size: 11px !important;
+  transition: background 0.15s !important;
+}
+.git-tab__file-item:hover { background: rgb(45 34 22) !important; }
+.git-tab__commit-area {
+  border-top: 1px solid rgb(74 56 40) !important;
+  background: rgb(28 22 16) !important;
+}
+.git-tab__commit-input {
+  border: 1px solid rgb(74 56 40) !important;
+  background: rgb(16 13 9) !important;
+  color: rgb(var(--ide-text)) !important;
+}
+.git-tab__commit-input:focus {
+  border-color: rgb(231 204 123) !important;
+  box-shadow: 0 0 8px rgb(231 204 123 / 0.15) !important;
+}
+.git-tab__commit-btn {
+  border: 1px solid rgb(231 204 123) !important;
+  background: rgb(231 204 123) !important;
+  color: rgb(255 255 255) !important;
+  font-weight: 700 !important;
+  transition: all 0.3s !important;
+}
+.git-tab__commit-btn:hover {
+  background: rgb(255 255 255) !important;
+  color: rgb(231 204 123) !important;
+  border-color: rgb(255 255 255) !important;
+  transform: scale(1.05) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   右侧面板 — 标签页橙边高亮
+   ════════════════════════════════════════════════════ */
+.right-panel__content { border: 1px solid rgb(74 56 40) !important; }
+.right-panel__tab-bar { border-bottom: 1px solid rgb(74 56 40) !important; }
+.right-panel__tab {
+  border: 1px solid rgb(74 56 40) !important;
+  font-size: 11px !important;
+  transition: all 0.2s !important;
+}
+.right-panel__tab--active {
+  font-weight: 700 !important;
+  background: rgb(38 28 20) !important;
+  border-color: rgb(231 204 123 / 0.4) !important;
+  color: rgb(245 222 138) !important;
+}
+
+.right-panel__tab:nth-child(1).right-panel__tab--active { border-color: rgb(139 154 110 / 0.5) !important; color: rgb(160 178 125) !important; }
+.right-panel__tab:nth-child(2).right-panel__tab--active { border-color: rgb(231 204 123 / 0.5) !important; color: rgb(245 222 138) !important; }
+.right-panel__tab:nth-child(3).right-panel__tab--active { border-color: rgb(231 204 123 / 0.5) !important; color: rgb(245 222 138) !important; }
+.right-panel__tab:nth-child(4).right-panel__tab--active { border-color: rgb(170 150 195 / 0.5) !important; color: rgb(190 170 210) !important; }
+
+/* ════════════════════════════════════════════════════
+   滚动条 — 暗底橙条
+   ════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 10px !important; height: 10px !important; }
+::-webkit-scrollbar-track { background: rgb(18 14 10) !important; }
+::-webkit-scrollbar-thumb { background: rgb(74 56 40) !important; }
+::-webkit-scrollbar-thumb:hover { background: rgb(231 204 123 / 0.6) !important; }
+::-webkit-scrollbar-corner { background: rgb(18 14 10) !important; }
+
+/* ════════════════════════════════════════════════════
+   模态框 & 表单 — 橙边聚焦
+   ════════════════════════════════════════════════════ */
+.fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
+  border: 1px solid rgb(74 56 40) !important;
+  box-shadow: 0 0 40px rgba(0,0,0,0.8) !important;
+}
+.fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
+  border: 1px solid rgb(74 56 40) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;
+}
+input, select, textarea {
+  border: 1px solid rgb(74 56 40) !important;
+  background: rgb(16 13 9) !important;
+  color: rgb(var(--ide-text)) !important;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: rgb(231 204 123) !important;
+  box-shadow: 0 0 6px rgb(231 204 123 / 0.15) !important;
+  outline: none !important;
+}
+input[type="checkbox"] { accent-color: rgb(231 204 123); }
+
+.monaco-editor input, .monaco-editor select, .monaco-editor textarea { border: revert !important; background: revert !important; border-radius: revert !important; }
+.monaco-editor input:focus, .monaco-editor select:focus, .monaco-editor textarea:focus { border-color: revert !important; box-shadow: revert !important; outline: revert !important; }
+.monaco-editor input[type="checkbox"] { accent-color: revert; }
+
+*:focus-visible {
+  outline: 1px solid rgb(231 204 123 / 0.5) !important;
+  outline-offset: 0 !important;
+}
+.monaco-editor *:focus-visible { outline: revert !important; }
+
+.text-ide-success { color: rgb(var(--ide-success)) !important; }
+.text-ide-danger { color: rgb(var(--ide-danger)) !important; }
+.text-ide-warning { color: rgb(var(--ide-warning)) !important; }
+
+/* ════════════════════════════════════════════════════
+   Markdown 预览 — 羊皮纸手稿风
+   ════════════════════════════════════════════════════ */
+
+/* heading 层级色：金→褐→绿→红→紫→米 */
+.md-preview h1 { color: rgb(231 204 123) !important; border-bottom-color: rgb(231 204 123) !important; border-bottom-width: 2px !important; }
+.md-preview h2 { color: rgb(210 175 120) !important; border-bottom-color: rgb(210 175 120) !important; }
+.md-preview h3 { color: rgb(160 178 125) !important; }
+.md-preview h4 { color: rgb(215 110 95) !important; }
+.md-preview h5 { color: rgb(175 155 195) !important; }
+.md-preview h6 { color: rgb(200 185 160) !important; }
+
+.md-preview a { color: rgb(231 204 123) !important; text-decoration-color: rgb(231 204 123 / 0.4) !important; }
+.md-preview a:hover { color: rgb(245 222 138) !important; text-decoration-color: rgb(245 222 138) !important; }
+
+.md-preview strong { color: rgb(231 204 123) !important; }
+.md-preview em  { color: rgb(160 178 125) !important; }
+.md-preview del { color: rgb(196 130 110) !important; }
+
+/* 列表标记轮换：金→绿→红 */
+.md-preview li::marker { color: rgb(231 204 123) !important; }
+.md-preview li li::marker { color: rgb(139 154 110) !important; }
+.md-preview li li li::marker { color: rgb(196 90 74) !important; }
+
+/* 内联代码 */
+.md-preview code {
+  background: rgb(32 25 18) !important;
+  color: rgb(231 204 123) !important;
+  border: 1px solid rgb(60 45 30) !important;
+}
+
+/* 代码块 */
+.md-code-block {
+  border: 1px solid rgb(60 45 30) !important;
+  background: rgb(14 12 8) !important;
+  box-shadow: inset 0 0 12px rgb(0 0 0 / 0.3) !important;
+}
+.md-code-block pre {
+  background: transparent !important;
+  padding: 1em !important;
+  text-indent: 0 !important;
+}
+.md-code-block code {
+  color: rgb(185 195 160) !important;
+  text-indent: 0 !important;
+  white-space: pre !important;
+}
+.md-code-lang {
+  background: rgb(30 24 16) !important;
+  color: rgb(160 178 125) !important;
+  border: 1px solid rgb(60 45 30) !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-radius: 0 0 0 6px !important;
+  font-family: 'Cascadia Code', monospace !important;
+}
+
+/* 引用块 */
+.md-preview blockquote {
+  border-left: 4px solid rgb(231 204 123) !important;
+  background: rgb(30 24 18) !important;
+  color: rgb(200 185 160) !important;
+  border-radius: 0 4px 4px 0 !important;
+}
+
+/* 表格 */
+.md-preview thead { background: rgb(231 204 123 / 0.1) !important; }
+.md-preview th { color: rgb(231 204 123) !important; border-color: rgb(74 56 40) !important; }
+.md-preview td { border-color: rgb(55 42 30) !important; }
+.md-preview tbody tr:hover { background: rgb(40 32 22) !important; }
+
+/* 分割线 */
+.md-preview hr { border-top-color: rgb(231 204 123 / 0.3) !important; }
+
+/* 图片 */
+.md-preview img { border: 1px solid rgb(74 56 40) !important; border-radius: 2px !important; }
+
+.md-preview input[type="checkbox"] { accent-color: rgb(139 154 110) !important; }
+
+.md-search-match { background: rgb(231 204 123 / 0.25) !important; }
+.md-search-match-current { background: rgb(231 204 123 / 0.35) !important; }
