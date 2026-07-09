@@ -1,0 +1,415 @@
+/*
+  Niji Feed — 虹色信息流 · AI 卡片风
+  设计语言：纯白底 · 亮粉 + 明黄双强调 · 深色圆角产品卡 · 胶囊标签 · 加粗排版 · 扁平柔影
+  灵感：Midjourney / Niji·journey 移动端 feed 卡片 —— author profile · pill tags · like/share 圆钮 · AI 资讯页
+  亮 chrome + 深终端 = 信息流卡片观感；粉主调、黄次调，stat/tab/按钮一律胶囊化
+  不覆盖全局 UI 字体（保留 Consolas 偏好），仅做配色与构件
+*/
+
+:root {
+  --ide-bg: 255 255 255 !important;
+  --ide-sidebar: 247 247 250 !important;
+  --ide-panel: 255 255 255 !important;
+  --ide-border: 232 232 236 !important;
+  --ide-text: 32 30 40 !important;
+  --ide-text-muted: 138 136 148 !important;
+  --ide-accent: 255 64 129 !important;
+  --ide-accent-hover: 255 89 155 !important;
+  --ide-success: 52 199 89 !important;
+  --ide-danger: 255 59 48 !important;
+  --ide-warning: 255 204 0 !important;
+  --ide-hover: 244 243 247 !important;
+  --ide-active: 255 235 244 !important;
+  --scrollbar-track: 247 247 250 !important;
+  --scrollbar-thumb: 198 198 208 !important;
+  --scrollbar-thumb-hover: 158 158 170 !important;
+  --selection-bg: 255 64 129 !important;
+  --selection-opacity: 0.18 !important;
+  --monaco-margin-bg: 248 248 251 !important;
+}
+
+/* 标题栏 — 纯白工具栏，底部粉色发丝线 */
+.titlebar-drag[class*="h-9"] {
+  background: rgb(var(--ide-bg)) !important;
+  border-bottom: 1px solid rgb(255 64 129 / 0.16) !important;
+}
+
+/* 会话面板 — 浅灰侧栏底，白色卡片浮于其上（feed 卡片观感） */
+.session-panel {
+  background: rgb(var(--ide-sidebar)) !important;
+}
+.session-panel__list-wrapper {
+  background: rgb(var(--ide-sidebar)) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.session-panel__header {
+  border-bottom: 1px solid rgb(0 0 0 / 0.06) !important;
+}
+
+/* 统计徽章 — 胶囊标签：粉底/黄底轮换 */
+.session-panel__stat {
+  border: none !important;
+  background: rgb(255 64 129 / 0.12) !important;
+  color: rgb(255 64 129) !important;
+  box-shadow: none !important;
+  border-radius: 9999px !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 2px 8px !important;
+}
+.session-panel__stat:last-child {
+  background: rgb(255 204 0 / 0.18) !important;
+  color: rgb(180 140 0) !important;
+}
+
+/* 工具栏按钮 — 胶囊浅灰底，悬停粉化 */
+.session-panel__config-btn,
+.session-panel__new-btn {
+  border: none !important;
+  background: rgb(0 0 0 / 0.04) !important;
+  box-shadow: none !important;
+  border-radius: 9999px !important;
+  transition: background-color 0.15s, color 0.15s !important;
+}
+.session-panel__config-btn:hover,
+.session-panel__new-btn:hover {
+  background: rgb(255 64 129 / 0.12) !important;
+  color: rgb(var(--ide-accent)) !important;
+}
+/* 配置按钮菜单打开态 — 粉底激活（精确命中 bg-ide-accent/20，不误伤 hover:bg-ide-accent） */
+.session-panel__config-btn[class*="bg-ide-accent/20"] {
+  background: rgb(255 64 129 / 0.14) !important;
+  color: rgb(var(--ide-accent)) !important;
+}
+
+/* 配置菜单 — 白色圆角 + 粉色菜单高亮 */
+.session-panel__config-menu {
+  background: rgb(255 255 255) !important;
+  border: 1px solid rgb(0 0 0 / 0.06) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.12) !important;
+}
+.session-panel__config-menu button {
+  border-radius: 9999px !important;
+  border: none !important;
+}
+.session-panel__config-menu button:hover {
+  background: rgb(var(--ide-accent)) !important;
+  color: #fff !important;
+}
+
+/* 会话项 — 白色圆角卡片浮于浅灰底，无左条 */
+.session-item {
+  border: none !important;
+  background: rgb(255 255 255) !important;
+  border-radius: 14px !important;
+  margin: 2px 6px !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04) !important;
+  transition: background-color 0.12s, color 0.12s, transform 0.12s, box-shadow 0.12s !important;
+}
+.session-item:not(.session-item--active):hover {
+  background: rgb(255 250 252) !important;
+  box-shadow: 0 2px 8px rgb(255 64 129 / 0.1) !important;
+}
+.session-item--active {
+  background: linear-gradient(135deg, rgb(255 64 129), rgb(255 110 150)) !important;
+  color: #fff !important;
+  border-left: none !important;
+  box-shadow: 0 4px 14px rgb(255 64 129 / 0.3) !important;
+}
+.session-item--active .session-item__name { color: #fff !important; font-weight: 700 !important; }
+.session-item--active .session-item__cwd,
+.session-item--active .session-item__cwd span {
+  color: rgb(255 255 255 / 0.8) !important;
+  opacity: 1 !important;
+}
+/* 交互钮 — 胶囊化，hover 粉底 */
+.session-item__actions button {
+  border-radius: 9999px !important;
+  transition: background-color 0.12s, color 0.12s !important;
+}
+.session-item--active .session-item__actions button { color: rgb(255 255 255 / 0.9) !important; }
+.session-item__actions button:hover {
+  background: rgb(255 64 129 / 0.16) !important;
+  color: rgb(var(--ide-accent)) !important;
+}
+.session-item--active .session-item__actions button:hover {
+  background: rgb(255 255 255 / 0.22) !important;
+  color: #fff !important;
+}
+
+/* 运行中非选中 — 去左条，淡黄底（次级强调） */
+.session-item.border-ide-accent\/60:not(.session-item--active) {
+  background: rgb(255 204 0 / 0.16) !important;
+  border-left: none !important;
+  color: rgb(180 140 0) !important;
+}
+.session-item.border-ide-accent\/60:not(.session-item--active) .session-item__name {
+  color: rgb(180 140 0) !important;
+  font-weight: 600 !important;
+}
+.session-item.border-ide-accent\/60:not(.session-item--active):hover {
+  background: rgb(255 204 0 / 0.24) !important;
+}
+
+/* 会话分组 — author profile：路径前粉→黄渐变圆点头像 */
+.session-group {
+  border: none !important;
+  background: transparent !important;
+  margin-top: 10px !important;
+}
+.session-group__header {
+  border: none !important;
+  background: transparent !important;
+}
+.session-group__path {
+  color: rgb(var(--ide-text)) !important;
+  font-weight: 700 !important;
+}
+.session-panel__flat-list { background: transparent !important; border: none !important; }
+
+/* 终端 — 深色圆角产品卡 + 柔影（深终端嵌亮 chrome） */
+.term-view__canvas {
+  background: rgb(26 26 30) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgb(255 64 129 / 0.06), 0 1px 3px rgb(0 0 0 / 0.1) !important;
+}
+.term-view__header {
+  border-bottom: 1px solid rgb(0 0 0 / 0.06) !important;
+  background: transparent !important;
+}
+.term-view__search {
+  background: rgb(255 255 255) !important;
+  border: 1px solid rgb(0 0 0 / 0.08) !important;
+  border-radius: 9999px !important;
+}
+
+/* 文件树 — 白卡片 + 胶囊选中 */
+.file-tab__header { border-bottom: 1px solid rgb(0 0 0 / 0.06) !important; }
+.file-tree-item {
+  border: none !important;
+  border-radius: 9999px !important;
+  font-size: 13px !important;
+  transition: background-color 0.12s !important;
+}
+.file-tree-item:hover { background: rgb(255 64 129 / 0.06) !important; }
+.file-tree-item--active {
+  background: linear-gradient(135deg, rgb(255 64 129), rgb(255 110 150)) !important;
+  border-left: none !important;
+  border-radius: 9999px !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgb(255 64 129 / 0.25) !important;
+}
+.file-tree-item--active .file-tree-item__name { color: #fff !important; font-weight: 700 !important; }
+.file-tree-item--folder > .file-tree-item__name {
+  color: rgb(var(--ide-text)) !important;
+  font-weight: 700 !important;
+}
+.file-tab__section { border-top: 1px solid rgb(0 0 0 / 0.05) !important; }
+.file-tab__section-header {
+  border: none !important;
+  background: transparent !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: rgb(var(--ide-text-muted)) !important;
+}
+
+/* Git 面板 */
+.git-tab__header { border-bottom: 1px solid rgb(0 0 0 / 0.06) !important; }
+.git-tab__branch-name {
+  color: rgb(var(--ide-accent)) !important;
+  font-weight: 700 !important;
+}
+.git-tab__section { border-bottom: 1px solid rgb(0 0 0 / 0.05) !important; }
+.git-tab__section-header {
+  border: none !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: rgb(var(--ide-text-muted)) !important;
+}
+.git-tab__file-item {
+  border: none !important;
+  border-radius: 9999px !important;
+  font-size: 12px !important;
+  transition: background-color 0.12s !important;
+}
+.git-tab__file-item:hover { background: rgb(255 64 129 / 0.06) !important; }
+.git-tab__commit-area {
+  border-top: 1px solid rgb(0 0 0 / 0.06) !important;
+  background: transparent !important;
+}
+.git-tab__commit-input {
+  background: rgb(255 255 255) !important;
+  border: 1px solid rgb(0 0 0 / 0.1) !important;
+  border-radius: 9999px !important;
+  color: rgb(var(--ide-text)) !important;
+}
+.git-tab__commit-input:focus {
+  border-color: rgb(var(--ide-accent)) !important;
+  box-shadow: 0 0 0 3px rgb(255 64 129 / 0.2) !important;
+  outline: none !important;
+}
+.git-tab__commit-btn {
+  border: none !important;
+  background: linear-gradient(135deg, rgb(255 64 129), rgb(255 110 150)) !important;
+  color: #fff !important;
+  border-radius: 9999px !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 8px rgb(255 64 129 / 0.28) !important;
+  transition: filter 0.15s, box-shadow 0.15s !important;
+}
+.git-tab__commit-btn:hover {
+  filter: brightness(1.06) !important;
+  box-shadow: 0 4px 14px rgb(255 64 129 / 0.4) !important;
+}
+
+/* 右侧面板 — 白底圆角容器 + 胶囊 tab */
+.right-panel__content {
+  background: rgb(var(--ide-panel)) !important;
+  border: 1px solid rgb(0 0 0 / 0.06) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.04) !important;
+}
+.right-panel__tab-bar { border-bottom: 1px solid rgb(0 0 0 / 0.06) !important; }
+.right-panel__tab {
+  border: none !important;
+  background: transparent !important;
+  border-radius: 9999px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  transition: background-color 0.12s, color 0.12s !important;
+}
+.right-panel__tab:hover { background: rgb(255 64 129 / 0.08) !important; color: rgb(var(--ide-accent)) !important; }
+.right-panel__tab--active {
+  background: linear-gradient(135deg, rgb(255 64 129), rgb(255 110 150)) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 8px rgb(255 64 129 / 0.25) !important;
+}
+/* 第 4 个 tab（Search）用黄强调，余粉强调 — 双色点缀 */
+.right-panel__tab:nth-child(4).right-panel__tab--active {
+  background: linear-gradient(135deg, rgb(255 204 0), rgb(255 224 80)) !important;
+  color: rgb(60 44 0) !important;
+  box-shadow: 0 2px 8px rgb(255 204 0 / 0.3) !important;
+}
+
+/* 滚动条 — overlay：细、圆、无轨道 */
+::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+::-webkit-scrollbar-track { background: transparent !important; }
+::-webkit-scrollbar-thumb {
+  background: rgb(0 0 0 / 0.18) !important;
+  border-radius: 9999px !important;
+  border: 2px solid transparent !important;
+  background-clip: content-box !important;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 64 129 / 0.5) !important;
+  background-clip: content-box !important;
+}
+::-webkit-scrollbar-corner { background: transparent !important; }
+
+/* xterm 自绘滚动条 — 同款 overlay */
+.xterm .xterm-viewport::-webkit-scrollbar { display: none !important; }
+.xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
+  background: rgb(255 255 255 / 0.22) !important;
+  border-radius: 9999px !important;
+  border: 2px solid transparent !important;
+  background-clip: content-box !important;
+  min-width: 7px !important;
+}
+.xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider:hover {
+  background: rgb(255 64 129 / 0.6) !important;
+  background-clip: content-box !important;
+}
+
+/* 模态 sheet / 上下文菜单 — 白色圆角 + 柔影，按钮胶囊 */
+.fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
+  background: rgb(255 255 255) !important;
+  border: 1px solid rgb(0 0 0 / 0.06) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 24px 70px rgb(255 64 129 / 0.12), 0 8px 24px rgb(0 0 0 / 0.08) !important;
+}
+.fixed.inset-0.z-50 button { border-radius: 9999px !important; }
+.fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
+  background: rgb(255 255 255) !important;
+  border: 1px solid rgb(0 0 0 / 0.06) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.1) !important;
+}
+
+/* 表单 — 白底发丝边 + 粉色聚焦光晕，胶囊化 */
+input, select, textarea {
+  background: rgb(255 255 255) !important;
+  border: 1px solid rgb(0 0 0 / 0.1) !important;
+  border-radius: 9999px !important;
+  color: rgb(var(--ide-text)) !important;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: rgb(var(--ide-accent)) !important;
+  box-shadow: 0 0 0 3px rgb(255 64 129 / 0.2) !important;
+  outline: none !important;
+}
+input[type="checkbox"] { accent-color: rgb(var(--ide-accent)) !important; }
+.monaco-editor input, .monaco-editor select, .monaco-editor textarea {
+  border: revert !important; background: revert !important; border-radius: revert !important;
+}
+.monaco-editor input:focus, .monaco-editor select:focus, .monaco-editor textarea:focus {
+  border-color: revert !important; box-shadow: revert !important; outline: revert !important;
+}
+
+/* focus ring — 粉色光晕（键盘导航），表单用各自 box-shadow 故豁免 */
+*:focus-visible {
+  outline: 2px solid rgb(255 64 129 / 0.5) !important;
+  outline-offset: 1px !important;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+.monaco-editor *:focus-visible { outline: none !important; outline-offset: 0 !important; }
+
+::selection { background: rgb(255 64 129 / 0.18) !important; }
+
+.text-ide-success { color: rgb(var(--ide-success)) !important; }
+.text-ide-danger { color: rgb(var(--ide-danger)) !important; }
+.text-ide-warning { color: rgb(var(--ide-warning)) !important; }
+
+/* Markdown — 粉主调 + 黄次调，胶囊代码标签 */
+.md-preview h1, .md-preview h2, .md-preview h3,
+.md-preview h4, .md-preview h5, .md-preview h6 {
+  color: rgb(var(--ide-text)) !important;
+  font-weight: 700 !important;
+}
+.md-preview h1 { color: rgb(255 64 129) !important; }
+.md-preview h2 { color: rgb(180 140 0) !important; }
+.md-preview h1, .md-preview h2 { border-bottom: 2px solid rgb(255 204 0 / 0.4) !important; padding-bottom: 0.3em !important; }
+.md-preview a { color: rgb(var(--ide-accent)) !important; }
+.md-preview a:hover { color: rgb(var(--ide-accent-hover)) !important; }
+.md-preview strong { color: rgb(var(--ide-text)) !important; font-weight: 700 !important; }
+.md-preview code {
+  background: rgb(255 64 129 / 0.1) !important;
+  color: rgb(214 38 96) !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  padding: 1px 6px !important;
+  font-weight: 600 !important;
+}
+.md-code-block {
+  background: rgb(250 250 252) !important;
+  border: 1px solid rgb(0 0 0 / 0.06) !important;
+  border-radius: 12px !important;
+}
+.md-code-block code { color: rgb(40 40 44) !important; background: none !important; }
+.md-preview blockquote {
+  border-left: 4px solid rgb(255 204 0) !important;
+  background: rgb(255 204 0 / 0.08) !important;
+  color: rgb(var(--ide-text-muted)) !important;
+  border-radius: 0 12px 12px 0 !important;
+}
+.md-search-match { background: rgb(255 204 0 / 0.4) !important; border-radius: 9999px !important; }
+.md-search-match-current { background: rgb(255 64 129 / 0.25) !important; border-radius: 9999px !important; }
