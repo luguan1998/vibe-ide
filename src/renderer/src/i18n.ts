@@ -164,6 +164,7 @@ const ZH_MAP: Record<string, string> = {
   'UI Style': 'UI 样式',
   'CSS Snippets': 'CSS 片段',
   'Open CSS Config': '打开 CSS 配置',
+  'Reload CSS': '重新加载 CSS',
   'Terminal Font Size': '终端字体大小',
   'Editor Font Size': '编辑器字体大小',
   'Diff Split Ratio': 'Diff 左右占比',

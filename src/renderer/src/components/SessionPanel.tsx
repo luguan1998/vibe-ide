@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { TerminalSession, SnippetInfo } from '@shared/types'
-import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, FolderOpen } from 'lucide-react'
+import { TerminalSession, SnippetInfo, SnippetsLoadResult } from '@shared/types'
+import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, FolderOpen, RefreshCw } from 'lucide-react'
 import { useTheme } from '../themes'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { useI18n } from '../i18n'
@@ -531,9 +531,9 @@ const SessionPanel = React.memo(function SessionPanel({
     }
   }, [showConfigMenu])
 
-  const handleSnippetToggle = async (filename: string, enabled: boolean) => {
-    const result = await window.api.snippets.toggle(filename, enabled)
+  const applySnippetsResult = (result: SnippetsLoadResult) => {
     setSnippetsList(result.snippets)
+    if (result.dir) setSnippetsDir(result.dir)
     const style = document.getElementById('custom-css')
     if (style) { style.textContent = result.css }
     else if (result.css) {
@@ -543,6 +543,18 @@ const SessionPanel = React.memo(function SessionPanel({
       document.head.appendChild(s)
     }
     syncTitleBarOverlay()
+  }
+
+  const handleSnippetToggle = async (filename: string, enabled: boolean) => {
+    const result = await window.api.snippets.toggle(filename, enabled)
+    applySnippetsResult(result)
+  }
+
+  const handleSnippetReload = async () => {
+    try {
+      const result = await window.api.snippets.load()
+      applySnippetsResult(result)
+    } catch {}
   }
 
   const handleContextMenu = (e: React.MouseEvent, sessionId: string) => {
@@ -923,15 +935,24 @@ const SessionPanel = React.memo(function SessionPanel({
                         ))
                       )}
                       <div className="border-t border-ide-border my-1" />
-                      <button
-                        onClick={() => { if (snippetsDir && onCreateSessionAt) { onCreateSessionAt(snippetsDir); setShowConfigMenu(false); setShowSnippetsFlyout(false) } }}
-                        className="w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 text-ide-text hover:bg-ide-hover transition-colors"
-                      >
-                        <span className="w-4 h-4 flex items-center justify-center shrink-0">
-                          <FolderOpen className="size-3.5" />
-                        </span>
-                        <span>{t('Open CSS Config')}</span>
-                      </button>
+                      <div className="flex items-center">
+                        <button
+                          onClick={() => { if (snippetsDir && onCreateSessionAt) { onCreateSessionAt(snippetsDir); setShowConfigMenu(false); setShowSnippetsFlyout(false) } }}
+                          className="flex-1 px-3 py-1.5 text-xs text-left flex items-center gap-2 text-ide-text hover:bg-ide-hover transition-colors"
+                        >
+                          <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                            <FolderOpen className="size-3.5" />
+                          </span>
+                          <span>{t('Open CSS Config')}</span>
+                        </button>
+                        <button
+                          onClick={() => handleSnippetReload()}
+                          title={t('Reload CSS')}
+                          className="shrink-0 px-2 py-1.5 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+                        >
+                          <RefreshCw className="size-3.5" />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -102,8 +102,8 @@ html, body, #root { font-family: 'HONOR Sans CN', 'Noto Sans SC', 'PingFang SC',
   border: 1px solid rgb(70 58 40) !important;
   transition: all 0.15s !important;
 }
-.session-panel__new-btn:not(:disabled) {
-  background: rgb(199 50 43) !important; color: #fff !important; border-color: rgb(199 50 43) !important;
+.session-panel__config-btn:hover, .session-panel__new-btn:hover {
+  border-color: rgb(199 50 43 / 0.6) !important;
 }
 .session-panel__config-menu { border: 2px solid rgb(70 58 40) !important; }
 

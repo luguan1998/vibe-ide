@@ -1,5 +1,5 @@
 /*
-  Retroma CRT — 仅结构效果，颜色随当前主题
+  Retroma CRT — 复古浮雕主题
   边框样式(groove/ridge/inset/outset)、字体、间距、大写
 */
 
@@ -18,7 +18,7 @@ html, body, #root {
 /* 会话面板 */
 .session-panel__list-wrapper {
   border: 4px ridge rgb(var(--ide-border)) !important;
-  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.15), inset -1px -1px 0 rgba(0,0,0,0.4), 1px 1px 0 rgba(0,0,0,0.45) !important;
 }
 
 .session-panel__stat {
@@ -30,13 +30,13 @@ html, body, #root {
 .session-panel__config-btn,
 .session-panel__new-btn {
   border: 3px outset rgb(var(--ide-border)) !important;
-  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.15), inset -1px -1px 0 rgba(0,0,0,0.4), 1px 1px 0 rgba(0,0,0,0.45) !important;
 }
 
 .session-panel__config-btn:active,
 .session-panel__new-btn:active {
   border-style: inset !important;
-  box-shadow: inset 1px 1px 0 rgba(0,0,0,0.45), inset -1px -1px 0 rgba(255,255,255,0.08) !important;
+  box-shadow: inset 1px 1px 0 rgba(0,0,0,0.45), inset -1px -1px 0 rgba(255,255,255,0.15) !important;
 }
 
 .session-item {
@@ -65,7 +65,7 @@ html, body, #root {
 
 .session-panel__config-menu {
   border: 3px ridge rgb(var(--ide-border)) !important;
-  box-shadow: -2px -2px 0 rgba(255,255,255,0.08), 2px 2px 0 rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.5) !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.12), inset -1px -1px 0 rgba(0,0,0,0.4), 2px 2px 0 rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.5) !important;
 }
 
 .session-panel__config-menu button {
@@ -76,7 +76,7 @@ html, body, #root {
 /* 终端 */
 .term-view__canvas {
   border: 4px inset rgb(var(--ide-border)) !important;
-  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.55), inset -1px -1px 0 rgba(255,255,255,0.05) !important;
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.55), inset -1px -1px 0 rgba(255,255,255,0.12) !important;
 }
 
 .term-view__header {
@@ -162,7 +162,7 @@ html, body, #root {
 
 .git-tab__commit-btn {
   border: 3px outset rgb(var(--ide-border)) !important;
-  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.15), inset -1px -1px 0 rgba(0,0,0,0.4), 1px 1px 0 rgba(0,0,0,0.45) !important;
   font-weight: 700 !important;
   text-transform: uppercase;
   letter-spacing: 2px;
@@ -170,13 +170,13 @@ html, body, #root {
 
 .git-tab__commit-btn:active {
   border-style: inset !important;
-  box-shadow: inset 1px 1px 0 rgba(0,0,0,0.45), inset -1px -1px 0 rgba(255,255,255,0.08) !important;
+  box-shadow: inset 1px 1px 0 rgba(0,0,0,0.45), inset -1px -1px 0 rgba(255,255,255,0.15) !important;
 }
 
 /* 右侧面板 */
 .right-panel__content {
   border: 3px ridge rgb(var(--ide-border)) !important;
-  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.15), inset -1px -1px 0 rgba(0,0,0,0.4), 1px 1px 0 rgba(0,0,0,0.45) !important;
 }
 
 .right-panel__tab-bar {
@@ -185,7 +185,7 @@ html, body, #root {
 
 .right-panel__tab {
   border: 3px outset rgb(var(--ide-border)) !important;
-  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.15), inset -1px -1px 0 rgba(0,0,0,0.4), 1px 1px 0 rgba(0,0,0,0.45) !important;
   font-size: 11px !important;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -194,7 +194,7 @@ html, body, #root {
 .right-panel__tab--active {
   border-style: inset !important;
   font-weight: 700;
-  box-shadow: inset 1px 1px 0 rgba(0,0,0,0.45), inset -1px -1px 0 rgba(255,255,255,0.08) !important;
+  box-shadow: inset 1px 1px 0 rgba(0,0,0,0.45), inset -1px -1px 0 rgba(255,255,255,0.15) !important;
 }
 
 /* 原生滚动条（文件面板等） */
@@ -211,7 +211,7 @@ html, body, #root {
 ::-webkit-scrollbar-thumb {
   background: rgb(var(--ide-border)) !important;
   border: 2px outset rgb(var(--ide-text-muted)) !important;
-  box-shadow: -1px -1px 0 rgba(255,255,255,0.06), 1px 1px 0 rgba(0,0,0,0.35) !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.12), inset -1px -1px 0 rgba(0,0,0,0.3) !important;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -236,7 +236,7 @@ html, body, #root {
 .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
   background: rgb(var(--ide-border)) !important;
   border: 2px outset rgb(var(--ide-text-muted)) !important;
-  box-shadow: -1px -1px 0 rgba(255,255,255,0.06), 1px 1px 0 rgba(0,0,0,0.35) !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.12), inset -1px -1px 0 rgba(0,0,0,0.3) !important;
   border-radius: 0 !important;
   min-width: 8px !important;
 }
@@ -252,14 +252,14 @@ html, body, #root {
 /* 模态框 */
 .fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
   border: 4px ridge rgb(var(--ide-border)) !important;
-  box-shadow: -2px -2px 0 rgba(255,255,255,0.08), 2px 2px 0 rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.5) !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.12), inset -1px -1px 0 rgba(0,0,0,0.4), 2px 2px 0 rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.5) !important;
 }
 
 .fixed.inset-0.z-50 button { border-radius: 0 !important; }
 
 .fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
   border: 3px ridge rgb(var(--ide-border)) !important;
-  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.15), inset -1px -1px 0 rgba(0,0,0,0.4), 1px 1px 0 rgba(0,0,0,0.45) !important;
 }
 
 /* 输入框 */
