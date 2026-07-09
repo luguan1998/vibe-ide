@@ -18,7 +18,7 @@ const DEFAULT_KEYPAD_ITEMS: { code: string; key: string; text: string }[] = [
   { code: 'Numpad4', key: '4', text: '说中文' },
   { code: 'Numpad5', key: '5', text: '继续' },
   { code: 'Numpad6', key: '6', text: '还是报错' },
-  { code: 'Numpad1', key: '1', text: '先别重构' },
+  { code: 'Numpad1', key: '1', text: '先别重构,整理实际需求' },
   { code: 'Numpad2', key: '2', text: '清理死代码' },
   { code: 'Numpad3', key: '3', text: '讲明白点' },
 ]
@@ -425,6 +425,15 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
           background: rgb(var(--ide-accent) / 0.16);
           border-color: rgb(var(--ide-accent) / 0.7);
         }
+        .draft-plan__add-input {
+          border: 3px inset rgb(var(--ide-border)) !important;
+          background: rgb(var(--ide-bg)) !important;
+          box-shadow: inset 2px 2px 4px rgba(0,0,0,0.5) !important;
+        }
+        .draft-plan__add-input:focus {
+          border-style: ridge !important;
+          border-color: rgb(var(--ide-accent)) !important;
+        }
       `}</style>
       <div className="flex items-center justify-between px-4 py-2 bg-ide-hover/50 border-b border-ide-border shrink-0 select-none draft-plan__header">
         <div className="flex items-center gap-2">
@@ -437,6 +446,8 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
           )}
           <span className="text-[13px] leading-none">📝</span>
           <span className="text-xs font-bold text-ide-text-muted tracking-wider draft-plan__title">vibe programer</span>
+        </div>
+        <div className="flex items-center gap-2">
           <button
             onClick={handleConfigOpen}
             className="text-ide-text-muted hover:text-ide-accent transition-colors"
@@ -444,8 +455,6 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
           >
             <Settings size={14} />
           </button>
-        </div>
-        <div className="flex items-center gap-2">
           <button
             onClick={handleConvert}
             disabled={items.length === 0 || sending}
