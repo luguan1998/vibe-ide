@@ -154,6 +154,8 @@ interface SessionPanelProps {
   onToggleCapsuleTabs?: (value: boolean) => void
   ocrEnabled?: boolean
   onToggleOcrEnabled?: (value: boolean) => void
+  forceDomRenderer?: boolean
+  onToggleForceDomRenderer?: (value: boolean) => void
   escAutoAt?: boolean
   onToggleEscAutoAt?: (value: boolean) => void
   focusSettingsTrigger?: number
@@ -207,6 +209,8 @@ const SessionPanel = React.memo(function SessionPanel({
   onToggleCgEnabled,
   ocrEnabled = true,
   onToggleOcrEnabled,
+  forceDomRenderer = false,
+  onToggleForceDomRenderer,
   inlineDiff = false,
   onToggleInlineDiff,
   diffSplitRatio = 0.3,
@@ -1559,6 +1563,15 @@ const SessionPanel = React.memo(function SessionPanel({
                     <span className="text-xs text-ide-text">{t('OCR Image to Text')}</span>
                   </div>
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Drag image or Ctrl+V to extract text from images and paste into terminal')}</p>
+                </label>
+              )}
+              {onToggleForceDomRenderer && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={forceDomRenderer} onChange={(e) => onToggleForceDomRenderer(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('Force DOM Renderer')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Disable WebGL terminal renderer, fall back to DOM/canvas. Restart terminal session to take effect.')}</p>
                 </label>
               )}
               {onTogglePolling && (

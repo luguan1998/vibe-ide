@@ -374,6 +374,9 @@ export default function App() {
   const [ocrEnabled, setOcrEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-ocr-enabled') !== '0' } catch { return true }
   })
+  const [forceDomRenderer, setForceDomRenderer] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-force-dom-renderer') === '1' } catch { return false }
+  })
   const [cgEnabled, setCgEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-cg-enabled') !== '0' } catch { return true }
   })
@@ -573,6 +576,9 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-ocr-enabled', ocrEnabled ? '1' : '0') } catch {}
   }, [ocrEnabled])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-force-dom-renderer', forceDomRenderer ? '1' : '0') } catch {}
+  }, [forceDomRenderer])
   useEffect(() => {
     try { localStorage.setItem('vibe-ide-cg-enabled', cgEnabled ? '1' : '0') } catch {}
     window.api.code.setEnabled(cgEnabled)
@@ -1947,6 +1953,8 @@ export default function App() {
             onToggleCgEnabled={setCgEnabled}
             ocrEnabled={ocrEnabled}
             onToggleOcrEnabled={setOcrEnabled}
+            forceDomRenderer={forceDomRenderer}
+            onToggleForceDomRenderer={setForceDomRenderer}
             inlineDiff={inlineDiff}
             onToggleInlineDiff={setInlineDiff}
             diffSplitRatio={diffSplitRatio}

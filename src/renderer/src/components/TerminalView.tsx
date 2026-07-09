@@ -21,6 +21,14 @@ function readTerminalBgImage(): string {
   }
 }
 
+function readForceDomRenderer(): boolean {
+  try {
+    return localStorage.getItem('vibe-ide-force-dom-renderer') === '1'
+  } catch {
+    return false
+  }
+}
+
 interface TerminalViewProps {
   sessionId: string
   sessionName?: string
@@ -308,7 +316,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   const searchAddonRef = useRef<SearchAddon | null>(null)
   const webglAddonRef = useRef<WebglAddon | null>(null)
   const searchDecoRef = useRef<any>({})
-  const [bgImage] = useState(() => readTerminalBgImage())
+  const [bgImage] = useState(() => isAux ? '' : readTerminalBgImage())
+  const [forceDomRenderer] = useState(() => !isAux && readForceDomRenderer())
   const [searchState, setSearchState] = useState<{ visible: boolean; query: string; index: number; count: number } | null>(null)
   const searchStateRef = useRef(searchState)
   searchStateRef.current = searchState
@@ -492,17 +501,19 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     // WebGL 渲染器在 term.open 之前挂载 → 从首帧起即为 renderer。
     // 若在 open 之后挂载(canvas 已画过),canvas→WebGL 切换会对已有 buffer 首帧渲染乱码,
     // 直到下一次 resize/refresh 才恢复 —— 即"第一次打开乱码、最大化最小化后正常"bug。
-    try {
-      const webglAddon = new WebglAddon()
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose()
-        if (webglAddonRef.current === webglAddon) webglAddonRef.current = null
-        term.refresh(0, term.rows - 1)
-      })
-      term.loadAddon(webglAddon)
-      webglAddonRef.current = webglAddon
-    } catch {
-      // WebGL 不可用 → 回退内置 canvas 渲染器
+    if (!forceDomRenderer) {
+      try {
+        const webglAddon = new WebglAddon()
+        webglAddon.onContextLoss(() => {
+          webglAddon.dispose()
+          if (webglAddonRef.current === webglAddon) webglAddonRef.current = null
+          term.refresh(0, term.rows - 1)
+        })
+        term.loadAddon(webglAddon)
+        webglAddonRef.current = webglAddon
+      } catch {
+        // WebGL 不可用 → 回退内置 canvas 渲染器
+      }
     }
 
     term.open(terminalRef.current)
@@ -830,7 +841,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     if (!isActive || !xtermRef.current || !isReady) return
     const term = xtermRef.current
 
-    if (!webglAddonRef.current) {
+    if (!forceDomRenderer && !webglAddonRef.current) {
       try {
         const webglAddon = new WebglAddon()
         webglAddon.onContextLoss(() => {

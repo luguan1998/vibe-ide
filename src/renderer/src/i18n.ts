@@ -301,6 +301,8 @@ const ZH_MAP: Record<string, string> = {
   'Done': '完成',
   'OCR Image to Text': '图片OCR转文字',
   'Drag image or Ctrl+V to extract text from images and paste into terminal': '拖入图片或 Ctrl+V 将图片文字识别并粘贴到终端',
+  'Force DOM Renderer': '强制 DOM 渲染',
+  'Disable WebGL terminal renderer, fall back to DOM/canvas. Restart terminal session to take effect.': '禁用 WebGL 终端渲染，回退到 DOM/canvas 渲染, 更稳定但cpu占用高。需重启终端 session 生效',
   'Configure MCP': '配置 MCP',
   'Configure CodeGraph MCP for agents': '配置 CodeGraph MCP for Agent',
   'Exclude folders': '排除文件夹',

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import simpleGit, { SimpleGit } from 'simple-git'
-import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, AmendOptions, GitShowResult, GitCommitFile, GitLineLogEntry } from '../shared/types'
+import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, AmendOptions, GitShowResult, GitCommitFile, GitLineLogEntry, GitGraphEntry } from '../shared/types'
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
@@ -255,7 +255,7 @@ export function registerGitHandlers(): void {
         `--skip=${skip}`, `--max-count=${count}`,
         '--pretty=format:%H%x00%P%x00%D%x00%s%x00%aN%x00%aI%x1e'
       ])
-      const entries: import('@shared/types').GitGraphEntry[] = []
+      const entries: GitGraphEntry[] = []
       for (const rec of output.split('\x1e')) {
         if (!rec.trim()) continue
         const [hash, parents, refs, message, author, date] = rec.split('\x00')
