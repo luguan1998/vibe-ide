@@ -141,6 +141,7 @@ export interface SnippetInfo {
 export interface SnippetsLoadResult {
   css: string
   snippets: SnippetInfo[]
+  dir: string
 }
 
 // Terminal types

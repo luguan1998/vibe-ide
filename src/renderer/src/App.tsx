@@ -1932,6 +1932,7 @@ export default function App() {
               sessions={sessions}
               activeSessionId={activeSessionId}
               onCreateSession={handleCreateSession}
+            onCreateSessionAt={handleCreateSessionAt}
             onCloneSession={handleCloneSession}
             onSwitchSession={handleSwitchSession}
             onCloseSession={handleCloseSession}

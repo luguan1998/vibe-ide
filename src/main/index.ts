@@ -307,7 +307,7 @@ app.whenReady().then(() => {
   function buildSnippetsResult() {
     if (!existsSync(snippetsDir)) {
       mkdirSync(snippetsDir, { recursive: true })
-      return { css: '', snippets: [] }
+      return { css: '', snippets: [], dir: snippetsDir }
     }
     const state = loadSnippetsJson()
     const files = readdirSync(snippetsDir)
@@ -326,7 +326,7 @@ app.whenReady().then(() => {
         return `/* ${f} */\n${resolveCssUrls(raw, snippetsDir)}`
       })
       .join('\n\n')
-    return { css, snippets }
+    return { css, snippets, dir: snippetsDir }
   }
 
   ipcMain.handle(IPC_CHANNELS.SNIPPETS_LOAD, () => {
@@ -340,7 +340,7 @@ app.whenReady().then(() => {
       saveSnippetsJson(state)
       return buildSnippetsResult()
     } catch {
-      return { css: '', snippets: [] }
+      return { css: '', snippets: [], dir: snippetsDir }
     }
   })
 

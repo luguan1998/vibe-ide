@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { TerminalSession, SnippetInfo } from '@shared/types'
-import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw } from 'lucide-react'
+import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, FolderOpen } from 'lucide-react'
 import { useTheme } from '../themes'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { useI18n } from '../i18n'
@@ -131,6 +131,7 @@ interface SessionPanelProps {
   activeSessionId: string | null
   compact?: boolean
   onCreateSession: (shell?: string) => void
+  onCreateSessionAt?: (cwd: string, shell?: string) => void
   onCloneSession: (parentId: string | null, cwd: string, shell?: string, name?: string) => void
   onCloneWithInit?: (sessionId: string, cwd: string, shell: string | undefined, command: string) => void
   onSwitchSession: (id: string) => void
@@ -192,6 +193,7 @@ const SessionPanel = React.memo(function SessionPanel({
   activeSessionId,
   compact,
   onCreateSession,
+  onCreateSessionAt,
   onCloneSession,
   onCloneWithInit,
   onSwitchSession,
@@ -359,6 +361,7 @@ const SessionPanel = React.memo(function SessionPanel({
   const themeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showSnippetsFlyout, setShowSnippetsFlyout] = useState(false)
   const [snippetsList, setSnippetsList] = useState<SnippetInfo[]>([])
+  const [snippetsDir, setSnippetsDir] = useState('')
   const snippetsFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const configBtnRef = useRef<HTMLButtonElement>(null)
   const [configMenuStyle, setConfigMenuStyle] = useState<React.CSSProperties>({})
@@ -524,7 +527,7 @@ const SessionPanel = React.memo(function SessionPanel({
   // 打开配置菜单时加载 snippets 列表
   useEffect(() => {
     if (showConfigMenu) {
-      window.api.snippets.load().then(r => setSnippetsList(r.snippets)).catch(() => {})
+      window.api.snippets.load().then(r => { setSnippetsList(r.snippets); setSnippetsDir(r.dir) }).catch(() => {})
     }
   }, [showConfigMenu])
 
@@ -919,6 +922,16 @@ const SessionPanel = React.memo(function SessionPanel({
                           </button>
                         ))
                       )}
+                      <div className="border-t border-ide-border my-1" />
+                      <button
+                        onClick={() => { if (snippetsDir && onCreateSessionAt) { onCreateSessionAt(snippetsDir); setShowConfigMenu(false); setShowSnippetsFlyout(false) } }}
+                        className="w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 text-ide-text hover:bg-ide-hover transition-colors"
+                      >
+                        <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                          <FolderOpen className="size-3.5" />
+                        </span>
+                        <span>{t('Open CSS Config')}</span>
+                      </button>
                     </div>
                   )}
                 </div>
