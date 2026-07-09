@@ -12,28 +12,31 @@ html, body, #root {
 
 /* 标题栏 */
 .titlebar-drag[class*="h-9"] {
-  border-bottom: 4px groove !important;
+  border-bottom: 4px groove rgb(var(--ide-border)) !important;
 }
 
 /* 会话面板 */
 .session-panel__list-wrapper {
-  border: 4px ridge !important;
+  border: 4px ridge rgb(var(--ide-border)) !important;
+  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
 }
 
 .session-panel__stat {
-  border: 2px groove;
+  border: 2px groove rgb(var(--ide-border));
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 
 .session-panel__config-btn,
 .session-panel__new-btn {
-  border: 3px outset !important;
+  border: 3px outset rgb(var(--ide-border)) !important;
+  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
 }
 
 .session-panel__config-btn:active,
 .session-panel__new-btn:active {
   border-style: inset !important;
+  box-shadow: inset 1px 1px 0 rgba(0,0,0,0.45), inset -1px -1px 0 rgba(255,255,255,0.08) !important;
 }
 
 .session-item {
@@ -41,7 +44,7 @@ html, body, #root {
 }
 
 .session-item--active {
-  border-left: 4px solid !important;
+  border-left: 4px solid rgb(var(--ide-accent)) !important;
 }
 
 .session-item--active .session-item__name {
@@ -50,18 +53,19 @@ html, body, #root {
 }
 
 .session-group {
-  border: 3px groove !important;
+  border: 3px groove rgb(var(--ide-border)) !important;
   margin-top: 6px;
 }
 
 .session-group__header {
-  border-bottom: 3px ridge !important;
+  border-bottom: 3px ridge rgb(var(--ide-border)) !important;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 
 .session-panel__config-menu {
-  border: 3px ridge !important;
+  border: 3px ridge rgb(var(--ide-border)) !important;
+  box-shadow: -2px -2px 0 rgba(255,255,255,0.08), 2px 2px 0 rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.5) !important;
 }
 
 .session-panel__config-menu button {
@@ -71,22 +75,23 @@ html, body, #root {
 
 /* 终端 */
 .term-view__canvas {
-  border: 4px inset !important;
+  border: 4px inset rgb(var(--ide-border)) !important;
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.55), inset -1px -1px 0 rgba(255,255,255,0.05) !important;
 }
 
 .term-view__header {
-  border-bottom: 3px ridge !important;
+  border-bottom: 3px ridge rgb(var(--ide-border)) !important;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 
 .term-view__search {
-  border: 2px ridge !important;
+  border: 2px ridge rgb(var(--ide-border)) !important;
 }
 
 /* 文件树 */
 .file-tab__header {
-  border-bottom: 3px ridge !important;
+  border-bottom: 3px ridge rgb(var(--ide-border)) !important;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -97,7 +102,7 @@ html, body, #root {
 }
 
 .file-tree-item--active {
-  border-left: 3px solid !important;
+  border-left: 3px solid rgb(var(--ide-accent)) !important;
 }
 
 .file-tree-item--folder > .file-tree-item__name {
@@ -107,11 +112,11 @@ html, body, #root {
 }
 
 .file-tab__section {
-  border-top: 3px groove !important;
+  border-top: 3px groove rgb(var(--ide-border)) !important;
 }
 
 .file-tab__section-header {
-  border-bottom: 2px ridge !important;
+  border-bottom: 2px ridge rgb(var(--ide-border)) !important;
   text-transform: uppercase;
   letter-spacing: 2px;
   font-size: 10px !important;
@@ -119,7 +124,7 @@ html, body, #root {
 
 /* Git 面板 */
 .git-tab__header {
-  border-bottom: 3px ridge !important;
+  border-bottom: 3px ridge rgb(var(--ide-border)) !important;
 }
 
 .git-tab__branch-name {
@@ -128,11 +133,11 @@ html, body, #root {
 }
 
 .git-tab__section {
-  border-bottom: 3px groove !important;
+  border-bottom: 3px groove rgb(var(--ide-border)) !important;
 }
 
 .git-tab__section-header {
-  border-bottom: 2px ridge !important;
+  border-bottom: 2px ridge rgb(var(--ide-border)) !important;
   text-transform: uppercase;
   letter-spacing: 1px;
   font-size: 11px !important;
@@ -143,11 +148,11 @@ html, body, #root {
 }
 
 .git-tab__commit-area {
-  border-top: 4px ridge !important;
+  border-top: 4px ridge rgb(var(--ide-border)) !important;
 }
 
 .git-tab__commit-input {
-  border: 3px inset !important;
+  border: 3px inset rgb(var(--ide-border)) !important;
   font-size: 11px !important;
 }
 
@@ -156,7 +161,8 @@ html, body, #root {
 }
 
 .git-tab__commit-btn {
-  border: 3px outset !important;
+  border: 3px outset rgb(var(--ide-border)) !important;
+  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
   font-weight: 700 !important;
   text-transform: uppercase;
   letter-spacing: 2px;
@@ -164,19 +170,22 @@ html, body, #root {
 
 .git-tab__commit-btn:active {
   border-style: inset !important;
+  box-shadow: inset 1px 1px 0 rgba(0,0,0,0.45), inset -1px -1px 0 rgba(255,255,255,0.08) !important;
 }
 
 /* 右侧面板 */
 .right-panel__content {
-  border: 3px ridge !important;
+  border: 3px ridge rgb(var(--ide-border)) !important;
+  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
 }
 
 .right-panel__tab-bar {
-  border-bottom: 3px groove !important;
+  border-bottom: 3px groove rgb(var(--ide-border)) !important;
 }
 
 .right-panel__tab {
-  border: 3px outset !important;
+  border: 3px outset rgb(var(--ide-border)) !important;
+  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
   font-size: 11px !important;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -185,6 +194,7 @@ html, body, #root {
 .right-panel__tab--active {
   border-style: inset !important;
   font-weight: 700;
+  box-shadow: inset 1px 1px 0 rgba(0,0,0,0.45), inset -1px -1px 0 rgba(255,255,255,0.08) !important;
 }
 
 /* 原生滚动条（文件面板等） */
@@ -241,18 +251,20 @@ html, body, #root {
 
 /* 模态框 */
 .fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
-  border: 4px ridge !important;
+  border: 4px ridge rgb(var(--ide-border)) !important;
+  box-shadow: -2px -2px 0 rgba(255,255,255,0.08), 2px 2px 0 rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.5) !important;
 }
 
 .fixed.inset-0.z-50 button { border-radius: 0 !important; }
 
 .fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
-  border: 3px ridge !important;
+  border: 3px ridge rgb(var(--ide-border)) !important;
+  box-shadow: -1px -1px 0 rgba(255,255,255,0.10), 1px 1px 0 rgba(0,0,0,0.45) !important;
 }
 
 /* 输入框 */
 input, select, textarea {
-  border: 2px inset !important;
+  border: 2px inset rgb(var(--ide-border)) !important;
 }
 
 input:focus, select:focus, textarea:focus {
@@ -261,9 +273,9 @@ input:focus, select:focus, textarea:focus {
 
 /* 分割线 */
 .border-t.border-ide-border {
-  border-top: 2px groove !important;
+  border-top: 2px groove rgb(var(--ide-border)) !important;
 }
 
 .border-b.border-ide-border {
-  border-bottom: 2px groove !important;
+  border-bottom: 2px groove rgb(var(--ide-border)) !important;
 }

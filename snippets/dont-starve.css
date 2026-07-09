@@ -1,12 +1,12 @@
 /*
   Don't Starve — 饥荒·暗黑羊皮纸
-  配色照抄 dontstarve.huijiwiki.com 的 LESS 变量
+  配色源自 dontstarve.huijiwiki.com 的 LESS 变量
   Session 面板仿 Klei 官网 btn-bg clip-path 不规则手绘形状 + 颜色翻转 hover
   设计语言：古卷羊皮纸 · 火炬金光 · 木纹棕底 · 手绘边框
 */
 
 /* ════════════════════════════════════════════════════
-   主题色 — 饥荒 wiki 暗黑暖棕系（照抄 huijiwiki LESS 变量）
+   主题色 — 饥荒 wiki 暗黑暖棕系（源自 huijiwiki LESS 变量）
    ════════════════════════════════════════════════════ */
 :root {
   --ide-bg: 20 16 10 !important;
@@ -167,6 +167,10 @@ html, body, #root {
 .session-item--active .session-item__cwd {
   color: rgb(18 14 10 / 0.7) !important;
 }
+.session-item--active .session-item__cwd span {
+  color: rgb(18 14 10 / 0.85) !important;
+  opacity: 1 !important;
+}
 
 .session-item.border-ide-accent\/60:not(.session-item--active) {
   font-weight: 700 !important;
@@ -204,6 +208,11 @@ html, body, #root {
 .session-item:nth-child(5n+5):hover,
 .session-item:nth-child(5n+5):hover .session-item__name { color: rgb(170 150 195) !important; }
 .session-item:nth-child(5n+5):hover { box-shadow: 0 0 16px rgb(170 150 195 / 0.15) !important; }
+
+.session-item.session-item--active:hover,
+.session-item.session-item--active:hover .session-item__name {
+  color: rgb(18 14 10) !important;
+}
 
 /* ═══════════════ 会话分组 — 木纹卡片 ═══════════════ */
 .session-group {
@@ -466,6 +475,8 @@ input[type="checkbox"] { accent-color: rgb(231 204 123); }
 }
 .md-code-block code {
   color: rgb(185 195 160) !important;
+  background: none !important;
+  border: none !important;
   text-indent: 0 !important;
   white-space: pre !important;
 }
