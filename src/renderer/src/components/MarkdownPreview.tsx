@@ -195,7 +195,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
     h4: ({ children }: any) => { const text = extractText(children); return <h4 id={slugify(text)}>{children}</h4> },
     h5: ({ children }: any) => { const text = extractText(children); return <h5 id={slugify(text)}>{children}</h5> },
     h6: ({ children }: any) => { const text = extractText(children); return <h6 id={slugify(text)}>{children}</h6> },
-    a: ({ href, children, ...props }: any) => <a href={href} onClick={handleLinkClick} {...props}>{children}</a>,
+    a: ({ href, children, ...props }: any) => <a href={href} onClick={handleLinkClick} onAuxClick={handleLinkClick} {...props}>{children}</a>,
     img: ({ src, alt, ...props }: any) => {
       const resolvedSrc = useMemo(() => {
         if (!src || /^(https?:|data:|#)/i.test(src)) return src

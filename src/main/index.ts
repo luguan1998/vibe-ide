@@ -165,6 +165,13 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== mainWindow!.webContents.getURL()) {
+      event.preventDefault()
+      shell.openExternal(url)
+    }
+  })
+
   // Load renderer
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
