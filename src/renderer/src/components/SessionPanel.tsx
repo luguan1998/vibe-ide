@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react'
 import { TerminalSession, SnippetInfo, SnippetsLoadResult } from '@shared/types'
 import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, FolderOpen, RefreshCw } from 'lucide-react'
 import { useTheme } from '../themes'
@@ -124,6 +124,25 @@ function stableEmojiForSession(sessionId: string, pool: string[]): string {
     hash = ((hash << 5) - hash + sessionId.charCodeAt(i)) | 0
   }
   return pool[Math.abs(hash) % pool.length]
+}
+
+function useAdaptiveMenuPos(open: boolean, x: number, y: number) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [style, setStyle] = useState<React.CSSProperties>({ left: x, top: y })
+  useLayoutEffect(() => {
+    if (!open || !ref.current) return
+    const el = ref.current
+    const h = el.offsetHeight
+    const w = el.offsetWidth
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    let left = x
+    let top = y
+    if (left + w > vw - 4) left = Math.max(4, vw - w - 4)
+    if (top + h > vh - 4) top = Math.max(4, y - h)
+    setStyle({ left, top, maxHeight: vh - 8 })
+  }, [open, x, y])
+  return { ref, style }
 }
 
 interface SessionPanelProps {
@@ -350,6 +369,8 @@ const SessionPanel = React.memo(function SessionPanel({
   const [cloneSubmenu, setCloneSubmenu] = useState<{ x: number; y: number; sessionId: string; cwd: string; shell?: string; initCommands: CustomCommand[] } | null>(null)
   const cloneSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [emptyAreaMenu, setEmptyAreaMenu] = useState<{ x: number; y: number } | null>(null)
+  const ctxMenuPos = useAdaptiveMenuPos(!!contextMenu, contextMenu?.x ?? 0, contextMenu?.y ?? 0)
+  const emptyMenuPos = useAdaptiveMenuPos(!!emptyAreaMenu, emptyAreaMenu?.x ?? 0, emptyAreaMenu?.y ?? 0)
   const [recentDirs, setRecentDirs] = useState<string[]>(() => loadRecentDirs())
   const prevSessionIdsRef = useRef<Set<string>>(new Set())
   const [renaming, setRenaming] = useState<string | null>(null)
@@ -1220,8 +1241,9 @@ const SessionPanel = React.memo(function SessionPanel({
       {/* Context Menu */}
       {contextMenu && (
         <div
-          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[160px]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
+          ref={ctxMenuPos.ref}
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[160px] overflow-y-auto"
+          style={ctxMenuPos.style}
           onClick={(e) => e.stopPropagation()}
         >
           <div
@@ -1338,8 +1360,9 @@ const SessionPanel = React.memo(function SessionPanel({
       {/* Empty Area Context Menu — recent directories */}
       {emptyAreaMenu && (
         <div
-          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[200px]"
-          style={{ left: emptyAreaMenu.x, top: emptyAreaMenu.y }}
+          ref={emptyMenuPos.ref}
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[200px] overflow-y-auto"
+          style={emptyMenuPos.style}
           onClick={(e) => e.stopPropagation()}
         >
           <button
