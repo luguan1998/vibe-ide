@@ -1245,7 +1245,7 @@ const SessionPanel = React.memo(function SessionPanel({
       <CustomCommands ref={commandsRef} onExecuteCommand={onExecuteCommand} onInitCommand={onInitCommand} onPipeCommand={onPipeCommand} />
 
       {recentFilesPanelEnabled && recentTop5.length > 0 && (
-        <div className="shrink-0">
+        <div className="shrink-0 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-panel__recent-files">
           {recentTop5.map(f => {
             const baseName = f.path.split(/[\\/]/).pop() || f.path
             const info = getFileInfo(baseName)
