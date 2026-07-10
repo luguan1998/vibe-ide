@@ -152,9 +152,11 @@ declare global {
         cancel: (sessionId: string) => Promise<boolean>
         destroy: (sessionId: string) => Promise<boolean>
         respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>, feedback?: string) => Promise<{ success: boolean }>
-        clearAndExecutePlan: (sessionId: string, planFilePath: string) => Promise<{ success: boolean; error?: string }>
+        clearAndExecutePlan: (sessionId: string, planFilePath: string, model?: string) => Promise<{ success: boolean; error?: string }>
         setPermissionMode: (sessionId: string, mode: string) => Promise<{ success: boolean; error?: string }>
         setModel: (sessionId: string, model: string) => Promise<{ success: boolean; error?: string }>
+        onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => any
+        removeModelChangedListener: (handler?: any) => void
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
         listSessions: (cwd?: string) => Promise<{ sessions: any[]; error?: string }>
         loadSessionMessages: (resumeSessionId: string, cwd: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>

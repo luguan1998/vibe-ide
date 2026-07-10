@@ -33,11 +33,19 @@ export interface AiTabHandle {
 
 const COMMAND_TOOLS = new Set(['Bash', 'bash', 'terminal', 'run_command', 'execute_command'])
 const SEARCH_TOOLS = new Set(['Grep', 'grep', 'search', 'Glob', 'glob', 'find', 'ripgrep', 'Read'])
+const WEB_TOOLS = new Set(['WebSearch', 'WebFetch'])
+const PLAN_TOOLS = new Set(['ExitPlanMode', 'EnterPlanMode'])
+const SKILL_TOOLS = new Set(['Skill'])
+const AGENT_TOOLS = new Set(['Agent'])
 
-function getToolCategory(name: string): 'file' | 'command' | 'search' | 'default' {
+function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'default' {
   if (AI_FILE_EDIT_TOOLS.has(name)) return 'file'
   if (COMMAND_TOOLS.has(name)) return 'command'
   if (SEARCH_TOOLS.has(name)) return 'search'
+  if (WEB_TOOLS.has(name)) return 'web'
+  if (PLAN_TOOLS.has(name)) return 'plan'
+  if (SKILL_TOOLS.has(name)) return 'skill'
+  if (AGENT_TOOLS.has(name)) return 'agent'
   return 'default'
 }
 
@@ -171,8 +179,28 @@ function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: 
   )
 }
 
-function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'default' }) {
+function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'default' }) {
   const cls = "w-3 h-3 shrink-0"
+  if (category === 'skill') return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+      <path d="M12 3c-5 3-9 8-9 14 3-2 6-2 9 0 3-2 6-2 9 0 0-6-4-11-9-14Z" />
+      <path d="M19 17c-3 0-5 1-7 4-2-3-4-4-7-4" />
+    </svg>
+  )
+  if (category === 'web') return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  )
+  if (category === 'plan') return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+      <rect x="9" y="3" width="6" height="4" rx="1" />
+      <path d="M9 14l2 2 4-4" />
+    </svg>
+  )
   if (category === 'file') return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className={cls}>
       <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.848 2.047a.75.75 0 0 0 .98.98l2.047-.848a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.474Z" />
@@ -187,6 +215,15 @@ function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'def
   if (category === 'search') return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className={cls}>
       <path d="M7.25 3.688a8.035 8.035 0 0 0-4.872-.523A.48.48 0 0 0 2 3.64v7.994c0 .345.342.588.679.512a6.02 6.02 0 0 1 4.571.81V3.688ZM8.75 12.956a6.02 6.02 0 0 1 4.571-.81c.337.075.679-.167.679-.512V3.64a.48.48 0 0 0-.378-.475 8.034 8.034 0 0 0-4.872.523v9.268Z" />
+    </svg>
+  )
+  if (category === 'agent') return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <circle cx="9" cy="14" r="1.5" />
+      <circle cx="15" cy="14" r="1.5" />
+      <path d="M9 18h6" />
     </svg>
   )
   return (
@@ -400,45 +437,91 @@ const AiPermissionCard = React.memo(function AiPermissionCard({ perm, sessionId,
 // "Clear & Execute" kills the plan-mode subprocess and respawns in acceptEdits mode with the
 // plan re-injected as first message — clears the inflated context from exploration.
 // "Send Feedback" denies with a feedback message so the model revises the plan.
-const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onClearExecute, onDeny, workspacePath, onOpenFile }: {
+const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onClearExecute, onDeny, workspacePath, onOpenFile, model }: {
   perm: AiPermissionRequest
   sessionId: string
-  onClearExecute: (sessionId: string, planFilePath: string) => void
+  onClearExecute: (sessionId: string, planFilePath: string, model?: string) => void
   onDeny: (sessionId: string, requestId: string, feedback: string) => void
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  model: string
 }) {
   const { t } = useI18n()
   const plan = (perm.toolInput?.plan as string) || ''
   const planFilePath = (perm.toolInput?.planFilePath as string) || ''
   const [feedback, setFeedback] = useState('')
+  const [switchOpen, setSwitchOpen] = useState(false)
+  const switchRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!switchOpen) return
+    const handler = (e: MouseEvent) => {
+      if (switchRef.current && !switchRef.current.contains(e.target as Node)) setSwitchOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [switchOpen])
+
+  useEffect(() => {
+    if (!switchOpen) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setSwitchOpen(false); e.stopPropagation() }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [switchOpen])
 
   return (
-    <div className="ai-tab__plan-card shrink-0 border-t border-ide-accent/40 bg-ide-accent/5 px-3 py-2.5 animate-fade-in">
-      <div className="flex items-center gap-1.5 mb-1.5">
+    <div className="ai-tab__plan-overlay absolute inset-0 z-20 flex flex-col bg-ide-bg/95 backdrop-blur-sm px-3 py-2.5 animate-fade-in">
+      <div className="flex items-center gap-1.5 mb-1.5 shrink-0">
         <FileText size={15} className="text-ide-accent shrink-0" />
         <span className="text-[13px] font-medium text-ide-accent">{t('Plan Ready')}</span>
       </div>
 
-      <div className="ai-tab__plan-content max-h-64 overflow-y-auto mb-1.5 bg-ide-bg/60 rounded px-2 py-1.5 border border-ide-border/40">
+      <div className="ai-tab__plan-content flex-1 min-h-0 overflow-y-auto mb-1.5 bg-ide-bg/60 rounded px-2 py-1.5 border border-ide-border/40">
         <ChatMarkdown text={plan} workspacePath={workspacePath} onOpenFile={onOpenFile} />
       </div>
 
-      <textarea
-        value={feedback}
-        onChange={(e) => setFeedback(e.target.value)}
-        placeholder={t('Feedback for revision (optional)')}
-        rows={2}
-        className="ai-tab__plan-feedback w-full text-[13px] px-2 py-1 mb-1.5 bg-ide-bg border border-ide-border rounded resize-none focus:outline-none focus:border-ide-accent/60 text-ide-text"
-      />
+      <div className="rounded-2xl border border-ide-accent/60 bg-ide-sidebar shadow-sm transition-colors focus-within:border-ide-accent mb-1.5 shrink-0">
+        <div className="px-3 pt-2.5 pb-1.5">
+          <textarea
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            placeholder={t('Feedback for revision (optional)')}
+            rows={2}
+            className="ai-tab__plan-feedback w-full text-sm bg-transparent px-0 py-0.5 text-ide-text placeholder:text-ide-text-muted/50 resize-none focus:outline-none disabled:opacity-50 leading-relaxed"
+          />
+        </div>
+      </div>
 
-      <div className="flex gap-1.5">
+      <div className="flex items-center gap-1.5 shrink-0">
         <button
           onClick={() => onClearExecute(sessionId, planFilePath)}
-          className="ai-tab__plan-execute-btn px-4 py-1.5 text-[13px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+          className="px-4 py-1.5 text-[13px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
         >
-          {t('Clear & Execute')}
+          {t('Execute')}
         </button>
+        <div ref={switchRef} className="relative">
+          <button
+            onClick={() => setSwitchOpen(v => !v)}
+            className="px-4 py-1.5 text-[13px] font-medium bg-ide-accent/20 hover:bg-ide-accent/30 text-ide-accent rounded transition-colors"
+          >
+            {t('Switch & Execute')}
+          </button>
+          {switchOpen && (
+            <div className="absolute bottom-full left-0 mb-1 bg-ide-sidebar border border-ide-border rounded-lg shadow-lg min-w-[110px] py-0.5 animate-fade-in z-30">
+              {['opus', 'sonnet', 'haiku'].map(alias => (
+                <button
+                  key={alias}
+                  onClick={() => { setSwitchOpen(false); onClearExecute(sessionId, planFilePath, alias) }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-ide-text hover:bg-ide-hover transition-colors"
+                >
+                  <span className="truncate">{alias}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {feedback.trim() && (
           <button
             onClick={() => onDeny(sessionId, perm.requestId, feedback)}
@@ -609,7 +692,7 @@ function CollapsedToolsSummary({ tools }: { tools: AiToolUse[] }) {
         className="ai-tab__tools-summary-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/15 transition-colors"
       >
         <span className="shrink-0"><ToolIcon category="default" /></span>
-        <span className="shrink-0 leading-none">tools * {tools.length}</span>
+        <span className="shrink-0 leading-none">Tools * {tools.length}</span>
         <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
       {expanded && (
@@ -1226,7 +1309,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     if (!userScrolledUpRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [state.messages.length, state.streamBuffer])
+  }, [state.messages.length, state.streamBuffer, state.thinkingBuffer])
 
   // ── Focus input when tab becomes active ──
   useEffect(() => {
@@ -1271,10 +1354,10 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // ── ExitPlanMode "Clear & Execute": kill plan-mode subprocess, respawn in acceptEdits,
   // re-inject plan from disk as first message. onDeny 委托 aiStore.handlePlanDeny;
   // onClearExecute 需切 UI permission mode 故留组件内(被调先于主调)。
-  const handlePlanClearExecute = useCallback(async (sessionId: string, planFilePath: string) => {
+  const modelRef = useRef(state.model)
+  modelRef.current = state.model
+  const handlePlanClearExecute = useCallback(async (sessionId: string, planFilePath: string, modelOverride?: string) => {
     if (!planFilePath) return
-    // Preserve messages/model/slashCommands/contextPercent — main side /clear is intentional
-    // (drops plan-mode accumulated tokens), but renderer UI history should remain visible.
     updateSession(sessionId, (s) => ({
       ...s,
       pendingPermission: null,
@@ -1285,10 +1368,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       busy: true,
       ready: false,
     }))
-    // Switch UI mode to acceptEdits — the new subprocess spawns with acceptEdits, so the
-    // ModeSelector must reflect reality. Without this, UI still shows "Plan" after execution.
     onPermissionModeChange('acceptEdits')
-    await window.api.ai.clearAndExecutePlan(sessionId, planFilePath)
+    const model = modelOverride || modelRef.current
+    await window.api.ai.clearAndExecutePlan(sessionId, planFilePath, model)
   }, [updateSession, onPermissionModeChange])
 
   // ── Revert / Fork handlers ──────────────────────────────────────
@@ -1370,7 +1452,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   }, [state.messages])
 
   return (
-    <div ref={containerRef} tabIndex={-1} className="ai-tab flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
+    <div ref={containerRef} tabIndex={-1} className="ai-tab relative flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
       {/* Header */}
       <div className="ai-tab__header flex items-center justify-between px-2 py-1 border-b border-ide-border shrink-0 acrylic-titlebar-clean">
         <div className="ai-tab__header-left flex items-center gap-1.5 min-w-0">
@@ -1568,15 +1650,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             sessionId={activeSessionId}
             onRespond={aiStore.handleAskResume}
           />
-        ) : state.pendingPermission.tool === 'ExitPlanMode' ? (
-          <AiExitPlanModeCard
-            perm={state.pendingPermission}
-            sessionId={activeSessionId}
-            onClearExecute={handlePlanClearExecute}
-            onDeny={aiStore.handlePlanDeny}
-            workspacePath={workspacePath}
-            onOpenFile={onOpenFile}
-          />
         ) : (
           <AiPermissionCard
             perm={state.pendingPermission}
@@ -1743,6 +1816,19 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           </div>
         </div>
       </div>
+
+      {/* Plan overlay — covers entire dialog */}
+      {state.pendingPermission && activeSessionId && state.pendingPermission.tool === 'ExitPlanMode' && (
+        <AiExitPlanModeCard
+          perm={state.pendingPermission}
+          sessionId={activeSessionId}
+          onClearExecute={handlePlanClearExecute}
+          onDeny={aiStore.handlePlanDeny}
+          workspacePath={workspacePath}
+          onOpenFile={onOpenFile}
+          model={state.model}
+        />
+      )}
     </div>
   )
 })

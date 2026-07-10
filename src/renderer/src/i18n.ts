@@ -355,6 +355,7 @@ const ZH_MAP: Record<string, string> = {
   // AI ExitPlanMode card
   'Plan Ready': '计划已就绪',
   'Clear & Execute': '清空并执行',
+  'Switch & Execute': '切换并执行',
   'Send Feedback': '发送反馈',
   'Feedback for revision (optional)': '修改建议（可选）',
   // AI Todo list

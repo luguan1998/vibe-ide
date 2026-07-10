@@ -366,6 +366,11 @@ function initListeners() {
     aiStore.updateSession(perm.sessionId, (s) => ({ ...s, pendingPermission: perm as AiPermissionRequest }))
   })
 
+  // ── onModelChanged ──
+  window.api.ai.onModelChanged(({ sessionId, model }: any) => {
+    aiStore.updateSession(sessionId, (s) => ({ ...s, model: model || s.model || '' }))
+  })
+
   // ── onReady ──
   window.api.ai.onReady(({ sessionId, slashCommands, model }: any) => {
     const commands = enrichSlashCommands(slashCommands || [])

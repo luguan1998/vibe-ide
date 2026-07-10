@@ -123,6 +123,7 @@ export const IPC_CHANNELS = {
   AI_PROGRESS: 'ai:progress',             // push: tool_progress events
   AI_PERMISSION: 'ai:permission',         // push: permission_request events
   AI_READY: 'ai:ready',                   // push: subprocess started, system init received
+  AI_MODEL_CHANGED: 'ai:modelChanged',   // push: model switched via setModel
   AI_ERROR: 'ai:error',                   // push: process error or crash
   AI_FILE_CHANGE: 'ai:fileChange',        // push: tool_use with file edit detected
 
@@ -454,6 +455,7 @@ export interface AiPermissionResponsePayload {
 export interface AiPlanExecutePayload {
   sessionId: string
   planFilePath: string
+  model?: string
 }
 
 // Switch permission mode at runtime via control_request subtype=set_permission_mode

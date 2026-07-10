@@ -21,6 +21,7 @@ export interface ManagedAiSession {
   contextWindow?: number
   // Permission mode at spawn time — preserved across ask-resume restart.
   permissionMode?: AiPermissionMode
+  model?: string
   pendingPermission?: {
     requestId: string
     toolName: string
@@ -102,6 +103,7 @@ export function buildClaudeArgs(opts: {
   cwd: string
   permissionMode: AiPermissionMode
   resumeSessionId?: string
+  model?: string
 }): string[] {
   const platformDesc = process.platform === 'win32'
     ? 'Windows (use paths like C:\\Users\\... with backslashes)'
@@ -122,6 +124,9 @@ export function buildClaudeArgs(opts: {
   if (opts.resumeSessionId) {
     args.push('--resume', opts.resumeSessionId)
   }
+  if (opts.model) {
+    args.push('--model', opts.model)
+  }
   return args
 }
 
@@ -132,6 +137,7 @@ export function spawnClaude(opts: {
   permissionMode: AiPermissionMode
   resumeSessionId?: string
   cliCommand?: string
+  model?: string
 }): ChildProcess | SpawnError {
   const resolved = findBinary(opts.cliCommand)
   if ('error' in resolved) return resolved
@@ -662,13 +668,14 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
 // Attach all process event handlers (stdout/stderr/error/exit) to a spawned Claude CLI process.
 // Shared between initial AI_CREATE spawn and plan-execute restart — extracted so
 // the restart path reuses identical NDJSON parsing / error reporting / lifecycle logic.
-export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: string): void {
+export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: string, model?: string): void {
   const session: ManagedAiSession = {
     process: proc,
     sessionId,
     cwd,
     lineBuffer: '',
     ready: true,
+    model,
   }
   aiSessions.set(sessionId, session)
 
@@ -878,6 +885,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     // immediately regardless of ready state, since the CLI doesn't echo [1m] in system/init.
     const parsed = parseContextWindowFromModel(payload.model)
     if (parsed) session.contextWindow = parsed
+    session.model = payload.model
 
     if (!session.ready) return { success: false, error: 'AI not ready' }
 
@@ -890,6 +898,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
       },
     }) + '\n'
     session.process.stdin!.write(ndjson)
+    send(IPC_CHANNELS.AI_MODEL_CHANGED, { sessionId: payload.sessionId, model: payload.model })
     return { success: true }
   })
 

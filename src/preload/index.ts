@@ -233,8 +233,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_DESTROY, sessionId),
     respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>, feedback?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_PERMISSION_RESPONSE, { sessionId, requestId, approved, tool, toolInput, feedback }),
-    clearAndExecutePlan: (sessionId: string, planFilePath: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.AI_PLAN_EXECUTE, { sessionId, planFilePath }),
+    clearAndExecutePlan: (sessionId: string, planFilePath: string, model?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_PLAN_EXECUTE, { sessionId, planFilePath, model }),
     setPermissionMode: (sessionId: string, mode: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_PERMISSION_MODE, { sessionId, mode }),
     askResume: (sessionId: string, answers: Record<string, string>) =>
@@ -280,6 +280,15 @@ const api = {
     removeReadyListener: (handler?: any) => {
       if (handler) ipcRenderer.removeListener(IPC_CHANNELS.AI_READY, handler)
       else ipcRenderer.removeAllListeners(IPC_CHANNELS.AI_READY)
+    },
+    onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => {
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.AI_MODEL_CHANGED, handler)
+      return handler
+    },
+    removeModelChangedListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.AI_MODEL_CHANGED, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.AI_MODEL_CHANGED)
     },
     onFileChange: (callback: (data: any) => void) => {
       const handler = (_event: any, data: any) => callback(data)

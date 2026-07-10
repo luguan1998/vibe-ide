@@ -44,9 +44,10 @@ export function registerPlanExecuteHandlers(): void {
       return { success: false, error: `Failed to read plan file: ${(err as Error).message}` }
     }
 
-    // 2. Preserve cwd from current session (fallback to process.cwd())
+    // 2. Preserve cwd and model from current session (fallback to process.cwd())
     const prev = aiSessions.get(sessionId)
     const cwd = prev?.cwd || process.cwd()
+    const model = payload.model || prev?.model
 
     // 3. Kill the plan-mode subprocess without responding to its pending control_request.
     //    A deny response would leak "plan rejected" feedback; a clean kill avoids that.
@@ -56,7 +57,7 @@ export function registerPlanExecuteHandlers(): void {
     }
 
     // 4. Spawn fresh subprocess in acceptEdits mode (no --resume = clean context)
-    const result = spawnClaude({ cwd, permissionMode: 'acceptEdits' })
+    const result = spawnClaude({ cwd, permissionMode: 'acceptEdits', model })
     if ('error' in result) {
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,
@@ -67,13 +68,16 @@ export function registerPlanExecuteHandlers(): void {
     }
 
     // 5. Attach stdout/stderr/error/exit handlers — reuses ai.ts lifecycle logic
-    attachAiProcess(sessionId, result, cwd)
+    attachAiProcess(sessionId, result, cwd, model)
 
     // Preserve contextWindow from old session (fresh spawn without --resume will
     // get a new init event, but preserve as fallback in case the init lacks model).
-    if (prev?.contextWindow) {
+    if (prev?.contextWindow || prev?.model) {
       const newSession = aiSessions.get(sessionId)
-      if (newSession) newSession.contextWindow = prev.contextWindow
+      if (newSession) {
+        if (prev.contextWindow) newSession.contextWindow = prev.contextWindow
+        if (prev.model) newSession.model = prev.model
+      }
     }
 
     // 6. Push plan as first user message — model picks up from clean slate
