@@ -453,6 +453,17 @@ const SessionPanel = React.memo(function SessionPanel({
     return map
   }, [sessionGroups, sessions])
 
+  const groupRefs = useRef<(HTMLDivElement | null)[]>([])
+  const computeGroupDropIndex = (clientY: number) => {
+    for (let i = 0; i < groupRefs.current.length; i++) {
+      const el = groupRefs.current[i]
+      if (!el) continue
+      const rect = el.getBoundingClientRect()
+      if (clientY < rect.top + rect.height / 2) return i
+    }
+    return groupRefs.current.length
+  }
+
   useEffect(() => {
     const handleClick = () => { setContextMenu(null); setEmptyAreaMenu(null) }
     window.addEventListener('click', handleClick)
@@ -623,7 +634,7 @@ const SessionPanel = React.memo(function SessionPanel({
   ) => (
     <div
       key={session.id}
-      draggable={!!onReorderSessions}
+      draggable={!!onReorderSessions && !groupSessionsByCwd}
       className={`group ${opts.outerClass} session-item${
         session.id === activeSessionId ? ' session-item--active' : ''
       }${pipeRunning?.[session.id] ? ' session-item--pipe-running' : ''} ${
@@ -652,6 +663,7 @@ const SessionPanel = React.memo(function SessionPanel({
       }}
       onDragStart={() => { setDragIndex(dragIdx); setDragGroupIndex(null); setDropGroupIndex(null) }}
       onDragOver={(e) => {
+        if (dragGroupIndex !== null) return
         e.preventDefault()
         e.stopPropagation()
         if (dragIndex === null || dragIndex === dragIdx) {
@@ -663,7 +675,9 @@ const SessionPanel = React.memo(function SessionPanel({
         setDropIndex(e.clientY < midY ? dragIdx : dragIdx + 1)
       }}
       onDrop={(e) => {
+        if (dragGroupIndex !== null) return
         e.preventDefault()
+        e.stopPropagation()
         if (dragIndex !== null && dragIndex !== dragIdx) {
           const toIndex = dropIndex !== null && dropIndex > dragIndex ? dropIndex - 1 : dropIndex ?? dragIdx
           onReorderSessions?.(dragIndex, toIndex)
@@ -1060,7 +1074,7 @@ const SessionPanel = React.memo(function SessionPanel({
             if (dragGroupIndex !== null && sessionGroups.length > 0) {
               e.preventDefault()
               e.stopPropagation()
-              setDropGroupIndex(sessionGroups.length)
+              setDropGroupIndex(computeGroupDropIndex(e.clientY))
             } else if (dragIndex !== null && sessions.length > 0) {
               setDropIndex(sessions.length)
             }
@@ -1092,6 +1106,7 @@ const SessionPanel = React.memo(function SessionPanel({
             return (
               <div
                 key={group.cwd}
+                ref={el => { groupRefs.current[gi] = el }}
                 className={`bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-group ${gi > 0 ? 'mt-3' : ''}`}
                 style={dropGroupIndex === gi && dropGroupIndex !== dragGroupIndex ? { borderTop: '2px solid rgb(var(--ide-accent))' } : undefined}
               >
@@ -1102,30 +1117,6 @@ const SessionPanel = React.memo(function SessionPanel({
                     dragGroupIndex === gi ? 'opacity-40' : ''
                   }`}
                   onDragStart={() => { setDragGroupIndex(gi); setDragIndex(null); setDropIndex(null) }}
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    if (dragGroupIndex === null || dragGroupIndex === gi) {
-                      setDropGroupIndex(null)
-                      return
-                    }
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const midY = rect.top + rect.height / 2
-                    setDropGroupIndex(e.clientY < midY ? gi : gi + 1)
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    if (dragGroupIndex !== null && dragGroupIndex !== gi) {
-                      const targetIdx = dropGroupIndex !== null ? dropGroupIndex : gi
-                      const toIdx = targetIdx > dragGroupIndex ? targetIdx - 1 : targetIdx
-                      onReorderGroup?.(dragGroupIndex, toIdx)
-                    }
-                    setDragGroupIndex(null)
-                    setDropGroupIndex(null)
-                    setDragIndex(null)
-                    setDropIndex(null)
-                  }}
                   onDragEnd={() => {
                     setDragGroupIndex(null)
                     setDropGroupIndex(null)
