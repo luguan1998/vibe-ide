@@ -13,6 +13,7 @@ import AiTab, { AiTabHandle } from './components/AiTab'
 import { aiStore } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
+import { getFileInfo, FILE_ICON_PATHS } from './components/FileIcons'
 import { DRAFT_PIPE_STOP, FOCUS_GAME_DRAFT, ADD_ANNOTATION_EVENT, toRelPath } from './components/VibeProgramer'
 import { TerminalSession, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding } from './shortcuts'
@@ -1915,6 +1916,11 @@ export default function App() {
 
   const isWelcome = sessions.length === 0
 
+  const hideRecentFiles = recentFilesPanelEnabled && outlineOverlayEnabled && (
+    (centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath))) ||
+    (centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath))
+  )
+
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
       {/* Title Bar */}
@@ -1986,6 +1992,7 @@ export default function App() {
             onToggleEscAutoAt={setEscAutoAt}
             recentFilesPanelEnabled={recentFilesPanelEnabled}
             onToggleRecentFilesPanel={setRecentFilesPanelEnabled}
+            hideRecentFiles={hideRecentFiles}
             outlineOverlayEnabled={outlineOverlayEnabled}
             onToggleOutlineOverlay={setOutlineOverlayEnabled}
             terminalFontSize={terminalFontSize}
@@ -2024,27 +2031,67 @@ export default function App() {
             onRemoveRecentFile={removeRecentFile}
           />
           </div>
-          {/* Outline: overlay covering entire left panel below title bar */}
-          {centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath)) && outlineOverlayEnabled && (
-            <div className="absolute left-2 right-2 bottom-2 border border-ide-border rounded-lg overflow-hidden z-10 bg-ide-sidebar" style={{ top: 44 }}>
-              <OutlinePanel
-                key={diffFile.fullPath}
-                filePath={diffFile.filePath}
-                fullPath={diffFile.fullPath}
-                content={currentFileContent}
-                hasExternalProvider={true}
-                onNavigate={handleOutlineNavigate}
-              />
-            </div>
-          )}
-          {centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath) && outlineOverlayEnabled && (
-            <div className="absolute left-2 right-2 bottom-2 border border-ide-border rounded-lg overflow-hidden z-10 bg-ide-sidebar" style={{ top: 44 }}>
-              <OutlinePanel
-                key={markdownFile.fullPath}
-                filePath={markdownFile.fileName}
-                fullPath={markdownFile.fullPath}
-                onNavigate={handleOutlineNavigate}
-              />
+          {/* Outline + floating recent files — shared flex container so outline scrolling respects recent-files height */}
+          {outlineOverlayEnabled && ((centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath))) || (centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath))) && (
+            <div className="absolute left-2 right-2 bottom-2 z-10 flex flex-col bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden" style={{ top: 44 }}>
+              {centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath)) && (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <OutlinePanel
+                    key={diffFile.fullPath}
+                    filePath={diffFile.filePath}
+                    fullPath={diffFile.fullPath}
+                    content={currentFileContent}
+                    hasExternalProvider={true}
+                    onNavigate={handleOutlineNavigate}
+                  />
+                </div>
+              )}
+              {centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath) && (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <OutlinePanel
+                    key={markdownFile.fullPath}
+                    filePath={markdownFile.fileName}
+                    fullPath={markdownFile.fullPath}
+                    onNavigate={handleOutlineNavigate}
+                  />
+                </div>
+              )}
+              {recentFilesPanelEnabled && recentFiles.length > 0 && (
+                <div className="shrink-0 border-t border-ide-border">
+                  {recentFiles.slice(0, 5).map(f => {
+                    const baseName = f.path.split(/[\\/]/).pop() || f.path
+                    const info = getFileInfo(baseName)
+                    return (
+                      <div
+                        key={f.path}
+                        className="group px-3 py-1 cursor-pointer transition-colors relative min-h-[32px] session-item text-ide-text-muted hover:bg-ide-hover hover:text-ide-text"
+                        title={f.path}
+                        onClick={() => handleOpenRecentFile(f.path, f.line)}
+                      >
+                        <div className="flex items-center justify-between min-h-[32px]">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
+                              dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+                            <span className="truncate min-w-0 text-sm session-item__name">{baseName}</span>
+                          </div>
+                          <div className="flex items-center session-item__actions">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); removeRecentFile(f.path) }}
+                              className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
+                              title={t('Remove')}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

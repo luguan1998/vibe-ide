@@ -211,6 +211,7 @@ interface SessionPanelProps {
   onRemoveRecentFile?: (fullPath: string) => void
   recentFilesPanelEnabled?: boolean
   onToggleRecentFilesPanel?: (v: boolean) => void
+  hideRecentFiles?: boolean
   outlineOverlayEnabled?: boolean
   onToggleOutlineOverlay?: (v: boolean) => void
 }
@@ -280,6 +281,7 @@ const SessionPanel = React.memo(function SessionPanel({
   onRemoveRecentFile,
   recentFilesPanelEnabled = false,
   onToggleRecentFilesPanel,
+  hideRecentFiles = false,
   outlineOverlayEnabled = true,
   onToggleOutlineOverlay,
 }: SessionPanelProps) {
@@ -1244,7 +1246,7 @@ const SessionPanel = React.memo(function SessionPanel({
       {/* Custom Commands */}
       <CustomCommands ref={commandsRef} onExecuteCommand={onExecuteCommand} onInitCommand={onInitCommand} onPipeCommand={onPipeCommand} />
 
-      {recentFilesPanelEnabled && recentTop5.length > 0 && (
+      {recentFilesPanelEnabled && recentTop5.length > 0 && !hideRecentFiles && (
         <div className="shrink-0 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-panel__recent-files">
           {recentTop5.map(f => {
             const baseName = f.path.split(/[\\/]/).pop() || f.path
