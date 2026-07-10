@@ -1398,12 +1398,15 @@ export default function App() {
         return next
       })
       setActiveSessionId(session.id)
+      if (parentId && sessionViewModes[parentId] === 'gui') {
+        setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))
+      }
       setCenterView('terminal')
       setDiffFile(null)
     } catch (err) {
       console.error('Failed to clone terminal session:', err)
     }
-  }, [autoUtf8])
+  }, [autoUtf8, sessionViewModes])
 
   // Fork AI conversation at a specific user message
   const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number) => {
