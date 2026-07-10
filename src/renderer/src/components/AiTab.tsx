@@ -1240,14 +1240,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     if (!activeSessionId || !inputValue.trim() || state.busy) return
     const message = inputValue.trim()
     setInputValue('')
+    const isClear = message.startsWith('/clear')
     updateSession(activeSessionId, (s) => {
       const newName = !s.name ? message.slice(0, 60) : s.name
+      const userMsg = { sessionId: activeSessionId, type: 'user' as const, role: 'user' as const, content: message, timestamp: Date.now() }
       return {
         ...s, busy: true, name: newName,
-        messages: [...s.messages, {
-          sessionId: activeSessionId, type: 'user' as const, role: 'user' as const,
-          content: message, timestamp: Date.now(),
-        }],
+        messages: isClear ? [userMsg] : [...s.messages, userMsg],
       }
     })
     await window.api.ai.send(activeSessionId, message)
