@@ -872,6 +872,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
       },
     }) + '\n'
     session.process.stdin!.write(ndjson)
+    session.permissionMode = payload.mode
     return { success: true }
   })
 
