@@ -141,7 +141,7 @@ html, body, #root {
 }
 .diff-revert-btn {
   position: absolute;
-  left: 56px; /* fallback, overridden by inline style */
+  left: 4px; /* fallback, overridden by inline style */
   display: inline-flex;
   align-items: center;
   gap: 4px;

@@ -229,8 +229,8 @@ function computeRevertBtnTop(editor: any, ln: number): number {
 }
 
 function computeRevertBtnLeft(editorDom: HTMLElement | null, containerDom: HTMLElement | null): number {
-  if (!editorDom || !containerDom) return 56
-  return editorDom.getBoundingClientRect().left - containerDom.getBoundingClientRect().left + 56
+  if (!editorDom || !containerDom) return 4
+  return editorDom.getBoundingClientRect().left - containerDom.getBoundingClientRect().left + 4
 }
 
 function FilePathDisplay({ filePath }: { filePath: string }) {
