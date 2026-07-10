@@ -7,6 +7,7 @@ import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { useI18n } from '../i18n'
 import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS } from '../aiStore'
+import { EXAMPLE_PROMPTS } from './examplePrompts'
 import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff } from 'lucide-react'
 
 interface AiTabProps {
@@ -37,8 +38,9 @@ const WEB_TOOLS = new Set(['WebSearch', 'WebFetch'])
 const PLAN_TOOLS = new Set(['ExitPlanMode', 'EnterPlanMode'])
 const SKILL_TOOLS = new Set(['Skill'])
 const AGENT_TOOLS = new Set(['Agent'])
+const QUESTION_TOOLS = new Set(['AskUserQuestion'])
 
-function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'default' {
+function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'default' {
   if (AI_FILE_EDIT_TOOLS.has(name)) return 'file'
   if (COMMAND_TOOLS.has(name)) return 'command'
   if (SEARCH_TOOLS.has(name)) return 'search'
@@ -46,6 +48,7 @@ function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 
   if (PLAN_TOOLS.has(name)) return 'plan'
   if (SKILL_TOOLS.has(name)) return 'skill'
   if (AGENT_TOOLS.has(name)) return 'agent'
+  if (QUESTION_TOOLS.has(name)) return 'question'
   return 'default'
 }
 
@@ -179,7 +182,7 @@ function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: 
   )
 }
 
-function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'default' }) {
+function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'default' }) {
   const cls = "w-3 h-3 shrink-0"
   if (category === 'skill') return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
@@ -226,6 +229,7 @@ function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web
       <path d="M9 18h6" />
     </svg>
   )
+  if (category === 'question') return <HelpCircle className={cls} />
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
       <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
@@ -898,15 +902,6 @@ function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex,
   return <>{inner}</>
 }
 
-// ── Example prompts ──────────────────────────────────────────────
-
-const EXAMPLE_PROMPTS: { label: string; prompt: string }[] = [
-  { label: 'Explain this codebase', prompt: 'prompt.explain' },
-  { label: 'Find potential bugs', prompt: 'prompt.bugs' },
-  { label: 'Write tests', prompt: 'prompt.tests' },
-  { label: 'Refactor', prompt: 'prompt.refactor' },
-]
-
 const MODE_OPTIONS: { value: AiPermissionMode; label: string; icon: string }[] = [
   { value: 'plan', label: 'Plan', icon: '📋' },
   { value: 'acceptEdits', label: 'Edit', icon: '✏️' },
@@ -1570,7 +1565,19 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               {EXAMPLE_PROMPTS.map((item, i) => (
                 <button
                   key={i}
-                  onClick={() => { setInputValue(t(item.prompt)); inputRef.current?.focus({ preventScroll: true }) }}
+                  onClick={() => {
+                    const text = t(item.prompt)
+                    setInputValue(text)
+                    const el = inputRef.current
+                    if (el) {
+                      el.value = text
+                      el.dispatchEvent(new Event('input', { bubbles: true }))
+                      el.focus()
+                      el.selectionStart = el.selectionEnd = text.length
+                      el.scrollTop = el.scrollHeight
+                    }
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+                  }}
                   className="ai-tab__example-btn px-3 py-1.5 text-xs border border-ide-border rounded-full text-ide-text-muted hover:text-ide-text hover:bg-ide-hover hover:border-ide-accent/30 transition-colors"
                 >
                   {t(item.label)}

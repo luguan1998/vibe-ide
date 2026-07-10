@@ -410,6 +410,11 @@ export interface AiSlashCommand {
   argumentHint?: string
 }
 
+export interface AiExamplePrompt {
+  label: string
+  prompt: string
+}
+
 export interface AiSessionState {
   ready: boolean
   busy: boolean

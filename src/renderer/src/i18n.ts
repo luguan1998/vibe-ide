@@ -19,7 +19,7 @@ export type Lang = 'en' | 'zh'
 // (e.g. 'prompt.explain' → full English sentence)
 const EN_MAP: Record<string, string> = {
   'prompt.explain': 'Explain the architecture and key components of this codebase. Identify the main modules, how they interact, and the overall design patterns used. Be concise and focus on the most important structural insights.',
-  'prompt.bugs': 'Review the codebase for potential bugs, race conditions, error handling gaps, and edge cases that could cause failures. Prioritize by severity and likelihood. For each issue, explain the root cause and suggest a fix.',
+
   'prompt.tests': 'Write comprehensive unit tests for the main module. Cover edge cases, error paths, and typical usage scenarios. Use the existing test framework and patterns in the project. Ensure tests are isolated and deterministic.',
   'prompt.refactor': 'Identify code that could benefit from refactoring for readability, maintainability, or performance. Suggest concrete changes with clear rationale. Preserve existing behavior — no functional changes. Focus on the highest-impact improvements first.',
 }
@@ -323,13 +323,16 @@ const ZH_MAP: Record<string, string> = {
   'Connecting...': '连接中...',
   'Streaming...': '生成中...',
   'Explain this codebase': '解释代码库',
-  'Find potential bugs': '查找潜在 bug',
+
   'Write tests': '编写测试',
+  'Web Search': '联网调研',
+  'Diagnose Bug': '定位bug',
+  'Grill My Requirements': '拷问我需求',
   'Refactor': '重构',
 
   // AI Prompt templates (full prompts sent to Claude)
   'prompt.explain': '请解释这个代码库的架构和核心组件。识别主要模块、它们的交互方式以及所使用的设计模式。请简洁明了，聚焦于最重要的结构性洞察。',
-  'prompt.bugs': '审查代码库中潜在的 bug、竞态条件、错误处理缺失以及可能导致失败的边界情况。按严重程度和可能性排序。对每个问题，解释根本原因并建议修复方案。',
+
   'prompt.tests': '为主要模块编写全面的单元测试。覆盖边界情况、错误路径和典型使用场景。使用项目中已有的测试框架和模式。确保测试独立且确定性可重复。',
   'prompt.refactor': '识别可以重构以提升可读性、可维护性或性能的代码。提出具体的改动建议并说明理由。保持现有行为不变——不做功能性变更。优先关注影响最大的改进。',
   // AI Permission Modes
