@@ -1335,22 +1335,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     await window.api.ai.send(activeSessionId, message)
   }, [activeSessionId, inputValue, state.busy, updateSession])
 
-  // ── Send direct (for example prompts) ──
-  const sendDirect = useCallback(async (text: string) => {
-    if (!activeSessionId || state.busy) return
-    updateSession(activeSessionId, (s) => {
-      const newName = !s.name ? text.slice(0, 60) : s.name
-      return {
-        ...s, busy: true, name: newName,
-        messages: [...s.messages, {
-          sessionId: activeSessionId, type: 'user' as const, role: 'user' as const,
-          content: text, timestamp: Date.now(),
-        }],
-      }
-    })
-    await window.api.ai.send(activeSessionId, text)
-  }, [activeSessionId, state.busy, updateSession])
-
   // ── ExitPlanMode "Clear & Execute": kill plan-mode subprocess, respawn in acceptEdits,
   // re-inject plan from disk as first message. onDeny 委托 aiStore.handlePlanDeny;
   // onClearExecute 需切 UI permission mode 故留组件内(被调先于主调)。
@@ -1586,7 +1570,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               {EXAMPLE_PROMPTS.map((item, i) => (
                 <button
                   key={i}
-                  onClick={() => sendDirect(t(item.prompt))}
+                  onClick={() => { setInputValue(t(item.prompt)); inputRef.current?.focus({ preventScroll: true }) }}
                   className="ai-tab__example-btn px-3 py-1.5 text-xs border border-ide-border rounded-full text-ide-text-muted hover:text-ide-text hover:bg-ide-hover hover:border-ide-accent/30 transition-colors"
                 >
                   {t(item.label)}
