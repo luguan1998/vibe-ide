@@ -345,11 +345,17 @@
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.1) !important;
 }
 
-/* 表单 — 白底发丝边 + 粉色聚焦光晕，胶囊化 */
-input, select, textarea {
+/* 表单 — 白底发丝边 + 粉色聚焦光晕；单行胶囊化，多行 textarea 小圆角避免文字被圆角切 */
+input, select {
   background: rgb(255 255 255) !important;
   border: 1px solid rgb(0 0 0 / 0.1) !important;
   border-radius: 9999px !important;
+  color: rgb(var(--ide-text)) !important;
+}
+textarea {
+  background: rgb(255 255 255) !important;
+  border: 1px solid rgb(0 0 0 / 0.1) !important;
+  border-radius: 12px !important;
   color: rgb(var(--ide-text)) !important;
 }
 input:focus, select:focus, textarea:focus {
