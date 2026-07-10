@@ -271,6 +271,27 @@
   box-shadow: 0 4px 14px rgb(255 64 129 / 0.4) !important;
 }
 
+/* Push 分体按钮 — 胶囊化：左钮左圆右方、右钮右圆左方，合一枚胶囊 + 粉色渐变（与 commit 钮同语言） */
+.git-tab__push-group button {
+  border: none !important;
+  background: linear-gradient(135deg, rgb(255 64 129), rgb(255 110 150)) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 8px rgb(255 64 129 / 0.28) !important;
+  transition: filter 0.15s, box-shadow 0.15s !important;
+}
+.git-tab__push-group button:first-child {
+  border-radius: 9999px 0 0 9999px !important;
+}
+.git-tab__push-group button:last-child {
+  border-radius: 0 9999px 9999px 0 !important;
+  border-left: 1px solid rgb(255 255 255 / 0.25) !important;
+}
+.git-tab__push-group button:hover {
+  filter: brightness(1.06) !important;
+  box-shadow: 0 4px 14px rgb(255 64 129 / 0.4) !important;
+}
+
 /* 右侧面板 — 白底圆角容器 + 胶囊 tab */
 .right-panel__content {
   background: rgb(var(--ide-panel)) !important;

@@ -1456,7 +1456,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           )}
           {status.clean && status.ahead > 0 ? (
             <div className="relative mt-2">
-              <div className="flex">
+              <div className="flex git-tab__push-group">
                 <button
                   onClick={handlePush}
                   disabled={busy}
