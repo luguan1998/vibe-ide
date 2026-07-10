@@ -370,6 +370,12 @@ export default function App() {
   })
   const escAutoAtRef = useRef(escAutoAt)
   escAutoAtRef.current = escAutoAt
+  const [recentFilesPanelEnabled, setRecentFilesPanelEnabled] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-recent-files-panel') === 'true' } catch { return false }
+  })
+  const [outlineOverlayEnabled, setOutlineOverlayEnabled] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-outline-overlay') !== 'false' } catch { return true }
+  })
 
   const [ocrEnabled, setOcrEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-ocr-enabled') !== '0' } catch { return true }
@@ -598,6 +604,12 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-esc-auto-at', String(escAutoAt)) } catch {}
   }, [escAutoAt])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-recent-files-panel', String(recentFilesPanelEnabled)) } catch {}
+  }, [recentFilesPanelEnabled])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-outline-overlay', String(outlineOverlayEnabled)) } catch {}
+  }, [outlineOverlayEnabled])
 
   // Keep refs in sync for use in capture-phase keyboard handlers
   React.useEffect(() => { showHistoryRef.current = showHistory }, [showHistory])
@@ -1966,6 +1978,10 @@ export default function App() {
             onToggleGroupSessionsByCwd={setGroupSessionsByCwd}
             escAutoAt={escAutoAt}
             onToggleEscAutoAt={setEscAutoAt}
+            recentFilesPanelEnabled={recentFilesPanelEnabled}
+            onToggleRecentFilesPanel={setRecentFilesPanelEnabled}
+            outlineOverlayEnabled={outlineOverlayEnabled}
+            onToggleOutlineOverlay={setOutlineOverlayEnabled}
             terminalFontSize={terminalFontSize}
             editorFontSize={editorFontSize}
             onAdjustTerminalFontSize={(delta: number) => setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))}
@@ -1997,10 +2013,13 @@ export default function App() {
             onCloneWithInit={handleCloneWithInit}
             sessionViewModes={sessionViewModes}
             onSwitchViewMode={handleSwitchViewMode}
+            recentFiles={recentFiles}
+            onOpenRecentFile={handleOpenRecentFile}
+            onRemoveRecentFile={removeRecentFile}
           />
           </div>
           {/* Outline: overlay covering entire left panel below title bar */}
-          {centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath)) && (
+          {centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath)) && outlineOverlayEnabled && (
             <div className="absolute left-2 right-2 bottom-2 border border-ide-border rounded-lg overflow-hidden z-10 bg-ide-sidebar" style={{ top: 44 }}>
               <OutlinePanel
                 key={diffFile.fullPath}
@@ -2012,7 +2031,7 @@ export default function App() {
               />
             </div>
           )}
-          {centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath) && (
+          {centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath) && outlineOverlayEnabled && (
             <div className="absolute left-2 right-2 bottom-2 border border-ide-border rounded-lg overflow-hidden z-10 bg-ide-sidebar" style={{ top: 44 }}>
               <OutlinePanel
                 key={markdownFile.fullPath}

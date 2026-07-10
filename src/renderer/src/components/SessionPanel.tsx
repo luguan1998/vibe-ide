@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react'
-import { TerminalSession, SnippetInfo, SnippetsLoadResult } from '@shared/types'
+import { TerminalSession, SnippetInfo, SnippetsLoadResult, RecentFileEntry } from '@shared/types'
 import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, FolderOpen, RefreshCw } from 'lucide-react'
 import { useTheme } from '../themes'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
@@ -7,6 +7,7 @@ import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
 import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand } from './CustomCommands'
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
+import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 
 // CWD 图标：按目录分配（标题行）
 const DEFAULT_CWD_EMOJIS = ['🧩', '📌', '📁', '🚀', '🏷️', '🎯', '🗺️', '🔗']
@@ -205,6 +206,13 @@ interface SessionPanelProps {
   termFontFamily?: string
   onSetTermFontFamily?: (font: string) => void
   onResetUiStyle?: () => void
+  recentFiles?: RecentFileEntry[]
+  onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
+  onRemoveRecentFile?: (fullPath: string) => void
+  recentFilesPanelEnabled?: boolean
+  onToggleRecentFilesPanel?: (v: boolean) => void
+  outlineOverlayEnabled?: boolean
+  onToggleOutlineOverlay?: (v: boolean) => void
 }
 
 const SessionPanel = React.memo(function SessionPanel({
@@ -267,6 +275,13 @@ const SessionPanel = React.memo(function SessionPanel({
   termFontFamily = 'Cascadia Code',
   onSetTermFontFamily,
   onResetUiStyle,
+  recentFiles = [],
+  onOpenRecentFile,
+  onRemoveRecentFile,
+  recentFilesPanelEnabled = false,
+  onToggleRecentFilesPanel,
+  outlineOverlayEnabled = true,
+  onToggleOutlineOverlay,
 }: SessionPanelProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [appVersion, setAppVersion] = useState('')
@@ -626,6 +641,8 @@ const SessionPanel = React.memo(function SessionPanel({
     const idle = total - running
     return { running, idle }
   }, [sessions, agentStatus])
+
+  const recentTop5 = recentFiles.slice(0, 5)
 
   const renderSessionItem = (
     session: TerminalSession,
@@ -1227,6 +1244,43 @@ const SessionPanel = React.memo(function SessionPanel({
       {/* Custom Commands */}
       <CustomCommands ref={commandsRef} onExecuteCommand={onExecuteCommand} onInitCommand={onInitCommand} onPipeCommand={onPipeCommand} />
 
+      {recentFilesPanelEnabled && recentTop5.length > 0 && (
+        <div className="shrink-0">
+          {recentTop5.map(f => {
+            const baseName = f.path.split(/[\\/]/).pop() || f.path
+            const info = getFileInfo(baseName)
+            return (
+              <div
+                key={f.path}
+                className="group px-3 py-1 cursor-pointer transition-colors relative min-h-[32px] session-item text-ide-text-muted hover:bg-ide-hover hover:text-ide-text"
+                title={f.path}
+                onClick={() => onOpenRecentFile?.(f.path, f.line)}
+              >
+                <div className="flex items-center justify-between min-h-[32px]">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
+                      dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+                    <span className="truncate min-w-0 text-sm session-item__name">{baseName}</span>
+                  </div>
+                  <div className="flex items-center session-item__actions">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onRemoveRecentFile?.(f.path) }}
+                      className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
+                      title={t('Remove')}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       </div>
 
       {/* Context Menu */}
@@ -1645,6 +1699,24 @@ const SessionPanel = React.memo(function SessionPanel({
                     <span className="text-xs text-ide-text">{t('ESC Auto @ Selection')}</span>
                   </div>
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('When pressing ESC in diff view with text selected, auto-insert @filepath:line into the terminal.')}</p>
+                </label>
+              )}
+              {onToggleRecentFilesPanel && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={recentFilesPanelEnabled} onChange={(e) => onToggleRecentFilesPanel(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('Recent Files Panel')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Show recently opened files at the bottom of the session panel')}</p>
+                </label>
+              )}
+              {onToggleOutlineOverlay && (
+                <label className="flex flex-col gap-0.5 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={outlineOverlayEnabled} onChange={(e) => onToggleOutlineOverlay(e.target.checked)} className="accent-ide-accent" />
+                    <span className="text-xs text-ide-text">{t('Outline')}</span>
+                  </div>
+                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Show code outline over the session panel when viewing a file. Disable to keep the session list visible.')}</p>
                 </label>
               )}
             </div>
