@@ -120,7 +120,7 @@ function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
   return (
     <div className={`ai-tab__markdown md-preview text-sm ${className}`} onClick={handleClick}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={codeOverrides}>
-        {text}
+        {cleanMessageContent(text)}
       </ReactMarkdown>
     </div>
   )
@@ -135,17 +135,18 @@ function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: 
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
 }) {
   const codeOverrides = useStableCodeOverrides()
+  const clean = cleanMessageContent(text)
   const fenceRe = /```/g
   let count = 0
   let lastCloseIdx = -1
   let m: RegExpExecArray | null
-  while ((m = fenceRe.exec(text)) !== null) {
+  while ((m = fenceRe.exec(clean)) !== null) {
     count++
     if (count % 2 === 0) lastCloseIdx = m.index + 3
   }
   const isCodeOpen = count % 2 !== 0
-  const safePart = isCodeOpen ? (lastCloseIdx >= 0 ? text.slice(0, lastCloseIdx) : '') : text
-  const rawPart = isCodeOpen ? text.slice(lastCloseIdx >= 0 ? lastCloseIdx : 0) : ''
+  const safePart = isCodeOpen ? (lastCloseIdx >= 0 ? clean.slice(0, lastCloseIdx) : '') : clean
+  const rawPart = isCodeOpen ? clean.slice(lastCloseIdx >= 0 ? lastCloseIdx : 0) : ''
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (!workspacePath || !onOpenFile) return
@@ -498,14 +499,17 @@ function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, o
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showPopover])
 
+  const cleanedContent = cleanMessageContent(message.content || '')
+  if (!cleanedContent) return null
+
   return (
     <div className="ai-tab__message ai-tab__message--user flex justify-end animate-fade-in">
       <div className="ai-tab__message-wrap max-w-[85%] relative"
         onMouseEnter={() => { clearHideTimer(); setShowPopover(true) }}
         onMouseLeave={() => { hideTimerRef.current = setTimeout(() => setShowPopover(false), 300) }}
       >
-        <div className="ai-tab__user-bubble px-3 py-2 rounded-2xl rounded-tr-md bg-ide-accent/12 border-2 border-ide-accent/30 text-ide-text text-sm whitespace-pre-wrap">
-          {message.content}
+        <div className="ai-tab__user-bubble px-3 py-2 rounded-2xl bg-ide-accent/12 border-2 border-ide-accent/30 text-ide-text text-sm whitespace-pre-wrap">
+          {cleanedContent}
         </div>
 
         {showPopover && (
@@ -562,15 +566,15 @@ function ThinkingBlock({ text, defaultOpen = false, durationMs }: { text: string
         onClick={() => setOpen(v => !v)}
         className="ai-tab__thinking-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
       >
-        <svg role="img" width="12px" height="12px" viewBox="0 0 24 24" aria-labelledby="lightBulbIconTitle" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" fill="none" className="shrink-0">
+        <span className="shrink-0"><svg role="img" width="12px" height="12px" viewBox="0 0 24 24" aria-labelledby="lightBulbIconTitle" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" fill="none">
           <title id="lightBulbIconTitle">Light Bulb</title>
           <path d="M16 12C15.3333333 12.6666667 15 14 15 16L15 17 9 17 9 16C9 14 8.66666667 12.6666667 8 12 5.6739597 9.6739597 5.41421356 6.10050506 7.75735931 3.75735931 10.1005051 1.41421356 13.8994949 1.41421356 16.2426407 3.75735931 18.5857864 6.10050506 18.4068484 9.59315157 16 12zM10 21L14 21"/>
-        </svg>
+        </svg></span>
         <span className="shrink-0 leading-none">{label}</span>
       </button>
       {open && (
         <div className="ai-tab__thinking-content mt-1 px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
-          <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">{text}</pre>
+          <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">{cleanMessageContent(text)}</pre>
         </div>
       )}
     </div>
@@ -604,7 +608,7 @@ function CollapsedToolsSummary({ tools }: { tools: AiToolUse[] }) {
         onClick={() => setExpanded(v => !v)}
         className="ai-tab__tools-summary-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/15 transition-colors"
       >
-        <ToolIcon category="default" />
+        <span className="shrink-0"><ToolIcon category="default" /></span>
         <span className="shrink-0 leading-none">tools * {tools.length}</span>
         <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
@@ -627,24 +631,21 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   const { t } = useI18n()
   const hideTools = viewMode === 1 || viewMode === 2
   const hideThink = viewMode === 2
-  const showMeta = message.type === 'result' && (message.costUsd != null || message.numTurns != null)
+  const showMeta = message.type === 'result' && (message.costUsd != null || message.numTurns != null || message.isAborted || message.durationMs != null)
   const showContent = message.type !== 'result'
   const hasContent = showContent && (message.content || message.thinking || (message.toolUse && message.toolUse.length > 0))
 
-  // Status pill for result messages — abort takes precedence over subtype errors
-  const statusConfig = message.type === 'result' && message.isAborted
-    ? { label: t('Aborted'), color: 'text-ide-text-muted/60' }
-    : message.subtype === 'error_max_tokens'
-      ? { label: t('Max tokens reached'), color: 'text-ide-warning' }
-      : message.subtype === 'error_during_execution'
-        ? { label: t('Execution failed'), color: 'text-ide-danger' }
-        : null
+  const errorStatus = !message.isAborted && message.subtype === 'error_max_tokens'
+    ? { label: t('Max tokens reached'), color: 'text-ide-warning' }
+    : !message.isAborted && message.subtype === 'error_during_execution'
+      ? { label: t('Execution failed'), color: 'text-ide-danger' }
+      : null
 
   return (
     <div className="ai-tab__message ai-tab__message--assistant space-y-1 animate-fade-in">
-      {statusConfig && (
-        <div className={`ai-tab__status-pill text-[9px] font-medium px-1 ${statusConfig.color}`}>
-          {statusConfig!.label}
+      {errorStatus && (
+        <div className={`ai-tab__status-pill text-[9px] font-medium px-1 ${errorStatus.color}`}>
+          {errorStatus!.label}
         </div>
       )}
       {hasContent && (
@@ -662,12 +663,24 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
           <span className="inline-flex items-center gap-0.5">
             <span className="text-sm">✻</span>
             <span>Churned for {((message.durationMs || 0) / 1000).toFixed(1)}s</span>
+            {message.isAborted && <span className="text-ide-text-muted/40"> · paused by user</span>}
           </span>
           {copyText && <CopyButton text={copyText} />}
         </div>
       )}
     </div>
   )
+}
+
+function cleanMessageContent(raw: string): string {
+  return raw
+    .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/g, '')
+    .replace(/<command-name>[\s\S]*?<\/command-name>/g, '')
+    .replace(/<command-message>[\s\S]*?<\/command-message>/g, '')
+    .replace(/<command-args>[\s\S]*?<\/command-args>/g, '')
+    .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/g, '')
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
+    .trim()
 }
 
 function AiErrorMessage({ message }: { message: AiMessage }) {

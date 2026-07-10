@@ -767,6 +767,12 @@ export default function App() {
 
   const sendDraftLine = useCallback(async (sessionId: string | null | undefined, text: string) => {
     if (!sessionId) return
+    const isGui = sessionViewModesRef.current[sessionId] === 'gui'
+    if (isGui) {
+      aiTabRefs.current[sessionId]?.setValue(text)
+      aiTabRefs.current[sessionId]?.focus()
+      return
+    }
     window.api.terminal.write(sessionId, text + '\r')
     await new Promise<void>(resolve => {
       const timer = setTimeout(() => {

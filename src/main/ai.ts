@@ -42,6 +42,12 @@ export interface ManagedAiSession {
   seenToolUseIds?: Set<string>
 }
 
+const LOCAL_CMD_TAG_RE = /<local-command-caveat>[\s\S]*?<\/local-command-caveat>|<command-name>[\s\S]*?<\/command-name>|<command-message>[\s\S]*?<\/command-message>|<command-args>[\s\S]*?<\/command-args>|<local-command-stdout>[\s\S]*?<\/local-command-stdout>|<system-reminder>[\s\S]*?<\/system-reminder>/g
+
+function cleanText(s: string): string {
+  return s.replace(LOCAL_CMD_TAG_RE, '').trim()
+}
+
 export const aiSessions = new Map<string, ManagedAiSession>()
 // Reverse map: CLI session ID (e.g. "claude-xxx") → renderer session ID ("term-xxxxx")
 // Used by loadSessionMessages to look up contextWindow from the correct aiSessions entry.
@@ -257,8 +263,8 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         role: 'assistant',
         messageId: msg.message?.id,
         model: msg.message?.model,
-        content: textParts.join('\n'),
-        thinking: thinkingParts.length > 0 ? thinkingParts.join('\n') : undefined,
+        content: cleanText(textParts.join('\n')),
+        thinking: thinkingParts.length > 0 ? cleanText(thinkingParts.join('\n')) : undefined,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
         parentToolUseId: parentToolUseId || undefined,
         contextPercent: calcContextPercent(msg.message?.usage, session?.contextWindow),
@@ -568,12 +574,15 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
         }
       }
       if (textParts.length === 0 && toolUses.length === 0 && thinkingParts.length === 0) continue
+      const assistantContent = cleanText(textParts.join('\n')) || undefined
+      const assistantThinking = thinkingParts.length > 0 ? cleanText(thinkingParts.join('\n')) : undefined
+      if (!assistantContent && !assistantThinking && toolUses.length === 0) continue
       messages.push({
         sessionId: sid, type: 'assistant', role: 'assistant',
         messageId: msg.message?.id,
         model: msg.message?.model,
-        content: textParts.join('\n') || undefined,
-        thinking: thinkingParts.length > 0 ? thinkingParts.join('\n') : undefined,
+        content: assistantContent,
+        thinking: assistantThinking,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
         contextPercent: calcContextPercent(msg.message?.usage, getContextWindowForCliSession(sid)),
         timestamp: ts,
@@ -585,10 +594,12 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
       const userContent = msg.message?.content
       // String content: simple user message
       if (typeof userContent === 'string') {
+        const cleanedUserContent = cleanText(userContent)
+        if (!cleanedUserContent) continue
         messages.push({
           sessionId: sid, type: 'user', role: 'user',
           messageId: msg.message?.id,
-          content: userContent, timestamp: ts,
+          content: cleanedUserContent, timestamp: ts,
         })
         continue
       }
