@@ -715,6 +715,7 @@ const retroChinese: IDETheme = {
 
 export const THEMES: IDETheme[] = [
   vscodeDark,
+  githubLight,
   vibeDark,
   oneDark,
   dracula,
@@ -723,7 +724,6 @@ export const THEMES: IDETheme[] = [
   solarizedLight,
   monokai,
   monokaiPro,
-  githubLight,
   monkeyKing,
   retroChinese,
   miku,

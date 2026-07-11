@@ -242,26 +242,29 @@ function AiToolCallCard({ tool }: { tool: AiToolUse }) {
   const category = getToolCategory(tool.name)
   const isFileEdit = category === 'file'
   const hasResult = !!tool.result
-  const detail = tool.input?.file_path || tool.input?.command || ''
+  const rawPath = tool.input?.file_path || ''
+  const detail = rawPath.length > 32
+    ? rawPath.slice(0, 15) + '...' + rawPath.slice(-14)
+    : rawPath || tool.input?.command || ''
   return (
     <div className="ai-tab__tool-call inline-block max-w-full animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
-        className={`ai-tab__tool-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] leading-none font-mono transition-colors ${
+        className={`ai-tab__tool-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${
           isFileEdit ? 'bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25' : 'bg-ide-hover text-ide-text-muted hover:bg-ide-active'
         }`}
       >
         <span className="shrink-0"><ToolIcon category={category} /></span>
-        <span className="shrink-0 leading-none">{tool.name}</span>
-        {detail && <span className="ai-tab__tool-detail-preview truncate max-w-[140px] opacity-60 text-[9px] leading-none">{detail}</span>}
+        <span className="shrink-0 leading-none">{tool.name}{' '}</span>
+        {detail && <span className="ai-tab__tool-detail-preview truncate flex-1 min-w-0 opacity-60 text-[10px] leading-none">{detail}</span>}
         {hasResult && (
-          <span className={`ai-tab__tool-status shrink-0 text-[9px] leading-none ${tool.result!.isError ? 'text-ide-danger' : 'text-ide-success'}`}>
+          <span className={`ai-tab__tool-status shrink-0 text-[10px] leading-none ${tool.result!.isError ? 'text-ide-danger' : 'text-ide-success'}`}>
             {tool.result!.isError ? '✗' : '✓'}
           </span>
         )}
       </button>
       {expanded && (
-        <div className="ai-tab__tool-detail-panel mt-1 px-2 py-1 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-1 max-h-48 overflow-y-auto">
+        <div className="ai-tab__tool-detail-panel mt-0.5 px-2 py-1 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-0.5 max-h-48 overflow-y-auto">
           {hasResult && (
             <div className={tool.result!.isError ? 'text-ide-danger/80' : 'text-ide-text'}>
               <pre className="whitespace-pre-wrap break-words text-[11px]">{tool.result!.content}</pre>
@@ -651,9 +654,9 @@ function ThinkingBlock({ text, defaultOpen = false, durationMs }: { text: string
     <div className="ai-tab__thinking max-w-full animate-fade-in">
       <button
         onClick={() => setOpen(v => !v)}
-        className="ai-tab__thinking-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
+        className="ai-tab__thinking-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
       >
-        <span className="shrink-0"><svg role="img" width="12px" height="12px" viewBox="0 0 24 24" aria-labelledby="lightBulbIconTitle" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" fill="none">
+        <span className="shrink-0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3" aria-labelledby="lightBulbIconTitle">
           <title id="lightBulbIconTitle">Light Bulb</title>
           <path d="M16 12C15.3333333 12.6666667 15 14 15 16L15 17 9 17 9 16C9 14 8.66666667 12.6666667 8 12 5.6739597 9.6739597 5.41421356 6.10050506 7.75735931 3.75735931 10.1005051 1.41421356 13.8994949 1.41421356 16.2426407 3.75735931 18.5857864 6.10050506 18.4068484 9.59315157 16 12zM10 21L14 21"/>
         </svg></span>
@@ -700,7 +703,7 @@ function CollapsedToolsSummary({ tools }: { tools: AiToolUse[] }) {
         <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
       {expanded && (
-        <div className="ai-tab__tools-summary-list mt-1 flex flex-col gap-1 animate-fade-in">
+        <div className="ai-tab__tools-summary-list mt-px flex flex-col gap-px animate-fade-in">
           {tools.map(tool => <AiToolCallCard key={tool.id} tool={tool} />)}
         </div>
       )}
@@ -1543,7 +1546,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         </div>
       )}
       {/* Messages */}
-      <div ref={scrollContainerRef} className="ai-tab__messages flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-2">
+      <div ref={scrollContainerRef} className="ai-tab__messages flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-1">
         {state.messages.length === 0 && !state.streaming && (
           <div className="ai-tab__empty flex flex-col items-center justify-center text-ide-text-muted text-xs pt-8 space-y-3 animate-fade-in">
             <div className="ai-tab__empty-icon animate-zap-glow text-ide-accent">
