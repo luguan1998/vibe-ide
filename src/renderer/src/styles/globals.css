@@ -80,17 +80,21 @@ html, body, #root {
   background-color: rgb(var(--monaco-margin-bg)) !important;
 }
 
-/* Alt 画笔模式：标题栏鼠标变 🖌️ 羽毛笔（Alt 按下即生效，复制路径用） */
-.diff-brush-mode .diff-titlebar,
-.diff-brush-mode .diff-titlebar *,
+/* Alt 画笔模式：羽毛笔光标（Alt 按下即生效） */
+.diff-brush-mode,
+.diff-brush-mode *,
 .alt-copy-mode,
 .alt-copy-mode * {
   cursor: var(--brush-cursor, crosshair) !important;
 }
-/* 代码区羽毛笔：仅草稿计划开启时（annotationMode） */
+/* 代码区羽毛笔：Monaco 是 overlay 不在 .diff-brush-mode 子树内，需独立触发 */
 .diff-brush-code .monaco-editor,
 .diff-brush-code .monaco-editor * {
   cursor: var(--brush-cursor, crosshair) !important;
+}
+
+.ai-tab__plan-content {
+  position: relative;
 }
 
 /* Monaco diff: 去掉中间蓝线 — sash ::before + 编辑器 focus outline */

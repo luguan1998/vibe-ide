@@ -357,6 +357,8 @@ const ZH_MAP: Record<string, string> = {
   'multi-select': '可多选',
   // AI ExitPlanMode card
   'Plan Ready': '计划已就绪',
+  'Hold Alt + click to annotate': '按住 Alt 点击可批注',
+  'Write annotation, Enter to confirm...': '输入批注，Enter 确认...',
   'Clear & Execute': '清空并执行',
   'Switch & Execute': '切换并执行',
   'Send Feedback': '发送反馈',

@@ -23,6 +23,8 @@ interface AiTabProps {
   onForkSession?: (userMessageIndex: number) => void
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   resumeSessionId?: string
+  altBrush?: boolean
+  annotationMode?: boolean
 }
 
 export interface AiTabHandle {
@@ -440,11 +442,93 @@ const AiPermissionCard = React.memo(function AiPermissionCard({ perm, sessionId,
   )
 })
 
+function getSectionReference(el: HTMLElement): { heading: string | null; snippet: string } {
+  const BLOCK_TAGS = new Set(['P', 'LI', 'TD', 'TH', 'BLOCKQUOTE', 'DD', 'DT', 'FIGCAPTION', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'])
+
+  let blockEl: HTMLElement | null = el
+  while (blockEl && !BLOCK_TAGS.has(blockEl.tagName)) {
+    blockEl = blockEl.parentElement
+  }
+  const snippet = ((blockEl || el).textContent || '').trim().slice(0, 80)
+
+  let node: HTMLElement | null = blockEl || el
+  while (node) {
+    if (/^H[1-6]$/.test(node.tagName)) {
+      const heading = (node.textContent || '').trim()
+      return { heading: heading !== snippet ? heading : null, snippet }
+    }
+    let prev = node.previousElementSibling as HTMLElement | null
+    while (prev) {
+      if (/^H[1-6]$/.test(prev.tagName)) {
+        const heading = (prev.textContent || '').trim()
+        return { heading, snippet }
+      }
+      prev = prev.previousElementSibling as HTMLElement | null
+    }
+    node = node.parentElement
+  }
+  return { heading: null, snippet }
+}
+
+function InlineAnnotationInput({ top, left, containerRef, onSubmit, onDismiss }: {
+  top: number; left: number; containerRef: React.RefObject<HTMLDivElement | null>
+  onSubmit: (text: string) => void; onDismiss: () => void
+}) {
+  const { t } = useI18n()
+  const [value, setValue] = useState('')
+  const taRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    taRef.current?.focus()
+  }, [])
+
+  const commit = useCallback(() => {
+    const t = value.trim()
+    if (t) onSubmit(t)
+    else onDismiss()
+  }, [value, onSubmit, onDismiss])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      commit()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      onDismiss()
+    }
+  }, [commit, onDismiss])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const handler = () => onDismiss()
+    container.addEventListener('scroll', handler, { once: true })
+    return () => container.removeEventListener('scroll', handler)
+  }, [containerRef, onDismiss])
+
+  return (
+    <div className="ai-tab__annotation-input absolute z-30 animate-fade-in" style={{ top, left }}>
+      <textarea
+        ref={taRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={onDismiss}
+        rows={2}
+        placeholder={t('Write annotation, Enter to confirm...')}
+        className="w-56 bg-ide-sidebar border border-ide-accent/60 rounded-lg px-2.5 py-1.5 text-xs text-ide-text placeholder:text-ide-text-muted/50 resize-none focus:outline-none focus:border-ide-accent shadow-lg leading-relaxed"
+      />
+    </div>
+  )
+}
+
 // ExitPlanMode approval card. Plan content is already on disk (perm.toolInput.planFilePath);
 // "Clear & Execute" kills the plan-mode subprocess and respawns in acceptEdits mode with the
 // plan re-injected as first message — clears the inflated context from exploration.
 // "Send Feedback" denies with a feedback message so the model revises the plan.
-const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onClearExecute, onDeny, workspacePath, onOpenFile, model }: {
+const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onClearExecute, onDeny, workspacePath, onOpenFile, model, altBrush, annotationMode }: {
   perm: AiPermissionRequest
   sessionId: string
   onClearExecute: (sessionId: string, planFilePath: string, model?: string) => void
@@ -452,6 +536,8 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   model: string
+  altBrush?: boolean
+  annotationMode?: boolean
 }) {
   const { t } = useI18n()
   const plan = (perm.toolInput?.plan as string) || ''
@@ -459,6 +545,8 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
   const [feedback, setFeedback] = useState('')
   const [switchOpen, setSwitchOpen] = useState(false)
   const switchRef = useRef<HTMLDivElement>(null)
+  const [annotationInput, setAnnotationInput] = useState<{ top: number; left: number; heading: string | null; snippet: string } | null>(null)
+  const planContentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!switchOpen) return
@@ -478,15 +566,65 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
     return () => document.removeEventListener('keydown', handler)
   }, [switchOpen])
 
+  const handleAnnotationSubmit = useCallback((text: string) => {
+    setAnnotationInput(null)
+    if (!text.trim()) return
+    const ref = annotationInput
+    let line: string
+    if (ref?.heading) {
+      line = `**${ref.heading}** "${ref.snippet}" → ${text.trim()}`
+    } else if (ref?.snippet) {
+      line = `"${ref.snippet}" → ${text.trim()}`
+    } else {
+      line = text.trim()
+    }
+    setFeedback(prev => prev ? `${prev}\n\n${line}` : line)
+  }, [annotationInput])
+
+  const handlePlanClick = useCallback((e: React.MouseEvent) => {
+    if (!altBrush) return
+    const target = e.target as HTMLElement
+    if (target.closest('a, pre')) return
+    if (window.getSelection()?.toString().trim()) return
+    e.preventDefault()
+    e.stopPropagation()
+    const container = planContentRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const { heading, snippet } = getSectionReference(target)
+    setAnnotationInput({
+      top: e.clientY - rect.top + container.scrollTop,
+      left: e.clientX - rect.left,
+      heading,
+      snippet
+    })
+  }, [altBrush])
+
+  const brushClass = altBrush ? ' diff-brush-mode' : ''
+
   return (
     <div className="ai-tab__plan-overlay absolute inset-0 z-20 flex flex-col bg-ide-bg/95 backdrop-blur-sm px-3 py-2.5 animate-fade-in">
       <div className="flex items-center gap-1.5 mb-1.5 shrink-0">
         <FileText size={15} className="text-ide-accent shrink-0" />
         <span className="text-[13px] font-medium text-ide-accent">{t('Plan Ready')}</span>
+        <span className="text-[11px] text-ide-text-muted/40 ml-1.5">{t('Hold Alt + click to annotate')}</span>
       </div>
 
-      <div className="ai-tab__plan-content flex-1 min-h-0 overflow-y-auto mb-1.5 bg-ide-bg/60 rounded px-2 py-1.5 border border-ide-border/40">
+      <div
+        ref={planContentRef}
+        className={`ai-tab__plan-content flex-1 min-h-0 overflow-y-auto mb-1.5 bg-ide-bg/60 rounded px-2 py-1.5 border border-ide-border/40${brushClass}`}
+        onClickCapture={handlePlanClick}
+      >
         <ChatMarkdown text={plan} workspacePath={workspacePath} onOpenFile={onOpenFile} />
+        {annotationInput && (
+          <InlineAnnotationInput
+            top={annotationInput.top}
+            left={annotationInput.left}
+            containerRef={planContentRef}
+            onSubmit={handleAnnotationSubmit}
+            onDismiss={() => setAnnotationInput(null)}
+          />
+        )}
       </div>
 
       <div className="rounded-2xl border border-ide-accent/60 bg-ide-sidebar shadow-sm transition-colors focus-within:border-ide-accent mb-1.5 shrink-0">
@@ -1181,7 +1319,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 
-const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId }, ref) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, altBrush, annotationMode }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1425,12 +1563,18 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       : null
 
   // ── Copy entire conversation ──
+  const [conversationCopied, setConversationCopied] = useState(false)
   const handleCopyConversation = useCallback(() => {
     const text = state.messages
       .filter(m => m.role && m.content)
       .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}:\n${m.content}`)
       .join('\n\n---\n\n')
-    if (text) navigator.clipboard.writeText(text)
+    if (text) {
+      navigator.clipboard.writeText(text).then(() => {
+        setConversationCopied(true)
+        setTimeout(() => setConversationCopied(false), 1500)
+      })
+    }
   }, [state.messages])
 
   return (
@@ -1450,7 +1594,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
             title={t('Copy Conversation')}
           >
-            <Copy size={14} />
+            {conversationCopied ? <Check size={14} className="text-ide-accent" /> : <Copy size={14} />}
           </button>
           {/* Toggle tool visibility */}
           <button
@@ -1821,6 +1965,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           workspacePath={workspacePath}
           onOpenFile={onOpenFile}
           model={state.model}
+          altBrush={altBrush}
+          annotationMode={annotationMode}
         />
       )}
     </div>
