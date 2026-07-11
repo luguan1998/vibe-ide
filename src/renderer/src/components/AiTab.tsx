@@ -44,8 +44,9 @@ const PLAN_TOOLS = new Set(['ExitPlanMode', 'EnterPlanMode'])
 const SKILL_TOOLS = new Set(['Skill'])
 const AGENT_TOOLS = new Set(['Agent'])
 const QUESTION_TOOLS = new Set(['AskUserQuestion'])
+const TASK_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'TaskOutput', 'TaskStop'])
 
-function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'default' {
+function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'task' | 'default' {
   if (AI_FILE_EDIT_TOOLS.has(name)) return 'file'
   if (COMMAND_TOOLS.has(name)) return 'command'
   if (SEARCH_TOOLS.has(name)) return 'search'
@@ -54,6 +55,7 @@ function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 
   if (SKILL_TOOLS.has(name)) return 'skill'
   if (AGENT_TOOLS.has(name)) return 'agent'
   if (QUESTION_TOOLS.has(name)) return 'question'
+  if (TASK_TOOLS.has(name)) return 'task'
   return 'default'
 }
 
@@ -77,10 +79,6 @@ function getLanguageFromFilePath(path: string): string {
   const ext = path.split('.').pop()?.toLowerCase() || ''
   return DIFF_LANG_MAP[ext] || 'plaintext'
 }
-
-// ── Task tools ────────────────────────────────────────────────────
-
-const TASK_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'TaskOutput', 'TaskStop'])
 
 interface TodoItem {
   id: string
@@ -208,7 +206,7 @@ function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: 
   )
 }
 
-function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'default' }) {
+function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'task' | 'default' }) {
   const cls = "w-3 h-3 shrink-0"
   if (category === 'skill') return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
@@ -234,6 +232,13 @@ function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className={cls}>
       <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.848 2.047a.75.75 0 0 0 .98.98l2.047-.848a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.474Z" />
       <path d="M4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z" />
+    </svg>
+  )
+  if (category === 'task') return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+      <line x1="11" y1="5" x2="19" y2="5" /><circle cx="5.5" cy="5" r="1.5" />
+      <line x1="11" y1="12" x2="19" y2="12" /><circle cx="5.5" cy="12" r="1.5" />
+      <line x1="11" y1="19" x2="19" y2="19" /><circle cx="5.5" cy="19" r="1.5" />
     </svg>
   )
   if (category === 'command') return (

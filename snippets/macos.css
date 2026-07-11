@@ -51,7 +51,7 @@
 /* 统计徽章 — 无边框纯图标 */
 .session-panel__stat {
   border: none !important;
-  background: transparent !important;
+  background: rgba(255 255 255 / 0.45) !important;
   box-shadow: none !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
