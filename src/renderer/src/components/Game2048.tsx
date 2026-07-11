@@ -99,7 +99,7 @@ function hasWon(grid: number[][]): boolean {
   return false
 }
 
-type GameState = 'idle' | 'playing' | 'won' | 'over'
+type GameState = 'playing' | 'won' | 'over'
 
 const TILE_COLORS: Record<number, { bg: string; text: string }> = {
   2: { bg: '#eee4da', text: '#776e65' },
@@ -116,13 +116,25 @@ const TILE_COLORS: Record<number, { bg: string; text: string }> = {
 }
 
 export default function Game2048({ onBack }: { onBack?: () => void }) {
-  const [grid, setGrid] = useState<number[][]>(createEmptyGrid)
+  const initGrid = useCallback(() => {
+    const { grid: g1 } = addRandomTile(createEmptyGrid())
+    const { grid: g2, pos } = addRandomTile(g1)
+    return { grid: g2, popPos: pos }
+  }, [])
+
+  const [initialState] = useState(initGrid)
+  const [grid, setGrid] = useState<number[][]>(initialState.grid)
   const [score, setScore] = useState(0)
-  const [gameState, setGameState] = useState<GameState>('idle')
-  const [popIdx, setPopIdx] = useState(-1)
-  const gameStateRef = useRef<GameState>('idle')
+  const [gameState, setGameState] = useState<GameState>('playing')
+  const [popIdx, setPopIdx] = useState(initialState.popPos.row * 4 + initialState.popPos.col)
+  const gameStateRef = useRef<GameState>('playing')
 
   useEffect(() => { gameStateRef.current = gameState }, [gameState])
+
+  useEffect(() => {
+    const t = setTimeout(() => setPopIdx(-1), 150)
+    return () => clearTimeout(t)
+  }, [])
 
   const init = useCallback(() => {
     const { grid: g1 } = addRandomTile(createEmptyGrid())
@@ -157,13 +169,6 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     const handle = (e: KeyboardEvent) => {
-      if (gameStateRef.current === 'idle') {
-        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-          e.preventDefault()
-          init()
-        }
-        return
-      }
       if (gameStateRef.current === 'won' || gameStateRef.current === 'over') return
       switch (e.key) {
         case 'ArrowLeft': e.preventDefault(); slide('left'); break
@@ -246,20 +251,6 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
               )
             })}
           </div>
-
-          {/* Idle overlay */}
-          {gameState === 'idle' && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ide-bg/70 backdrop-blur-sm rounded-lg">
-              <div className="text-2xl select-none">🎮</div>
-              <div className="text-xs text-ide-text-muted/70">Use arrow keys to play</div>
-              <button
-                onClick={init}
-                className="px-5 py-1.5 text-sm bg-ide-accent hover:bg-ide-accent-hover text-white rounded-lg transition-colors font-medium"
-              >
-                Start
-              </button>
-            </div>
-          )}
 
           {/* Win overlay */}
           {gameState === 'won' && (
