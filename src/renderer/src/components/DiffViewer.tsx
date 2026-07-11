@@ -195,18 +195,27 @@ function computeRevertEdit(monaco: any, modEd: any, origEd: any, change: any, ho
     }
   }
 
-  const origText = origModel.getValueInRange(
-    new monaco.Range(oS, 1, oE, origModel.getLineMaxColumn(oE))
-  )
   if (mE === 0) {
+    const origText = origModel.getValueInRange(
+      new monaco.Range(oS, 1, oE, origModel.getLineMaxColumn(oE))
+    )
     const lineCount = modModel.getLineCount()
     const suffix = mS <= lineCount ? '\n' : ''
     return { range: new monaco.Range(mS, 1, mS, 1), text: origText + suffix }
   }
-  return {
-    range: new monaco.Range(mS, 1, mE, modModel.getLineMaxColumn(mE)),
-    text: origText
+  const offset = hoverLn - mS
+  if (offset >= 0 && offset <= oE - oS) {
+    const origLine = oS + offset
+    return {
+      range: new monaco.Range(hoverLn, 1, hoverLn, modModel.getLineMaxColumn(hoverLn)),
+      text: origModel.getLineContent(origLine)
+    }
   }
+  const lineCount = modModel.getLineCount()
+  if (hoverLn < lineCount) {
+    return { range: new monaco.Range(hoverLn, 1, hoverLn + 1, 1), text: '' }
+  }
+  return { range: new monaco.Range(hoverLn, 1, hoverLn, modModel.getLineMaxColumn(hoverLn)), text: '' }
 }
 
 // 取编辑器实际行高（EditorLayoutInfo.lineHeight 在 0.52 类型上不存在，用 getTopForLineNumber 实测）
@@ -1127,7 +1136,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               onClick={() => handleRevertLine(revertBtn.ln)}
             >
               <span aria-hidden>↩</span>
-              <span>{t('Revert')}</span>
+              <span>{t('单行')}</span>
             </button>
           </div>
         )}
