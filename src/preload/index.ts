@@ -233,8 +233,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_DESTROY, sessionId),
     respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>, feedback?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_PERMISSION_RESPONSE, { sessionId, requestId, approved, tool, toolInput, feedback }),
-    clearAndExecutePlan: (sessionId: string, planFilePath: string, model?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.AI_PLAN_EXECUTE, { sessionId, planFilePath, model }),
+    clearAndExecutePlan: (sessionId: string, planFilePath: string, model?: string, resume?: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_PLAN_EXECUTE, { sessionId, planFilePath, model, resume }),
     setPermissionMode: (sessionId: string, mode: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_PERMISSION_MODE, { sessionId, mode }),
     askResume: (sessionId: string, answers: Record<string, string>) =>

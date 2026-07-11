@@ -360,8 +360,9 @@ const ZH_MAP: Record<string, string> = {
   'Hold Alt + click to annotate': '按住 Alt 点击可批注',
   'Click to restore pet': '点击恢复宠物',
   'Write annotation, Enter to confirm...': '输入批注，Enter 确认...',
-  'Clear & Execute': '清空并执行',
-  'Switch & Execute': '切换并执行',
+  'Clear & Execute': '新会话执行',
+  'Clear & Execute Tooltip': '以全新会话、干净上下文执行修改',
+  'Switch Model': '切换执行模型',
   'Send Feedback': '发送反馈',
   'Feedback for revision (optional)': '修改建议（可选）',
   // AI Todo list

@@ -463,6 +463,7 @@ export interface AiPlanExecutePayload {
   sessionId: string
   planFilePath: string
   model?: string
+  resume?: boolean
 }
 
 // Switch permission mode at runtime via control_request subtype=set_permission_mode

@@ -36,6 +36,52 @@ export function registerPlanExecuteHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.AI_PLAN_EXECUTE, async (_event, payload: AiPlanExecutePayload) => {
     const { sessionId, planFilePath } = payload
 
+    const prev = aiSessions.get(sessionId)
+    const cwd = prev?.cwd || process.cwd()
+    const model = payload.model || prev?.model
+
+    if (payload.resume) {
+      // ── Resume path: kill + --resume respawn → restore full context ──
+
+      const claudeSessionId = prev?.claudeSessionId
+      if (!claudeSessionId) {
+        return { success: false, error: 'No claudeSessionId cached (system/init not received yet)' }
+      }
+
+      if (prev) {
+        killAiProcess(prev.process)
+        aiSessions.delete(sessionId)
+      }
+
+      const result = spawnClaude({ cwd, permissionMode: 'acceptEdits', model, resumeSessionId: claudeSessionId })
+      if ('error' in result) {
+        send(IPC_CHANNELS.AI_ERROR, {
+          sessionId,
+          error: result.error,
+          installCmd: result.installCmd,
+        })
+        return { success: false, error: result.error, installCmd: result.installCmd }
+      }
+
+      attachAiProcess(sessionId, result, cwd, model)
+
+      const newSession = aiSessions.get(sessionId)
+      if (newSession && prev) {
+        newSession.claudeSessionId = claudeSessionId
+        newSession.permissionMode = 'acceptEdits'
+        if (prev.contextWindow) newSession.contextWindow = prev.contextWindow
+      }
+
+      result.stdin!.write(JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: 'The plan has been approved. Please proceed with implementation using the existing context.' },
+      }) + '\n')
+
+      return { success: true }
+    }
+
+    // ── Clear & Execute path: fresh context + plan re-injection ──
+
     // 1. Read approved plan from disk
     let planContent: string
     try {
@@ -44,19 +90,13 @@ export function registerPlanExecuteHandlers(): void {
       return { success: false, error: `Failed to read plan file: ${(err as Error).message}` }
     }
 
-    // 2. Preserve cwd and model from current session (fallback to process.cwd())
-    const prev = aiSessions.get(sessionId)
-    const cwd = prev?.cwd || process.cwd()
-    const model = payload.model || prev?.model
-
-    // 3. Kill the plan-mode subprocess without responding to its pending control_request.
-    //    A deny response would leak "plan rejected" feedback; a clean kill avoids that.
+    // 2. Kill the plan-mode subprocess without responding to its pending control_request.
     if (prev) {
       killAiProcess(prev.process)
       aiSessions.delete(sessionId)
     }
 
-    // 4. Spawn fresh subprocess in acceptEdits mode (no --resume = clean context)
+    // 3. Spawn fresh subprocess in acceptEdits mode (no --resume = clean context)
     const result = spawnClaude({ cwd, permissionMode: 'acceptEdits', model })
     if ('error' in result) {
       send(IPC_CHANNELS.AI_ERROR, {
@@ -67,11 +107,9 @@ export function registerPlanExecuteHandlers(): void {
       return { success: false, error: result.error, installCmd: result.installCmd }
     }
 
-    // 5. Attach stdout/stderr/error/exit handlers — reuses ai.ts lifecycle logic
+    // 4. Attach stdout/stderr/error/exit handlers
     attachAiProcess(sessionId, result, cwd, model)
 
-    // Preserve contextWindow from old session (fresh spawn without --resume will
-    // get a new init event, but preserve as fallback in case the init lacks model).
     if (prev?.contextWindow || prev?.model) {
       const newSession = aiSessions.get(sessionId)
       if (newSession) {
@@ -80,7 +118,7 @@ export function registerPlanExecuteHandlers(): void {
       }
     }
 
-    // 6. Push plan as first user message — model picks up from clean slate
+    // 5. Push plan as first user message — model picks up from clean slate
     const firstMessage = buildPlanExecutePrompt(planContent, planFilePath)
     result.stdin!.write(JSON.stringify({
       type: 'user',

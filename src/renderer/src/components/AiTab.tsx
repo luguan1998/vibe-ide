@@ -701,9 +701,10 @@ function InlineAnnotationInput({ top, left, containerRef, onSubmit, onDismiss }:
 // "Clear & Execute" kills the plan-mode subprocess and respawns in acceptEdits mode with the
 // plan re-injected as first message — clears the inflated context from exploration.
 // "Send Feedback" denies with a feedback message so the model revises the plan.
-const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onClearExecute, onDeny, workspacePath, onOpenFile, model, altBrush, annotationMode }: {
+const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onContinue, onClearExecute, onDeny, workspacePath, onOpenFile, model, altBrush, annotationMode }: {
   perm: AiPermissionRequest
   sessionId: string
+  onContinue: (sessionId: string, requestId: string, modelOverride?: string) => void
   onClearExecute: (sessionId: string, planFilePath: string, model?: string) => void
   onDeny: (sessionId: string, requestId: string, feedback: string) => void
   workspacePath: string | null
@@ -717,6 +718,7 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
   const planFilePath = (perm.toolInput?.planFilePath as string) || ''
   const [feedback, setFeedback] = useState('')
   const [switchOpen, setSwitchOpen] = useState(false)
+  const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const switchRef = useRef<HTMLDivElement>(null)
   const [annotationInput, setAnnotationInput] = useState<{ top: number; left: number; heading: string | null; snippet: string } | null>(null)
   const planContentRef = useRef<HTMLDivElement>(null)
@@ -780,7 +782,7 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
       <div className="flex items-center gap-1.5 mb-1.5 shrink-0">
         <FileText size={15} className="text-ide-accent shrink-0" />
         <span className="text-[13px] font-medium text-ide-accent">{t('Plan Ready')}</span>
-        <span className="text-[11px] text-ide-text-muted/40 ml-1.5">{t('Hold Alt + click to annotate')}</span>
+        <span className="text-[11px] text-ide-text-muted italic ml-1.5">{t('Hold Alt + click to annotate')}</span>
       </div>
 
       <div
@@ -814,36 +816,53 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
 
       <div className="flex items-center gap-1.5 shrink-0">
         <button
-          onClick={() => onClearExecute(sessionId, planFilePath)}
-          className="px-4 py-1.5 text-[13px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+          onClick={() => onContinue(sessionId, perm.requestId, selectedModel || undefined)}
+          className="px-4 py-1.5 text-[13px] font-medium bg-ide-success hover:brightness-110 text-white rounded transition-colors"
         >
           {t('Execute')}
+        </button>
+        <button
+          onClick={() => onClearExecute(sessionId, planFilePath, selectedModel || undefined)}
+          className="px-4 py-1.5 text-[13px] font-medium border border-ide-accent/40 hover:bg-ide-accent/10 text-ide-accent rounded transition-colors"
+          title={t('Clear & Execute Tooltip')}
+        >
+          {t('Clear & Execute')}
         </button>
         <div ref={switchRef} className="relative">
           <button
             onClick={() => setSwitchOpen(v => !v)}
-            className="px-4 py-1.5 text-[13px] font-medium bg-ide-accent/20 hover:bg-ide-accent/30 text-ide-accent rounded transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 text-[13px] font-medium bg-ide-accent/20 hover:bg-ide-accent/30 text-ide-accent rounded-full transition-colors"
           >
-            {t('Switch & Execute')}
+            <span className="truncate">{selectedModel || t('Switch Model')}</span>
+            <ChevronDown size={10} className={`shrink-0 opacity-50 transition-transform ${switchOpen ? 'rotate-180' : ''}`} />
           </button>
           {switchOpen && (
-            <div className="absolute bottom-full left-0 mb-1 bg-ide-sidebar border border-ide-border rounded-lg shadow-lg min-w-[110px] py-0.5 animate-fade-in z-30">
-              {['opus', 'sonnet', 'haiku'].map(alias => (
-                <button
-                  key={alias}
-                  onClick={() => { setSwitchOpen(false); onClearExecute(sessionId, planFilePath, alias) }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-ide-text hover:bg-ide-hover transition-colors"
-                >
-                  <span className="truncate">{alias}</span>
-                </button>
-              ))}
+            <div className="absolute bottom-full left-0 mb-1 bg-ide-sidebar border border-ide-border rounded-lg shadow-lg min-w-[130px] py-0.5 animate-fade-in z-30">
+              {['opus', 'sonnet', 'haiku'].map(alias => {
+                const isSelected = selectedModel === alias
+                return (
+                  <button
+                    key={alias}
+                    onClick={() => { setSwitchOpen(false); setSelectedModel(isSelected ? null : alias) }}
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors ${
+                      isSelected
+                        ? 'bg-ide-accent/15 text-ide-accent'
+                        : 'text-ide-text hover:bg-ide-hover'
+                    }`}
+                  >
+                    <span className="truncate">{alias}</span>
+                    {isSelected && <Check size={10} className="ml-auto shrink-0" />}
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>
+        <div className="flex-1" />
         {feedback.trim() && (
           <button
             onClick={() => onDeny(sessionId, perm.requestId, feedback)}
-            className="px-4 py-1.5 text-[13px] font-medium border border-ide-accent/40 hover:bg-ide-accent/10 text-ide-accent rounded transition-colors"
+            className="px-4 py-1.5 text-[13px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
           >
             {t('Send Feedback')}
           </button>
@@ -1495,29 +1514,34 @@ function usePetVisibility() {
 
 function DesktopPet({ sprite }: { sprite: PetSpriteConfig }) {
   const visible = usePetVisibility()
-  const [offsetX, setOffsetX] = useState(0)
+  const [rightPx, setRightPx] = useState<number | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
   const startXRef = useRef(0)
-  const startOffsetRef = useRef(0)
+  const startRightRef = useRef(0)
 
   const width = sprite.cols * sprite.pixelSize
   const animated = !!sprite.shadow2
+
+  const getBaseRight = useCallback(() => {
+    if (!wrapperRef.current) return 0
+    return wrapperRef.current.offsetWidth * 0.1
+  }, [])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     draggingRef.current = true
     startXRef.current = e.clientX
-    startOffsetRef.current = offsetX
-  }, [offsetX])
+    startRightRef.current = rightPx ?? getBaseRight()
+  }, [rightPx, getBaseRight])
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!draggingRef.current || !wrapperRef.current) return
       const w = wrapperRef.current.offsetWidth
-      const maxOffset = w / 2 - width / 2
       const dx = e.clientX - startXRef.current
-      setOffsetX(Math.max(-maxOffset, Math.min(startOffsetRef.current + dx, maxOffset)))
+      const newRight = startRightRef.current - dx
+      setRightPx(Math.max(0, Math.min(newRight, w - width)))
     }
     const handleMouseUp = () => { draggingRef.current = false }
     window.addEventListener('mousemove', handleMouseMove)
@@ -1535,9 +1559,11 @@ function DesktopPet({ sprite }: { sprite: PetSpriteConfig }) {
 
   if (!visible) return null
 
+  const style = rightPx !== null ? { right: `${rightPx}px` } : undefined
+
   return (
     <div className="ai-tab__pet-wrapper" ref={wrapperRef}>
-      <div className={`ai-tab__pet ai-tab__pet--${sprite.name} animate-pet-float`} style={{ marginLeft: offsetX }}>
+      <div className={`ai-tab__pet ai-tab__pet--${sprite.name} animate-pet-float`} style={style}>
         <button className="ai-tab__pet-close" onClick={handleClose}>&times;</button>
         <div className="ai-tab__pet-hitarea" onMouseDown={handleMouseDown}>
           <i className={`ai-tab__pet-sprite ai-tab__pet-sprite--${sprite.name}`} />
@@ -1758,6 +1784,24 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     onPermissionModeChange('acceptEdits')
     const model = modelOverride || modelRef.current
     await window.api.ai.clearAndExecutePlan(sessionId, planFilePath, model)
+  }, [updateSession, onPermissionModeChange])
+
+  // ── ExitPlanMode "Continue": kill + --resume respawn → restore full context ──
+  const handlePlanContinue = useCallback(async (sessionId: string, requestId: string, modelOverride?: string) => {
+    if (!requestId) return
+    updateSession(sessionId, (s) => ({
+      ...s,
+      pendingPermission: null,
+      streaming: false,
+      streamBuffer: '',
+      thinkingBuffer: '',
+      thinkingStartedAt: null,
+      busy: true,
+      ready: false,
+    }))
+    onPermissionModeChange('acceptEdits')
+    const model = modelOverride || modelRef.current
+    await window.api.ai.clearAndExecutePlan(sessionId, '', model, true)
   }, [updateSession, onPermissionModeChange])
 
   // ── Revert / Fork handlers ──────────────────────────────────────
@@ -2251,6 +2295,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         <AiExitPlanModeCard
           perm={state.pendingPermission}
           sessionId={activeSessionId}
+          onContinue={handlePlanContinue}
           onClearExecute={handlePlanClearExecute}
           onDeny={aiStore.handlePlanDeny}
           workspacePath={workspacePath}
