@@ -353,6 +353,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
   const mountedRef = useRef(false)
 
+  const ocrEnabledRef = useRef(ocrEnabled)
+  ocrEnabledRef.current = ocrEnabled
+
   // OCR drag-and-drop state
   const [ocrState, setOcrState] = useState<'idle' | 'dragover' | 'processing' | 'success' | 'error'>('idle')
   const [ocrMessage, setOcrMessage] = useState('')
@@ -649,7 +652,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         e.preventDefault()
         e.stopImmediatePropagation()
         ;(async () => {
-          if (ocrEnabled) {
+          if (ocrEnabledRef.current) {
             const didOcr = await pasteFromClipboard()
             if (didOcr) return
           }
@@ -692,7 +695,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       if (!files || files.length === 0) return
 
       const file = findDropImage(files)
-      if (!file || !ocrEnabled) return
+      if (!file || !ocrEnabledRef.current) return
 
       setOcrState('processing')
       try {
