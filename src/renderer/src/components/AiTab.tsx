@@ -720,9 +720,20 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
   const plan = (perm.toolInput?.plan as string) || ''
   const planFilePath = (perm.toolInput?.planFilePath as string) || ''
   const [feedback, setFeedback] = useState('')
+  const feedbackRef = useRef<HTMLTextAreaElement>(null)
   const [switchOpen, setSwitchOpen] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const switchRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = feedbackRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const maxH = 120
+    const newH = Math.min(el.scrollHeight, maxH)
+    el.style.height = `${newH}px`
+    el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden'
+  }, [feedback])
   const [annotationInput, setAnnotationInput] = useState<{ top: number; left: number; heading: string | null; snippet: string } | null>(null)
   const planContentRef = useRef<HTMLDivElement>(null)
 
@@ -808,10 +819,10 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
       <div className="rounded-2xl border border-ide-accent/60 bg-ide-sidebar shadow-sm transition-colors focus-within:border-ide-accent mb-1.5 shrink-0">
         <div className="px-3 pt-2.5 pb-1.5">
           <textarea
+            ref={feedbackRef}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             placeholder={t('Feedback for revision (optional)')}
-            rows={2}
             className="ai-tab__plan-feedback w-full text-sm bg-transparent px-0 py-0.5 text-ide-text placeholder:text-ide-text-muted/50 resize-none focus:outline-none disabled:opacity-50 leading-relaxed"
           />
         </div>
@@ -1697,6 +1708,16 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     setValue: (text: string) => { setInputValue(text) },
   }), [setInputValue])
 
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const maxH = 200
+    const newH = Math.min(el.scrollHeight, maxH)
+    el.style.height = `${newH}px`
+    el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden'
+  }, [inputValue])
+
   // ── Update session state helper(委托给单例 store)──
   const updateSession = useCallback((sessionId: string, updater: (s: AiSessionState) => AiSessionState) => {
     aiStore.updateSession(sessionId, updater)
@@ -2300,7 +2321,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   }
                 }}
                 placeholder={state.ready ? t('Type a message...') : t('Initializing...')}
-                rows={2}
                 disabled={!state.ready}
                 onContextMenu={async (e) => {
                   e.preventDefault()
