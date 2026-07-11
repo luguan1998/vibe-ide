@@ -279,24 +279,26 @@ export default function App() {
 
   // ── Recently opened files (in-memory only, not persisted) ──
   const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>([])
+  const [lastOpenedFile, setLastOpenedFile] = useState<RecentFileEntry | null>(null)
 
-  const recordRecentFile = useCallback((fullPath: string, lineNumber?: number) => {
+  const recordRecentFile = useCallback((fullPath: string, lineNumber?: number, endLineNumber?: number) => {
     if (!fullPath) return
     const line = typeof lineNumber === 'number' && lineNumber > 0 ? lineNumber : undefined
+    const endLine = typeof endLineNumber === 'number' && endLineNumber > 0 ? endLineNumber : undefined
+    const entry = { path: fullPath, line, endLine }
+    setLastOpenedFile(entry)
     const norm = (p: string) => p.replace(/\\/g, '/')
     const target = norm(fullPath)
     setRecentFiles(prev => {
       const existingIdx = prev.findIndex(r => norm(r.path) === target)
       if (existingIdx >= 0) {
-        // 已在列表：刷新行号，保持原位置不变（不置顶、不影响其余条目）
-        // lineNumber 缺省（如文件树点开）时保留已有行号——行号由光标回写/跳转入口维护，普通打开不清空
         const existing = prev[existingIdx]
         const mergedLine = line ?? existing.line
-        if (existing.line === mergedLine) return prev
-        return prev.map((r, i) => i === existingIdx ? { ...r, line: mergedLine } : r)
+        const mergedEndLine = endLine ?? existing.endLine
+        if (existing.line === mergedLine && existing.endLine === mergedEndLine) return prev
+        return prev.map((r, i) => i === existingIdx ? { ...r, line: mergedLine, endLine: mergedEndLine } : r)
       }
-      // 新文件：置顶
-      return [{ path: fullPath, line }, ...prev].slice(0, 10)
+      return [{ path: fullPath, line, endLine }, ...prev].slice(0, 10)
     })
   }, [])
 
@@ -2222,6 +2224,7 @@ export default function App() {
                         onAgentStatusChange={handleAiAgentStatusChange}
                         altBrush={altBrush}
                         annotationMode={annotationMode}
+                        lastOpenedFile={lastOpenedFile}
                       />
                     ) : (
                       <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import type { AiMessage, AiToolUse, AiSessionState, AiPermissionRequest, AiPermissionMode, AiSlashCommand } from '@shared/types'
+import type { AiMessage, AiToolUse, AiSessionState, AiPermissionRequest, AiPermissionMode, AiSlashCommand, RecentFileEntry } from '@shared/types'
 import { AI_FILE_EDIT_TOOLS } from '@shared/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -9,7 +9,7 @@ import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS } from '../aiStore'
 import { EXAMPLE_PROMPTS } from './examplePrompts'
 import { OCTOCAT, type PetSpriteConfig } from './petSprites'
-import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff } from 'lucide-react'
+import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug } from 'lucide-react'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
 
@@ -28,6 +28,7 @@ interface AiTabProps {
   resumeSessionId?: string
   altBrush?: boolean
   annotationMode?: boolean
+  lastOpenedFile?: RecentFileEntry | null
 }
 
 export interface AiTabHandle {
@@ -207,52 +208,52 @@ function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: 
 }
 
 function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'task' | 'default' }) {
-  const cls = "w-3 h-3 shrink-0"
+  const cls = "w-3.5 h-3.5 shrink-0"
   if (category === 'skill') return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
       <path d="M12 3c-5 3-9 8-9 14 3-2 6-2 9 0 3-2 6-2 9 0 0-6-4-11-9-14Z" />
       <path d="M19 17c-3 0-5 1-7 4-2-3-4-4-7-4" />
     </svg>
   )
   if (category === 'web') return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
       <circle cx="12" cy="12" r="10" />
       <line x1="2" y1="12" x2="22" y2="12" />
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
     </svg>
   )
   if (category === 'plan') return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
       <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
       <rect x="9" y="3" width="6" height="4" rx="1" />
       <path d="M9 14l2 2 4-4" />
     </svg>
   )
   if (category === 'file') return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className={cls}>
-      <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.848 2.047a.75.75 0 0 0 .98.98l2.047-.848a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.474Z" />
-      <path d="M4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z" />
+    <svg viewBox="0 0 24 24" fill="currentColor" className={cls}>
+      <path d="M20.232 3.77a2.625 2.625 0 0 0-3.713 0l-6.394 6.392a4.125 4.125 0 0 0-.894 1.338l-1.272 3.071a1.125 1.125 0 0 0 1.47 1.47l3.07-1.272a4.125 4.125 0 0 0 1.34-.894l6.39-6.393a2.625 2.625 0 0 0 0-3.712Z" />
+      <path d="M7.125 5.25c-1.035 0-1.875.84-1.875 1.875v9.75c0 1.035.84 1.875 1.875 1.875h9.75c1.035 0 1.875-.84 1.875-1.875V13.5a1.125 1.125 0 0 1 2.25 0v3.375A4.125 4.125 0 0 1 16.875 21h-9.75A4.125 4.125 0 0 1 3 16.875v-9.75A4.125 4.125 0 0 1 7.125 3H10.5a1.125 1.125 0 0 1 0 2.25H7.125Z" />
     </svg>
   )
   if (category === 'task') return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
       <line x1="11" y1="5" x2="19" y2="5" /><circle cx="5.5" cy="5" r="1.5" />
       <line x1="11" y1="12" x2="19" y2="12" /><circle cx="5.5" cy="12" r="1.5" />
       <line x1="11" y1="19" x2="19" y2="19" /><circle cx="5.5" cy="19" r="1.5" />
     </svg>
   )
   if (category === 'command') return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
       <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
     </svg>
   )
   if (category === 'search') return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className={cls}>
-      <path d="M7.25 3.688a8.035 8.035 0 0 0-4.872-.523A.48.48 0 0 0 2 3.64v7.994c0 .345.342.588.679.512a6.02 6.02 0 0 1 4.571.81V3.688ZM8.75 12.956a6.02 6.02 0 0 1 4.571-.81c.337.075.679-.167.679-.512V3.64a.48.48 0 0 0-.378-.475 8.034 8.034 0 0 0-4.872.523v9.268Z" />
+    <svg viewBox="0 0 24 24" fill="currentColor" className={cls}>
+      <path d="M10.875 5.532a12.053 12.053 0 0 0-7.308-.785A.72.72 0 0 0 3 5.46v11.991c0 .518.513.882 1.019.768a9.03 9.03 0 0 1 6.856 1.215V5.532ZM13.125 19.434a9.03 9.03 0 0 1 6.857-1.215c.505.113 1.018-.251 1.018-.768V5.46a.72.72 0 0 0-.567-.713 12.051 12.051 0 0 0-7.308.785v13.902Z" />
     </svg>
   )
   if (category === 'agent') return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
       <rect x="3" y="7" width="18" height="13" rx="2" />
       <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
       <circle cx="9" cy="14" r="1.5" />
@@ -262,7 +263,7 @@ function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web
   )
   if (category === 'question') return <HelpCircle className={cls} />
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={cls}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
       <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
     </svg>
   )
@@ -1612,7 +1613,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 
-const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, altBrush, annotationMode }, ref) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, altBrush, annotationMode, lastOpenedFile }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1911,6 +1912,28 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       })
     }
   }, [state.messages])
+
+  const lastFile = useMemo(() => {
+    if (!lastOpenedFile) return null
+    const f = lastOpenedFile
+    let relPath = f.path
+    if (workspacePath && relPath.startsWith(workspacePath)) {
+      relPath = relPath.slice(workspacePath.length).replace(/^[\\\/]+/, '')
+    }
+    relPath = relPath.replace(/\\/g, '/')
+    const fileName = relPath.split('/').pop() || relPath
+    let label = fileName
+    let ref = relPath
+    if (f.line) {
+      label += `:${f.line}`
+      ref += `:${f.line}`
+      if (f.endLine && f.endLine !== f.line) {
+        label += `:${f.endLine}`
+        ref += `:${f.endLine}`
+      }
+    }
+    return { label, ref }
+  }, [lastOpenedFile, workspacePath])
 
   return (
     <div ref={containerRef} tabIndex={-1} className="ai-tab relative flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
@@ -2255,6 +2278,23 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
               {/* RIGHT: Mode selector + Send/Cancel */}
               <div className="ai-tab__toolbar-right flex items-center gap-1 shrink-0">
+                {lastFile && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const atRef = `@${lastFile.ref} `
+                      setInputValue(inputValue ? inputValue + ' ' + atRef : atRef)
+                      inputRef.current?.focus({ preventScroll: true })
+                    }}
+                    className="ai-tab__last-file-btn flex items-center gap-1 h-7 px-2 rounded-lg
+                               bg-ide-accent/10 hover:bg-ide-accent/20 text-ide-accent
+                               transition-colors text-[11px] max-w-[180px]"
+                    title={lastFile.ref}
+                  >
+                    <Plug size={12} strokeWidth={2} className="shrink-0" />
+                    <span className="truncate">{lastFile.label}</span>
+                  </button>
+                )}
                 <ModeSelector
                   value={permissionMode}
                   onChange={onPermissionModeChange}
