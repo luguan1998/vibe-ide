@@ -189,11 +189,11 @@ export const aiStore = {
     tool: string, toolInput?: Record<string, any>, feedback?: string
   ) {
     window.api.ai.respondPermission(sessionId, requestId, approved, tool, toolInput, feedback)
-    aiStore.updateSession(sessionId, s => ({ ...s, pendingPermission: null }))
+    aiStore.updateSession(sessionId, s => ({ ...s, pendingPermission: null, busy: true }))
   },
   handlePlanDeny(sessionId: string, requestId: string, feedback: string) {
     window.api.ai.respondPermission(sessionId, requestId, false, 'ExitPlanMode', undefined, feedback || undefined)
-    aiStore.updateSession(sessionId, s => ({ ...s, pendingPermission: null }))
+    aiStore.updateSession(sessionId, s => ({ ...s, pendingPermission: null, busy: true }))
   },
   handleAskResume(
     sessionId: string, requestId: string, approved: boolean,
@@ -367,7 +367,15 @@ function initListeners() {
 
   // ── onPermission ──
   window.api.ai.onPermission((perm: any) => {
-    aiStore.updateSession(perm.sessionId, (s) => ({ ...s, pendingPermission: perm as AiPermissionRequest }))
+    aiStore.updateSession(perm.sessionId, (s) => ({
+      ...s,
+      pendingPermission: perm as AiPermissionRequest,
+      busy: false,
+      streaming: false,
+      streamBuffer: '',
+      thinkingBuffer: '',
+      thinkingStartedAt: null,
+    }))
   })
 
   // ── onFileChange ──
