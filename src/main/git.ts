@@ -789,7 +789,11 @@ export function registerGitHandlers(): void {
       }
 
       if (!worktreePath) {
-        return { error: `找不到分支 ${branch} 对应的 worktree 路径` }
+        // worktree 目录已被删除（手动删除 / 崩溃清理），git 仍留有引用
+        // prune 清除 stale 引用，然后直接删分支
+        await git.raw(['worktree', 'prune'])
+        await git.raw(['branch', '-D', branch])
+        return { success: true }
       }
 
       // 2. Remove worktree (--force to skip uncommitted changes check)
