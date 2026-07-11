@@ -435,13 +435,13 @@ input[type="checkbox"] { accent-color: rgb(231 204 123); }
    Markdown 预览 — 羊皮纸手稿风
    ════════════════════════════════════════════════════ */
 
-/* heading 层级色：金→褐→绿→红→紫→米 */
+/* heading 层级色：火炬金→熔铜橙→沼泽绿→蛛血红→暗影紫→骨白 */
 .md-preview h1 { color: rgb(231 204 123) !important; border-bottom-color: rgb(231 204 123) !important; border-bottom-width: 2px !important; }
-.md-preview h2 { color: rgb(210 175 120) !important; border-bottom-color: rgb(210 175 120) !important; }
-.md-preview h3 { color: rgb(160 178 125) !important; }
-.md-preview h4 { color: rgb(215 110 95) !important; }
-.md-preview h5 { color: rgb(175 155 195) !important; }
-.md-preview h6 { color: rgb(200 185 160) !important; }
+.md-preview h2 { color: rgb(218 154 92) !important; border-bottom-color: rgb(218 154 92) !important; }
+.md-preview h3 { color: rgb(125 186 138) !important; }
+.md-preview h4 { color: rgb(200 90 74) !important; }
+.md-preview h5 { color: rgb(168 132 200) !important; }
+.md-preview h6 { color: rgb(196 184 168) !important; }
 
 .md-preview a { color: rgb(231 204 123) !important; text-decoration-color: rgb(231 204 123 / 0.4) !important; }
 .md-preview a:hover { color: rgb(245 222 138) !important; text-decoration-color: rgb(245 222 138) !important; }
