@@ -358,6 +358,7 @@ const ZH_MAP: Record<string, string> = {
   // AI ExitPlanMode card
   'Plan Ready': '计划已就绪',
   'Hold Alt + click to annotate': '按住 Alt 点击可批注',
+  'Click to restore pet': '点击恢复宠物',
   'Write annotation, Enter to confirm...': '输入批注，Enter 确认...',
   'Clear & Execute': '清空并执行',
   'Switch & Execute': '切换并执行',
