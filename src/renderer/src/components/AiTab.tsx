@@ -10,6 +10,8 @@ import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAN
 import { EXAMPLE_PROMPTS } from './examplePrompts'
 import { OCTOCAT, type PetSpriteConfig } from './petSprites'
 import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff } from 'lucide-react'
+import { DiffEditor, Editor } from '@monaco-editor/react'
+import { useTheme } from '../themes'
 
 interface AiTabProps {
   activeSessionId: string | null
@@ -53,6 +55,27 @@ function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 
   if (AGENT_TOOLS.has(name)) return 'agent'
   if (QUESTION_TOOLS.has(name)) return 'question'
   return 'default'
+}
+
+const DIFF_LANG_MAP: Record<string, string> = {
+  'ts': 'typescript', 'tsx': 'typescript', 'mts': 'typescript', 'cts': 'typescript',
+  'js': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript', 'jsx': 'javascript',
+  'py': 'python', 'pyw': 'python',
+  'rs': 'rust', 'go': 'go', 'java': 'java', 'kt': 'kotlin', 'kts': 'kotlin',
+  'c': 'c', 'cpp': 'cpp', 'h': 'c', 'hpp': 'cpp',
+  'cs': 'csharp', 'rb': 'ruby', 'php': 'php', 'swift': 'swift', 'dart': 'dart',
+  'json': 'json', 'yaml': 'yaml', 'yml': 'yaml', 'toml': 'toml', 'xml': 'xml',
+  'html': 'html', 'css': 'css', 'scss': 'scss', 'less': 'less',
+  'md': 'markdown', 'sql': 'sql',
+  'sh': 'shell', 'bash': 'shell', 'bat': 'bat', 'cmd': 'bat',
+  'ps1': 'powershell', 'dockerfile': 'dockerfile',
+  'tf': 'hcl', 'tfvars': 'hcl',
+  'ini': 'ini', 'graphql': 'graphql', 'gql': 'graphql',
+  'gitignore': 'plaintext', 'env': 'plaintext', 'txt': 'plaintext',
+}
+function getLanguageFromFilePath(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() || ''
+  return DIFF_LANG_MAP[ext] || 'plaintext'
 }
 
 // ── Task tools ────────────────────────────────────────────────────
@@ -240,6 +263,123 @@ function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web
   )
 }
 
+function AiInlineDiff({ oldContent, newContent, filePath }: {
+  oldContent?: string
+  newContent: string
+  filePath: string
+}) {
+  const { theme } = useTheme()
+  const [height, setHeight] = useState<number | null>(null)
+
+  const language = getLanguageFromFilePath(filePath)
+
+  const handleDiffMount = useCallback((editor: any) => {
+    try {
+      const modEd = editor.getModifiedEditor()
+      const ch = modEd.getContentHeight()
+      setHeight(Math.min(Math.max(ch + 20, 80), 300))
+    } catch {
+      setHeight(200)
+    }
+  }, [])
+
+  const handleEditorMount = useCallback((editor: any) => {
+    try {
+      const ch = editor.getContentHeight()
+      setHeight(Math.min(Math.max(ch + 20, 80), 300))
+    } catch {
+      setHeight(200)
+    }
+  }, [])
+
+  const h = height ?? 200
+
+  if (newContent.length > 100_000) {
+    return (
+      <div className="ai-tab__inline-diff flex items-center justify-center text-ide-text-muted text-[11px]" style={{ height: 80 }}>
+        File too large to display inline ({Math.round(newContent.length / 1024)}KB)
+      </div>
+    )
+  }
+
+  if (!oldContent) {
+    return (
+      <div className="ai-tab__inline-diff" style={{ height: h }}>
+        <Editor
+          height={h}
+          language={language}
+          theme={theme.monacoTheme}
+          value={newContent}
+          options={{
+            readOnly: true,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            fontSize: 12,
+            lineNumbers: 'on',
+            lineNumbersMinChars: 2,
+            automaticLayout: true,
+            padding: { top: 4, bottom: 4 },
+            scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
+            renderLineHighlight: 'none',
+            overviewRulerLanes: 0,
+            hideCursorInOverviewRuler: true,
+            overviewRulerBorder: false,
+          }}
+          onMount={handleEditorMount}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="ai-tab__inline-diff" style={{ height: h }}>
+      <DiffEditor
+        height={h}
+        language={language}
+        theme={theme.monacoTheme}
+        original={oldContent}
+        modified={newContent}
+        options={{
+          renderSideBySide: false,
+          readOnly: true,
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          fontSize: 12,
+          lineNumbers: 'on',
+          lineNumbersMinChars: 2,
+          automaticLayout: true,
+          renderIndicators: true,
+          originalEditable: false,
+          ignoreTrimWhitespace: false,
+          scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
+        }}
+        onMount={handleDiffMount}
+      />
+    </div>
+  )
+}
+
+function getFileEditContent(tool: AiToolUse): { filePath: string; oldContent?: string; newContent?: string } | null {
+  const input = tool.input || {}
+  const fp = input.file_path || input.path || input.filePath || ''
+  if (!fp) return null
+
+  // Write / write_file / create_file: newContent = content
+  const writeContent = input.content || input.new_content || input.newContent
+  if (writeContent !== undefined) {
+    return { filePath: fp, newContent: writeContent }
+  }
+
+  // Edit / edit_file / replace: oldContent = old_string, newContent = new_string
+  const oldStr = input.old_string || input.old_str || input.oldString
+  const newStr = input.new_string || input.new_str || input.newString
+  if (oldStr !== undefined || newStr !== undefined) {
+    return { filePath: fp, oldContent: oldStr, newContent: newStr }
+  }
+
+  return { filePath: fp }
+}
+
 function AiToolCallCard({ tool }: { tool: AiToolUse }) {
   const [expanded, setExpanded] = useState(false)
   const category = getToolCategory(tool.name)
@@ -249,6 +389,11 @@ function AiToolCallCard({ tool }: { tool: AiToolUse }) {
   const detail = rawPath.length > 32
     ? rawPath.slice(0, 15) + '...' + rawPath.slice(-14)
     : rawPath || tool.input?.command || ''
+
+  const editContent = (expanded && isFileEdit) ? getFileEditContent(tool) : null
+  const oldContent = editContent?.oldContent
+  const newContent = editContent?.newContent
+
   return (
     <div className="ai-tab__tool-call inline-block max-w-full animate-fade-in">
       <button
@@ -267,15 +412,37 @@ function AiToolCallCard({ tool }: { tool: AiToolUse }) {
         )}
       </button>
       {expanded && (
-        <div className="ai-tab__tool-detail-panel mt-0.5 px-2 py-1 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-0.5 max-h-48 overflow-y-auto">
-          {hasResult && (
-            <div className={tool.result!.isError ? 'text-ide-danger/80' : 'text-ide-text'}>
-              <pre className="whitespace-pre-wrap break-words text-[11px]">{tool.result!.content}</pre>
-            </div>
+        <div className={`ai-tab__tool-detail-panel mt-0.5 px-2 py-1 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-0.5 ${isFileEdit ? 'p-1' : 'max-h-48 overflow-y-auto'}`}>
+          {isFileEdit && newContent ? (
+            <>
+              <div className="ai-tab__tool-file-header text-ide-text-muted text-[10px] font-sans">
+                {!oldContent ? 'Creating' : 'Editing'} <span className="text-ide-text">{editContent?.filePath}</span>
+              </div>
+              <AiInlineDiff
+                oldContent={oldContent}
+                newContent={newContent}
+                filePath={editContent?.filePath || ''}
+              />
+              {hasResult && (
+                <div className={`pt-1 border-t border-ide-border/30 ${tool.result!.isError ? 'text-ide-danger/80' : 'text-ide-text'}`}>
+                  <pre className="whitespace-pre-wrap break-words text-[11px]">{tool.result!.content}</pre>
+                </div>
+              )}
+            </>
+          ) : isFileEdit && !newContent ? (
+            <div className="text-ide-text-muted text-[11px] py-2 text-center">Waiting for content...</div>
+          ) : (
+            <>
+              {hasResult && (
+                <div className={tool.result!.isError ? 'text-ide-danger/80' : 'text-ide-text'}>
+                  <pre className="whitespace-pre-wrap break-words text-[11px]">{tool.result!.content}</pre>
+                </div>
+              )}
+              <div className="text-ide-text-muted">
+                <pre className="whitespace-pre-wrap break-words text-[11px]">{JSON.stringify(tool.input, null, 2)}</pre>
+              </div>
+            </>
           )}
-          <div className="text-ide-text-muted">
-            <pre className="whitespace-pre-wrap break-words text-[11px]">{JSON.stringify(tool.input, null, 2)}</pre>
-          </div>
         </div>
       )}
     </div>

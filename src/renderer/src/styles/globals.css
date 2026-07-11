@@ -189,6 +189,13 @@ html, body, #root {
   opacity: 0 !important;
 }
 
+/* AI tab inline diff */
+.ai-tab__inline-diff {
+  overflow: hidden;
+  border: 1px solid rgb(var(--ide-border));
+  border-radius: 4px;
+}
+
 /* Titlebar drag area */
 .titlebar-drag {
   -webkit-app-region: drag;

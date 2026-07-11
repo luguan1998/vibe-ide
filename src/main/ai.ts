@@ -187,6 +187,7 @@ async function extractFileChange(sessionId: string, block: any, cwd: string): Pr
   try { oldContent = await readFile(absPath, 'utf-8') } catch { /* file may not exist yet */ }
   const newContent = input.content || input.new_content || input.newContent
   send(IPC_CHANNELS.AI_FILE_CHANGE, {
+    toolUseId: block.id,
     sessionId,
     filePath: absPath,
     relativePath: relPath,

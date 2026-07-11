@@ -387,6 +387,7 @@ export interface AiToolResult {
 }
 
 export interface AiFileChange {
+  toolUseId: string
   sessionId: string
   filePath: string
   relativePath: string
