@@ -41,6 +41,8 @@ export interface ManagedAiSession {
   // Track tool_use IDs already processed for file-change events so --include-partial-messages
   // doesn't cause duplicate diff viewer opens for the same tool call.
   seenToolUseIds?: Set<string>
+  // Set after revert spawn; cleared by system/init or timeout fallback
+  revertAwaitingReady?: boolean
 }
 
 const LOCAL_CMD_TAG_RE = /<local-command-caveat>[\s\S]*?<\/local-command-caveat>|<command-name>[\s\S]*?<\/command-name>|<command-message>[\s\S]*?<\/command-message>|<command-args>[\s\S]*?<\/command-args>|<local-command-stdout>[\s\S]*?<\/local-command-stdout>|<system-reminder>[\s\S]*?<\/system-reminder>/g
@@ -205,6 +207,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       const s = aiSessions.get(sessionId)
       if (s) {
         s.ready = true
+        s.revertAwaitingReady = false
         if (msg.session_id) {
           s.claudeSessionId = msg.session_id
           cliSessionToRenderer.set(msg.session_id, sessionId)

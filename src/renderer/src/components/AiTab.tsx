@@ -1760,54 +1760,78 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const handleRevert = useCallback(async (userMessageIndex: number) => {
     if (!activeSessionId || !workspacePath) return
 
-    // 1. Optimistic: truncate renderer messages before the target
     const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
-    const truncatedMessages = targetMsgIdx >= 0 ? state.messages.slice(0, targetMsgIdx) : []
+    if (targetMsgIdx < 0) return
 
-    // 2. Restore the reverted message to the input for re-editing
+    const savedMessages = state.messages
+    const savedFileChanges = state.fileChangesByTurn
+
+    const truncatedMessages = state.messages.slice(0, targetMsgIdx)
+    const truncatedFileChanges = state.fileChangesByTurn.slice(0, userMessageIndex)
+
     if (targetMsgIdx >= 0 && state.messages[targetMsgIdx]?.content) {
       setInputValue(state.messages[targetMsgIdx].content!)
     }
 
-    // 3. Update renderer state — truncate messages, keep input enabled
     updateSession(activeSessionId, (s) => ({
       ...s,
       messages: truncatedMessages,
+      fileChangesByTurn: truncatedFileChanges,
       busy: false,
       streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null,
       pendingPermission: null,
     }))
 
-    // 4. IPC: truncate JSONL, kill old CLI, spawn new with --resume
-    await window.api.ai.revert({
+    const result = await window.api.ai.revert({
       sessionId: activeSessionId,
       userMessageIndex,
       scope: 'conversation',
       cwd: workspacePath,
     })
-  }, [activeSessionId, workspacePath, state.messages, updateSession, setInputValue])
+
+    if (!result.success) {
+      updateSession(activeSessionId, (s) => ({
+        ...s,
+        messages: savedMessages,
+        fileChangesByTurn: savedFileChanges,
+        busy: false,
+      }))
+    }
+  }, [activeSessionId, workspacePath, state.messages, state.fileChangesByTurn, updateSession, setInputValue])
 
   const handleRevertAndCode = useCallback(async (userMessageIndex: number) => {
     if (!activeSessionId || !workspacePath) return
 
-    // 1. Revert all unstaged file changes
-    try {
-      const status = await window.api.git.status()
-      if (status?.files) {
-        for (const f of status.files) {
-          if (f.staged) continue
-          if (f.status === 'modified' || f.status === 'deleted') {
-            await window.api.git.discard(f.path)
-          } else if (f.status === 'untracked' || f.status === '?') {
-            await window.api.file.delete(f.path)
-          }
+    const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
+    if (targetMsgIdx < 0) return
+
+    const filesToRevert = new Map<string, { filePath: string; action: string; oldContent?: string }>()
+    for (let turn = userMessageIndex; turn < state.fileChangesByTurn.length; turn++) {
+      const changes = state.fileChangesByTurn[turn]
+      if (!changes) continue
+      for (const change of changes) {
+        if (!filesToRevert.has(change.relativePath)) {
+          filesToRevert.set(change.relativePath, {
+            filePath: change.filePath,
+            action: change.action,
+            oldContent: change.oldContent,
+          })
         }
       }
-    } catch (err) { console.error('git discard failed:', err) }
+    }
 
-    // 2. Same as handleRevert
+    for (const [, info] of filesToRevert) {
+      try {
+        if (info.action === 'create') {
+          await window.api.file.delete(info.filePath)
+        } else if (info.oldContent != null) {
+          await window.api.file.write(info.filePath, info.oldContent)
+        }
+      } catch (err) { console.error('file revert failed:', err) }
+    }
+
     await handleRevert(userMessageIndex)
-  }, [handleRevert, workspacePath])
+  }, [handleRevert, workspacePath, state.messages, state.fileChangesByTurn])
 
   const handleFork = useCallback(async (userMessageIndex: number) => {
     if (!activeSessionId || !onForkSession) return

@@ -7,6 +7,7 @@ export const EMPTY_SESSION: AiSessionState = {
   ready: false, busy: false, messages: [],
   streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null, pendingPermission: null,
   slashCommands: [], model: '', contextPercent: null, name: '',
+  fileChangesByTurn: [],
 }
 
 export const SLASH_COMMAND_DESCRIPTIONS: Record<string, { description: string; argumentHint?: string }> = {
@@ -364,6 +365,32 @@ function initListeners() {
   // ── onPermission ──
   window.api.ai.onPermission((perm: any) => {
     aiStore.updateSession(perm.sessionId, (s) => ({ ...s, pendingPermission: perm as AiPermissionRequest }))
+  })
+
+  // ── onFileChange ──
+  window.api.ai.onFileChange((data: any) => {
+    if (!data.sessionId) return
+    aiStore.updateSession(data.sessionId, (s) => {
+      const userMsgCount = s.messages.filter(
+        m => m.role === 'user' && m.content && m.type === 'user'
+      ).length
+      const turnIndex = Math.max(0, userMsgCount - 1)
+
+      const turnChanges = [...(s.fileChangesByTurn[turnIndex] || [])]
+      turnChanges.push({
+        toolUseId: data.toolUseId,
+        sessionId: data.sessionId,
+        filePath: data.filePath,
+        relativePath: data.relativePath,
+        action: data.action,
+        content: data.content,
+        oldContent: data.oldContent,
+      })
+
+      const newFileChangesByTurn = [...s.fileChangesByTurn]
+      newFileChangesByTurn[turnIndex] = turnChanges
+      return { ...s, fileChangesByTurn: newFileChangesByTurn }
+    })
   })
 
   // ── onModelChanged ──

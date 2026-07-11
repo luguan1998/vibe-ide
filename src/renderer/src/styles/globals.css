@@ -481,8 +481,8 @@ html, body, #root {
 .ai-tab__pet {
   position: absolute;
   bottom: -8px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: auto;
+  right: 10%;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -536,8 +536,8 @@ html, body, #root {
   pointer-events: none;
 }
 @keyframes pet-float {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50% { transform: translateX(-50%) translateY(-3px); }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
 }
 .animate-pet-float {
   animation: pet-float 2s ease-in-out infinite;

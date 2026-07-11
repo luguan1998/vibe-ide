@@ -429,6 +429,7 @@ export interface AiSessionState {
   model: string
   contextPercent: number | null
   name: string
+  fileChangesByTurn: AiFileChange[][]
 }
 
 export type AiPermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions'

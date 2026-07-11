@@ -68,7 +68,7 @@ export function registerRevertHandlers(): void {
 
   // ── REVERT ──────────────────────────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.AI_REVERT, async (_event, payload: AiRevertPayload) => {
-    const { sessionId, userMessageIndex, scope, cwd } = payload
+    const { sessionId, userMessageIndex, cwd } = payload
 
     const prev = aiSessions.get(sessionId)
     const claudeSessionId = prev?.claudeSessionId
@@ -93,25 +93,13 @@ export function registerRevertHandlers(): void {
       return { success: false, error: `Failed to write truncated session: ${(err as Error).message}` }
     }
 
-    // 3. Git checkout if scope is 'both'
-    if (scope === 'both') {
-      const gitPath = prev?.cwd || effectiveCwd
-      try {
-        const { execSync } = await import('child_process')
-        execSync('git checkout -- .', { cwd: gitPath, stdio: 'ignore', timeout: 30000 })
-      } catch {
-        // git checkout may fail (no repo, no changes) — non-fatal
-      }
-    }
-
-    // 4. Kill old subprocess
+    // 3. Kill old subprocess
     if (prev) {
       killAiProcess(prev.process)
       aiSessions.delete(sessionId)
     }
 
-    // 5. Spawn new subprocess. If truncated is empty (revert to first message),
-    //    spawn WITHOUT --resume — an empty JSONL is not a valid resume target.
+    // 4. Spawn new subprocess
     const hasHistory = result.truncated.length > 0
     const spawnResult = spawnClaude({
       cwd: effectiveCwd,
@@ -129,16 +117,24 @@ export function registerRevertHandlers(): void {
 
     attachAiProcess(sessionId, spawnResult, effectiveCwd)
 
-    // Preserve contextWindow from old session — --resume may not re-emit system/init
-    // with a model name, so without this the percentage falls back to the 200k default.
     if (prev?.contextWindow) {
-      const newSession = aiSessions.get(sessionId)
-      if (newSession) newSession.contextWindow = prev.contextWindow
+      const s = aiSessions.get(sessionId)
+      if (s) s.contextWindow = prev.contextWindow
     }
 
-    // --resume replay may not emit system/init; force AI_READY so
-    // the renderer unlocks input immediately.
-    send(IPC_CHANNELS.AI_READY, { sessionId, tools: [], model: '', slashCommands: [] })
+    if (hasHistory) {
+      const s = aiSessions.get(sessionId)
+      if (s) s.revertAwaitingReady = true
+      setTimeout(() => {
+        const cur = aiSessions.get(sessionId)
+        if (cur?.revertAwaitingReady) {
+          cur.revertAwaitingReady = false
+          send(IPC_CHANNELS.AI_READY, { sessionId, tools: [], model: '', slashCommands: [] })
+        }
+      }, 3000)
+    } else {
+      send(IPC_CHANNELS.AI_READY, { sessionId, tools: [], model: '', slashCommands: [] })
+    }
 
     return { success: true }
   })
