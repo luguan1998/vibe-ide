@@ -9,7 +9,7 @@ import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS } from '../aiStore'
 import { EXAMPLE_PROMPTS } from './examplePrompts'
 import { OCTOCAT, type PetSpriteConfig } from './petSprites'
-import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug } from 'lucide-react'
+import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch } from 'lucide-react'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
 
@@ -29,6 +29,8 @@ interface AiTabProps {
   altBrush?: boolean
   annotationMode?: boolean
   lastOpenedFile?: RecentFileEntry | null
+  worktreeNav?: { originalPath: string; worktreePath: string; originalBranch: string } | null
+  onWorktreeNavChange?: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
 }
 
 export interface AiTabHandle {
@@ -1613,7 +1615,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 
-const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, altBrush, annotationMode, lastOpenedFile }, ref) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, altBrush, annotationMode, lastOpenedFile, worktreeNav, onWorktreeNavChange }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1643,6 +1645,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const [sessionHistoryOpen, setSessionHistoryOpen] = useState(false)
   const [sessionHistoryList, setSessionHistoryList] = useState<any[]>([])
   const [viewMode, setViewMode] = useState(0) // 0=all, 1=hide tools, 2=hide tools+think
+  const [worktreeEnabled, setWorktreeEnabled] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
 
   // Close session history on outside click + Escape
@@ -1714,14 +1717,36 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       permissionMode,
       ...(resumeSessionId ? { resumeSessionId } : {}),
       cliCommand,
+      ...(worktreeEnabled ? { enableWorktree: true } : {}),
     })
-  }, [activeSessionId, workspacePath]) // intentionally omit autoApprove to not re-create
+  }, [activeSessionId, workspacePath, worktreeEnabled])
 
   // ── Cleanup destroyed sessions ──
   const handleDestroySession = useCallback((sessionId: string) => {
     window.api.ai.destroy(sessionId)
     aiStore.clearSession(sessionId)
-  }, [])
+    onWorktreeNavChange?.(prev => {
+      if (!prev[sessionId]) return prev
+      const next = { ...prev }
+      delete next[sessionId]
+      return next
+    })
+  }, [onWorktreeNavChange])
+
+  useEffect(() => {
+    if (!activeSessionId || !workspacePath || !state.worktreePath || !onWorktreeNavChange) return
+    onWorktreeNavChange(prev => {
+      if (prev[activeSessionId]?.worktreePath === state.worktreePath) return prev
+      return {
+        ...prev,
+        [activeSessionId]: {
+          originalPath: workspacePath,
+          worktreePath: state.worktreePath,
+          originalBranch: '',
+        }
+      }
+    })
+  }, [activeSessionId, workspacePath, state.worktreePath, onWorktreeNavChange])
 
   // ── Smart auto-scroll: passive listener + threshold ──
   useEffect(() => {
@@ -1976,6 +2001,36 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
             </svg>
           </button>
+          {/* Worktree isolation toggle — hidden if already navigated from GitTab */}
+          {!worktreeNav?.worktreePath && (
+            <button
+              onClick={() => {
+                if (!activeSessionId || !workspacePath) return
+                const next = !worktreeEnabled
+                setWorktreeEnabled(next)
+                handleDestroySession(activeSessionId)
+                const cliCommand = (() => {
+                  try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined }
+                })()
+                aiStore.ensureCreated(activeSessionId, {
+                  cwd: workspacePath,
+                  autoApprove,
+                  permissionMode,
+                  cliCommand,
+                  ...(next ? { enableWorktree: true } : {}),
+                })
+                onViewAi()
+              }}
+              className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                worktreeEnabled
+                  ? 'bg-ide-accent/20 text-ide-accent'
+                  : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
+              }`}
+              title={t('Isolate in worktree')}
+            >
+              <GitBranch size={14} />
+            </button>
+          )}
           {/* New session */}
           <button
             onClick={() => {
@@ -1989,6 +2044,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 autoApprove,
                 permissionMode,
                 cliCommand,
+                ...(worktreeEnabled ? { enableWorktree: true } : {}),
               })
               onViewAi()
             }}

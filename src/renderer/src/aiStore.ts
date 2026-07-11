@@ -8,6 +8,7 @@ export const EMPTY_SESSION: AiSessionState = {
   streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null, pendingPermission: null,
   slashCommands: [], model: '', contextPercent: null, name: '',
   fileChangesByTurn: [],
+  worktreePath: undefined,
 }
 
 export const SLASH_COMMAND_DESCRIPTIONS: Record<string, { description: string; argumentHint?: string }> = {
@@ -105,6 +106,7 @@ export interface EnsureCreatedOpts {
   permissionMode: AiPermissionMode
   resumeSessionId?: string
   cliCommand?: string
+  enableWorktree?: boolean
 }
 
 export const aiStore = {
@@ -167,6 +169,7 @@ export const aiStore = {
         permissionMode: opts.permissionMode,
         ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}),
         ...(cliCommand ? { cliCommand } : {}),
+        ...(opts.enableWorktree ? { enableWorktree: true } : {}),
       })
       aiStore.updateSession(sid, () => ({ ...EMPTY_SESSION }))
     }).catch(() => {
@@ -399,9 +402,13 @@ function initListeners() {
   })
 
   // ── onReady ──
-  window.api.ai.onReady(({ sessionId, slashCommands, model }: any) => {
+  window.api.ai.onReady(({ sessionId, slashCommands, model, worktreePath }: any) => {
     const commands = enrichSlashCommands(slashCommands || [])
-    aiStore.updateSession(sessionId, (s) => ({ ...s, ready: true, busy: s.busy, slashCommands: commands, model: model || s.model || '' }))
+    aiStore.updateSession(sessionId, (s) => ({
+      ...s, ready: true, busy: s.busy, slashCommands: commands,
+      model: model || s.model || '',
+      worktreePath: worktreePath || s.worktreePath,
+    }))
   })
 
   // ── onError ──

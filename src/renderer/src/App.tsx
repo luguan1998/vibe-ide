@@ -348,6 +348,7 @@ export default function App() {
   }, [sessions, terminalBusy, aiBusy])
   const [autoApproveSessions, setAutoApproveSessions] = useState<Record<string, boolean>>({})
   const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
+  const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
   const [forkSessions, setForkSessions] = useState<Record<string, string>>({})
   const [focusedPanel, setFocusedPanel] = useState<'term' | 'right' | null>(null)
   const [wordWrap, setWordWrap] = useState(() => {
@@ -2225,6 +2226,8 @@ export default function App() {
                         altBrush={altBrush}
                         annotationMode={annotationMode}
                         lastOpenedFile={lastOpenedFile}
+                        worktreeNav={sessionWorktreeNav[session.id] ?? null}
+                        onWorktreeNavChange={setSessionWorktreeNav}
                       />
                     ) : (
                       <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
@@ -2287,7 +2290,8 @@ export default function App() {
             onNavigateToFile={handleNavigateToFile}
             onExploreNode={(node: any) => setCallGraphFocalNode(node)}
             lineHistoryPayload={lineHistoryPayload}
-
+            sessionWorktreeNav={sessionWorktreeNav}
+            onWorktreeNavChange={setSessionWorktreeNav}
             onDiffScroll={handleDiffScroll}
             onToggleCollapse={handleToggleRightPanel}
             capsuleTabs={capsuleTabs}

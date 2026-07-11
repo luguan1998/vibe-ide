@@ -431,6 +431,7 @@ export interface AiSessionState {
   contextPercent: number | null
   name: string
   fileChangesByTurn: AiFileChange[][]
+  worktreePath?: string
 }
 
 export type AiPermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions'
@@ -442,6 +443,7 @@ export interface AiCreateOptions {
   permissionMode: AiPermissionMode
   resumeSessionId?: string
   cliCommand?: string
+  enableWorktree?: boolean
 }
 
 export interface AiSendPayload {

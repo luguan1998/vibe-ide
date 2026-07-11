@@ -13,13 +13,8 @@ export interface ManagedAiSession {
   cwd: string
   lineBuffer: string
   ready: boolean
-  // Cached from system/init event — used by ask-resume to spawn a `--resume` subprocess.
   claudeSessionId?: string
-  // Cached from modelUsage in stream-json output — used by calcContextPercent to use the
-  // actual model's context window instead of the 200k fallback. GLM-5.2 is 1M, Claude
-  // Sonnet/Opus 200k — without this, GLM users see percentage 5× higher than reality.
   contextWindow?: number
-  // Permission mode at spawn time — preserved across ask-resume restart.
   permissionMode?: AiPermissionMode
   model?: string
   pendingPermission?: {
@@ -28,21 +23,13 @@ export interface ManagedAiSession {
     toolInput: Record<string, any>
     toolUseId?: string
   }
-  // Set when user clicks Cancel — the next result message should be marked as aborted
-  // (user-initiated interrupt) rather than error_during_execution.
   cancelRequested?: boolean
-  // Set when AskUserQuestion arrived — main process kills CLI proactively to
-  // prevent LLM from continuing on the auto-filled empty answer (CLI 0.5s
-  // auto-timeout fills empty tool_result → LLM calls Write/Edit → overwrites
-  // renderer's pendingPermission card). exit handler must NOT emit AI_ERROR
-  // for this intentional kill; session must NOT be deleted (claudeSessionId
-  // is still needed by ai-ask-resume to spawn `--resume`).
   awaitingUserInput?: boolean
-  // Track tool_use IDs already processed for file-change events so --include-partial-messages
-  // doesn't cause duplicate diff viewer opens for the same tool call.
   seenToolUseIds?: Set<string>
-  // Set after revert spawn; cleared by system/init or timeout fallback
   revertAwaitingReady?: boolean
+  enableWorktree?: boolean
+  worktreePath?: string
+  preWorktreeSnapshot?: Set<string>
 }
 
 const LOCAL_CMD_TAG_RE = /<local-command-caveat>[\s\S]*?<\/local-command-caveat>|<command-name>[\s\S]*?<\/command-name>|<command-message>[\s\S]*?<\/command-message>|<command-args>[\s\S]*?<\/command-args>|<local-command-stdout>[\s\S]*?<\/local-command-stdout>|<system-reminder>[\s\S]*?<\/system-reminder>/g
@@ -106,6 +93,7 @@ export function buildClaudeArgs(opts: {
   permissionMode: AiPermissionMode
   resumeSessionId?: string
   model?: string
+  enableWorktree?: boolean
 }): string[] {
   const platformDesc = process.platform === 'win32'
     ? 'Windows (use paths like C:\\Users\\... with backslashes)'
@@ -129,17 +117,42 @@ export function buildClaudeArgs(opts: {
   if (opts.model) {
     args.push('--model', opts.model)
   }
+  if (opts.enableWorktree) {
+    args.push('--worktree')
+  }
   return args
 }
 
 // Spawn a Claude CLI subprocess with the standard args. Returns the ChildProcess on success,
 // or the findBinary error result (caller decides how to surface to UI).
+function snapshotWorktrees(cwd: string): Set<string> {
+  try {
+    const output = execSync('git worktree list --porcelain', { cwd, encoding: 'utf-8', timeout: 5000, stdio: 'pipe' })
+    const paths = new Set<string>()
+    for (const line of output.split('\n')) {
+      if (line.startsWith('worktree ')) paths.add(line.replace('worktree ', '').trim())
+    }
+    return paths
+  } catch { return new Set() }
+}
+
+function detectNewWorktree(cwd: string, before: Set<string>): string | null {
+  try {
+    const after = snapshotWorktrees(cwd)
+    for (const p of after) {
+      if (!before.has(p) && p.includes('.claude/worktrees/')) return p
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
 export function spawnClaude(opts: {
   cwd: string
   permissionMode: AiPermissionMode
   resumeSessionId?: string
   cliCommand?: string
   model?: string
+  enableWorktree?: boolean
 }): ChildProcess | SpawnError {
   const resolved = findBinary(opts.cliCommand)
   if ('error' in resolved) return resolved
@@ -202,7 +215,6 @@ async function extractFileChange(sessionId: string, block: any, cwd: string): Pr
 function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
   switch (msg.type) {
     case 'system': {
-      // subtype "init" = session initialized; "status" = requesting/responding (ignore)
       if (msg.subtype === 'status') break
       const s = aiSessions.get(sessionId)
       if (s) {
@@ -212,15 +224,21 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
           s.claudeSessionId = msg.session_id
           cliSessionToRenderer.set(msg.session_id, sessionId)
         }
-        // Parse context window from model name (e.g. "deepseek-v4-pro[1m]" → 1M).
-        // Allow re-init: --resume may re-send system/init after a restart, and the
-        // first init might have lacked a model field.
         if (msg.model) {
           const parsed = parseContextWindowFromModel(msg.model)
           if (parsed) s.contextWindow = parsed
         }
       }
-      send(IPC_CHANNELS.AI_READY, { sessionId, tools: msg.tools, model: msg.model, slashCommands: msg.slash_commands })
+      const payload: any = { sessionId, tools: msg.tools, model: msg.model, slashCommands: msg.slash_commands }
+      if (s?.enableWorktree && !s.worktreePath && s.preWorktreeSnapshot) {
+        const wtPath = detectNewWorktree(s.cwd, s.preWorktreeSnapshot)
+        if (wtPath) {
+          s.worktreePath = wtPath
+          s.cwd = wtPath
+          payload.worktreePath = wtPath
+        }
+      }
+      send(IPC_CHANNELS.AI_READY, payload)
       break
     }
 
@@ -786,9 +804,8 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
 
   // Spawn claude/openclaude subprocess
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
-    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand } = options
+    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, enableWorktree } = options
 
-    // Kill existing session if any (taskkill /f /t on Windows to avoid orphaned node processes)
     const existing = aiSessions.get(sessionId)
     if (existing) {
       killAiProcess(existing.process)
@@ -797,7 +814,9 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
 
     const permMode: AiPermissionMode = permissionMode || (autoApprove ? 'acceptEdits' : 'bypassPermissions')
 
-    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId, cliCommand })
+    const preSnapshot = enableWorktree ? snapshotWorktrees(cwd) : undefined
+
+    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId, cliCommand, enableWorktree })
     if ('error' in result) {
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,
@@ -809,9 +828,14 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
 
     attachAiProcess(sessionId, result, cwd)
 
-    // Cache spawn-time permissionMode so ai-ask-resume can preserve it across restart
     const created = aiSessions.get(sessionId)
-    if (created) created.permissionMode = permMode
+    if (created) {
+      created.permissionMode = permMode
+      if (enableWorktree && preSnapshot) {
+        created.enableWorktree = true
+        created.preWorktreeSnapshot = preSnapshot
+      }
+    }
 
     return { success: true }
   })
@@ -928,6 +952,13 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
       spawn('taskkill', ['/pid', String(session.process.pid), '/f', '/t'])
     } else {
       session.process.kill('SIGTERM')
+    }
+    if (session.worktreePath) {
+      try {
+        execSync(`git worktree remove --force "${session.worktreePath}"`, {
+          cwd: session.worktreePath, encoding: 'utf-8', timeout: 10000, stdio: 'pipe',
+        })
+      } catch { /* worktree may already be gone */ }
     }
     aiSessions.delete(sessionId)
     for (const [cliId, rendererId] of cliSessionToRenderer) {

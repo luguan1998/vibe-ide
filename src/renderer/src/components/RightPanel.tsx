@@ -42,6 +42,8 @@ interface RightPanelProps {
   onRemoveRecentFile?: (fullPath: string) => void
   onEditRecentFile?: (fullPath: string) => void
   altBrush?: boolean
+  sessionWorktreeNav: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
+  onWorktreeNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
 }
 
 type GitSection = 'git' | 'terminal' | 'search' | 'file' | 'game'
@@ -401,11 +403,12 @@ function RightPanel({
   onRemoveRecentFile,
   onEditRecentFile,
   altBrush,
+  sessionWorktreeNav,
+  onWorktreeNavChange,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('git')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
   const [visibleTabs, setVisibleTabs] = useState<Record<GitSection, boolean>>(DEFAULT_VISIBLE_TABS)
-  const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
   const [fileRefreshKey, setFileRefreshKey] = useState(0)
 
   // Polling tick triggers file tree refresh
@@ -608,7 +611,7 @@ function RightPanel({
           isActive={activeSection === 'git'}
           rightTerminalSession={activeRightTerminal}
           onCloseRightTerminal={onCloseRightTerminal}
-          onWorktreeNavChange={setSessionWorktreeNav}
+          onWorktreeNavChange={onWorktreeNavChange}
           onDiffScroll={onDiffScroll}
           onNavigateToFile={onNavigateToFile}
           lineHistoryPayload={lineHistoryPayload}
