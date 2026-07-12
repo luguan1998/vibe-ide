@@ -171,7 +171,7 @@ export const aiStore = {
         ...(cliCommand ? { cliCommand } : {}),
         ...(opts.enableWorktree ? { enableWorktree: true } : {}),
       })
-      aiStore.updateSession(sid, () => ({ ...EMPTY_SESSION }))
+      aiStore.updateSession(sid, () => ({ ...EMPTY_SESSION, ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}) }))
     }).catch(() => {
       aiStore.updateSession(sid, () => ({
         ...EMPTY_SESSION,

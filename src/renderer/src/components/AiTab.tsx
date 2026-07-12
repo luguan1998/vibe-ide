@@ -903,7 +903,7 @@ function findMessageIndexForUserMessage(messages: AiMessage[], userMessageIndex:
   return -1
 }
 
-function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork }: {
+function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, isResumed }: {
   message: AiMessage
   userMessageIndex: number
   totalUserMessages: number
@@ -911,6 +911,7 @@ function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, o
   onRevert: (idx: number) => void
   onRevertAndCode: (idx: number) => void
   onFork: (idx: number) => void
+  isResumed: boolean
 }) {
   const { t } = useI18n()
   const [showPopover, setShowPopover] = useState(false)
@@ -945,9 +946,9 @@ function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, o
           {cleanedContent}
         </div>
 
-        {showPopover && (
+        {showPopover && !isResumed && userMessageIndex > 0 && (
           <div ref={popoverRef}
-            className="ai-tab__user-popover absolute right-0 top-full mt-1 z-30
+            className="ai-tab__user-popover absolute right-0 top-full mt-1 z-40
                        bg-ide-sidebar border border-ide-border rounded-lg shadow-lg
                        py-1 min-w-[170px] animate-fade-in"
           >
@@ -1192,7 +1193,7 @@ function TodoListPanel({ items }: { items: TodoItem[] }) {
   )
 }
 
-function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode }: {
+function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isResumed }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
@@ -1205,6 +1206,7 @@ function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex,
   msgIndex: number
   allMessages: AiMessage[]
   viewMode?: number
+  isResumed: boolean
 }) {
   let copyText: string | undefined
   if (message.type === 'result' && message.numTurns != null) {
@@ -1219,7 +1221,7 @@ function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex,
   if (message.error) {
     inner = <AiErrorMessage message={message} />
   } else if (message.role === 'user') {
-    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} totalUserMessages={totalUserMessages} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} onFork={onFork} />
+    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} totalUserMessages={totalUserMessages} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} onFork={onFork} isResumed={isResumed} />
   } else if (
     message.type === 'result'
     && message.costUsd == null
@@ -2095,6 +2097,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       slashCommands: enrichSlashCommands(history.slashCommands || []),
                       name: sessionName,
                       ready: false,
+                      resumeSessionId: s.session_id || s.id,
                     }))
                     await window.api.ai.destroy(activeSessionId)
                     const cliCommand = (() => {
@@ -2187,6 +2190,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 onRevertAndCode={handleRevertAndCode}
                 onFork={handleFork}
                 viewMode={viewMode}
+                isResumed={!!state.resumeSessionId}
               />
             )
           })

@@ -432,6 +432,7 @@ export interface AiSessionState {
   name: string
   fileChangesByTurn: AiFileChange[][]
   worktreePath?: string
+  resumeSessionId?: string
 }
 
 export type AiPermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions'
