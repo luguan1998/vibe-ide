@@ -56,7 +56,7 @@ export function registerAskResumeHandlers(): void {
     aiSessions.delete(payload.sessionId)
     console.log(`[ASK-RESUME ${payload.sessionId}] killed old subprocess, spawning with --resume ${claudeSessionId}`)
 
-    const result = spawnClaude({ cwd, permissionMode, resumeSessionId: claudeSessionId })
+    const result = spawnClaude({ cwd, permissionMode, model: session.model, resumeSessionId: claudeSessionId })
     if ('error' in result) {
       console.log(`[ASK-RESUME ${payload.sessionId}] ABORT: spawnClaude failed: ${result.error}`)
       send(IPC_CHANNELS.AI_ERROR, {

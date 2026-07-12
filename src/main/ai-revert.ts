@@ -104,6 +104,7 @@ export function registerRevertHandlers(): void {
     const spawnResult = spawnClaude({
       cwd: effectiveCwd,
       permissionMode: prev?.permissionMode || 'bypassPermissions',
+      model: prev?.model,
       ...(hasHistory ? { resumeSessionId: claudeSessionId } : {}),
     })
     if ('error' in spawnResult) {
