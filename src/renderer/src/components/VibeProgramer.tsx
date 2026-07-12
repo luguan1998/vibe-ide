@@ -486,22 +486,6 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
 
       {annotations.length > 0 && (
         <div className="shrink-0 border-b border-ide-border max-h-[40%] overflow-y-auto draft-plan__annotations">
-          <div className="flex items-center justify-between px-3 h-7 sticky top-0 bg-ide-sidebar z-[1] border-b border-ide-border/60">
-            <span className="text-[10px] uppercase tracking-wider text-ide-text-muted/60">
-              批注 <span className="text-ide-accent tabular-nums">{annotations.reduce((n, g) => n + g.items.length, 0)}</span>
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-ide-text-muted/40">Numpad7 → 转为命令</span>
-              <button
-                onClick={handleAnnotationConvert}
-                disabled={annotations.length === 0}
-                className="flex items-center justify-center w-5 h-5 rounded text-ide-text-muted/60 hover:text-ide-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                title="转为命令 (Numpad7)"
-              >
-                <ListOrdered size={12} />
-              </button>
-            </div>
-          </div>
           {annotations.map(group => (
             <div key={group.fullPath} className="draft-plan__annotation-group">
               <div className="px-3 py-1 text-[11px] font-mono text-ide-text-muted truncate bg-ide-hover/30">
@@ -529,6 +513,14 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
               ))}
             </div>
           ))}
+          <div className="flex justify-end px-3 py-2">
+            <button
+              onClick={handleAnnotationConvert}
+              className="px-5 py-1.5 rounded-[6px_10px_5px_9px] bg-ide-accent text-white text-sm font-bold hover:brightness-110 active:brightness-95 transition-all"
+            >
+              完成
+            </button>
+          </div>
         </div>
       )}
 
