@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import type { AiMessage, AiToolUse, AiSessionState, AiPermissionRequest, AiPermissionMode, AiSlashCommand, RecentFileEntry } from '@shared/types'
-import { AI_FILE_EDIT_TOOLS } from '@shared/types'
+import { AI_FILE_EDIT_TOOLS, isRealUserMessage } from '@shared/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useStableCodeOverrides } from './MarkdownCodeBlock'
@@ -895,7 +895,7 @@ function findMessageIndexForUserMessage(messages: AiMessage[], userMessageIndex:
   let count = 0
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i]
-    if (m.role === 'user' && m.content && m.type === 'user') {
+    if (m.role === 'user' && m.content && m.type === 'user' && isRealUserMessage(m.content)) {
       if (count === userMessageIndex) return i
       count++
     }
@@ -1835,7 +1835,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     const isClear = message.startsWith('/clear')
     updateSession(activeSessionId, (s) => {
       const currentUserCount = s.messages.filter(
-        m => m.role === 'user' && m.content && m.type === 'user'
+        m => m.role === 'user' && m.content && m.type === 'user' && isRealUserMessage(m.content)
       ).length
       const newName = !s.name ? message.slice(0, 60) : s.name
       const userMsg = { sessionId: activeSessionId, type: 'user' as const, role: 'user' as const, content: message, timestamp: Date.now() }
@@ -2208,7 +2208,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           </div>
         )}
         {(() => {
-          const userMessages = state.messages.filter(m => m.role === 'user' && m.content && m.type === 'user')
+          const userMessages = state.messages.filter(m => m.role === 'user' && m.content && m.type === 'user' && isRealUserMessage(m.content))
           const totalUserMessages = userMessages.length
 
           const groups: Array<{ type: 'agent'; messages: AiMessage[]; parentId: string; startIndex: number } | { type: 'msg'; message: AiMessage; index: number }> = []

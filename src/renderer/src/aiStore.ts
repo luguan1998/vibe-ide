@@ -1,5 +1,6 @@
 import { useSyncExternalStore, useCallback } from 'react'
 import type { AiMessage, AiSessionState, AiSlashCommand, AiPermissionMode, AiPermissionRequest } from '@shared/types'
+import { isRealUserMessage } from '@shared/types'
 
 // ── 纯函数 & 常量(从 AiTab.tsx 抽出,供 store 与组件共用)──
 
@@ -383,7 +384,7 @@ function initListeners() {
     if (!data.sessionId) return
     aiStore.updateSession(data.sessionId, (s) => {
       const userMsgCount = s.messages.filter(
-        m => m.role === 'user' && m.content && m.type === 'user'
+        m => m.role === 'user' && m.content && m.type === 'user' && isRealUserMessage(m.content)
       ).length
       const turnIndex = Math.max(0, userMsgCount - 1)
 

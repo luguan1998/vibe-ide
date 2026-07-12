@@ -374,6 +374,12 @@ export const AI_FILE_EDIT_TOOLS = new Set([
   'create_file', 'replace', 'insert', 'Write', 'Edit', 'NotebookEdit',
 ])
 
+export const COMMAND_TAG_RE = /<(local-command-caveat|command-name|command-message|command-args|local-command-stdout|system-reminder)>[\s\S]*?<\/(local-command-caveat|command-name|command-message|command-args|local-command-stdout|system-reminder)>/g
+
+export function isRealUserMessage(content: string): boolean {
+  return content.replace(COMMAND_TAG_RE, '').trim().length > 0
+}
+
 export interface AiToolUse {
   id: string
   name: string

@@ -6,6 +6,7 @@ import {
   IPC_CHANNELS,
   type AiRevertPayload,
   type AiForkPayload,
+  isRealUserMessage,
 } from '../shared/types'
 import {
   aiSessions,
@@ -42,7 +43,7 @@ async function truncateJsonlAtUserMessage(
     try { msg = JSON.parse(lines[i]) } catch { continue }
 
     // Count "real" user messages (string content, not tool_result arrays)
-    if (msg.type === 'user' && typeof msg.message?.content === 'string') {
+    if (msg.type === 'user' && typeof msg.message?.content === 'string' && isRealUserMessage(msg.message.content)) {
       if (userMsgCount === userMessageIndex) {
         targetLineIdx = i
         break

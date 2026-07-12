@@ -17,15 +17,25 @@ function makeAsstMsg(sessionId, content) {
   return { sessionId, type: 'assistant', role: 'assistant', content, timestamp: Date.now() }
 }
 
+function makeCommandUserMsg(sessionId, tag, inner) {
+  return { sessionId, type: 'user', role: 'user', content: `<${tag}>${inner}</${tag}>`, timestamp: Date.now() }
+}
+
+const COMMAND_TAG_RE = /<(local-command-caveat|command-name|command-message|command-args|local-command-stdout|system-reminder)>[\\s\\S]*?<\\/(local-command-caveat|command-name|command-message|command-args|local-command-stdout|system-reminder)>/g
+
+function isRealUserMessage(content) {
+  return content.replace(COMMAND_TAG_RE, '').trim().length > 0
+}
+
 function countUserMsgs(messages) {
-  return messages.filter(m => m.role === 'user' && m.content && m.type === 'user').length
+  return messages.filter(m => m.role === 'user' && m.content && m.type === 'user' && isRealUserMessage(m.content)).length
 }
 
 function findMessageIndexForUserMessage(messages, userMessageIndex) {
   let count = 0
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i]
-    if (m.role === 'user' && m.content && m.type === 'user') {
+    if (m.role === 'user' && m.content && m.type === 'user' && isRealUserMessage(m.content)) {
       if (count === userMessageIndex) return i
       count++
     }
@@ -219,6 +229,28 @@ describe('resume + revert flow', () => {
     }
     assert.equal(s.resumedUserMsgCount, 3)
     assert.equal(shouldShowPopover(s, 3), true, 'N4 shows popover')
+  })
+
+  it('7. model-switch hidden messages excluded from counting', () => {
+    const sid = 's7'
+    const s = { ...EMPTY_SESSION }
+    // Simulate model switch injecting 3 hidden messages before real ones
+    s.messages = [
+      makeCommandUserMsg(sid, 'local-command-caveat', 'Caveat: ...'),
+      makeCommandUserMsg(sid, 'command-name', '/model'),
+      makeCommandUserMsg(sid, 'local-command-stdout', 'Set model to haiku'),
+      makeUserMsg(sid, 'Q1'), makeAsstMsg(sid, 'A1'),
+      makeUserMsg(sid, 'Q2'), makeAsstMsg(sid, 'A2'),
+    ]
+    assert.equal(countUserMsgs(s.messages), 2, 'only Q1 and Q2 count')
+    assert.equal(shouldShowPopover(s, 0), false)
+    assert.equal(shouldShowPopover(s, 1), true, 'Q2 shows popover (userMsgIdx=1)')
+
+    // Revert at userMessageIndex=1 (Q2)
+    const targetIdx = findMessageIndexForUserMessage(s.messages, 1)
+    assert.ok(targetIdx > 0, 'found Q2 in messages')
+    const truncated = s.messages.slice(0, targetIdx)
+    assert.equal(countUserMsgs(truncated), 1, 'only Q1 remains after truncation')
   })
 })
 
