@@ -310,7 +310,7 @@ const ZH_MAP: Record<string, string> = {
   'Exclude folders': '排除文件夹',
   // AI Tab
   'Ask AI to help with your code...': '让 AI 帮你写代码...',
-  'Type a message...': '输入消息...',
+  'Type a message...': '输入消息，Shift+Enter 换行...',
   'Initializing...': '初始化中...',
   'Approve': '批准',
   'Deny': '拒绝',
