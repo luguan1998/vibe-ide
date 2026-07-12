@@ -46,9 +46,9 @@ body::before {
    ════════════════════════════════════════════════════ */
 .titlebar-drag,
 .session-panel__stat,
-.session-panel__config-btn,
+.session-panel__settings-btn,
 .session-panel__new-btn,
-.session-panel__config-menu,
+.session-panel__settings-menu,
 .file-tab__header,
 .file-tab__section,
 .file-tab__section-header,
@@ -94,27 +94,16 @@ html, body, #root {
   background: rgb(20 50 65) !important;
   color: rgb(228 204 159) !important;
 }
-.session-panel__config-btn, .session-panel__new-btn {
+.session-panel__settings-btn, .session-panel__new-btn {
   border: 1px solid rgb(32 27 24 / 0.6) !important;
   transition: all 0.3s !important;
   color: rgb(228 204 159) !important;
 }
-.session-panel__config-btn:hover, .session-panel__new-btn:hover {
+.session-panel__settings-btn:hover, .session-panel__new-btn:hover {
   border-color: rgb(38 223 162 / 0.5) !important;
   color: rgb(38 223 162) !important;
 }
-.session-panel__new-btn:not(:disabled) {
-  background: transparent !important;
-  color: rgb(228 204 159 / 0.7) !important;
-}
-.session-panel__new-btn:not(:disabled):hover {
-  background: rgb(217 93 85) !important;
-  color: rgb(255 255 255) !important;
-  border-color: rgb(217 93 85) !important;
-  font-weight: 700 !important;
-  transform: scale(1.05) !important;
-}
-.session-panel__config-menu {
+.session-panel__settings-menu {
   border: 1px solid rgb(32 27 24) !important;
   box-shadow: 0 4px 24px rgba(0,0,0,0.5) !important;
   background: rgb(20 50 65) !important;
@@ -197,14 +186,14 @@ html, body, #root {
   color: rgb(255 245 240 / 0.65) !important;
 }
 
-/* ── 輪換色相（5色週期）─ 青 / 綠 / 金 / 紅 / 藍 ── */
+/* ── 輪換色相（5色週期）─ 青 / 金 / 綠 / 紅 / 藍 ── */
 .session-item:nth-child(5n+1).session-item--active { background: rgb(38 200 200) !important; color: rgb(18 43 56) !important; }
 .session-item:nth-child(5n+1).session-item--active .session-item__name { color: rgb(18 43 56) !important; }
 .session-item:nth-child(5n+1).session-item--active .session-item__cwd { color: rgb(18 43 56 / 0.6) !important; }
-.session-item:nth-child(5n+2).session-item--active { background: rgb(38 223 162) !important; color: rgb(18 43 56) !important; }
+.session-item:nth-child(5n+2).session-item--active { background: rgb(228 180 100) !important; color: rgb(18 43 56) !important; }
 .session-item:nth-child(5n+2).session-item--active .session-item__name { color: rgb(18 43 56) !important; }
 .session-item:nth-child(5n+2).session-item--active .session-item__cwd { color: rgb(18 43 56 / 0.6) !important; }
-.session-item:nth-child(5n+3).session-item--active { background: rgb(228 180 100) !important; color: rgb(18 43 56) !important; }
+.session-item:nth-child(5n+3).session-item--active { background: rgb(38 223 162) !important; color: rgb(18 43 56) !important; }
 .session-item:nth-child(5n+3).session-item--active .session-item__name { color: rgb(18 43 56) !important; }
 .session-item:nth-child(5n+3).session-item--active .session-item__cwd { color: rgb(18 43 56 / 0.6) !important; }
 .session-item:nth-child(5n+4).session-item--active { background: rgb(217 93 85) !important; }
@@ -212,11 +201,11 @@ html, body, #root {
 
 /* hover 文字色 + 光暈輪換 */
 .session-item:nth-child(5n+1):hover,
-.session-item:nth-child(5n+1):hover .session-item__name { color: rgb(38 223 162) !important; }
-.session-item:nth-child(5n+1):hover { box-shadow: 0 0 20px rgb(38 223 162 / 0.2) !important; }
+.session-item:nth-child(5n+1):hover .session-item__name { color: rgb(228 180 100) !important; }
+.session-item:nth-child(5n+1):hover { box-shadow: 0 0 20px rgb(228 180 100 / 0.2) !important; }
 .session-item:nth-child(5n+2):hover,
-.session-item:nth-child(5n+2):hover .session-item__name { color: rgb(228 180 100) !important; }
-.session-item:nth-child(5n+2):hover { box-shadow: 0 0 20px rgb(228 180 100 / 0.2) !important; }
+.session-item:nth-child(5n+2):hover .session-item__name { color: rgb(38 223 162) !important; }
+.session-item:nth-child(5n+2):hover { box-shadow: 0 0 20px rgb(38 223 162 / 0.2) !important; }
 .session-item:nth-child(5n+3):hover,
 .session-item:nth-child(5n+3):hover .session-item__name { color: rgb(217 93 85) !important; }
 .session-item:nth-child(5n+3):hover { box-shadow: 0 0 20px rgb(217 93 85 / 0.2) !important; }
@@ -478,12 +467,12 @@ input[type="checkbox"] { accent-color: rgb(38 223 162); }
    Markdown 預覽 — 深海手稿風
    ════════════════════════════════════════════════════ */
 
-/* heading 層級色：珊瑚紅→螢光綠→沙灘金→竹青→深海藍→炭灰 */
-.md-preview h1 { color: rgb(217 93 85) !important; border-bottom-color: rgb(217 93 85) !important; border-bottom-width: 2px !important; }
-.md-preview h2 { color: rgb(38 223 162) !important; border-bottom-color: rgb(38 223 162) !important; }
-.md-preview h3 { color: rgb(228 180 100) !important; }
-.md-preview h4 { color: rgb(124 138 79) !important; }
-.md-preview h5 { color: rgb(31 94 107) !important; }
+/* heading 層級色：青→金→綠→紅→藍 */
+.md-preview h1 { color: rgb(38 200 200) !important; border-bottom-color: rgb(38 200 200) !important; border-bottom-width: 2px !important; }
+.md-preview h2 { color: rgb(228 180 100) !important; border-bottom-color: rgb(228 180 100) !important; }
+.md-preview h3 { color: rgb(38 223 162) !important; }
+.md-preview h4 { color: rgb(217 93 85) !important; }
+.md-preview h5 { color: rgb(55 140 180) !important; }
 .md-preview h6 { color: rgb(160 150 130) !important; }
 
 .md-preview a { color: rgb(38 223 162) !important; text-decoration-color: rgb(38 223 162 / 0.4) !important; }

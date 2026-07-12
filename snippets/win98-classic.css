@@ -96,13 +96,13 @@ html, body, #root {
 }
 
 /* 齿轮和新建 = 凸起 */
-.session-panel__config-btn,
+.session-panel__settings-btn,
 .session-panel__new-btn {
   border: 2px solid !important;
   border-color: rgb(90 90 95) rgb(25 25 28) rgb(25 25 28) rgb(90 90 95) !important;
 }
 
-.session-panel__config-btn:active,
+.session-panel__settings-btn:active,
 .session-panel__new-btn:active {
   border-color: rgb(25 25 28) rgb(90 90 95) rgb(90 90 95) rgb(25 25 28) !important;
 }
@@ -138,13 +138,13 @@ html, body, #root {
 }
 
 /* 设置菜单 = 凸起 */
-.session-panel__config-menu {
+.session-panel__settings-menu {
   border: 2px solid !important;
   border-color: rgb(72 72 78) rgb(25 25 28) rgb(25 25 28) rgb(72 72 78) !important;
   box-shadow: 2px 2px 0 rgb(20 20 22) !important;
 }
 
-.session-panel__config-menu button {
+.session-panel__settings-menu button {
   border-bottom: 1px solid rgb(var(--ide-border));
   font-size: 11px !important;
 }

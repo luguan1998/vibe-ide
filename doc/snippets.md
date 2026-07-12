@@ -75,8 +75,8 @@ Snippets 能覆盖的东西分七类。前三类是**变量**（改一个值，�
 **会话面板（左侧）**
 - `.session-panel__list-wrapper` 列表容器
 - `.session-panel__stat` 统计徽章
-- `.session-panel__config-btn` / `.session-panel__new-btn` 齿轮 / 新建按钮
-- `.session-panel__config-menu` 设置菜单
+- `.session-panel__settings-btn` / `.session-panel__new-btn` 齿轮 / 新建按钮
+- `.session-panel__settings-menu` 设置菜单
 - `.session-item` 会话项（`:hover` / `--active` / `__name`）
 - `.session-group` / `__header` / `__path` 会话分组（按 cwd 分组时）
 

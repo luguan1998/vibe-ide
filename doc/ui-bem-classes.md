@@ -255,11 +255,12 @@
 | `session-panel__header` | 面板顶部统计栏 |
 | `session-panel__stats` | 统计数字容器 |
 | `session-panel__stat` | 单个统计项（session 数 / 总消息数） |
-| `session-panel__config` | 设置按钮区 |
-| `session-panel__config-btn` | 设置齿轮按钮 |
-| `session-panel__config-menu` | 设置下拉菜单 |
+| `session-panel__settings` | 设置按钮区 |
+| `session-panel__settings-btn` | 设置齿轮按钮 |
+| `session-panel__settings-menu` | 设置下拉菜单 |
 | `session-panel__theme-list` | 主题切换列表 |
 | `session-panel__snippets-list` | Snippets 切换列表 |
+| `session-panel__new` | 新建按钮区 |
 | `session-panel__new-btn` | 新建 session 按钮 |
 | `session-panel__list-wrapper` | 列表外层容器（圆角裁剪） |
 | `session-panel__list` | 列表滚动区 |

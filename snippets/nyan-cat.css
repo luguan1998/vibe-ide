@@ -161,19 +161,19 @@
   box-shadow: 0 0 6px rgb(242 140 245 / 0.08) !important;
 }
 
-.session-panel__config-btn,
+.session-panel__settings-btn,
 .session-panel__new-btn {
   border: 1px solid rgb(40 58 90) !important;
   transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s !important;
 }
 
-.session-panel__config-btn:hover,
+.session-panel__settings-btn:hover,
 .session-panel__new-btn:hover {
   border-color: rgb(242 140 245 / 0.4) !important;
 }
 
-.session-panel__config-btn svg { display: none !important; }
-.session-panel__config-btn::after {
+.session-panel__settings-btn svg { display: none !important; }
+.session-panel__settings-btn::after {
   content: '🎀' !important;
   font-size: 13px !important;
   line-height: 1 !important;
@@ -186,12 +186,12 @@
   line-height: 1 !important;
 }
 
-.session-panel__config-menu {
+.session-panel__settings-menu {
   border: 1px solid rgb(40 58 90) !important;
   box-shadow: 0 4px 16px rgba(0,0,0,0.6) !important;
 }
 
-.session-panel__config-menu button {
+.session-panel__settings-menu button {
   border-bottom: 1px solid rgb(30 44 72) !important;
   font-size: 11px !important;
 }

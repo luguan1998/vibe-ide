@@ -861,10 +861,10 @@ const SessionPanel = React.memo(function SessionPanel({
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="relative config-menu-area session-panel__config">
+          <div className="relative config-menu-area session-panel__settings">
             <button
               ref={configBtnRef}
-              className={`w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 session-panel__config-btn ${
+              className={`w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 session-panel__settings-btn ${
                 showConfigMenu
                   ? 'text-ide-accent bg-ide-accent/20'
                   : 'text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white'
@@ -878,7 +878,7 @@ const SessionPanel = React.memo(function SessionPanel({
               </svg>
             </button>
             {showConfigMenu && (
-              <div style={configMenuStyle} className="bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 config-menu-area session-panel__config-menu">
+              <div style={configMenuStyle} className="bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 config-menu-area session-panel__settings-menu">
                 {/* Language toggle */}
                 <div className="flex items-center justify-between mx-3 my-1.5">
                   <div className="inline-flex items-center rounded-md bg-ide-hover overflow-hidden">
@@ -1076,13 +1076,15 @@ const SessionPanel = React.memo(function SessionPanel({
               </div>
             )}
           </div>
-          <button
-            onClick={() => onCreateSession(termType)}
-            className="w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 session-panel__new-btn text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white"
-            title={`${t('New Terminal')} (${shellOptions.find(tt => tt.value === termType)?.label || termType})`}
-          >
-            <Plus size={14} />
-          </button>
+          <div className="relative session-panel__new">
+            <button
+              onClick={() => onCreateSession(termType)}
+              className="w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 session-panel__new-btn text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white"
+              title={`${t('New Terminal')} (${shellOptions.find(tt => tt.value === termType)?.label || termType})`}
+            >
+              <Plus size={14} />
+            </button>
+          </div>
         </div>
       </div>
 

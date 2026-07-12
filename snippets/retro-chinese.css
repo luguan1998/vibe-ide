@@ -98,14 +98,14 @@ html, body, #root { font-family: 'HONOR Sans CN', 'Noto Sans SC', 'PingFang SC',
   background: linear-gradient(90deg, rgb(30 28 20), rgb(40 45 28), rgb(30 28 20)) !important;
 }
 .session-group__path { color: rgb(130 200 130) !important; font-weight: 700 !important; }
-.session-panel__config-btn, .session-panel__new-btn {
+.session-panel__settings-btn, .session-panel__new-btn {
   border: 1px solid rgb(70 58 40) !important;
   transition: all 0.15s !important;
 }
-.session-panel__config-btn:hover, .session-panel__new-btn:hover {
+.session-panel__settings-btn:hover, .session-panel__new-btn:hover {
   border-color: rgb(199 50 43 / 0.6) !important;
 }
-.session-panel__config-menu { border: 2px solid rgb(70 58 40) !important; }
+.session-panel__settings-menu { border: 2px solid rgb(70 58 40) !important; }
 
 /* ═══════════════════════════════════════════
    终端 — 墨色 + 金边

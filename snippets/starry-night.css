@@ -41,10 +41,10 @@
    开文件瞬间 style recalc 成本被放大成 CPU 抖升；改用具体容器即可断掉扫描路径 */
 .titlebar-drag,
 .session-panel__stat,
-.session-panel__config-btn,
+.session-panel__settings-btn,
 .session-panel__new-btn,
-.session-panel__config-menu,
-.session-panel__config-menu button,
+.session-panel__settings-menu,
+.session-panel__settings-menu button,
 .session-group,
 .session-group__header,
 .file-tab__header,
@@ -89,15 +89,15 @@ textarea {
   text-transform: none !important; letter-spacing: 0 !important;
   font-size: 11px !important;
 }
-.session-panel__config-btn, .session-panel__new-btn {
+.session-panel__settings-btn, .session-panel__new-btn {
   border: 1px solid rgb(var(--ide-border)) !important;
   transition: all 0.2s !important;
 }
-.session-panel__config-btn:hover, .session-panel__new-btn:hover {
+.session-panel__settings-btn:hover, .session-panel__new-btn:hover {
   border-color: rgb(var(--ide-accent) / 0.4) !important;
 }
-.session-panel__config-btn svg { display: none !important; }
-.session-panel__config-btn::after {
+.session-panel__settings-btn svg { display: none !important; }
+.session-panel__settings-btn::after {
   content: '🎨' !important;
   font-size: 13px !important;
   line-height: 1 !important;
@@ -120,11 +120,11 @@ textarea {
   border-color: rgb(var(--ide-accent)) !important;
   font-weight: 700 !important;
 }
-.session-panel__config-menu {
+.session-panel__settings-menu {
   border: 1px solid rgb(var(--ide-border)) !important;
   box-shadow: 0 4px 16px rgba(0,0,0,0.6) !important;
 }
-.session-panel__config-menu button {
+.session-panel__settings-menu button {
   border-bottom: 1px solid rgb(40 42 68);
   font-size: 11px !important;
 }

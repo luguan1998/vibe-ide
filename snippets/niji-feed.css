@@ -66,7 +66,7 @@
 }
 
 /* 工具栏按钮 — 胶囊浅灰底，悬停粉化 */
-.session-panel__config-btn,
+.session-panel__settings-btn,
 .session-panel__new-btn {
   border: none !important;
   background: rgb(0 0 0 / 0.04) !important;
@@ -74,29 +74,29 @@
   border-radius: 9999px !important;
   transition: background-color 0.15s, color 0.15s !important;
 }
-.session-panel__config-btn:hover,
+.session-panel__settings-btn:hover,
 .session-panel__new-btn:hover {
   background: rgb(255 64 129 / 0.12) !important;
   color: rgb(var(--ide-accent)) !important;
 }
 /* 配置按钮菜单打开态 — 粉底激活（精确命中 bg-ide-accent/20，不误伤 hover:bg-ide-accent） */
-.session-panel__config-btn[class*="bg-ide-accent/20"] {
+.session-panel__settings-btn[class*="bg-ide-accent/20"] {
   background: rgb(255 64 129 / 0.14) !important;
   color: rgb(var(--ide-accent)) !important;
 }
 
 /* 配置菜单 — 白色圆角 + 粉色菜单高亮 */
-.session-panel__config-menu {
+.session-panel__settings-menu {
   background: rgb(255 255 255) !important;
   border: 1px solid rgb(0 0 0 / 0.06) !important;
   border-radius: 14px !important;
   box-shadow: 0 8px 28px rgb(0 0 0 / 0.12) !important;
 }
-.session-panel__config-menu button {
+.session-panel__settings-menu button {
   border-radius: 9999px !important;
   border: none !important;
 }
-.session-panel__config-menu button:hover {
+.session-panel__settings-menu button:hover {
   background: rgb(var(--ide-accent)) !important;
   color: #fff !important;
 }
