@@ -433,6 +433,7 @@ export interface AiSessionState {
   fileChangesByTurn: AiFileChange[][]
   worktreePath?: string
   resumeSessionId?: string
+  resumedUserMsgCount?: number
 }
 
 export type AiPermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions'
