@@ -197,7 +197,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
 
   const handleClick = (e: React.MouseEvent) => {
     if (isRenaming || isCreating) return
-    if (e.altKey && onCopyPath) {
+    if (e.ctrlKey && onCopyPath) {
       e.preventDefault()
       e.stopPropagation()
       onCopyPath(node.path)
@@ -1336,7 +1336,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 className={`group pl-[30px] pr-2 py-0.5 flex items-center gap-1.5 cursor-pointer hover:bg-ide-hover ft-fname ${selectedRecentIndex === i ? 'bg-ide-accent/10 text-ide-text' : ''}`}
                 title={`${f.path}${f.line ? ':' + f.line : ''}`}
                 onClick={(e) => {
-                  if (e.altKey) { e.preventDefault(); handleCopyPath(f.path); return }
+                  if (e.ctrlKey) { e.preventDefault(); handleCopyPath(f.path); return }
                   onOpenRecentFile?.(f.path, f.line)
                 }}
               >

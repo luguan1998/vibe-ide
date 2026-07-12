@@ -358,7 +358,7 @@ html, body, #root {
   border-radius: 0 !important;
   color: rgb(0 0 0) !important;
   font-weight: 400 !important;
-  padding: 7px 14px !important;
+  padding: 10px 14px !important;
   transition: filter 0.2s, color 0.2s, opacity 0.2s !important;
 }
 .right-panel__tab-bar > .rounded-lg button:not(.right-panel__tab--active) {
@@ -391,11 +391,11 @@ html, body, #root {
 .git-tab__commit-btn,
 .git-tab__push-group button,
 .aux-tab__launch-btn {
-  padding: 12px 14px !important;
+  padding: 14px 16px !important;
 }
 .git-tab__stash-btn,
 .git-tab__amend-btn {
-  padding: 4px 10px !important;
+  padding: 8px 12px !important;
 }
 .git-tab__commit-btn:hover,
 .git-tab__push-group button:hover,
