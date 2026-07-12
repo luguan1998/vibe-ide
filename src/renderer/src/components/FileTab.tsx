@@ -58,7 +58,7 @@ interface FileTabProps {
   onEditRecentFile?: (fullPath: string, lineNumber?: number) => void
   onOpenFileAtLine?: (fullPath: string, lineNumber?: number) => void
   isActive?: boolean
-  altBrush?: boolean
+  brushActive?: boolean
 }
 
 // Workspace-root inline input (new file/folder at root level)
@@ -560,7 +560,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, altBrush }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, brushActive }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -1171,7 +1171,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   }, [fileClipboard, refreshDir])
 
   return (
-    <div className={`flex-1 flex flex-col min-h-0 file-tab${altBrush ? ' alt-copy-mode' : ''}`}>
+    <div className={`flex-1 flex flex-col min-h-0 file-tab${brushActive ? ' brush-copy-mode' : ''}`}>
       {workspacePath && (
         <div className="group h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean file-tab__header"
           onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}

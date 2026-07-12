@@ -15,9 +15,10 @@
 // ── types ──────────────────────────────────────────────────────────
 export interface ShortcutDef {
   id: string
-  label: string // human-readable action name
-  defaultKeys: string // e.g. "Ctrl+KeyF"
-  readonly?: boolean // display-only, not rebindable
+  label: string
+  defaultKeys: string
+  readonly?: boolean
+  modifierOnly?: boolean
 }
 
 export interface ParsedKeybinding {
@@ -130,6 +131,16 @@ export function eventMatchesBinding(e: KeyboardEvent, raw: string): boolean {
     e.metaKey === p.meta &&
     e.code === p.code
   )
+}
+
+export function eventIsModifierPress(e: KeyboardEvent, raw: string): boolean {
+  const p = parseKeybinding(raw)
+  if (p.code) return false
+  if (p.ctrl) return e.key === 'Control' && !e.altKey && !e.shiftKey && !e.metaKey
+  if (p.alt) return e.key === 'Alt' && !e.ctrlKey && !e.shiftKey && !e.metaKey
+  if (p.shift) return e.key === 'Shift' && !e.ctrlKey && !e.altKey && !e.metaKey
+  if (p.meta) return e.key === 'Meta' && !e.ctrlKey && !e.altKey && !e.shiftKey
+  return false
 }
 
 // ── default shortcuts ──────────────────────────────────────────────
@@ -272,6 +283,12 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     id: 'session.clone',
     label: 'Clone Current Session',
     defaultKeys: 'Ctrl+KeyN',
+  },
+  {
+    id: 'brush.activate',
+    label: 'Feather Pen (Brush Mode)',
+    defaultKeys: 'Ctrl',
+    modifierOnly: true,
   },
 ]
 

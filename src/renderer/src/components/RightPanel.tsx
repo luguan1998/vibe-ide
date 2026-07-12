@@ -41,7 +41,7 @@ interface RightPanelProps {
   onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
   onRemoveRecentFile?: (fullPath: string) => void
   onEditRecentFile?: (fullPath: string) => void
-  altBrush?: boolean
+  brushActive?: boolean
   sessionWorktreeNav: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onWorktreeNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
 }
@@ -402,7 +402,7 @@ function RightPanel({
   recentFiles, onOpenRecentFile,
   onRemoveRecentFile,
   onEditRecentFile,
-  altBrush,
+  brushActive,
   sessionWorktreeNav,
   onWorktreeNavChange,
 }: RightPanelProps) {
@@ -661,7 +661,7 @@ function RightPanel({
           onRemoveRecentFile={onRemoveRecentFile}
           onEditRecentFile={onEditRecentFile}
           isActive={activeSection === 'file'}
-          altBrush={altBrush}
+          brushActive={brushActive}
         />
       </div>
 

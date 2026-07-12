@@ -75,7 +75,7 @@ interface DiffViewerProps {
   wordWrap?: boolean        // 是否自动换行
   scrollTrigger?: number    // PageUp/PageDown 触发滚动，变化时滚动一页
   revision?: number         // 递增以强制重新加载内容
-  onBack?: (selection?: { startLine: number; endLine: number }) => void
+  onBack?: () => void
   onSaved?: (path: string) => Promise<void>
   defaultEdit?: boolean
   inlineDiff?: boolean      // 强制内联 diff 模式
@@ -87,9 +87,8 @@ interface DiffViewerProps {
   onViewLineHistory?: (filePath: string, lineNumber: number) => void  // 右键菜单 → 查看这行修改记录
   compareOriginalContent?: string  // 左侧对比文件内容（文件对比模式）
   compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
-  onAnnotationTrigger?: (start: number, end: number) => void  // Alt+左键 → 通知 App 开批注面板（start/end 相同为单行）
-  altBrush?: boolean               // Alt 按住中 → 标题栏鼠标变 🖌️ 画笔（复制路径）
-  annotationMode?: boolean         // 草稿计划开启 && Alt 按住 → 代码区羽毛笔 + 批注
+  onAnnotationTrigger?: (start: number, end: number) => void
+  brushActive?: boolean
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -257,7 +256,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, altBrush, annotationMode }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -297,11 +296,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const monacoRef = useRef<any>(null)
   const onAnnotationTriggerRef = useRef(onAnnotationTrigger)
   onAnnotationTriggerRef.current = onAnnotationTrigger
-  const handleAltLineClick = useCallback((start: number, end: number) => {
+  const brushActiveRef = useRef(brushActive)
+  brushActiveRef.current = brushActive
+  const handleAnnotationClick = useCallback((start: number, end: number) => {
     onAnnotationTriggerRef.current?.(start, end)
   }, [])
-  const handleAltLineClickRef = useRef(handleAltLineClick)
-  handleAltLineClickRef.current = handleAltLineClick
+  const handleAnnotationClickRef = useRef(handleAnnotationClick)
+  handleAnnotationClickRef.current = handleAnnotationClick
 
   // 单行回退 hover 浮钮
   const revertingRef = useRef(false)
@@ -583,18 +584,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       if (e.key !== 'Escape' || !onBack) return
       if (!containerRef.current?.offsetParent) return
       e.preventDefault()
-      let sel: { startLine: number; endLine: number } | undefined
-      try {
-        const editor = viewModeRef.current === 'edit'
-          ? editEditorRef.current
-          : diffEditorRef.current?.getModifiedEditor()
-        const range = editor?.getSelection()
-        if (range && !range.isEmpty()) {
-          sel = { startLine: range.startLineNumber, endLine: range.endLineNumber }
-        }
-      } catch {}
       e.stopImmediatePropagation()
-      onBack(sel)
+      onBack()
     }
     window.addEventListener('keydown', handleEsc, true)
     return () => window.removeEventListener('keydown', handleEsc, true)
@@ -785,12 +776,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }
 
   return (
-    <div ref={containerRef} className={`flex flex-col animate-fade-in${altBrush ? ' diff-brush-mode' : ''}${annotationMode ? ' diff-brush-code' : ''}`}>
+    <div ref={containerRef} className={`flex flex-col animate-fade-in${brushActive ? ' diff-brush-mode diff-brush-code' : ''}`}>
       <div
         className="diff-titlebar h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0"
         onContextMenu={!commitHash ? (e) => { e.preventDefault(); setEncodingContextMenu({ x: e.clientX, y: e.clientY }) } : undefined}
         onClick={(e) => {
-          if (!e.altKey || !fullPath) return
+          if (!brushActive || !fullPath) return
           e.preventDefault()
           e.stopPropagation()
           setToastPath(fullPath)
@@ -800,19 +791,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         <div className="flex items-center gap-2 text-sm">
           {onBack && (
             <button
-              onClick={() => {
-                let sel: { startLine: number; endLine: number } | undefined
-                try {
-                  const editor = viewModeRef.current === 'edit'
-                    ? editEditorRef.current
-                    : diffEditorRef.current?.getModifiedEditor()
-                  const range = editor?.getSelection()
-                  if (range && !range.isEmpty()) {
-                    sel = { startLine: range.startLineNumber, endLine: range.endLineNumber }
-                  }
-                } catch {}
-                onBack(sel)
-              }}
+              onClick={() => { onBack() }}
               className="w-6 h-6 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors"
               title="Esc"
             >
@@ -881,15 +860,15 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               monacoRef.current = monaco
               const modifiedEditor = editor.getModifiedEditor()
               modifiedEditor.onMouseDown((e: any) => {
-                if (e.event?.altKey) {
-                  e.event.preventDefault()
-                  e.event.stopPropagation()
+                if (brushActiveRef.current) {
+                  e.event?.preventDefault()
+                  e.event?.stopPropagation()
                   const sel = modifiedEditor.getSelection()
                   const clicked = e.target?.position?.lineNumber
                   if (sel && sel.startLineNumber !== sel.endLineNumber) {
-                    handleAltLineClickRef.current?.(sel.startLineNumber, sel.endLineNumber)
+                    handleAnnotationClickRef.current?.(sel.startLineNumber, sel.endLineNumber)
                   } else if (clicked) {
-                    handleAltLineClickRef.current?.(clicked, clicked)
+                    handleAnnotationClickRef.current?.(clicked, clicked)
                   }
                 }
               })
@@ -1058,15 +1037,15 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               editEditorRef.current = editor
               monacoRef.current = monaco
               editor.onMouseDown((e: any) => {
-                if (e.event?.altKey) {
-                  e.event.preventDefault()
-                  e.event.stopPropagation()
+                if (brushActiveRef.current) {
+                  e.event?.preventDefault()
+                  e.event?.stopPropagation()
                   const sel = editor.getSelection()
                   const clicked = e.target?.position?.lineNumber
                   if (sel && sel.startLineNumber !== sel.endLineNumber) {
-                    handleAltLineClickRef.current?.(sel.startLineNumber, sel.endLineNumber)
+                    handleAnnotationClickRef.current?.(sel.startLineNumber, sel.endLineNumber)
                   } else if (clicked) {
-                    handleAltLineClickRef.current?.(clicked, clicked)
+                    handleAnnotationClickRef.current?.(clicked, clicked)
                   }
                 }
               })

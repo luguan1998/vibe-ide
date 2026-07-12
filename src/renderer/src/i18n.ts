@@ -58,9 +58,6 @@ const ZH_MAP: Record<string, string> = {
   'Rename': '重命名',
   'Close': '关闭',
   'Annotation': '批注',
-  'Write your annotation here': '在此写下你的意见',
-  'Delete annotation': '删除批注',
-  'Alt+click a code line to annotate': 'Alt+左键批注单行；拖选范围后 Alt+左键批注范围',
   'Copy annotations': '复制批注',
   'Copied': '已复制',
   'Copied to clipboard': '已复制到剪贴板',
@@ -113,6 +110,7 @@ const ZH_MAP: Record<string, string> = {
   'Jump to Next Prompt': '跳到下条命令',
   'Toggle Preview / Edit': '切换预览/编辑',
   'Clone Current Session': '克隆当前会话',
+  'Feather Pen (Brush Mode)': '羽毛笔（画笔模式）',
 
   // File Tree
   'File Tree Depth': '文件树深度',
@@ -177,8 +175,6 @@ const ZH_MAP: Record<string, string> = {
   'Session Font': '会话字体',
   'UI Font': '界面字体',
   'Terminal Font': '终端字体',
-  'ESC Auto @ Selection': 'ESC 自动 @ 选中行',
-  'When pressing ESC in diff view with text selected, auto-insert @filepath:line into the terminal.': '在 diff 界面选中文字后按 ESC，自动将 @文件路径:行号 输入到终端。',
 
   // GitTab - Stage/Clear all
   'Stage All': '全部暂存',
@@ -357,7 +353,7 @@ const ZH_MAP: Record<string, string> = {
   'multi-select': '可多选',
   // AI ExitPlanMode card
   'Plan Ready': '计划已就绪',
-  'Hold Alt + click to annotate': '按住 Alt 点击可批注',
+  'Hold {key} + click to annotate': '按住 {key} 点击可批注',
   'Click to restore pet': '点击恢复宠物',
   'Write annotation, Enter to confirm...': '输入批注，Enter 确认...',
   'Clear & Execute': '新会话执行',

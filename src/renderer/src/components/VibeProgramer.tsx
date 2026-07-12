@@ -56,7 +56,7 @@ function buildAnnotationCommand(group: AnnotationGroup): string {
   return valid.map(it => {
     const ref = it.start === it.end ? `@${group.rel}:${it.start}` : `@${group.rel}:${it.start}-${it.end}`
     const opinion = it.opinion.trim().replace(/[\r\n]+/g, ' ').replace(/;/g, '，')
-    return `${ref} ${opinion}`
+    return `${ref} → ${opinion}`
   }).join('; ')
 }
 

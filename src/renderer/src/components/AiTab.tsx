@@ -12,6 +12,7 @@ import { OCTOCAT, type PetSpriteConfig } from './petSprites'
 import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch } from 'lucide-react'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
+import { displayLabel, getShortcuts } from '../shortcuts'
 
 interface AiTabProps {
   activeSessionId: string | null
@@ -26,8 +27,7 @@ interface AiTabProps {
   onForkSession?: (userMessageIndex: number) => void
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   resumeSessionId?: string
-  altBrush?: boolean
-  annotationMode?: boolean
+  brushActive?: boolean
   lastOpenedFile?: RecentFileEntry | null
   worktreeNav?: { originalPath: string; worktreePath: string; originalBranch: string } | null
   onWorktreeNavChange?: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
@@ -704,7 +704,7 @@ function InlineAnnotationInput({ top, left, containerRef, onSubmit, onDismiss }:
 // "Clear & Execute" kills the plan-mode subprocess and respawns in acceptEdits mode with the
 // plan re-injected as first message — clears the inflated context from exploration.
 // "Send Feedback" denies with a feedback message so the model revises the plan.
-const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onContinue, onClearExecute, onDeny, workspacePath, onOpenFile, model, altBrush, annotationMode }: {
+const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onContinue, onClearExecute, onDeny, workspacePath, onOpenFile, model, brushActive }: {
   perm: AiPermissionRequest
   sessionId: string
   onContinue: (sessionId: string, requestId: string, modelOverride?: string) => void
@@ -713,8 +713,7 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   model: string
-  altBrush?: boolean
-  annotationMode?: boolean
+  brushActive?: boolean
 }) {
   const { t } = useI18n()
   const plan = (perm.toolInput?.plan as string) || ''
@@ -771,7 +770,7 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
   }, [annotationInput])
 
   const handlePlanClick = useCallback((e: React.MouseEvent) => {
-    if (!altBrush) return
+    if (!brushActive) return
     const target = e.target as HTMLElement
     if (target.closest('a, pre')) return
     if (window.getSelection()?.toString().trim()) return
@@ -787,16 +786,16 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
       heading,
       snippet
     })
-  }, [altBrush])
+  }, [brushActive])
 
-  const brushClass = altBrush ? ' diff-brush-mode' : ''
+  const brushClass = brushActive ? ' diff-brush-mode' : ''
 
   return (
     <div className="ai-tab__plan-overlay absolute inset-0 z-20 flex flex-col bg-ide-bg/95 backdrop-blur-sm px-3 py-2.5 animate-fade-in">
       <div className="flex items-center gap-1.5 mb-1.5 shrink-0">
         <FileText size={15} className="text-ide-accent shrink-0" />
         <span className="text-[13px] font-medium text-ide-accent">{t('Plan Ready')}</span>
-        <span className="text-[11px] text-ide-text-muted italic ml-1.5">{t('Hold Alt + click to annotate')}</span>
+        <span className="text-[11px] text-ide-text-muted italic ml-1.5">{t('Hold {key} + click to annotate').replace('{key}', displayLabel(getShortcuts()['brush.activate']))}</span>
       </div>
 
       <div
@@ -1626,7 +1625,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 
-const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, altBrush, annotationMode, lastOpenedFile, worktreeNav, onWorktreeNavChange }, ref) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, worktreeNav, onWorktreeNavChange }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -2417,8 +2416,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           workspacePath={workspacePath}
           onOpenFile={onOpenFile}
           model={state.model}
-          altBrush={altBrush}
-          annotationMode={annotationMode}
+          brushActive={brushActive}
         />
       )}
     </div>

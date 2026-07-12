@@ -182,8 +182,6 @@ interface SessionPanelProps {
   onToggleOcrEnabled?: (value: boolean) => void
   forceDomRenderer?: boolean
   onToggleForceDomRenderer?: (value: boolean) => void
-  escAutoAt?: boolean
-  onToggleEscAutoAt?: (value: boolean) => void
   focusSettingsTrigger?: number
   onExecuteCommand?: (command: string) => void
   onInitCommand?: (command: string) => void
@@ -252,8 +250,6 @@ const SessionPanel = React.memo(function SessionPanel({
   onSetDiffSplitRatio,
   capsuleTabs = true,
   onToggleCapsuleTabs,
-  escAutoAt = false,
-  onToggleEscAutoAt,
   focusSettingsTrigger = 0,
   onExecuteCommand,
   onInitCommand,
@@ -1694,15 +1690,6 @@ const SessionPanel = React.memo(function SessionPanel({
                     <span className="text-xs text-ide-text">{t('Polling Refresh Git/File')}</span>
                   </div>
                   <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Poll git and file tree every 6s. Recommended: off (only for network drives where file watching is unreliable)')}</p>
-                </label>
-              )}
-              {onToggleEscAutoAt && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={escAutoAt} onChange={(e) => onToggleEscAutoAt(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('ESC Auto @ Selection')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('When pressing ESC in diff view with text selected, auto-insert @filepath:line into the terminal.')}</p>
                 </label>
               )}
               {onToggleRecentFilesPanel && (

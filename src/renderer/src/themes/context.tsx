@@ -23,8 +23,7 @@ function applyCSSVariables(theme: IDETheme): void {
   for (const [key, value] of Object.entries(theme.css)) {
     root.style.setProperty(`--${key}`, value)
   }
-  // Alt 画笔光标：用当前主题 accent 色生成羽毛笔 cursor
-  // （cursor: url() 是静态图无法读 CSS 变量，故在此运行时按主题注入 --brush-cursor）
+  // Brush cursor: generated per theme accent at runtime (CSS url() cannot read variables)
   const accent = theme.css['ide-accent']
   const rgb = accent.split(/\s+/).map(Number)
   if (rgb.length === 3 && rgb.every((n) => Number.isFinite(n))) {

@@ -16,7 +16,7 @@ import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { getFileInfo, FILE_ICON_PATHS } from './components/FileIcons'
 import { DRAFT_PIPE_STOP, FOCUS_GAME_DRAFT, ADD_ANNOTATION_EVENT, toRelPath } from './components/VibeProgramer'
 import { TerminalSession, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
-import { getShortcuts, eventMatchesBinding } from './shortcuts'
+import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
 import type { TerminalViewHandle } from './components/TerminalView'
 
@@ -371,11 +371,6 @@ export default function App() {
   const [groupSessionsByCwd, setGroupSessionsByCwd] = useState(() => {
     try { return localStorage.getItem('vibe-ide-group-sessions-by-cwd') !== 'false' } catch { return true }
   })
-  const [escAutoAt, setEscAutoAt] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-esc-auto-at') === 'true' } catch { return false }
-  })
-  const escAutoAtRef = useRef(escAutoAt)
-  escAutoAtRef.current = escAutoAt
   const [recentFilesPanelEnabled, setRecentFilesPanelEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-recent-files-panel') === 'true' } catch { return false }
   })
@@ -466,11 +461,9 @@ export default function App() {
   }, [recentFiles, sessions, activeSessionId])
   const navBarEntriesRef = useRef(navBarEntries)
   navBarEntriesRef.current = navBarEntries
-  // Alt 画笔模式（按住 Alt 时编辑器鼠标变 🖌️）
-  const [altBrush, setAltBrush] = useState(false)
-  const altBrushRef = useRef(false)
-  altBrushRef.current = altBrush
-  const [annotationMode, setAnnotationMode] = useState(false)
+  const [brushActive, setBrushActive] = useState(false)
+  const brushActiveRef = useRef(false)
+  brushActiveRef.current = brushActive
   // Nav bar state
   const [navBarVisible, setNavBarVisible] = useState(false)
   const [navBarIndex, setNavBarIndex] = useState(0)
@@ -607,9 +600,6 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-group-sessions-by-cwd', String(groupSessionsByCwd)) } catch {}
   }, [groupSessionsByCwd])
-  React.useEffect(() => {
-    try { localStorage.setItem('vibe-ide-esc-auto-at', String(escAutoAt)) } catch {}
-  }, [escAutoAt])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-recent-files-panel', String(recentFilesPanelEnabled)) } catch {}
   }, [recentFilesPanelEnabled])
@@ -968,11 +958,16 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const bindings = getShortcuts()
 
-      // ── Alt keydown: 画笔模式 + 立即显示 NavBar（虚线，Alt+←/→ 变实线）──
+      // ── Brush modifier keydown: feather pen cursor ──
+      if (eventIsModifierPress(e, bindings['brush.activate'])) {
+        setBrushActive(true)
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        return
+      }
+
+      // ── Alt keydown: 显示 NavBar（Alt+←/→ 切换并跳转）──
       if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        setAltBrush(true)
-        const draftEl = document.querySelector('.draft-plan') as HTMLElement | null
-        setAnnotationMode(!!draftEl && draftEl.offsetParent !== null)
         e.preventDefault()
         e.stopImmediatePropagation()
         const hist = navBarEntriesRef.current
@@ -1264,12 +1259,17 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [centerView, sessions, activeSessionId])
 
-  // Alt keyup → commit nav bar selection
+  // Brush keyup → deactivate feather pen
   React.useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
+      const brushBinding = parseKeybinding(getShortcuts()['brush.activate'])
+      const brushEKey = brushBinding.ctrl ? 'Control' : brushBinding.alt ? 'Alt' : brushBinding.shift ? 'Shift' : 'Meta'
+      if (e.key === brushEKey) {
+        setBrushActive(false)
+        return
+      }
+
       if (e.key !== 'Alt') return
-      setAltBrush(false)
-      setAnnotationMode(false)
 
       if (!navBarVisibleRef.current) return
       if (!navBarUsedRef.current) { setNavBarVisible(false); return }
@@ -1695,20 +1695,11 @@ export default function App() {
     setNavigateToFilePayload({ trigger: Date.now(), filePath })
   }, [])
 
-  const handleBackToTerminal = useCallback((selection?: { startLine: number; endLine: number }) => {
-    // 如果有选区且用户开启了 esc-auto-at，注入 @filepath:startLine:endLine 到终端
-    if (escAutoAtRef.current && selection && diffFile && activeSessionId) {
-      let relPath = diffFile.fullPath
-      if (activeSessionCwd && relPath.startsWith(activeSessionCwd)) {
-        relPath = relPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
-      }
-      relPath = relPath.replace(/\\/g, '/')
-      window.api.terminal.write(activeSessionId, `@${relPath}:${selection.startLine} `)
-    }
+  const handleBackToTerminal = useCallback(() => {
     setCenterView('terminal')
     setDiffFile(null)
     setCurrentFileContent('')
-  }, [diffFile, activeSessionId, activeSessionCwd])
+  }, [])
 
   const handleRefreshGit = useCallback(async () => {
     setGitRefreshKey(k => k + 1)
@@ -1727,8 +1718,6 @@ export default function App() {
   const handleAnnotationTrigger = useCallback((start: number, end: number) => {
     const fp = diffFile?.fullPath
     if (!fp) return
-    const draftEl = document.querySelector('.draft-plan') as HTMLElement | null
-    if (!draftEl || draftEl.offsetParent === null) return
     const rel = toRelPath(fp, activeSessionCwd)
     const ref = start === end ? `@${rel}:${start}` : `@${rel}:${start}-${end}`
     navigator.clipboard?.writeText(ref).catch(() => {})
@@ -1996,8 +1985,6 @@ export default function App() {
             onToggleCapsuleTabs={setCapsuleTabs}
             groupSessionsByCwd={groupSessionsByCwd}
             onToggleGroupSessionsByCwd={setGroupSessionsByCwd}
-            escAutoAt={escAutoAt}
-            onToggleEscAutoAt={setEscAutoAt}
             recentFilesPanelEnabled={recentFilesPanelEnabled}
             onToggleRecentFilesPanel={setRecentFilesPanelEnabled}
             hideRecentFiles={hideRecentFiles}
@@ -2146,8 +2133,7 @@ export default function App() {
                 compareOriginalContent={diffFile.compareOriginalContent}
                 compareOriginalPath={diffFile.compareOriginalPath}
                 onAnnotationTrigger={handleAnnotationTrigger}
-                altBrush={altBrush}
-                annotationMode={annotationMode}
+                brushActive={brushActive}
               />
             </div>
           )}
@@ -2223,8 +2209,7 @@ export default function App() {
                           handleForkSession(session.id, userMessageIndex)
                         }}
                         onAgentStatusChange={handleAiAgentStatusChange}
-                        altBrush={altBrush}
-                        annotationMode={annotationMode}
+                        brushActive={brushActive}
                         lastOpenedFile={lastOpenedFile}
                         worktreeNav={sessionWorktreeNav[session.id] ?? null}
                         onWorktreeNavChange={setSessionWorktreeNav}
@@ -2296,7 +2281,7 @@ export default function App() {
             onToggleCollapse={handleToggleRightPanel}
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
-            altBrush={altBrush}
+            brushActive={brushActive}
           />
         </div>
         )}

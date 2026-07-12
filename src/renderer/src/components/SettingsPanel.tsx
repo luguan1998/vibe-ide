@@ -30,8 +30,16 @@ export default function SettingsPanel() {
         setListeningId(null)
         return
       }
-      // Ignore modifier-only presses
-      if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return
+      if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+        const def = allDefs.find(d => d.id === listeningId)
+        if (def?.modifierOnly) {
+          const modMap: Record<string, string> = { Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Meta: 'Meta' }
+          saveShortcut(listeningId, modMap[e.key] || e.key)
+          setListeningId(null)
+          refresh()
+        }
+        return
+      }
       const newBinding = keybindingFromEvent(e)
       saveShortcut(listeningId, newBinding)
       setListeningId(null)
