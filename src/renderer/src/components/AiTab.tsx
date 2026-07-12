@@ -1034,13 +1034,57 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
+function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }: {
+  messages: AiMessage[]
+  workspacePath: string | null
+  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  viewMode?: number
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const toolCount = messages.reduce((acc, m) => acc + (m.toolUse ? m.toolUse.length : 0), 0)
+  return (
+    <div className="ai-tab__agent-group border-l-[3px] border-ide-accent/40 pl-2 ml-2 space-y-1 animate-fade-in">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="ai-tab__agent-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
+      >
+        <span className="shrink-0"><ToolIcon category="agent" /></span>
+        <span className="shrink-0 leading-none">Agent{(toolCount > 0) && ` (${toolCount} tools)`}</span>
+        <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      {expanded && (
+        <div className="space-y-1">
+          {messages.map((msg, i) => (
+            <AiMessageBubble
+              key={i}
+              message={msg}
+              msgIndex={-1}
+              allMessages={messages}
+              workspacePath={workspacePath}
+              onOpenFile={onOpenFile}
+              userMessageIndex={-1}
+              totalUserMessages={0}
+              isBusy={false}
+              onRevert={() => {}}
+              onRevertAndCode={() => {}}
+              onFork={() => {}}
+              viewMode={viewMode}
+              isResumed={false}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CollapsedToolsSummary({ tools }: { tools: AiToolUse[] }) {
   const [expanded, setExpanded] = useState(false)
   return (
     <div className="ai-tab__tools-summary animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
-        className="ai-tab__tools-summary-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/15 transition-colors"
+        className="ai-tab__tools-summary-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
       >
         <span className="shrink-0"><ToolIcon category="default" /></span>
         <span className="shrink-0 leading-none">Tools * {tools.length}</span>
@@ -1216,7 +1260,6 @@ function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex,
       if (prev.type !== 'assistant') break
     }
   }
-  const { t } = useI18n()
   let inner: React.ReactNode
   if (message.error) {
     inner = <AiErrorMessage message={message} />
@@ -1236,17 +1279,6 @@ function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex,
     inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} viewMode={viewMode} />
   }
 
-  // 子 agent 视觉分组（Agent/Task 工具产生的子消息）
-  if (message.parentToolUseId) {
-    return (
-      <div className="ai-tab__agent-group border-l-[3px] border-ide-accent/40 pl-2 ml-2 space-y-1">
-        <div className="ai-tab__agent-label text-[9px] text-ide-accent/70 uppercase tracking-wider font-mono">
-          {t('Agent')}
-        </div>
-        {inner}
-      </div>
-    )
-  }
   return <>{inner}</>
 }
 
@@ -2171,15 +2203,35 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         {(() => {
           const userMessages = state.messages.filter(m => m.role === 'user' && m.content && m.type === 'user')
           const totalUserMessages = userMessages.length
-          return state.messages.map((msg: AiMessage, i: number) => {
+
+          const groups: Array<{ type: 'agent'; messages: AiMessage[]; parentId: string; startIndex: number } | { type: 'msg'; message: AiMessage; index: number }> = []
+          for (let i = 0; i < state.messages.length; i++) {
+            const msg = state.messages[i]
+            if (msg.parentToolUseId) {
+              const prev = groups[groups.length - 1]
+              if (prev && prev.type === 'agent' && prev.parentId === msg.parentToolUseId) {
+                prev.messages.push(msg)
+              } else {
+                groups.push({ type: 'agent', messages: [msg], parentId: msg.parentToolUseId, startIndex: i })
+              }
+            } else {
+              groups.push({ type: 'msg', message: msg, index: i })
+            }
+          }
+
+          return groups.map((item, gi) => {
+            if (item.type === 'agent') {
+              return <CollapsibleAgentGroup key={`agent-${item.startIndex}`} messages={item.messages} workspacePath={workspacePath} onOpenFile={onOpenFile} viewMode={viewMode} />
+            }
+            const msg = item.message
             const uIdx = msg.role === 'user' && msg.content && msg.type === 'user'
               ? userMessages.indexOf(msg)
               : -1
             return (
               <AiMessageBubble
-                key={i}
+                key={item.index}
                 message={msg}
-                msgIndex={i}
+                msgIndex={item.index}
                 allMessages={state.messages}
                 workspacePath={workspacePath}
                 onOpenFile={onOpenFile}
