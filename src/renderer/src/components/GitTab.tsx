@@ -1385,7 +1385,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             <button
               onClick={handleStash}
               disabled={busy}
-              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed git-tab__stash-btn"
             >
               Stash
             </button>
@@ -1393,7 +1393,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               <button
                 onClick={handleStashPop}
                 disabled={busy}
-                className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed git-tab__stash-btn"
               >
                 Pop Stash{stashCount > 0 ? ` (${stashCount})` : ''}
               </button>
@@ -1412,10 +1412,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               onClick={handleAmend}
               disabled={amendDisabled}
               title={amendTooltip}
-              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed git-tab__amend-btn"
             >
-              Amend
-            </button>
+              Amend</button>
           </div>
           <textarea
             ref={textareaRef}

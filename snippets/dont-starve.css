@@ -1,44 +1,54 @@
 /*
-  Don't Starve — 饥荒·暗黑羊皮纸
-  配色源自 dontstarve.huijiwiki.com 的 LESS 变量
-  Session 面板仿 Klei 官网 btn-bg clip-path 不规则手绘形状 + 颜色翻转 hover
-  设计语言：古卷羊皮纸 · 火炬金光 · 木纹棕底 · 手绘边框
+  Don't Starve: Shipwrecked — 飢荒·海難 哥特深海
+  配色靈感：深海暗藍 → 沙灘金黃 → 珊瑚紅 → 螢光生物綠
+  Session 面板保留 Klei btn-bg clip-path 不規則手繪形狀 + 顏色翻轉 hover
+  設計語言：深海漩渦 · 炭黑手繪線 · 精神值暈影 · 哥特手繪字
 */
 
 /* ════════════════════════════════════════════════════
-   主题色 — 饥荒 wiki 暗黑暖棕系（源自 huijiwiki LESS 变量）
+   主題色 — 深海暗藍底 + 沙灘金面板 + 炭黑手繪線
    ════════════════════════════════════════════════════ */
 :root {
-  --ide-bg: 20 16 10 !important;
-  --ide-sidebar: 24 18 14 !important;
-  --ide-panel: 30 22 16 !important;
-  --ide-border: 74 56 40 !important;
-  --ide-text: 220 210 198 !important;
-  --ide-text-muted: 168 152 128 !important;
-  --ide-accent: 231 204 123 !important;
-  --ide-accent-hover: 245 222 138 !important;
-  --ide-success: 139 154 110 !important;
-  --ide-danger: 196 90 74 !important;
-  --ide-warning: 212 168 75 !important;
-  --ide-hover: 42 34 24 !important;
-  --ide-active: 53 42 28 !important;
-  --scrollbar-track: 18 14 10 !important;
-  --scrollbar-thumb: 74 56 40 !important;
-  --scrollbar-thumb-hover: 140 110 70 !important;
-  --selection-bg: 231 204 123 !important;
-  --selection-opacity: 0.2 !important;
+  --ide-bg: 18 43 56 !important;
+  --ide-sidebar: 15 36 48 !important;
+  --ide-panel: 22 55 70 !important;
+  --ide-border: 32 27 24 !important;
+  --ide-text: 228 204 159 !important;
+  --ide-text-muted: 160 170 110 !important;
+  --ide-accent: 217 93 85 !important;
+  --ide-accent-hover: 38 223 162 !important;
+  --ide-success: 38 223 162 !important;
+  --ide-danger: 217 93 85 !important;
+  --ide-warning: 200 160 60 !important;
+  --ide-hover: 28 70 88 !important;
+  --ide-active: 25 62 78 !important;
+  --scrollbar-track: 18 43 56 !important;
+  --scrollbar-thumb: 31 94 107 !important;
+  --scrollbar-thumb-hover: 38 223 162 !important;
+  --selection-bg: 38 223 162 !important;
+  --selection-opacity: 0.25 !important;
 }
 
 /* ════════════════════════════════════════════════════
-   全局 — 微圆角 · 手绘字体
+   精神值暈影 (Sanity Vignette) — 夜幕降臨壓抑感
+   ════════════════════════════════════════════════════ */
+body::before {
+  content: '' !important;
+  position: fixed !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 99999 !important;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.35) 75%, rgba(0,0,0,0.7) 100%) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   全局 — 微圓角 · 哥特手繪字體
    ════════════════════════════════════════════════════ */
 .titlebar-drag,
 .session-panel__stat,
 .session-panel__config-btn,
 .session-panel__new-btn,
 .session-panel__config-menu,
-.session-group,
-.session-group__header,
 .file-tab__header,
 .file-tab__section,
 .file-tab__section-header,
@@ -57,78 +67,81 @@ input, select, textarea {
 }
 
 html, body, #root {
-  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'SimSun', 'Cascadia Code', monospace !important;
+  font-family: 'Belwe', 'Burbank', 'Caudex', 'UnifrakturCook', 'Noto Serif SC', 'SimSun', 'Cascadia Code', monospace !important;
 }
 
 /* ════════════════════════════════════════════════════
-   标题栏 — 暗木纹 + 橙线底边
+   標題欄 — 深洋漸層 + 炭黑底邊
    ════════════════════════════════════════════════════ */
 .titlebar-drag[class*="h-9"] {
-  border-bottom: 2px solid rgb(231 204 123 / 0.35) !important;
-  background: linear-gradient(180deg, rgb(12 9 6), rgb(22 17 12)) !important;
+  border-bottom: 2px solid rgb(32 27 24 / 0.5) !important;
+  background: linear-gradient(180deg, rgb(20 50 65), rgb(31 94 107)) !important;
 }
 
 /* ════════════════════════════════════════════════════
-   会话面板 — Klei btn-bg 风格
-   不规则 clip-path · 颜色翻转 · 手绘边框
+   會話面板 — Klei btn-bg 風格
+   不規則 clip-path · 顏色翻轉 · 手繪邊框
    ════════════════════════════════════════════════════ */
 .session-panel__list-wrapper {
-  border: 1px solid rgb(74 56 40) !important;
-  background: rgb(22 17 12) !important;
-  border-radius: 3px !important;
+  background: rgb(15 36 48) !important;
 }
 
 .session-panel__stat {
-  border: 1px solid rgb(74 56 40) !important;
+  border: 1px solid rgb(32 27 24 / 0.6) !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
   font-size: 11px !important;
+  background: rgb(20 50 65) !important;
+  color: rgb(228 204 159) !important;
 }
 .session-panel__config-btn, .session-panel__new-btn {
-  border: 1px solid rgb(74 56 40) !important;
+  border: 1px solid rgb(32 27 24 / 0.6) !important;
   transition: all 0.3s !important;
+  color: rgb(228 204 159) !important;
 }
 .session-panel__config-btn:hover, .session-panel__new-btn:hover {
-  border-color: rgb(231 204 123 / 0.5) !important;
+  border-color: rgb(38 223 162 / 0.5) !important;
+  color: rgb(38 223 162) !important;
 }
 .session-panel__new-btn:not(:disabled) {
   background: transparent !important;
-  color: rgb(var(--ide-text-muted)) !important;
+  color: rgb(228 204 159 / 0.7) !important;
 }
 .session-panel__new-btn:not(:disabled):hover {
-  background: rgb(var(--ide-accent)) !important;
+  background: rgb(217 93 85) !important;
   color: rgb(255 255 255) !important;
-  border-color: rgb(var(--ide-accent)) !important;
+  border-color: rgb(217 93 85) !important;
   font-weight: 700 !important;
   transform: scale(1.05) !important;
 }
 .session-panel__config-menu {
-  border: 1px solid rgb(74 56 40) !important;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.8) !important;
+  border: 1px solid rgb(32 27 24) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5) !important;
+  background: rgb(20 50 65) !important;
 }
 
-/* ── 状态图标替换：闪电 → 🔥 营火  咖啡 → 🕯️蜡烛 ── */
+/* ── 狀態圖標替換：閃電 → 💀 骷髏  咖啡 → 🦜 鸚鵡 ── */
 .session-panel__stat:first-child svg { display: none !important; }
 .session-panel__stat:first-child::before {
-  content: '🔥' !important;
+  content: '💀' !important;
   font-size: 11px !important;
   line-height: 1 !important;
 }
 .session-panel__stat:last-child svg { display: none !important; }
 .session-panel__stat:last-child::before {
-  content: '🕯️' !important;
+  content: '🦜' !important;
   font-size: 14px !important;
   line-height: 1 !important;
 }
 
-/* ═══════════════ 会话项 — Klei btn-bg 不规则形状 + 颜色翻转 ═══════════════ */
+/* ═══════════════ 會話項 — Klei btn-bg 不規則形狀 + 顏色翻轉 ═══════════════ */
 .session-item {
   position: relative !important;
   border-radius: 0 !important;
   margin: 2px 4px !important;
   transition: transform 0.25s, background 0.25s, color 0.25s !important;
-  background: rgb(28 22 16) !important;
-  color: rgb(var(--ide-text-muted)) !important;
+  background: rgb(31 94 107) !important;
+  color: rgb(228 204 159) !important;
   clip-path: polygon(
     2.5% 8%, 5% 0%, 30% 0%, 60% 1.5%, 85% 0%, 95% 2%, 98% 8%,
     96% 18%, 100% 28%, 96% 40%, 100% 52%, 96% 65%, 100% 78%,
@@ -143,286 +156,316 @@ html, body, #root {
 }
 
 .session-item:hover {
-  background: rgb(34 20 12) !important;
-  color: rgb(231 204 123) !important;
+  background: rgb(40 115 130) !important;
+  color: rgb(38 223 162) !important;
   transform: scale(1.02) !important;
-  box-shadow: 0 0 16px rgb(231 204 123 / 0.15) !important;
+  box-shadow: 0 0 20px rgb(38 223 162 / 0.2) !important;
 }
 .session-item:hover .session-item__name {
-  color: rgb(231 204 123) !important;
+  color: rgb(38 223 162) !important;
 }
 .session-item:hover .session-item__cwd {
-  color: rgb(231 204 123 / 0.65) !important;
+  color: rgb(38 223 162 / 0.6) !important;
 }
 
 .session-item--active {
   font-weight: 700 !important;
-  background: rgb(231 204 123) !important;
-  color: rgb(18 14 10) !important;
+  background: rgb(217 93 85) !important;
+  color: rgb(255 245 240) !important;
   border-left: none !important;
 }
 .session-item--active .session-item__name {
-  color: rgb(18 14 10) !important;
+  color: rgb(255 245 240) !important;
 }
 .session-item--active .session-item__cwd {
-  color: rgb(18 14 10 / 0.7) !important;
+  color: rgb(255 245 240 / 0.65) !important;
 }
 .session-item--active .session-item__cwd span {
-  color: rgb(18 14 10 / 0.85) !important;
+  color: rgb(255 245 240 / 0.8) !important;
   opacity: 1 !important;
 }
 
 .session-item.border-ide-accent\/60:not(.session-item--active) {
   font-weight: 700 !important;
-  background: rgb(231 204 123) !important;
-  color: rgb(18 14 10) !important;
+  background: rgb(217 93 85) !important;
+  color: rgb(255 245 240) !important;
 }
 .session-item.border-ide-accent\/60:not(.session-item--active) .session-item__name {
-  color: rgb(18 14 10) !important;
+  color: rgb(255 245 240) !important;
 }
 .session-item.border-ide-accent\/60:not(.session-item--active) .session-item__cwd {
-  color: rgb(18 14 10 / 0.7) !important;
+  color: rgb(255 245 240 / 0.65) !important;
 }
 
-/* ── 轮换色相（5色周期） ── */
-/* active 背景色轮换 */
-.session-item:nth-child(5n+1).session-item--active { background: rgb(231 204 123) !important; }
-.session-item:nth-child(5n+2).session-item--active { background: rgb(196 155 108) !important; }
-.session-item:nth-child(5n+3).session-item--active { background: rgb(139 180 130) !important; }
-.session-item:nth-child(5n+4).session-item--active { background: rgb(210 100 85) !important; }
-.session-item:nth-child(5n+5).session-item--active { background: rgb(170 150 195) !important; }
+/* ── 輪換色相（5色週期）─ 青 / 綠 / 金 / 紅 / 藍 ── */
+.session-item:nth-child(5n+1).session-item--active { background: rgb(38 200 200) !important; color: rgb(18 43 56) !important; }
+.session-item:nth-child(5n+1).session-item--active .session-item__name { color: rgb(18 43 56) !important; }
+.session-item:nth-child(5n+1).session-item--active .session-item__cwd { color: rgb(18 43 56 / 0.6) !important; }
+.session-item:nth-child(5n+2).session-item--active { background: rgb(38 223 162) !important; color: rgb(18 43 56) !important; }
+.session-item:nth-child(5n+2).session-item--active .session-item__name { color: rgb(18 43 56) !important; }
+.session-item:nth-child(5n+2).session-item--active .session-item__cwd { color: rgb(18 43 56 / 0.6) !important; }
+.session-item:nth-child(5n+3).session-item--active { background: rgb(228 180 100) !important; color: rgb(18 43 56) !important; }
+.session-item:nth-child(5n+3).session-item--active .session-item__name { color: rgb(18 43 56) !important; }
+.session-item:nth-child(5n+3).session-item--active .session-item__cwd { color: rgb(18 43 56 / 0.6) !important; }
+.session-item:nth-child(5n+4).session-item--active { background: rgb(217 93 85) !important; }
+.session-item:nth-child(5n+5).session-item--active { background: rgb(55 140 180) !important; }
 
-/* hover 文字色 + 光晕轮换 */
+/* hover 文字色 + 光暈輪換 */
 .session-item:nth-child(5n+1):hover,
-.session-item:nth-child(5n+1):hover .session-item__name { color: rgb(231 204 123) !important; }
-.session-item:nth-child(5n+1):hover { box-shadow: 0 0 16px rgb(231 204 123 / 0.15) !important; }
+.session-item:nth-child(5n+1):hover .session-item__name { color: rgb(38 223 162) !important; }
+.session-item:nth-child(5n+1):hover { box-shadow: 0 0 20px rgb(38 223 162 / 0.2) !important; }
 .session-item:nth-child(5n+2):hover,
-.session-item:nth-child(5n+2):hover .session-item__name { color: rgb(196 155 108) !important; }
-.session-item:nth-child(5n+2):hover { box-shadow: 0 0 16px rgb(196 155 108 / 0.15) !important; }
+.session-item:nth-child(5n+2):hover .session-item__name { color: rgb(228 180 100) !important; }
+.session-item:nth-child(5n+2):hover { box-shadow: 0 0 20px rgb(228 180 100 / 0.2) !important; }
 .session-item:nth-child(5n+3):hover,
-.session-item:nth-child(5n+3):hover .session-item__name { color: rgb(139 180 130) !important; }
-.session-item:nth-child(5n+3):hover { box-shadow: 0 0 16px rgb(139 180 130 / 0.15) !important; }
+.session-item:nth-child(5n+3):hover .session-item__name { color: rgb(217 93 85) !important; }
+.session-item:nth-child(5n+3):hover { box-shadow: 0 0 20px rgb(217 93 85 / 0.2) !important; }
 .session-item:nth-child(5n+4):hover,
-.session-item:nth-child(5n+4):hover .session-item__name { color: rgb(210 100 85) !important; }
-.session-item:nth-child(5n+4):hover { box-shadow: 0 0 16px rgb(210 100 85 / 0.15) !important; }
+.session-item:nth-child(5n+4):hover .session-item__name { color: rgb(38 200 200) !important; }
+.session-item:nth-child(5n+4):hover { box-shadow: 0 0 20px rgb(38 200 200 / 0.2) !important; }
 .session-item:nth-child(5n+5):hover,
-.session-item:nth-child(5n+5):hover .session-item__name { color: rgb(170 150 195) !important; }
-.session-item:nth-child(5n+5):hover { box-shadow: 0 0 16px rgb(170 150 195 / 0.15) !important; }
+.session-item:nth-child(5n+5):hover .session-item__name { color: rgb(38 223 162) !important; }
+.session-item:nth-child(5n+5):hover { box-shadow: 0 0 20px rgb(38 223 162 / 0.2) !important; }
 
 .session-item.session-item--active:hover,
 .session-item.session-item--active:hover .session-item__name {
-  color: rgb(18 14 10) !important;
+  color: rgb(255 245 240) !important;
+}
+.session-item:nth-child(5n+1).session-item--active:hover,
+.session-item:nth-child(5n+1).session-item--active:hover .session-item__name,
+.session-item:nth-child(5n+2).session-item--active:hover,
+.session-item:nth-child(5n+2).session-item--active:hover .session-item__name,
+.session-item:nth-child(5n+3).session-item--active:hover,
+.session-item:nth-child(5n+3).session-item--active:hover .session-item__name {
+  color: rgb(18 43 56) !important;
 }
 
-/* ═══════════════ 会话分组 — 木纹卡片 ═══════════════ */
-.session-group {
-  border: 1px solid rgb(74 56 40) !important;
-  margin: 8px 2px !important;
-  background: rgb(26 21 15) !important;
-  border-radius: 4px !important;
-  clip-path: polygon(
-    1% 3%, 3% 0%, 50% 0%, 97% 0%, 99% 3%,
-    100% 6%, 100% 50%, 100% 94%, 99% 100%, 97% 100%,
-    50% 100%, 3% 100%, 1% 97%, 0% 94%, 0% 50%, 0% 6%
-  ) !important;
-}
-.session-group__header {
-  border-bottom: 1px solid rgb(74 56 40) !important;
-  background: linear-gradient(90deg, rgb(30 24 18), rgb(40 32 24), rgb(30 24 18)) !important;
-  border-radius: 4px 4px 0 0 !important;
-}
-.session-group__path {
-  color: rgb(210 185 155) !important;
-  font-weight: 600 !important;
-}
-
+/* ═══════════════ 會話分組 — 深海暗底 ═══════════════ */
 .session-panel__flat-list {
-  border: 1px solid rgb(74 56 40) !important;
-  background: rgb(26 21 15) !important;
-  border-radius: 4px !important;
+  background: rgb(15 36 48) !important;
 }
-
-/* 分组边框轮换 */
-.session-group:nth-child(5n+1) { border-color: rgb(231 204 123 / 0.4) !important; }
-.session-group:nth-child(5n+2) { border-color: rgb(231 204 123 / 0.4) !important; }
-.session-group:nth-child(5n+3) { border-color: rgb(139 154 110 / 0.4) !important; }
-.session-group:nth-child(5n+4) { border-color: rgb(196 90 74 / 0.4) !important; }
-.session-group:nth-child(5n+5) { border-color: rgb(150 130 170 / 0.4) !important; }
 
 /* ════════════════════════════════════════════════════
-   终端 — 饑荒手繪炭筆火焰邊框
+   終端 — 深海暗底 · 炭黑邊框
    ════════════════════════════════════════════════════ */
-.term-view__canvas {
-  position: relative !important;
-}
-.term-view__canvas::before {
-  content: '' !important;
-  position: absolute !important;
-  inset: 0 !important;
-  z-index: 100 !important;
-  pointer-events: none !important;
-  opacity: 0.4 !important;
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 300' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cfilter id='c' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.05' numOctaves='3' result='n'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='n' scale='4' xChannelSelector='R' yChannelSelector='G'/%3E%3C/filter%3E%3C/defs%3E%3Cg filter='url(%23c)' stroke-linecap='round' stroke-linejoin='round' fill='none'%3E%3Cpath stroke='%23d4c8b0' stroke-width='2' d='M3,3 l10-2 l13,4 l12-5 l15,3 l13-4 l14,2 l16-5 l13,4 l12-3 l14,5 l15-4 l13,3 l16-2 l12,4 l14-5 l13,3 l15-2 l12,4 l14-5 l16,3 l13-4 l12,2 l15-3 l13,5 l14-4 l12,3 l16-2 l13,4 l14-5 l12,3 l15-2 l13,4 l14-5 l12,3 l13-2 l14,3v296H3z'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat !important;
-}
 .term-view__header {
-  border-bottom: 1px solid rgb(74 56 40) !important;
-  background: linear-gradient(90deg, rgb(22 17 14), rgb(34 28 20), rgb(22 17 14)) !important;
+  border-bottom: 1px solid rgb(32 27 24) !important;
+  background: linear-gradient(90deg, rgb(20 50 65), rgb(25 70 85), rgb(20 50 65)) !important;
 }
 .term-view__search {
-  border: 1px solid rgb(74 56 40) !important;
-  background: rgb(22 17 12) !important;
+  border: 1px solid rgb(32 27 24 / 0.6) !important;
+  background: rgb(20 50 65) !important;
+  color: rgb(228 204 159) !important;
 }
 
 /* ════════════════════════════════════════════════════
-   文件树 — 柏绿文件夹 · 米黄文件名
+   檔案樹 — 沙灘金底 · 炭黑文字 · 珊瑚紅選中
    ════════════════════════════════════════════════════ */
 .file-tab__header {
-  border-bottom: 1px solid rgb(74 56 40) !important;
-  background: linear-gradient(90deg, rgb(22 17 14), rgb(34 28 20), rgb(22 17 14)) !important;
+  border-bottom: 1px solid rgb(32 27 24) !important;
+  background: linear-gradient(90deg, rgb(20 50 65), rgb(25 70 85), rgb(20 50 65)) !important;
 }
 .file-tree-item { font-size: 12px !important; }
 
 .file-tree-item--active {
-  border-left: 3px solid rgb(231 204 123) !important;
-  background: rgb(42 30 20) !important;
+  border-left: 3px solid rgb(217 93 85) !important;
+  background: rgb(25 70 85) !important;
 }
 .file-tree-item--active .file-tree-item__name {
-  color: rgb(245 222 138) !important;
+  color: rgb(38 223 162) !important;
   font-weight: 700 !important;
 }
 .file-tree-item--folder > .file-tree-item__name {
-  color: rgb(160 178 130) !important;
+  color: rgb(228 204 159) !important;
   font-weight: 700 !important;
 }
 .file-tree-item--file > .file-tree-item__name {
-  color: rgb(205 195 175) !important;
+  color: rgb(228 204 159 / 0.8) !important;
 }
-.file-tab__section { border-top: 1px solid rgb(60 45 30) !important; }
+.file-tab__section { border-top: 1px solid rgb(32 27 24 / 0.4) !important; }
 .file-tab__section-header {
-  border-bottom: 1px solid rgb(74 56 40) !important;
-  background: rgb(28 22 16) !important;
+  border-bottom: 1px solid rgb(32 27 24) !important;
+  background: rgb(20 50 65) !important;
+  color: rgb(228 204 159 / 0.7) !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
   font-size: 11px !important;
 }
 
 /* ════════════════════════════════════════════════════
-   Git 面板 — 三色语义（柏绿/橙红/金）
+   Git 面板 — 三色語義（螢光綠 / 珊瑚紅 / 沙灘金）
    ════════════════════════════════════════════════════ */
 .git-tab__header {
-  border-bottom: 1px solid rgb(74 56 40) !important;
-  background: linear-gradient(90deg, rgb(22 17 14), rgb(34 28 20), rgb(22 17 14)) !important;
+  border-bottom: 1px solid rgb(32 27 24) !important;
+  background: linear-gradient(90deg, rgb(20 50 65), rgb(25 70 85), rgb(20 50 65)) !important;
 }
 .git-tab__branch-name {
-  color: rgb(231 204 123) !important;
+  color: rgb(38 223 162) !important;
   font-weight: 700;
 }
 
-.git-tab__section:nth-child(1) { border-left: 3px solid rgb(139 154 110); }
-.git-tab__section:nth-child(2) { border-left: 3px solid rgb(231 204 123); }
-.git-tab__section:nth-child(3) { border-left: 3px solid rgb(231 204 123); }
+.git-tab__section:nth-child(1) { border-left: 3px solid rgb(38 223 162); }
+.git-tab__section:nth-child(2) { border-left: 3px solid rgb(217 93 85); }
+.git-tab__section:nth-child(3) { border-left: 3px solid rgb(228 180 100); }
 
-.git-tab__section { border-bottom: 1px solid rgb(50 38 26) !important; }
+.git-tab__section { border-bottom: 1px solid rgb(32 27 24 / 0.4) !important; }
 .git-tab__section-header {
-  border-bottom: 1px solid rgb(74 56 40) !important;
+  border-bottom: 1px solid rgb(32 27 24) !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
   font-size: 11px !important;
 }
 .git-tab__file-item {
-  border-bottom: 1px solid rgb(40 30 20);
+  border-bottom: 1px solid rgb(32 27 24 / 0.3);
   font-size: 11px !important;
   transition: background 0.15s !important;
 }
-.git-tab__file-item:hover { background: rgb(45 34 22) !important; }
+.git-tab__file-item:hover { background: rgb(25 70 85) !important; }
 .git-tab__commit-area {
-  border-top: 1px solid rgb(74 56 40) !important;
-  background: rgb(28 22 16) !important;
+  border-top: 1px solid rgb(32 27 24) !important;
+  background: rgb(20 50 65) !important;
 }
 .git-tab__commit-input {
-  border: 1px solid rgb(74 56 40) !important;
-  background: rgb(16 13 9) !important;
-  color: rgb(var(--ide-text)) !important;
+  border: 1px solid rgb(32 27 24 / 0.6) !important;
+  background: rgb(25 60 75) !important;
+  color: rgb(228 204 159) !important;
 }
 .git-tab__commit-input:focus {
-  border-color: rgb(231 204 123) !important;
-  box-shadow: 0 0 8px rgb(231 204 123 / 0.15) !important;
-}
-.git-tab__commit-btn {
-  border: 1px solid rgb(231 204 123) !important;
-  background: rgb(231 204 123) !important;
-  color: rgb(255 255 255) !important;
-  font-weight: 700 !important;
-  transition: all 0.3s !important;
-}
-.git-tab__commit-btn:hover {
-  background: rgb(255 255 255) !important;
-  color: rgb(231 204 123) !important;
-  border-color: rgb(255 255 255) !important;
-  transform: scale(1.05) !important;
+  border-color: rgb(38 223 162) !important;
+  box-shadow: 0 0 6px rgb(38 223 162 / 0.2) !important;
 }
 
 /* ════════════════════════════════════════════════════
-   右侧面板 — 标签页橙边高亮
+   右側面板 — 沙灘金底 + 炭黑手繪 SVG 邊框
    ════════════════════════════════════════════════════ */
-.right-panel__content { border: 1px solid rgb(74 56 40) !important; }
-.right-panel__tab-bar { border-bottom: 1px solid rgb(74 56 40) !important; }
-.right-panel__tab {
-  border: 1px solid rgb(74 56 40) !important;
-  font-size: 11px !important;
-  transition: all 0.2s !important;
+.right-panel__content {
+  position: relative !important;
+  border: none !important;
+  box-shadow:
+    inset 0 0 45px rgba(0 0 0 / 0.35),
+    4px 4px 0 rgb(0 0 0 / 0.2) !important;
 }
-.right-panel__tab--active {
+.right-panel__content::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 100 !important;
+  pointer-events: none !important;
+  opacity: 0.5 !important;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 300' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cfilter id='w' x='-10%25' y='-10%25' width='120%25' height='120%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='3' result='n'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='n' scale='3' xChannelSelector='R' yChannelSelector='G'/%3E%3C/filter%3E%3C/defs%3E%3Cg filter='url(%23w)' stroke-linecap='round' stroke-linejoin='round' fill='none' stroke='%23201b18' stroke-width='2'%3E%3Cpath stroke-width='1' d='M2,2 h496'/%3E%3Cpath stroke-width='1' d='M2,299 h496'/%3E%3Cpath d='M2,2 v297'/%3E%3Cpath d='M499,2 v297'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat !important;
+}
+.right-panel__tab-bar {
+  border-bottom: 1px solid rgb(32 27 24 / 0.4) !important;
+}
+/* 膠囊 tab 按鈕 — Don't Starve 按鈕紋理 */
+.right-panel__tab-bar > .rounded-lg {
+  background: transparent !important;
+  border: none !important;
+}
+.right-panel__tab-bar > .rounded-lg button {
+  background: url(./Button_long_normal.webp) no-repeat center/100% 100% !important;
+  border: none !important;
+  border-radius: 0 !important;
+  color: rgb(0 0 0) !important;
+  font-weight: 400 !important;
+  padding: 7px 14px !important;
+  transition: filter 0.2s, color 0.2s, opacity 0.2s !important;
+}
+.right-panel__tab-bar > .rounded-lg button:not(.right-panel__tab--active) {
+  opacity: 0.55 !important;
+}
+.right-panel__tab-bar > .rounded-lg button:hover {
+  color: rgb(0 0 0) !important;
+  filter: brightness(1.15) !important;
+  opacity: 1 !important;
+}
+.right-panel__tab-bar > .rounded-lg button.right-panel__tab--active {
+  color: rgb(0 0 0) !important;
   font-weight: 700 !important;
-  background: rgb(38 28 20) !important;
-  border-color: rgb(231 204 123 / 0.4) !important;
-  color: rgb(245 222 138) !important;
+  opacity: 1 !important;
 }
 
-.right-panel__tab:nth-child(1).right-panel__tab--active { border-color: rgb(139 154 110 / 0.5) !important; color: rgb(160 178 125) !important; }
-.right-panel__tab:nth-child(2).right-panel__tab--active { border-color: rgb(231 204 123 / 0.5) !important; color: rgb(245 222 138) !important; }
-.right-panel__tab:nth-child(3).right-panel__tab--active { border-color: rgb(231 204 123 / 0.5) !important; color: rgb(245 222 138) !important; }
-.right-panel__tab:nth-child(4).right-panel__tab--active { border-color: rgb(170 150 195 / 0.5) !important; color: rgb(190 170 210) !important; }
+/* 提交 / Push / Launch Terminal / Stash / Amend — Don't Starve 按鈕紋理 */
+.git-tab__commit-btn,
+.git-tab__push-group button,
+.git-tab__stash-btn,
+.git-tab__amend-btn,
+.aux-tab__launch-btn {
+  background: url(./Button_long_normal.webp) no-repeat center/100% 100% !important;
+  border: none !important;
+  border-radius: 0 !important;
+  color: rgb(0 0 0) !important;
+  font-weight: 400 !important;
+  transition: filter 0.2s, color 0.2s !important;
+}
+.git-tab__commit-btn,
+.git-tab__push-group button,
+.aux-tab__launch-btn {
+  padding: 12px 14px !important;
+}
+.git-tab__stash-btn,
+.git-tab__amend-btn {
+  padding: 4px 10px !important;
+}
+.git-tab__commit-btn:hover,
+.git-tab__push-group button:hover,
+.git-tab__stash-btn:hover,
+.git-tab__amend-btn:hover,
+.aux-tab__launch-btn:hover {
+  color: rgb(0 0 0) !important;
+  filter: brightness(1.15) !important;
+  transform: none !important;
+}
+.git-tab__commit-btn:disabled,
+.git-tab__push-group button:disabled,
+.git-tab__stash-btn:disabled,
+.git-tab__amend-btn:disabled {
+  filter: none !important;
+  transform: none !important;
+}
+.git-tab__push-group button:last-child {
+  border-left: 1px solid rgb(32 27 24 / 0.3) !important;
+}
 
 /* ════════════════════════════════════════════════════
-   滚动条 — 暗底橙条
+   滾動條 — 深海底 · 螢光綠條
    ════════════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 10px !important; height: 10px !important; }
-::-webkit-scrollbar-track { background: rgb(18 14 10) !important; }
-::-webkit-scrollbar-thumb { background: rgb(74 56 40) !important; }
-::-webkit-scrollbar-thumb:hover { background: rgb(231 204 123 / 0.6) !important; }
-::-webkit-scrollbar-corner { background: rgb(18 14 10) !important; }
+::-webkit-scrollbar-track { background: rgb(18 43 56) !important; }
+::-webkit-scrollbar-thumb { background: rgb(31 94 107) !important; }
+::-webkit-scrollbar-thumb:hover { background: rgb(38 223 162 / 0.5) !important; }
+::-webkit-scrollbar-corner { background: rgb(18 43 56) !important; }
 
 /* ════════════════════════════════════════════════════
-   模态框 & 表单 — 橙边聚焦
+   模態框 & 表單 — 炭黑邊 + 螢光綠聚焦
    ════════════════════════════════════════════════════ */
 .fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
-  border: 1px solid rgb(74 56 40) !important;
-  box-shadow: 0 0 40px rgba(0,0,0,0.8) !important;
+  border: 1px solid rgb(32 27 24) !important;
+  box-shadow: 0 0 40px rgba(0,0,0,0.5) !important;
 }
 .fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
-  border: 1px solid rgb(74 56 40) !important;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;
+  border: 1px solid rgb(32 27 24) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
 }
 input, select, textarea {
-  border: 1px solid rgb(74 56 40) !important;
-  background: rgb(16 13 9) !important;
-  color: rgb(var(--ide-text)) !important;
+  border: 1px solid rgb(32 27 24 / 0.6) !important;
+  background: rgb(25 60 75) !important;
+  color: rgb(228 204 159) !important;
 }
 input:focus, select:focus, textarea:focus {
-  border-color: rgb(231 204 123) !important;
-  box-shadow: 0 0 6px rgb(231 204 123 / 0.15) !important;
+  border-color: rgb(38 223 162) !important;
+  box-shadow: 0 0 6px rgb(38 223 162 / 0.2) !important;
   outline: none !important;
 }
-input[type="checkbox"] { accent-color: rgb(231 204 123); }
+input[type="checkbox"] { accent-color: rgb(38 223 162); }
 
 .monaco-editor input, .monaco-editor select, .monaco-editor textarea { border: revert !important; background: revert !important; border-radius: revert !important; }
 .monaco-editor input:focus, .monaco-editor select:focus, .monaco-editor textarea:focus { border-color: revert !important; box-shadow: revert !important; outline: revert !important; }
 .monaco-editor input[type="checkbox"] { accent-color: revert; }
 
 *:focus-visible {
-  outline: 1px solid rgb(231 204 123 / 0.5) !important;
+  outline: 1px solid rgb(38 223 162 / 0.5) !important;
   outline-offset: 0 !important;
 }
 .monaco-editor *:focus-visible { outline: revert !important; }
@@ -432,40 +475,40 @@ input[type="checkbox"] { accent-color: rgb(231 204 123); }
 .text-ide-warning { color: rgb(var(--ide-warning)) !important; }
 
 /* ════════════════════════════════════════════════════
-   Markdown 预览 — 羊皮纸手稿风
+   Markdown 預覽 — 深海手稿風
    ════════════════════════════════════════════════════ */
 
-/* heading 层级色：火炬金→熔铜橙→沼泽绿→蛛血红→暗影紫→骨白 */
-.md-preview h1 { color: rgb(231 204 123) !important; border-bottom-color: rgb(231 204 123) !important; border-bottom-width: 2px !important; }
-.md-preview h2 { color: rgb(218 154 92) !important; border-bottom-color: rgb(218 154 92) !important; }
-.md-preview h3 { color: rgb(125 186 138) !important; }
-.md-preview h4 { color: rgb(200 90 74) !important; }
-.md-preview h5 { color: rgb(168 132 200) !important; }
-.md-preview h6 { color: rgb(196 184 168) !important; }
+/* heading 層級色：珊瑚紅→螢光綠→沙灘金→竹青→深海藍→炭灰 */
+.md-preview h1 { color: rgb(217 93 85) !important; border-bottom-color: rgb(217 93 85) !important; border-bottom-width: 2px !important; }
+.md-preview h2 { color: rgb(38 223 162) !important; border-bottom-color: rgb(38 223 162) !important; }
+.md-preview h3 { color: rgb(228 180 100) !important; }
+.md-preview h4 { color: rgb(124 138 79) !important; }
+.md-preview h5 { color: rgb(31 94 107) !important; }
+.md-preview h6 { color: rgb(160 150 130) !important; }
 
-.md-preview a { color: rgb(231 204 123) !important; text-decoration-color: rgb(231 204 123 / 0.4) !important; }
-.md-preview a:hover { color: rgb(245 222 138) !important; text-decoration-color: rgb(245 222 138) !important; }
+.md-preview a { color: rgb(38 223 162) !important; text-decoration-color: rgb(38 223 162 / 0.4) !important; }
+.md-preview a:hover { color: rgb(228 180 100) !important; text-decoration-color: rgb(228 180 100) !important; }
 
-.md-preview strong { color: rgb(231 204 123) !important; }
-.md-preview em  { color: rgb(160 178 125) !important; }
-.md-preview del { color: rgb(196 130 110) !important; }
+.md-preview strong { color: rgb(228 180 100) !important; }
+.md-preview em  { color: rgb(124 138 79) !important; }
+.md-preview del { color: rgb(124 138 79 / 0.7) !important; }
 
-/* 列表标记轮换：金→绿→红 */
-.md-preview li::marker { color: rgb(231 204 123) !important; }
-.md-preview li li::marker { color: rgb(139 154 110) !important; }
-.md-preview li li li::marker { color: rgb(196 90 74) !important; }
+/* 列表標記輪換：螢光綠→沙灘金→珊瑚紅 */
+.md-preview li::marker { color: rgb(38 223 162) !important; }
+.md-preview li li::marker { color: rgb(228 180 100) !important; }
+.md-preview li li li::marker { color: rgb(217 93 85) !important; }
 
-/* 内联代码 */
+/* 內聯代碼 */
 .md-preview code {
-  background: rgb(32 25 18) !important;
-  color: rgb(231 204 123) !important;
-  border: 1px solid rgb(60 45 30) !important;
+  background: rgb(25 60 75) !important;
+  color: rgb(38 223 162) !important;
+  border: 1px solid rgb(32 27 24 / 0.4) !important;
 }
 
-/* 代码块 */
+/* 代碼塊 */
 .md-code-block {
-  border: 1px solid rgb(60 45 30) !important;
-  background: rgb(14 12 8) !important;
+  border: 1px solid rgb(32 27 24 / 0.5) !important;
+  background: rgb(20 50 65) !important;
   box-shadow: inset 0 0 12px rgb(0 0 0 / 0.3) !important;
 }
 .md-code-block pre {
@@ -474,43 +517,43 @@ input[type="checkbox"] { accent-color: rgb(231 204 123); }
   text-indent: 0 !important;
 }
 .md-code-block code {
-  color: rgb(185 195 160) !important;
+  color: rgb(228 204 159) !important;
   background: none !important;
   border: none !important;
   text-indent: 0 !important;
   white-space: pre !important;
 }
 .md-code-lang {
-  background: rgb(30 24 16) !important;
-  color: rgb(160 178 125) !important;
-  border: 1px solid rgb(60 45 30) !important;
+  background: rgb(25 60 75) !important;
+  color: rgb(38 223 162) !important;
+  border: 1px solid rgb(32 27 24 / 0.4) !important;
   border-top: none !important;
   border-right: none !important;
   border-radius: 0 0 0 6px !important;
   font-family: 'Cascadia Code', monospace !important;
 }
 
-/* 引用块 */
+/* 引用塊 */
 .md-preview blockquote {
-  border-left: 4px solid rgb(231 204 123) !important;
-  background: rgb(30 24 18) !important;
-  color: rgb(200 185 160) !important;
+  border-left: 4px solid rgb(38 223 162) !important;
+  background: rgb(25 60 75) !important;
+  color: rgb(228 204 159) !important;
   border-radius: 0 4px 4px 0 !important;
 }
 
 /* 表格 */
-.md-preview thead { background: rgb(231 204 123 / 0.1) !important; }
-.md-preview th { color: rgb(231 204 123) !important; border-color: rgb(74 56 40) !important; }
-.md-preview td { border-color: rgb(55 42 30) !important; }
-.md-preview tbody tr:hover { background: rgb(40 32 22) !important; }
+.md-preview thead { background: rgb(38 223 162 / 0.08) !important; }
+.md-preview th { color: rgb(38 223 162) !important; border-color: rgb(32 27 24 / 0.5) !important; }
+.md-preview td { border-color: rgb(32 27 24 / 0.3) !important; }
+.md-preview tbody tr:hover { background: rgb(25 60 75) !important; }
 
-/* 分割线 */
-.md-preview hr { border-top-color: rgb(231 204 123 / 0.3) !important; }
+/* 分割線 */
+.md-preview hr { border-top-color: rgb(217 93 85 / 0.3) !important; }
 
-/* 图片 */
-.md-preview img { border: 1px solid rgb(74 56 40) !important; border-radius: 2px !important; }
+/* 圖片 */
+.md-preview img { border: 1px solid rgb(32 27 24 / 0.5) !important; border-radius: 2px !important; }
 
-.md-preview input[type="checkbox"] { accent-color: rgb(139 154 110) !important; }
+.md-preview input[type="checkbox"] { accent-color: rgb(38 223 162) !important; }
 
-.md-search-match { background: rgb(231 204 123 / 0.25) !important; }
-.md-search-match-current { background: rgb(231 204 123 / 0.35) !important; }
+.md-search-match { background: rgb(38 223 162 / 0.25) !important; }
+.md-search-match-current { background: rgb(38 223 162 / 0.4) !important; }

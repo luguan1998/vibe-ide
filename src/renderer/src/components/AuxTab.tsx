@@ -173,7 +173,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
                     onCreateRightTerminal?.(activeSessionId)
                   }
                 }}
-                className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+                className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors aux-tab__launch-btn"
               >
                 {t('Launch Terminal')}
               </button>
