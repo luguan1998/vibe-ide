@@ -117,7 +117,8 @@ export function displayLabel(raw: string): string {
   if (p.shift) mods.push('Shift')
   if (p.alt) mods.push('Alt')
   if (p.meta) mods.push('Meta')
-  mods.push(codeToLabel(p.code))
+  const codeLabel = codeToLabel(p.code)
+  if (codeLabel) mods.push(codeLabel)
   return mods.join('+')
 }
 
