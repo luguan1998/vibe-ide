@@ -117,13 +117,17 @@ export function registerRevertHandlers(): void {
       return { success: false, error: spawnResult.error, installCmd: spawnResult.installCmd }
     }
 
-    attachAiProcess(sessionId, spawnResult, effectiveCwd)
+    attachAiProcess(sessionId, spawnResult, effectiveCwd, prev?.model)
 
-    if (prev?.contextWindow) {
+    if (prev?.contextWindow || prev?.model) {
       const s = aiSessions.get(sessionId)
-      if (s) s.contextWindow = prev.contextWindow
+      if (s) {
+        if (prev.contextWindow) s.contextWindow = prev.contextWindow
+        if (prev.model) s.model = prev.model
+      }
     }
 
+    const model = prev?.model || ''
     if (hasHistory) {
       const s = aiSessions.get(sessionId)
       if (s) s.revertAwaitingReady = true
@@ -131,11 +135,11 @@ export function registerRevertHandlers(): void {
         const cur = aiSessions.get(sessionId)
         if (cur?.revertAwaitingReady) {
           cur.revertAwaitingReady = false
-          send(IPC_CHANNELS.AI_READY, { sessionId, tools: [], model: '', slashCommands: [] })
+          send(IPC_CHANNELS.AI_READY, { sessionId, tools: [], model, slashCommands: [] })
         }
       }, 3000)
     } else {
-      send(IPC_CHANNELS.AI_READY, { sessionId, tools: [], model: '', slashCommands: [] })
+      send(IPC_CHANNELS.AI_READY, { sessionId, tools: [], model, slashCommands: [] })
     }
 
     return { success: true }

@@ -68,13 +68,14 @@ export function registerAskResumeHandlers(): void {
     }
     console.log(`[ASK-RESUME ${payload.sessionId}] new subprocess spawned, attaching handlers`)
 
-    attachAiProcess(payload.sessionId, result, cwd)
+    attachAiProcess(payload.sessionId, result, cwd, session.model)
 
     const newSession = aiSessions.get(payload.sessionId)
     if (newSession) {
       newSession.claudeSessionId = claudeSessionId
       newSession.permissionMode = permissionMode
       newSession.contextWindow = session.contextWindow
+      if (session.model) newSession.model = session.model
     }
 
     const prompt = formatAskUserAnswer(payload.answers)
