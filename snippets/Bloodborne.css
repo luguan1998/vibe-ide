@@ -1,0 +1,169 @@
+/* ==========================================================================
+   【血源诅咒 (Bloodborne) todo 官方游戏 UI 像素级像素还原方案】
+   ========================================================================== */
+
+:root {
+  /* 严格遵循系统 R G B 空格机制 */
+  --ide-bg: 14 14 16 !important;           /* 游戏菜单底色：风化暗石砖 */
+  --ide-surface: 26 24 22 !important;      /* 装备栏底色：粗糙锻铁 */
+  --ide-accent: 140 20 20 !important;      /* 注入血疗的陈血红 */
+  --ide-text: 175 165 145 !important;      /* 游戏原生淡金色/水银骨粉色 */
+}
+
+/* 消除所有现代软件痕迹，全盘强制维多利亚哥特 Serif 字体 */
+body, .session-item, .right-panel__tab, .git-tab__branch-name {
+  font-family: "Georgia", "Times New Roman", serif !important;
+  letter-spacing: 0.06em !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   1. SESSION-PANEL （左侧：还原游戏“菜单装备栏”条目）
+   ========================================================================== */
+
+/* 侧边栏容器：做旧的暗石壁垒 */
+.session-panel__list-wrapper {
+  background: rgb(14 14 16) !important;
+  border-right: 2px solid rgb(32 28 26) !important;
+  border-radius: 0px !important;
+}
+
+/* 单个会话：完美还原游戏内“凹槽雕刻矩形框” */
+.session-item {
+  background: linear-gradient(180deg, rgba(30,28,26,0.85) 0%, rgba(18,17,16,0.9) 100%) !important;
+  border-radius: 0px !important;
+  margin: 8px 12px !important;
+  padding: 10px 14px !important;
+  
+  /* 关键细节：通过多层 box-shadow 堆叠出游戏 UI 特有的“黑铁外框 + 向内凹陷阴影” */
+  border: 1px solid rgb(56 50 45) !important;
+  box-shadow: 
+    inset 0 0 8px rgba(0, 0, 0, 0.95), 
+    0 1px 3px rgba(0, 0, 0, 0.7) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* 游戏激活态：还原选中时“暗金框边缘拉丝 + 爪痕鲜血浸润效应” */
+.session-item--active {
+  /* 选中时底色变为深沉的仪式红渐变 */
+  background: linear-gradient(90deg, rgba(140, 20, 20, 0.25) 0%, rgba(26, 20, 20, 0.8) 100%) !important;
+  
+  /* 游戏菜单标志性的“暗金色拉丝双框线” */
+  border: 1px solid rgb(185 145 85) !important; 
+  border-left: 4px solid rgb(140 20 20) !important; /* 左侧注入高饱和度陈血线 */
+  
+  /* 外发光模拟卡瑞尔符文激活的幽光 */
+  box-shadow: 
+    0 0 10px rgba(140, 20, 20, 0.4), 
+    inset 0 0 12px rgba(140, 20, 20, 0.3) !important;
+}
+
+/* 选中项文本：变成亮起的古董金 */
+.session-item--active .session-item__name {
+  color: rgb(225 200 160) !important;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+/* Pipe 运行中：复刻提灯的冷冽青蓝色幽光 */
+.session-item--pipe-running {
+  border-left: 4px solid rgb(75 130 120) !important;
+  background: linear-gradient(90deg, rgba(40, 65, 60, 0.3) 0%, rgba(14, 16, 16, 0.8) 100%) !important;
+}
+
+
+/* ==========================================================================
+   2. TERMINAL-VIEW （中间：还原人偶身后的“仪式符文祭坛”）
+   ========================================================================== */
+
+.term-view__canvas {
+  --term-bg: 10 10 11 !important;
+  
+  /* 完美复刻游戏截图底层：中心是暗红色的圆形仪轨图案，边缘强行压暗 */
+  background-image: 
+    radial-gradient(circle at center, rgba(140, 20, 20, 0.06) 0%, transparent 65%),
+    radial-gradient(circle at center, transparent 40%, rgba(10, 10, 11, 0.98) 95%) !important;
+  
+  /* 游戏内重型铁质边框的黑铁凹槽感 */
+  border: 4px solid !important;
+  border-image: linear-gradient(to bottom, #4a4035, #1e1a16, #4a4035) 1 !important;
+  box-shadow: inset 0 0 45px rgba(0, 0, 0, 0.98) !important;
+}
+
+/* 文件树行（左下角）：复刻变形武器的非对称折叠锯齿 */
+.file-tree-item--file, .file-tree-item--folder {
+  border-radius: 0px !important;
+  border-bottom: 1px solid rgba(50, 44, 38, 0.4);
+}
+.file-tree-item--active {
+  background-color: rgb(30 24 22) !important;
+  color: rgb(215 145 75) !important; /* 经典提灯暖光金 */
+  border-left: 2px solid rgb(215 145 75) !important;
+  /* 用非对称裁剪模拟冷兵器刀刃的切割线 */
+  clip-path: polygon(0 0, 96% 0, 100% 50%, 96% 100%, 0 100%);
+}
+
+
+/* ==========================================================================
+   3. AI-TAB & PLAN （右侧：誓约面板与血染纸卷）
+   ========================================================================== */
+
+/* 用户气泡：游戏内捡到的“猎人笔记羊皮纸” */
+.ai-tab__user-bubble {
+  background: linear-gradient(135deg, rgb(28 25 22) 0%, rgb(18 16 15) 100%) !important;
+  color: rgb(185 175 155) !important;
+  border-radius: 0px !important;
+  border: 1px solid rgb(68 60 52) !important; /* 铁钉镶边 */
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.7) !important; /* 维多利亚纸张重力感阴影 */
+  padding: 12px !important;
+}
+
+/* AI 思考块：陷入狂人知识（Insight）低语的半透明虚空 */
+.ai-tab__thinking {
+  background: rgba(12, 14, 18, 0.85) !important;
+  border: 1px dashed rgba(65, 95, 115, 0.4) !important;
+  border-left: 3px solid rgb(65 105 130) !important; /* 标志性的眼眸幽邃蓝 */
+  color: rgb(125 140 155) !important;
+  font-style: italic;
+  box-shadow: inset 0 0 15px rgba(0,0,0,0.95);
+}
+
+/* 计划卡片：羊皮纸契约卷轴（Covenants Panel） */
+.ai-tab__plan-card, .ai-tab__question-card {
+  background: rgb(20 16 16) !important;
+  border-radius: 0px !important;
+  /* 游戏内仪式面板特有的血红镶边 */
+  border: 1px solid rgba(140, 20, 20, 0.6) !important;
+  box-shadow: 
+    0 12px 30px rgba(0, 0, 0, 0.9), 
+    inset 0 0 20px rgba(0, 0, 0, 0.95) !important;
+}
+
+/* 底部核心提交大按钮（Commit / Execute）：猎杀开始的印章（Wax Seal） */
+.ai-tab__plan-execute-btn, .git-tab__commit-btn, .ai-tab__question-submit-btn {
+  background: linear-gradient(180deg, rgb(130 18 18) 0%, rgb(60 8 8) 100%) !important;
+  color: rgb(240 225 200) !important;
+  border: 1px solid rgb(165 30 30) !important;
+  border-radius: 0px !important;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-weight: 700;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.8) !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.ai-tab__plan-execute-btn:hover, .git-tab__commit-btn:hover, .ai-tab__question-submit-btn:hover {
+  background: linear-gradient(180deg, rgb(155 24 24) 0%, rgb(80 12 12) 100%) !important;
+  box-shadow: 0 0 12px rgba(155, 24, 24, 0.6) !important;
+}
+
+/* 右侧 Tab 栏（誓约顶栏） */
+.right-panel__tab-bar {
+  /* background: rgb(14 14 16) !important; */
+  border-bottom: 2px solid rgb(28 24 22) !important;
+}
+.right-panel__tab--active {
+  color: rgb(215 145 75) !important; /* 激活时亮起暖金 */
+  border-bottom: 2px solid rgb(140 20 20) !important; /* 底部裁切血线 */
+  background-color: rgb(10 10 12) !important;
+  font-weight: bold;
+}
