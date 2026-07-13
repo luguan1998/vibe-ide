@@ -16,6 +16,18 @@ const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '👻', 
 
 const MAX_RECENT_DIRS = 10
 
+function midTruncatePath(path: string, maxLen: number = 28): string {
+  if (path.length <= maxLen) return path
+  const sep = path.includes('\\') ? '\\' : '/'
+  const parts = path.split(sep).filter(Boolean)
+  if (parts.length <= 2) return path
+  const root = /^[A-Z]:\\/i.test(path) ? path.slice(0, 3) : (path.startsWith('/') ? '/' : '')
+  const rest = path.slice(root.length).split(sep).filter(Boolean)
+  if (rest.length <= 2) return path
+  const last = rest.slice(-2).join(sep)
+  return root + '...' + sep + last
+}
+
 function loadRecentDirs(): string[] {
   try {
     const raw = localStorage.getItem('vibe-ide-recent-dirs')
@@ -817,7 +829,7 @@ const SessionPanel = React.memo(function SessionPanel({
                 ? 'underline text-ide-text cursor-pointer bg-ide-accent/15 rounded px-0.5'
                 : 'text-ide-text-muted opacity-70'
             }`}
-            title={cwdLinkSession === session.id ? t('Open in Explorer') : session.cwd.length > 18 ? session.cwd : undefined}
+            title={cwdLinkSession === session.id ? t('Open in Explorer') : session.cwd}
             onClick={(e) => {
               if (cwdLinkSession === session.id) {
                 e.stopPropagation()
@@ -825,7 +837,7 @@ const SessionPanel = React.memo(function SessionPanel({
               }
             }}
           >
-            {session.cwd.length > 20 ? session.cwd.replace(/^.*[\\\/]/, '') : session.cwd}
+            {midTruncatePath(session.cwd)}
           </span>
         </div>
       )}
@@ -1117,7 +1129,7 @@ const SessionPanel = React.memo(function SessionPanel({
           </div>
         ) : groupSessionsByCwd ? (
           sessionGroups.map((group, gi) => {
-            const dirName = group.cwd.replace(/^.*[\/]/, '')
+            const dirName = midTruncatePath(group.cwd, 24)
             const cwdEmoji = getCwdEmoji(gi, cwdEmojis, cwdEmojiOverrides[group.cwd])
             const groupHasActive = activeSessionId && group.sessions.some(s => s.id === activeSessionId)
             return (
