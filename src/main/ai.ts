@@ -5,7 +5,7 @@ import { readFile, readdir } from 'fs/promises'
 import { join, isAbsolute, relative } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
-import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload } from '../shared/types'
+import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, UserTurn } from '../shared/types'
 
 export interface ManagedAiSession {
   process: ChildProcess
@@ -34,8 +34,72 @@ export interface ManagedAiSession {
 
 const LOCAL_CMD_TAG_RE = /<local-command-caveat>[\s\S]*?<\/local-command-caveat>|<command-name>[\s\S]*?<\/command-name>|<command-message>[\s\S]*?<\/command-message>|<command-args>[\s\S]*?<\/command-args>|<local-command-stdout>[\s\S]*?<\/local-command-stdout>|<system-reminder>[\s\S]*?<\/system-reminder>/g
 
-function cleanText(s: string): string {
+export function cleanText(s: string): string {
   return s.replace(LOCAL_CMD_TAG_RE, '').trim()
+}
+
+const COMMAND_NAME_RE = /<command-name>([\s\S]*?)<\/command-name>/
+const COMMAND_ARGS_RE = /<command-args>([\s\S]*?)<\/command-args>/
+
+// 从 slash 命令的 caveat/command/stdout 组行重建纯文本（如 "/model haiku"）。
+// command-name 内容已含 `/`，不另补。无 command-name 返回 ''。
+export function reconstructSlashCommand(groupContents: string[]): string {
+  let name = ''
+  let args = ''
+  for (const c of groupContents) {
+    const nm = c.match(COMMAND_NAME_RE)
+    if (nm) name = nm[1].trim()
+    const am = c.match(COMMAND_ARGS_RE)
+    if (am) args = am[1].trim()
+  }
+  if (!name) return ''
+  return args ? `${name} ${args}` : name
+}
+
+// Parse JSONL lines into user turns — single source of truth for revert/fork indexing,
+// shared by truncateJsonlAtUserMessage, loadSessionMessages, and the listUserTurns IPC.
+// A slash group = consecutive user-string lines with empty cleanText (caveat/command/stdout
+// wrappers); reconstructSlashCommand rebuilds "/model haiku" from them, counting the group
+// as 1 turn. Non-user lines (system/attachment/queue-operation) interspersed within a group
+// do NOT break it: a failing /model that emits its error as a mid-group type=system line must
+// still count as 1, not 2 (the bug that corrupted revert indices). A group ends only at a
+// cleanText-non-empty user text or a new isMeta caveat.
+export function parseUserTurns(lines: string[]): UserTurn[] {
+  const turns: UserTurn[] = []
+  let i = 0
+  while (i < lines.length) {
+    let msg: any
+    try { msg = JSON.parse(lines[i]) } catch { i++; continue }
+    const isUserStr = msg.type === 'user' && typeof msg.message?.content === 'string'
+    if (!isUserStr) { i++; continue }
+
+    const cleaned = cleanText(msg.message.content)
+    if (cleaned !== '') {
+      turns.push({ lineIdx: i, content: cleaned, isInternal: false })
+      i++
+      continue
+    }
+
+    const groupStart = i
+    const groupContents: string[] = [msg.message.content]
+    let j = i + 1
+    while (j < lines.length) {
+      let nxt: any
+      try { nxt = JSON.parse(lines[j]) } catch { break }
+      const nxtUserStr = nxt.type === 'user' && typeof nxt.message?.content === 'string'
+      if (!nxtUserStr) { j++; continue }
+      if (cleanText(nxt.message.content) !== '') break
+      if (nxt.isMeta) break
+      groupContents.push(nxt.message.content)
+      j++
+    }
+    const reconstructed = reconstructSlashCommand(groupContents)
+    if (reconstructed) {
+      turns.push({ lineIdx: groupStart, content: reconstructed, isInternal: true })
+    }
+    i = j
+  }
+  return turns
 }
 
 export const aiSessions = new Map<string, ManagedAiSession>()
@@ -201,6 +265,24 @@ async function extractFileChange(sessionId: string, block: any, cwd: string): Pr
   let oldContent: string | undefined
   try { oldContent = await readFile(absPath, 'utf-8') } catch { /* file may not exist yet */ }
   const newContent = input.content || input.new_content || input.newContent
+
+  // turnIndex = the user turn this edit belongs to (last completed user turn), computed from
+  // the live JSONL via parseUserTurns — the same single source revert uses. File edits run
+  // during the assistant response, so the user turn is already on disk.
+  const session = aiSessions.get(sessionId)
+  const claudeSessionId = session?.claudeSessionId
+  let turnIndex = 0
+  if (claudeSessionId) {
+    const projectDir = resolveProjectDir(cwd)
+    if (projectDir) {
+      try {
+        const jsonl = await readFile(join(projectDir, `${claudeSessionId}.jsonl`), 'utf-8')
+        const turns = parseUserTurns(jsonl.split('\n').filter(Boolean))
+        if (turns.length > 0) turnIndex = turns.length - 1
+      } catch { /* jsonl not yet written; leave turnIndex 0 */ }
+    }
+  }
+
   send(IPC_CHANNELS.AI_FILE_CHANGE, {
     toolUseId: block.id,
     sessionId,
@@ -209,6 +291,7 @@ async function extractFileChange(sessionId: string, block: any, cwd: string): Pr
     action: oldContent !== undefined ? 'edit' : 'create',
     content: newContent,
     oldContent,
+    turnIndex,
   })
 }
 
@@ -562,7 +645,14 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
   // Track tool_use IDs so we can merge tool_result into them
   const toolUseIndex = new Map<string, { msgIdx: number; toolIdx: number }>()
 
-  for (const line of lines) {
+  // User turns from parseUserTurns — single source of truth shared with revert truncation,
+  // so resume display and revert cut point stay aligned (slash groups collapse to 1 even
+  // when a failing /model interleaves a type=system error line mid-group).
+  const turnByLine = new Map<number, UserTurn>()
+  for (const t of parseUserTurns(lines)) turnByLine.set(t.lineIdx, t)
+
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx]
     let msg: any
     try { msg = JSON.parse(line) } catch { continue }
 
@@ -582,6 +672,19 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
           for (const c of msg.slash_commands) slashCommands.push(c)
         }
       }
+      continue
+    }
+
+    // User turn (plain text or reconstructed slash group) — sourced from parseUserTurns so
+    // the count matches revert truncation exactly; slash-group continuation lines are skipped
+    // in the msg.type==='user' branch below.
+    if (turnByLine.has(lineIdx)) {
+      const turn = turnByLine.get(lineIdx)!
+      messages.push({
+        sessionId: sid, type: 'user', role: 'user',
+        messageId: msg.message?.id,
+        content: turn.content, timestamp: ts,
+      })
       continue
     }
 
@@ -620,17 +723,9 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
 
     if (msg.type === 'user') {
       const userContent = msg.message?.content
-      // String content: simple user message
-      if (typeof userContent === 'string') {
-        const cleanedUserContent = cleanText(userContent)
-        if (!cleanedUserContent) continue
-        messages.push({
-          sessionId: sid, type: 'user', role: 'user',
-          messageId: msg.message?.id,
-          content: cleanedUserContent, timestamp: ts,
-        })
-        continue
-      }
+      // String user lines: plain text and slash-group heads are already emitted by the
+      // turnByLine branch above; slash-group continuation lines (cleanText empty) are skipped.
+      if (typeof userContent === 'string') continue
       // Array content: may contain tool_result blocks
       if (Array.isArray(userContent)) {
         for (const block of userContent) {

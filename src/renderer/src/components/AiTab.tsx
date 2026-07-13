@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import type { AiMessage, AiToolUse, AiSessionState, AiPermissionRequest, AiPermissionMode, AiSlashCommand, RecentFileEntry } from '@shared/types'
-import { AI_FILE_EDIT_TOOLS, isRealUserMessage } from '@shared/types'
+import { AI_FILE_EDIT_TOOLS } from '@shared/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useStableCodeOverrides } from './MarkdownCodeBlock'
@@ -917,7 +917,7 @@ function findMessageIndexForUserMessage(messages: AiMessage[], userMessageIndex:
   let count = 0
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i]
-    if (m.role === 'user' && m.content && m.type === 'user' && isRealUserMessage(m.content)) {
+    if (m.role === 'user' && m.content && m.type === 'user') {
       if (count === userMessageIndex) return i
       count++
     }
@@ -925,7 +925,7 @@ function findMessageIndexForUserMessage(messages: AiMessage[], userMessageIndex:
   return -1
 }
 
-function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, resumedUserMsgCount }: {
+function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, isInternal }: {
   message: AiMessage
   userMessageIndex: number
   totalUserMessages: number
@@ -933,7 +933,7 @@ function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, o
   onRevert: (idx: number) => void
   onRevertAndCode: (idx: number) => void
   onFork: (idx: number) => void
-  resumedUserMsgCount?: number
+  isInternal?: boolean
 }) {
   const { t } = useI18n()
   const [showPopover, setShowPopover] = useState(false)
@@ -968,7 +968,7 @@ function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, o
           {cleanedContent}
         </div>
 
-        {showPopover && userMessageIndex > 0 && (resumedUserMsgCount == null || userMessageIndex >= resumedUserMsgCount) && (
+        {showPopover && userMessageIndex > 0 && !isInternal && (
           <div ref={popoverRef}
             className="ai-tab__user-popover absolute right-0 top-full mt-1 z-40
                        bg-ide-sidebar border border-ide-border rounded-lg shadow-lg
@@ -1091,7 +1091,6 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
               onRevertAndCode={() => {}}
               onFork={() => {}}
               viewMode={viewMode}
-              resumedUserMsgCount={undefined}
             />
           ))}
         </div>
@@ -1259,7 +1258,7 @@ function TodoListPanel({ items }: { items: TodoItem[] }) {
   )
 }
 
-function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, resumedUserMsgCount }: {
+function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
@@ -1272,7 +1271,7 @@ function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex,
   msgIndex: number
   allMessages: AiMessage[]
   viewMode?: number
-  resumedUserMsgCount?: number
+  isInternal?: boolean
 }) {
   let copyText: string | undefined
   if (message.type === 'result' && message.numTurns != null) {
@@ -1286,7 +1285,7 @@ function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex,
   if (message.error) {
     inner = <AiErrorMessage message={message} />
   } else if (message.role === 'user') {
-    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} totalUserMessages={totalUserMessages} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} onFork={onFork} resumedUserMsgCount={resumedUserMsgCount} />
+    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} totalUserMessages={totalUserMessages} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} onFork={onFork} isInternal={isInternal} />
   } else if (
     message.type === 'result'
     && message.costUsd == null
@@ -1394,6 +1393,11 @@ function ModelBadge({
     setPendingModel(alias)
     setOpen(false)
     window.api.ai.setModel(sessionId, alias)
+    // 在对话内显示一条 /model 切换记录（仅显示用途；revert 索引由主进程 userTurns 定位，不依赖此条）
+    aiStore.updateSession(sessionId, (s) => ({
+      ...s,
+      messages: [...s.messages, { sessionId, type: 'user' as const, role: 'user' as const, content: `/model ${alias}`, timestamp: Date.now() }],
+    }))
   }, [sessionId, model])
 
   useEffect(() => {
@@ -1854,17 +1858,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     if (!activeSessionId || !inputValue.trim() || state.busy) return
     const message = inputValue.trim()
     setInputValue('')
+    const isSlash = message.startsWith('/')
     const isClear = message.startsWith('/clear')
     updateSession(activeSessionId, (s) => {
-      const currentUserCount = s.messages.filter(
-        m => m.role === 'user' && m.content && m.type === 'user' && isRealUserMessage(m.content)
-      ).length
-      const newName = !s.name ? message.slice(0, 60) : s.name
+      const newName = !s.name && !isSlash ? message.slice(0, 60) : s.name
       const userMsg = { sessionId: activeSessionId, type: 'user' as const, role: 'user' as const, content: message, timestamp: Date.now() }
       return {
         ...s, busy: true, name: newName,
-        messages: isClear ? [userMsg] : [...s.messages, userMsg],
-        ...(s.resumeSessionId && s.resumedUserMsgCount == null ? { resumedUserMsgCount: currentUserCount } : {}),
+        messages: isClear ? [] : [...s.messages, userMsg],
+        ...(isClear ? { fileChangesByTurn: [], userTurns: [] } : {}),
       }
     })
     await window.api.ai.send(activeSessionId, message)
@@ -1920,7 +1922,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
     const savedMessages = state.messages
     const savedFileChanges = state.fileChangesByTurn
-    const savedResumedCount = state.resumedUserMsgCount
 
     const truncatedMessages = state.messages.slice(0, targetMsgIdx)
     const truncatedFileChanges = state.fileChangesByTurn.slice(0, userMessageIndex)
@@ -1936,7 +1937,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       busy: false,
       streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null,
       pendingPermission: null,
-      resumedUserMsgCount: undefined,
     }))
 
     const result = await window.api.ai.revert({
@@ -1952,8 +1952,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         messages: savedMessages,
         fileChangesByTurn: savedFileChanges,
         busy: false,
-        resumedUserMsgCount: savedResumedCount,
       }))
+    } else {
+      aiStore.refreshUserTurns(activeSessionId)
     }
   }, [activeSessionId, workspacePath, state.messages, state.fileChangesByTurn, updateSession, setInputValue])
 
@@ -2157,6 +2158,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       model: history.model || '',
                       slashCommands: enrichSlashCommands(history.slashCommands || []),
                       name: sessionName,
+                      cwd: workspacePath || '',
                       ready: false,
                       resumeSessionId: s.session_id || s.id,
                     }))
@@ -2230,7 +2232,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           </div>
         )}
         {(() => {
-          const userMessages = state.messages.filter(m => m.role === 'user' && m.content && m.type === 'user' && isRealUserMessage(m.content))
+          const userMessages = state.messages.filter(m => m.role === 'user' && m.content && m.type === 'user')
           const totalUserMessages = userMessages.length
 
           const groups: Array<{ type: 'agent'; messages: AiMessage[]; parentId: string; startIndex: number } | { type: 'msg'; message: AiMessage; index: number }> = []
@@ -2271,7 +2273,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 onRevertAndCode={handleRevertAndCode}
                 onFork={handleFork}
                 viewMode={viewMode}
-                resumedUserMsgCount={state.resumeSessionId ? (state.resumedUserMsgCount ?? Infinity) : undefined}
+                isInternal={state.userTurns[uIdx]?.isInternal ?? false}
               />
             )
           })

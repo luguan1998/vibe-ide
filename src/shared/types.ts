@@ -118,6 +118,7 @@ export const IPC_CHANNELS = {
   AI_ASK_RESUME: 'ai:askResume',
   AI_REVERT: 'ai:revert',
   AI_FORK: 'ai:fork',
+  AI_LIST_USER_TURNS: 'ai:listUserTurns',  // invoke: real user turns from JSONL (single source of truth for revert index)
   AI_MESSAGE: 'ai:message',               // push: full message (assistant text/tool_use)
   AI_STREAM_TOKEN: 'ai:streamToken',      // push: partial token for streaming display
   AI_PROGRESS: 'ai:progress',             // push: tool_progress events
@@ -374,12 +375,6 @@ export const AI_FILE_EDIT_TOOLS = new Set([
   'create_file', 'replace', 'insert', 'Write', 'Edit', 'NotebookEdit',
 ])
 
-export const COMMAND_TAG_RE = /<(local-command-caveat|command-name|command-message|command-args|local-command-stdout|system-reminder)>[\s\S]*?<\/(local-command-caveat|command-name|command-message|command-args|local-command-stdout|system-reminder)>/g
-
-export function isRealUserMessage(content: string): boolean {
-  return content.replace(COMMAND_TAG_RE, '').trim().length > 0
-}
-
 export interface AiToolUse {
   id: string
   name: string
@@ -401,6 +396,16 @@ export interface AiFileChange {
   action: 'create' | 'edit' | 'delete'
   content?: string
   oldContent?: string
+}
+
+// A real user turn in the JSONL — single source of truth for revert/fork indexing.
+// Slash command groups (caveat/command-name/args/stdout) collapse to one turn with
+// isInternal=true; plain user text is one turn with isInternal=false. lineIdx is the
+// JSONL line index of the turn's first line, used by truncate to locate the cut point.
+export interface UserTurn {
+  lineIdx: number
+  content: string
+  isInternal: boolean
 }
 
 export interface AiPermissionRequest {
@@ -437,9 +442,10 @@ export interface AiSessionState {
   contextPercent: number | null
   name: string
   fileChangesByTurn: AiFileChange[][]
+  userTurns: UserTurn[]
+  cwd: string
   worktreePath?: string
   resumeSessionId?: string
-  resumedUserMsgCount?: number
 }
 
 export type AiPermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions'

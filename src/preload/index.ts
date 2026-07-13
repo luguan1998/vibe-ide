@@ -245,6 +245,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_REVERT, payload),
     fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_FORK, payload),
+    listUserTurns: (sessionId: string, cwd: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_USER_TURNS, { sessionId, cwd }),
     onMessage: (callback: (data: any) => void) => {
       const handler = (_event: any, data: any) => callback(data)
       ipcRenderer.on(IPC_CHANNELS.AI_MESSAGE, handler)

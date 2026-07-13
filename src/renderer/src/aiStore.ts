@@ -1,6 +1,5 @@
 import { useSyncExternalStore, useCallback } from 'react'
-import type { AiMessage, AiSessionState, AiSlashCommand, AiPermissionMode, AiPermissionRequest } from '@shared/types'
-import { isRealUserMessage } from '@shared/types'
+import type { AiMessage, AiSessionState, AiSlashCommand, AiPermissionMode, AiPermissionRequest, UserTurn } from '@shared/types'
 
 // ── 纯函数 & 常量(从 AiTab.tsx 抽出,供 store 与组件共用)──
 
@@ -8,8 +7,8 @@ export const EMPTY_SESSION: AiSessionState = {
   ready: false, busy: false, messages: [],
   streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null, pendingPermission: null,
   slashCommands: [], model: '', contextPercent: null, name: '',
-  fileChangesByTurn: [],
-  worktreePath: undefined,
+  fileChangesByTurn: [], userTurns: [],
+  cwd: '', worktreePath: undefined,
 }
 
 export const SLASH_COMMAND_DESCRIPTIONS: Record<string, { description: string; argumentHint?: string }> = {
@@ -138,6 +137,13 @@ export const aiStore = {
       return next
     })
   },
+  refreshUserTurns(sid: string) {
+    const cwd = sessionStates[sid]?.cwd
+    if (!cwd) return
+    window.api.ai.listUserTurns(sid, cwd).then((turns: UserTurn[]) => {
+      aiStore.updateSession(sid, (s) => ({ ...s, userTurns: turns || [] }))
+    }).catch(() => { /* ignore */ })
+  },
   destroyAll() {
     for (const sid of createdSessions) window.api.ai.destroy(sid)
     createdSessions.clear()
@@ -172,7 +178,7 @@ export const aiStore = {
         ...(cliCommand ? { cliCommand } : {}),
         ...(opts.enableWorktree ? { enableWorktree: true } : {}),
       })
-      aiStore.updateSession(sid, () => ({ ...EMPTY_SESSION, ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}) }))
+      aiStore.updateSession(sid, () => ({ ...EMPTY_SESSION, cwd: opts.cwd, ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}) }))
     }).catch(() => {
       aiStore.updateSession(sid, () => ({
         ...EMPTY_SESSION,
@@ -338,6 +344,7 @@ function initListeners() {
         contextPercent: msg.contextPercent != null ? Math.round(msg.contextPercent) : s0.contextPercent,
       }
     })
+    if (msg.type === 'result') aiStore.refreshUserTurns(msg.sessionId)
   })
 
   // ── onStreamToken ──
@@ -383,10 +390,7 @@ function initListeners() {
   window.api.ai.onFileChange((data: any) => {
     if (!data.sessionId) return
     aiStore.updateSession(data.sessionId, (s) => {
-      const userMsgCount = s.messages.filter(
-        m => m.role === 'user' && m.content && m.type === 'user' && isRealUserMessage(m.content)
-      ).length
-      const turnIndex = Math.max(0, userMsgCount - 1)
+      const turnIndex = Math.max(0, data.turnIndex ?? 0)
 
       const turnChanges = [...(s.fileChangesByTurn[turnIndex] || [])]
       turnChanges.push({
@@ -418,6 +422,7 @@ function initListeners() {
       model: model || s.model || '',
       worktreePath: worktreePath || s.worktreePath,
     }))
+    aiStore.refreshUserTurns(sessionId)
   })
 
   // ── onError ──

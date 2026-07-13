@@ -6,7 +6,7 @@ import {
   IPC_CHANNELS,
   type AiRevertPayload,
   type AiForkPayload,
-  isRealUserMessage,
+  type UserTurn,
 } from '../shared/types'
 import {
   aiSessions,
@@ -15,6 +15,8 @@ import {
   send,
   spawnClaude,
   resolveProjectDir,
+  cleanText,
+  parseUserTurns,
 } from './ai'
 
 // ── JSONL truncation ──────────────────────────────────────────────
@@ -35,30 +37,29 @@ async function truncateJsonlAtUserMessage(
   }
 
   const lines = content.split('\n').filter(Boolean)
-  let userMsgCount = 0
-  let targetLineIdx = -1
+  const turns = parseUserTurns(lines)
+  if (userMessageIndex < 0 || userMessageIndex >= turns.length) {
+    return { error: `User message index ${userMessageIndex} not found (found ${turns.length} user turns)` }
+  }
+  const targetLineIdx = turns[userMessageIndex].lineIdx
 
-  for (let i = 0; i < lines.length; i++) {
-    let msg: any
-    try { msg = JSON.parse(lines[i]) } catch { continue }
-
-    // Count "real" user messages (string content, not tool_result arrays)
-    if (msg.type === 'user' && typeof msg.message?.content === 'string' && isRealUserMessage(msg.message.content)) {
-      if (userMsgCount === userMessageIndex) {
-        targetLineIdx = i
-        break
-      }
-      userMsgCount++
+  // keepTarget=false (revert): truncate BEFORE the target (exclude it).
+  // keepTarget=true (fork): truncate AFTER the target (include it). For a slash-group target,
+  // extend endIdx to the group's last wrapper line — tolerating interspersed non-user lines
+  // (the old break-on-first-non-user logic dropped a mid-group stdout when /model failed).
+  let endIdx = targetLineIdx
+  if (keepTarget) {
+    const nextTurnStart = userMessageIndex + 1 < turns.length
+      ? turns[userMessageIndex + 1].lineIdx
+      : lines.length
+    for (let j = targetLineIdx + 1; j < nextTurnStart; j++) {
+      let m2: any
+      try { m2 = JSON.parse(lines[j]) } catch { continue }
+      const u2 = m2.type === 'user' && typeof m2.message?.content === 'string'
+      if (u2 && cleanText(m2.message.content) === '' && !m2.isMeta) endIdx = j
     }
   }
-
-  if (targetLineIdx === -1) {
-    return { error: `User message index ${userMessageIndex} not found (found ${userMsgCount} user messages)` }
-  }
-
-  // keepTarget=false (revert): truncate BEFORE the target line (exclude it)
-  // keepTarget=true (fork): truncate AFTER the target line (include it)
-  const truncated = keepTarget ? lines.slice(0, targetLineIdx + 1) : lines.slice(0, targetLineIdx)
+  const truncated = keepTarget ? lines.slice(0, endIdx + 1) : lines.slice(0, targetLineIdx)
 
   return { truncated }
 }
@@ -174,5 +175,24 @@ export function registerRevertHandlers(): void {
     }
 
     return { success: true, newClaudeSessionId }
+  })
+
+  // ── LIST USER TURNS ─────────────────────────────────────────────
+  // Single source of truth for the renderer's revert-node list: read the JSONL and run
+  // parseUserTurns. The renderer calls this on ready / after each result / after revert /
+  // after resume to align its revert indices with the real JSONL turns.
+  ipcMain.handle(IPC_CHANNELS.AI_LIST_USER_TURNS, async (_event, payload: { sessionId: string; cwd: string }) => {
+    const { sessionId, cwd } = payload
+    const prev = aiSessions.get(sessionId)
+    const claudeSessionId = prev?.claudeSessionId
+    if (!claudeSessionId) return [] as UserTurn[]
+    const effectiveCwd = prev?.cwd || cwd
+    const projectDir = resolveProjectDir(effectiveCwd)
+    if (!projectDir) return [] as UserTurn[]
+    const jsonlPath = join(projectDir, `${claudeSessionId}.jsonl`)
+    let content: string
+    try { content = await readFile(jsonlPath, 'utf-8') } catch { return [] as UserTurn[] }
+    const lines = content.split('\n').filter(Boolean)
+    return parseUserTurns(lines)
   })
 }
