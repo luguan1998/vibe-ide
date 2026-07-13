@@ -825,11 +825,13 @@ export function registerGitHandlers(): void {
   })
 
   // Workspace open - changes the git working directory
-  ipcMain.handle(IPC_CHANNELS.WORKSPACE_OPEN, async () => {
-    const { dialog } = require('electron')
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory']
-    })
+  ipcMain.handle(IPC_CHANNELS.WORKSPACE_OPEN, async (event) => {
+    const { dialog, BrowserWindow } = require('electron')
+    const parentWin = BrowserWindow.fromWebContents(event.sender) ?? undefined
+    const opts = { properties: ['openDirectory'] }
+    const result = parentWin
+      ? await dialog.showOpenDialog(parentWin, opts)
+      : await dialog.showOpenDialog(opts)
     if (!result.canceled && result.filePaths.length > 0) {
       currentWorkspace = result.filePaths[0]
       gitInstance = simpleGit(currentWorkspace)
@@ -844,12 +846,13 @@ export function registerGitHandlers(): void {
   })
 
   // Pick directory - just shows dialog, does NOT change global workspace
-  ipcMain.handle(IPC_CHANNELS.WORKSPACE_PICK_DIR, async () => {
-    const { dialog } = require('electron')
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory'],
-      title: 'Select Directory for Terminal'
-    })
+  ipcMain.handle(IPC_CHANNELS.WORKSPACE_PICK_DIR, async (event) => {
+    const { dialog, BrowserWindow } = require('electron')
+    const parentWin = BrowserWindow.fromWebContents(event.sender) ?? undefined
+    const opts = { properties: ['openDirectory'], title: 'Select Directory for Terminal' }
+    const result = parentWin
+      ? await dialog.showOpenDialog(parentWin, opts)
+      : await dialog.showOpenDialog(opts)
     if (!result.canceled && result.filePaths.length > 0) {
       return { path: result.filePaths[0] }
     }

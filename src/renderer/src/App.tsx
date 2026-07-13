@@ -1328,8 +1328,10 @@ export default function App() {
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
 
   // Create a new terminal session — ask user to pick a directory first
+  const [isOpening, setIsOpening] = useState(false)
   const handleCreateSession = useCallback(async (shell?: string) => {
     try {
+      setIsOpening(true)
       const dirResult = await window.api.workspace.pickDir()
       if (dirResult.canceled) return
       const session = await window.api.terminal.create({ cwd: dirResult.path, shell, autoUtf8 })
@@ -1339,12 +1341,15 @@ export default function App() {
       setDiffFile(null)
     } catch (err) {
       console.error('Failed to create terminal session:', err)
+    } finally {
+      setIsOpening(false)
     }
   }, [autoUtf8])
 
   // Create a terminal session at a specific path (no directory picker)
   const handleCreateSessionAt = useCallback(async (cwd: string, shell?: string) => {
     try {
+      setIsOpening(true)
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8 })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
@@ -1354,6 +1359,8 @@ export default function App() {
     } catch (err) {
       console.error('Failed to create terminal session at path:', err)
       return null
+    } finally {
+      setIsOpening(false)
     }
   }, [autoUtf8])
 
@@ -2164,6 +2171,7 @@ export default function App() {
           {/* Welcome screen — shown when no sessions exist */}
           {centerView === 'terminal' && sessions.length === 0 && (
             <WelcomeScreen
+              isOpening={isOpening}
               onOpenFolder={() => handleCreateSession()}
               onOpenPath={(path) => handleCreateSessionAt(path)}
             />

@@ -27,11 +27,19 @@ function getParentPath(path: string): string {
 }
 
 interface WelcomeScreenProps {
+  isOpening: boolean
   onOpenFolder: () => void
   onOpenPath: (path: string) => void
 }
 
-const WelcomeScreen = React.memo(function WelcomeScreen({ onOpenFolder, onOpenPath }: WelcomeScreenProps) {
+const OpeningOverlay = (
+  <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-ide-bg/80">
+    <div className="w-5 h-5 border-2 border-ide-accent border-t-transparent rounded-full animate-spin" />
+    <span className="text-sm text-ide-text-muted">Opening folder...</span>
+  </div>
+)
+
+const WelcomeScreen = React.memo(function WelcomeScreen({ isOpening, onOpenFolder, onOpenPath }: WelcomeScreenProps) {
   const [recentDirs, setRecentDirs] = useState<string[]>([])
 
   useEffect(() => {
@@ -40,7 +48,7 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ onOpenFolder, onOpenPa
 
   if (recentDirs.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-ide-bg">
+      <div className="flex-1 flex items-center justify-center bg-ide-bg relative">
         <div className="text-center select-none">
           <div className="w-16 h-16 mx-auto mb-5 flex items-center justify-center rounded-lg bg-ide-accent/40 text-4xl">🤔</div>
           <h1 className="text-xl font-semibold text-ide-text mb-2 tracking-wide">Vibe IDE</h1>
@@ -55,12 +63,13 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ onOpenFolder, onOpenPa
             Open Folder
           </button>
         </div>
+        {isOpening && OpeningOverlay}
       </div>
     )
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-ide-bg">
+    <div className="flex-1 overflow-y-auto bg-ide-bg relative">
       <div className="flex items-center justify-center min-h-full">
         <div className="w-full max-w-[520px] px-8 py-10 select-none">
         {/* Header */}
@@ -118,6 +127,7 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ onOpenFolder, onOpenPa
           </div>
         </div>
       </div>
+      {isOpening && OpeningOverlay}
     </div>
   )
 })
