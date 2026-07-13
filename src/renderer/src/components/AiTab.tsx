@@ -31,6 +31,7 @@ interface AiTabProps {
   lastOpenedFile?: RecentFileEntry | null
   worktreeNav?: { originalPath: string; worktreePath: string; originalBranch: string } | null
   onWorktreeNavChange?: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
+  onCommand?: (command: string) => void
 }
 
 export interface AiTabHandle {
@@ -1685,7 +1686,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 
-const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, worktreeNav, onWorktreeNavChange }, ref) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1877,6 +1878,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     if (!activeSessionId || !inputValue.trim() || state.busy) return
     const message = inputValue.trim()
     setInputValue('')
+    onCommand?.(message)
     const isSlash = message.startsWith('/')
     const isClear = message.startsWith('/clear')
     updateSession(activeSessionId, (s) => {

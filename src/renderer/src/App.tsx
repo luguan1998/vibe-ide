@@ -2221,6 +2221,7 @@ export default function App() {
                         lastOpenedFile={lastOpenedFile}
                         worktreeNav={sessionWorktreeNav[session.id] ?? null}
                         onWorktreeNavChange={setSessionWorktreeNav}
+                        onCommand={onCommandForSession(session.id)}
                       />
                     ) : (
                       <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
