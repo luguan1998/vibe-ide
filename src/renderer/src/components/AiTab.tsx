@@ -1695,6 +1695,25 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // AI session state — shared singleton store (进程级单例,消除 N 倍冗余)
   const state = useAiSession(activeSessionId)
 
+  const busyStartRef = useRef<number>(0)
+  const [busySeconds, setBusySeconds] = useState(0)
+  useEffect(() => {
+    if (state.busy) {
+      if (!busyStartRef.current) busyStartRef.current = Date.now()
+      const tick = () => setBusySeconds(Math.floor((Date.now() - busyStartRef.current) / 1000))
+      tick()
+      const id = setInterval(tick, 1000)
+      return () => clearInterval(id)
+    }
+    busyStartRef.current = 0
+    setBusySeconds(0)
+  }, [state.busy])
+  const busyTimeLabel = busySeconds >= 10
+    ? busySeconds >= 60
+      ? ` (${Math.floor(busySeconds / 60)}m ${busySeconds % 60}s)`
+      : ` (${busySeconds}s)`
+    : ''
+
   // Sync AI busy state to parent agentStatus (OR with terminal detection)
   useEffect(() => {
     if (!activeSessionId || !onAgentStatusChange) return
@@ -2286,12 +2305,12 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               <div>
                 <StreamingMarkdown text={state.streamBuffer} workspacePath={workspacePath} onOpenFile={onOpenFile} />
                 <span className="ai-tab__busy-sparkle animate-sparkle ml-0.5 text-sm leading-none align-middle select-none">✻</span>
-                <span className="ai-tab__busy-quip ml-0.5 text-xs leading-none align-middle select-none text-ide-accent/60">{busyQuip}</span>
+                <span className="ai-tab__busy-quip ml-0.5 text-xs leading-none align-middle select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
               </div>
             ) : (
               <div>
                 <span className="animate-sparkle text-sm leading-none select-none">✻</span>
-                <span className="ml-0.5 text-xs leading-none select-none text-ide-accent/60">{busyQuip}</span>
+                <span className="ml-0.5 text-xs leading-none select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
               </div>
             )}
           </div>
