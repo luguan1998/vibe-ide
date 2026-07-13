@@ -128,6 +128,8 @@ const ZH_MAP: Record<string, string> = {
   'Collapse All': '全部收缩',
   'Expand Panel': '展开面板',
   'Collapse Panel': '收缩面板',
+  'Expand': '展开',
+  'Collapse': '收缩',
 
   // RightPanel Aux
   'Launch Terminal': '启动终端',

@@ -9,7 +9,7 @@ import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS } from '../aiStore'
 import { EXAMPLE_PROMPTS } from './examplePrompts'
 import { OCTOCAT, type PetSpriteConfig } from './petSprites'
-import { SquareArrowUp, Square, ChevronDown, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch } from 'lucide-react'
+import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch } from 'lucide-react'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
 import { displayLabel, getShortcuts } from '../shortcuts'
@@ -789,58 +789,23 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
   }, [brushActive])
 
   const brushClass = brushActive ? ' diff-brush-mode' : ''
-
-  return (
-    <div className="ai-tab__plan-overlay absolute inset-0 z-20 flex flex-col bg-ide-bg/95 backdrop-blur-sm px-3 py-2.5 animate-fade-in">
-      <div className="flex items-center gap-1.5 mb-1.5 shrink-0">
-        <FileText size={15} className="text-ide-accent shrink-0" />
-        <span className="text-[13px] font-medium text-ide-accent">{t('Plan Ready')}</span>
-        <span className="text-[11px] text-ide-text-muted italic ml-1.5">{t('Hold {key} + click to annotate').replace('{key}', displayLabel(getShortcuts()['brush.activate']))}</span>
-      </div>
-
-      <div
-        ref={planContentRef}
-        className={`ai-tab__plan-content flex-1 min-h-0 overflow-y-auto mb-1.5 bg-ide-bg/60 rounded px-2 py-1.5 border border-ide-border/40${brushClass}`}
-        onClickCapture={handlePlanClick}
+  const [collapsed, setCollapsed] = useState(false)
+  const renderActions = (compact: boolean) => (
+    <div className={`flex items-center gap-1.5 ${compact ? '' : 'shrink-0'}`}>
+      <button
+        onClick={() => onContinue(sessionId, perm.requestId, selectedModel || undefined)}
+        className="px-4 py-1.5 text-[13px] font-medium bg-ide-success hover:brightness-110 text-white rounded transition-colors"
       >
-        <ChatMarkdown text={plan} workspacePath={workspacePath} onOpenFile={onOpenFile} />
-        {annotationInput && (
-          <InlineAnnotationInput
-            top={annotationInput.top}
-            left={annotationInput.left}
-            containerRef={planContentRef}
-            onSubmit={handleAnnotationSubmit}
-            onDismiss={() => setAnnotationInput(null)}
-          />
-        )}
-      </div>
-
-      <div className="rounded-2xl border border-ide-accent/60 bg-ide-sidebar shadow-sm transition-colors focus-within:border-ide-accent mb-1.5 shrink-0">
-        <div className="px-3 pt-2.5 pb-1.5">
-          <textarea
-            ref={feedbackRef}
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder={t('Feedback for revision (optional)')}
-            className="ai-tab__plan-feedback w-full text-sm bg-transparent px-0 py-0.5 text-ide-text placeholder:text-ide-text-muted/50 resize-none focus:outline-none disabled:opacity-50 leading-relaxed"
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-1.5 shrink-0">
-        <button
-          onClick={() => onContinue(sessionId, perm.requestId, selectedModel || undefined)}
-          className="px-4 py-1.5 text-[13px] font-medium bg-ide-success hover:brightness-110 text-white rounded transition-colors"
-        >
-          {t('Execute')}
-        </button>
-        <button
-          onClick={() => onClearExecute(sessionId, planFilePath, selectedModel || undefined)}
-          className="px-4 py-1.5 text-[13px] font-medium border border-ide-accent/40 hover:bg-ide-accent/10 text-ide-accent rounded transition-colors"
-          title={t('Clear & Execute Tooltip')}
-        >
-          {t('Clear & Execute')}
-        </button>
+        {t('Execute')}
+      </button>
+      <button
+        onClick={() => onClearExecute(sessionId, planFilePath, selectedModel || undefined)}
+        className="px-4 py-1.5 text-[13px] font-medium border border-ide-accent/40 hover:bg-ide-accent/10 text-ide-accent rounded transition-colors"
+        title={t('Clear & Execute Tooltip')}
+      >
+        {t('Clear & Execute')}
+      </button>
+      {!compact && (
         <div ref={switchRef} className="relative">
           <button
             onClick={() => setSwitchOpen(v => !v)}
@@ -871,22 +836,79 @@ const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessio
             </div>
           )}
         </div>
-        <div className="flex-1" />
-        {feedback.trim() && (
-          <button
-            onClick={() => onDeny(sessionId, perm.requestId, feedback)}
-            className="px-4 py-1.5 text-[13px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
-          >
-            {t('Send Feedback')}
-          </button>
-        )}
+      )}
+      {!compact && <div className="flex-1" />}
+      {feedback.trim() && !compact && (
         <button
-          onClick={() => onDeny(sessionId, perm.requestId, '')}
-          className="px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
+          onClick={() => onDeny(sessionId, perm.requestId, feedback)}
+          className="px-4 py-1.5 text-[13px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
         >
-          {t('Cancel')}
+          {t('Send Feedback')}
+        </button>
+      )}
+      <button
+        onClick={() => onDeny(sessionId, perm.requestId, '')}
+        className="px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
+      >
+        {t('Cancel')}
+      </button>
+    </div>
+  )
+
+  return (
+    <div className={`ai-tab__plan-overlay absolute z-20 flex flex-col bg-ide-bg/95 backdrop-blur-sm px-3 py-2.5 animate-fade-in ${collapsed ? 'top-0 left-0 right-0' : 'inset-0'}`}>
+      <div className={`flex items-center gap-1.5 shrink-0 ${collapsed ? '' : 'mb-1.5'}`}>
+        <FileText size={15} className="text-ide-accent shrink-0" />
+        <span className="text-[13px] font-medium text-ide-accent">{t('Plan Ready')}</span>
+        {!collapsed && (
+          <span className="text-[11px] text-ide-text-muted italic ml-1.5">{t('Hold {key} + click to annotate').replace('{key}', displayLabel(getShortcuts()['brush.activate']))}</span>
+        )}
+        <div className="flex-1" />
+        {collapsed && renderActions(true)}
+        <button
+          type="button"
+          onClick={() => setCollapsed(v => !v)}
+          title={collapsed ? t('Expand') : t('Collapse')}
+          className="ai-tab__plan-collapse-btn flex items-center justify-center w-6 h-6 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors shrink-0"
+        >
+          {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
         </button>
       </div>
+
+      {!collapsed && (
+        <>
+          <div
+            ref={planContentRef}
+            className={`ai-tab__plan-content flex-1 min-h-0 overflow-y-auto mb-1.5 bg-ide-bg/60 rounded px-2 py-1.5 border border-ide-border/40${brushClass}`}
+            onClickCapture={handlePlanClick}
+          >
+            <ChatMarkdown text={plan} workspacePath={workspacePath} onOpenFile={onOpenFile} />
+            {annotationInput && (
+              <InlineAnnotationInput
+                top={annotationInput.top}
+                left={annotationInput.left}
+                containerRef={planContentRef}
+                onSubmit={handleAnnotationSubmit}
+                onDismiss={() => setAnnotationInput(null)}
+              />
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-ide-accent/60 bg-ide-sidebar shadow-sm transition-colors focus-within:border-ide-accent mb-1.5 shrink-0">
+            <div className="px-3 pt-2.5 pb-1.5">
+              <textarea
+                ref={feedbackRef}
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder={t('Feedback for revision (optional)')}
+                className="ai-tab__plan-feedback w-full text-sm bg-transparent px-0 py-0.5 text-ide-text placeholder:text-ide-text-muted/50 resize-none focus:outline-none disabled:opacity-50 leading-relaxed"
+              />
+            </div>
+          </div>
+
+          {renderActions(false)}
+        </>
+      )}
     </div>
   )
 })
