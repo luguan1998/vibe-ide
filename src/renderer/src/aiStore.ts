@@ -269,14 +269,16 @@ function initListeners() {
         && lastMsg.type === 'assistant'
         && lastMsg.messageId === msg.messageId
 
-      const coveredByMergedThinking = isSameMessageId && !!lastMsg?.thinking && lastMsg.thinking.includes(s0.thinkingBuffer)
-      const coveredByMergedText = isSameMessageId && !!lastMsg?.content && lastMsg.content.includes(s0.streamBuffer)
+      // msg.thinking/content 经 cleanText().trim()，而 stream 累积的 buffer 是原始 token（末尾可能残留 \n）。
+      // 比较是否被覆盖时按 trim 口径，否则末尾空白会让 includes 失败 → 虚假 extra → 多渲染一条重复 thinking。
+      const coveredByMergedThinking = isSameMessageId && !!lastMsg?.thinking && lastMsg.thinking.includes(s0.thinkingBuffer.trim())
+      const coveredByMergedText = isSameMessageId && !!lastMsg?.content && lastMsg.content.includes(s0.streamBuffer.trim())
       const extraThinking = s0.thinkingBuffer
-        && (!msg.thinking || !msg.thinking.includes(s0.thinkingBuffer))
+        && (!msg.thinking || !msg.thinking.includes(s0.thinkingBuffer.trim()))
         && !coveredByMergedThinking
         ? s0.thinkingBuffer : ''
       const extraText = s0.streamBuffer
-        && (!msg.content || !msg.content.includes(s0.streamBuffer))
+        && (!msg.content || !msg.content.includes(s0.streamBuffer.trim()))
         && !coveredByMergedText
         ? s0.streamBuffer : ''
       const hasExtra = extraThinking || extraText
