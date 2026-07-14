@@ -33,7 +33,7 @@ const ZH_MAP: Record<string, string> = {
   'Shell Type': '命令行类型',
   'Keyboard Shortcuts': '键盘快捷键',
   'Claude Code CLI': 'Claude Code CLI 别名',
-  'CLI Configuration': '命令行配置',
+  'CLI Configuration': '会话配置',
   'Word Wrap': '自动换行',
   'Auto UTF-8': '自动切 UTF-8',
   'CodeGraph': '代码图谱',

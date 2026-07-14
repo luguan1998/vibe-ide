@@ -280,6 +280,9 @@ app.whenReady().then(() => {
   // App version
   ipcMain.handle(IPC_CHANNELS.APP_VERSION, () => app.getVersion())
 
+  // ~/.claude 目录：renderer 无 homedir，由 main 返回路径后用 file 读写 settings.json / 配置组文件
+  ipcMain.handle(IPC_CHANNELS.CLAUDE_CONFIG_DIR, () => join(app.getPath('home'), '.claude'))
+
   // CSS snippets — dev 用项目根目录，打包后用 exe 同目录
   const snippetsDir = app.isPackaged
     ? join(dirname(exePath), 'snippets')

@@ -57,7 +57,10 @@ export const IPC_CHANNELS = {
   FILE_COPY: 'file:copy',
   FILE_MOVE: 'file:move',
   FILE_FIND: 'file:find',
-  
+
+  // Claude config (model/provider groups switcher)
+  CLAUDE_CONFIG_DIR: 'claudeConfig:dir',
+
   // Workspace
   WORKSPACE_OPEN: 'workspace:open',
   WORKSPACE_CURRENT: 'workspace:current',

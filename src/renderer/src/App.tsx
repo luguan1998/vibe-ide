@@ -87,6 +87,9 @@ declare global {
         onChanged: (callback: () => void) => any
         removeChangedListener: (handler?: any) => void
       }
+      claudeConfig: {
+        dir: () => Promise<string>
+      }
       workspace: {
         open: () => Promise<any>
         current: () => Promise<{ path: string }>

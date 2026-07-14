@@ -9,6 +9,95 @@ import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 
+// ── Claude 配置组（model/provider 多组切换）──
+interface ClaudeConfigGroup {
+  id: string
+  name: string
+  env: Record<string, string>
+}
+interface ClaudeConfigStore {
+  groups: ClaudeConfigGroup[]
+  activeId: string | null
+}
+
+// 新建配置组时 env 默认预填的 key（值留空由用户填）
+const DEFAULT_CLAUDE_ENV_KEYS = [
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'CLAUDE_CODE_SUBAGENT_MODEL',
+]
+
+let claudeDirCache: string | null = null
+async function claudeDir(): Promise<string> {
+  if (claudeDirCache) return claudeDirCache
+  claudeDirCache = (await window.api.claudeConfig.dir()).replace(/\\/g, '/')
+  return claudeDirCache
+}
+function groupSummary(g: ClaudeConfigGroup): string {
+  let host = g.env.ANTHROPIC_BASE_URL || ''
+  try { if (host) host = new URL(host).host } catch {}
+  const model = g.env.ANTHROPIC_MODEL || ''
+  return [host, model].filter(Boolean).join(' · ')
+}
+// file.read 返回 { content } | { error }，file.write 返回 { success } | { error }——包一层取纯文本/校验写入
+async function readTextFile(path: string): Promise<string | null> {
+  const r: any = await window.api.file.read(path)
+  if (r && typeof r.content === 'string') return r.content
+  return null
+}
+async function writeTextFile(path: string, content: string): Promise<void> {
+  const r: any = await window.api.file.write(path, content)
+  if (!r || r.success !== true) throw new Error((r && r.error) || '写入失败')
+}
+async function loadClaudeGroups(): Promise<ClaudeConfigStore> {
+  try {
+    const dir = await claudeDir()
+    const raw = await readTextFile(`${dir}/.vibe-ide-model-groups.json`)
+    if (raw) {
+      const obj = JSON.parse(raw)
+      if (obj && Array.isArray(obj.groups)) {
+        return {
+          groups: obj.groups.filter((g: any) => g && typeof g.id === 'string'),
+          activeId: typeof obj.activeId === 'string' ? obj.activeId : null,
+        }
+      }
+    }
+  } catch {}
+  return { groups: [], activeId: null }
+}
+async function saveClaudeGroups(store: ClaudeConfigStore): Promise<void> {
+  try {
+    const dir = await claudeDir()
+    await writeTextFile(`${dir}/.vibe-ide-model-groups.json`, JSON.stringify(store, null, 2))
+  } catch {}
+}
+async function readCurrentSettings(): Promise<Record<string, string>> {
+  try {
+    const dir = await claudeDir()
+    const raw = await readTextFile(`${dir}/settings.json`)
+    if (raw) {
+      const obj = JSON.parse(raw)
+      return obj.env && typeof obj.env === 'object' ? obj.env : {}
+    }
+  } catch {}
+  return {}
+}
+async function applyClaudeGroup(group: ClaudeConfigGroup): Promise<void> {
+  const dir = await claudeDir()
+  const raw = await readTextFile(`${dir}/settings.json`)
+  if (raw === null) throw new Error('settings.json 读取失败，未写入以保护现有配置')
+  const obj = JSON.parse(raw)
+  // 合并而非整组替换：只覆盖组里有的 key（跳过空值以免误清），其它 env 字段（DISABLE_AUTOUPDATER 等）原样保留
+  const env: Record<string, string> = { ...(obj.env && typeof obj.env === 'object' ? obj.env : {}) }
+  for (const [k, v] of Object.entries(group.env)) if (v !== '') env[k] = v
+  obj.env = env
+  await writeTextFile(`${dir}/settings.json`, JSON.stringify(obj, null, 2) + '\n')
+}
+
 // CWD 图标：按目录分配（标题行）
 const DEFAULT_CWD_EMOJIS = ['🧩', '📌', '📁', '🚀', '🏷️', '🎯', '🗺️', '🔗']
 // Session 图标：按会话分配（列表行）
@@ -312,6 +401,13 @@ const SessionPanel = React.memo(function SessionPanel({
     try { return localStorage.getItem('vibe-ide-ai-cli-command') || '' } catch { return '' }
   })
   const [cliCommandDraft, setCliCommandDraft] = useState('')
+  const [claudeGroups, setClaudeGroups] = useState<ClaudeConfigGroup[]>([])
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
+  const [showClaudeGroupEditModal, setShowClaudeGroupEditModal] = useState(false)
+  const [editingGroup, setEditingGroup] = useState<ClaudeConfigGroup | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editEnv, setEditEnv] = useState<{ key: string; value: string }[]>([])
+  const [claudeApplyMsg, setClaudeApplyMsg] = useState('')
   const [termType, setTermType] = useState(() => {
     try { return localStorage.getItem('vibe-ide-term-type') || 'pwsh' } catch { return 'pwsh' }
   })
@@ -578,6 +674,79 @@ const SessionPanel = React.memo(function SessionPanel({
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
   }, [showCliConfigModal])
+
+  // ── Claude 配置组：打开 CLI 配置弹窗时加载；子编辑弹窗 ESC（window capture 优先于外层） ──
+  useEffect(() => {
+    if (!showCliConfigModal) return
+    let cancelled = false
+    loadClaudeGroups().then(s => {
+      if (cancelled) return
+      setClaudeGroups(s.groups)
+      setActiveGroupId(s.activeId)
+    })
+    return () => { cancelled = true }
+  }, [showCliConfigModal])
+
+  useEffect(() => {
+    if (!showClaudeGroupEditModal) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setShowClaudeGroupEditModal(false)
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [showClaudeGroupEditModal])
+
+  const persistClaudeGroups = (groups: ClaudeConfigGroup[], activeId: string | null) => {
+    setClaudeGroups(groups)
+    setActiveGroupId(activeId)
+    saveClaudeGroups({ groups, activeId })
+  }
+  const handleClaudeApply = async (g: ClaudeConfigGroup) => {
+    try {
+      await applyClaudeGroup(g)
+      persistClaudeGroups(claudeGroups, g.id)
+      setClaudeApplyMsg('已写入 ~/.claude/settings.json · 下次启动 claude 生效')
+      window.setTimeout(() => setClaudeApplyMsg(''), 4000)
+    } catch (e: any) {
+      setClaudeApplyMsg(`写入失败：${e?.message || '已保留现有 settings.json'}`)
+    }
+  }
+  const handleClaudeDelete = (g: ClaudeConfigGroup) => {
+    const next = claudeGroups.filter(x => x.id !== g.id)
+    persistClaudeGroups(next, activeGroupId === g.id ? null : activeGroupId)
+  }
+  const handleClaudeEdit = (g: ClaudeConfigGroup) => {
+    setEditingGroup(g)
+    setEditName(g.name)
+    setEditEnv(Object.entries(g.env).map(([k, v]) => ({ key: k, value: String(v) })))
+    setShowClaudeGroupEditModal(true)
+  }
+  const handleClaudeNew = async () => {
+    const cur = await readCurrentSettings()
+    setEditingGroup(null)
+    setEditName('')
+    setEditEnv(DEFAULT_CLAUDE_ENV_KEYS.map(k => ({ key: k, value: String(cur[k] ?? '') })))
+    setShowClaudeGroupEditModal(true)
+  }
+  const handleClaudeEditSave = () => {
+    const name = editName.trim()
+    if (!name) return
+    const env: Record<string, string> = {}
+    for (const r of editEnv) {
+      const k = r.key.trim()
+      if (k) env[k] = r.value
+    }
+    const id = editingGroup?.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6))
+    const group: ClaudeConfigGroup = { id, name, env }
+    const exists = claudeGroups.some(x => x.id === id)
+    const next = exists ? claudeGroups.map(x => (x.id === id ? group : x)) : [...claudeGroups, group]
+    persistClaudeGroups(next, activeGroupId)
+    setShowClaudeGroupEditModal(false)
+  }
 
   // Menu → Settings → Keyboard Shortcuts opens the shortcuts modal
   useEffect(() => {
@@ -1043,7 +1212,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   </div>
                 )}
                 <div className="border-t border-ide-border mt-1 pt-1">
-                {/* 命令行配置 */}
+                {/* 会话配置 */}
                 <button
                   className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
                   onClick={() => {
@@ -2036,6 +2205,135 @@ const SessionPanel = React.memo(function SessionPanel({
                   className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
               </label>
+              {/* Claude 配置组：多组 model/provider 预设，一键切换写入 ~/.claude/settings.json */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-ide-text-muted">claude code 多provider配置</span>
+                  <button
+                    onClick={handleClaudeNew}
+                    className="text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors"
+                  >+ 新建</button>
+                </div>
+                {claudeGroups.length === 0 ? (
+                  <div className="text-[11px] text-ide-text-muted/60 py-2 text-center border border-dashed border-ide-border rounded">
+                    无 provider 配置 · 点「+ 新建」添加
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                    {claudeGroups.map(g => {
+                      const isActive = g.id === activeGroupId
+                      return (
+                        <div
+                          key={g.id}
+                          className={`group flex items-center gap-2 px-2 py-1.5 rounded border transition-colors ${isActive ? 'border-ide-accent/60 bg-ide-accent/10' : 'border-ide-border hover:bg-ide-hover/40'}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium text-ide-text truncate">{g.name}</span>
+                              {isActive && <span className="text-[10px] text-ide-accent shrink-0">生效中</span>}
+                            </div>
+                            <div className="text-[10px] text-ide-text-muted truncate">{groupSummary(g)}</div>
+                          </div>
+                          <button
+                            onClick={() => handleClaudeApply(g)}
+                            title="应用（写入 settings.json，下次启动生效）"
+                            className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/15 transition-colors"
+                          >
+                            <Zap size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleClaudeEdit(g)}
+                            title="编辑"
+                            className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleClaudeDelete(g)}
+                            title="删除"
+                            className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {claudeApplyMsg && <div className="text-[10px] text-ide-success">{claudeApplyMsg}</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Claude 配置组 编辑子弹窗 */}
+      {showClaudeGroupEditModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowClaudeGroupEditModal(false)}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[460px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+              <span className="text-sm font-semibold text-ide-text">{editingGroup ? '编辑 provider 配置' : '新建 provider 配置'}</span>
+              <button
+                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                onClick={() => setShowClaudeGroupEditModal(false)}
+              >×</button>
+            </div>
+            <div className="p-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">名称</span>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  placeholder="如：阿里云 GLM"
+                  autoFocus
+                  className="w-full px-3 py-1.5 text-sm bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                />
+              </label>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-ide-text-muted">env 变量</span>
+                  <button
+                    onClick={() => setEditEnv(prev => [...prev, { key: '', value: '' }])}
+                    className="text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors"
+                  >+ 添加</button>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {editEnv.map((row, i) => (
+                    <div key={i} className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={row.key}
+                        onChange={e => setEditEnv(prev => prev.map((r, j) => j === i ? { ...r, key: e.target.value } : r))}
+                        placeholder="ANTHROPIC_BASE_URL"
+                        className="w-[180px] shrink-0 px-2 py-1 text-[11px] font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/40 focus:outline-none focus:border-ide-accent/60"
+                      />
+                      <input
+                        type="text"
+                        value={row.value}
+                        onChange={e => setEditEnv(prev => prev.map((r, j) => j === i ? { ...r, value: e.target.value } : r))}
+                        placeholder="https://..."
+                        className="flex-1 min-w-0 px-2 py-1 text-[11px] font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/40 focus:outline-none focus:border-ide-accent/60"
+                      />
+                      <button
+                        onClick={() => setEditEnv(prev => prev.filter((_, j) => j !== i))}
+                        className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover transition-colors"
+                      ><X size={12} /></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-ide-border shrink-0">
+              <button
+                className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
+                onClick={() => setShowClaudeGroupEditModal(false)}
+              >取消</button>
+              <button
+                className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={!editName.trim()}
+                onClick={handleClaudeEditSave}
+              >保存</button>
             </div>
           </div>
         </div>

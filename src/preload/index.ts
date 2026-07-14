@@ -101,6 +101,10 @@ const api = {
   },
 
   // Workspace operations
+  claudeConfig: {
+    dir: () => ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_CONFIG_DIR),
+  },
+
   workspace: {
     open: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_OPEN),
     current: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_CURRENT),
