@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react'
-import { TerminalSession, SnippetInfo, SnippetsLoadResult, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, FolderOpen, RefreshCw } from 'lucide-react'
-import { useTheme } from '../themes'
-import { syncTitleBarOverlay } from '../utils/titlebarSync'
+import { TerminalSession, RecentFileEntry } from '@shared/types'
+import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw } from 'lucide-react'
 import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
+import AppearancePanel from './AppearancePanel'
 import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand } from './CustomCommands'
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
@@ -99,9 +98,9 @@ async function applyClaudeGroup(group: ClaudeConfigGroup): Promise<void> {
 }
 
 // CWD 图标：按目录分配（标题行）
-const DEFAULT_CWD_EMOJIS = ['🧩', '📌', '📁', '🚀', '🏷️', '🎯', '🗺️', '🔗']
+export const DEFAULT_CWD_EMOJIS = ['🧩', '📌', '📁', '🚀', '🏷️', '🎯', '🗺️', '🔗']
 // Session 图标：按会话分配（列表行）
-const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '👻', '🤣', '👾', '⚡', '🌟', '🐉', '🤗', '🙏']
+export const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '👻', '🤣', '👾', '⚡', '🌟', '🐉', '🤗', '🙏']
 
 const MAX_RECENT_DIRS = 10
 
@@ -205,16 +204,6 @@ const FALLBACK_SHELLS = [
   { value: 'pwsh', label: 'PowerShell 7' },
   { value: 'powershell', label: 'PowerShell 5' },
 ]
-
-// 🌀 fallback — 系统字体取不到时兜底
-const FALLBACK_FONTS = [
-  'Consolas', 'Cascadia Code', 'JetBrains Mono', 'Fira Code',
-  'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Courier New', 'monospace',
-]
-
-const MONO_KW = ['mono', 'code', 'consol', 'courier', 'fira', 'hack', 'source code',
-  'jetbrains', 'droid sans mono', 'dejavu sans mono', 'ubuntu mono', 'noto sans mono',
-  'inconsolata', 'anonymous pro', '等宽', 'monospace']
 
 function pickEmoji(index: number, pool: string[], override?: string): string {
   if (pool.length === 0) return ''
@@ -395,7 +384,6 @@ const SessionPanel = React.memo(function SessionPanel({
   const [fileFilterRules, setFileFilterRules] = useState<string[]>(() => loadFilterRules())
   const [fileFilterRulesDraft, setFileFilterRulesDraft] = useState('')
   const [showConfigMenu, setShowConfigMenu] = useState(false)
-  const [showThemeFlyout, setShowThemeFlyout] = useState(false)
   const [showCliConfigModal, setShowCliConfigModal] = useState(false)
   const [cliCommand, setCliCommand] = useState(() => {
     try { return localStorage.getItem('vibe-ide-ai-cli-command') || '' } catch { return '' }
@@ -416,15 +404,7 @@ const SessionPanel = React.memo(function SessionPanel({
   const [sessionEmojis, setSessionEmojis] = useState<string[]>(() => loadSessionEmojis())
   const [cwdEmojiOverrides, setCwdEmojiOverrides] = useState<Record<string, string>>({})
   const [sessionEmojiOverrides, setSessionEmojiOverrides] = useState<Record<string, string>>({})
-  const [cwdEmojiDraft, setCwdEmojiDraft] = useState('')
-  const [sessionEmojiDraft, setSessionEmojiDraft] = useState('')
-  const [showOtherOptions, setShowOtherOptions] = useState(false)
-  const [showUiStyleModal, setShowUiStyleModal] = useState(false)
-  const [uiStyleTab, setUiStyleTab] = useState<'style' | 'emoji'>('style')
-  const [systemFonts, setSystemFonts] = useState<string[]>([])
-  const fontsLoadedRef = useRef(false)
-  const fontsLoadingRef = useRef(false)
-  const pendingFontsRef = useRef(0)
+  const [showAppearance, setShowAppearance] = useState(false)
 
   // 池变更时清理失效 override（用户在 modal 删了被 override 引用的 emoji 时）
   useEffect(() => {
@@ -458,40 +438,11 @@ const SessionPanel = React.memo(function SessionPanel({
     }).catch(() => {})
   }, [])
 
-  // 点击字体下拉时从主进程获取本机已安装字体（主进程缓存，仅加载一次）
-  const loadSystemFonts = () => {
-    if (fontsLoadedRef.current || fontsLoadingRef.current) return
-    fontsLoadingRef.current = true
-    const target = ++pendingFontsRef.current
-    window.api.system.listFonts()
-      .then((fonts) => {
-        if (pendingFontsRef.current !== target) return
-        if (fonts.length > 0) { setSystemFonts(fonts); fontsLoadedRef.current = true }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (pendingFontsRef.current !== target) return
-        fontsLoadingRef.current = false
-      })
-  }
-
-  const renderFontOptions = (currentValue: string, recommended?: string, monoOnly?: boolean) => {
-    const raw = systemFonts.length > 0 ? systemFonts : FALLBACK_FONTS
-    const list = monoOnly ? raw.filter(f => MONO_KW.some(kw => f.toLowerCase().includes(kw))) : raw
-    const prepend = !!currentValue && !list.includes(currentValue)
-    const mark = (f: string) => f === recommended ? ` (${t('Recommended')})` : ''
-    return (<>
-      {prepend && <option key={`__cur__${currentValue}`} value={currentValue}>{currentValue}{mark(currentValue)}</option>}
-      {list.map((f) => <option key={f} value={f}>{f}{mark(f)}</option>)}
-    </>)
-  }
-
   // Sync filter rules to git watcher (main process) on mount and when rules change
   useEffect(() => {
     window.api.git.setFilterRules(fileFilterRules)
   }, [fileFilterRules])
 
-  const { themes, currentThemeId, setTheme } = useTheme()
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [cloneSubmenu, setCloneSubmenu] = useState<{ x: number; y: number; sessionId: string; cwd: string; shell?: string; initCommands: CustomCommand[] } | null>(null)
@@ -507,14 +458,8 @@ const SessionPanel = React.memo(function SessionPanel({
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cwdHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [cwdLinkSession, setCwdLinkSession] = useState<string | null>(null)
-  const themeFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [showSnippetsFlyout, setShowSnippetsFlyout] = useState(false)
-  const [snippetsList, setSnippetsList] = useState<SnippetInfo[]>([])
-  const [snippetsDir, setSnippetsDir] = useState('')
-  const snippetsFlyoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const configBtnRef = useRef<HTMLButtonElement>(null)
   const [configMenuStyle, setConfigMenuStyle] = useState<React.CSSProperties>({})
-  const [flyoutOnLeft, setFlyoutOnLeft] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const commandsRef = useRef<CustomCommandsHandle>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -533,7 +478,6 @@ const SessionPanel = React.memo(function SessionPanel({
         top: rect.bottom + 4,
         minWidth: menuWidth,
       })
-      setFlyoutOnLeft((left + menuWidth + 8 + 172) > window.innerWidth)
     }
     setShowConfigMenu(!showConfigMenu)
   }
@@ -636,32 +580,6 @@ const SessionPanel = React.memo(function SessionPanel({
     }
   }, [showConfigMenu])
 
-  // ESC handler for Other Options modal (capture phase per CLAUDE.md rule #8)
-  useEffect(() => {
-    if (!showOtherOptions) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopImmediatePropagation()
-        setShowOtherOptions(false)
-      }
-    }
-    document.addEventListener('keydown', handler, true)
-    return () => document.removeEventListener('keydown', handler, true)
-  }, [showOtherOptions])
-
-  // ESC handler for UI Style modal (capture phase per CLAUDE.md rule #8)
-  useEffect(() => {
-    if (!showUiStyleModal) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopImmediatePropagation()
-        setShowUiStyleModal(false)
-      }
-    }
-    document.addEventListener('keydown', handler, true)
-    return () => document.removeEventListener('keydown', handler, true)
-  }, [showUiStyleModal])
-
   // ESC handler for CLI Config modal (capture phase per CLAUDE.md rule #8)
   useEffect(() => {
     if (!showCliConfigModal) return
@@ -756,39 +674,6 @@ const SessionPanel = React.memo(function SessionPanel({
   }, [focusSettingsTrigger])
 
   useEffect(() => { window.api.appVersion().then(setAppVersion).catch(() => {}) }, [])
-
-  // 打开配置菜单时加载 snippets 列表
-  useEffect(() => {
-    if (showConfigMenu) {
-      window.api.snippets.load().then(r => { setSnippetsList(r.snippets); setSnippetsDir(r.dir) }).catch(() => {})
-    }
-  }, [showConfigMenu])
-
-  const applySnippetsResult = (result: SnippetsLoadResult) => {
-    setSnippetsList(result.snippets)
-    if (result.dir) setSnippetsDir(result.dir)
-    const style = document.getElementById('custom-css')
-    if (style) { style.textContent = result.css }
-    else if (result.css) {
-      const s = document.createElement('style')
-      s.id = 'custom-css'
-      s.textContent = result.css
-      document.head.appendChild(s)
-    }
-    syncTitleBarOverlay()
-  }
-
-  const handleSnippetToggle = async (filename: string, enabled: boolean) => {
-    const result = await window.api.snippets.toggle(filename, enabled)
-    applySnippetsResult(result)
-  }
-
-  const handleSnippetReload = async () => {
-    try {
-      const result = await window.api.snippets.load()
-      applySnippetsResult(result)
-    } catch {}
-  }
 
   const handleContextMenu = (e: React.MouseEvent, sessionId: string) => {
     e.preventDefault()
@@ -1080,137 +965,16 @@ const SessionPanel = React.memo(function SessionPanel({
                   )}
                 </div>
                 <div className="border-t border-ide-border mt-1 pt-1">
-                {/* Theme flyout */}
-                <div
-                  className="relative"
-                  onMouseEnter={() => {
-                    if (themeFlyoutTimerRef.current) clearTimeout(themeFlyoutTimerRef.current)
-                    setShowThemeFlyout(true)
-                  }}
-                  onMouseLeave={() => {
-                    themeFlyoutTimerRef.current = setTimeout(() => setShowThemeFlyout(false), 200)
-                  }}
-                >
-                  <div className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors">
-                    {t('Theme')}
-                  </div>
-                  {showThemeFlyout && (
-                    <div
-                      className={`absolute top-0 ${flyoutOnLeft ? 'right-full mr-1' : 'left-full ml-1'} w-44 bg-ide-bg border border-ide-border rounded shadow-lg py-1 max-h-64 overflow-y-auto session-panel__theme-list`}
-                      onMouseEnter={() => {
-                        if (themeFlyoutTimerRef.current) clearTimeout(themeFlyoutTimerRef.current)
-                      }}
-                      onMouseLeave={() => setShowThemeFlyout(false)}
-                    >
-                      {themes.map((t) => (
-                        <button
-                          key={t.id}
-                          onClick={() => { setTheme(t.id) }}
-                          className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 transition-colors ${
-                            currentThemeId === t.id
-                              ? 'text-ide-accent bg-ide-accent/10'
-                              : 'text-ide-text hover:bg-ide-hover'
-                          }`}
-                        >
-                          <span
-                            className="w-3 h-3 rounded-full border border-ide-border shrink-0"
-                            style={{ backgroundColor: `rgb(${t.css['ide-accent']})` }}
-                          />
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <button
+                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                    onClick={() => {
+                      setShowAppearance(true)
+                      setShowConfigMenu(false)
+                    }}
+                  >
+                    {t('Appearance')}
+                  </button>
                 </div>
-                </div>
-                {/* Snippets */}
-                <div className="border-t border-ide-border mt-1 pt-1">
-                <div
-                  className="relative"
-                  onMouseEnter={() => {
-                    if (snippetsFlyoutTimerRef.current) clearTimeout(snippetsFlyoutTimerRef.current)
-                    setShowSnippetsFlyout(true)
-                  }}
-                  onMouseLeave={() => {
-                    snippetsFlyoutTimerRef.current = setTimeout(() => setShowSnippetsFlyout(false), 200)
-                  }}
-                >
-                  <div className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors">
-                    {t('CSS Snippets')}
-                  </div>
-                  {showSnippetsFlyout && (
-                    <div
-                      className={`absolute top-0 ${flyoutOnLeft ? 'right-full mr-1' : 'left-full ml-1'} w-52 bg-ide-bg border border-ide-border rounded shadow-lg py-1 max-h-64 overflow-y-auto session-panel__snippets-list`}
-                      onMouseEnter={() => {
-                        if (snippetsFlyoutTimerRef.current) clearTimeout(snippetsFlyoutTimerRef.current)
-                      }}
-                      onMouseLeave={() => setShowSnippetsFlyout(false)}
-                    >
-                      {snippetsList.length === 0 ? (
-                        <div className="px-3 py-2 text-[11px] text-ide-text-muted">
-                          {t('No snippets found.\nPlace .css files in the snippets/ folder.')}
-                        </div>
-                      ) : (
-                        snippetsList.map(s => (
-                          <button
-                            key={s.name}
-                            onClick={() => handleSnippetToggle(s.name, !s.enabled)}
-                            className={`w-full px-3 py-1.5 text-xs text-left flex items-center gap-2 transition-colors ${
-                              s.enabled ? 'text-ide-text hover:bg-ide-hover' : 'text-ide-text-muted/40 hover:bg-ide-hover hover:text-ide-text-muted'
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                              s.enabled ? 'bg-ide-accent border-ide-accent text-white' : 'border-ide-border'
-                            }`}>
-                              {s.enabled && (
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3">
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                              )}
-                            </span>
-                            <span className="truncate">{s.name}</span>
-                          </button>
-                        ))
-                      )}
-                      <div className="border-t border-ide-border my-1" />
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => { if (snippetsDir && onCreateSessionAt) { onCreateSessionAt(snippetsDir); setShowConfigMenu(false); setShowSnippetsFlyout(false) } }}
-                          className="flex-1 px-3 py-1.5 text-xs text-left flex items-center gap-2 text-ide-text hover:bg-ide-hover transition-colors"
-                        >
-                          <span className="w-4 h-4 flex items-center justify-center shrink-0">
-                            <FolderOpen className="size-3.5" />
-                          </span>
-                          <span>{t('Open CSS Config')}</span>
-                        </button>
-                        <button
-                          onClick={() => handleSnippetReload()}
-                          title={t('Reload CSS')}
-                          className="shrink-0 px-2 py-1.5 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
-                        >
-                          <RefreshCw className="size-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                </div>
-                {/* UI Style */}
-                {(onToggleCapsuleTabs || onToggleGroupSessionsByCwd || onToggleInlineDiff || onAdjustTerminalFontSize || onAdjustEditorFontSize) && (
-                  <div className="border-t border-ide-border mt-1 pt-1">
-                    <button
-                      className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
-                      onClick={() => {
-                        setCwdEmojiDraft(cwdEmojis.join('\n'))
-                        setSessionEmojiDraft(sessionEmojis.join('\n'))
-                        setShowUiStyleModal(true)
-                        setShowConfigMenu(false)
-                      }}
-                    >
-                      {t('UI Style')}
-                    </button>
-                  </div>
-                )}
                 <div className="border-t border-ide-border mt-1 pt-1">
                 {/* 会话配置 */}
                 <button
@@ -1246,17 +1010,6 @@ const SessionPanel = React.memo(function SessionPanel({
                     {t('File Filter Rules')}
                   </button>
                 </div>
-                {/* Other Options */}
-                {(onToggleWordWrap || onToggleAutoUtf8 || onTogglePolling || onToggleInlineDiff) && (
-                  <div className="border-t border-ide-border mt-1 pt-1">
-                    <button
-                      className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
-                      onClick={() => { setShowOtherOptions(true); setShowConfigMenu(false) }}
-                    >
-                      {t('Other Options…')}
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -1811,352 +1564,51 @@ const SessionPanel = React.memo(function SessionPanel({
         </div>
       )}
 
-      {/* Other Options Modal */}
-      {/* Other Options Modal */}
-      {showOtherOptions && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowOtherOptions(false)}>
-          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[400px] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-              <span className="text-sm font-semibold text-ide-text">{t('Other Options…')}</span>
-              <button
-                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
-                onClick={() => setShowOtherOptions(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-4 flex flex-col gap-4">
-              {onToggleWordWrap && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={wordWrap} onChange={(e) => onToggleWordWrap(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('Word Wrap')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Auto-wrap long lines in diff/editor. Recommended: off')}</p>
-                </label>
-              )}
-              {onToggleAutoUtf8 && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={autoUtf8} onChange={(e) => onToggleAutoUtf8(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('Auto UTF-8')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Run chcp 65001 on terminal start to set UTF-8 encoding')}</p>
-                </label>
-              )}
-              {onToggleCgEnabled && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={cgEnabled} onChange={(e) => onToggleCgEnabled(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('CodeGraph')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Code symbol indexing for smart search. Disable to free ~170MB main process memory.')}</p>
-                </label>
-              )}
-              {onToggleOcrEnabled && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={ocrEnabled} onChange={(e) => onToggleOcrEnabled(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('OCR Image to Text')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Drag image or Ctrl+V to extract text from images and paste into terminal')}</p>
-                </label>
-              )}
-              {onToggleForceDomRenderer && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={forceDomRenderer} onChange={(e) => onToggleForceDomRenderer(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('Force DOM Renderer')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Disable WebGL terminal renderer, fall back to DOM/canvas. Restart terminal session to take effect.')}</p>
-                </label>
-              )}
-              {onTogglePolling && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={pollingEnabled} onChange={(e) => onTogglePolling(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('Polling Refresh Git/File')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Poll git and file tree every 6s. Recommended: off (only for network drives where file watching is unreliable)')}</p>
-                </label>
-              )}
-              {onToggleRecentFilesPanel && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={recentFilesPanelEnabled} onChange={(e) => onToggleRecentFilesPanel(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('Recent Files Panel')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Show recently opened files at the bottom of the session panel')}</p>
-                </label>
-              )}
-              {onToggleOutlineOverlay && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={outlineOverlayEnabled} onChange={(e) => onToggleOutlineOverlay(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('Outline')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Show code outline over the session panel when viewing a file. Disable to keep the session list visible.')}</p>
-                </label>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* UI Style Modal */}
-      {showUiStyleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowUiStyleModal(false)}>
-          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-              <span className="text-sm font-semibold text-ide-text">{t('UI Style')}</span>
-              <button
-                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
-                onClick={() => setShowUiStyleModal(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="flex shrink-0 border-b border-ide-border">
-              <button
-                className={`flex-1 px-3 py-2 text-xs transition-colors ${uiStyleTab === 'style' ? 'text-ide-accent border-b-2 border-ide-accent font-medium' : 'text-ide-text-muted hover:text-ide-text'}`}
-                onClick={() => setUiStyleTab('style')}
-              >
-                {t('UI Style')}
-              </button>
-              <button
-                className={`flex-1 px-3 py-2 text-xs transition-colors ${uiStyleTab === 'emoji' ? 'text-ide-accent border-b-2 border-ide-accent font-medium' : 'text-ide-text-muted hover:text-ide-text'}`}
-                onClick={() => setUiStyleTab('emoji')}
-              >
-                {t('Emoji Text')}
-              </button>
-            </div>
-            <div className="p-4 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
-              {uiStyleTab === 'style' && (<>
-              {onToggleCapsuleTabs && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={capsuleTabs} onChange={(e) => onToggleCapsuleTabs(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('Capsule Tabs')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Use capsule-style tab bar instead of icon buttons.')}</p>
-                </label>
-              )}
-              {onToggleGroupSessionsByCwd && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={groupSessionsByCwd} onChange={(e) => onToggleGroupSessionsByCwd(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('Group Sessions by Folder')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Group sessions by their working directory. Off = flat list with cwd under each item.')}</p>
-                </label>
-              )}
-              {onToggleInlineDiff && (
-                <label className="flex flex-col gap-0.5 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={inlineDiff} onChange={(e) => onToggleInlineDiff(e.target.checked)} className="accent-ide-accent" />
-                    <span className="text-xs text-ide-text">{t('Force Inline Diff')}</span>
-                  </div>
-                  <p className="text-[11px] text-ide-text-muted ml-[22px]">{t('Force inline diff mode (revert button uses circular icon). Recommended: off (side-by-side reads better)')}</p>
-                </label>
-              )}
-              {onAdjustTerminalFontSize && (
-                <div className="flex items-center justify-between text-xs text-ide-text">
-                  <span className="whitespace-nowrap shrink-0">{t('Terminal Font Size')}</span>
-                  <div className="flex items-center gap-px">
-                    <button
-                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
-                      disabled={terminalFontSize <= 8}
-                      onClick={(e) => { e.stopPropagation(); onAdjustTerminalFontSize(-1) }}
-                    >{'<'}</button>
-                    <span className="text-center font-mono text-ide-accent font-bold text-xs leading-none w-5">{terminalFontSize}</span>
-                    <button
-                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
-                      disabled={terminalFontSize >= 30}
-                      onClick={(e) => { e.stopPropagation(); onAdjustTerminalFontSize(1) }}
-                    >{'>'}</button>
-                  </div>
-                </div>
-              )}
-              {onAdjustEditorFontSize && (
-                <div className="flex items-center justify-between text-xs text-ide-text">
-                  <span className="whitespace-nowrap shrink-0">{t('Editor Font Size')}</span>
-                  <div className="flex items-center gap-px">
-                    <button
-                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
-                      disabled={editorFontSize <= 8}
-                      onClick={(e) => { e.stopPropagation(); onAdjustEditorFontSize(-1) }}
-                    >{'<'}</button>
-                    <span className="text-center font-mono text-ide-accent font-bold text-xs leading-none w-5">{editorFontSize}</span>
-                    <button
-                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
-                      disabled={editorFontSize >= 30}
-                      onClick={(e) => { e.stopPropagation(); onAdjustEditorFontSize(1) }}
-                    >{'>'}</button>
-                  </div>
-                </div>
-              )}
-              {onSetDiffSplitRatio && (
-                <div className="flex items-center justify-between text-xs text-ide-text">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="whitespace-nowrap shrink-0">{t('Diff Split Ratio')}</span>
-                    <p className="text-[11px] text-ide-text-muted">{t('Left/right ratio of the diff editor. Smaller = narrower left (original). Side-by-side only.')}</p>
-                  </div>
-                  <div className="flex items-center gap-px shrink-0">
-                    <button
-                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
-                      disabled={diffSplitRatio <= 0.1}
-                      onClick={(e) => { e.stopPropagation(); onSetDiffSplitRatio(Math.round((diffSplitRatio - 0.1) * 10) / 10) }}
-                    >{'<'}</button>
-                    <span className="text-center font-mono text-ide-accent font-bold text-xs leading-none w-5">{diffSplitRatio.toFixed(1)}</span>
-                    <button
-                      className="w-4 h-4 rounded bg-ide-hover text-ide-text-muted hover:bg-ide-accent hover:text-white transition-colors flex items-center justify-center text-[10px] leading-none select-none disabled:opacity-30 disabled:cursor-not-allowed"
-                      disabled={diffSplitRatio >= 0.9}
-                      onClick={(e) => { e.stopPropagation(); onSetDiffSplitRatio(Math.round((diffSplitRatio + 0.1) * 10) / 10) }}
-                    >{'>'}</button>
-                  </div>
-                </div>
-              )}
-              {onSetFontFamily && (
-                <div className="flex items-center justify-between text-xs text-ide-text">
-                  <span className="whitespace-nowrap shrink-0">{t('Session Font')}</span>
-                  <select
-                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
-                    value={fontFamily}
-                    onChange={(e) => { if (e.target.value) onSetFontFamily(e.target.value) }}
-                    onClick={(e) => e.stopPropagation()}
-                    onFocus={loadSystemFonts}
-                  >
-                    {renderFontOptions(fontFamily, 'Consolas')}
-                  </select>
-                </div>
-              )}
-              {onSetUiFontFamily && (
-                <div className="flex items-center justify-between text-xs text-ide-text">
-                  <span className="whitespace-nowrap shrink-0">{t('UI Font')}</span>
-                  <select
-                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
-                    value={uiFontFamily}
-                    onChange={(e) => { if (e.target.value) onSetUiFontFamily(e.target.value) }}
-                    onClick={(e) => e.stopPropagation()}
-                    onFocus={loadSystemFonts}
-                  >
-                    {renderFontOptions(uiFontFamily, 'Cascadia Code')}
-                  </select>
-                </div>
-              )}
-              {onSetTermFontFamily && (
-                <div className="flex items-center justify-between text-xs text-ide-text">
-                  <span className="whitespace-nowrap shrink-0">{t('Terminal Font')}</span>
-                  <select
-                    className="bg-ide-hover border border-ide-border rounded text-xs text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent max-w-[160px]"
-                    value={termFontFamily}
-                    onChange={(e) => { if (e.target.value) onSetTermFontFamily(e.target.value) }}
-                    onClick={(e) => e.stopPropagation()}
-                    onFocus={loadSystemFonts}
-                  >
-                    {renderFontOptions(termFontFamily, 'Cascadia Code', true)}
-                  </select>
-                </div>
-              )}
-
-              {/* 恢复默认：字体 / 字号 / 开关 */}
-              {onResetUiStyle && (
-                <div className="flex justify-end pt-3 border-t border-ide-border">
-                  <button
-                    className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover rounded transition-colors"
-                    onClick={onResetUiStyle}
-                  >
-                    {t('Reset Defaults')}
-                  </button>
-                </div>
-              )}
-              </>)}
-
-              {uiStyleTab === 'emoji' && (<>
-              {/* 会话图标 */}
-              <div className="flex flex-col gap-2">
-                <span className="text-xs font-medium text-ide-text">{t('Emoji Text')}</span>
-                <p className="text-[11px] text-ide-text-muted">{t('Click any emoji in the sidebar to cycle.')}</p>
-
-                {/* Folder / cwd pool */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-ide-text-muted">{t('Folder Icons (per cwd)')}</span>
-                    <span className="text-[10px] text-ide-text-muted">{t('One per line')}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mb-2 bg-ide-hover rounded p-2 min-h-[36px]">
-                    {(() => {
-                      const pool = cwdEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
-                      return pool.length === 0
-                      ? <span className="text-xs text-ide-text-muted py-1">{t('No emojis')}</span>
-                      : pool.map((emoji, i) => (
-                        <span key={`c${i}`} className="text-lg bg-ide-accent/15 rounded px-0.5">{emoji}</span>
-                      ))
-                    })()}
-                  </div>
-                  <textarea
-                    className="w-full h-16 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
-                    value={cwdEmojiDraft}
-                    onChange={(e) => {
-                      setCwdEmojiDraft(e.target.value)
-                      const cwd = e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
-                      setCwdEmojis(cwd)
-                      saveCwdEmojis(cwd)
-                    }}
-                    placeholder={'📁\n📍\n🏷️'}
-                  />
-                </div>
-
-                {/* Session pool */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-ide-text-muted">{t('Session Icons')}</span>
-                    <span className="text-[10px] text-ide-text-muted">{t('One per line')}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mb-2 bg-ide-hover rounded p-2 min-h-[36px]">
-                    {(() => {
-                      const pool = sessionEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
-                      return pool.length === 0
-                      ? <span className="text-xs text-ide-text-muted py-1">{t('No emojis')}</span>
-                      : pool.map((emoji, i) => (
-                        <span key={`s${i}`} className="text-lg">{emoji}</span>
-                      ))
-                    })()}
-                  </div>
-                  <textarea
-                    className="w-full h-16 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
-                    value={sessionEmojiDraft}
-                    onChange={(e) => {
-                      setSessionEmojiDraft(e.target.value)
-                      const session = e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
-                      setSessionEmojis(session)
-                      saveSessionEmojis(session)
-                    }}
-                    placeholder={'🔥\n💀\n🗿'}
-                  />
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
-                    onClick={() => {
-                      setCwdEmojiDraft(DEFAULT_CWD_EMOJIS.join('\n'))
-                      setSessionEmojiDraft(DEFAULT_SESSION_EMOJIS.join('\n'))
-                      setCwdEmojis([...DEFAULT_CWD_EMOJIS])
-                      saveCwdEmojis([...DEFAULT_CWD_EMOJIS])
-                      setSessionEmojis([...DEFAULT_SESSION_EMOJIS])
-                      saveSessionEmojis([...DEFAULT_SESSION_EMOJIS])
-                    }}
-                  >
-                    {t('Reset Defaults')}
-                  </button>
-                </div>
-              </div>
-              </>)}
-            </div>
-          </div>
-        </div>
-      )}
+      <AppearancePanel
+        open={showAppearance}
+        onClose={() => setShowAppearance(false)}
+        capsuleTabs={capsuleTabs}
+        onToggleCapsuleTabs={onToggleCapsuleTabs}
+        groupSessionsByCwd={groupSessionsByCwd}
+        onToggleGroupSessionsByCwd={onToggleGroupSessionsByCwd}
+        recentFilesPanelEnabled={recentFilesPanelEnabled}
+        onToggleRecentFilesPanel={onToggleRecentFilesPanel}
+        outlineOverlayEnabled={outlineOverlayEnabled}
+        onToggleOutlineOverlay={onToggleOutlineOverlay}
+        inlineDiff={inlineDiff}
+        onToggleInlineDiff={onToggleInlineDiff}
+        wordWrap={wordWrap}
+        onToggleWordWrap={onToggleWordWrap}
+        diffSplitRatio={diffSplitRatio}
+        onSetDiffSplitRatio={onSetDiffSplitRatio}
+        editorFontSize={editorFontSize}
+        onAdjustEditorFontSize={onAdjustEditorFontSize}
+        fontFamily={fontFamily}
+        onSetFontFamily={onSetFontFamily}
+        uiFontFamily={uiFontFamily}
+        onSetUiFontFamily={onSetUiFontFamily}
+        termFontFamily={termFontFamily}
+        onSetTermFontFamily={onSetTermFontFamily}
+        terminalFontSize={terminalFontSize}
+        onAdjustTerminalFontSize={onAdjustTerminalFontSize}
+        autoUtf8={autoUtf8}
+        onToggleAutoUtf8={onToggleAutoUtf8}
+        cgEnabled={cgEnabled}
+        onToggleCgEnabled={onToggleCgEnabled}
+        ocrEnabled={ocrEnabled}
+        onToggleOcrEnabled={onToggleOcrEnabled}
+        forceDomRenderer={forceDomRenderer}
+        onToggleForceDomRenderer={onToggleForceDomRenderer}
+        pollingEnabled={pollingEnabled}
+        onTogglePolling={onTogglePolling}
+        cwdEmojis={cwdEmojis}
+        sessionEmojis={sessionEmojis}
+        onSetCwdEmojis={(arr) => { setCwdEmojis(arr); saveCwdEmojis(arr) }}
+        onSetSessionEmojis={(arr) => { setSessionEmojis(arr); saveSessionEmojis(arr) }}
+        onResetUiStyle={onResetUiStyle}
+        onCreateSessionAt={onCreateSessionAt}
+      />
 
       {/* CLI Configuration Modal — Shell Type + AI CLI Command */}
       {showCliConfigModal && (

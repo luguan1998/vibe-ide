@@ -601,7 +601,7 @@ const miku: IDETheme = {
 // 白底绿字亮紫点缀，清新明亮如晨光下的初音
 const mikuLight: IDETheme = {
   id: 'miku-light',
-  label: 'Hatsune Light',
+  label: 'Lemon Light',
   css: {
     'ide-bg': t('#f9fdfc'),
     'ide-sidebar': t('#eef7f5'),

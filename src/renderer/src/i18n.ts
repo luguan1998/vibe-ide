@@ -22,6 +22,12 @@ const EN_MAP: Record<string, string> = {
 
   'prompt.tests': 'Write comprehensive unit tests for the main module. Cover edge cases, error paths, and typical usage scenarios. Use the existing test framework and patterns in the project. Ensure tests are isolated and deterministic.',
   'prompt.refactor': 'Identify code that could benefit from refactoring for readability, maintainability, or performance. Suggest concrete changes with clear rationale. Preserve existing behavior — no functional changes. Focus on the highest-impact improvements first.',
+
+  'Affects: Global': 'Global',
+  'Affects: Sessions': 'Sessions',
+  'Affects: Editor': 'Editor',
+  'Affects: Panel': 'Panel',
+  'Affects: Terminal': 'Terminal',
 }
 
 const ZH_MAP: Record<string, string> = {
@@ -122,7 +128,7 @@ const ZH_MAP: Record<string, string> = {
   'One per line': '每行一个',
   'No emojis': '无表情',
   'Click to cycle emoji': '点击切换图标',
-  'File Filter Rules': '文件过滤规则',
+  'File Filter Rules': '文件夹过滤',
   'Skip directories matching these names. One per line.': '跳过匹配这些名称的目录。每行一个。',
   'Expand All': '全部展开',
   'Collapse All': '全部收缩',
@@ -177,6 +183,22 @@ const ZH_MAP: Record<string, string> = {
   'Session Font': '会话字体',
   'UI Font': '界面字体',
   'Terminal Font': '终端字体',
+  'Appearance': '外观',
+  'Color Theme': '基础配色',
+  'Style Theme': '风格主题',
+  'Layout': '布局',
+  'Editor': '编辑器',
+  'Fonts': '字体',
+  'Advanced': '高级',
+  'Sidebar': '会话栏',
+  'Right Panel': '右面板',
+  'Terminal': '终端',
+  'Affects: Global': '全局',
+  'Affects: Sessions': '会话栏',
+  'Affects: Editor': '编辑器',
+  'Affects: Panel': '右面板',
+  'Affects: Terminal': '终端',
+  'Try right-clicking a tab to hide/show tabs; drag to reorder.': '试试右键 tab 页，可隐藏或显示 tab；拖动可排序',
 
   // GitTab - Stage/Clear all
   'Stage All': '全部暂存',
