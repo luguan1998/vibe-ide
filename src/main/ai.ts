@@ -544,15 +544,20 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
 
 // ── Session list: read from ~/.claude/projects/<normalized-cwd>/ ──
 // Claude CLI stores sessions as <session-id>.jsonl files under project directories.
-// Normalization: D:\path → d--path (:\ → --, \ → -, . → -, lowercase drive)
+// Normalization must match CLI: replace(/[^a-zA-Z0-9]/g, "-"), truncate at 200 + hash.
+
+const CLI_PROJECT_DIR_MAX = 200
+
+function djb2Hash(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h << 5) - h + s.charCodeAt(i) | 0
+  return h
+}
 
 export function normalizeCwdToProjectDir(cwd: string): string {
-  let normalized = cwd
-  // Windows drive: D:\ → D--
-  if (/^[A-Za-z]:[\\\/]/.test(normalized)) {
-    normalized = normalized[0] + '--' + normalized.slice(3)
-  }
-  return normalized.replace(/[\\\/.]/g, '-')
+  let t = cwd.replace(/[^a-zA-Z0-9]/g, '-')
+  if (t.length <= CLI_PROJECT_DIR_MAX) return t
+  return `${t.slice(0, CLI_PROJECT_DIR_MAX)}-${Math.abs(djb2Hash(cwd)).toString(36)}`
 }
 
 async function listSessionsForCwd(cwd: string): Promise<{ sessions: any[] }> {
