@@ -139,7 +139,7 @@ function findFilePathAtPoint(x: number, y: number, cwd: string): { fullPath: str
   return null
 }
 
-function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
+const ChatMarkdown = React.memo(function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
   text: string; className?: string
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
@@ -163,7 +163,7 @@ function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
       </ReactMarkdown>
     </div>
   )
-}
+})
 
 // During streaming, only render markdown up to the last CLOSED code fence.
 // Any open (incomplete) code block is shown as raw text to prevent CodeBlock
@@ -1259,7 +1259,7 @@ function TodoListPanel({ items }: { items: TodoItem[] }) {
   )
 }
 
-function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal }: {
+const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
@@ -1302,7 +1302,7 @@ function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex,
   }
 
   return <>{inner}</>
-}
+})
 
 const MODE_OPTIONS: { value: AiPermissionMode; label: string; icon: string }[] = [
   { value: 'plan', label: 'Plan', icon: '📋' },
@@ -1860,10 +1860,16 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     return () => el.removeEventListener('scroll', onScroll)
   }, [])
 
+  const scrollRafRef = useRef<number | null>(null)
   useEffect(() => {
-    if (!userScrolledUpRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
+    if (userScrolledUpRef.current) return
+    if (scrollRafRef.current != null) return
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null
+      if (!userScrolledUpRef.current) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+      }
+    })
   }, [state.messages.length, state.streamBuffer, state.thinkingBuffer])
 
   // ── Focus input when tab becomes active ──

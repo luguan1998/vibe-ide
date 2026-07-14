@@ -245,6 +245,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_ASK_RESUME, { sessionId, answers }),
     setModel: (sessionId: string, model: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_MODEL, { sessionId, model }),
+    setVisible: (visible: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_SET_VISIBLE, visible),
     revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_REVERT, payload),
     fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) =>

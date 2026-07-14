@@ -118,6 +118,7 @@ export const IPC_CHANNELS = {
   AI_PLAN_EXECUTE: 'ai:planExecute',
   AI_SET_PERMISSION_MODE: 'ai:setPermissionMode',
   AI_SET_MODEL: 'ai:setModel',
+  AI_SET_VISIBLE: 'ai:setVisible',       // invoke: renderer hidden → main drops stream tokens
   AI_ASK_RESUME: 'ai:askResume',
   AI_REVERT: 'ai:revert',
   AI_FORK: 'ai:fork',

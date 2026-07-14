@@ -451,6 +451,11 @@ function initListeners() {
       }
     })
   })
+
+  document.addEventListener('visibilitychange', () => {
+    window.api.ai.setVisible(!document.hidden)
+  })
+  window.api.ai.setVisible(!document.hidden)
 }
 
 initListeners()

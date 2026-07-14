@@ -107,9 +107,11 @@ export const aiSessions = new Map<string, ManagedAiSession>()
 // Used by loadSessionMessages to look up contextWindow from the correct aiSessions entry.
 const cliSessionToRenderer = new Map<string, string>()
 let mainWindow: BrowserWindow | null = null
+let rendererVisible = true
 
 export function send(channel: string, data: any): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
+    if (channel === IPC_CHANNELS.AI_STREAM_TOKEN && !rendererVisible) return
     mainWindow.webContents.send(channel, data)
   }
 }
@@ -882,6 +884,10 @@ export function killAiProcess(proc: ChildProcess): void {
 
 export function registerAiHandlers(win: BrowserWindow | null): void {
   mainWindow = win
+
+  ipcMain.handle(IPC_CHANNELS.AI_SET_VISIBLE, (_event, visible: boolean) => {
+    rendererVisible = !!visible
+  })
 
   // List available sessions for resume
   ipcMain.handle(IPC_CHANNELS.AI_LIST_SESSIONS, async (_event, cwd?: string) => {

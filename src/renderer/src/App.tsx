@@ -158,6 +158,7 @@ declare global {
         clearAndExecutePlan: (sessionId: string, planFilePath: string, model?: string) => Promise<{ success: boolean; error?: string }>
         setPermissionMode: (sessionId: string, mode: string) => Promise<{ success: boolean; error?: string }>
         setModel: (sessionId: string, model: string) => Promise<{ success: boolean; error?: string }>
+        setVisible: (visible: boolean) => Promise<void>
         onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => any
         removeModelChangedListener: (handler?: any) => void
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
