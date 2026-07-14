@@ -2015,7 +2015,7 @@ const SessionPanel = React.memo(function SessionPanel({
               </label>
               {/* AI CLI Command */}
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-ide-text-muted">{t('Claude Code GUI Command')}</span>
+                <span className="text-xs text-ide-text-muted">{t('Claude Code CLI')}</span>
                 <input
                   type="text"
                   value={cliCommandDraft}
@@ -2025,7 +2025,7 @@ const SessionPanel = React.memo(function SessionPanel({
                     setCliCommand(val)
                     try { localStorage.setItem('vibe-ide-ai-cli-command', val) } catch {}
                   }}
-                  placeholder="auto-detect: claude → openclaude"
+                  placeholder="可选: claude, openclaude, opencc"
                   className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
               </label>

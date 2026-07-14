@@ -120,7 +120,7 @@ export type BinaryResult = { binary: string } | { error: string; installCmd: str
 type SpawnError = { error: string; installCmd: string }
 
 export function findBinary(customCommand?: string): BinaryResult {
-  const names = customCommand ? [customCommand] : ['claude', 'openclaude']
+  const names = customCommand ? [customCommand] : ['claude', 'openclaude', 'opencc']
   for (const name of names) {
     try {
       const cmd = process.platform === 'win32' ? `where ${name}` : `which ${name}`
@@ -893,7 +893,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     return loadSessionMessages(resumeSessionId, cwd)
   })
 
-  // Check if claude/openclaude CLI is available
+  // Check if claude/openclaude/opencc CLI is available
   ipcMain.handle(IPC_CHANNELS.AI_CHECK_AVAILABLE, (_event, cliCommand?: string) => {
     const result = findBinary(cliCommand || undefined)
     if ('binary' in result) {
@@ -902,7 +902,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     return { available: false, error: result.error, installCmd: result.installCmd }
   })
 
-  // Spawn claude/openclaude subprocess
+  // Spawn claude/openclaude/opencc subprocess
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
     const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, enableWorktree } = options
 
