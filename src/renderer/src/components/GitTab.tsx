@@ -1384,7 +1384,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           <div className="flex gap-2 mb-2">
             <button
               onClick={handleStash}
-              disabled={busy}
+              disabled={busy || status.clean}
+              title={status.clean ? t('No changes to stash') : t('Stash all changes')}
               className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed git-tab__stash-btn"
             >
               Stash
@@ -1392,7 +1393,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             <div className="relative inline-flex group">
               <button
                 onClick={handleStashPop}
-                disabled={busy}
+                disabled={busy || stashCount === 0}
+                title={stashCount === 0 ? t('No stash to pop') : t('Pop latest stash')}
                 className="text-xs text-ide-text-muted hover:text-ide-text px-2 py-1 rounded bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed git-tab__stash-btn"
               >
                 Pop Stash{stashCount > 0 ? ` (${stashCount})` : ''}
