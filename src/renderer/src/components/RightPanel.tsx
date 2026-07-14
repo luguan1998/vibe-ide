@@ -406,7 +406,7 @@ function RightPanel({
   sessionWorktreeNav,
   onWorktreeNavChange,
 }: RightPanelProps) {
-  const [activeSection, setActiveSection] = useState<GitSection>('git')
+  const [activeSection, setActiveSection] = useState<GitSection>('file')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
   const [visibleTabs, setVisibleTabs] = useState<Record<GitSection, boolean>>(DEFAULT_VISIBLE_TABS)
   const [fileRefreshKey, setFileRefreshKey] = useState(0)
