@@ -28,6 +28,13 @@ function midTruncatePath(path: string, maxLen: number = 28): string {
   return root + '...' + sep + last
 }
 
+function dirNameOf(path: string): string {
+  if (!path) return path
+  const sep = path.includes('\\') ? '\\' : '/'
+  const parts = path.split(sep).filter(Boolean)
+  return parts[parts.length - 1] ?? path
+}
+
 function loadRecentDirs(): string[] {
   try {
     const raw = localStorage.getItem('vibe-ide-recent-dirs')
@@ -829,7 +836,7 @@ const SessionPanel = React.memo(function SessionPanel({
                 ? 'underline text-ide-text cursor-pointer bg-ide-accent/15 rounded px-0.5'
                 : 'text-ide-text-muted opacity-70'
             }`}
-            title={cwdLinkSession === session.id ? t('Open in Explorer') : session.cwd}
+            title={session.cwd}
             onClick={(e) => {
               if (cwdLinkSession === session.id) {
                 e.stopPropagation()
@@ -1129,7 +1136,7 @@ const SessionPanel = React.memo(function SessionPanel({
           </div>
         ) : groupSessionsByCwd ? (
           sessionGroups.map((group, gi) => {
-            const dirName = midTruncatePath(group.cwd, 24)
+            const dirName = dirNameOf(group.cwd)
             const cwdEmoji = getCwdEmoji(gi, cwdEmojis, cwdEmojiOverrides[group.cwd])
             const groupHasActive = activeSessionId && group.sessions.some(s => s.id === activeSessionId)
             return (
