@@ -27,7 +27,7 @@ function buildPlanExecutePrompt(planContent: string, planFilePath: string): stri
 // - We kill the plan-mode subprocess without responding to its pending ExitPlanMode control_request.
 //   No deny feedback is sent, so the model doesn't see "plan rejected" noise — the subprocess just dies.
 // - We spawn a new subprocess WITHOUT --resume (so the new session has no inherited conversation).
-// - permission-mode is acceptEdits so subsequent Edit/Write tools don't re-prompt.
+// - permission-mode is bypassPermissions so subsequent Edit/Write tools don't re-prompt.
 // - First user message carries the plan content; model picks up from a clean slate.
 //
 // Plan content is read from disk (planFilePath came in via ExitPlanMode's input.planFilePath),
@@ -53,7 +53,7 @@ export function registerPlanExecuteHandlers(): void {
         aiSessions.delete(sessionId)
       }
 
-      const result = spawnClaude({ cwd, permissionMode: 'acceptEdits', model, resumeSessionId: claudeSessionId })
+      const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, resumeSessionId: claudeSessionId })
       if ('error' in result) {
         send(IPC_CHANNELS.AI_ERROR, {
           sessionId,
@@ -68,7 +68,7 @@ export function registerPlanExecuteHandlers(): void {
       const newSession = aiSessions.get(sessionId)
       if (newSession && prev) {
         newSession.claudeSessionId = claudeSessionId
-        newSession.permissionMode = 'acceptEdits'
+        newSession.permissionMode = 'bypassPermissions'
         if (prev.contextWindow) newSession.contextWindow = prev.contextWindow
       }
 
@@ -96,8 +96,8 @@ export function registerPlanExecuteHandlers(): void {
       aiSessions.delete(sessionId)
     }
 
-    // 3. Spawn fresh subprocess in acceptEdits mode (no --resume = clean context)
-    const result = spawnClaude({ cwd, permissionMode: 'acceptEdits', model })
+    // 3. Spawn fresh subprocess in bypassPermissions mode (no --resume = clean context)
+    const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model })
     if ('error' in result) {
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,

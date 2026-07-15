@@ -710,7 +710,7 @@ function InlineAnnotationInput({ top, left, containerRef, onSubmit, onDismiss }:
 }
 
 // ExitPlanMode approval card. Plan content is already on disk (perm.toolInput.planFilePath);
-// "Clear & Execute" kills the plan-mode subprocess and respawns in acceptEdits mode with the
+// "Clear & Execute" kills the plan-mode subprocess and respawns in bypassPermissions mode with the
 // plan re-injected as first message — clears the inflated context from exploration.
 // "Send Feedback" denies with a feedback message so the model revises the plan.
 const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onContinue, onClearExecute, onDeny, workspacePath, onOpenFile, model, brushActive }: {
@@ -1315,7 +1315,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
 const MODE_OPTIONS: { value: AiPermissionMode; label: string; icon: string }[] = [
   { value: 'plan', label: 'Plan', icon: '📋' },
   { value: 'acceptEdits', label: 'Edit', icon: '✏️' },
-  { value: 'bypassPermissions', label: 'Bypass', icon: '🔓' },
+  { value: 'bypassPermissions', label: 'Auto', icon: '🔓' },
 ]
 
 // ── ContextBar ──────────────────────────────────────────────────────
@@ -2018,7 +2018,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     await window.api.ai.send(activeSessionId, message)
   }, [activeSessionId, inputValue, state.busy, updateSession])
 
-  // ── ExitPlanMode "Clear & Execute": kill plan-mode subprocess, respawn in acceptEdits,
+  // ── ExitPlanMode "Clear & Execute": kill plan-mode subprocess, respawn in bypassPermissions,
   // re-inject plan from disk as first message. onDeny 委托 aiStore.handlePlanDeny;
   // onClearExecute 需切 UI permission mode 故留组件内(被调先于主调)。
   const modelRef = useRef(state.model)
@@ -2035,7 +2035,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       busy: true,
       ready: false,
     }))
-    onPermissionModeChange('acceptEdits')
+    onPermissionModeChange('bypassPermissions')
     const model = modelOverride || modelRef.current
     await window.api.ai.clearAndExecutePlan(sessionId, planFilePath, model)
   }, [updateSession, onPermissionModeChange])
@@ -2053,7 +2053,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       busy: true,
       ready: false,
     }))
-    onPermissionModeChange('acceptEdits')
+    onPermissionModeChange('bypassPermissions')
     const model = modelOverride || modelRef.current
     await window.api.ai.clearAndExecutePlan(sessionId, '', model, true)
   }, [updateSession, onPermissionModeChange])

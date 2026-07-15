@@ -188,7 +188,7 @@ const AppearancePanel = function AppearancePanel({
   const { themes, currentThemeId, setTheme } = useTheme()
   const { t } = useI18n()
   const [activeCategory, setActiveCategory] = useState<CategoryId>('theme')
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [dragOffset, setDragOffset] = useState({ x: 24, y: -24 })
   const dragRef = useRef<{ startX: number; startY: number; offX: number; offY: number } | null>(null)
 
   const onHeaderMouseDown = (e: React.MouseEvent) => {
