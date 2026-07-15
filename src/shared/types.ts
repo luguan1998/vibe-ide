@@ -57,6 +57,7 @@ export const IPC_CHANNELS = {
   FILE_COPY: 'file:copy',
   FILE_MOVE: 'file:move',
   FILE_FIND: 'file:find',
+  FILE_SEARCH_BY_NAME: 'file:searchByName',
 
   // Claude config (model/provider groups switcher)
   CLAUDE_CONFIG_DIR: 'claudeConfig:dir',

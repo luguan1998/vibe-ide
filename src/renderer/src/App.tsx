@@ -9,6 +9,7 @@ import OutlinePanel, { isCode, isMarkdown } from './components/OutlinePanel'
 import NavBar, { NavEntry } from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
+import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import { aiStore } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
@@ -84,6 +85,7 @@ declare global {
         copy: (srcPath: string, destPath: string) => Promise<any>
         move: (srcPath: string, destPath: string) => Promise<any>
         find: (cwd: string, filename: string, skipPatterns?: string[]) => Promise<any>
+        searchByName: (cwd: string, query: string, skipPatterns?: string[]) => Promise<any>
         onChanged: (callback: () => void) => any
         removeChangedListener: (handler?: any) => void
       }
@@ -155,7 +157,8 @@ declare global {
         cancel: (sessionId: string) => Promise<boolean>
         destroy: (sessionId: string) => Promise<boolean>
         respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>, feedback?: string) => Promise<{ success: boolean }>
-        clearAndExecutePlan: (sessionId: string, planFilePath: string, model?: string) => Promise<{ success: boolean; error?: string }>
+        clearAndExecutePlan: (sessionId: string, planFilePath: string, model?: string, resume?: boolean) => Promise<{ success: boolean; error?: string }>
+        listUserTurns: (sessionId: string, cwd: string) => Promise<any>
         setPermissionMode: (sessionId: string, mode: string) => Promise<{ success: boolean; error?: string }>
         setModel: (sessionId: string, model: string) => Promise<{ success: boolean; error?: string }>
         setVisible: (visible: boolean) => Promise<void>
@@ -229,6 +232,16 @@ export default function App() {
   const [isDragOverEdit, setIsDragOverEdit] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
   const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
+  const [quickOpenOpen, setQuickOpenOpen] = useState(false)
+  const quickOpenOpenRef = useRef(false)
+  const openQuickOpen = useCallback((v: boolean) => {
+    quickOpenOpenRef.current = v
+    setQuickOpenOpen(v)
+  }, [])
+  const closeQuickOpen = useCallback(() => {
+    quickOpenOpenRef.current = false
+    setQuickOpenOpen(false)
+  }, [])
   const [currentFileContent, setCurrentFileContent] = useState<string>('')  // DiffViewer 回传，供 OutlinePanel 省 IPC
   // 文件切换时清空 stale content，防止新 OutlinePanel 拿到上一个文件的内容
   useEffect(() => { setCurrentFileContent('') }, [diffFile?.fullPath])
@@ -962,6 +975,12 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const bindings = getShortcuts()
 
+      if (quickOpenOpenRef.current) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape') {
+          return
+        }
+      }
+
       // ── Brush modifier keydown: feather pen cursor ──
       if (eventIsModifierPress(e, bindings['brush.activate'])) {
         setBrushActive(true)
@@ -1019,6 +1038,15 @@ export default function App() {
           setNavBarVisible(false)
           return
         }
+      }
+
+      // quickOpen.file → Ctrl+E toggle fuzzy file quick open
+      if (eventMatchesBinding(e, bindings['quickOpen.file'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (quickOpenOpenRef.current) closeQuickOpen()
+        else openQuickOpen(true)
+        return
       }
 
       // codegraph.open → open CodeGraph search and focus input
@@ -1327,6 +1355,19 @@ export default function App() {
       setCenterView('diff')
     }
   }, [])
+
+  const handleQuickOpenSelect = useCallback((fullPath: string, relativePath: string) => {
+    setDiffFile({
+      filePath: relativePath,
+      fullPath,
+      diffContent: '',
+      isStaged: false,
+      defaultEdit: true,
+      revision: ++diffRevisionRef.current,
+    })
+    setCenterView('diff')
+    closeQuickOpen()
+  }, [closeQuickOpen])
 
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
@@ -1924,10 +1965,10 @@ export default function App() {
 
   const isWelcome = sessions.length === 0
 
-  const hideRecentFiles = recentFilesPanelEnabled && outlineOverlayEnabled && (
+  const hideRecentFiles = !!(recentFilesPanelEnabled && outlineOverlayEnabled && (
     (centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath))) ||
     (centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath))
-  )
+  ))
 
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
@@ -2349,6 +2390,14 @@ export default function App() {
           </div>
         )
       })()}
+
+      {/* Quick Open — Ctrl+E fuzzy file search across active session cwd */}
+      <QuickOpen
+        open={quickOpenOpen}
+        cwd={activeSessionCwd}
+        onSelect={handleQuickOpenSelect}
+        onClose={closeQuickOpen}
+      />
 
       {/* Nav Bar — 当前 cwd 最近文件，Alt+←/→ 切换并跳转 */}
       <NavBar

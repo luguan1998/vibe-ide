@@ -286,6 +286,11 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Ctrl+KeyN',
   },
   {
+    id: 'quickOpen.file',
+    label: 'Quick Open File',
+    defaultKeys: 'Ctrl+KeyE',
+  },
+  {
     id: 'brush.activate',
     label: 'Feather Pen (Brush Mode)',
     defaultKeys: 'Ctrl',

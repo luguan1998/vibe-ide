@@ -6,10 +6,12 @@ import remarkGfm from 'remark-gfm'
 import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { useI18n } from '../i18n'
 import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
+import { loadFilterRules } from './FileTab'
+import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS } from '../aiStore'
 import { EXAMPLE_PROMPTS } from './examplePrompts'
 import { OCTOCAT, type PetSpriteConfig } from './petSprites'
-import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch } from 'lucide-react'
+import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch, Folder } from 'lucide-react'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
 import { displayLabel, getShortcuts } from '../shortcuts'
@@ -1549,16 +1551,21 @@ function SlashCommandAutocomplete({
   onClose: () => void
 }) {
   const { t } = useI18n()
+  const listRef = useRef<HTMLDivElement>(null)
   const filtered = commands.filter(c => c.name.toLowerCase().startsWith(filter.toLowerCase()))
+  useEffect(() => {
+    listRef.current?.querySelector(`[data-slash-idx="${selectedIndex}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIndex, filter])
   if (filtered.length === 0) return null
 
   return (
-    <div className="ai-tab__slash-menu absolute bottom-full left-0 right-0 mb-1 bg-ide-sidebar border border-ide-border rounded shadow-lg z-20 max-h-48 overflow-y-auto animate-fade-in">
+    <div ref={listRef} className="ai-tab__slash-menu absolute bottom-full left-0 right-0 mb-1 bg-ide-sidebar border border-ide-border rounded shadow-lg z-20 max-h-48 overflow-y-auto animate-fade-in">
       {filtered.map((cmd, i) => {
         const globalIndex = commands.filter(c => c.name.toLowerCase().startsWith(filter.toLowerCase())).indexOf(cmd)
         return (
           <button
             key={cmd.name}
+            data-slash-idx={globalIndex}
             onClick={() => onSelect(cmd)}
             className={`ai-tab__slash-menu-item w-full flex items-center gap-2 px-2 py-1.5 text-[11px] transition-colors ${
               globalIndex === selectedIndex
@@ -1572,6 +1579,60 @@ function SlashCommandAutocomplete({
           </button>
         )
       })}
+    </div>
+  )
+}
+
+// ── MentionAutocomplete ───────────────────────────────────────────
+
+interface MentionItem {
+  name: string
+  path: string
+  type: 'file' | 'directory'
+  relativePath: string
+}
+
+function FileMentionIcon({ name }: { name: string }) {
+  const info = getFileInfo(name)
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3 h-3 shrink-0 ${info.color}`}
+         dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+  )
+}
+
+function MentionAutocomplete({
+  items,
+  selectedIndex,
+  onSelect,
+}: {
+  items: MentionItem[]
+  selectedIndex: number
+  onSelect: (item: MentionItem) => void
+}) {
+  const listRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    listRef.current?.querySelector(`[data-mention-idx="${selectedIndex}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIndex, items])
+  if (items.length === 0) return null
+  return (
+    <div ref={listRef} className="ai-tab__slash-menu absolute bottom-full left-0 right-0 mb-1 bg-ide-sidebar border border-ide-border rounded shadow-lg z-20 max-h-48 overflow-y-auto animate-fade-in">
+      {items.map((item, i) => (
+        <button
+          key={item.path}
+          data-mention-idx={i}
+          onClick={() => onSelect(item)}
+          className={`ai-tab__slash-menu-item w-full flex items-center gap-2 px-2 py-1.5 text-[11px] transition-colors ${
+            i === selectedIndex
+              ? 'ai-tab__slash-menu-item--selected bg-ide-accent/15 text-ide-accent'
+              : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
+          }`}
+        >
+          {item.type === 'directory'
+            ? <Folder size={12} strokeWidth={2} className="shrink-0 text-ide-accent" />
+            : <FileMentionIcon name={item.name} />}
+          <span className="truncate font-mono">{item.relativePath}</span>
+        </button>
+      ))}
     </div>
   )
 }
@@ -1788,6 +1849,57 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const userScrolledUpRef = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
+  const [mentionMenuOpen, setMentionMenuOpen] = useState(false)
+  const [mentionFilter, setMentionFilter] = useState('')
+  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0)
+  const [mentionResults, setMentionResults] = useState<MentionItem[]>([])
+  const mentionTriggerStartRef = useRef(0)
+  const mentionReqIdRef = useRef(0)
+
+  const closeMention = useCallback(() => {
+    setMentionMenuOpen(false)
+    setMentionFilter('')
+    setMentionResults([])
+    setMentionSelectedIndex(0)
+  }, [])
+
+  const selectMention = useCallback((item: MentionItem) => {
+    const el = inputRef.current
+    if (el) {
+      const start = mentionTriggerStartRef.current
+      const end = el.selectionStart ?? el.value.length
+      const insert = `@${item.relativePath} `
+      el.setRangeText(insert, start, end, 'end')
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      el.focus({ preventScroll: true })
+    }
+    closeMention()
+  }, [closeMention])
+
+  useEffect(() => {
+    if (!mentionMenuOpen || !workspacePath) { setMentionResults([]); return }
+    const query = mentionFilter
+    if (!query) { setMentionResults([]); return }
+    const reqId = ++mentionReqIdRef.current
+    const timer = setTimeout(async () => {
+      try {
+        const res = await window.api.file.searchByName(workspacePath, query, loadFilterRules())
+        if (mentionReqIdRef.current !== reqId) return
+        if (res && !res.error) {
+          setMentionResults(res.matches || [])
+          setMentionSelectedIndex(0)
+        } else {
+          setMentionResults([])
+        }
+      } catch {
+        if (mentionReqIdRef.current === reqId) setMentionResults([])
+      }
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [mentionMenuOpen, mentionFilter, workspacePath])
+
+  useEffect(() => { closeMention() }, [activeSessionId, closeMention])
+
   useImperativeHandle(ref, () => ({
     focus: () => { inputRef.current?.focus({ preventScroll: true }) },
     setValue: (text: string) => { setInputValue(text) },
@@ -1841,13 +1953,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   useEffect(() => {
     if (!activeSessionId || !workspacePath || !state.worktreePath || !onWorktreeNavChange) return
+    const wtp = state.worktreePath
     onWorktreeNavChange(prev => {
-      if (prev[activeSessionId]?.worktreePath === state.worktreePath) return prev
+      if (prev[activeSessionId]?.worktreePath === wtp) return prev
       return {
         ...prev,
         [activeSessionId]: {
           originalPath: workspacePath,
-          worktreePath: state.worktreePath,
+          worktreePath: wtp,
           originalBranch: '',
         }
       }
@@ -2383,6 +2496,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               />
             </div>
           )}
+          {mentionMenuOpen && (
+            <div className="absolute bottom-full left-0 right-0 mb-1 z-20">
+              <MentionAutocomplete
+                items={mentionResults}
+                selectedIndex={mentionSelectedIndex}
+                onSelect={selectMention}
+              />
+            </div>
+          )}
 
           {/* Pill container */}
           <div className="ai-tab__input-pill rounded-2xl border border-ide-accent/60
@@ -2397,7 +2519,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 onChange={(e) => {
                   const val = e.target.value
                   setInputValue(val)
-                  if (val.startsWith('/')) {
+                  const isSlash = val.startsWith('/')
+                  if (isSlash) {
                     const filter = val.slice(1).split(' ')[0]
                     setSlashMenuOpen(true)
                     setSlashFilter(filter)
@@ -2406,8 +2529,44 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                     setSlashMenuOpen(false)
                     setSlashFilter('')
                   }
+                  const el = e.target as HTMLTextAreaElement
+                  const caret = el.selectionStart ?? val.length
+                  const before = val.slice(0, caret)
+                  const m = before.match(/(^|\s)@([^\s@]*)$/)
+                  if (m && !isSlash) {
+                    mentionTriggerStartRef.current = caret - m[2].length - 1
+                    setMentionFilter(m[2])
+                    setMentionMenuOpen(true)
+                    setMentionSelectedIndex(0)
+                  } else if (!m) {
+                    setMentionMenuOpen(false)
+                  }
                 }}
                 onKeyDown={(e) => {
+                  if (mentionMenuOpen) {
+                    if (e.key === 'ArrowDown' && mentionResults.length) {
+                      e.preventDefault()
+                      setMentionSelectedIndex(prev => (prev + 1) % mentionResults.length)
+                      return
+                    }
+                    if (e.key === 'ArrowUp' && mentionResults.length) {
+                      e.preventDefault()
+                      setMentionSelectedIndex(prev => (prev - 1 + mentionResults.length) % mentionResults.length)
+                      return
+                    }
+                    if (e.key === 'Enter' || e.key === 'Tab') {
+                      e.preventDefault()
+                      const item = mentionResults[mentionSelectedIndex]
+                      if (item) selectMention(item)
+                      else closeMention()
+                      return
+                    }
+                    if (e.key === 'Escape') {
+                      e.preventDefault()
+                      closeMention()
+                      return
+                    }
+                  }
                   if (slashMenuOpen) {
                     const activeCommands = state.slashCommands.length > 0 ? state.slashCommands : enrichSlashCommands(Object.keys(SLASH_COMMAND_DESCRIPTIONS))
                     const filtered = activeCommands.filter(c => c.name.toLowerCase().startsWith(slashFilter.toLowerCase()))

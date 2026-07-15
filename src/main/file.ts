@@ -1,7 +1,7 @@
 import { ipcMain, shell } from 'electron'
 import { readFile, writeFile, readdir, rename, mkdir, rm, cp, stat } from 'fs/promises'
 import { statSync } from 'fs'
-import { join, dirname, basename, extname } from 'path'
+import { join, dirname, basename, extname, relative } from 'path'
 import { IPC_CHANNELS, FileNode } from '../shared/types'
 import * as iconv from 'iconv-lite'
 import * as jschardet from 'jschardet'
@@ -260,6 +260,54 @@ export function registerFileHandlers(): void {
     try {
       await walk(cwd, 0)
       return { matches: results }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Search files and directories by name/path substring (for @-mention autocomplete)
+  ipcMain.handle(IPC_CHANNELS.FILE_SEARCH_BY_NAME, async (_event, cwd: string, query: string, skipPatterns?: string[]) => {
+    const patterns = skipPatterns || []
+    const q = (query || '').toLowerCase().trim()
+    if (!q) return { matches: [] }
+    const matches: { name: string; path: string; type: 'file' | 'directory'; relativePath: string }[] = []
+    const maxDepth = 12
+    const maxResults = 100
+    const maxScanned = 20000
+    let scanned = 0
+
+    async function walk(dir: string, depth: number): Promise<void> {
+      if (depth > maxDepth || matches.length >= maxResults || scanned >= maxScanned) return
+      let entries: any[]
+      try {
+        entries = await readdir(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+      scanned += entries.length
+      entries.sort((a, b) => (a.isDirectory() === b.isDirectory() ? a.name.localeCompare(b.name) : a.isDirectory() ? -1 : 1))
+      for (const entry of entries) {
+        if (matches.length >= maxResults) return
+        const full = join(dir, entry.name)
+        const isDir = entry.isDirectory()
+        if (isDir && patterns.includes(entry.name)) continue
+        const rel = relative(cwd, full).replace(/\\/g, '/')
+        if (rel.toLowerCase().includes(q)) {
+          matches.push({ name: entry.name, path: full, type: isDir ? 'directory' : 'file', relativePath: rel })
+        }
+        if (isDir) await walk(full, depth + 1)
+      }
+    }
+
+    try {
+      await walk(cwd, 0)
+      matches.sort((a, b) => {
+        const an = a.name.toLowerCase().startsWith(q) ? 0 : 1
+        const bn = b.name.toLowerCase().startsWith(q) ? 0 : 1
+        if (an !== bn) return an - bn
+        return a.relativePath.localeCompare(b.relativePath)
+      })
+      return { matches: matches.slice(0, maxResults) }
     } catch (err: any) {
       return { error: err.message }
     }
