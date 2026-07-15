@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw } from 'lucide-react'
+import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Terminal, Keyboard, Filter } from 'lucide-react'
 import { useI18n } from '../i18n'
 import SettingsPanel from './SettingsPanel'
 import AppearancePanel from './AppearancePanel'
@@ -966,47 +966,51 @@ const SessionPanel = React.memo(function SessionPanel({
                 </div>
                 <div className="border-t border-ide-border mt-1 pt-1">
                   <button
-                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors flex items-center gap-1.5"
                     onClick={() => {
                       setShowAppearance(true)
                       setShowConfigMenu(false)
                     }}
                   >
+                    <Palette className="size-3.5" />
                     {t('Appearance')}
                   </button>
                 </div>
                 <div className="border-t border-ide-border mt-1 pt-1">
                 {/* 会话配置 */}
                 <button
-                  className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                  className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors flex items-center gap-1.5"
                   onClick={() => {
                     setCliCommandDraft(cliCommand)
                     setShowCliConfigModal(true)
                     setShowConfigMenu(false)
                   }}
                 >
+                  <Terminal className="size-3.5" />
                   {t('CLI Configuration')}
                 </button>
                 </div>
                 {/* Keyboard Shortcuts */}
                 <div className="border-t border-ide-border mt-1 pt-1">
                   <button
-                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors flex items-center gap-1.5"
                     onClick={() => { setShowShortcuts(true); setShowConfigMenu(false) }}
                   >
+                    <Keyboard className="size-3.5" />
                     {t('Keyboard Shortcuts')}
                   </button>
                 </div>
                 {/* File Filter Rules */}
                 <div className="border-t border-ide-border mt-1 pt-1">
                   <button
-                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors"
+                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors flex items-center gap-1.5"
                     onClick={() => {
                       setFileFilterRulesDraft(fileFilterRules.join('\n'))
                       setShowFileFilterRules(true)
                       setShowConfigMenu(false)
                     }}
                   >
+                    <Filter className="size-3.5" />
                     {t('File Filter Rules')}
                   </button>
                 </div>
@@ -1495,7 +1499,7 @@ const SessionPanel = React.memo(function SessionPanel({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowShortcuts(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-              <span className="text-sm font-semibold text-ide-text">{t('Keyboard Shortcuts')}</span>
+              <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Keyboard className="size-3.5" />{t('Keyboard Shortcuts')}</span>
               <button
                 className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
                 onClick={() => setShowShortcuts(false)}
@@ -1515,7 +1519,7 @@ const SessionPanel = React.memo(function SessionPanel({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowFileFilterRules(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-              <span className="text-sm font-semibold text-ide-text">{t('File Filter Rules')}</span>
+              <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Filter className="size-3.5" />{t('File Filter Rules')}</span>
               <button
                 className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
                 onClick={() => setShowFileFilterRules(false)}
@@ -1615,7 +1619,7 @@ const SessionPanel = React.memo(function SessionPanel({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCliConfigModal(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[400px] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-              <span className="text-sm font-semibold text-ide-text">{t('CLI Configuration')}</span>
+              <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Terminal className="size-3.5" />{t('CLI Configuration')}</span>
               <button
                 className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
                 onClick={() => setShowCliConfigModal(false)}
