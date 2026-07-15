@@ -14,6 +14,12 @@ import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
 import { displayLabel, getShortcuts } from '../shortcuts'
 
+function formatBytes(n: number): string {
+  if (n < 1000) return `${n} B`
+  if (n < 1000000) return `${(n / 1000).toFixed(1)} kB`
+  return `${(n / 1000000).toFixed(1)} MB`
+}
+
 interface AiTabProps {
   activeSessionId: string | null
   workspacePath: string | null
@@ -2168,7 +2174,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       </div>
       {/* Session history dropdown */}
       {sessionHistoryOpen && sessionHistoryList.length > 0 && (
-        <div ref={historyRef} className="ai-tab__history-dropdown absolute top-8 right-2 bg-ide-sidebar border border-ide-border rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto w-56 animate-fade-in">
+        <div ref={historyRef} className="ai-tab__history-dropdown absolute top-8 right-2 bg-ide-sidebar border border-ide-border rounded-lg shadow-lg z-20 max-h-[28rem] overflow-y-auto w-80 animate-fade-in">
           {sessionHistoryList.map((s: any) => {
             const timeStr = s.timestamp ? new Date(s.timestamp).toLocaleString() : ''
             return (
@@ -2205,10 +2211,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   setSessionHistoryOpen(false)
                   setSessionHistoryList([])
                 }}
-                className="ai-tab__history-item w-full px-2 py-1.5 text-[11px] text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left"
+                className="ai-tab__history-item w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left"
               >
                 <div className="ai-tab__history-item-name truncate">{s.name || s.session_id || s.id}</div>
-                {timeStr && <div className="ai-tab__history-item-time text-[9px] text-ide-text-muted/50 mt-0.5">{timeStr}</div>}
+                {timeStr && (
+                  <div className="ai-tab__history-item-meta flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-1">
+                    <span className="truncate mr-2">{timeStr}</span>
+                    {s.sizeBytes > 0 && <span className="shrink-0">{formatBytes(s.sizeBytes)}</span>}
+                  </div>
+                )}
               </button>
             )
           })}

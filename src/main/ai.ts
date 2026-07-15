@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
-import { readFile, readdir } from 'fs/promises'
+import { readFile, readdir, stat } from 'fs/promises'
 import { join, isAbsolute, relative } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
@@ -580,30 +580,32 @@ async function listSessionsForCwd(cwd: string): Promise<{ sessions: any[] }> {
   for (const jsonlFile of jsonlFiles) {
     const sessionId = jsonlFile.replace('.jsonl', '')
     try {
-      const content = await readFile(join(projectDir, jsonlFile), 'utf-8')
+      const filePath = join(projectDir, jsonlFile)
+      const content = await readFile(filePath, 'utf-8')
       const lines = content.split('\n').filter(Boolean)
 
-      let name = sessionId
-      let timestamp = 0
+      const fileStat = await stat(filePath).catch(() => null)
+      const sizeBytes = fileStat?.size ?? 0
+
+      // parseUserTurns 跳过 <local-command-*> 等命令标签，优先取真实正文作 name
+      const turns = parseUserTurns(lines.slice(0, 40))
+      if (turns.length === 0) continue
+      const nameTurn = turns.find(t => !t.isInternal) ?? turns[0]
+      const name = nameTurn.content.slice(0, 60)
+
+      const firstTurnLine = JSON.parse(lines[turns[0].lineIdx])
+      const timestamp = firstTurnLine.timestamp ? new Date(firstTurnLine.timestamp).getTime() : 0
+      if (!timestamp || Number.isNaN(timestamp)) continue
+
       let model = ''
-      // Scan first ~20 lines for first user message
       for (const line of lines.slice(0, 20)) {
         try {
           const msg = JSON.parse(line)
-          if (msg.type === 'user' && msg.message?.role === 'user' && typeof msg.message.content === 'string') {
-            name = msg.message.content.slice(0, 60)
-            timestamp = new Date(msg.timestamp).getTime()
-            break
-          }
-          if (msg.type === 'assistant' && msg.message?.model) {
-            model = msg.message.model
-          }
-        } catch { /* skip malformed lines */ }
+          if (msg.type === 'assistant' && msg.message?.model) { model = msg.message.model; break }
+        } catch { /* skip malformed */ }
       }
-      // Skip sessions with no user message
-      if (timestamp === 0) continue
 
-      sessions.push({ session_id: sessionId, name, timestamp, model })
+      sessions.push({ session_id: sessionId, name, timestamp, model, sizeBytes })
     } catch { /* skip unreadable files */ }
   }
 
