@@ -325,7 +325,7 @@ html, body, #root {
 }
 
 /* ════════════════════════════════════════════════════
-   右側面板 — 沙灘金底 + 炭黑手繪 SVG 邊框
+   右側面板 — 沙灘金底 + 炭黑沉影
    ════════════════════════════════════════════════════ */
 .right-panel__content {
   position: relative !important;
@@ -333,16 +333,6 @@ html, body, #root {
   box-shadow:
     inset 0 0 45px rgba(0 0 0 / 0.35),
     4px 4px 0 rgb(0 0 0 / 0.2) !important;
-}
-.right-panel__content::before {
-  content: '' !important;
-  position: absolute !important;
-  inset: 0 !important;
-  z-index: 100 !important;
-  pointer-events: none !important;
-  opacity: 0.5 !important;
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 300' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cfilter id='w' x='-10%25' y='-10%25' width='120%25' height='120%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='3' result='n'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='n' scale='3' xChannelSelector='R' yChannelSelector='G'/%3E%3C/filter%3E%3C/defs%3E%3Cg filter='url(%23w)' stroke-linecap='round' stroke-linejoin='round' fill='none' stroke='%23201b18' stroke-width='2'%3E%3Cpath stroke-width='1' d='M2,2 h496'/%3E%3Cpath stroke-width='1' d='M2,299 h496'/%3E%3Cpath d='M2,2 v297'/%3E%3Cpath d='M499,2 v297'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat !important;
 }
 .right-panel__tab-bar {
   border-bottom: 1px solid rgb(32 27 24 / 0.4) !important;
