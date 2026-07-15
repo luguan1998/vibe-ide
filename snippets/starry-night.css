@@ -29,7 +29,7 @@
 
   /* ── 终端背景图 ──
      url() 支持相对路径（相对 snippets 目录），主进程自动转 file:// */
-  --terminal-bg-image: url('night.jpg');
+  --terminal-bg-image: url('assets/night.jpg');
   --terminal-bg-overlay: rgba(15, 18, 42, 0.7);
 }
 

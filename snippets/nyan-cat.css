@@ -245,11 +245,11 @@
 
 /* 非活跃运行中 session — 右侧 Nyan Cat */
 .session-item:not(.session-item--active).border-ide-accent\/60 {
-  background: rgb(22 36 62) url('nyan.gif') right 6px center / auto 24px no-repeat !important;
+  background: rgb(22 36 62) url('assets/nyan.gif') right 6px center / auto 24px no-repeat !important;
 }
 
 .session-item:not(.session-item--active).border-ide-accent\/60:hover {
-  background: rgb(32 46 78) url('nyan.gif') right 6px center / auto 24px no-repeat !important;
+  background: rgb(32 46 78) url('assets/nyan.gif') right 6px center / auto 24px no-repeat !important;
 }
 
 /* ════════════════════════════════════
@@ -265,7 +265,7 @@
   height: 24px !important;
   pointer-events: none !important;
   z-index: 0 !important;
-  background-image: url('nyan.gif') !important;
+  background-image: url('assets/nyan.gif') !important;
   background-size: contain !important;
   background-repeat: no-repeat !important;
   background-position: right center !important;

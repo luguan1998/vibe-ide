@@ -224,7 +224,7 @@ background: rgb(199 50 43 / 0.3);             /* 直接写色值 + 透明度 */
 nyan-cat 不是普通换色皮肤，它用了几项不太常见的 CSS 技法：
 
 - **星群用 `linear-gradient` 画方块**，不是 `radial-gradient` 圆点。每颗星是一个独立的 `background-image` 层，`background-size` / `background-position` 各控大小和位置，双层（`::before` 亮星 + `::after` 暗星）叠加出景深
-- **活跃 session 右侧跑 Nyan Cat GIF** —— `:has(.animate-text-wave)::before` 锁定 AI 正在输出的 session，`background-image: url('nyan.gif')`
+- **活跃 session 右侧跑 Nyan Cat GIF** —— `:has(.animate-text-wave)::before` 锁定 AI 正在输出的 session，`background-image: url('assets/nyan.gif')`
 - **非活跃运行中 session 右侧静态 Nyan Cat** —— `.session-item:not(.session-item--active).border-ide-accent\/60` 选到 pipe 运行中但不在当前焦点的 session
 - **emoji 替换 SVG 图标** —— `::after { content: '🎀' }` 盖掉设置/新建按钮的 SVG，统计栏同理（🌈⭐）
 - **标题栏粉色发光线** —— `border-bottom: 1px solid rgb(242 140 245 / 0.25)` 加半透明粉边，`box-shadow: 0 0 18px` 做柔光
