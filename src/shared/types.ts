@@ -143,6 +143,7 @@ export const IPC_CHANNELS = {
 export interface SnippetInfo {
   name: string
   enabled: boolean
+  desc?: string
 }
 
 export interface SnippetsLoadResult {

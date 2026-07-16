@@ -1,7 +1,8 @@
 /*
-  opencode-term — 终端纯黑背景
+  终端纯黑背景 需要新开session才生效
   通过 --term-bg CSS 变量桥接到 xterm.js WebGL canvas 新开session才生效
 */
 .term-view__canvas {
   --term-bg: 10 10 10;
+  /* --terminal-bg-image: url('assets/night.jpg'); */
 }

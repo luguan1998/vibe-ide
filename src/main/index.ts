@@ -317,6 +317,16 @@ app.whenReady().then(() => {
     })
   }
 
+  function readSnippetDesc(filePath: string): string | undefined {
+    try {
+      const line2 = readFileSync(filePath, 'utf8').split(/\r?\n/)[1]
+      const trimmed = line2?.trim()
+      return trimmed || undefined
+    } catch {
+      return undefined
+    }
+  }
+
   function buildSnippetsResult() {
     if (!existsSync(snippetsDir)) {
       mkdirSync(snippetsDir, { recursive: true })
@@ -329,7 +339,8 @@ app.whenReady().then(() => {
     // 新文件默认启用
     const snippets = files.map(name => ({
       name,
-      enabled: state[name] !== undefined ? state[name] : false
+      enabled: state[name] !== undefined ? state[name] : false,
+      desc: readSnippetDesc(join(snippetsDir, name))
     }))
     // 仅拼接启用的
     const enabledFiles = snippets.filter(s => s.enabled).map(s => s.name)

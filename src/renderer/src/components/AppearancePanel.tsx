@@ -388,7 +388,7 @@ const AppearancePanel = function AppearancePanel({
                     </div>
                   ) : (
                     snippetsList.map(s => (
-                      <div key={s.name} className="flex items-center gap-2 py-1.5 px-1 rounded cursor-pointer hover:bg-ide-hover transition-colors" onClick={() => handleSnippetToggle(s.name, !s.enabled)}>
+                      <div key={s.name} title={s.desc} className="flex items-center gap-2 py-1.5 px-1 rounded cursor-pointer hover:bg-ide-hover transition-colors" onClick={() => handleSnippetToggle(s.name, !s.enabled)}>
                         <span
                           className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
                             s.enabled ? 'bg-ide-accent border-ide-accent text-white' : 'border-ide-border'
