@@ -122,7 +122,7 @@ const ZH_MAP: Record<string, string> = {
   'File Tree Depth': '文件树深度',
   'Emoji Text': '会话图标',
   'Each session gets a random icon. One per line.': '每个 session 随机分配一个表情。每行一个。',
-  'Click any emoji in the sidebar to cycle.': '点击侧边栏的图标可循环切换。',
+  'Click any emoji in the sidebar to cycle.': '点击侧边栏的图标可循环切换。多个表情用空格隔开',
   'Folder Icons (per cwd)': '目录图标（按目录分配）',
   'Session Icons': '会话图标（按会话分配）',
   'One per line': '每行一个',

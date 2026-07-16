@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from
 import { SnippetInfo, SnippetsLoadResult } from '@shared/types'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
-import { FolderOpen, RefreshCw, RotateCcw } from 'lucide-react'
+import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, Terminal, PanelRightClose, SlidersHorizontal, SwatchBook } from 'lucide-react'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from './SessionPanel'
 
@@ -16,13 +16,13 @@ const MONO_KW = ['mono', 'code', 'consol', 'courier', 'fira', 'hack', 'source co
 
 type CategoryId = 'theme' | 'session' | 'editor' | 'terminal' | 'panel' | 'advanced'
 
-const NAV_ITEMS: { id: CategoryId; label: string; zones: { session: boolean; editor: boolean; panel: boolean } }[] = [
-  { id: 'theme', label: 'Theme', zones: { session: true, editor: true, panel: true } },
-  { id: 'session', label: 'Sidebar', zones: { session: true, editor: false, panel: false } },
-  { id: 'editor', label: 'Editor', zones: { session: false, editor: true, panel: false } },
-  { id: 'terminal', label: 'Terminal', zones: { session: false, editor: true, panel: false } },
-  { id: 'panel', label: 'Right Panel', zones: { session: false, editor: false, panel: true } },
-  { id: 'advanced', label: 'Advanced', zones: { session: false, editor: false, panel: false } },
+const NAV_ITEMS: { id: CategoryId; label: string; zones: { session: boolean; editor: boolean; panel: boolean }; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'theme', label: 'Theme', zones: { session: true, editor: true, panel: true }, icon: SwatchBook },
+  { id: 'session', label: 'Sidebar', zones: { session: true, editor: false, panel: false }, icon: PanelLeft },
+  { id: 'editor', label: 'Editor', zones: { session: false, editor: true, panel: false }, icon: Code },
+  { id: 'terminal', label: 'Terminal', zones: { session: false, editor: true, panel: false }, icon: Terminal },
+  { id: 'panel', label: 'Right Panel', zones: { session: false, editor: false, panel: true }, icon: PanelRightClose },
+  { id: 'advanced', label: 'Advanced', zones: { session: false, editor: false, panel: false }, icon: SlidersHorizontal },
 ]
 
 type Zone = 'global' | 'session' | 'editor' | 'panel' | 'terminal'
@@ -311,7 +311,7 @@ const AppearancePanel = function AppearancePanel({
     <div className="fixed inset-0 z-50 flex items-start justify-start pt-24 pl-12" onClick={onClose}>
       <div className="bg-ide-bg/50 backdrop-blur-xl border border-ide-border/80 rounded-2xl shadow-2xl w-[760px] max-h-[80vh] flex flex-col" style={{ transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0 cursor-move" onMouseDown={onHeaderMouseDown}>
-          <span className="text-base font-semibold text-ide-text">{t('Appearance')}</span>
+          <span className="text-base font-semibold text-ide-text flex items-center gap-1.5"><Palette className="size-4" />{t('Appearance')}</span>
           <div className="flex items-center gap-1.5">
             {onResetUiStyle && (
               <button
@@ -349,12 +349,13 @@ const AppearancePanel = function AppearancePanel({
               <button
                 key={item.id}
                 onClick={() => setActiveCategory(item.id)}
-                className={`w-full px-3 py-2 text-sm text-left transition-colors border-l-2 ${
+                className={`w-full px-3 py-2 text-sm text-left transition-colors border-l-2 flex items-center gap-2 ${
                   activeCategory === item.id
                     ? 'text-ide-accent border-ide-accent font-medium bg-ide-accent/10'
                     : 'text-ide-text-muted border-transparent hover:text-ide-text hover:bg-ide-hover'
                 }`}
               >
+                <item.icon className="size-4 shrink-0" />
                 {t(item.label)}
               </button>
             ))}
@@ -478,52 +479,32 @@ const AppearancePanel = function AppearancePanel({
                     ><RotateCcw className="size-3" />{t('Reset Defaults')}</button>
                   </div>
                   <p className="text-[12px] text-ide-text-muted">{t('Click any emoji in the sidebar to cycle.')}</p>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm text-ide-text-muted">{t('Folder Icons (per cwd)')}</span>
-                      <span className="text-[10px] text-ide-text-muted">{t('One per line')}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mb-2 bg-ide-hover rounded p-2 min-h-[36px]">
-                      {(() => {
-                        const pool = cwdEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
-                        return pool.length === 0
-                          ? <span className="text-sm text-ide-text-muted py-1">{t('No emojis')}</span>
-                          : pool.map((emoji, i) => <span key={`c${i}`} className="text-lg bg-ide-accent/15 rounded px-0.5">{emoji}</span>)
-                      })()}
-                    </div>
-                    <textarea
-                      className="w-full h-16 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
-                      value={cwdEmojiDraft}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-ide-text-muted whitespace-nowrap">{t('Folder Icons (per cwd)')}</span>
+                    <input
+                      className="flex-1 bg-ide-bg border border-ide-border rounded px-2 py-1 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none"
+                      value={cwdEmojiDraft.split('\n').join(' ')}
                       onChange={(e) => {
-                        setCwdEmojiDraft(e.target.value)
-                        const arr = e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                        const v = e.target.value
+                        setCwdEmojiDraft(v)
+                        const arr = v.split(/\s+/).filter(Boolean)
                         onSetCwdEmojis(arr)
                       }}
-                      placeholder={'📁\n📍\n🏷️'}
+                      placeholder={'📁 📂 📍 🏷️'}
                     />
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm text-ide-text-muted">{t('Session Icons')}</span>
-                      <span className="text-[10px] text-ide-text-muted">{t('One per line')}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mb-2 bg-ide-hover rounded p-2 min-h-[36px]">
-                      {(() => {
-                        const pool = sessionEmojiDraft.split('\n').map(s => s.trim()).filter(Boolean)
-                        return pool.length === 0
-                          ? <span className="text-sm text-ide-text-muted py-1">{t('No emojis')}</span>
-                          : pool.map((emoji, i) => <span key={`s${i}`} className="text-lg">{emoji}</span>)
-                      })()}
-                    </div>
-                    <textarea
-                      className="w-full h-16 bg-ide-bg border border-ide-border rounded px-3 py-2 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none resize-none"
-                      value={sessionEmojiDraft}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-ide-text-muted whitespace-nowrap">{t('Session Icons')}</span>
+                    <input
+                      className="flex-1 bg-ide-bg border border-ide-border rounded px-2 py-1 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none"
+                      value={sessionEmojiDraft.split('\n').join(' ')}
                       onChange={(e) => {
-                        setSessionEmojiDraft(e.target.value)
-                        const arr = e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                        const v = e.target.value
+                        setSessionEmojiDraft(v)
+                        const arr = v.split(/\s+/).filter(Boolean)
                         onSetSessionEmojis(arr)
                       }}
-                      placeholder={'🔥\n💀\n🗿'}
+                      placeholder={'🔥 💀 🗿'}
                     />
                   </div>
                 </div>
