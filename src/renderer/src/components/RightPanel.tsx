@@ -8,7 +8,7 @@ import FileTab from './FileTab'
 import GameLauncher from './GameLauncher'
 import { FOCUS_GAME_DRAFT } from './VibeProgramer'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
-import { TerminalSession, RecentFileEntry } from '@shared/types'
+import { AuxTerminalTab, RecentFileEntry } from '@shared/types'
 
 interface RightPanelProps {
   workspacePath: string | null
@@ -17,10 +17,15 @@ interface RightPanelProps {
   pollingTick?: number
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
   onOpenFileFromSearch?: (fullPath: string, lineNumber?: number) => void
-  rightTerminalSessions?: Record<string, TerminalSession>
+  rightTerminalSessions?: Record<string, AuxTerminalTab[]>
   activeSessionId?: string | null
   onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
   onCloseRightTerminal?: (sessionId: string) => void
+  activeAuxIndex?: Record<string, number>
+  onCloseAuxTerminal?: (sessionId: string, tabId: string) => void
+  onSelectAuxTab?: (sessionId: string, index: number) => void
+  onSplitAuxTerminal?: (sessionId: string, tabIndex: number) => void
+  onResizeAuxSplit?: (sessionId: string, tabId: string, sizes: number[]) => void
   searchFocusTrigger?: number
   clearAuxBufferTrigger?: { sid: string; n: number }
 
@@ -391,6 +396,7 @@ function RightPanel({
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
   rightTerminalSessions, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
+  activeAuxIndex, onCloseAuxTerminal, onSelectAuxTab, onSplitAuxTerminal, onResizeAuxSplit,
   searchFocusTrigger, clearAuxBufferTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage,
   onDiffScroll,
   onToggleCollapse,
@@ -420,7 +426,9 @@ function RightPanel({
 
   const worktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
   const effectiveGitPath = worktreeNav?.worktreePath || workspacePath
-  const activeRightTerminal = activeSessionId && rightTerminalSessions ? rightTerminalSessions[activeSessionId] ?? null : null
+  const auxArr = activeSessionId && rightTerminalSessions ? rightTerminalSessions[activeSessionId] : undefined
+  const activeAuxIdx = activeSessionId && activeAuxIndex ? (activeAuxIndex[activeSessionId] ?? 0) : 0
+  const activeRightTerminal = auxArr?.[activeAuxIdx]?.terminals?.[0] ?? null
 
   const visibleList = tabOrder.filter(s => visibleTabs[s])
 
@@ -628,6 +636,11 @@ function RightPanel({
           onOpenFileFromRightTerminal={onOpenFileFromRightTerminal}
           isActive={activeSection === 'terminal'}
           clearAuxBufferTrigger={clearAuxBufferTrigger}
+          activeAuxIndex={activeAuxIndex ?? {}}
+          onCloseAuxTerminal={onCloseAuxTerminal}
+          onSelectAuxTab={onSelectAuxTab}
+          onSplitAuxTerminal={onSplitAuxTerminal}
+          onResizeAuxSplit={onResizeAuxSplit}
         />
       </div>
 

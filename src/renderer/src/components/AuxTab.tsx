@@ -1,45 +1,68 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 const TerminalView = React.lazy(() => import('./TerminalView'))
 import type { TerminalViewHandle } from './TerminalView'
-import { TerminalSession } from '@shared/types'
+import { AuxTerminalTab } from '@shared/types'
 import { parseCommands, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
 
 interface AuxTabProps {
-  rightTerminalSessions: Record<string, TerminalSession>
+  rightTerminalSessions: Record<string, AuxTerminalTab[]>
   activeSessionId: string | null
   effectiveGitPath: string | null
   worktreeNav: { originalPath: string; worktreePath: string; originalBranch: string } | null
   onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
+  onCloseAuxTerminal?: (sessionId: string, tabId: string) => void
+  onSelectAuxTab?: (sessionId: string, index: number) => void
+  onSplitAuxTerminal?: (sessionId: string, tabIndex: number) => void
+  onResizeAuxSplit?: (sessionId: string, tabId: string, sizes: number[]) => void
+  activeAuxIndex?: Record<string, number>
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
   isActive?: boolean
   clearAuxBufferTrigger?: { sid: string; n: number }
 }
 
-export default function AuxTab({ rightTerminalSessions, activeSessionId, effectiveGitPath, worktreeNav, onCreateRightTerminal, onOpenFileFromRightTerminal, isActive, clearAuxBufferTrigger }: AuxTabProps) {
+export default function AuxTab({ rightTerminalSessions, activeSessionId, effectiveGitPath, worktreeNav, onCreateRightTerminal, onCloseAuxTerminal, onSelectAuxTab, onSplitAuxTerminal, onResizeAuxSplit, activeAuxIndex = {}, onOpenFileFromRightTerminal, isActive, clearAuxBufferTrigger }: AuxTabProps) {
   const [commands, setCommands] = useState<Array<{ command: string; comment: string }>>([])
   const [selectedCommandIndex, setSelectedCommandIndex] = useState<number | null>(null)
   const pendingCommandRef = useRef<string | null>(null)
   const auxTerminalRefs = useRef<Record<string, TerminalViewHandle>>({})
   const selectedCommandIndexRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [canLeft, setCanLeft] = useState(false)
+  const [canRight, setCanRight] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tabIndex: number; tab: AuxTerminalTab } | null>(null)
+  const contextMenuRef = useRef<HTMLDivElement>(null)
+  const splitDragRef = useRef<{ sid: string; tabId: string; i: number; startY: number; startSizes: number[]; containerHeight: number } | null>(null)
+  const focusedTermIdRef = useRef<string | null>(null)
+  const onResizeAuxSplitRef = useRef(onResizeAuxSplit)
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
   const { t } = useI18n()
 
+  const activeArr = activeSessionId ? rightTerminalSessions[activeSessionId] : undefined
+  const activeIdx = activeSessionId ? (activeAuxIndex[activeSessionId] ?? 0) : 0
+  const activeTab = activeArr?.[activeIdx]
+  const activeTerm = activeTab?.terminals?.[0]
+
+  const handleLaunchOrAdd = useCallback(() => {
+    if (!activeSessionId) return
+    if (worktreeNav) {
+      onCreateRightTerminal?.(activeSessionId, effectiveGitPath ?? undefined)
+    } else {
+      onCreateRightTerminal?.(activeSessionId)
+    }
+  }, [activeSessionId, worktreeNav, onCreateRightTerminal, effectiveGitPath])
+
   const handleRunCommand = useCallback((command: string) => {
-    const activeRightTerminal = activeSessionId ? rightTerminalSessions[activeSessionId] : undefined
-    if (activeRightTerminal) {
-      window.api.terminal.write(activeRightTerminal.id, command + '\r')
+    const target = activeTab?.terminals.find(t => t.id === focusedTermIdRef.current) ?? activeTerm
+    if (target) {
+      window.api.terminal.write(target.id, command + '\r')
     } else if (activeSessionId) {
       pendingCommandRef.current = command
-      if (worktreeNav) {
-        onCreateRightTerminal?.(activeSessionId, effectiveGitPath ?? undefined)
-      } else {
-        onCreateRightTerminal?.(activeSessionId)
-      }
+      handleLaunchOrAdd()
     }
-  }, [rightTerminalSessions, activeSessionId, onCreateRightTerminal, worktreeNav, effectiveGitPath])
+  }, [activeTab, activeTerm, activeSessionId, handleLaunchOrAdd])
 
   // 右侧终端打开文件的回调 - 触发中间终端切换到 edit
   const handleRightTerminalOpenFile = useCallback(async (fullPath: string, lineNumber?: number) => {
@@ -120,59 +143,156 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
 
   // Execute pending command when aux terminal becomes ready
   useEffect(() => {
-    const activeRightTerminal = activeSessionId ? rightTerminalSessions[activeSessionId] : undefined
-    if (activeRightTerminal && pendingCommandRef.current) {
+    if (activeTerm && pendingCommandRef.current) {
       const cmd = pendingCommandRef.current
       pendingCommandRef.current = null
       setTimeout(() => {
-        window.api.terminal.write(activeRightTerminal.id, cmd + '\r')
+        window.api.terminal.write(activeTerm.id, cmd + '\r')
       }, 1200)
     }
-  }, [rightTerminalSessions, activeSessionId])
+  }, [activeTerm])
 
-  // 切 session 时聚焦新 active 的 aux 终端（照抄主终端 terminalRefs 模式）
+  // active index 超出数组长度时兜底修正（删除/外部变更后）
   useEffect(() => {
-    if (!isActive || !activeSessionId) return
-    auxTerminalRefs.current[activeSessionId]?.focus()
-  }, [isActive, activeSessionId])
+    if (!activeSessionId || !activeArr || activeArr.length === 0) return
+    if (activeIdx >= activeArr.length) {
+      onSelectAuxTab?.(activeSessionId, activeArr.length - 1)
+    }
+  }, [activeSessionId, activeArr, activeIdx, onSelectAuxTab])
+
+  const updateArrows = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setCanLeft(el.scrollLeft > 0)
+    setCanRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 1)
+  }, [])
+
+  // tabs 增减/切 session 后更新左右箭头
+  useEffect(() => {
+    const id = setTimeout(updateArrows, 0)
+    return () => clearTimeout(id)
+  }, [activeArr, updateArrows])
+
+  // panel resize 时更新箭头
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => updateArrows())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [updateArrows])
+
+  // 切 session 时聚焦新 active 的 aux 终端（primary）
+  useEffect(() => {
+    if (!isActive || !activeSessionId || !activeTerm) return
+    focusedTermIdRef.current = activeTerm.id
+    auxTerminalRefs.current[activeTerm.id]?.focus()
+  }, [isActive, activeSessionId, activeTerm])
 
   useEffect(() => {
     if (!clearAuxBufferTrigger || clearAuxBufferTrigger.n === 0) return
-    auxTerminalRefs.current[clearAuxBufferTrigger.sid]?.clearBuffer()
+    const sid = clearAuxBufferTrigger.sid
+    const arr = rightTerminalSessions[sid]
+    const idx = activeAuxIndex[sid] ?? 0
+    const tab = arr?.[idx]
+    if (tab) tab.terminals.forEach(t => auxTerminalRefs.current[t.id]?.clearBuffer())
   }, [clearAuxBufferTrigger])
+
+  // 拖拽分隔条：实时改 sizes，TerminalView ResizeObserver 自动 re-fit
+  useEffect(() => { onResizeAuxSplitRef.current = onResizeAuxSplit })
+
+  const onSplitMouseMove = useCallback((e: MouseEvent) => {
+    const d = splitDragRef.current
+    if (!d) return
+    const totalGrow = d.startSizes.reduce((s, n) => s + n, 0) || 1
+    const deltaRatio = (e.clientY - d.startY) / d.containerHeight
+    const growDelta = deltaRatio * totalGrow
+    const newSizes = [...d.startSizes]
+    newSizes[d.i] = Math.max(0.1, d.startSizes[d.i] + growDelta)
+    newSizes[d.i + 1] = Math.max(0.1, d.startSizes[d.i + 1] - growDelta)
+    onResizeAuxSplitRef.current?.(d.sid, d.tabId, newSizes)
+  }, [])
+
+  const onSplitMouseUp = useCallback(() => {
+    splitDragRef.current = null
+    window.removeEventListener('mousemove', onSplitMouseMove)
+    window.removeEventListener('mouseup', onSplitMouseUp)
+  }, [onSplitMouseMove])
+
+  const startSplitDrag = useCallback((e: React.MouseEvent, sid: string, tab: AuxTerminalTab, i: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const container = (e.currentTarget as HTMLElement).parentElement
+    const containerHeight = container?.clientHeight ?? 1
+    splitDragRef.current = { sid, tabId: tab.id, i, startY: e.clientY, startSizes: [...tab.sizes], containerHeight }
+    window.addEventListener('mousemove', onSplitMouseMove)
+    window.addEventListener('mouseup', onSplitMouseUp)
+  }, [onSplitMouseMove, onSplitMouseUp])
+
+  // contextMenu：mousedown 外部关闭 + ESC
+  useEffect(() => {
+    if (!contextMenu) return
+    const handle = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) setContextMenu(null)
+    }
+    const timer = setTimeout(() => document.addEventListener('mousedown', handle), 0)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null) }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handle)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [contextMenu])
+
+  const showTabBar = activeArr && activeArr.length > 0
 
   return (
     <div ref={containerRef} tabIndex={-1} className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {Object.entries(rightTerminalSessions).map(([sid, term]) => (
-          <div key={sid} className="h-full flex flex-col overflow-hidden" style={{ display: sid === activeSessionId ? 'flex' : 'none' }}>
-            <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">Loading...</div>}>
-              <TerminalView
-                ref={(node) => { if (node) auxTerminalRefs.current[sid] = node }}
-                sessionId={term.id}
-                sessionName="Right Terminal"
-                sessionCwd={term.cwd}
-                onOpenFile={handleRightTerminalOpenFile}
-                showHeader={false}
-                fontSize={12}
-                isAux={true}
-                isActive={sid === activeSessionId}
-              />
-            </React.Suspense>
-          </div>
-        ))}
-        {!(activeSessionId && rightTerminalSessions[activeSessionId]) && (
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {Object.entries(rightTerminalSessions).flatMap(([sid, tabs]) =>
+          tabs.map((tab, tabIndex) => {
+            const tabActive = sid === activeSessionId && tabIndex === (activeAuxIndex[sid] ?? 0)
+            return (
+              <div key={tab.id} className="h-full flex flex-col overflow-hidden" style={{ display: tabActive ? 'flex' : 'none' }}>
+                {tab.terminals.map((term, i) => (
+                  <React.Fragment key={term.id}>
+                    <div
+                      style={{ flex: tab.sizes[i] ?? 1 }}
+                      className="min-h-0 flex flex-col overflow-hidden"
+                      onMouseDown={() => { focusedTermIdRef.current = term.id }}
+                    >
+                      <React.Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted text-xs">Loading...</div>}>
+                        <TerminalView
+                          ref={(node) => { if (node) auxTerminalRefs.current[term.id] = node }}
+                          sessionId={term.id}
+                          sessionName="Right Terminal"
+                          sessionCwd={term.cwd}
+                          onOpenFile={handleRightTerminalOpenFile}
+                          showHeader={false}
+                          fontSize={12}
+                          isAux={true}
+                          isActive={tabActive}
+                        />
+                      </React.Suspense>
+                    </div>
+                    {i < tab.terminals.length - 1 && (
+                      <div
+                        onMouseDown={(e) => startSplitDrag(e, sid, tab, i)}
+                        className="shrink-0 h-1 cursor-ns-resize bg-ide-border hover:bg-ide-accent/60 transition-colors"
+                      />
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            )
+          })
+        )}
+        {(!activeArr || activeArr.length === 0) && (
           effectiveGitPath ? (
             <div className="h-full flex items-center justify-center">
               <button
-                onClick={() => {
-                  if (!activeSessionId) return
-                  if (worktreeNav) {
-                    onCreateRightTerminal?.(activeSessionId, effectiveGitPath)
-                  } else {
-                    onCreateRightTerminal?.(activeSessionId)
-                  }
-                }}
+                onClick={handleLaunchOrAdd}
                 className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors aux-tab__launch-btn"
               >
                 {t('Launch Terminal')}
@@ -185,11 +305,93 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
           )
         )}
       </div>
-      {commands.length > 0 && (
-        <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '40%', overflowY: 'auto' }}>
-          <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-ide-accent sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm border-b border-ide-border">
-            {t('Commands')}
+      {showTabBar && (
+        <div className="shrink-0 flex items-stretch h-7 border-t border-ide-border bg-ide-sidebar aux-tab__bar">
+          {canLeft && (
+            <button
+              onClick={() => scrollRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
+              className="shrink-0 w-7 flex items-center justify-center text-ide-accent hover:bg-ide-accent/15 transition-colors"
+              title={t('Scroll Left')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          )}
+          <div ref={scrollRef} onScroll={updateArrows} className="flex-1 flex items-stretch overflow-x-auto aux-tab__scroll">
+            {activeArr!.map((tab, i) => {
+              const active = i === activeIdx
+              const primary = tab.terminals[0]
+              return (
+                <div
+                  key={tab.id}
+                  className={`group relative flex items-center gap-1.5 pl-2.5 pr-1.5 text-xs cursor-pointer border-b-2 border-r border-ide-border/60 shrink-0 aux-tab__term ${
+                    active
+                      ? 'border-b-ide-accent bg-ide-hover text-ide-text'
+                      : 'border-b-transparent text-ide-text-muted hover:bg-ide-hover/60 hover:text-ide-text'
+                  }`}
+                  onClick={() => activeSessionId && onSelectAuxTab?.(activeSessionId, i)}
+                  onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tabIndex: i, tab }) }}
+                  title={`${primary?.name ?? ''} — ${primary?.cwd ?? ''}`}
+                >
+                  {tab.terminals.length > 1 ? (
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-ide-accent/70">
+                      <rect x="2" y="2" width="12" height="5" rx="1" />
+                      <rect x="2" y="9" width="12" height="5" rx="1" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0">
+                      <polyline points="3.5,4 7,8 3.5,12" />
+                      <line x1="9" y1="12" x2="13" y2="12" />
+                    </svg>
+                  )}
+                  <span className="font-mono truncate max-w-[80px]">{(primary?.cwd.split(/[\\/]/).filter(Boolean).pop() || primary?.cwd || '')} {i + 1}</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); activeSessionId && onCloseAuxTerminal?.(activeSessionId, tab.id) }}
+                    className={`w-4 h-4 rounded flex items-center justify-center transition-colors shrink-0 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text ${
+                      active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}
+                    title={t('Close')}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              )
+            })}
           </div>
+          {canRight && (
+            <button
+              onClick={() => scrollRef.current?.scrollBy({ left: 120, behavior: 'smooth' })}
+              className="shrink-0 w-7 flex items-center justify-center text-ide-accent hover:bg-ide-accent/15 transition-colors"
+              title={t('Scroll Right')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={handleLaunchOrAdd}
+            className="w-7 flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors shrink-0 aux-tab__add-btn"
+            title={t('New Terminal')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
+      )}
+      {commands.length > 0 && (
+        <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '32%', overflowY: 'auto' }}>
+          {!showTabBar && (
+            <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-ide-accent sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm border-b border-ide-border">
+              {t('Commands')}
+            </div>
+          )}
           {commands.map((cmd, i) => (
             <div
               key={i}
@@ -210,6 +412,35 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
               <span className="text-[10px] text-ide-text-muted/60 truncate">{cmd.comment}</span>
             </div>
           ))}
+        </div>
+      )}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 180), top: Math.min(contextMenu.y, window.innerHeight - 120), zIndex: 100 }}
+          className="bg-ide-sidebar border border-ide-border rounded-md shadow-2xl py-1 min-w-[160px]"
+        >
+          <button
+            disabled={contextMenu.tab.terminals.length >= 3}
+            onClick={() => { activeSessionId && onSplitAuxTerminal?.(activeSessionId, contextMenu.tabIndex); setContextMenu(null) }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+              <rect x="2" y="2" width="12" height="5" rx="1" />
+              <rect x="2" y="9" width="12" height="5" rx="1" />
+            </svg>
+            {t('Split Down')}
+          </button>
+          <button
+            onClick={() => { activeSessionId && onCloseAuxTerminal?.(activeSessionId, contextMenu.tab.id); setContextMenu(null) }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover transition-colors"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+            {t('Close')}
+          </button>
         </div>
       )}
     </div>

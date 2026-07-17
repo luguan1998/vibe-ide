@@ -16,7 +16,7 @@ import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { getFileInfo, FILE_ICON_PATHS } from './components/FileIcons'
 import { DRAFT_PIPE_STOP, FOCUS_GAME_DRAFT, ADD_ANNOTATION_EVENT, toRelPath } from './components/VibeProgramer'
-import { TerminalSession, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
+import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
 import type { TerminalViewHandle } from './components/TerminalView'
@@ -211,7 +211,8 @@ export default function App() {
   const { t } = useI18n()
   const [sessions, setSessions] = useState<TerminalSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const [rightTerminalSessions, setRightTerminalSessions] = useState<Record<string, TerminalSession>>({})  // 每个 session 独立的右侧终端
+  const [rightTerminalSessions, setRightTerminalSessions] = useState<Record<string, AuxTerminalTab[]>>({})  // 每个 session 独立的 aux terminal tabs（每 tab 含 1-3 个 terminal）
+  const [activeAuxIndex, setActiveAuxIndex] = useState<Record<string, number>>({})  // 每个 session 当前 active 的 aux terminal 下标
   const [rightPanelWidth, setRightPanelWidth] = useState(380)
   const rightPanelPrevWidth = useRef(380)
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false)
@@ -1632,11 +1633,16 @@ export default function App() {
       delete next[id]
       return next
     })
-    // 清理该 session 的右侧终端
-    const rightTerm = rightTerminalSessions[id]
-    if (rightTerm) {
-      window.api.terminal.close(rightTerm.id)
+    // 清理该 session 的全部右侧终端
+    const rightTerms = rightTerminalSessions[id]
+    if (rightTerms && rightTerms.length > 0) {
+      Promise.all(rightTerms.flatMap(tab => tab.terminals).map(t => window.api.terminal.close(t.id)))
       setRightTerminalSessions(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      setActiveAuxIndex(prev => {
         const next = { ...prev }
         delete next[id]
         return next
@@ -1819,32 +1825,109 @@ export default function App() {
     setCenterView('diff')
   }, [activeSessionCwd])
 
-  // 创建右侧终端（每个 session 独立）
+  // 创建右侧终端（每个 session 独立，可多个 tab，append 后自动切到新 tab）
   const handleCreateRightTerminal = useCallback(async (sessionId: string, cwdOverride?: string) => {
-    if (rightTerminalSessions[sessionId]) return
     const session = sessions.find(s => s.id === sessionId)
     const cwd = cwdOverride || session?.cwd
     if (!cwd) return
     try {
       const shell = 'cmd'
       const term = await window.api.terminal.create({ cwd, shell, autoUtf8 })
-      setRightTerminalSessions(prev => ({ ...prev, [sessionId]: term }))
+      const prevLen = rightTerminalSessions[sessionId]?.length ?? 0
+      const newTab: AuxTerminalTab = { id: term.id, terminals: [term], sizes: [1] }
+      setRightTerminalSessions(prev => ({
+        ...prev,
+        [sessionId]: [...(prev[sessionId] || []), newTab]
+      }))
+      setActiveAuxIndex(prev => ({ ...prev, [sessionId]: prevLen }))
     } catch (err) {
       console.error('Failed to create right terminal:', err)
     }
-  }, [rightTerminalSessions, sessions, autoUtf8])
+  }, [sessions, autoUtf8, rightTerminalSessions])
 
-  // 关闭右侧终端
+  // 关闭该 session 全部右侧终端（worktree 切换/返回用）
   const handleCloseRightTerminal = useCallback(async (sessionId: string) => {
-    const term = rightTerminalSessions[sessionId]
-    if (!term) return
-    await window.api.terminal.close(term.id)
+    const tabs = rightTerminalSessions[sessionId]
+    if (!tabs || tabs.length === 0) return
+    await Promise.all(tabs.flatMap(tab => tab.terminals).map(t => window.api.terminal.close(t.id)))
     setRightTerminalSessions(prev => {
       const next = { ...prev }
       delete next[sessionId]
       return next
     })
+    setActiveAuxIndex(prev => {
+      const next = { ...prev }
+      delete next[sessionId]
+      return next
+    })
   }, [rightTerminalSessions])
+
+  // 关闭单个 aux terminal tab（含其全部 terminals）
+  const handleCloseAuxTerminal = useCallback(async (sessionId: string, tabId: string) => {
+    const tabs = rightTerminalSessions[sessionId]
+    if (!tabs) return
+    const idx = tabs.findIndex(t => t.id === tabId)
+    if (idx === -1) return
+    const tab = tabs[idx]
+    await Promise.all(tab.terminals.map(t => window.api.terminal.close(t.id)))
+    setRightTerminalSessions(prev => {
+      const arr = prev[sessionId] || []
+      const filtered = arr.filter(t => t.id !== tabId)
+      const next = { ...prev }
+      if (filtered.length === 0) delete next[sessionId]
+      else next[sessionId] = filtered
+      return next
+    })
+    setActiveAuxIndex(prev => {
+      const oldLen = (rightTerminalSessions[sessionId] || []).length
+      const newLen = oldLen - 1
+      if (newLen <= 0) {
+        const next = { ...prev }
+        delete next[sessionId]
+        return next
+      }
+      const cur = prev[sessionId] ?? 0
+      const nextIdx = Math.min(Math.max(cur - (idx < cur ? 1 : 0), 0), newLen - 1)
+      return { ...prev, [sessionId]: nextIdx }
+    })
+  }, [rightTerminalSessions])
+
+  // 分屏向下新增：当前 tab 加一个 terminal（最多 3 个）
+  const handleSplitAuxTerminal = useCallback(async (sessionId: string, tabIndex: number) => {
+    const tabs = rightTerminalSessions[sessionId]
+    const tab = tabs?.[tabIndex]
+    if (!tab || tab.terminals.length >= 3) return
+    const cwd = tab.terminals[0]?.cwd
+    if (!cwd) return
+    try {
+      const shell = 'cmd'
+      const term = await window.api.terminal.create({ cwd, shell, autoUtf8 })
+      setRightTerminalSessions(prev => {
+        const arr = prev[sessionId] || []
+        const next = arr.map((t, i) => i === tabIndex
+          ? { ...t, terminals: [...t.terminals, term], sizes: Array(t.terminals.length + 1).fill(1) }
+          : t)
+        return { ...prev, [sessionId]: next }
+      })
+      setActiveAuxIndex(prev => ({ ...prev, [sessionId]: tabIndex }))
+    } catch (err) {
+      console.error('Failed to split aux terminal:', err)
+    }
+  }, [rightTerminalSessions, autoUtf8])
+
+  // 拖拽调整分屏比例
+  const handleResizeAuxSplit = useCallback((sessionId: string, tabId: string, sizes: number[]) => {
+    setRightTerminalSessions(prev => {
+      const arr = prev[sessionId] || []
+      const next = arr.map(t => t.id === tabId ? { ...t, sizes } : t)
+      return { ...prev, [sessionId]: next }
+    })
+  }, [])
+
+  // 切换 aux terminal active tab
+  const handleSelectAuxTab = useCallback((sessionId: string, index: number) => {
+    setActiveAuxIndex(prev => ({ ...prev, [sessionId]: index }))
+  }, [])
 
   // 处理从搜索面板打开文件
   const isMarkdownFile = (path: string) => {
@@ -2321,8 +2404,13 @@ export default function App() {
             onPreviewMarkdown={handlePreviewMarkdown}
             onPreviewImage={handlePreviewImage}
             rightTerminalSessions={rightTerminalSessions}
+            activeAuxIndex={activeAuxIndex}
             onCreateRightTerminal={handleCreateRightTerminal}
             onCloseRightTerminal={handleCloseRightTerminal}
+            onCloseAuxTerminal={handleCloseAuxTerminal}
+            onSelectAuxTab={handleSelectAuxTab}
+            onSplitAuxTerminal={handleSplitAuxTerminal}
+            onResizeAuxSplit={handleResizeAuxSplit}
             searchFocusTrigger={searchFocusTrigger}
             clearAuxBufferTrigger={clearAuxBufferTrigger}
             navigateToFilePayload={navigateToFilePayload}

@@ -162,6 +162,12 @@ export interface TerminalSession {
   createdAt: number
 }
 
+export interface AuxTerminalTab {
+  id: string
+  terminals: TerminalSession[]
+  sizes: number[]
+}
+
 export interface RenameTerminalResult {
   success: boolean
   session?: TerminalSession

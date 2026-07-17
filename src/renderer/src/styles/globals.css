@@ -543,3 +543,6 @@ html, body, #root {
   animation: pet-float 2s ease-in-out infinite;
 }
 
+.aux-tab__scroll { scrollbar-width: none; }
+.aux-tab__scroll::-webkit-scrollbar { display: none; }
+
