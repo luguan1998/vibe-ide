@@ -53,7 +53,9 @@
           "*.svg",
           "*.gif",
           "*.webp",
-          "*.bmp"
+          "*.bmp",
+          "assets/**",
+          "snippets.json"
         ]
       }
     ],
