@@ -167,6 +167,7 @@ const ZH_MAP: Record<string, string> = {
   'Discard All': '全部撤销',
   'Delete All': '全部删除',
   'Refresh': '刷新',
+  'Toggle Tree View': '切换树形显示',
   'Capsule Tabs': '胶囊选项卡',
   'Use capsule-style tab bar instead of icon buttons.': '使用胶囊风格选项卡替代方形图标按钮。',
   'Group Sessions by Folder': '按目录分组',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react'
 import { useI18n } from '../i18n'
 import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
 import GitGraph from './GitGraph'
@@ -59,6 +59,56 @@ const splitPath = (filePath: string): { name: string; dir: string } => {
   return { name: filePath.slice(idx + 1), dir: filePath.slice(0, idx + 1) }
 }
 
+type Section = 'staged' | 'unstaged' | 'untracked'
+
+interface TreeNode {
+  name: string
+  path: string
+  file?: GitFileStatus
+  children?: TreeNode[]
+  leafCount?: number
+}
+
+const buildFileTree = (files: GitFileStatus[]): TreeNode[] => {
+  const root: TreeNode = { name: '', path: '', children: [] }
+  for (const file of files) {
+    const parts = file.path.split('/')
+    let node = root
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]
+      const isLeaf = i === parts.length - 1
+      const childPath = node.path ? `${node.path}/${part}` : part
+      if (!node.children) node.children = []
+      let child = node.children.find(c => c.name === part)
+      if (!child) {
+        child = isLeaf ? { name: part, path: childPath, file } : { name: part, path: childPath, children: [] }
+        node.children.push(child)
+      }
+      node = child
+    }
+  }
+  const sortNode = (n: TreeNode) => {
+    if (!n.children) return
+    n.children.sort((a, b) => {
+      const aFile = !!a.file
+      const bFile = !!b.file
+      if (aFile !== bFile) return aFile ? 1 : -1
+      return a.name.localeCompare(b.name)
+    })
+    n.children.forEach(sortNode)
+  }
+  const countLeaves = (n: TreeNode): number => {
+    if (n.file) { n.leafCount = 1; return 1 }
+    let c = 0
+    for (const ch of n.children!) c += countLeaves(ch)
+    n.leafCount = c
+    return c
+  }
+  sortNode(root)
+  root.children!.forEach(countLeaves)
+  return root.children || []
+}
+
 const GRAPH_PAGE_SIZE = 50
 
 export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, isActive, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll, onNavigateToFile, lineHistoryPayload }: GitTabProps) {
@@ -117,6 +167,16 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [showPushDropdown, setShowPushDropdown] = useState(false)
   const [stashCount, setStashCount] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [treeView, setTreeView] = useState(false)
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set())
+  const toggleFolder = useCallback((key: string) => {
+    setCollapsedFolders(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
   // Line history (git log -L) state
   const [lineHistoryExpanded, setLineHistoryExpanded] = useState(false)
@@ -157,31 +217,43 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     })
   }, [lineHistoryPayload])
 
-  // 可导航项：section 标题栏 + 文件行，从上往下
-  type NavItem = { type: 'header'; section: 'staged' | 'unstaged' | 'untracked' } | { type: 'file'; file: GitFileStatus; section: 'staged' | 'unstaged' | 'untracked' } | { type: 'commit' }
+  const stagedTree = useMemo(() => buildFileTree(status?.files?.filter(f => f.staged) || []), [status])
+  const unstagedTree = useMemo(() => buildFileTree(status?.files?.filter(f => !f.staged && f.status !== 'untracked') || []), [status])
+  const untrackedTree = useMemo(() => buildFileTree(status?.files?.filter(f => f.status === 'untracked') || []), [status])
+
+  // 可导航项：section 标题栏 + 文件行（树型含文件夹节点），从上往下
+  type NavItem = { type: 'header'; section: Section } | { type: 'file'; file: GitFileStatus; section: Section } | { type: 'folder'; section: Section; folderPath: string } | { type: 'commit' }
   const navigableItems = useMemo(() => {
     if (!status?.files) return [] as NavItem[]
     const items: NavItem[] = []
     const stagedFiles = status.files.filter(f => f.staged)
     const unstagedFiles = status.files.filter(f => !f.staged && f.status !== 'untracked')
     const untrackedFiles = status.files.filter(f => f.status === 'untracked')
-    if (stagedFiles.length > 0) {
-      items.push({ type: 'header', section: 'staged' })
-      if (stagedExpanded) stagedFiles.forEach(f => items.push({ type: 'file', file: f, section: 'staged' }))
+    const walk = (nodes: TreeNode[], section: Section) => {
+      for (const n of nodes) {
+        if (n.file) {
+          items.push({ type: 'file', file: n.file, section })
+        } else {
+          items.push({ type: 'folder', section, folderPath: n.path })
+          if (!collapsedFolders.has(`${section}:${n.path}`) && n.children) walk(n.children, section)
+        }
+      }
     }
-    if (unstagedFiles.length > 0) {
-      items.push({ type: 'header', section: 'unstaged' })
-      if (changesExpanded) unstagedFiles.forEach(f => items.push({ type: 'file', file: f, section: 'unstaged' }))
+    const addSection = (section: Section, files: GitFileStatus[], tree: TreeNode[], expanded: boolean) => {
+      if (files.length === 0) return
+      items.push({ type: 'header', section })
+      if (!expanded) return
+      if (treeView) walk(tree, section)
+      else files.forEach(f => items.push({ type: 'file', file: f, section }))
     }
-    if (untrackedFiles.length > 0) {
-      items.push({ type: 'header', section: 'untracked' })
-      if (untrackedExpanded) untrackedFiles.forEach(f => items.push({ type: 'file', file: f, section: 'untracked' }))
-    }
+    addSection('staged', stagedFiles, stagedTree, stagedExpanded)
+    addSection('unstaged', unstagedFiles, unstagedTree, changesExpanded)
+    addSection('untracked', untrackedFiles, untrackedTree, untrackedExpanded)
     if (!(status.clean && status.ahead > 0)) {
       items.push({ type: 'commit' })
     }
     return items
-  }, [status, stagedExpanded, changesExpanded, untrackedExpanded])
+  }, [status, stagedTree, unstagedTree, untrackedTree, stagedExpanded, changesExpanded, untrackedExpanded, treeView, collapsedFolders])
 
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const focusedIndexRef = useRef<number | null>(null)
@@ -206,6 +278,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     if (focusedIndex === null) return null
     const item = navigableItems[focusedIndex]
     return item?.type === 'file' ? `${item.section}:${item.file.path}` : null
+  }, [focusedIndex, navigableItems])
+
+  // 当前高亮的文件夹 key（section:folderPath）
+  const focusedFolderKey = useMemo(() => {
+    if (focusedIndex === null) return null
+    const item = navigableItems[focusedIndex]
+    return item?.type === 'folder' ? `${item.section}:${item.folderPath}` : null
   }, [focusedIndex, navigableItems])
 
   const focusedCommit = useMemo(() => {
@@ -766,6 +845,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             const hasUnstaged = files.some(f => !f.staged && f.status !== 'untracked')
             handleStageAll(hasUnstaged ? untrackedPaths : '.')
           }
+        } else if (item?.type === 'folder') {
+          e.preventDefault()
+          toggleFolder(`${item.section}:${item.folderPath}`)
         } else if (item?.type === 'commit') {
           e.preventDefault()
           textareaRef.current?.focus()
@@ -806,6 +888,110 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     ? t('Amend: fold {count} staged file(s) into last commit, keep original message').replace('{count}', String(stagedFileCount))
     : t('Amend: rewrite last commit message only')
 
+  const renderFileRow = (file: GitFileStatus, section: Section, depth: number) => {
+    const { name } = splitPath(file.path)
+    const focused = focusedFileKey === `${section}:${file.path}`
+    return (
+      <div
+        key={`${section}-${file.path}`}
+        style={{ paddingLeft: 4 + depth * 12 + 16 }}
+        className={`pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 git-tab__file-item ${focused ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'}`}
+        onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === section && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}` : file.path
+          setFileContextMenu({ x: e.clientX, y: e.clientY, filePath: file.path, fullPath })
+        }}
+      >
+        <span className={`font-bold ${getStatusColor(file)} w-3.5 text-center shrink-0`}>
+          {getStatusIcon(file)}
+        </span>
+        <span className="shrink-0 git-fname">{name}</span>
+        <span className="flex-1" />
+        {section === 'staged' && (
+          <>
+            <span className="shrink-0 w-5" />
+            <button
+              onClick={(e) => { e.stopPropagation(); handleUnstage(file.path) }}
+              disabled={busy}
+              className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center disabled:opacity-40"
+              title={t('Unstage')}
+            >
+              −
+            </button>
+          </>
+        )}
+        {section === 'unstaged' && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
+              disabled={busy}
+              className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center disabled:opacity-40"
+              title={t('Stage')}
+            >
+              +
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: 'discard', filePath: file.path, fileName: name }) }}
+              disabled={busy}
+              className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center disabled:opacity-40"
+              title={t('Discard')}
+            >
+              −
+            </button>
+          </>
+        )}
+        {section === 'untracked' && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleStage(file.path) }}
+              disabled={busy}
+              className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center disabled:opacity-40"
+              title={t('Stage')}
+            >
+              +
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: 'delete', filePath: file.path, fileName: name }) }}
+              disabled={busy}
+              className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center disabled:opacity-40"
+              title={t('Delete')}
+            >
+              −
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  const renderTree = (nodes: TreeNode[], section: Section, depth: number) => {
+    return nodes.map(node => {
+      if (node.file) return renderFileRow(node.file, section, depth)
+      const key = `${section}:${node.path}`
+      const collapsed = collapsedFolders.has(key)
+      const focused = focusedFolderKey === key
+      return (
+        <Fragment key={`folder-${key}`}>
+          <div
+            className={`pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 git-tab__file-item git-tab__folder-item ${focused ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'}`}
+            style={{ paddingLeft: 4 + depth * 12 }}
+            onClick={() => toggleFolder(key)}
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 text-ide-text-muted transition-transform ${collapsed ? '-rotate-90' : 'rotate-0'}`}><path d="M4 6l4 4 4-4" /></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            <span className="shrink-0 git-fname">{node.name}</span>
+            {(node.leafCount ?? 0) > 1 && <span className="text-[11px] text-ide-text-muted">({node.leafCount})</span>}
+            <span className="flex-1" />
+          </div>
+          {!collapsed && node.children && renderTree(node.children, section, depth + 1)}
+        </Fragment>
+      )
+    })
+  }
+
   return (
     <>
       {/* Branch info bar */}
@@ -822,6 +1008,18 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             {status.ahead > 0 && <span className="text-ide-success text-[11px]">↑{status.ahead}</span>}
             {status.behind > 0 && <span className="text-ide-warning text-[11px]">↓{status.behind}</span>}
           </div>
+          <button
+            onClick={() => setTreeView(v => !v)}
+            className={`transition-colors shrink-0 w-5 flex items-center justify-center ${treeView ? 'text-ide-accent' : 'text-ide-text-muted hover:text-ide-text'}`}
+            title={t('Toggle Tree View')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <rect x="9" y="2" width="6" height="5" rx="1" />
+              <rect x="2" y="17" width="6" height="5" rx="1" />
+              <rect x="16" y="17" width="6" height="5" rx="1" />
+              <path d="M12 7v4M5 17v-6h14v6" />
+            </svg>
+          </button>
           <button
             onClick={() => { refreshStatus(); refreshGraph(); refreshBranches() }}
             className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
@@ -908,7 +1106,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     </div>
                   )
                 })()}
-                {stagedExpanded && status.files.filter(f => f.staged).map(file => {
+                {stagedExpanded && !treeView && status.files.filter(f => f.staged).map(file => {
                   const { name, dir } = splitPath(file.path)
                   return (
                   <div
@@ -940,6 +1138,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     </button>
                   </div>
                 )})}
+                {stagedExpanded && treeView && renderTree(stagedTree, 'staged', 0)}
               </div>
             )}
 
@@ -989,7 +1188,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     </div>
                   )
                 })()}
-                {changesExpanded && status.files.filter(f => !f.staged && f.status !== 'untracked').map(file => {
+                {changesExpanded && !treeView && status.files.filter(f => !f.staged && f.status !== 'untracked').map(file => {
                   const { name, dir } = splitPath(file.path)
                   return (
                   <div
@@ -1028,6 +1227,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     </button>
                   </div>
                 )})}
+                {changesExpanded && treeView && renderTree(unstagedTree, 'unstaged', 0)}
               </div>
             )}
 
@@ -1074,7 +1274,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     </div>
                   )}
                 </div>
-                {untrackedExpanded && status.files.filter(f => f.status === 'untracked').map(file => {
+                {untrackedExpanded && !treeView && status.files.filter(f => f.status === 'untracked').map(file => {
                   const { name, dir } = splitPath(file.path)
                   return (
                   <div
@@ -1111,6 +1311,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     </button>
                   </div>
                 )})}
+                {untrackedExpanded && treeView && renderTree(untrackedTree, 'untracked', 0)}
               </div>
             )}
 
