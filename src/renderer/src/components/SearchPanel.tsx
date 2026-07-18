@@ -516,7 +516,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
 
         {mode === 'grep' && !query && (
           <div className="px-3 py-4 text-sm text-ide-text-muted text-center">
-            {t('Type to search files by content')}
+            {t('Click search btn to close')}
           </div>
         )}
 

@@ -266,7 +266,7 @@ export function registerFileHandlers(): void {
   })
 
   // Search files and directories by name/path substring (for @-mention autocomplete)
-  ipcMain.handle(IPC_CHANNELS.FILE_SEARCH_BY_NAME, async (_event, cwd: string, query: string, skipPatterns?: string[]) => {
+  ipcMain.handle(IPC_CHANNELS.FILE_SEARCH_BY_NAME, async (_event, cwd: string, query: string, skipPatterns?: string[], nameOnly?: boolean) => {
     const patterns = skipPatterns || []
     const q = (query || '').toLowerCase().trim()
     if (!q) return { matches: [] }
@@ -292,7 +292,8 @@ export function registerFileHandlers(): void {
         const isDir = entry.isDirectory()
         if (isDir && patterns.includes(entry.name)) continue
         const rel = relative(cwd, full).replace(/\\/g, '/')
-        if (rel.toLowerCase().includes(q)) {
+        const hit = nameOnly ? entry.name.toLowerCase().includes(q) : rel.toLowerCase().includes(q)
+        if (hit) {
           matches.push({ name: entry.name, path: full, type: isDir ? 'directory' : 'file', relativePath: rel })
         }
         if (isDir) await walk(full, depth + 1)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Lightbulb, Eye, Clock, X, Pencil, Search } from 'lucide-react'
+import { Lightbulb, Eye, Clock, X, Pencil, Search, Filter, FileText } from 'lucide-react'
 import { FileNode, RecentFileEntry, GrepMatch, CodeSymbol } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import SearchPanel, { trimToMatch, highlightMatches } from './SearchPanel'
@@ -156,17 +156,34 @@ function setNodesChildrenMap(nodes: FileNode[], map: Map<string, FileNode[]>): F
   })
 }
 
-function filterTree(nodes: FileNode[], q: string): FileNode[] {
-  const ql = q.toLowerCase()
-  const out: FileNode[] = []
-  for (const n of nodes) {
-    const nameMatch = n.name.toLowerCase().includes(ql)
-    const childMatches = n.children ? filterTree(n.children, q) : undefined
-    if (nameMatch || (childMatches && childMatches.length)) {
-      out.push({ ...n, children: childMatches !== undefined ? childMatches : n.children })
+interface NameMatch { name: string; path: string; type: 'file' | 'directory'; relativePath: string }
+
+function buildTreeFromMatches(matches: NameMatch[], cwd: string): FileNode[] {
+  const root: FileNode[] = []
+  const dirMap = new Map<string, FileNode>()
+  const rootPath = norm(cwd).replace(/\/$/, '')
+  for (const m of matches) {
+    const segs = norm(m.relativePath).split('/').filter(Boolean)
+    let level = root
+    let cur = rootPath
+    for (let i = 0; i < segs.length; i++) {
+      const seg = segs[i]
+      cur = cur + '/' + seg
+      if (i === segs.length - 1) {
+        if (dirMap.has(cur)) break
+        level.push({ name: seg, path: m.path, type: m.type })
+      } else {
+        let dir = dirMap.get(cur)
+        if (!dir) {
+          dir = { name: seg, path: cur, type: 'directory', children: [] }
+          dirMap.set(cur, dir)
+          level.push(dir)
+        }
+        level = dir.children!
+      }
     }
   }
-  return out
+  return root
 }
 
 function collectDirPaths(nodes: FileNode[], acc: Set<string> = new Set()): Set<string> {
@@ -609,6 +626,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [toastPath, setToastPath] = useState<string | null>(null)
   const [searchMode, setSearchMode] = useState(false)
   const [nameFilter, setNameFilter] = useState('')
+  const [nameSearchResults, setNameSearchResults] = useState<FileNode[]>([])
+  const [nameSearching, setNameSearching] = useState(false)
+  const [nameOnly, setNameOnly] = useState(false)
   const { t } = useI18n()
 
   useEffect(() => {
@@ -648,10 +668,31 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     return p === w || p.startsWith(w + '/')
   }), [recentFiles, workspacePath])
 
+  const nameSearchReqId = useRef(0)
+  useEffect(() => {
+    const q = nameFilter.trim()
+    if (!q || !workspacePath) { setNameSearchResults([]); setNameSearching(false); return }
+    const reqId = ++nameSearchReqId.current
+    setNameSearching(true)
+    const timer = setTimeout(async () => {
+      try {
+        const res = await window.api.file.searchByName(workspacePath, q, loadFilterRules(), nameOnly)
+        if (nameSearchReqId.current !== reqId) return
+        if (res && !res.error) setNameSearchResults(buildTreeFromMatches(res.matches || [], workspacePath))
+        else setNameSearchResults([])
+      } catch {
+        if (nameSearchReqId.current === reqId) setNameSearchResults([])
+      } finally {
+        if (nameSearchReqId.current === reqId) setNameSearching(false)
+      }
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [nameFilter, workspacePath, nameOnly])
+
   const filteredTree = useMemo(() => {
     const q = nameFilter.trim()
-    return q ? filterTree(fileTree, q) : fileTree
-  }, [fileTree, nameFilter])
+    return q ? nameSearchResults : fileTree
+  }, [fileTree, nameFilter, nameSearchResults])
   const filteredExpanded = useMemo(() => collectDirPaths(filteredTree), [filteredTree])
 
   // Load file tree (root level only, depth=1 lazy load).
@@ -1225,7 +1266,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           <div
             className={`items-center gap-1 bg-ide-border/30 border border-ide-border group-focus-within:border-ide-accent rounded-full px-2 py-0.5 shrink-0 transition-colors ${nameFilter.trim() ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'}`}
           >
-            <Search className="w-3 h-3 text-ide-text-muted shrink-0" />
+            <Filter className="w-3 h-3 text-ide-text-muted shrink-0" />
             <input
               value={nameFilter}
               onChange={(e) => setNameFilter(e.target.value)}
@@ -1233,6 +1274,11 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
               placeholder={t('搜索文件名')}
               className="w-20 sm:w-28 bg-transparent text-xs text-ide-text outline-none focus-visible:outline-none caret-ide-accent placeholder:text-ide-text-muted/50"
             />
+            <button
+              onClick={() => setNameOnly(v => !v)}
+              title={t('只匹配文件名（不含路径）')}
+              className={`shrink-0 flex items-center justify-center w-4 h-4 rounded-full transition-colors ${nameOnly ? 'bg-ide-accent/25 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+            ><FileText className="w-3 h-3" /></button>
             {nameFilter && (
               <button
                 onClick={() => setNameFilter('')}
@@ -1246,7 +1292,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           <button
             className={`shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${searchMode ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
             onClick={() => setSearchMode(v => !v)}
-            title={t('Search')}
+            title={t('搜索文本内容')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
               <circle cx="11" cy="11" r="8" />
@@ -1328,6 +1374,10 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 {t('Showing first {n} of {total}').replace('{n}', String(searchResults.length)).replace('{total}', String(searchTotal))}
               </div>
             )}
+          </div>
+        ) : nameFilter.trim() && nameSearching ? (
+          <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
+            {t('Searching...')}
           </div>
         ) : nameFilter.trim() && filteredTree.length === 0 ? (
           <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">

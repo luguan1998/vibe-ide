@@ -86,7 +86,7 @@ declare global {
         copy: (srcPath: string, destPath: string) => Promise<any>
         move: (srcPath: string, destPath: string) => Promise<any>
         find: (cwd: string, filename: string, skipPatterns?: string[]) => Promise<any>
-        searchByName: (cwd: string, query: string, skipPatterns?: string[]) => Promise<any>
+        searchByName: (cwd: string, query: string, skipPatterns?: string[], nameOnly?: boolean) => Promise<any>
         onChanged: (callback: () => void) => any
         removeChangedListener: (handler?: any) => void
       }
@@ -317,7 +317,7 @@ export default function App() {
         if (existing.line === mergedLine && existing.endLine === mergedEndLine) return prev
         return prev.map((r, i) => i === existingIdx ? { ...r, line: mergedLine, endLine: mergedEndLine } : r)
       }
-      return [{ path: fullPath, line, endLine }, ...prev].slice(0, 10)
+      return [{ path: fullPath, line, endLine }, ...prev].slice(0, 7)
     })
   }, [])
 
