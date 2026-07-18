@@ -1251,53 +1251,57 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   return (
     <div className={`flex-1 flex flex-col min-h-0 file-tab${brushActive ? ' brush-copy-mode' : ''}`}>
       {workspacePath && (
-        <div className="group h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean file-tab__header"
+        <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean file-tab__header"
           onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
           onMouseLeave={() => setSearchJustClosed(false)}
         >
-          <div className="flex items-center gap-1 min-w-0 flex-1">
+          <div className="group flex items-center gap-1 min-w-0 flex-1">
             <svg viewBox="0 0 16 16" fill="currentColor" className="ft-icon text-ide-accent shrink-0">
               <path d="M14.5 3H7.71L6.86 2.15L6.51 2H1.51L1.01 2.5V6.5V13.5L1.51 14H14.51L15.01 13.5V9V3.5L14.5 3ZM13.99 11.49V13H1.99V11.49V7.49V7H6.48L6.83 6.85L7.69 5.99H14V7.49L13.99 11.49ZM13.99 5H7.49L7.14 5.15L6.28 6.01H2V3.01H6.29L7.14 3.86L7.5 4.01H14L13.99 5Z" />
             </svg>
             <span className="text-sm text-ide-text font-medium truncate">
               {workspacePath.split(/[\\/]/).pop()}
             </span>
-          </div>
-          <div
-            className={`items-center gap-1 bg-ide-border/30 border border-ide-border group-focus-within:border-ide-accent rounded-full px-2 py-0.5 shrink-0 transition-colors ${nameFilter.trim() ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'}`}
-          >
-            <Filter className="w-3 h-3 text-ide-text-muted shrink-0" />
-            <input
-              value={nameFilter}
-              onChange={(e) => setNameFilter(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Escape') { setNameFilter(''); (e.target as HTMLInputElement).blur() } }}
-              placeholder={t('搜索文件名')}
-              className="w-20 sm:w-28 bg-transparent text-xs text-ide-text outline-none focus-visible:outline-none caret-ide-accent placeholder:text-ide-text-muted/50"
-            />
-            <button
-              onClick={() => setNameOnly(v => !v)}
-              title={t('只匹配文件名（不含路径）')}
-              className={`shrink-0 flex items-center justify-center w-4 h-4 rounded-full transition-colors ${nameOnly ? 'bg-ide-accent/25 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-            ><FileText className="w-3 h-3" /></button>
-            {nameFilter && (
+            <div
+              className={`items-center gap-1 bg-ide-border/30 border border-ide-border group-focus-within:border-ide-accent rounded-full px-2 py-0.5 shrink-0 transition-colors ${nameFilter.trim() ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'}`}
+            >
+              <Filter className="w-3 h-3 text-ide-text-muted shrink-0" />
+              <input
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') { setNameFilter(''); (e.target as HTMLInputElement).blur() } }}
+                placeholder={t('搜索文件名')}
+                className="w-20 sm:w-28 bg-transparent text-xs text-ide-text outline-none focus-visible:outline-none caret-ide-accent placeholder:text-ide-text-muted/50"
+              />
               <button
-                onClick={() => setNameFilter('')}
-                title={t('Clear')}
-                className="shrink-0 w-4 h-4 flex items-center justify-center rounded-full text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
+                onClick={() => setNameOnly(v => !v)}
+                title={t('只匹配文件名（不含路径）')}
+                className={`shrink-0 flex items-center justify-center w-4 h-4 rounded-full transition-colors ${nameOnly ? 'bg-ide-accent/25 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+              ><FileText className="w-3 h-3" /></button>
+              {nameFilter && (
+                <button
+                  onClick={() => setNameFilter('')}
+                  title={t('Clear')}
+                  className="shrink-0 w-4 h-4 flex items-center justify-center rounded-full text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
           <button
             className={`shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${searchMode ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
             onClick={() => setSearchMode(v => !v)}
-            title={t('搜索文本内容')}
+            title={searchMode ? t('关闭搜索') : t('搜索文本内容')}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+            {searchMode ? (
+              <X className="w-4 h-4" />
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            )}
           </button>
           <button
             className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"

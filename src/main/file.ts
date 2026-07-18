@@ -293,8 +293,8 @@ export function registerFileHandlers(): void {
         if (isDir && patterns.includes(entry.name)) continue
         const rel = relative(cwd, full).replace(/\\/g, '/')
         const hit = nameOnly ? entry.name.toLowerCase().includes(q) : rel.toLowerCase().includes(q)
-        if (hit) {
-          matches.push({ name: entry.name, path: full, type: isDir ? 'directory' : 'file', relativePath: rel })
+        if (hit && !isDir) {
+          matches.push({ name: entry.name, path: full, type: 'file', relativePath: rel })
         }
         if (isDir) await walk(full, depth + 1)
       }
