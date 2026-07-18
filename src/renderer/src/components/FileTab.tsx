@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Lightbulb, Eye, Clock, X, Pencil, Search } from 'lucide-react'
-import { FileNode, RecentFileEntry, GrepMatch } from '@shared/types'
+import { FileNode, RecentFileEntry, GrepMatch, CodeSymbol } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
-import { trimToMatch, highlightMatches } from './SearchPanel'
+import SearchPanel, { trimToMatch, highlightMatches } from './SearchPanel'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
 
@@ -59,6 +59,8 @@ interface FileTabProps {
   onOpenFileAtLine?: (fullPath: string, lineNumber?: number) => void
   isActive?: boolean
   brushActive?: boolean
+  searchFocusTrigger?: number
+  onExploreNode?: (node: CodeSymbol) => void
 }
 
 // Workspace-root inline input (new file/folder at root level)
@@ -560,7 +562,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, brushActive }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, brushActive, searchFocusTrigger, onExploreNode }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -584,6 +586,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [archExpanded, setArchExpanded] = useState(false)
   const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(null)
   const [toastPath, setToastPath] = useState<string | null>(null)
+  const [searchMode, setSearchMode] = useState(false)
   const { t } = useI18n()
 
   useEffect(() => {
@@ -591,6 +594,12 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     const id = setTimeout(() => setToastPath(null), 1500)
     return () => clearTimeout(id)
   }, [toastPath])
+
+  useEffect(() => {
+    if (searchFocusTrigger !== undefined && searchFocusTrigger > 0) {
+      setSearchMode(true)
+    }
+  }, [searchFocusTrigger])
 
   // ── recently file section ──
   const [recentExpanded, setRecentExpanded] = useState(true)
@@ -1185,36 +1194,16 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
               {workspacePath.split(/[\\/]/).pop()}
             </span>
           </div>
-          <div
-            className={`items-center gap-0.5 bg-ide-border/30 border border-ide-border group-focus-within:border-ide-accent rounded-full px-2 py-0.5 shrink-0 transition-colors ${searchScope === null && !searchJustClosed ? (searchQuery.trim() ? 'flex' : 'hidden group-hover:flex group-focus-within:flex') : 'hidden'}`}
+          <button
+            className={`shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${searchMode ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+            onClick={() => setSearchMode(v => !v)}
+            title={t('Search')}
           >
-            <Search className="ft-icon text-ide-text-muted shrink-0" />
-            <input
-              ref={searchInputRef}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Escape') closeSearch() }}
-              placeholder={searchScope ? `${t('Search')} · ${searchScope.split(/[\\/]/).pop() || searchScope}` : t('Search')}
-              className="w-20 sm:w-28 bg-transparent text-xs text-ide-text outline-none focus-visible:outline-none caret-ide-accent placeholder:text-ide-text-muted/50"
-            />
-            <button
-              onClick={() => setUseCaseSensitive(v => !v)}
-              title={t('Match case')}
-              className={`shrink-0 px-1 py-0.5 rounded-full text-[11px] font-mono leading-none transition-colors ${useCaseSensitive ? 'bg-ide-accent/25 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-            >Aa</button>
-            <button
-              onClick={() => setUseRegex(v => !v)}
-              title={t('Use regular expression')}
-              className={`shrink-0 px-1 py-0.5 rounded-full text-[11px] font-mono leading-none transition-colors ${useRegex ? 'bg-ide-accent/25 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-            >.*</button>
-            <button
-              onClick={closeSearch}
-              title={t('Close')}
-              className="shrink-0 w-4 h-4 flex items-center justify-center rounded-full text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 transition-colors"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </button>
           <button
             className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
             onClick={() => setExpandedDirs(new Set())}
@@ -1237,6 +1226,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           )}
         </div>
       )}
+      {searchMode ? (
+        <SearchPanel
+          cwd={workspacePath}
+          onOpenFile={(fullPath, lineNumber) => onOpenFileAtLine?.(fullPath, lineNumber)}
+          focusTrigger={searchFocusTrigger}
+          onExploreNode={onExploreNode}
+        />
+      ) : (
       <div
         className="flex-1 min-h-0 overflow-y-auto file-tab__tree"
         onContextMenu={(e) => {
@@ -1316,6 +1313,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           </div>
         )}
       </div>
+      )}
       {sectionVis.recently && wsRecent.length > 0 && (
         <div className="shrink-0 border-t border-ide-border max-h-[14rem] overflow-y-auto file-tab__section">
           <div

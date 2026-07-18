@@ -43,7 +43,7 @@ export default function GameLauncher() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none">
       <div className="px-4 py-2 bg-ide-hover/50 border-b border-ide-border shrink-0 select-none">
-        <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider">Games</span>
+        <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider">NGA</span>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {GAMES.map(game => (

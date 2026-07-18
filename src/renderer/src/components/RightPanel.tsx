@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useI18n } from '../i18n'
 
-import SearchPanel from './SearchPanel'
 import GitTab from './GitTab'
 import AuxTab from './AuxTab'
 import FileTab from './FileTab'
@@ -51,9 +50,9 @@ interface RightPanelProps {
   onWorktreeNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
 }
 
-type GitSection = 'git' | 'terminal' | 'search' | 'file' | 'game'
+type GitSection = 'git' | 'terminal' | 'file' | 'game'
 
-const ALL_SECTIONS: GitSection[] = ['file', 'git', 'terminal', 'search', 'game']
+const ALL_SECTIONS: GitSection[] = ['file', 'git', 'terminal', 'game']
 
 const TAB_DEFS: Record<GitSection, { label: string; icon: React.ReactNode }> = {
   git: {
@@ -91,17 +90,8 @@ const TAB_DEFS: Record<GitSection, { label: string; icon: React.ReactNode }> = {
       </svg>
     ),
   },
-  search: {
-    label: 'Find',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-        <circle cx="11" cy="11" r="8" />
-        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-      </svg>
-    ),
-  },
   game: {
-    label: 'Game',
+    label: 'Nga',
     icon: (
       <svg viewBox="0 0 100 100" fill="currentColor" stroke="currentColor" strokeWidth="4" strokeLinejoin="round" paintOrder="stroke" className="w-4 h-4">
         <path d="M50.3,87.7c-1.1,0-2.2-0.3-3.1-1l-10.1-7c-0.8-0.5-1.8-0.6-2.6-0.1l-8.8,5.2c-1.7,1-3.7,1-5.5,0c-1.7-1-2.7-2.7-2.7-4.7 V43.9c0-17.9,14.6-32.5,32.5-32.5s32.5,14.6,32.5,32.5v36.4c0,2-1,3.7-2.7,4.7c-1.7,1-3.7,1-5.4,0l-8.9-5.2 c-0.8-0.5-1.9-0.4-2.7,0.1l-9.3,6.8C52.5,87.4,51.4,87.7,50.3,87.7z M35.7,76.4c1.1,0,2.2,0.3,3.1,1l10.1,7c0.9,0.6,2,0.6,2.8,0 l9.3-6.8c1.7-1.3,4.1-1.4,6-0.3l8.9,5.2l0,0c0.8,0.4,1.7,0.4,2.4,0c0.8-0.4,1.2-1.2,1.2-2.1V43.9c0-16.3-13.2-29.5-29.5-29.5 S20.5,27.6,20.5,43.9v36.4c0,0.9,0.5,1.7,1.2,2.1c0.8,0.4,1.7,0.4,2.4,0l8.8-5.2C33.8,76.6,34.7,76.4,35.7,76.4z M35.9,54.1 c-4.9,0-8.8-4-8.8-8.8c0-4.9,4-8.8,8.8-8.8s8.8,4,8.8,8.8C44.7,50.1,40.7,54.1,35.9,54.1z M35.9,39.5c-3.2,0-5.8,2.6-5.8,5.8 c0,3.2,2.6,5.8,5.8,5.8s5.8-2.6,5.8-5.8C41.7,42.1,39.1,39.5,35.9,39.5z M64.3,54.1c-4.9,0-8.8-4-8.8-8.8c0-4.9,4-8.8,8.8-8.8 s8.8,4,8.8,8.8C73.1,50.1,69.2,54.1,64.3,54.1z M64.3,39.5c-3.2,0-5.8,2.6-5.8,5.8c0,3.2,2.6,5.8,5.8,5.8s5.8-2.6,5.8-5.8 C70.1,42.1,67.5,39.5,64.3,39.5z M32.4,30.6c0.1-0.1,5.8-7.2,13.8-7.7c0.8,0,1.5-0.8,1.4-1.6c0-0.8-0.7-1.4-1.6-1.4 c-9.3,0.5-15.7,8.5-16,8.8c-0.5,0.6-0.4,1.6,0.2,2.1c0.3,0.2,0.6,0.3,0.9,0.3C31.7,31.1,32.1,30.9,32.4,30.6z" />
@@ -135,7 +125,7 @@ function saveTabOrder(order: GitSection[]) {
   try { localStorage.setItem('vibe-ide-right-tab-order', JSON.stringify(order)) } catch {}
 }
 
-const DEFAULT_VISIBLE_TABS: Record<GitSection, boolean> = { git: true, terminal: true, file: true, search: true, game: false }
+const DEFAULT_VISIBLE_TABS: Record<GitSection, boolean> = { git: true, terminal: true, file: true, game: true }
 
 // ── Context Menu ──
 
@@ -435,20 +425,18 @@ function RightPanel({
   // 切 tab 时聚焦到 tab 内容（search tab 需聚焦到输入框）
   const gitContentRef = useRef<HTMLDivElement>(null)
   const terminalContentRef = useRef<HTMLDivElement>(null)
-  const searchContentRef = useRef<HTMLDivElement>(null)
   const fileContentRef = useRef<HTMLDivElement>(null)
   const gameContentRef = useRef<HTMLDivElement>(null)
   const sectionRefs: Record<GitSection, React.RefObject<HTMLDivElement>> = {
     git: gitContentRef,
     terminal: terminalContentRef,
-    search: searchContentRef,
     file: fileContentRef,
     game: gameContentRef,
   }
   useEffect(() => {
-    if (activeSection === 'search' || activeSection === 'game') {
+    if (activeSection === 'game') {
       setTimeout(() => {
-        const input = (activeSection === 'game' ? gameContentRef : searchContentRef).current?.querySelector('input, textarea') as HTMLInputElement | null
+        const input = gameContentRef.current?.querySelector('input, textarea') as HTMLInputElement | null
         input?.focus()
       })
     } else {
@@ -514,15 +502,15 @@ function RightPanel({
     return () => window.removeEventListener('keydown', handleKey, true)
   }, [activeSection, visibleList])
 
-  // Ctrl+F → 切换到搜索面板；若隐藏则自动显示
+  // Ctrl+F → 切换到 File 面板（FileTab 内自动进入搜索视图）
   useEffect(() => {
     if (searchFocusTrigger !== undefined && searchFocusTrigger > 0) {
       setVisibleTabs(prev => {
-        if (prev['search']) return prev
-        const next = { ...prev, search: true }
+        if (prev['file']) return prev
+        const next = { ...prev, file: true }
         return next
       })
-      setActiveSection('search')
+      setActiveSection('file')
     }
   }, [searchFocusTrigger])
 
@@ -644,19 +632,6 @@ function RightPanel({
         />
       </div>
 
-      <div ref={searchContentRef} tabIndex={-1} style={{ display: activeSection === 'search' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden">
-        <SearchPanel
-          cwd={workspacePath}
-          onOpenFile={(fullPath, lineNumber) => {
-            if (onOpenFileFromSearch) {
-              onOpenFileFromSearch(fullPath, lineNumber)
-            }
-          }}
-          focusTrigger={searchFocusTrigger}
-          onExploreNode={onExploreNode}
-        />
-      </div>
-
       <div ref={fileContentRef} tabIndex={-1} style={{ display: activeSection === 'file' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden">
         <FileTab
           workspacePath={workspacePath}
@@ -675,6 +650,8 @@ function RightPanel({
           onEditRecentFile={onEditRecentFile}
           isActive={activeSection === 'file'}
           brushActive={brushActive}
+          searchFocusTrigger={searchFocusTrigger}
+          onExploreNode={onExploreNode}
         />
       </div>
 
