@@ -311,6 +311,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const enabledRef = useRef(false)
   const diffDisposablesRef = useRef<Array<{ dispose?: () => void }>>([])
+  // 首次 diff 就绪后自动跳到第一处修改（无指定行号时）；切文件重置
+  const autoJumpedRef = useRef(false)
   const [revertBtn, setRevertBtn] = useState<{ visible: boolean; top: number; left: number; ln: number }>({ visible: false, top: 0, left: 56, ln: 0 })
   const revertBtnDomRef = useRef<HTMLButtonElement | null>(null)
   const lastRevertLnRef = useRef<number | null>(null)
@@ -658,6 +660,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     setUnreadableReason('')
     setRevertBtn({ visible: false, top: 0, left: 56, ln: 0 })
     lastRevertLnRef.current = null
+    autoJumpedRef.current = false
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null }
   }, [fullPath])
 
@@ -942,6 +945,11 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                 const changes = editor.getLineChanges()
                 lineChangesRef.current = changes ? changes.slice() : []
                 changedModifiedLinesRef.current = buildChangedModifiedLines(lineChangesRef.current)
+                // 首次 diff 就绪：无指定行号时自动跳到第一处修改
+                if (!autoJumpedRef.current && !lineNumber && changes && changes.length > 0) {
+                  autoJumpedRef.current = true
+                  try { editor.goToDiff('next') } catch {}
+                }
               }))
               setTimeout(() => {
                 try {
