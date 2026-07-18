@@ -471,7 +471,7 @@ const SessionPanel = React.memo(function SessionPanel({
     if (!showConfigMenu && configBtnRef.current) {
       const rect = configBtnRef.current.getBoundingClientRect()
       const menuWidth = 192
-      const left = Math.max(4, rect.right - menuWidth)
+      const left = Math.max(4, rect.left + rect.width / 2 - menuWidth / 2)
       setConfigMenuStyle({
         position: 'fixed',
         left,
@@ -713,7 +713,7 @@ const SessionPanel = React.memo(function SessionPanel({
     return { running, idle }
   }, [sessions, agentStatus])
 
-  const recentTop5 = recentFiles.slice(0, 5)
+  const recentTop = recentFiles.slice(0, 4)
 
   const renderSessionItem = (
     session: TerminalSession,
@@ -941,9 +941,8 @@ const SessionPanel = React.memo(function SessionPanel({
               onClick={handleToggleConfig}
               title={t('Settings')}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-[13px] h-[13px]">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="butt" strokeLinejoin="bevel" className="w-4 h-4">
+                <path d="M12 3 L19 8 L19 15 L12 20 L5 15 L5 8 Z M5 8 L12 13 L19 8 M12 13 L12 20" />
               </svg>
             </button>
             {showConfigMenu && (
@@ -1189,9 +1188,9 @@ const SessionPanel = React.memo(function SessionPanel({
       {/* Custom Commands */}
       <CustomCommands ref={commandsRef} onExecuteCommand={onExecuteCommand} onInitCommand={onInitCommand} onPipeCommand={onPipeCommand} />
 
-      {recentFilesPanelEnabled && recentTop5.length > 0 && !hideRecentFiles && (
+      {recentFilesPanelEnabled && recentTop.length > 0 && !hideRecentFiles && (
         <div className="shrink-0 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-panel__recent-files">
-          {recentTop5.map(f => {
+          {recentTop.map(f => {
             const baseName = f.path.split(/[\\/]/).pop() || f.path
             const info = getFileInfo(baseName)
             return (

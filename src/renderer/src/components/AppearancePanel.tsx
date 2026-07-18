@@ -514,11 +514,11 @@ const AppearancePanel = function AppearancePanel({
             {activeCategory === 'editor' && (
               <div className="p-4 flex flex-col">
                 {onToggleInlineDiff && (
-                  <ToggleRow labelKey="Force Inline Diff" descKey="Force inline diff mode (revert button uses circular icon). Recommended: off (side-by-side reads better)"
+                  <ToggleRow labelKey="Force Inline Diff" descKey="Force inline diff mode (revert button uses circular icon)"
                     checked={inlineDiff} onChange={onToggleInlineDiff} zone="editor" />
                 )}
                 {onToggleWordWrap && (
-                  <ToggleRow labelKey="Word Wrap" descKey="Auto-wrap long lines in diff/editor. Recommended: off"
+                  <ToggleRow labelKey="Word Wrap" descKey="Auto-wrap long lines in diff/editor"
                     checked={wordWrap} onChange={onToggleWordWrap} zone="editor" />
                 )}
                 {onSetDiffSplitRatio && (

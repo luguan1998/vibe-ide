@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
-import { X, GripVertical, Plus, Split, ListOrdered, StopCircle, Settings, Play } from 'lucide-react'
+import { X, Plus, Split, ListOrdered, StopCircle, Settings, Play } from 'lucide-react'
 
 interface DraftItem {
   id: string
@@ -565,16 +565,16 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => handleDragOver(e, i)}
                 onDrop={(e) => handleDrop(e, i)}
-                className={`group relative flex items-start gap-2 pl-2 pr-1 py-1.5 rounded-[6px_10px_5px_9px] border border-dashed border-ide-border/60 hover:bg-ide-hover/50 hover:border-ide-accent/50 transition-colors draft-plan__item${isDragOver ? ' draft-plan__item--drag-over ring-1 ring-ide-accent/60 border-ide-accent/60' : ''}${editing ? ' draft-plan__item--editing' : ''}`}
+                className={`group relative flex items-start gap-2 pl-2 pr-1 py-1.5 rounded-[6px_10px_5px_9px] border border-dashed border-ide-border/60 hover:bg-ide-hover/50 hover:border-ide-accent/50 transition-colors cursor-grab active:cursor-grabbing draft-plan__item${isDragOver ? ' draft-plan__item--drag-over ring-1 ring-ide-accent/60 border-ide-accent/60' : ''}${editing ? ' draft-plan__item--editing cursor-default' : ''}`}
               >
                 <span className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l bg-ide-accent opacity-0 group-hover:opacity-100 transition-opacity draft-plan__item-accent" />
-                <span
-                  className="shrink-0 mt-0.5 text-ide-text-muted/30 group-hover:text-ide-text-muted cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity draft-plan__item-handle"
-                  title="拖拽排序"
+                <button
+                  onClick={() => handleSendItem(item)}
+                  className="shrink-0 mt-0.5 w-6 h-6 flex items-center justify-center rounded text-ide-accent font-bold text-xs hover:bg-ide-accent/10 transition-colors draft-plan__item-btn"
+                  title="立即发送"
                 >
-                  <GripVertical size={14} />
-                </span>
-                <span className="shrink-0 mt-0.5 text-sm text-ide-accent/70 leading-none select-none draft-plan__item-sigil">›</span>
+                  &gt;_
+                </button>
                 {editing ? (
                   <textarea
                     ref={editInputRef}
@@ -594,16 +594,6 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
                   </div>
                 )}
                 <div className="shrink-0 flex items-center gap-0.5 draft-plan__item-actions">
-                  <button
-                    onClick={() => handleSendItem(item)}
-                    className="w-6 h-6 flex items-center justify-center rounded text-ide-text-muted/40 hover:text-ide-accent hover:bg-ide-accent/10 transition-colors draft-plan__item-btn"
-                    title="立即发送"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                      <polyline points="4 17 10 11 4 5" />
-                      <line x1="12" y1="19" x2="20" y2="19" />
-                    </svg>
-                  </button>
                   <button
                     onClick={() => handleDelete(item.id)}
                     className="w-6 h-6 flex items-center justify-center rounded text-ide-text-muted/40 hover:text-ide-danger hover:bg-ide-hover/60 transition-colors draft-plan__item-btn"
