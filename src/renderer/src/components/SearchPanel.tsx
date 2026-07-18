@@ -350,7 +350,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
             type="text"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder={mode === 'smart' ? t('描述后按 Enter 搜索...') : t('Search in project...')}
+            placeholder={mode === 'smart' ? t('描述后按 Enter 搜索...') : t('Search context in project...')}
             onContextMenu={async (e) => {
               e.preventDefault()
               e.stopPropagation()

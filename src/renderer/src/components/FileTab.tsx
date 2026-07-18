@@ -156,6 +156,27 @@ function setNodesChildrenMap(nodes: FileNode[], map: Map<string, FileNode[]>): F
   })
 }
 
+function filterTree(nodes: FileNode[], q: string): FileNode[] {
+  const ql = q.toLowerCase()
+  const out: FileNode[] = []
+  for (const n of nodes) {
+    const nameMatch = n.name.toLowerCase().includes(ql)
+    const childMatches = n.children ? filterTree(n.children, q) : undefined
+    if (nameMatch || (childMatches && childMatches.length)) {
+      out.push({ ...n, children: childMatches !== undefined ? childMatches : n.children })
+    }
+  }
+  return out
+}
+
+function collectDirPaths(nodes: FileNode[], acc: Set<string> = new Set()): Set<string> {
+  for (const n of nodes) {
+    if (n.type === 'directory') { acc.add(norm(n.path)); if (n.children) collectDirPaths(n.children, acc) }
+    else if (n.children) collectDirPaths(n.children, acc)
+  }
+  return acc
+}
+
 // File tree item component
 function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onSearchInFolder, inlineSearch, onCopyPath }: {
   node: FileNode
@@ -587,6 +608,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(null)
   const [toastPath, setToastPath] = useState<string | null>(null)
   const [searchMode, setSearchMode] = useState(false)
+  const [nameFilter, setNameFilter] = useState('')
   const { t } = useI18n()
 
   useEffect(() => {
@@ -625,6 +647,12 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     if (!w) return false
     return p === w || p.startsWith(w + '/')
   }), [recentFiles, workspacePath])
+
+  const filteredTree = useMemo(() => {
+    const q = nameFilter.trim()
+    return q ? filterTree(fileTree, q) : fileTree
+  }, [fileTree, nameFilter])
+  const filteredExpanded = useMemo(() => collectDirPaths(filteredTree), [filteredTree])
 
   // Load file tree (root level only, depth=1 lazy load).
   const loadFileTree = useCallback(async (): Promise<void> => {
@@ -1194,6 +1222,27 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
               {workspacePath.split(/[\\/]/).pop()}
             </span>
           </div>
+          <div
+            className={`items-center gap-1 bg-ide-border/30 border border-ide-border group-focus-within:border-ide-accent rounded-full px-2 py-0.5 shrink-0 transition-colors ${nameFilter.trim() ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'}`}
+          >
+            <Search className="w-3 h-3 text-ide-text-muted shrink-0" />
+            <input
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') { setNameFilter(''); (e.target as HTMLInputElement).blur() } }}
+              placeholder={t('搜索文件名')}
+              className="w-20 sm:w-28 bg-transparent text-xs text-ide-text outline-none focus-visible:outline-none caret-ide-accent placeholder:text-ide-text-muted/50"
+            />
+            {nameFilter && (
+              <button
+                onClick={() => setNameFilter('')}
+                title={t('Clear')}
+                className="shrink-0 w-4 h-4 flex items-center justify-center rounded-full text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
           <button
             className={`shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${searchMode ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
             onClick={() => setSearchMode(v => !v)}
@@ -1280,18 +1329,22 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
               </div>
             )}
           </div>
+        ) : nameFilter.trim() && filteredTree.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
+            {t('No matches')}
+          </div>
         ) : fileTree.length === 0 && !(editingState && editingState.nodePath === workspacePath) ? (
           <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
             {workspacePath ? t('Empty directory') : t('No workspace')}
           </div>
         ) : (
           <div className="flex flex-col py-1">
-            {fileTree.map(node => (
+            {(nameFilter.trim() ? filteredTree : fileTree).map(node => (
               <FileTreeItem
                 key={node.path}
                 node={node}
                 depth={0}
-                expandedDirs={expandedDirs}
+                expandedDirs={nameFilter.trim() ? filteredExpanded : expandedDirs}
                 onToggle={toggleDir}
                 onOpenFile={(fullPath) => onOpenFileFromExplorer?.(fullPath)}
                 onContextMenu={(e, node) => {

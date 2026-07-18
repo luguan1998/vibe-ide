@@ -262,7 +262,7 @@ const ZH_MAP: Record<string, string> = {
 
   // SearchPanel
   'No active session': '无活动会话',
-  'Search in project...': '在项目中搜索...',
+  'Search context in project...': '在项目中搜索文字内容...',
   'No results found': '无搜索结果',
   'Type to search files by content': '输入关键字搜索文件内容',
   'truncated': '已截断',

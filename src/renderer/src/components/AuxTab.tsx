@@ -409,7 +409,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
                 </svg>
               </button>
               <span className="text-[11px] font-mono font-semibold text-ide-text shrink-0 w-[8.5rem] truncate">{cmd.command}</span>
-              <span className="text-[10px] text-ide-text-muted/60 truncate">{cmd.comment}</span>
+              <span className="text-xs text-ide-text-muted/70 truncate">{cmd.comment}</span>
             </div>
           ))}
         </div>
