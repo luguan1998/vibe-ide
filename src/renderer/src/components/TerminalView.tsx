@@ -51,6 +51,7 @@ interface TerminalViewProps {
 export interface TerminalViewHandle {
   focus: () => void
   clearBuffer: () => void
+  appendText: (text: string) => void
 }
 
 
@@ -443,6 +444,14 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       window.api.terminal.resize(sessionId, origCols, origRows)
       try { fitAddonRef.current?.fit() } catch {}
       try { searchAddonRef.current?.clearDecorations() } catch {}
+    },
+    appendText: (text: string) => {
+      const term = xtermRef.current
+      if (!term) return
+      const buf = term.buffer.active
+      const line = buf.getLine(buf.cursorY)?.translateToString(true) ?? ''
+      const sep = line.trim() ? '; ' : ''
+      term.paste(sep + text)
     }
   }), [])
 
@@ -487,12 +496,13 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
     // aux terminal skips URL linking, search, and file-path linking — saves CPU & memory
     let searchResultDisposer: { dispose(): void } | null = null
-    if (!isAux) {
-      const webLinksAddon = new WebLinksAddon((_event, uri) => {
-        window.open(uri, '_blank')
-      })
-      term.loadAddon(webLinksAddon)
+    const webLinksAddon = new WebLinksAddon((_event, uri) => {
+      if ((window as any).__vibeBrowse) (window as any).__vibeBrowse(uri)
+      else window.open(uri, '_blank')
+    })
+    term.loadAddon(webLinksAddon)
 
+    if (!isAux) {
       const searchAddon = new SearchAddon()
       searchAddonRef.current = searchAddon
       searchResultDisposer = searchAddon.onDidChangeResults((r: { resultIndex: number; resultCount: number }) => {

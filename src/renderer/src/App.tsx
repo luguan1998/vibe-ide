@@ -5,6 +5,7 @@ import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
 import MarkdownPreview from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
+import BrowserView, { BrowserViewHandle } from './components/BrowserView'
 import OutlinePanel, { isCode, isMarkdown } from './components/OutlinePanel'
 import NavBar, { NavEntry } from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
@@ -192,7 +193,7 @@ declare global {
   }
 }
 
-type CenterView = 'terminal' | 'diff' | 'markdown' | 'image'
+type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser'
 
 interface DiffFileState {
   defaultEdit?: boolean
@@ -443,6 +444,7 @@ export default function App() {
   // Terminal refs for focus management (keyed by sessionId)
   const terminalRefs = useRef<Record<string, TerminalViewHandle>>({})
   const aiTabRefs = useRef<Record<string, AiTabHandle>>({})
+  const browserViewRef = useRef<BrowserViewHandle | null>(null)
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const centerPanelRef = useRef<HTMLDivElement>(null)
   // Cursor position (DiffViewer 回传，供行历史等使用)
@@ -891,6 +893,22 @@ export default function App() {
   useEffect(() => {
     (window as any).__vibeWaitIdle = () => { return waitDraftIdle(activeSessionIdRef.current) }
     (window as any).__vibeSendLine = (text: string) => sendDraftLine(activeSessionIdRef.current, text)
+    ;(window as any).__vibeAppendInput = (text: string) => {
+      const sid = activeSessionIdRef.current
+      if (!sid) return
+      if (sessionViewModesRef.current[sid] === 'gui') {
+        aiTabRefs.current[sid]?.appendText(text)
+        aiTabRefs.current[sid]?.focus()
+      } else {
+        terminalRefs.current[sid]?.appendText(text)
+        terminalRefs.current[sid]?.focus()
+      }
+    }
+    ;(window as any).__vibeBrowse = (url: string) => {
+      if (!url) return
+      if (centerViewRef.current === 'browser') browserViewRef.current?.loadURL(url)
+      else window.open(url, '_blank')
+    }
   }, [waitDraftIdle, sendDraftLine])
 
   const handleAiAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
@@ -2062,6 +2080,18 @@ export default function App() {
         <div className="flex-1" />
         <button
           className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
+          style={{ marginRight: 16 }}
+          onClick={() => setCenterView('browser')}
+          title={t('Web Debug')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+        </button>
+        <button
+          className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
           style={{ marginRight: 132 }}
           onClick={handleToggleRightPanel}
           title={rightPanelCollapsed ? t('Expand Panel') : t('Collapse Panel')}
@@ -2293,6 +2323,16 @@ export default function App() {
                 fullPath={imageFile.fullPath}
                 fileName={imageFile.fileName}
                 onBack={handleBackFromImage}
+              />
+            </div>
+          )}
+          {/* Browser */}
+          {centerView === 'browser' && (
+            <div className="flex-1 mx-1 mb-1.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
+              <BrowserView
+                ref={browserViewRef}
+                onBack={handleBackToTerminal}
+                onAnnotate={(line) => { (window as any).__vibeAppendInput?.(line) }}
               />
             </div>
           )}

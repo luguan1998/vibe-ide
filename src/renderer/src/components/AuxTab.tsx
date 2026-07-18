@@ -55,6 +55,11 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
   }, [activeSessionId, worktreeNav, onCreateRightTerminal, effectiveGitPath])
 
   const handleRunCommand = useCallback((command: string) => {
+    const trimmed = command.trim()
+    if (/^https?:\/\//i.test(trimmed)) {
+      (window as any).__vibeBrowse?.(trimmed)
+      return
+    }
     const target = activeTab?.terminals.find(t => t.id === focusedTermIdRef.current) ?? activeTerm
     if (target) {
       window.api.terminal.write(target.id, command + '\r')
@@ -408,7 +413,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
                   <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
                 </svg>
               </button>
-              <span className="text-[11px] font-mono font-semibold text-ide-text shrink-0 w-[8.5rem] truncate">{cmd.command}</span>
+              <span className={`text-[11px] font-mono font-semibold shrink-0 w-[8.5rem] truncate ${/^https?:\/\//i.test(cmd.command.trim()) ? 'text-ide-accent underline' : 'text-ide-text'}`}>{cmd.command}</span>
               <span className="text-xs text-ide-text-muted/70 truncate">{cmd.comment}</span>
             </div>
           ))}

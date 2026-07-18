@@ -66,6 +66,8 @@ const ZH_MAP: Record<string, string> = {
   'Clone': '克隆',
   'Rename': '重命名',
   'Close': '关闭',
+  'Back': '后退',
+  'Forward': '前进',
   'Annotation': '批注',
   'Copy annotations': '复制批注',
   'Copied': '已复制',
@@ -137,6 +139,9 @@ const ZH_MAP: Record<string, string> = {
   'Collapse All': '全部收缩',
   'Expand Panel': '展开面板',
   'Collapse Panel': '收缩面板',
+  'Web Brush (Annotate)': '网页羽毛笔（注释）',
+  'Enter URL or search': '输入网址或搜索',
+  'Write web annotation, Enter to confirm...': '写注释，回车确认…',
   'Expand': '展开',
   'Collapse': '收缩',
 
@@ -350,6 +355,7 @@ const ZH_MAP: Record<string, string> = {
 
   'Write tests': '编写测试',
   'Web Search': '联网调研',
+  'Web Debug': '网页调试',
   'Diagnose Bug': '定位bug',
   'Grill My Requirements': '拷问我需求',
   'Refactor': '重构',

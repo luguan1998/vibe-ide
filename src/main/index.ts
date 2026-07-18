@@ -113,6 +113,7 @@ function createWindow(): void {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: !is.dev,
+      webviewTag: true,
     },
     backgroundColor: '#1a1a2e',
     icon: app.isPackaged ? join(process.resourcesPath, 'icon.ico') : join(__dirname, '../../build/icon.ico')
@@ -196,6 +197,11 @@ function createWindow(): void {
 electronApp.setAppUserModelId('com.vibe-ide')
 
 app.whenReady().then(() => {
+  app.on('web-contents-created', (_e, contents) => {
+    if (contents.getType?.() === 'webview') {
+      contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    }
+  })
   // Default sandbox for renderer
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

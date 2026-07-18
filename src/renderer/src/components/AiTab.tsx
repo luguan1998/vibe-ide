@@ -45,6 +45,7 @@ interface AiTabProps {
 export interface AiTabHandle {
   focus: () => void
   setValue: (text: string) => void
+  appendText: (text: string) => void
 }
 
 // ── Tool type classification ──────────────────────────────────────
@@ -655,7 +656,7 @@ function getSectionReference(el: HTMLElement): { heading: string | null; snippet
   return { heading: null, snippet }
 }
 
-function InlineAnnotationInput({ top, left, containerRef, onSubmit, onDismiss }: {
+export function InlineAnnotationInput({ top, left, containerRef, onSubmit, onDismiss }: {
   top: number; left: number; containerRef: React.RefObject<HTMLDivElement | null>
   onSubmit: (text: string) => void; onDismiss: () => void
 }) {
@@ -1903,7 +1904,25 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   useImperativeHandle(ref, () => ({
     focus: () => { inputRef.current?.focus({ preventScroll: true }) },
     setValue: (text: string) => { setInputValue(text) },
-  }), [setInputValue])
+    appendText: (text: string) => {
+      const sid = activeSessionIdRef.current
+      if (!sid) return
+      setInputValues(prev => {
+        const cur = prev[sid] || ''
+        const sep = cur.trim() ? ';\n' : ''
+        return { ...prev, [sid]: cur + sep + text }
+      })
+      requestAnimationFrame(() => {
+        const el = inputRef.current
+        if (!el) return
+        el.style.height = 'auto'
+        el.style.height = el.scrollHeight + 'px'
+        el.focus({ preventScroll: true })
+        el.selectionStart = el.selectionEnd = el.value.length
+        el.scrollTop = el.scrollHeight
+      })
+    },
+  }), [setInputValue, setInputValues])
 
   useEffect(() => {
     const el = inputRef.current
