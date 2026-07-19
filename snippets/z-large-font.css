@@ -49,3 +49,26 @@
 .ai-tab__thinking-text {
   font-size: 14px !important;
 }
+
+/* Markdown 预览 */
+.md-preview {
+  font-size: 15px !important;
+}
+
+.md-preview pre,
+.md-preview .md-code-block,
+.md-preview table {
+  font-size: 14px !important;
+}
+
+.md-preview h1 {
+  font-size: 24px !important;
+}
+
+.md-preview h2 {
+  font-size: 20px !important;
+}
+
+.md-preview h3 {
+  font-size: 17px !important;
+}

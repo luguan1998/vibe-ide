@@ -144,6 +144,7 @@ export interface SnippetInfo {
   name: string
   enabled: boolean
   desc?: string
+  order: number
 }
 
 export interface SnippetsLoadResult {

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from
 import { SnippetInfo, SnippetsLoadResult } from '@shared/types'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
-import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, Terminal, PanelRightClose, SlidersHorizontal, SwatchBook } from 'lucide-react'
+import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, Terminal, PanelRightClose, SlidersHorizontal, SwatchBook, Info } from 'lucide-react'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from './SessionPanel'
 
@@ -373,13 +373,21 @@ const AppearancePanel = function AppearancePanel({
                       <FolderOpen className="size-3.5" />
                       <span>{t('Open CSS Config')}</span>
                     </button>
-                    <button
-                      onClick={() => handleSnippetReload()}
-                      title={t('Reload CSS')}
-                      className="shrink-0 px-2 py-1.5 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text rounded transition-colors"
-                    >
-                      <RefreshCw className="size-3.5" />
-                    </button>
+                    <span className="flex items-center">
+                      <button
+                        title={t('Higher-numbered snippets override lower-numbered ones.') + '\n' + t('Some terminal-related CSS effects require a new terminal session to take effect.')}
+                        className="shrink-0 pl-1.5 pr-0.5 py-1.5 text-ide-text-muted hover:text-ide-text rounded transition-colors"
+                      >
+                        <Info className="size-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleSnippetReload()}
+                        title={t('Reload CSS')}
+                        className="shrink-0 px-2 py-1.5 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text rounded transition-colors"
+                      >
+                        <RefreshCw className="size-3.5" />
+                      </button>
+                    </span>
                   </div>
                   <div className="border-t border-ide-border my-1" />
                   {snippetsList.length === 0 ? (
@@ -394,11 +402,7 @@ const AppearancePanel = function AppearancePanel({
                             s.enabled ? 'bg-ide-accent border-ide-accent text-white' : 'border-ide-border'
                           }`}
                         >
-                          {s.enabled && (
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
+                          {s.order > 0 && <span className="text-[10px] font-bold leading-none">{s.order}</span>}
                         </span>
                         <span className={`text-sm truncate ${s.enabled ? 'text-ide-text' : 'text-ide-text-muted/60'}`}>{s.name}</span>
                       </div>

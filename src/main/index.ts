@@ -15,7 +15,7 @@ import { registerFileHandlers } from './file'
 import { registerSearchHandlers } from './search'
 import { registerCodeGraphHandlers, closeCodeGraph } from './codegraph'
 import { recognizeImage, terminateOcrWorker } from './ocr'
-import { IPC_CHANNELS } from '../shared/types'
+import { IPC_CHANNELS, SnippetInfo } from '../shared/types'
 
 // Derive a path-specific instance lock so different exe copies run concurrently
 // while the same exe still behaves as a singleton.
@@ -295,7 +295,7 @@ app.whenReady().then(() => {
     : join(app.getAppPath(), 'snippets')
   const snippetsJsonPath = join(snippetsDir, 'snippets.json')
 
-  function loadSnippetsJson(): Record<string, boolean> {
+  function loadSnippetsJson(): Record<string, unknown> {
     try {
       if (existsSync(snippetsJsonPath)) {
         return JSON.parse(readFileSync(snippetsJsonPath, 'utf8'))
@@ -304,7 +304,7 @@ app.whenReady().then(() => {
     return {}
   }
 
-  function saveSnippetsJson(state: Record<string, boolean>) {
+  function saveSnippetsJson(state: Record<string, unknown>) {
     try { writeFileSync(snippetsJsonPath, JSON.stringify(state, null, 2), 'utf8') } catch {}
   }
 
@@ -339,23 +339,44 @@ app.whenReady().then(() => {
       return { css: '', snippets: [], dir: snippetsDir }
     }
     const state = loadSnippetsJson()
-    const files = readdirSync(snippetsDir)
+    const order: string[] = (state.__order__ as string[]) || []
+    delete state.__order__
+
+    const diskFiles = readdirSync(snippetsDir)
       .filter(f => f.endsWith('.css'))
       .sort()
-    // 新文件默认启用
-    const snippets = files.map(name => ({
+
+    const orderNum = new Map<string, number>()
+    let n = 0
+    for (const name of order) {
+      if (diskFiles.includes(name) && state[name]) {
+        n++
+        orderNum.set(name, n)
+      }
+    }
+    for (const name of diskFiles) {
+      if (!orderNum.has(name) && state[name]) {
+        n++
+        orderNum.set(name, n)
+      }
+    }
+
+    const snippets: SnippetInfo[] = diskFiles.map(name => ({
       name,
-      enabled: state[name] !== undefined ? state[name] : false,
-      desc: readSnippetDesc(join(snippetsDir, name))
+      enabled: state[name] !== undefined ? !!state[name] : false,
+      desc: readSnippetDesc(join(snippetsDir, name)),
+      order: orderNum.get(name) || 0,
     }))
-    // 仅拼接启用的
-    const enabledFiles = snippets.filter(s => s.enabled).map(s => s.name)
-    const css = enabledFiles
-      .map(f => {
-        const raw = readFileSync(join(snippetsDir, f), 'utf8')
-        return `/* ${f} */\n${resolveCssUrls(raw, snippetsDir)}`
+
+    const css = snippets
+      .filter(s => s.enabled)
+      .sort((a, b) => a.order - b.order)
+      .map(s => {
+        const raw = readFileSync(join(snippetsDir, s.name), 'utf8')
+        return `/* ${s.name} */\n${resolveCssUrls(raw, snippetsDir)}`
       })
       .join('\n\n')
+
     return { css, snippets, dir: snippetsDir }
   }
 
@@ -367,6 +388,14 @@ app.whenReady().then(() => {
     try {
       const state = loadSnippetsJson()
       state[filename] = enabled
+      const order: string[] = (state.__order__ as string[]) || []
+      if (enabled) {
+        if (!order.includes(filename)) order.push(filename)
+      } else {
+        const idx = order.indexOf(filename)
+        if (idx !== -1) order.splice(idx, 1)
+      }
+      state.__order__ = order
       saveSnippetsJson(state)
       return buildSnippetsResult()
     } catch {

@@ -184,6 +184,8 @@ const ZH_MAP: Record<string, string> = {
   'CSS Snippets': 'CSS 片段',
   'Open CSS Config': '打开 CSS 配置',
   'Reload CSS': '重新加载 CSS',
+  'Some terminal-related CSS effects require a new terminal session to take effect.': '部分终端相关 CSS 效果需新开终端会话才能生效。',
+  'Higher-numbered snippets override lower-numbered ones.': '序号越大优先级越高，会覆盖低序号 snippet 的 CSS 效果。',
   'Terminal Font Size': '终端字体大小',
   'Editor Font Size': '编辑器字体大小',
   'Diff Split Ratio': 'Diff 左右占比',
