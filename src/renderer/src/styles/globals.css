@@ -66,7 +66,7 @@ html, body, #root {
 
 /* xterm overrides */
 .term-view__canvas {
-  background-color: rgb(var(--ide-bg));
+  background-color: rgb(var(--term-bg, var(--ide-bg)));
 }
 .xterm {
   padding: 0;
@@ -464,7 +464,8 @@ html, body, #root {
 }
 
 /* ── Git 文件名继承父级 .git-tab__file-item；目录比文件名略小 ── */
-.git-fdir { font-size: 0.9em; }
+.git-fname { font-size: var(--git-fname-size, 12px); }
+.git-fdir { font-size: var(--git-fdir-size, 0.9em); }
 
 /* ── File 文件名/图标尺寸 — snippets CSS 可通过 --ft-fname-size / --ft-icon-size 覆盖 ── */
 .ft-fname { font-size: var(--ft-fname-size, 13px); }

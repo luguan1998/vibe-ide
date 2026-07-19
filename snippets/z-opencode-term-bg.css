@@ -1,22 +1,16 @@
 /*
-  终端 / AiTab 背景图自定义
+  终端 / AiTab 背景图
   ─────────────────────────────────────────────────
-  机制：
-  - --terminal-bg-image 设在 :root，主进程 resolveCssUrls() 把 url() 转成 base64 注入
-  - TerminalView mount 时读到该变量非空 → xterm background=transparent + allowTransparency
-    故 xterm canvas 透明，.term-view__canvas 的 background-image 透出
-  - 仅 mount 读一次 → 改图后需「新开 session」才生效
-  - --terminal-bg-overlay 压暗图保可读，0=全透 1=全黑
-  - 不用图时：注释掉 --terminal-bg-image，回落到 --term-bg 纯黑底
+  用法：改下面两行即可 —— 换图改 url()，调压暗改 0.65
+  生效：改图后「新开 session」才生效（xterm 只在 mount 时读一次）
+  不用图：注释掉 --terminal-bg-image，回落纯黑
 */
-
-/* ── 图片 + 压暗层（换图只改这一行 url，相对 snippets 目录）── */
 :root {
   --terminal-bg-image: url('assets/night.jpg');
   --terminal-bg-overlay: rgba(10, 10, 10, 0.65);
 }
 
-/* ── 终端容器：图 + overlay（--term-bg 为无图时的纯黑 fallback）── */
+/* 终端容器：纯色 fallback + 背景图层 */
 .term-view__canvas {
   --term-bg: 10 10 10;
   background-image: linear-gradient(var(--terminal-bg-overlay), var(--terminal-bg-overlay)), var(--terminal-bg-image) !important;
@@ -24,15 +18,14 @@
   background-position: center, center !important;
 }
 
-/* xterm 各层透明，让容器图透出 */
+/* xterm 透明 — 让容器背景图透出 */
 .xterm .xterm-viewport,
 .xterm .xterm-screen,
 .xterm .xterm-screen canvas {
   background: transparent !important;
-  background-color: transparent !important;
 }
 
-/* ── AiTab：同图同 overlay ── */
+/* AiTab 同图同 overlay */
 .ai-tab {
   position: relative !important;
   background-image: linear-gradient(var(--terminal-bg-overlay), var(--terminal-bg-overlay)), var(--terminal-bg-image) !important;
