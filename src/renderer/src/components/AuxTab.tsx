@@ -311,29 +311,29 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
         )}
       </div>
       {showTabBar && (
-        <div className="shrink-0 flex items-stretch h-7 border-t border-ide-border bg-ide-sidebar aux-tab__bar">
+        <div className="shrink-0 flex items-end h-7 bg-ide-border/20 aux-tab__bar">
           {canLeft && (
             <button
               onClick={() => scrollRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
-              className="shrink-0 w-7 flex items-center justify-center text-ide-accent hover:bg-ide-accent/15 transition-colors"
+              className="shrink-0 w-5 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text transition-colors"
               title={t('Scroll Left')}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
           )}
-          <div ref={scrollRef} onScroll={updateArrows} className="flex-1 flex items-stretch overflow-x-auto aux-tab__scroll">
+          <div ref={scrollRef} onScroll={updateArrows} className="flex-1 flex items-end overflow-x-auto aux-tab__scroll">
             {activeArr!.map((tab, i) => {
               const active = i === activeIdx
               const primary = tab.terminals[0]
               return (
                 <div
                   key={tab.id}
-                  className={`group relative flex items-center gap-1.5 pl-2.5 pr-1.5 text-xs cursor-pointer border-b-2 border-r border-ide-border/60 shrink-0 aux-tab__term ${
+                  className={`group relative flex items-center gap-1 pl-2.5 pr-1.5 text-xs cursor-pointer shrink-0 transition-colors aux-tab__term ${
                     active
-                      ? 'border-b-ide-accent bg-ide-hover text-ide-text'
-                      : 'border-b-transparent text-ide-text-muted hover:bg-ide-hover/60 hover:text-ide-text'
+                      ? 'bg-ide-sidebar rounded-t-md border-t border-x border-ide-border border-b-2 border-b-ide-accent h-7 text-ide-text'
+                      : 'bg-ide-hover/30 rounded-t-md h-6 text-ide-text-muted hover:bg-ide-hover/50 hover:text-ide-text'
                   }`}
                   onClick={() => activeSessionId && onSelectAuxTab?.(activeSessionId, i)}
                   onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tabIndex: i, tab }) }}
@@ -370,7 +370,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
           {canRight && (
             <button
               onClick={() => scrollRef.current?.scrollBy({ left: 120, behavior: 'smooth' })}
-              className="shrink-0 w-7 flex items-center justify-center text-ide-accent hover:bg-ide-accent/15 transition-colors"
+              className="shrink-0 w-5 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text transition-colors"
               title={t('Scroll Right')}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
@@ -380,7 +380,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
           )}
           <button
             onClick={handleLaunchOrAdd}
-            className="w-7 flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors shrink-0 aux-tab__add-btn"
+            className="w-5 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text transition-colors shrink-0 aux-tab__add-btn"
             title={t('New Terminal')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
