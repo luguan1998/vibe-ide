@@ -85,9 +85,14 @@ html, body, #root {
 /* 统计徽章 — 凸起按钮（白底 + 浅灰阴影） */
 .session-panel__stat {
   border: 2px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
+  box-shadow: inset -1px -1px 0 #adafbc, inset 1px 1px 0 #fff !important;
   text-transform: uppercase !important;
   background: #fff !important;
+  padding: 0 6px !important;
+}
+.session-panel__stat svg {
+  width: 13px !important;
+  height: 13px !important;
 }
 
 /* 设置 / 新建按钮 — 凸起 */
@@ -101,6 +106,16 @@ html, body, #root {
 .session-panel__settings-btn:active,
 .session-panel__new-btn:active {
   box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
+}
+
+/* Session 分组栏 — cwd 行高亮 */
+.session-group__header {
+  background: rgb(var(--ide-border) / 0.06) !important;
+}
+.session-group:has(.session-item--active) .session-group__header {
+  background: rgb(var(--ide-accent) / 0.1) !important;
+  color: rgb(var(--ide-text)) !important;
+  font-weight: 700 !important;
 }
 
 /* Session 行 — 选中：蓝左边框 + 浅蓝底 */
