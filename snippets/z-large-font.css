@@ -18,13 +18,14 @@
 
 /* 文件树 */
 .file-tree-item {
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 
 .file-tree-item--folder > .file-tree-item__name {
   /* text-transform: uppercase; */
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
+
 
 /* AI 对话区 — 助手正文 / 用户气泡 / thinking / 代码块 */
 .ai-tab__markdown {

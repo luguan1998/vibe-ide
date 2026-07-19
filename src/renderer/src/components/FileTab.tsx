@@ -1256,8 +1256,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           onMouseLeave={() => setSearchJustClosed(false)}
         >
           <div className="group flex items-center gap-1 min-w-0 flex-1">
-            <svg viewBox="0 0 16 16" fill="currentColor" className="ft-icon text-ide-accent shrink-0">
-              <path d="M14.5 3H7.71L6.86 2.15L6.51 2H1.51L1.01 2.5V6.5V13.5L1.51 14H14.51L15.01 13.5V9V3.5L14.5 3ZM13.99 11.49V13H1.99V11.49V7.49V7H6.48L6.83 6.85L7.69 5.99H14V7.49L13.99 11.49ZM13.99 5H7.49L7.14 5.15L6.28 6.01H2V3.01H6.29L7.14 3.86L7.5 4.01H14L13.99 5Z" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-accent shrink-0">
+              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+              <line x1="6" y1="12" x2="18" y2="12" />
             </svg>
             <span className="text-sm text-ide-text font-medium truncate">
               {workspacePath.split(/[\\/]/).pop()}
@@ -1424,7 +1425,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       {sectionVis.recently && wsRecent.length > 0 && (
         <div className="shrink-0 border-t border-ide-border max-h-[14rem] overflow-y-auto file-tab__section">
           <div
-            className={`pl-5 pr-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border file-tab__section-header ${recentExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
+            className={`pl-5 pr-2 py-1 text-xs uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border file-tab__section-header ${recentExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
             onClick={() => setRecentExpanded(v => !v)}
             onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
           >
@@ -1475,7 +1476,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       {sectionVis.arch && docTree.length > 0 && (
         <div className="shrink-0 border-t border-ide-border file-tab__section" style={{ maxHeight: '45%', overflowY: 'auto' }}>
           <div
-            className={`pl-5 pr-2 py-1 text-[11px] uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border file-tab__section-header ${archExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
+            className={`pl-5 pr-2 py-1 text-xs uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border file-tab__section-header ${archExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
             onClick={() => setArchExpanded(!archExpanded)}
           >
             <Lightbulb size={12} className={archExpanded ? 'text-ide-warning' : 'text-ide-text-muted'} />
