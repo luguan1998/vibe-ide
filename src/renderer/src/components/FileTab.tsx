@@ -263,7 +263,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   return (
     <>
       <div
-        className={`group pr-2 py-0.5 ft-fname cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none file-tree-item${isDir ? ' file-tree-item--folder' : ' file-tree-item--file'}${highlightedFilePath === norm(node.path) ? ' file-tree-item--active bg-ide-accent/20' : ''}`}
+        className={`group pr-2 py-0.5 ft-fname cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none file-tree-item${isDir ? ' file-tree-item--folder' : ' file-tree-item--file'}${highlightedFilePath === norm(node.path) ? ' file-tree-item--active bg-ide-accent/10' : ''}`}
         style={{ paddingLeft }}
         onClick={handleClick}
         onContextMenu={(e) => { if (!isRenaming && !isCreating) onContextMenu(e, node) }}

@@ -3,7 +3,7 @@
   文件夹 > 文件名，文件夹大写
 */
 
-/* Git 面板 — 统一放大 text-xs 元素（文件/文件夹/commit/branch），section 标题稍小 */
+/* Git 面板 */
 .git-tab-container .text-xs {
   font-size: 13px !important;
 }
@@ -27,6 +27,9 @@
   font-size: 14px !important;
 }
 
+.file-tab__header .text-sm {
+  font-size: 15px !important; 
+}
 
 /* AI 对话区 — 助手正文 / 用户气泡 / thinking / 代码块 */
 .ai-tab__markdown {
