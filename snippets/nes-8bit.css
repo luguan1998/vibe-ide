@@ -442,8 +442,8 @@ input:focus, select:focus, textarea:focus {
     5px 16px #060606,6px 16px #060606,7px 16px #060606,8px 16px #060606,9px 16px #060606,10px 16px #060606;
 }
 
-/* icon 2: star (yellow) */
-.session-item:nth-child(5n+2) .session-item__icon::before {
+/* icon 3: star (yellow) */
+.session-item:nth-child(5n+3) .session-item__icon::before {
   color: #ebe527;
   box-shadow:
     7px 1px #444,
@@ -464,8 +464,8 @@ input:focus, select:focus, textarea:focus {
     0px 16px #444,1px 16px #444,2px 16px #444,12px 16px #444,13px 16px #444,14px 16px #444;
 }
 
-/* icon 3: heart (red) */
-.session-item:nth-child(5n+3) .session-item__icon::before {
+/* icon 4: heart (red) */
+.session-item:nth-child(5n+4) .session-item__icon::before {
   color: #f22426;
   box-shadow:
     2px 2px #444,3px 2px #444,4px 2px #444,10px 2px #444,11px 2px #444,12px 2px #444,
@@ -484,8 +484,8 @@ input:focus, select:focus, textarea:focus {
     7px 15px #444;
 }
 
-/* icon 4: trophy (NES.css) */
-.session-item:nth-child(5n+4) .session-item__icon::before {
+/* icon 5: trophy (NES.css) */
+.session-item:nth-child(5n+5) .session-item__icon::before {
   color: #ebe527;
   box-shadow:
     3px 1px #444,4px 1px #444,5px 1px #444,6px 1px #444,7px 1px #444,8px 1px #444,9px 1px #444,10px 1px #444,11px 1px #444,12px 1px #444,13px 1px #444,
@@ -506,8 +506,8 @@ input:focus, select:focus, textarea:focus {
     5px 16px #444,6px 16px #444,7px 16px #444,8px 16px #444,9px 16px #444,10px 16px #444,11px 16px #444;
 }
 
-/* icon 5: like / thumbs up (NES.css) */
-.session-item:nth-child(5n+5) .session-item__icon::before {
+/* icon 2: like / thumbs up (NES.css) */
+.session-item:nth-child(5n+2) .session-item__icon::before {
   color: #fff;
   box-shadow:
     8px 2px #333,9px 2px #333,
