@@ -75,8 +75,13 @@ export function registerGitHandlers(): void {
     try {
       currentWorkspace = path
       gitInstance = simpleGit(currentWorkspace)
+      let gitRoot = path
+      try {
+        const root = (await gitInstance.raw(['rev-parse', '--show-toplevel'])).trim()
+        if (root) gitRoot = root.replace(/\\/g, '/')
+      } catch {}
       startWatching(path)
-      return { success: true, path: currentWorkspace }
+      return { success: true, path: currentWorkspace, gitRoot }
     } catch (err: any) {
       return { error: err.message || 'Failed to set workspace' }
     }

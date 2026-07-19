@@ -167,6 +167,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [showPushDropdown, setShowPushDropdown] = useState(false)
   const [stashCount, setStashCount] = useState(0)
   const [busy, setBusy] = useState(false)
+  const gitRootRef = useRef<string | null>(null)
+  const resolveFullPath = useCallback((filePath: string) => {
+    const base = gitRootRef.current || effectiveGitPath
+    return base ? `${base.replace(/\\/g, '/')}/${filePath}` : filePath
+  }, [effectiveGitPath])
   const [treeView, setTreeView] = useState(false)
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set())
   const toggleFolder = useCallback((key: string) => {
@@ -396,9 +401,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         setDiffStaged(file.staged)
       }
       if (onFileSelect) {
-        const resolvedFullPath = effectiveGitPath
-          ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}`
-          : ''
+        const resolvedFullPath = resolveFullPath(file.path)
         onFileSelect(file.path, result.content || '', file.staged, undefined, resolvedFullPath)
       }
     } catch (err: any) {
@@ -446,15 +449,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     try {
       const result = await window.api.git.diffCommitFile(expandedCommit, file.path, commitIsRoot)
       const diff = result.error ? '' : (result.diff || '')
-      const resolvedFullPath = effectiveGitPath
-        ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}`
-        : ''
+      const resolvedFullPath = resolveFullPath(file.path)
       onFileSelect(file.path, diff, false, expandedCommit, resolvedFullPath)
     } catch {
-      onFileSelect(file.path, '', false, expandedCommit)
+      onFileSelect(file.path, '', false, expandedCommit, resolveFullPath(file.path))
     }
     setLoading(false)
-  }, [onFileSelect, expandedCommit, commitIsRoot, effectiveGitPath])
+  }, [onFileSelect, expandedCommit, commitIsRoot, resolveFullPath])
 
   // Stage a file
   const handleStage = useCallback(async (filePath: string) => {
@@ -481,11 +482,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const handleDeleteFile = useCallback(async (filePath: string) => {
     setBusy(true)
     try {
-      const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${filePath}` : filePath
+      const fullPath = resolveFullPath(filePath)
       await window.api.file.delete(fullPath)
       await refreshStatus()
     } finally { setBusy(false) }
-  }, [refreshStatus, effectiveGitPath])
+  }, [refreshStatus, resolveFullPath])
 
   // Stage all files — accepts string sentinels ('-u' / '.') for fast bulk staging, or file path arrays
   const handleStageAll = useCallback(async (files: string | string[]) => {
@@ -519,12 +520,12 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     setBusy(true)
     try {
       for (const p of filePaths) {
-        const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${p}` : p
+        const fullPath = resolveFullPath(p)
         await window.api.file.delete(fullPath)
       }
       await refreshStatus()
     } finally { setBusy(false) }
-  }, [refreshStatus, effectiveGitPath])
+  }, [refreshStatus, resolveFullPath])
 
   // Commit
   const handleCommit = useCallback(async () => {
@@ -754,6 +755,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       const result = await window.api.git.setWorkspace(targetPath)
       if (pendingGitPathRef.current !== targetPath) return
       if (result.success) {
+        gitRootRef.current = result.gitRoot || targetPath
         await refreshStatus()
         refreshGraph()
         refreshBranches()
@@ -899,7 +901,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === section && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
         onContextMenu={(e) => {
           e.preventDefault()
-          const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}` : file.path
+          const fullPath = resolveFullPath(file.path)
           setFileContextMenu({ x: e.clientX, y: e.clientY, filePath: file.path, fullPath })
         }}
       >
@@ -1121,7 +1123,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'staged' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
                     onContextMenu={(e) => {
                       e.preventDefault()
-                      const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}` : file.path
+                      const fullPath = resolveFullPath(file.path)
                       setFileContextMenu({ x: e.clientX, y: e.clientY, filePath: file.path, fullPath })
                     }}
                   >
@@ -1203,7 +1205,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'unstaged' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
                     onContextMenu={(e) => {
                       e.preventDefault()
-                      const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}` : file.path
+                      const fullPath = resolveFullPath(file.path)
                       setFileContextMenu({ x: e.clientX, y: e.clientY, filePath: file.path, fullPath })
                     }}
                   >
@@ -1289,7 +1291,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'untracked' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
                     onContextMenu={(e) => {
                       e.preventDefault()
-                      const fullPath = effectiveGitPath ? `${effectiveGitPath.replace(/\\/g, '/')}/${file.path}` : file.path
+                      const fullPath = resolveFullPath(file.path)
                       setFileContextMenu({ x: e.clientX, y: e.clientY, filePath: file.path, fullPath })
                     }}
                   >
