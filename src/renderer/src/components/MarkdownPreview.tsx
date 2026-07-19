@@ -290,7 +290,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
           const dirPart = lastSep >= 0 ? fullPath.substring(0, lastSep + 1) : ''
           const namePart = lastSep >= 0 ? fullPath.substring(lastSep + 1) : fullPath
           return (
-            <div className="flex flex-col h-full animate-fade-in relative">
+            <div className="flex flex-col h-full animate-fade-in relative center-overlay">
               <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0">
                 <div className="flex items-center gap-1.5 text-sm min-w-0">
                   {onBack && (

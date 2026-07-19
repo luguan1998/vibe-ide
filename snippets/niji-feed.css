@@ -337,17 +337,22 @@
 }
 ::-webkit-scrollbar-corner { background: transparent !important; }
 
-/* xterm 自绘滚动条 — 同款 overlay */
+/* xterm 自绘滚动条 — 默认隐藏，hover 终端时显示 */
 .xterm .xterm-viewport::-webkit-scrollbar { display: none !important; }
 .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
-  background: rgb(255 255 255 / 0.22) !important;
+  background: rgb(255 64 129 / 0.18) !important;
   border-radius: 9999px !important;
   border: 2px solid transparent !important;
   background-clip: content-box !important;
   min-width: 7px !important;
+  opacity: 0 !important;
+  transition: opacity 0.2s !important;
+}
+.term-view__canvas:hover .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
+  opacity: 1 !important;
 }
 .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider:hover {
-  background: rgb(255 64 129 / 0.6) !important;
+  background: rgb(255 64 129 / 0.75) !important;
   background-clip: content-box !important;
 }
 

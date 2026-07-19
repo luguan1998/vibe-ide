@@ -779,7 +779,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }
 
   return (
-    <div ref={containerRef} className={`flex flex-col animate-fade-in${brushActive ? ' diff-brush-mode diff-brush-code' : ''}`}>
+    <div ref={containerRef} className={`flex flex-col animate-fade-in center-overlay${brushActive ? ' diff-brush-mode diff-brush-code' : ''}`}>
       <div
         className="diff-titlebar h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0"
         onContextMenu={!commitHash ? (e) => { e.preventDefault(); setEncodingContextMenu({ x: e.clientX, y: e.clientY }) } : undefined}

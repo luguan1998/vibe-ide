@@ -184,6 +184,7 @@ DOM 骨架和全部 BEM 类名见 [`ui-bem-classes.md`](ui-bem-classes.md)。
 | `niji-feed.css` | 彩虹 Feed 卡片 |
 | `win98-classic.css` | Windows 98 灰蓝 |
 | `retroma-chromatic.css` | CRT 复古全色域 |
+| `nes-8bit.css` | NES 8-bit 像素风 — Press Start 2P 字体 + 3D 浮雕边框 + CRT 扫描线 |
 | `bloodborne.css` | 血源诅咒 |
 | `z-large-font.css` | 大字无障碍 |
 | `z-opencode-term-bg.css` | 终端/AI Tab 背景图 |

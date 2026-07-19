@@ -2304,7 +2304,7 @@ export default function App() {
           )}
           {/* Markdown Preview */}
           {centerView === 'markdown' && markdownFile && (
-            <div className="flex-1 mx-1 mb-1.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
+            <div className="flex-1 mx-1 mb-1.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay">
               <MarkdownPreview
                 key={markdownFile.fullPath}
                 fullPath={markdownFile.fullPath}
@@ -2317,7 +2317,7 @@ export default function App() {
           )}
           {/* Image Preview */}
           {centerView === 'image' && imageFile && (
-            <div className="flex-1 mx-1 mb-1.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
+            <div className="flex-1 mx-1 mb-1.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay">
               <ImagePreview
                 key={imageFile.fullPath}
                 fullPath={imageFile.fullPath}

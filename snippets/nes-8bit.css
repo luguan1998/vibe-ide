@@ -1,0 +1,403 @@
+/*
+  NES 8-Bit — 任天堂红白机像素风
+  参考 NES.css 框架：白底 + 4px 粗边框 + 3D 浮雕按钮 + NES 原色调色板
+  字体：需自行安装 Zpix 最像素（中英文统一）
+  https://github.com/SolidZORO/zpix-pixel-font
+*/
+
+/* ════════════════════════════════════════════════════
+   主题色 — NES.css 白底配色
+   背景白 #fff · 文字近黑 #212529 · 强调蓝 #209cee
+   ════════════════════════════════════════════════════ */
+:root {
+  --ide-bg: 255 255 255 !important;
+  --ide-sidebar: 248 248 248 !important;
+  --ide-panel: 252 252 252 !important;
+  --ide-border: 33 37 41 !important;
+  --ide-text: 33 37 41 !important;
+  --ide-text-muted: 108 117 125 !important;
+  --ide-accent: 32 156 238 !important;
+  --ide-accent-hover: 16 141 224 !important;
+  --ide-success: 146 204 65 !important;
+  --ide-danger: 231 110 85 !important;
+  --ide-warning: 247 213 29 !important;
+  --ide-hover: 231 231 231 !important;
+  --ide-active: 0 107 179 !important;
+  --scrollbar-thumb: 173 175 188 !important;
+  --scrollbar-thumb-hover: 124 124 124 !important;
+  --selection-bg: 32 156 238 !important;
+  --selection-opacity: 0.25 !important;
+  --monaco-margin-bg: 248 248 248 !important;
+  --ide-titlebar-symbol: 255 255 255 !important;
+}
+
+/* ════════════════════════════════════════════════════
+   字体 + 图标放大
+   ════════════════════════════════════════════════════ */
+:root {
+  --ide-font-family: 'Zpix', monospace !important;
+  --ide-term-font: 'Zpix', monospace !important;
+  --ide-session-font: 'Zpix', monospace !important;
+}
+
+html, body, #root {
+  font-family: 'Zpix', monospace !important;
+}
+
+/* 代码/输入区保留系统等宽（像素字体对代码可读性差） */
+.font-mono, code, pre,
+.git-tab__commit-input, input[type="text"], textarea {
+  font-family: 'Consolas', 'Courier New', monospace !important;
+}
+
+/* 全局图标放大 */
+.session-item__icon { width: 20px !important; height: 20px !important; }
+.session-item__icon svg { width: 18px !important; height: 18px !important; }
+.session-panel__settings-btn svg,
+.session-panel__new-btn svg { width: 18px !important; height: 18px !important; }
+.right-panel__tab svg { width: 16px !important; height: 16px !important; }
+
+/* ════════════════════════════════════════════════════
+   全局 — 直角世界
+   ════════════════════════════════════════════════════ */
+* { border-radius: 0 !important; }
+.monaco-editor * { border-radius: revert !important; }
+
+
+/* ════════════════════════════════════════════════════
+   标题栏 — NES 蓝底
+   不设 border / height，避免干扰 Windows 原生按钮
+   ════════════════════════════════════════════════════ */
+.titlebar-drag[class*="h-9"] {
+  background: #209cee !important;
+}
+.titlebar-drag[class*="h-9"] * { color: #fff !important; }
+
+
+/* ════════════════════════════════════════════════════
+   Session 面板 — NES 风格 4px 边框 + 3D 凸起/凹陷
+   ════════════════════════════════════════════════════ */
+
+.session-panel__list-wrapper {
+  border: 4px solid rgb(var(--ide-border)) !important;
+}
+
+/* 统计徽章 — 凸起按钮（白底 + 浅灰阴影） */
+.session-panel__stat {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -4px -4px 0 #adafbc, inset 4px 4px 0 #fff !important;
+  text-transform: uppercase !important;
+  background: #fff !important;
+}
+
+/* 设置 / 新建按钮 — 凸起 */
+.session-panel__settings-btn,
+.session-panel__new-btn {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -4px -4px 0 #adafbc, inset 4px 4px 0 #fff !important;
+  width: 32px !important;
+  height: 32px !important;
+}
+.session-panel__settings-btn:active,
+.session-panel__new-btn:active {
+  box-shadow: inset 4px 4px 0 #adafbc, inset -4px -4px 0 #fff !important;
+}
+
+/* Session 行 — 选中：蓝左边框 + 浅蓝底 */
+.session-item--active {
+  border-left: 4px solid rgb(var(--ide-accent)) !important;
+  background: rgb(var(--ide-accent) / 0.1) !important;
+}
+.session-item--active .session-item__name {
+  font-weight: 700 !important;
+}
+
+/* AI 运行中 — 蓝左边框 */
+.session-item--pipe-running {
+  border-left: 4px solid rgb(var(--ide-accent)) !important;
+}
+
+/* 设置菜单 — 4px 粗框 + 硬阴影 */
+.session-panel__settings-menu {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: 4px 4px 0 rgba(33, 37, 41, 0.4) !important;
+  background: #fff !important;
+}
+
+
+/* ════════════════════════════════════════════════════
+   终端 — 白底 + 4px 边框
+   ════════════════════════════════════════════════════ */
+
+.term-view__canvas {
+  --term-bg: 252 252 252;
+  border: 3px solid rgb(var(--ide-border)) !important;
+}
+
+.term-view__header {
+  border-bottom: 4px solid rgb(var(--ide-border)) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+}
+
+
+/* ════════════════════════════════════════════════════
+   文件树
+   ════════════════════════════════════════════════════ */
+
+.file-tab__header {
+  border-bottom: 3px solid rgb(var(--ide-border)) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+}
+
+.file-tree-item--active {
+  border-left: 4px solid rgb(var(--ide-accent)) !important;
+  background: rgb(var(--ide-accent) / 0.08) !important;
+}
+
+.file-tree-item--folder > .file-tree-item__name {
+  text-transform: uppercase !important;
+}
+
+.file-tab__section {
+  border-top: 2px solid rgb(var(--ide-border)) !important;
+}
+.file-tab__section:first-of-type {
+  border-top: none !important;
+}
+
+.file-tab__section-header {
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 2px !important;
+}
+
+
+/* ════════════════════════════════════════════════════
+   Git 面板
+   ════════════════════════════════════════════════════ */
+
+.git-tab__header {
+  border-bottom: 3px solid rgb(var(--ide-border)) !important;
+}
+
+.git-tab__branch-name {
+  font-weight: 700 !important;
+}
+
+.git-tab__section {
+  border-bottom: 2px solid rgb(var(--ide-border)) !important;
+}
+
+.git-tab__section-header {
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+}
+
+/* Commit 输入框 — 凹陷 */
+.git-tab__commit-input {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset 4px 4px 0 #adafbc, inset -4px -4px 0 #fff !important;
+  background: #fff !important;
+}
+.git-tab__commit-input:focus {
+  border-color: rgb(var(--ide-accent)) !important;
+}
+
+/* Commit 按钮 — 凸起 + 蓝色 */
+.git-tab__commit-btn {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -4px -4px 0 #006bb3, inset 4px 4px 0 #fff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 2px !important;
+  background: rgb(var(--ide-accent)) !important;
+  color: #fff !important;
+}
+.git-tab__commit-btn:active {
+  box-shadow: inset 4px 4px 0 #006bb3, inset -4px -4px 0 #fff !important;
+}
+
+/* Stash / Amend — 小凸起按钮 */
+.git-tab__stash-btn,
+.git-tab__amend-btn {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -4px -4px 0 #adafbc, inset 4px 4px 0 #fff !important;
+  text-transform: uppercase !important;
+  background: #fff !important;
+}
+
+
+/* ════════════════════════════════════════════════════
+   右侧面板 — Tab 凸起按钮
+   ════════════════════════════════════════════════════ */
+
+.right-panel__tab-bar {
+  border-bottom: none !important;
+}
+
+.right-panel__tab {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -4px -4px 0 #adafbc, inset 4px 4px 0 #fff !important;
+  text-transform: uppercase !important;
+  background: #fff !important;
+}
+
+.right-panel__tab--active {
+  box-shadow: inset 4px 4px 0 #adafbc, inset -4px -4px 0 #fff !important;
+  font-weight: 700 !important;
+}
+
+.right-panel__content {
+  border: 4px solid rgb(var(--ide-border)) !important;
+}
+
+
+/* ════════════════════════════════════════════════════
+   AI Tab — Markdown 渲染
+   ════════════════════════════════════════════════════ */
+
+/* 代码块 — 凹陷面板 */
+.ai-tab__markdown pre {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset 4px 4px 0 #adafbc, inset -4px -4px 0 #fff !important;
+  background: #fff !important;
+}
+
+/* 行内代码 */
+.ai-tab__markdown code {
+  border: 2px solid rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-hover)) !important;
+  color: rgb(var(--ide-accent)) !important;
+}
+
+/* 工具调用 */
+.ai-tab__tool-call {
+  border-left: 4px solid rgb(var(--ide-accent)) !important;
+  border-bottom: 2px solid rgb(var(--ide-border)) !important;
+}
+
+/* 用户气泡 */
+.ai-tab__user-bubble {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -4px -4px 0 #adafbc, inset 4px 4px 0 #fff !important;
+  background: #fff !important;
+}
+
+
+/* ════════════════════════════════════════════════════
+   Markdown 预览（DiffViewer）
+   ════════════════════════════════════════════════════ */
+
+.md-preview h1, .md-preview h2 {
+  border-bottom: 4px solid rgb(var(--ide-accent)) !important;
+  text-transform: uppercase !important;
+}
+
+.md-preview code {
+  border: 2px solid rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-hover)) !important;
+}
+
+.md-preview pre,
+.md-code-block {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset 4px 4px 0 #adafbc, inset -4px -4px 0 #fff !important;
+}
+
+.md-preview blockquote {
+  border-left: 4px solid rgb(var(--ide-accent)) !important;
+  background: rgb(var(--ide-hover)) !important;
+}
+
+
+/* ════════════════════════════════════════════════════
+   滚动条 — NES 灰 + 凸起
+   ════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 14px !important; height: 14px !important; }
+
+::-webkit-scrollbar-track {
+  background: #fff !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #adafbc !important;
+  border: 3px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -2px -2px 0 rgba(0,0,0,0.3), inset 2px 2px 0 #fff !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #209cee !important;
+}
+
+
+/* ════════════════════════════════════════════════════
+   模态弹窗 — 4px 粗框 + 硬阴影
+   ════════════════════════════════════════════════════ */
+.fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: 4px 4px 0 rgba(33, 37, 41, 0.4) !important;
+}
+
+.fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  box-shadow: 4px 4px 0 rgba(33, 37, 41, 0.4) !important;
+}
+
+
+/* ════════════════════════════════════════════════════
+   输入框 / 文本域 — 全局 4px 粗边框
+   ════════════════════════════════════════════════════ */
+input, select, textarea {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  background: #fff !important;
+  padding: 4px 8px !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: rgb(var(--ide-accent)) !important;
+  outline: none !important;
+}
+
+
+/* ════════════════════════════════════════════════════
+   ESC 关闭的覆盖面板 — Markdown/Image/Diff 预览统一
+   ════════════════════════════════════════════════════ */
+.center-overlay {
+  border: 4px solid rgb(var(--ide-border)) !important;
+  border-radius: 0 !important;
+}
+
+/* 覆盖面板内 header — 匹配 h-10 的标题栏 */
+.center-overlay > div:first-child[class*="h-10"] {
+  border-bottom: 4px solid rgb(var(--ide-border)) !important;
+  background: #fff !important;
+}
+
+/* 覆盖面板内返回按钮 */
+.center-overlay button[title="Esc"] {
+  border: 3px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
+  border-radius: 0 !important;
+}
+.center-overlay button[title="Esc"]:active {
+  box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
+}
+
+/* ════════════════════════════════════════════════════
+   分割线
+   ════════════════════════════════════════════════════ */
+
+
+/* ════════════════════════════════════════════════════
+   Session 图标 emoji 替换 — 大号像素风（取消注释启用）
+   ════════════════════════════════════════════════════ */
+/*
+.session-panel__settings-btn svg { display: none !important; }
+.session-panel__settings-btn::after { content: '⚙'; font-size: 16px; }
+.session-panel__new-btn svg { display: none !important; }
+.session-panel__new-btn::after { content: '🎮'; font-size: 16px; }
+*/

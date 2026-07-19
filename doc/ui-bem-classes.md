@@ -41,6 +41,8 @@
     .file-tree-item--folder / .file-tree-item--file / .file-tree-item--active
       .file-tree-item__toggle / .file-tree-item__name
 
+.center-overlay                     # 覆盖面板（Markdown/Image/Diff 预览，ESC 关闭）
+
 .draft-plan                         # 草稿计划（Game tab）
   .draft-plan__header / .draft-plan__list / .draft-plan__footer
 ```
@@ -149,6 +151,16 @@
 | `file-tree-item__name` | 文件名文本 |
 
 **CSS 变量钩子**：`--ft-fname-size`（文件名，默认 `13px`）、`--ft-icon-size`（图标大小，默认 `14px`），在 `:root` 覆盖即可，无需选择器。
+
+---
+
+## CenterOverlay — ESC 关闭的覆盖面板
+
+MarkdownPreview / ImagePreview / DiffViewer 三个面板统一使用 `.center-overlay`。
+
+| 类名 | 说明 |
+|------|------|
+| `center-overlay` | 覆盖在终端中栏上的预览面板根容器 |
 
 ---
 

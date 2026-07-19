@@ -26,6 +26,7 @@ export function syncTitleBarOverlay(): void {
   const color = bgToHex(document.querySelector('.titlebar-drag .no-drag'))
     ?? bgToHex(document.querySelector('.titlebar-drag'))
     ?? fallback
-  const symbolColor = cssVarToHex('--ide-text-muted', '#8888aa')
+  const symbolColor = cssVarToHex('--ide-titlebar-symbol', '')
+    || cssVarToHex('--ide-text-muted', '#8888aa')
   window.api.theme.setTitleBar({ color, symbolColor, backgroundColor: color })
 }
