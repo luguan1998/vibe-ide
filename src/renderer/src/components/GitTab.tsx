@@ -979,9 +979,16 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             onClick={() => toggleFolder(key)}
           >
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 text-ide-text-muted transition-transform ${collapsed ? '-rotate-90' : 'rotate-0'}`}><path d="M4 6l4 4 4-4" /></svg>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
+            {collapsed ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-accent shrink-0">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                <path d="M2 10h12l2 4h6" />
+              </svg>
+            )}
             <span className="shrink-0 git-fname">{node.name}</span>
             {(node.leafCount ?? 0) > 1 && <span className="text-[11px] text-ide-text-muted">({node.leafCount})</span>}
             <span className="flex-1" />

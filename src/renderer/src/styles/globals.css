@@ -463,9 +463,8 @@ html, body, #root {
   .git-stats { display: none; }
 }
 
-/* ── Git 文件名/目录字号 — snippets CSS 可通过 --git-fname-size / --git-fdir-size 覆盖 ── */
-.git-fname { font-size: var(--git-fname-size, 11px); }
-.git-fdir { font-size: var(--git-fdir-size, 10px); }
+/* ── Git 文件名继承父级 .git-tab__file-item；目录比文件名略小 ── */
+.git-fdir { font-size: 0.9em; }
 
 /* ── File 文件名/图标尺寸 — snippets CSS 可通过 --ft-fname-size / --ft-icon-size 覆盖 ── */
 .ft-fname { font-size: var(--ft-fname-size, 13px); }

@@ -90,7 +90,6 @@ html, body, #root {
   border: 1px solid rgb(32 27 24 / 0.6) !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
-  font-size: 11px !important;
   background: rgb(20 50 65) !important;
   color: rgb(228 204 159) !important;
 }
@@ -254,8 +253,6 @@ html, body, #root {
   border-bottom: 1px solid rgb(32 27 24) !important;
   background: linear-gradient(90deg, rgb(20 50 65), rgb(25 70 85), rgb(20 50 65)) !important;
 }
-.file-tree-item { font-size: 12px !important; }
-
 .file-tree-item--active {
   border-left: 3px solid rgb(217 93 85) !important;
   background: rgb(25 70 85) !important;
@@ -278,7 +275,6 @@ html, body, #root {
   color: rgb(228 204 159 / 0.7) !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
-  font-size: 11px !important;
 }
 
 /* ════════════════════════════════════════════════════
@@ -302,11 +298,9 @@ html, body, #root {
   border-bottom: 1px solid rgb(32 27 24) !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
-  font-size: 11px !important;
 }
 .git-tab__file-item {
   border-bottom: 1px solid rgb(32 27 24 / 0.3);
-  font-size: 11px !important;
   transition: background 0.15s !important;
 }
 .git-tab__file-item:hover { background: rgb(25 70 85) !important; }

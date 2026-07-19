@@ -259,8 +259,6 @@ textarea {
   border-bottom: 1px solid rgb(var(--ide-border)) !important;
   background: linear-gradient(90deg, rgb(20 24 52), rgb(26 32 62), rgb(20 24 52)) !important;
 }
-.file-tree-item { font-size: 12px !important; }
-
 .file-tree-item--active {
   border-left: 3px solid rgb(var(--ide-accent)) !important;
   background: rgb(var(--ide-active)) !important;
@@ -281,7 +279,6 @@ textarea {
   border-bottom: 1px solid rgb(var(--ide-border)) !important;
   background: rgb(22 26 54) !important;
   text-transform: none !important; letter-spacing: 0 !important;
-  font-size: 11px !important;
   color: rgb(120 130 165) !important;
 }
 
@@ -305,11 +302,9 @@ textarea {
 .git-tab__section-header {
   border-bottom: 1px solid rgb(var(--ide-border)) !important;
   text-transform: none !important; letter-spacing: 0 !important;
-  font-size: 11px !important;
 }
 .git-tab__file-item {
   border-bottom: 1px solid rgb(32 34 56);
-  font-size: 11px !important;
   transition: background 0.15s !important;
 }
 .git-tab__file-item:hover { background: rgb(var(--ide-hover)) !important; }
@@ -345,7 +340,6 @@ textarea {
 .right-panel__tab-bar { border-bottom: 1px solid rgb(var(--ide-border)) !important; }
 .right-panel__tab {
   border: 1px solid rgb(var(--ide-border)) !important;
-  font-size: 11px !important;
   transition: all 0.15s !important;
 }
 .right-panel__tab--active {
@@ -410,26 +404,7 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
    ════════════════════════════════════════════════════ */
 
 
-/* 会话面板 — 底部散布小星群 */
-.session-panel__list-wrapper::after {
-  content: '' !important;
-  position: absolute !important;
-  bottom: 20px !important;
-  left: 8px !important;
-  right: 8px !important;
-  height: 70px !important;
-  pointer-events: none !important;
-  z-index: 0 !important;
-  background:
-    radial-gradient(1.2px 1.2px at 10% 30%, rgba(255,220,90,0.65), transparent),
-    radial-gradient(1px 1px at 25% 55%, rgba(255,195,40,0.5), transparent),
-    radial-gradient(1.5px 1.5px at 45% 15%, rgba(255,210,80,0.7), transparent),
-    radial-gradient(1px 1px at 60% 50%, rgba(255,220,90,0.55), transparent),
-    radial-gradient(1.3px 1.3px at 78% 25%, rgba(255,200,50,0.6), transparent),
-    radial-gradient(1px 1px at 90% 48%, rgba(255,195,40,0.45), transparent),
-    radial-gradient(1.2px 1.2px at 15% 70%, rgba(255,210,70,0.5), transparent),
-    radial-gradient(1px 1px at 70% 65%, rgba(255,220,90,0.4), transparent) !important;
-}
+
 
 /* 忙碌非选中 — 右侧小画笔螺旋（金星同款风格，静态无动画） */
 .session-item:not(.session-item--active).border-ide-accent\/60 {
@@ -479,26 +454,7 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
   overflow: hidden !important;
 }
 
-/* 文件树 — 顶部散布星群 */
-.right-panel__content::before {
-  content: '' !important;
-  position: absolute !important;
-  top: 6px !important;
-  left: 12px !important;
-  width: 80px !important;
-  height: 36px !important;
-  pointer-events: none !important;
-  z-index: 0 !important;
-  background:
-    radial-gradient(1.2px 1.2px at 5px 8px, rgba(255,220,90,0.6), transparent),
-    radial-gradient(1px 1px at 18px 4px, rgba(255,195,40,0.5), transparent),
-    radial-gradient(1.4px 1.4px at 35px 12px, rgba(255,210,70,0.65), transparent),
-    radial-gradient(1px 1px at 52px 6px, rgba(255,200,50,0.5), transparent),
-    radial-gradient(1.2px 1.2px at 68px 14px, rgba(255,220,90,0.55), transparent),
-    radial-gradient(1px 1px at 14px 22px, rgba(255,195,40,0.45), transparent),
-    radial-gradient(1.3px 1.3px at 44px 24px, rgba(255,210,70,0.5), transparent),
-    radial-gradient(1px 1px at 72px 26px, rgba(255,200,50,0.4), transparent) !important;
-}
+
 
 /* 文件树 — 底部 螺旋笔触纹理 可见漩涡曲线 */
 .right-panel__content::after {

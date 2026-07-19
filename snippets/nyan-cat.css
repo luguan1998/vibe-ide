@@ -327,7 +327,7 @@
   background: linear-gradient(90deg, rgb(20 32 60), rgb(26 40 72), rgb(20 32 60)) !important;
 }
 
-.file-tree-item { font-size: 12px !important; }
+
 
 .file-tree-item--active {
   border-left: 3px solid rgb(242 140 245) !important;
@@ -387,7 +387,6 @@
 
 .git-tab__file-item {
   border-bottom: 1px solid rgb(28 40 64) !important;
-  font-size: 11px !important;
   transition: background 0.15s !important;
 }
 

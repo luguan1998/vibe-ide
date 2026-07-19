@@ -3,8 +3,8 @@
   文件夹 > 文件名，文件夹大写
 */
 
-/* Git 面板 */
-.git-tab__file-item {
+/* Git 面板 — 统一放大 text-xs 元素（文件/文件夹/commit/branch），section 标题稍小 */
+.git-tab-container .text-xs {
   font-size: 13px !important;
 }
 
@@ -12,8 +12,9 @@
   font-size: 12px !important;
 }
 
+/* 标题名 */
 .git-tab__branch-name {
-  font-size: 13px !important;
+  font-size: 15px !important;
 }
 
 /* 文件树 */
