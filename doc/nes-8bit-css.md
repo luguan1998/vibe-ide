@@ -726,3 +726,32 @@ NES 游戏的标准纵横比为 **4:3**，NES PPU 内部实际使用的像素纵
 - [Zpix (最像素)](https://github.com/SolidZORO/zpix-pixel-font) — 中文字体像素字体
 - [box-shadow-pixels (npm)](https://npm.io/package/box-shadow-pixels) — 从像素网格生成 box-shadow CSS 的工具
 - [FoxyStoat/pixel-art (GitHub)](https://github.com/FoxyStoat/pixel-art) — 单 div + box-shadow 像素画示例集
+
+---
+
+## 5. 项目实践踩坑
+
+### 5.1 center-overlay 双层边框汇聚
+
+**问题**：Markdown/Image 预览面板出现 4-6px 的异常粗边框。
+
+**根因**：App.tsx 中 MarkdownPreview / ImagePreview 的渲染结构存在双层 `center-overlay`：
+
+```
+外层 wrapper（App.tsx:2307）              ← center-overlay + border-ide-border
+  └─ 内层组件（MarkdownPreview.tsx:293）  ← center-overlay（无 border-ide-border）
+       └─ header（h-10 + border-b）       ← 内部分隔线
+```
+
+CSS snippet 对 `.center-overlay` 设 `border: 2px solid`，两层各加 2px 外框，叠加 + header 底线 = 4-6px。
+
+**解决**：用 `.center-overlay.border-ide-border` 限定只给外层（App.tsx 中同时挂了 `border-ide-border` Tailwind class 的 wrapper）加边框，内层不受影响。
+
+```css
+/* 只给外层容器加 NES 边框，内层组件不加 */
+.center-overlay.border-ide-border {
+  border: 2px solid rgb(var(--ide-border)) !important;
+}
+```
+
+**教训**：CSS snippet 覆盖全局 class 时要注意同名 class 的嵌套复用场景，优先用组合选择器限定作用范围。

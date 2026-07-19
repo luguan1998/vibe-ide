@@ -1,5 +1,5 @@
 /*
-  NES 8-Bit — 任天堂红白机像素风
+  NES 8-Bit — 任天堂红白机像素风 需要阅读css从github下载对应字体
   参考 NES.css 框架：白底 + 4px 粗边框 + 3D 浮雕按钮 + NES 原色调色板
   字体：需自行安装 Zpix 最像素（中英文统一）
   https://github.com/SolidZORO/zpix-pixel-font
@@ -79,13 +79,13 @@ html, body, #root {
    ════════════════════════════════════════════════════ */
 
 .session-panel__list-wrapper {
-  border: 4px solid rgb(var(--ide-border)) !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
 }
 
 /* 统计徽章 — 凸起按钮（白底 + 浅灰阴影） */
 .session-panel__stat {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -4px -4px 0 #adafbc, inset 4px 4px 0 #fff !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   text-transform: uppercase !important;
   background: #fff !important;
 }
@@ -93,19 +93,19 @@ html, body, #root {
 /* 设置 / 新建按钮 — 凸起 */
 .session-panel__settings-btn,
 .session-panel__new-btn {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -4px -4px 0 #adafbc, inset 4px 4px 0 #fff !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   width: 32px !important;
   height: 32px !important;
 }
 .session-panel__settings-btn:active,
 .session-panel__new-btn:active {
-  box-shadow: inset 4px 4px 0 #adafbc, inset -4px -4px 0 #fff !important;
+  box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
 }
 
 /* Session 行 — 选中：蓝左边框 + 浅蓝底 */
 .session-item--active {
-  border-left: 4px solid rgb(var(--ide-accent)) !important;
+  border-left: 2px solid rgb(var(--ide-accent)) !important;
   background: rgb(var(--ide-accent) / 0.1) !important;
 }
 .session-item--active .session-item__name {
@@ -114,13 +114,13 @@ html, body, #root {
 
 /* AI 运行中 — 蓝左边框 */
 .session-item--pipe-running {
-  border-left: 4px solid rgb(var(--ide-accent)) !important;
+  border-left: 2px solid rgb(var(--ide-accent)) !important;
 }
 
 /* 设置菜单 — 4px 粗框 + 硬阴影 */
 .session-panel__settings-menu {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: 4px 4px 0 rgba(33, 37, 41, 0.4) !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: 2px 2px 0 rgba(33, 37, 41, 0.4) !important;
   background: #fff !important;
 }
 
@@ -131,13 +131,14 @@ html, body, #root {
 
 .term-view__canvas {
   --term-bg: 252 252 252;
-  border: 3px solid rgb(var(--ide-border)) !important;
+  border: 1px solid rgb(var(--ide-border)) !important;
 }
 
 .term-view__header {
-  border-bottom: 4px solid rgb(var(--ide-border)) !important;
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
   text-transform: uppercase !important;
   letter-spacing: 1px !important;
+  font-weight: 700 !important;
 }
 
 
@@ -146,18 +147,20 @@ html, body, #root {
    ════════════════════════════════════════════════════ */
 
 .file-tab__header {
-  border-bottom: 3px solid rgb(var(--ide-border)) !important;
+  border-bottom: 2px solid rgb(var(--ide-border)) !important;
   text-transform: uppercase !important;
   letter-spacing: 1px !important;
+  font-weight: 700 !important;
 }
 
 .file-tree-item--active {
-  border-left: 4px solid rgb(var(--ide-accent)) !important;
+  border-left: 2px solid rgb(var(--ide-accent)) !important;
   background: rgb(var(--ide-accent) / 0.08) !important;
 }
 
 .file-tree-item--folder > .file-tree-item__name {
   text-transform: uppercase !important;
+  font-weight: 700 !important;
 }
 
 .file-tab__section {
@@ -171,6 +174,7 @@ html, body, #root {
   border-bottom: 1px solid rgb(var(--ide-border)) !important;
   text-transform: uppercase !important;
   letter-spacing: 2px !important;
+  font-weight: 700 !important;
 }
 
 
@@ -179,7 +183,8 @@ html, body, #root {
    ════════════════════════════════════════════════════ */
 
 .git-tab__header {
-  border-bottom: 3px solid rgb(var(--ide-border)) !important;
+  border-bottom: 2px solid rgb(var(--ide-border)) !important;
+  font-weight: 700 !important;
 }
 
 .git-tab__branch-name {
@@ -194,12 +199,13 @@ html, body, #root {
   border-bottom: 1px solid rgb(var(--ide-border)) !important;
   text-transform: uppercase !important;
   letter-spacing: 1px !important;
+  font-weight: 700 !important;
 }
 
 /* Commit 输入框 — 凹陷 */
 .git-tab__commit-input {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset 4px 4px 0 #adafbc, inset -4px -4px 0 #fff !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
   background: #fff !important;
 }
 .git-tab__commit-input:focus {
@@ -208,8 +214,8 @@ html, body, #root {
 
 /* Commit 按钮 — 凸起 + 蓝色 */
 .git-tab__commit-btn {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -4px -4px 0 #006bb3, inset 4px 4px 0 #fff !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -2px -2px 0 #006bb3, inset 2px 2px 0 #fff !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
   letter-spacing: 2px !important;
@@ -217,14 +223,14 @@ html, body, #root {
   color: #fff !important;
 }
 .git-tab__commit-btn:active {
-  box-shadow: inset 4px 4px 0 #006bb3, inset -4px -4px 0 #fff !important;
+  box-shadow: inset 2px 2px 0 #006bb3, inset -2px -2px 0 #fff !important;
 }
 
 /* Stash / Amend — 小凸起按钮 */
 .git-tab__stash-btn,
 .git-tab__amend-btn {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -4px -4px 0 #adafbc, inset 4px 4px 0 #fff !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   text-transform: uppercase !important;
   background: #fff !important;
 }
@@ -239,19 +245,22 @@ html, body, #root {
 }
 
 .right-panel__tab {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -4px -4px 0 #adafbc, inset 4px 4px 0 #fff !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   text-transform: uppercase !important;
   background: #fff !important;
 }
+.right-panel__tab + .right-panel__tab {
+  border-left: 1px solid rgb(var(--ide-border)) !important;
+}
 
 .right-panel__tab--active {
-  box-shadow: inset 4px 4px 0 #adafbc, inset -4px -4px 0 #fff !important;
+  box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
   font-weight: 700 !important;
 }
 
 .right-panel__content {
-  border: 4px solid rgb(var(--ide-border)) !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
 }
 
 
@@ -261,8 +270,8 @@ html, body, #root {
 
 /* 代码块 — 凹陷面板 */
 .ai-tab__markdown pre {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset 4px 4px 0 #adafbc, inset -4px -4px 0 #fff !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
   background: #fff !important;
 }
 
@@ -275,14 +284,14 @@ html, body, #root {
 
 /* 工具调用 */
 .ai-tab__tool-call {
-  border-left: 4px solid rgb(var(--ide-accent)) !important;
+  border-left: 2px solid rgb(var(--ide-accent)) !important;
   border-bottom: 2px solid rgb(var(--ide-border)) !important;
 }
 
 /* 用户气泡 */
 .ai-tab__user-bubble {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -4px -4px 0 #adafbc, inset 4px 4px 0 #fff !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   background: #fff !important;
 }
 
@@ -292,23 +301,23 @@ html, body, #root {
    ════════════════════════════════════════════════════ */
 
 .md-preview h1, .md-preview h2 {
-  border-bottom: 4px solid rgb(var(--ide-accent)) !important;
+  border-bottom: 1px solid rgb(var(--ide-accent)) !important;
   text-transform: uppercase !important;
 }
 
 .md-preview code {
-  border: 2px solid rgb(var(--ide-border)) !important;
+  border: 1px solid rgb(var(--ide-border)) !important;
   background: rgb(var(--ide-hover)) !important;
 }
 
 .md-preview pre,
 .md-code-block {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset 4px 4px 0 #adafbc, inset -4px -4px 0 #fff !important;
+  border: 1px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset 1px 1px 0 #adafbc, inset -1px -1px 0 #fff !important;
 }
 
 .md-preview blockquote {
-  border-left: 4px solid rgb(var(--ide-accent)) !important;
+  border-left: 1px solid rgb(var(--ide-accent)) !important;
   background: rgb(var(--ide-hover)) !important;
 }
 
@@ -316,17 +325,17 @@ html, body, #root {
 /* ════════════════════════════════════════════════════
    滚动条 — NES 灰 + 凸起
    ════════════════════════════════════════════════════ */
-::-webkit-scrollbar { width: 14px !important; height: 14px !important; }
+::-webkit-scrollbar { width: 10px !important; height: 10px !important; }
 
 ::-webkit-scrollbar-track {
-  background: #fff !important;
-  border: 2px solid rgb(var(--ide-border)) !important;
+  background: rgb(var(--ide-sidebar)) !important;
+  box-shadow: inset 0 0 0 1px rgb(var(--ide-border) / 0.3) !important;
 }
 
 ::-webkit-scrollbar-thumb {
   background: #adafbc !important;
-  border: 3px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -2px -2px 0 rgba(0,0,0,0.3), inset 2px 2px 0 #fff !important;
+  border: 1px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -1px -1px 0 rgba(0,0,0,0.3), inset 1px 1px 0 #fff !important;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -338,13 +347,13 @@ html, body, #root {
    模态弹窗 — 4px 粗框 + 硬阴影
    ════════════════════════════════════════════════════ */
 .fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: 4px 4px 0 rgba(33, 37, 41, 0.4) !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: 2px 2px 0 rgba(33, 37, 41, 0.4) !important;
 }
 
 .fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
-  border: 4px solid rgb(var(--ide-border)) !important;
-  box-shadow: 4px 4px 0 rgba(33, 37, 41, 0.4) !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: 2px 2px 0 rgba(33, 37, 41, 0.4) !important;
 }
 
 
@@ -352,7 +361,7 @@ html, body, #root {
    输入框 / 文本域 — 全局 4px 粗边框
    ════════════════════════════════════════════════════ */
 input, select, textarea {
-  border: 4px solid rgb(var(--ide-border)) !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
   background: #fff !important;
   padding: 4px 8px !important;
 }
@@ -366,20 +375,20 @@ input:focus, select:focus, textarea:focus {
 /* ════════════════════════════════════════════════════
    ESC 关闭的覆盖面板 — Markdown/Image/Diff 预览统一
    ════════════════════════════════════════════════════ */
-.center-overlay {
-  border: 4px solid rgb(var(--ide-border)) !important;
+.center-overlay.border-ide-border {
+  border: 2px solid rgb(var(--ide-border)) !important;
   border-radius: 0 !important;
 }
 
-/* 覆盖面板内 header — 匹配 h-10 的标题栏 */
+/* 覆盖面板内 header — 内层分隔线，不与外框叠加 */
 .center-overlay > div:first-child[class*="h-10"] {
-  border-bottom: 4px solid rgb(var(--ide-border)) !important;
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
   background: #fff !important;
 }
 
 /* 覆盖面板内返回按钮 */
 .center-overlay button[title="Esc"] {
-  border: 3px solid rgb(var(--ide-border)) !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
   box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   border-radius: 0 !important;
 }
@@ -393,11 +402,152 @@ input:focus, select:focus, textarea:focus {
 
 
 /* ════════════════════════════════════════════════════
-   Session 图标 emoji 替换 — 大号像素风（取消注释启用）
+   Session 图标 — NES 像素风
    ════════════════════════════════════════════════════ */
-/*
-.session-panel__settings-btn svg { display: none !important; }
-.session-panel__settings-btn::after { content: '⚙'; font-size: 16px; }
-.session-panel__new-btn svg { display: none !important; }
-.session-panel__new-btn::after { content: '🎮'; font-size: 16px; }
-*/
+
+.session-item__icon {
+  position: relative;
+  width: 16px !important;
+  height: 16px !important;
+  overflow: visible !important;
+}
+.session-item__icon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+}
+
+/* icon 1: coin (gold) */
+.session-item:nth-child(5n+1) .session-item__icon::before {
+  color: #ffc107;
+  box-shadow:
+    5px 1px #060606,6px 1px #060606,7px 1px #060606,8px 1px #060606,9px 1px #060606,10px 1px #060606,
+    3px 2px #060606,4px 2px #060606,5px 2px #060606,6px 2px #fff,7px 2px #fff,8px 2px #fff,9px 2px #060606,10px 2px #060606,11px 2px #060606,12px 2px #060606,
+    2px 3px #060606,3px 3px #060606,4px 3px #fff,5px 3px #fff,6px 3px,7px 3px,8px 3px,9px 3px,10px 3px,11px 3px #060606,12px 3px #060606,
+    2px 4px #060606,3px 4px #fff,4px 4px,5px 4px,6px 4px #fff,7px 4px #fff,8px 4px #fff,9px 4px #060606,10px 4px,11px 4px,12px 4px #060606,13px 4px #060606,
+    1px 5px #060606,2px 5px #060606,3px 5px #fff,4px 5px,5px 5px,6px 5px #fff,7px 5px,8px 5px,9px 5px #060606,10px 5px,11px 5px,12px 5px #060606,13px 5px #060606,
+    1px 6px #060606,2px 6px #fff,3px 6px,4px 6px,5px 6px,6px 6px #fff,7px 6px,8px 6px,9px 6px #060606,10px 6px,11px 6px,12px 6px,13px 6px #060606,14px 6px #060606,
+    1px 7px #060606,2px 7px #fff,3px 7px,4px 7px,5px 7px,6px 7px #fff,7px 7px,8px 7px,9px 7px #060606,10px 7px,11px 7px,12px 7px,13px 7px #060606,14px 7px #060606,
+    1px 8px #060606,2px 8px #fff,3px 8px,4px 8px,5px 8px,6px 8px #fff,7px 8px,8px 8px,9px 8px #060606,10px 8px,11px 8px,12px 8px,13px 8px #060606,14px 8px #060606,
+    1px 9px #060606,2px 9px #fff,3px 9px,4px 9px,5px 9px,6px 9px #fff,7px 9px,8px 9px,9px 9px #060606,10px 9px,11px 9px,12px 9px,13px 9px #060606,14px 9px #060606,
+    1px 10px #060606,2px 10px #fff,3px 10px,4px 10px,5px 10px,6px 10px #fff,7px 10px,8px 10px,9px 10px #060606,10px 10px,11px 10px,12px 10px,13px 10px #060606,14px 10px #060606,
+    1px 11px #060606,2px 11px #fff,3px 11px,4px 11px,5px 11px,6px 11px #fff,7px 11px,8px 11px,9px 11px #060606,10px 11px,11px 11px,12px 11px,13px 11px #060606,14px 11px #060606,
+    1px 12px #060606,2px 12px #060606,3px 12px #fff,4px 12px,5px 12px,6px 12px #fff,7px 12px,8px 12px,9px 12px #060606,10px 12px,11px 12px,12px 12px #060606,13px 12px #060606,
+    2px 13px #060606,3px 13px #fff,4px 13px,5px 13px,6px 13px #fff,7px 13px #060606,8px 13px #060606,9px 13px #060606,10px 13px,11px 13px,12px 13px #060606,13px 13px #060606,
+    2px 14px #060606,3px 14px #060606,4px 14px #fff,5px 14px,6px 14px,7px 14px,8px 14px,9px 14px,10px 14px,11px 14px #060606,12px 14px #060606,
+    3px 15px #060606,4px 15px #060606,5px 15px #060606,6px 15px,7px 15px,8px 15px,9px 15px #060606,10px 15px #060606,11px 15px #060606,12px 15px #060606,
+    5px 16px #060606,6px 16px #060606,7px 16px #060606,8px 16px #060606,9px 16px #060606,10px 16px #060606;
+}
+
+/* icon 2: star (yellow) */
+.session-item:nth-child(5n+2) .session-item__icon::before {
+  color: #ebe527;
+  box-shadow:
+    7px 1px #444,
+    6px 2px #444,7px 2px,8px 2px #444,
+    6px 3px #444,7px 3px,8px 3px #444,
+    5px 4px #444,6px 4px,7px 4px,8px 4px,9px 4px #444,
+    5px 5px #444,6px 5px #fff,7px 5px #fff,8px 5px,9px 5px #444,
+    0px 6px #444,1px 6px #444,2px 6px #444,3px 6px #444,4px 6px #444,5px 6px #444,6px 6px #fff,7px 6px,8px 6px,9px 6px,10px 6px #444,11px 6px #444,12px 6px #444,13px 6px #444,14px 6px #444,
+    0px 7px #444,1px 7px,2px 7px,3px 7px,4px 7px #fff,5px 7px #fff,6px 7px,7px 7px,8px 7px,9px 7px,10px 7px,11px 7px,12px 7px,13px 7px,14px 7px #444,
+    1px 8px #444,2px 8px,3px 8px,4px 8px #fff,5px 8px,6px 8px,7px 8px,8px 8px,9px 8px,10px 8px,11px 8px,12px 8px #f59f54,13px 8px #444,
+    2px 9px #444,3px 9px,4px 9px,5px 9px,6px 9px,7px 9px,8px 9px,9px 9px,10px 9px,11px 9px #f59f54,12px 9px #f59f54,13px 9px #444,
+    3px 10px #444,4px 10px,5px 10px,6px 10px,7px 10px,8px 10px,9px 10px,10px 10px,11px 10px,12px 10px #444,
+    2px 11px #444,3px 11px,4px 11px,5px 11px,6px 11px,7px 11px #f59f54,8px 11px,9px 11px,10px 11px,11px 11px,12px 11px,13px 11px #444,
+    2px 12px #444,3px 12px,4px 12px,5px 12px,6px 12px #f59f54,7px 12px #f59f54,8px 12px #f59f54,9px 12px,10px 12px,11px 12px,12px 12px,13px 12px #444,
+    1px 13px #444,2px 13px,3px 13px,4px 13px #f59f54,5px 13px #f59f54,6px 13px #f59f54,7px 13px #444,8px 13px #f59f54,9px 13px #f59f54,10px 13px #f59f54,11px 13px,12px 13px,13px 13px #444,
+    1px 14px #444,2px 14px,3px 14px #f59f54,4px 14px #f59f54,5px 14px #444,6px 14px #444,8px 14px #444,9px 14px #444,10px 14px #f59f54,11px 14px #f59f54,12px 14px,13px 14px #444,
+    0px 15px #444,1px 15px #f59f54,2px 15px #f59f54,3px 15px #444,4px 15px #444,10px 15px #444,11px 15px #444,12px 15px #f59f54,13px 15px #f59f54,14px 15px #444,
+    0px 16px #444,1px 16px #444,2px 16px #444,12px 16px #444,13px 16px #444,14px 16px #444;
+}
+
+/* icon 3: heart (red) */
+.session-item:nth-child(5n+3) .session-item__icon::before {
+  color: #f22426;
+  box-shadow:
+    2px 2px #444,3px 2px #444,4px 2px #444,10px 2px #444,11px 2px #444,12px 2px #444,
+    1px 3px #444,2px 3px,3px 3px,4px 3px,5px 3px #444,9px 3px #444,10px 3px,11px 3px,12px 3px #842300,13px 3px #444,
+    0px 4px #444,1px 4px,2px 4px #fff,3px 4px #fff,4px 4px,5px 4px,6px 4px #444,8px 4px #444,9px 4px,10px 4px,11px 4px,12px 4px,13px 4px #842300,14px 4px #444,
+    0px 5px #444,1px 5px,2px 5px #fff,3px 5px,4px 5px,5px 5px,6px 5px,7px 5px #444,8px 5px,9px 5px,10px 5px,11px 5px,12px 5px,13px 5px #842300,14px 5px #444,
+    0px 6px #444,1px 6px,2px 6px,3px 6px,4px 6px,5px 6px,6px 6px,7px 6px,8px 6px,9px 6px,10px 6px,11px 6px,12px 6px,13px 6px #842300,14px 6px #444,
+    0px 7px #444,1px 7px,2px 7px,3px 7px,4px 7px,5px 7px,6px 7px,7px 7px,8px 7px,9px 7px,10px 7px,11px 7px,12px 7px,13px 7px #842300,14px 7px #444,
+    0px 8px #444,1px 8px,2px 8px,3px 8px,4px 8px,5px 8px,6px 8px,7px 8px,8px 8px,9px 8px,10px 8px,11px 8px,12px 8px,13px 8px #842300,14px 8px #444,
+    1px 9px #444,2px 9px,3px 9px,4px 9px,5px 9px,6px 9px,7px 9px,8px 9px,9px 9px,10px 9px,11px 9px,12px 9px #842300,13px 9px #444,
+    2px 10px #444,3px 10px,4px 10px,5px 10px,6px 10px,7px 10px,8px 10px,9px 10px,10px 10px,11px 10px #842300,12px 10px #444,
+    3px 11px #444,4px 11px,5px 11px,6px 11px,7px 11px,8px 11px,9px 11px,10px 11px #842300,11px 11px #444,
+    4px 12px #444,5px 12px,6px 12px,7px 12px,8px 12px,9px 12px #842300,10px 12px #444,
+    5px 13px #444,6px 13px,7px 13px,8px 13px #842300,9px 13px #444,
+    6px 14px #444,7px 14px #842300,8px 14px #444,
+    7px 15px #444;
+}
+
+/* icon 4: trophy (NES.css) */
+.session-item:nth-child(5n+4) .session-item__icon::before {
+  color: #ebe527;
+  box-shadow:
+    3px 1px #444,4px 1px #444,5px 1px #444,6px 1px #444,7px 1px #444,8px 1px #444,9px 1px #444,10px 1px #444,11px 1px #444,12px 1px #444,13px 1px #444,
+    3px 2px #444,4px 2px,5px 2px,6px 2px,7px 2px,8px 2px,9px 2px,10px 2px,11px 2px,12px 2px #f59f54,13px 2px #444,
+    1px 3px #444,2px 3px #444,3px 3px #444,4px 3px,5px 3px #fff,6px 3px,7px 3px,8px 3px,9px 3px,10px 3px,11px 3px,12px 3px #f59f54,13px 3px #444,14px 3px #444,15px 3px #444,
+    1px 4px #444,3px 4px #444,4px 4px,5px 4px #fff,6px 4px,7px 4px,8px 4px,9px 4px,10px 4px,11px 4px,12px 4px #f59f54,13px 4px #444,15px 4px #444,
+    1px 5px #444,3px 5px #444,4px 5px,5px 5px #fff,6px 5px,7px 5px,8px 5px,9px 5px,10px 5px,11px 5px,12px 5px #f59f54,13px 5px #444,15px 5px #444,
+    2px 6px #444,3px 6px #444,4px 6px,5px 6px #fff,6px 6px,7px 6px,8px 6px,9px 6px,10px 6px,11px 6px,12px 6px #f59f54,13px 6px #444,14px 6px #444,
+    3px 7px #444,4px 7px,5px 7px #fff,6px 7px,7px 7px,8px 7px,9px 7px,10px 7px,11px 7px,12px 7px #f59f54,13px 7px #444,
+    3px 8px #444,4px 8px,5px 8px,6px 8px,7px 8px,8px 8px,9px 8px,10px 8px,11px 8px,12px 8px #f59f54,13px 8px #444,
+    4px 9px #444,5px 9px,6px 9px,7px 9px,8px 9px,9px 9px,10px 9px,11px 9px #f59f54,12px 9px #444,
+    5px 10px #444,6px 10px,7px 10px,8px 10px,9px 10px,10px 10px #f59f54,11px 10px #444,
+    6px 11px #444,7px 11px,8px 11px,9px 11px #f59f54,10px 11px #444,
+    7px 12px #444,8px 12px,9px 12px #444,
+    7px 13px #444,8px 13px,9px 13px #444,
+    6px 14px #444,7px 14px #444,8px 14px,9px 14px #444,10px 14px #444,
+    5px 15px #444,6px 15px,7px 15px,8px 15px,9px 15px,10px 15px #f59f54,11px 15px #444,
+    5px 16px #444,6px 16px #444,7px 16px #444,8px 16px #444,9px 16px #444,10px 16px #444,11px 16px #444;
+}
+
+/* icon 5: like / thumbs up (NES.css) */
+.session-item:nth-child(5n+5) .session-item__icon::before {
+  color: #fff;
+  box-shadow:
+    8px 2px #333,9px 2px #333,
+    8px 3px #333,9px 3px,10px 3px #333,
+    8px 4px #333,9px 4px,10px 4px #333,
+    7px 5px #333,8px 5px,9px 5px,10px 5px #333,
+    7px 6px #333,8px 6px,9px 6px,10px 6px #333,11px 6px #333,12px 6px #333,13px 6px #333,14px 6px #333,15px 6px #333,
+    6px 7px #333,7px 7px,8px 7px,9px 7px,10px 7px,11px 7px,12px 7px,13px 7px,14px 7px,15px 7px,16px 7px #333,
+    2px 8px #333,3px 8px #333,4px 8px #333,6px 8px #333,7px 8px,8px 8px,9px 8px,10px 8px,11px 8px,12px 8px,13px 8px,14px 8px,15px 8px,16px 8px #333,
+    1px 9px #333,2px 9px #2e77be,3px 9px #2e77be,4px 9px #2e77be,5px 9px #333,6px 9px,7px 9px,8px 9px,9px 9px,10px 9px,11px 9px,12px 9px,13px 9px,14px 9px,15px 9px,16px 9px #333,
+    1px 10px #333,2px 10px #2e77be,3px 10px #2e77be,4px 10px #2e77be,5px 10px #333,6px 10px,7px 10px,8px 10px,9px 10px,10px 10px,11px 10px,12px 10px,13px 10px,14px 10px,15px 10px #333,
+    1px 11px #333,2px 11px #2e77be,3px 11px #2e77be,4px 11px #2e77be,5px 11px #333,6px 11px,7px 11px,8px 11px,9px 11px,10px 11px,11px 11px,12px 11px,13px 11px,14px 11px,15px 11px #333,
+    1px 12px #333,2px 12px #2e77be,3px 12px #2e77be,4px 12px #2e77be,5px 12px #333,6px 12px,7px 12px,8px 12px,9px 12px,10px 12px,11px 12px,12px 12px,13px 12px,14px 12px,15px 12px #333,
+    1px 13px #333,2px 13px #2e77be,3px 13px #2e77be,4px 13px #2e77be,5px 13px #333,6px 13px,7px 13px,8px 13px,9px 13px,10px 13px,11px 13px,12px 13px,13px 13px,14px 13px #333,
+    1px 14px #333,2px 14px #2e77be,3px 14px #2e77be,4px 14px #2e77be,5px 14px #333,6px 14px,7px 14px,8px 14px,9px 14px,10px 14px,11px 14px,12px 14px,13px 14px,14px 14px #333,
+    2px 15px #333,3px 15px #333,4px 15px #333,6px 15px #333,7px 15px #333,8px 15px #333,9px 15px #333,10px 15px #333,11px 15px #333,12px 15px #333,13px 15px #333;
+}
+
+/* running 状态 — 右边金币 */
+.session-item {
+  position: relative !important;
+}
+.session-item--pipe-running::after,
+.session-item.border-ide-accent\/60::after,
+.session-item:has(.animate-text-wave)::after {
+  content: '' !important;
+  position: absolute !important;
+  right: 6px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 30px !important;
+  height: 30px !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+  width: 28px !important;
+  height: 32px !important;
+  background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2014%2016%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%220%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%220%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%220%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%220%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%221%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%221%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%221%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%221%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%221%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%221%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%221%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%221%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%221%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%222%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%222%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%222%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%222%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%222%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%222%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%222%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%225%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%225%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%225%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%225%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%225%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%225%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%225%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%225%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%226%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%226%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%226%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%226%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%226%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%226%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23ffbb8e%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%227%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%227%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%227%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%227%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%227%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%228%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%221%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%221%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fef102%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fef102%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f81c2f%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2210%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%221%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%221%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%227%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23aeaeac%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%231560ad%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2214%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%2214%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%2214%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%2214%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2214%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%2214%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%221%22%20y%3D%2215%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2215%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%2215%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%2215%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%229%22%20y%3D%2215%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2215%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%2215%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2215%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%2365352b%22%2F%3E%3C%2Fsvg%3E") center / 100% 100% no-repeat !important;
+}
+
+/* 隐藏原来的 emoji 文字 */
+.session-item__icon {
+  font-size: 0 !important;
+}
