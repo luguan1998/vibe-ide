@@ -104,9 +104,31 @@ const buildFileTree = (files: GitFileStatus[]): TreeNode[] => {
     n.leafCount = c
     return c
   }
+  const compactNode = (n: TreeNode) => {
+    if (!n.children) return
+    for (const ch of n.children) compactNode(ch)
+    let kids = n.children
+    while (kids.length === 1 && !kids[0].file) {
+      const child = kids[0]
+      n.name = n.name ? `${n.name}/${child.name}` : child.name
+      n.path = child.path
+      n.children = child.children
+      kids = child.children!
+    }
+  }
   sortNode(root)
+  root.children!.forEach(compactNode)
   root.children!.forEach(countLeaves)
   return root.children || []
+}
+
+const collectLeafPaths = (node: TreeNode): string[] => {
+  if (node.file) return [node.file.path]
+  const paths: string[] = []
+  if (node.children) {
+    for (const ch of node.children) paths.push(...collectLeafPaths(ch))
+  }
+  return paths
 }
 
 const GRAPH_PAGE_SIZE = 50
@@ -994,6 +1016,59 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             <span className="shrink-0 git-fname">{node.name}</span>
             {(node.leafCount ?? 0) > 1 && <span className="text-[11px] text-ide-text-muted">({node.leafCount})</span>}
             <span className="flex-1" />
+            {section === 'staged' && (
+              <>
+                <span className="shrink-0 w-5" />
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleUnstageAll(collectLeafPaths(node)) }}
+                  disabled={busy}
+                  className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center disabled:opacity-40"
+                  title={t('Unstage')}
+                >
+                  −
+                </button>
+              </>
+            )}
+            {section === 'unstaged' && (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleStageAll(collectLeafPaths(node)) }}
+                  disabled={busy}
+                  className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center disabled:opacity-40"
+                  title={t('Stage')}
+                >
+                  +
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); const paths = collectLeafPaths(node); setConfirmAction({ type: 'discardAll', filePaths: paths, count: paths.length }) }}
+                  disabled={busy}
+                  className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center disabled:opacity-40"
+                  title={t('Discard')}
+                >
+                  −
+                </button>
+              </>
+            )}
+            {section === 'untracked' && (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleStageAll(collectLeafPaths(node)) }}
+                  disabled={busy}
+                  className="text-[11px] text-ide-text-muted hover:text-ide-success shrink-0 w-5 text-center disabled:opacity-40"
+                  title={t('Stage')}
+                >
+                  +
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); const paths = collectLeafPaths(node); setConfirmAction({ type: 'deleteAll', filePaths: paths, count: paths.length }) }}
+                  disabled={busy}
+                  className="text-[11px] text-ide-text-muted hover:text-ide-danger shrink-0 w-5 text-center disabled:opacity-40"
+                  title={t('Delete')}
+                >
+                  −
+                </button>
+              </>
+            )}
           </div>
           {!collapsed && node.children && renderTree(node.children, section, depth + 1)}
         </Fragment>
