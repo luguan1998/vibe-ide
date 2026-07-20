@@ -60,10 +60,12 @@ function buildAnnotationCommand(group: AnnotationGroup): string {
   }).join('; ')
 }
 
-function autoGrow(el: HTMLTextAreaElement | null) {
+const PROMPT_MAX_H = 720
+
+function autoGrow(el: HTMLTextAreaElement | null, max = 200) {
   if (!el) return
   el.style.height = 'auto'
-  el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+  el.style.height = Math.min(el.scrollHeight, max) + 'px'
 }
 
 export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
@@ -123,7 +125,15 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
     }
     setItems(prev => [...prev, item])
     setDraft('')
-    requestAnimationFrame(() => { addInputRef.current?.focus(); autoGrow(addInputRef.current) })
+    requestAnimationFrame(() => { addInputRef.current?.focus(); autoGrow(addInputRef.current, PROMPT_MAX_H) })
+  }, [draft])
+
+  const handleSendDraft = useCallback(() => {
+    const text = draft.replace(/\r\n/g, '\n')
+    if (!text.trim()) return
+    ;(window as any).__vibeSendLine?.(text)
+    setDraft('')
+    requestAnimationFrame(() => { addInputRef.current?.focus(); autoGrow(addInputRef.current, PROMPT_MAX_H) })
   }, [draft])
 
   const handleDelete = useCallback((id: string) => {
@@ -134,7 +144,7 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
   const handleStartEdit = useCallback((item: DraftItem) => {
     setEditingId(item.id)
     setEditText(item.text)
-    requestAnimationFrame(() => { editInputRef.current?.focus(); autoGrow(editInputRef.current) })
+    requestAnimationFrame(() => { editInputRef.current?.focus(); autoGrow(editInputRef.current, PROMPT_MAX_H) })
   }, [])
 
   const handleSaveEdit = useCallback(() => {
@@ -299,7 +309,7 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
     }))
     setItems(prev => [...prev, ...newItems])
     setDraft('')
-    requestAnimationFrame(() => { addInputRef.current?.focus(); autoGrow(addInputRef.current) })
+    requestAnimationFrame(() => { addInputRef.current?.focus(); autoGrow(addInputRef.current, PROMPT_MAX_H) })
   }, [draft])
 
   const handleConvert = useCallback(() => {
@@ -388,9 +398,15 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
   }, [])
 
   const onAddKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault()
       handleAdd()
+      return
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+      e.preventDefault()
+      handleSendDraft()
     }
   }
 
@@ -579,7 +595,7 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
                   <textarea
                     ref={editInputRef}
                     value={editText}
-                    onChange={(e) => { setEditText(e.target.value); autoGrow(e.target) }}
+                    onChange={(e) => { setEditText(e.target.value); autoGrow(e.target, PROMPT_MAX_H) }}
                     onKeyDown={onEditKeyDown}
                     onBlur={handleSaveEdit}
                     rows={1}
@@ -613,11 +629,11 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
           <textarea
             ref={addInputRef}
             value={draft}
-            onChange={(e) => { setDraft(e.target.value); autoGrow(e.target) }}
+            onChange={(e) => { setDraft(e.target.value); autoGrow(e.target, PROMPT_MAX_H) }}
             onKeyDown={onAddKeyDown}
-            placeholder={"写一条提示词…\nCtrl+Enter 添加 · 双击编辑 · 拖拽排序"}
+            placeholder={"写一条提示词…\nEnter 发送 · Ctrl+Enter 加入管道 · Shift+Enter 换行"}
             rows={3}
-            className="flex-1 min-h-[4.5rem] max-h-[10rem] bg-transparent py-1 text-sm text-ide-text placeholder:text-ide-text-muted/40 focus:outline-none resize-none whitespace-pre-wrap break-words draft-plan__add-input"
+            className="flex-1 min-h-[4.5rem] max-h-[720px] bg-transparent py-1 text-sm text-ide-text placeholder:text-ide-text-muted/40 focus:outline-none resize-none whitespace-pre-wrap break-words draft-plan__add-input"
           />
           <div className="flex flex-col gap-1 shrink-0 self-start mt-0.5">
             <button
