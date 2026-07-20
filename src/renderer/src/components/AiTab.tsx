@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { useI18n } from '../i18n'
 import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
+import { cleanMessageContent, formatConversationMarkdown } from '../utils/aiConversationFormatter'
 import { loadFilterRules } from './FileTab'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS } from '../aiStore'
@@ -1204,17 +1205,6 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   )
 }
 
-function cleanMessageContent(raw: string): string {
-  return raw
-    .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/g, '')
-    .replace(/<command-name>[\s\S]*?<\/command-name>/g, '')
-    .replace(/<command-message>[\s\S]*?<\/command-message>/g, '')
-    .replace(/<command-args>[\s\S]*?<\/command-args>/g, '')
-    .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/g, '')
-    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
-    .trim()
-}
-
 function AiErrorMessage({ message }: { message: AiMessage }) {
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
@@ -2249,17 +2239,18 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // ── Copy entire conversation ──
   const [conversationCopied, setConversationCopied] = useState(false)
   const handleCopyConversation = useCallback(() => {
-    const text = state.messages
-      .filter(m => m.role && m.content)
-      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}:\n${m.content}`)
-      .join('\n\n---\n\n')
+    const includeThinking = viewMode !== 2
+    const includeToolUse = viewMode === 0
+    const text = formatConversationMarkdown(
+      state.messages, state.userTurns, state.name, includeThinking, includeToolUse
+    )
     if (text) {
       navigator.clipboard.writeText(text).then(() => {
         setConversationCopied(true)
         setTimeout(() => setConversationCopied(false), 1500)
       })
     }
-  }, [state.messages])
+  }, [state.messages, state.userTurns, state.name, viewMode])
 
   const lastFile = useMemo(() => {
     if (!lastOpenedFile) return null
@@ -2295,8 +2286,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           {/* Copy conversation */}
           <button
             onClick={handleCopyConversation}
-            className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
-            title={t('Copy Conversation')}
+            disabled={state.messages.length === 0}
+            className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title={t('Copy as Markdown (content follows eye filter)')}
           >
             {conversationCopied ? <Check size={14} className="text-ide-accent" /> : <Copy size={14} />}
           </button>
