@@ -399,6 +399,9 @@ const SessionPanel = React.memo(function SessionPanel({
   const [termType, setTermType] = useState(() => {
     try { return localStorage.getItem('vibe-ide-term-type') || 'pwsh' } catch { return 'pwsh' }
   })
+  const [auxTermType, setAuxTermType] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-aux-term-type') || 'cmd' } catch { return 'cmd' }
+  })
   const [shellOptions, setShellOptions] = useState(FALLBACK_SHELLS)
   const [cwdEmojis, setCwdEmojis] = useState<string[]>(() => loadCwdEmojis())
   const [sessionEmojis, setSessionEmojis] = useState<string[]>(() => loadSessionEmojis())
@@ -432,6 +435,12 @@ const SessionPanel = React.memo(function SessionPanel({
           if (shells.some(s => s.value === prev)) return prev
           const first = shells[0].value
           try { localStorage.setItem('vibe-ide-term-type', first) } catch {}
+          return first
+        })
+        setAuxTermType(prev => {
+          if (shells.some(s => s.value === prev)) return prev
+          const first = shells[0].value
+          try { localStorage.setItem('vibe-ide-aux-term-type', first) } catch {}
           return first
         })
       }
@@ -1636,6 +1645,23 @@ const SessionPanel = React.memo(function SessionPanel({
                     const val = e.target.value
                     setTermType(val)
                     try { localStorage.setItem('vibe-ide-term-type', val) } catch {}
+                  }}
+                  className="w-full px-3 py-2 text-sm bg-ide-sidebar border border-ide-border rounded text-ide-text focus:outline-none focus:border-ide-accent/60"
+                >
+                  {shellOptions.map((tt) => (
+                    <option key={tt.value} value={tt.value}>{tt.label}</option>
+                  ))}
+                </select>
+              </label>
+              {/* Aux Shell Type */}
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('Aux Shell Type')}</span>
+                <select
+                  value={auxTermType}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setAuxTermType(val)
+                    try { localStorage.setItem('vibe-ide-aux-term-type', val) } catch {}
                   }}
                   className="w-full px-3 py-2 text-sm bg-ide-sidebar border border-ide-border rounded text-ide-text focus:outline-none focus:border-ide-accent/60"
                 >

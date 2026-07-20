@@ -37,6 +37,7 @@ const ZH_MAP: Record<string, string> = {
   'Settings': '设置',
   'Theme': '主题',
   'Shell Type': '命令行类型',
+  'Aux Shell Type': 'Aux 命令行类型',
   'Keyboard Shortcuts': '键盘快捷键',
   'Claude Code CLI': 'Claude Code CLI 别名',
   'CLI Configuration': '会话配置',

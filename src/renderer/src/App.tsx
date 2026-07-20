@@ -24,6 +24,10 @@ import type { TerminalViewHandle } from './components/TerminalView'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
 
+function getAuxShellType(): string {
+  try { return localStorage.getItem('vibe-ide-aux-term-type') || 'cmd' } catch { return 'cmd' }
+}
+
 // Declare the window API type
 declare global {
   interface Window {
@@ -1849,7 +1853,7 @@ export default function App() {
     const cwd = cwdOverride || session?.cwd
     if (!cwd) return
     try {
-      const shell = 'cmd'
+      const shell = getAuxShellType()
       const term = await window.api.terminal.create({ cwd, shell, autoUtf8 })
       const prevLen = rightTerminalSessions[sessionId]?.length ?? 0
       const newTab: AuxTerminalTab = { id: term.id, terminals: [term], sizes: [1] }
@@ -1918,7 +1922,7 @@ export default function App() {
     const cwd = tab.terminals[0]?.cwd
     if (!cwd) return
     try {
-      const shell = 'cmd'
+      const shell = getAuxShellType()
       const term = await window.api.terminal.create({ cwd, shell, autoUtf8 })
       setRightTerminalSessions(prev => {
         const arr = prev[sessionId] || []
