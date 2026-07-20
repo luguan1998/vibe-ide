@@ -1021,11 +1021,33 @@ function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, o
   )
 }
 
-function ThinkingBlock({ text, defaultOpen = false, durationMs }: { text: string; defaultOpen?: boolean; durationMs?: number }) {
+function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScroll }: { text: string; defaultOpen?: boolean; durationMs?: number; autoScroll?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const userScrolledUpRef = useRef(false)
   const label = durationMs != null
     ? `Thinking for ${(durationMs / 1000).toFixed(1)}s`
     : 'Thinking'
+
+  useEffect(() => {
+    if (!autoScroll) return
+    const el = contentRef.current
+    if (!el) return
+    const onScroll = () => {
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      userScrolledUpRef.current = distFromBottom > 20
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [autoScroll])
+
+  useEffect(() => {
+    if (!autoScroll) return
+    const el = contentRef.current
+    if (!el || userScrolledUpRef.current) return
+    el.scrollTop = el.scrollHeight
+  }, [text, autoScroll])
+
   return (
     <div className="ai-tab__thinking max-w-full animate-fade-in">
       <button
@@ -1039,7 +1061,7 @@ function ThinkingBlock({ text, defaultOpen = false, durationMs }: { text: string
         <span className="shrink-0 leading-none">{label}</span>
       </button>
       {open && (
-        <div className="ai-tab__thinking-content mt-1 px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
+        <div ref={contentRef} className="ai-tab__thinking-content mt-1 px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
           <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">{cleanMessageContent(text)}</pre>
         </div>
       )}
@@ -2451,7 +2473,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         {/* Busy indicator — thinking + streaming + sparkle */}
         {state.busy && (
           <div className="ai-tab__busy max-w-[92%] space-y-1.5 animate-fade-in">
-            {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen />}
+            {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll />}
             {state.streamBuffer ? (
               <div>
                 <StreamingMarkdown text={state.streamBuffer} workspacePath={workspacePath} onOpenFile={onOpenFile} />
