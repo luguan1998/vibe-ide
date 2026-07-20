@@ -91,6 +91,8 @@ const ZH_MAP: Record<string, string> = {
   'Press keys...': '按按键...',
   'Reset to defaults': '重置为默认值',
   'Reset Defaults': '恢复默认',
+  'Clear': '清除',
+  'Disabled': '已禁用',
 
   // Shortcut labels
   'Focus Search': '聚焦搜索',

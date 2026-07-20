@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, X } from 'lucide-react'
 import { useI18n } from '../i18n'
 import {
   getAllShortcutDefs,
@@ -55,15 +55,25 @@ export default function SettingsPanel() {
     refresh()
   }
 
+  const handleClear = (id: string) => {
+    saveShortcut(id, '')
+    setListeningId(null)
+    refresh()
+  }
+
   const allDefs = getAllShortcutDefs()
 
   return (
     <div className="flex flex-col">
       <div className="flex-1 overflow-y-auto">
         {allDefs.map((def) => {
-          const current = shortcuts[def.id] || def.defaultKeys
+          // '' 是用户主动清空的占位值（已禁用），必须区别于“未加载”的 undefined
+          const stored = shortcuts[def.id]
+          const current = stored === undefined ? def.defaultKeys : stored
+          const isDisabled = current === ''
           const isListening = listeningId === def.id
           const isReadonly = def.readonly === true
+          const canClear = !isListening && !isDisabled && !isReadonly
           return (
             <div
               key={def.id}
@@ -75,18 +85,31 @@ export default function SettingsPanel() {
                   {displayLabel(current)}
                 </span>
               ) : (
-                <button
-                  className={`
-                    text-[11px] px-2 py-0.5 rounded border font-mono transition-all min-w-[80px] text-center
-                    ${isListening
-                      ? 'border-ide-accent text-ide-accent bg-ide-accent/10 animate-pulse'
-                      : 'border-ide-border text-ide-text-muted hover:text-ide-text hover:border-ide-text-muted'
-                    }
-                  `}
-                  onClick={() => setListeningId(isListening ? null : def.id)}
-                >
-                  {isListening ? t('Press keys...') : displayLabel(current)}
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    className={`
+                      text-[11px] px-2 py-0.5 rounded border font-mono transition-all min-w-[80px] text-center
+                      ${isListening
+                        ? 'border-ide-accent text-ide-accent bg-ide-accent/10 animate-pulse'
+                        : isDisabled
+                          ? 'border-ide-border/50 text-ide-text-muted/60 border-dashed hover:text-ide-text-muted hover:border-ide-text-muted'
+                          : 'border-ide-border text-ide-text-muted hover:text-ide-text hover:border-ide-text-muted'
+                      }
+                    `}
+                    onClick={() => setListeningId(isListening ? null : def.id)}
+                  >
+                    {isListening ? t('Press keys...') : isDisabled ? t('Disabled') : displayLabel(current)}
+                  </button>
+                  {canClear && (
+                    <button
+                      className="flex items-center justify-center w-5 h-5 rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                      title={t('Clear')}
+                      onClick={() => handleClear(def.id)}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )
