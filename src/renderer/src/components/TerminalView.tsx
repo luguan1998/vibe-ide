@@ -1022,6 +1022,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     const handleMouseDown = (e: MouseEvent) => {
       const term = xtermRef.current
       if (!term) return
+      if (e.button !== 0) return
 
       const selection = term.getSelection()
       if (!selection) return
