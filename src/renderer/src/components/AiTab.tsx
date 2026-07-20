@@ -11,6 +11,7 @@ import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS } from '../aiStore'
 import { EXAMPLE_PROMPTS } from './examplePrompts'
 import { OCTOCAT, type PetSpriteConfig } from './petSprites'
+import { loadKeypadItems } from './VibeProgramer'
 import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch, Folder } from 'lucide-react'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
@@ -1679,13 +1680,17 @@ function usePetVisibility() {
 function DesktopPet({ sprite }: { sprite: PetSpriteConfig }) {
   const visible = usePetVisibility()
   const [rightPx, setRightPx] = useState<number | null>(null)
+  const [showBubbles, setShowBubbles] = useState(false)
+  const [bubbles, setBubbles] = useState<ReturnType<typeof loadKeypadItems>>([])
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
+  const dragMovedRef = useRef(false)
   const startXRef = useRef(0)
+  const startYRef = useRef(0)
   const startRightRef = useRef(0)
 
   const width = sprite.cols * sprite.pixelSize
-  const animated = !!sprite.shadow2
 
   const getBaseRight = useCallback(() => {
     if (!wrapperRef.current) return 0
@@ -1695,19 +1700,31 @@ function DesktopPet({ sprite }: { sprite: PetSpriteConfig }) {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     draggingRef.current = true
+    dragMovedRef.current = false
     startXRef.current = e.clientX
+    startYRef.current = e.clientY
     startRightRef.current = rightPx ?? getBaseRight()
   }, [rightPx, getBaseRight])
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!draggingRef.current || !wrapperRef.current) return
-      const w = wrapperRef.current.offsetWidth
       const dx = e.clientX - startXRef.current
+      const dy = e.clientY - startYRef.current
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragMovedRef.current = true
+      const w = wrapperRef.current.offsetWidth
       const newRight = startRightRef.current - dx
       setRightPx(Math.max(0, Math.min(newRight, w - width)))
     }
-    const handleMouseUp = () => { draggingRef.current = false }
+    const handleMouseUp = (e: MouseEvent) => {
+      const wasDragging = draggingRef.current
+      const moved = dragMovedRef.current
+      draggingRef.current = false
+      if (!wasDragging || moved) return
+      setBubbles(loadKeypadItems())
+      setAnchor({ x: e.clientX, y: e.clientY })
+      setShowBubbles(v => !v)
+    }
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
     return () => {
@@ -1716,14 +1733,34 @@ function DesktopPet({ sprite }: { sprite: PetSpriteConfig }) {
     }
   }, [width])
 
+  useEffect(() => {
+    if (!showBubbles) return
+    const handleClick = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowBubbles(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showBubbles])
+
   const handleClose = useCallback(() => {
     globalPetVisible = false
     window.dispatchEvent(new Event('pet-visibility'))
   }, [])
 
+  const handleBubbleSend = useCallback((text: string) => {
+    ;(window as any).__vibeSendLine?.(text)
+    setShowBubbles(false)
+  }, [])
+
   if (!visible) return null
 
   const style = rightPx !== null ? { right: `${rightPx}px` } : undefined
+  const bubbleStyle = anchor ? {
+    left: `${Math.max(4, Math.min(anchor.x - 110, window.innerWidth - 224))}px`,
+    bottom: `${window.innerHeight - anchor.y + 20}px`,
+  } : undefined
 
   return (
     <div className="ai-tab__pet-wrapper" ref={wrapperRef}>
@@ -1733,6 +1770,21 @@ function DesktopPet({ sprite }: { sprite: PetSpriteConfig }) {
           <i className={`ai-tab__pet-sprite ai-tab__pet-sprite--${sprite.name}`} />
         </div>
       </div>
+      {showBubbles && anchor && (
+        <div className="ai-tab__pet-bubbles animate-fade-in" style={bubbleStyle}>
+          {bubbles.map(b => (
+            <button
+              key={b.code}
+              onClick={() => handleBubbleSend(b.text)}
+              title={`Numpad ${b.key} → ${b.text}`}
+              className="ai-tab__pet-bubble"
+            >
+              <span className="ai-tab__pet-bubble-num">{b.key}</span>
+              <span className="ai-tab__pet-bubble-text">{b.text}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

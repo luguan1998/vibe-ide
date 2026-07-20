@@ -25,7 +25,7 @@ const DEFAULT_KEYPAD_ITEMS: { code: string; key: string; text: string }[] = [
 
 const KEYPAD_STORAGE_KEY = 'vibe-ide-keypad-items'
 
-function loadKeypadItems(): { code: string; key: string; text: string }[] {
+export function loadKeypadItems(): { code: string; key: string; text: string }[] {
   try {
     const raw = localStorage.getItem(KEYPAD_STORAGE_KEY)
     if (raw) {
