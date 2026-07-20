@@ -1737,7 +1737,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               {t('Conflicted files in staged area. Please resolve conflicts before committing.')}
             </div>
           )}
-          {status.clean && status.ahead > 0 ? (
+          {!hasStaged && status.ahead > 0 ? (
             <div className="relative mt-2">
               <div className="flex git-tab__push-group">
                 <button
