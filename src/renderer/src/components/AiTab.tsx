@@ -150,7 +150,7 @@ function findFilePathAtPoint(x: number, y: number, cwd: string): { fullPath: str
   return null
 }
 
-const ChatMarkdown = React.memo(function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
+export const ChatMarkdown = React.memo(function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
   text: string; className?: string
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
@@ -179,7 +179,7 @@ const ChatMarkdown = React.memo(function ChatMarkdown({ text, className = '', wo
 // During streaming, only render markdown up to the last CLOSED code fence.
 // Any open (incomplete) code block is shown as raw text to prevent CodeBlock
 // from remounting + re-colorizing on every token (which causes flicker).
-function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: {
+export function StreamingMarkdown({ text, className = '', workspacePath, onOpenFile }: {
   text: string; className?: string
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void

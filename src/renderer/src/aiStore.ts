@@ -107,6 +107,7 @@ export interface EnsureCreatedOpts {
   resumeSessionId?: string
   cliCommand?: string
   enableWorktree?: boolean
+  model?: string
 }
 
 export const aiStore = {
@@ -177,6 +178,7 @@ export const aiStore = {
         ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}),
         ...(cliCommand ? { cliCommand } : {}),
         ...(opts.enableWorktree ? { enableWorktree: true } : {}),
+        ...(opts.model ? { model: opts.model } : {}),
       })
       aiStore.updateSession(sid, () => ({ ...EMPTY_SESSION, cwd: opts.cwd, ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}) }))
     }).catch(() => {

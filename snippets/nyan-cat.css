@@ -196,7 +196,7 @@
   font-size: 11px !important;
 }
 
-/* 统计图标替换：running 🌈 · idle ⭐ · warn ⚠️ */
+/* 统计图标替换：running 🌈 · idle ⭐ · warn 💎 */
 .status-badge__segment--running .status-badge__icon {
   display: none !important;
 }
@@ -217,7 +217,7 @@
   display: none !important;
 }
 .status-badge__segment--warn::before {
-  content: '⚠️' !important;
+  content: '💎' !important;
   font-size: 13px !important;
   line-height: 1 !important;
 }

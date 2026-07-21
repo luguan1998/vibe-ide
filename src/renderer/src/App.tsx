@@ -12,6 +12,8 @@ import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
+import GameMujica, { FOCUS_MUJICA, MUJICA_CLOSE } from './components/GameMujica'
+import { mujicaStore } from './mujicaStore'
 import { aiStore } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
@@ -157,7 +159,7 @@ declare global {
       removeStartupOpenPathListener: (handler?: any) => void
       ai: {
         checkAvailable: (cliCommand?: string) => Promise<{ available: boolean; installCmd?: string; error?: string }>
-        create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; resumeSessionId?: string; cliCommand?: string; model?: string }) => Promise<{ success: boolean; error?: string }>
+        create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; resumeSessionId?: string; cliCommand?: string; model?: string; enableWorktree?: boolean }) => Promise<{ success: boolean; error?: string }>
         send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>
         cancel: (sessionId: string) => Promise<boolean>
         destroy: (sessionId: string) => Promise<boolean>
@@ -197,7 +199,7 @@ declare global {
   }
 }
 
-type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser'
+type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser' | 'mujica'
 
 interface DiffFileState {
   defaultEdit?: boolean
@@ -477,6 +479,25 @@ export default function App() {
   React.useEffect(() => {
     centerViewRef.current = centerView
   }, [centerView])
+
+  // Nga "mujica" card requests the canvas as a center view (covers the terminal area, not full-app)
+  React.useEffect(() => {
+    const openMujica = () => { mujicaStore.setActive(true); setCenterView('mujica') }
+    const closeMujica = () => { mujicaStore.setActive(false); setCenterView('terminal') }
+    window.addEventListener(FOCUS_MUJICA, openMujica)
+    window.addEventListener(MUJICA_CLOSE, closeMujica)
+    return () => {
+      window.removeEventListener(FOCUS_MUJICA, openMujica)
+      window.removeEventListener(MUJICA_CLOSE, closeMujica)
+    }
+  }, [])
+
+  // mujica base repo defaults to the active session cwd until the user browses for another.
+  // Computed inline from sessions/activeSessionId (declared above) — referencing the
+  // derived `activeSessionCwd` const here would hit TDZ (it's declared further down).
+  React.useEffect(() => {
+    mujicaStore.setDefaultCwd(sessions.find(s => s.id === activeSessionId)?.cwd ?? null)
+  }, [sessions, activeSessionId])
 
   // Terminal refs for focus management (keyed by sessionId)
   const terminalRefs = useRef<Record<string, TerminalViewHandle>>({})
@@ -2415,6 +2436,10 @@ export default function App() {
                 )
               })}
             </Suspense>
+          </div>
+          {/* mujica canvas — display-toggle so state + running agents survive hide (close = switch back to terminal) */}
+          <div className="flex-1 mx-1 mb-1.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'mujica' ? 'flex' : 'none' }}>
+            <GameMujica onBack={() => { mujicaStore.setActive(false); setCenterView('terminal') }} />
           </div>
           {/* Drag-over overlay for file compare */}
           {isDragOverEdit && (
