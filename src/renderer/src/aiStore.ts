@@ -8,7 +8,7 @@ export const EMPTY_SESSION: AiSessionState = {
   streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null, pendingPermission: null,
   slashCommands: [], model: '', contextPercent: null, name: '',
   fileChangesByTurn: [], userTurns: [],
-  cwd: '', worktreePath: undefined,
+  cwd: '', worktreePath: undefined, pipedPrompt: '',
 }
 
 export const SLASH_COMMAND_DESCRIPTIONS: Record<string, { description: string; argumentHint?: string }> = {

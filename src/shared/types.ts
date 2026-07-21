@@ -459,6 +459,7 @@ export interface AiSessionState {
   cwd: string
   worktreePath?: string
   resumeSessionId?: string
+  pipedPrompt?: string
 }
 
 export type AiPermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions'

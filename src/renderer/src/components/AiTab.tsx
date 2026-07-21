@@ -13,7 +13,7 @@ import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAN
 import { EXAMPLE_PROMPTS } from './examplePrompts'
 import { OCTOCAT, type PetSpriteConfig } from './petSprites'
 import { loadKeypadItems } from './VibeProgramer'
-import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch, Folder } from 'lucide-react'
+import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch, Folder, X } from 'lucide-react'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
 import { displayLabel, getShortcuts } from '../shortcuts'
@@ -2081,25 +2081,63 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     }
   }, [isActive])
 
-  // ── Send handler ──
-  const handleSend = useCallback(async () => {
-    if (!activeSessionId || !inputValue.trim() || state.busy) return
-    const message = inputValue.trim()
-    setInputValue('')
-    onCommand?.(message)
+  // ── Dispatch a message to the subprocess (shared core) ──
+  // Immediate send and piped auto-send both funnel through here.
+  const dispatchMessage = useCallback(async (message: string) => {
+    if (!activeSessionId || !message.trim()) return
     const isSlash = message.startsWith('/')
     const isClear = message.startsWith('/clear')
+    onCommand?.(message)
     updateSession(activeSessionId, (s) => {
       const newName = !s.name && !isSlash ? message.slice(0, 60) : s.name
       const userMsg = { sessionId: activeSessionId, type: 'user' as const, role: 'user' as const, content: message, timestamp: Date.now() }
       return {
-        ...s, busy: true, name: newName,
+        ...s, busy: true, name: newName, pipedPrompt: '',
         messages: isClear ? [] : [...s.messages, userMsg],
         ...(isClear ? { fileChangesByTurn: [], userTurns: [] } : {}),
       }
     })
     await window.api.ai.send(activeSessionId, message)
-  }, [activeSessionId, inputValue, state.busy, updateSession])
+  }, [activeSessionId, updateSession])
+
+  // ── Send handler (immediate, idle only) ──
+  const handleSend = useCallback(async () => {
+    if (!activeSessionId || !inputValue.trim() || state.busy) return
+    const message = inputValue.trim()
+    setInputValue('')
+    await dispatchMessage(message)
+  }, [activeSessionId, inputValue, state.busy, setInputValue, dispatchMessage])
+
+  // ── Enter key: pipe while busy, send when idle ──
+  // While the agent is running, Enter appends the draft to a per-session
+  // pipedPrompt buffer (shown as a "piped" chip) instead of sending; the
+  // buffer is auto-dispatched when the session returns to idle.
+  const handleEnter = useCallback(() => {
+    if (!activeSessionId || !inputValue.trim()) return
+    if (state.busy) {
+      const text = inputValue.trim()
+      setInputValue('')
+      updateSession(activeSessionId, (s) => {
+        const prev = s.pipedPrompt || ''
+        const sep = prev ? '\n' : ''
+        return { ...s, pipedPrompt: prev + sep + text }
+      })
+      return
+    }
+    handleSend()
+  }, [activeSessionId, inputValue, state.busy, setInputValue, updateSession, handleSend])
+
+  // ── Auto-dispatch piped prompt when session returns to idle ──
+  // busy true→false (turn done) and no pending permission → flush piped.
+  const prevBusyRef = useRef(state.busy)
+  useEffect(() => {
+    const wasBusy = prevBusyRef.current
+    prevBusyRef.current = state.busy
+    if (!wasBusy || state.busy || state.pendingPermission || !activeSessionId) return
+    const piped = (state.pipedPrompt || '').trim()
+    if (!piped) return
+    dispatchMessage(piped)
+  }, [state.busy, state.pendingPermission, activeSessionId, dispatchMessage, state.pipedPrompt])
 
   // ── ExitPlanMode "Clear & Execute": kill plan-mode subprocess, respawn in bypassPermissions,
   // re-inject plan from disk as first message. onDeny 委托 aiStore.handlePlanDeny;
@@ -2555,6 +2593,23 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       {/* Todo list — pins above input so it stays visible */}
       {todoItems.length > 0 && <TodoListPanel items={todoItems} />}
 
+      {/* Piped prompt — queued while busy, auto-sent when idle, X to dismiss */}
+      {state.pipedPrompt && activeSessionId && (
+        <div className="ai-tab__piped mx-2 mb-1 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">
+          <Plug size={12} className="shrink-0 text-ide-accent" />
+          <span className="text-[11px] font-medium text-ide-accent/80 shrink-0">{t('Queued')}</span>
+          <span className="text-xs text-ide-text/80 truncate flex-1 min-w-0" title={state.pipedPrompt}>{state.pipedPrompt}</span>
+          <button
+            type="button"
+            onClick={() => updateSession(activeSessionId, s => ({ ...s, pipedPrompt: '' }))}
+            className="ai-tab__piped-dismiss shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            title={t('Remove')}
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
       <DesktopPet sprite={OCTOCAT} />
 
       {/* Input */}
@@ -2685,7 +2740,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   }
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
-                    handleSend()
+                    handleEnter()
                   }
                 }}
                 placeholder={state.ready ? t('Type a message...') : t('Initializing...')}

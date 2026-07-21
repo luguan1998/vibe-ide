@@ -172,6 +172,7 @@ const ZH_MAP: Record<string, string> = {
   'Recently': '最近',
   'Recently Opened': '最近打开的文件',
   'Remove': '移除',
+  'Queued': '待发送',
 
   // GitTab - Stage/Unstage/Discard tooltips
   'Stage': '暂存',
