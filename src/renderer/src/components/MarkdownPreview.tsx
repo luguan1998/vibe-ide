@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { FileDown } from 'lucide-react'
 import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { type Frontmatter, parseFrontmatter } from '@renderer/utils/frontmatter'
+import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import OutlineTrigger from './OutlineTrigger'
 
 interface MarkdownPreviewProps {
@@ -19,6 +21,10 @@ interface MarkdownPreviewProps {
 
 function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9一-鿿]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 function extractText(children: React.ReactNode): string {
@@ -146,6 +152,14 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   queryRef.current = query
   matchIndexRef.current = matchIndex
 
+  const [exportMenu, setExportMenu] = useState<{ x: number; y: number } | null>(null)
+  const exportMenuRef = useRef(false)
+  exportMenuRef.current = !!exportMenu
+  const [exportStatus, setExportStatus] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const exportStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const exportMenuPos = useAdaptiveMenuPos(!!exportMenu, exportMenu?.x ?? 0, exportMenu?.y ?? 0)
+
   const handleLinkClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
     if (window.getSelection()?.toString().trim()) return
@@ -216,6 +230,104 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
     }
   }), [codeOverrides, handleLinkClick, fullPath])
 
+  const collectExportCss = useCallback((): string => {
+    let css = ''
+    for (const sheet of Array.from(document.styleSheets)) {
+      let rules: CSSRuleList | null = null
+      try { rules = sheet.cssRules } catch { continue }
+      if (!rules) continue
+      for (let i = 0; i < rules.length; i++) css += rules[i].cssText + '\n'
+    }
+    return css
+  }, [])
+
+  const buildExportHtml = useCallback((): string => {
+    const root = contentRef.current
+    if (!root) return ''
+    const clone = root.cloneNode(true) as HTMLElement
+    clone.querySelectorAll('mark.md-search-match').forEach(m => {
+      m.replaceWith(document.createTextNode(m.textContent || ''))
+    })
+    const headings: { id: string; level: number; text: string }[] = []
+    clone.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(h => {
+      const el = h as HTMLElement
+      const id = el.getAttribute('id')
+      if (!id) return
+      headings.push({ id, level: parseInt(el.tagName.substring(1), 10), text: el.textContent || '' })
+    })
+    const toc = headings.length > 0
+      ? `<aside class="md-export-toc"><nav>${headings.map(h =>
+          `<a class="md-toc-item md-toc-l${h.level}" href="#${h.id}" style="padding-left:${(h.level - 1) * 14 + 12}px">${escapeHtml(h.text)}</a>`
+        ).join('')}</nav></aside>`
+      : ''
+    const title = fileName.replace(/\.md$/i, '') || 'export'
+    return `<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)}</title>
+<style>
+${collectExportCss()}
+:root { ${document.documentElement.style.cssText} }
+html, body { height: auto !important; max-height: none !important; overflow: visible !important; }
+body { background: rgb(var(--ide-bg)); color: rgb(var(--ide-text)); margin: 0; padding: 0; box-sizing: border-box; min-height: 100vh; }
+.md-export-layout { display: flex; align-items: flex-start; }
+.md-export-toc { position: sticky; top: 0; align-self: flex-start; width: 240px; flex-shrink: 0; max-height: 100vh; overflow-y: auto; padding: 16px 10px; border-right: 1px solid rgb(var(--ide-border)); background: rgb(var(--ide-sidebar)); }
+.md-export-content { flex: 1 1 0; min-width: 0; padding: 24px calc(240px + 24px) 24px 24px; }
+.md-toc-item { display: block; color: rgb(var(--ide-text-muted)); text-decoration: none; font-size: 13px; line-height: 1.6; padding-top: 2px; padding-bottom: 2px; border-radius: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-toc-item:hover { color: rgb(var(--ide-accent)); background: rgb(var(--ide-hover)); }
+.md-toc-l1 { font-weight: 600; color: rgb(var(--ide-text)); }
+</style>
+</head>
+<body>
+<div class="md-export-layout">
+${toc}
+<main class="md-export-content">
+<div class="md-preview max-w-4xl mx-auto">
+${clone.innerHTML}
+</div>
+</main>
+</div>
+</body>
+</html>`
+  }, [collectExportCss, fileName])
+
+  const getExportDefaultName = useCallback((): string => {
+    const base = fileName.replace(/\.[^.]+$/, '') || 'export'
+    return base + '.html'
+  }, [fileName])
+
+  const handleExportHtml = useCallback(async () => {
+    setExportMenu(null)
+    if (exporting) return
+    setExporting(true)
+    try {
+      const html = buildExportHtml()
+      if (!html) {
+        setExportStatus({ text: '无可导出内容', type: 'error' })
+        return
+      }
+      const dirResult = await window.api.workspace.pickDir()
+      if (dirResult.canceled) return
+      const dir = dirResult.path
+      const sep = dir.includes('\\') ? '\\' : '/'
+      const outPath = dir + sep + getExportDefaultName()
+      const result = await window.api.file.write(outPath, html)
+      if (result?.error) {
+        setExportStatus({ text: '导出失败: ' + result.error, type: 'error' })
+      } else {
+        setExportStatus({ text: '已导出: ' + outPath, type: 'success' })
+      }
+    } catch (err: any) {
+      setExportStatus({ text: '导出失败: ' + String(err?.message || err), type: 'error' })
+    } finally {
+      setExporting(false)
+      if (exportStatusTimerRef.current) clearTimeout(exportStatusTimerRef.current)
+      exportStatusTimerRef.current = setTimeout(() => setExportStatus(null), 3000)
+    }
+  }, [exporting, buildExportHtml, getExportDefaultName])
+
   // Ctrl+F trigger from App.tsx → open search bar.
   // First-open focus is handled by the searchOpen effect below; if the bar
   // is already open, re-focus + select so the user can retype immediately.
@@ -276,6 +388,12 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      if (exportMenuRef.current) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setExportMenu(null)
+        return
+      }
       // ① search bar open → close it (do not close the preview)
       if (searchOpenRef.current) {
         e.preventDefault()
@@ -292,6 +410,17 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onBack, closeSearch])
+
+  useEffect(() => {
+    if (!exportMenu) return
+    const close = () => setExportMenu(null)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [exportMenu])
+
+  useEffect(() => () => {
+    if (exportStatusTimerRef.current) clearTimeout(exportStatusTimerRef.current)
+  }, [])
 
   const lastSep = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'))
           const dirPart = lastSep >= 0 ? fullPath.substring(0, lastSep + 1) : ''
@@ -315,7 +444,15 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
                   <span className="text-ide-text font-medium">{namePart}</span>{dirPart && <span className="text-[11px] text-ide-text-muted/50"> {dirPart}</span>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="flex items-center rounded-md bg-ide-hover overflow-hidden shrink-0">
+                  <div
+                    className="flex items-center rounded-md bg-ide-hover overflow-hidden shrink-0 cursor-context-menu select-none"
+                    title="右键导出 HTML"
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setExportMenu({ x: e.clientX, y: e.clientY })
+                    }}
+                  >
                     <span className="px-2.5 py-1 text-xs bg-ide-accent/15 text-ide-accent">View</span>
                   </div>
                   {onToggleOutline && (
@@ -397,6 +534,38 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
             className="w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-sm"
             title="关闭 (Esc)"
           >×</button>
+        </div>
+      )}
+
+      {exportStatus && (
+        <div
+          className={`absolute top-12 left-3 z-20 px-3 py-1.5 rounded-md text-xs border shadow-lg max-w-[70%] truncate ${
+            exportStatus.type === 'success'
+              ? 'bg-ide-success/15 text-ide-success border-ide-success/30'
+              : 'bg-ide-danger/15 text-ide-danger border-ide-danger/30'
+          }`}
+          title={exportStatus.text}
+        >
+          {exportStatus.text}
+        </div>
+      )}
+
+      {exportMenu && (
+        <div
+          ref={exportMenuPos.ref}
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[160px]"
+          style={exportMenuPos.style}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
+        >
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2 disabled:opacity-50"
+            onClick={handleExportHtml}
+            disabled={exporting}
+          >
+            <FileDown size={14} className="text-ide-text-muted" />
+            <span>{exporting ? '导出中...' : '导出 HTML'}</span>
+          </button>
         </div>
       )}
     </div>

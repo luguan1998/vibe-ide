@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useImperativeHandle } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
 import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Terminal, Keyboard, Filter } from 'lucide-react'
 import { useI18n } from '../i18n'
+import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import SettingsPanel from './SettingsPanel'
 import AppearancePanel from './AppearancePanel'
 import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand } from './CustomCommands'
@@ -223,25 +224,6 @@ function stableEmojiForSession(sessionId: string, pool: string[]): string {
     hash = ((hash << 5) - hash + sessionId.charCodeAt(i)) | 0
   }
   return pool[Math.abs(hash) % pool.length]
-}
-
-function useAdaptiveMenuPos(open: boolean, x: number, y: number) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [style, setStyle] = useState<React.CSSProperties>({ left: x, top: y })
-  useLayoutEffect(() => {
-    if (!open || !ref.current) return
-    const el = ref.current
-    const h = el.offsetHeight
-    const w = el.offsetWidth
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    let left = x
-    let top = y
-    if (left + w > vw - 4) left = Math.max(4, vw - w - 4)
-    if (top + h > vh - 4) top = Math.max(4, y - h)
-    setStyle({ left, top, maxHeight: vh - 8 })
-  }, [open, x, y])
-  return { ref, style }
 }
 
 interface SessionPanelProps {
