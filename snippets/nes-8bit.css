@@ -88,13 +88,13 @@ html, body, #root {
   box-shadow: inset -1px -1px 0 #adafbc, inset 1px 1px 0 #fff !important;
   border-radius: 0 !important;
   background: #fff !important;
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
 }
 .status-badge__segment {
   text-transform: uppercase !important;
   letter-spacing: 0.5px !important;
   font-weight: 700 !important;
   font-size: 10px !important;
-  padding: 1px 6px !important;
   border-radius: 0 !important;
 }
 .status-badge__segment .status-badge__icon { display: none !important; }

@@ -617,6 +617,8 @@ html, body, #root {
   border-radius: 9999px;
   background: rgb(var(--ide-hover));
   overflow: hidden;
+  border: 2px solid rgb(var(--ide-border));
+  box-shadow: 0 1px 2px -1px rgb(0 0 0 / 0.2);
 }
 .status-badge__segment {
   display: inline-flex;

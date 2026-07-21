@@ -85,7 +85,7 @@ textarea {
   overflow: hidden !important;
 }
 .status-badge {
-  border: 1px solid rgb(60 55 80);
+  border: 2px solid rgb(60 55 80) !important;
   text-transform: none !important; letter-spacing: 0 !important;
   font-size: 11px !important;
 }
