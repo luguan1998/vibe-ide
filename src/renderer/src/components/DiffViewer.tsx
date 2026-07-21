@@ -4,6 +4,7 @@ import { useTheme } from '../themes'
 import { ENCODING_GROUPS, DEFAULT_ENCODING } from '@shared/encodings'
 import { useI18n } from '../i18n'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
+import OutlineTrigger from './OutlineTrigger'
 
 let _monacoConfigured = false
 let _monacoGlobal: any = null
@@ -82,13 +83,15 @@ interface DiffViewerProps {
   diffSplitRatio?: number   // 左右分栏占比（0.1~0.9，分隔线位置=左边占比）
   cursorRef?: React.MutableRefObject<{ fullPath: string; line: number; column: number } | null>
   visibleLineRef?: React.MutableRefObject<{ fullPath: string; line: number } | null>  // 视口中间可见行（居中还原用），供最近文件回写行号
-  onContentLoaded?: (content: string) => void  // 回传文件内容给父组件（供 OutlinePanel 使用）
   onOpenCallGraph?: (word: string) => void     // 右键菜单 → 打开 call graph
   onViewLineHistory?: (filePath: string, lineNumber: number) => void  // 右键菜单 → 查看这行修改记录
   compareOriginalContent?: string  // 左侧对比文件内容（文件对比模式）
   compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
   onAnnotationTrigger?: (start: number, end: number) => void
   brushActive?: boolean
+  outlineEnabled?: boolean
+  onToggleOutline?: () => void
+  onOutlineNavigate?: (line: number, headingName?: string) => void
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -256,7 +259,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onContentLoaded, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, outlineEnabled, onToggleOutline, onOutlineNavigate }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -459,7 +462,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       setDiffStats(stats)
       savedContentRef.current = modified
       setIsDirty(false)
-      if (onContentLoaded) onContentLoaded(modified)
       // Jump to line after content loads (onMount fires too early)
       if (lineNumber && lineNumber > 0) {
         setTimeout(() => {
@@ -518,7 +520,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           }
         }
         setIsDirty(false)
-        if (onContentLoaded) onContentLoaded(result.content)
         if (lineNumber && lineNumber > 0) {
           setTimeout(() => {
             try {
@@ -845,6 +846,16 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           </button>
         </div>
         )}
+          {onToggleOutline && (
+            <OutlineTrigger
+              outlineEnabled={outlineEnabled}
+              onToggle={onToggleOutline}
+              content={modifiedContent}
+              filePath={filePath}
+              fullPath={fullPath}
+              onNavigate={onOutlineNavigate}
+            />
+          )}
         </div>
       </div>
 

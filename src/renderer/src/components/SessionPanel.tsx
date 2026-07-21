@@ -307,8 +307,6 @@ interface SessionPanelProps {
   recentFilesPanelEnabled?: boolean
   onToggleRecentFilesPanel?: (v: boolean) => void
   hideRecentFiles?: boolean
-  outlineOverlayEnabled?: boolean
-  onToggleOutlineOverlay?: (v: boolean) => void
 }
 
 const SessionPanel = React.memo(function SessionPanel({
@@ -375,8 +373,6 @@ const SessionPanel = React.memo(function SessionPanel({
   recentFilesPanelEnabled = false,
   onToggleRecentFilesPanel,
   hideRecentFiles = false,
-  outlineOverlayEnabled = true,
-  onToggleOutlineOverlay,
 }: SessionPanelProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [appVersion, setAppVersion] = useState('')
@@ -1586,8 +1582,6 @@ const SessionPanel = React.memo(function SessionPanel({
         onToggleGroupSessionsByCwd={onToggleGroupSessionsByCwd}
         recentFilesPanelEnabled={recentFilesPanelEnabled}
         onToggleRecentFilesPanel={onToggleRecentFilesPanel}
-        outlineOverlayEnabled={outlineOverlayEnabled}
-        onToggleOutlineOverlay={onToggleOutlineOverlay}
         inlineDiff={inlineDiff}
         onToggleInlineDiff={onToggleInlineDiff}
         wordWrap={wordWrap}

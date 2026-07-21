@@ -6,7 +6,6 @@ interface OutlinePanelProps {
   filePath: string
   fullPath: string
   content?: string  // 从 DiffViewer 直接传入，省 IPC file.read
-  hasExternalProvider?: boolean  // true = DiffViewer 会通过 content prop 传入内容，不需要自己读
   onNavigate: (line: number, headingName?: string) => void
 }
 
@@ -748,7 +747,7 @@ function OutlineItemRow({ item, depth, collapsedSet, onToggle, onNavigate, isMd 
   )
 }
 
-export default React.memo(function OutlinePanel({ filePath, fullPath, content, hasExternalProvider, onNavigate }: OutlinePanelProps) {
+export default React.memo(function OutlinePanel({ filePath, fullPath, content, onNavigate }: OutlinePanelProps) {
   const { t } = useI18n()
   const [items, setItems] = useState<OutlineItem[]>([])
   const [collapsedSet, setCollapsedSet] = useState<Set<string>>(new Set())
@@ -792,10 +791,6 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, content, h
         setItems(parseCodeOutline(content, lang, kinds!))
       }
       setLoading(false)
-    } else if (hasExternalProvider) {
-      // Wait for external provider (DiffViewer's onContentLoaded) — no duplicate file.read
-      setLoading(true)
-      setItems([])
     } else {
       window.api.file.read(fullPath).then(result => {
         if (pendingRef.current !== fullPath) return
@@ -843,19 +838,29 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, content, h
     setKindFilterDisplay(next)  // trigger re-parse via the kindFilter effect
   }, [lang])
 
-  const fileName = filePath.replace(/[\\/]/g, '/').split('/').pop() || filePath
-
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-2 py-1.5 border-b border-ide-border shrink-0">
-        <div className="flex items-center gap-1.5">
-          <svg viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" strokeWidth="0.5" strokeLinejoin="round" className="w-3 h-3 text-ide-accent shrink-0">
-            <path fillRule="evenodd" clipRule="evenodd" d="M1 3C1 2.44772 1.44772 2 2 2H14C14.5523 2 15 2.44772 15 3V6C15 6.55228 14.5523 7 14 7H2C1.44772 7 1 6.55228 1 6V3ZM2 3H14V6H2L2 3Z"/><path fillRule="evenodd" clipRule="evenodd" d="M2 9C1.44772 9 1 9.44772 1 10V13C1 13.5523 1.44772 14 2 14H5C5.55228 14 6 13.5523 6 13V10C6 9.44772 5.55228 9 5 9H2ZM5 10H2V13H5V10Z"/><path fillRule="evenodd" clipRule="evenodd" d="M11 9C10.4477 9 10 9.44772 10 10V13C10 13.5523 10.4477 14 11 14H14C14.5523 14 15 13.5523 15 13V10C15 9.44772 14.5523 9 14 9H11ZM14 10H11V13H14V10Z"/>
-          </svg>
-          <span className="text-xs font-medium text-ide-text truncate">{fileName}</span>
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* Kind filter bar (code mode only) */}
+      {code && !loading && availableKinds.length > 0 && (
+        <div className="px-2 py-1.5 border-b border-ide-border shrink-0 flex items-center gap-1 flex-wrap">
+          {availableKinds.map(kind => {
+            const active = kindFilterDisplay.has(kind)
+            return (
+              <button
+                key={kind}
+                onClick={() => handleToggleKind(kind)}
+                className={`text-[10px] font-bold leading-none px-1.5 py-0.5 rounded transition-colors ${
+                  active
+                    ? 'bg-ide-accent/20 text-ide-accent'
+                    : 'text-ide-text-muted/40 hover:text-ide-text-muted'
+                }`}
+              >
+                {getKindLabel(kind)}
+              </button>
+            )
+          })}
         </div>
-      </div>
+      )}
 
       {/* Outline list */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden py-1">
@@ -877,28 +882,6 @@ export default React.memo(function OutlinePanel({ filePath, fullPath, content, h
           />
         ))}
       </div>
-
-      {/* Kind filter bar (code mode only) */}
-      {code && !loading && availableKinds.length > 0 && (
-        <div className="px-2 py-1.5 border-t border-ide-border shrink-0 flex items-center gap-1 flex-wrap">
-          {availableKinds.map(kind => {
-            const active = kindFilterDisplay.has(kind)
-            return (
-              <button
-                key={kind}
-                onClick={() => handleToggleKind(kind)}
-                className={`text-[10px] font-bold leading-none px-1.5 py-0.5 rounded transition-colors ${
-                  active
-                    ? 'bg-ide-accent/20 text-ide-accent'
-                    : 'text-ide-text-muted/40 hover:text-ide-text-muted'
-                }`}
-              >
-                {getKindLabel(kind)}
-              </button>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 })

@@ -127,8 +127,6 @@ interface AppearancePanelProps {
   onToggleGroupSessionsByCwd?: (v: boolean) => void
   recentFilesPanelEnabled?: boolean
   onToggleRecentFilesPanel?: (v: boolean) => void
-  outlineOverlayEnabled?: boolean
-  onToggleOutlineOverlay?: (v: boolean) => void
   inlineDiff?: boolean
   onToggleInlineDiff?: (v: boolean) => void
   wordWrap?: boolean
@@ -168,7 +166,6 @@ const AppearancePanel = function AppearancePanel({
   capsuleTabs = true, onToggleCapsuleTabs,
   groupSessionsByCwd = true, onToggleGroupSessionsByCwd,
   recentFilesPanelEnabled = false, onToggleRecentFilesPanel,
-  outlineOverlayEnabled = true, onToggleOutlineOverlay,
   inlineDiff = false, onToggleInlineDiff,
   wordWrap = false, onToggleWordWrap,
   diffSplitRatio = 0.3, onSetDiffSplitRatio,
@@ -458,10 +455,6 @@ const AppearancePanel = function AppearancePanel({
                 {onToggleRecentFilesPanel && (
                   <ToggleRow labelKey="Recent Files Panel" descKey="Show recently opened files at the bottom of the session panel"
                     checked={recentFilesPanelEnabled} onChange={onToggleRecentFilesPanel} zone="session" />
-                )}
-                {onToggleOutlineOverlay && (
-                  <ToggleRow labelKey="Outline" descKey="Show code outline over the session panel when viewing a file. Disable to keep the session list visible."
-                    checked={outlineOverlayEnabled} onChange={onToggleOutlineOverlay} zone="session" />
                 )}
                 {onSetFontFamily && (
                   <FontRow labelKey="Session Font" value={fontFamily} recommended="Consolas" onChange={onSetFontFamily} zone="session" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />

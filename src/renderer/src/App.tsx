@@ -6,7 +6,7 @@ import DiffViewer from './components/DiffViewer'
 import MarkdownPreview from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
 import BrowserView, { BrowserViewHandle } from './components/BrowserView'
-import OutlinePanel, { isCode, isMarkdown } from './components/OutlinePanel'
+import { isCode, isMarkdown } from './components/OutlinePanel'
 import NavBar, { NavEntry } from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
@@ -248,9 +248,6 @@ export default function App() {
     quickOpenOpenRef.current = false
     setQuickOpenOpen(false)
   }, [])
-  const [currentFileContent, setCurrentFileContent] = useState<string>('')  // DiffViewer 回传，供 OutlinePanel 省 IPC
-  // 文件切换时清空 stale content，防止新 OutlinePanel 拿到上一个文件的内容
-  useEffect(() => { setCurrentFileContent('') }, [diffFile?.fullPath])
   const [markdownFile, setMarkdownFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const [imageFile, setImageFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const diffRevisionRef = useRef(0)
@@ -1778,7 +1775,6 @@ export default function App() {
   const handleBackToTerminal = useCallback(() => {
     setCenterView('terminal')
     setDiffFile(null)
-    setCurrentFileContent('')
   }, [])
 
   const handleRefreshGit = useCallback(async () => {
@@ -2070,7 +2066,7 @@ export default function App() {
 
   const isWelcome = sessions.length === 0
 
-  const hideRecentFiles = !!(recentFilesPanelEnabled && outlineOverlayEnabled && (
+  const hideRecentFiles = !!(recentFilesPanelEnabled && (
     (centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath))) ||
     (centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath))
   ))
@@ -2157,8 +2153,6 @@ export default function App() {
             recentFilesPanelEnabled={recentFilesPanelEnabled}
             onToggleRecentFilesPanel={setRecentFilesPanelEnabled}
             hideRecentFiles={hideRecentFiles}
-            outlineOverlayEnabled={outlineOverlayEnabled}
-            onToggleOutlineOverlay={setOutlineOverlayEnabled}
             terminalFontSize={terminalFontSize}
             editorFontSize={editorFontSize}
             onAdjustTerminalFontSize={(delta: number) => setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))}
@@ -2196,30 +2190,8 @@ export default function App() {
           />
           </div>
           {/* Outline + floating recent files — shared flex container so outline scrolling respects recent-files height */}
-          {outlineOverlayEnabled && ((centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath))) || (centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath))) && (
-            <div className="absolute left-2 right-2 bottom-2 z-10 flex flex-col bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden" style={{ top: 44 }}>
-              {centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath)) && (
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  <OutlinePanel
-                    key={diffFile.fullPath}
-                    filePath={diffFile.filePath}
-                    fullPath={diffFile.fullPath}
-                    content={currentFileContent}
-                    hasExternalProvider={true}
-                    onNavigate={handleOutlineNavigate}
-                  />
-                </div>
-              )}
-              {centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath) && (
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  <OutlinePanel
-                    key={markdownFile.fullPath}
-                    filePath={markdownFile.fileName}
-                    fullPath={markdownFile.fullPath}
-                    onNavigate={handleOutlineNavigate}
-                  />
-                </div>
-              )}
+          {recentFilesPanelEnabled && recentFiles.length > 0 && ((centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath))) || (centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath))) && (
+            <div className="absolute left-2 right-2 bottom-2 z-10 flex flex-col bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden">
               {recentFilesPanelEnabled && recentFiles.length > 0 && (
                 <div className="shrink-0 border-t border-ide-border">
                   {recentFiles.slice(0, 5).map(f => {
@@ -2296,13 +2268,15 @@ export default function App() {
                 scrollTrigger={diffScrollTrigger}
                 cursorRef={cursorRef}
                 visibleLineRef={visibleLineRef}
-                onContentLoaded={setCurrentFileContent}
                 onOpenCallGraph={handleOpenCallGraphFromEditor}
                 onViewLineHistory={handleViewLineHistory}
                 compareOriginalContent={diffFile.compareOriginalContent}
                 compareOriginalPath={diffFile.compareOriginalPath}
                 onAnnotationTrigger={handleAnnotationTrigger}
                 brushActive={brushActive}
+                outlineEnabled={outlineOverlayEnabled}
+                onToggleOutline={() => setOutlineOverlayEnabled(prev => !prev)}
+                onOutlineNavigate={handleOutlineNavigate}
               />
             </div>
           )}
@@ -2316,6 +2290,9 @@ export default function App() {
                 onBack={handleBackFromMarkdown}
                 scrollToHeading={mdScrollHeading}
                 searchTrigger={mdSearchTrigger}
+                outlineEnabled={outlineOverlayEnabled}
+                onToggleOutline={() => setOutlineOverlayEnabled(prev => !prev)}
+                onOutlineNavigate={handleOutlineNavigate}
               />
             </div>
           )}

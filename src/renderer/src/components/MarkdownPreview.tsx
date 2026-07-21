@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { type Frontmatter, parseFrontmatter } from '@renderer/utils/frontmatter'
+import OutlineTrigger from './OutlineTrigger'
 
 interface MarkdownPreviewProps {
   fullPath: string
@@ -11,6 +12,9 @@ interface MarkdownPreviewProps {
   onBack?: () => void
   scrollToHeading?: string
   searchTrigger?: number
+  outlineEnabled?: boolean
+  onToggleOutline?: () => void
+  onOutlineNavigate?: (line: number, headingName?: string) => void
 }
 
 function slugify(text: string): string {
@@ -114,7 +118,10 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   fileName,
   onBack,
   scrollToHeading,
-  searchTrigger
+  searchTrigger,
+  outlineEnabled,
+  onToggleOutline,
+  onOutlineNavigate
 }: MarkdownPreviewProps) {
   const [content, setContent] = useState('')
   const [frontmatter, setFrontmatter] = useState<Frontmatter | null>(null)
@@ -307,11 +314,21 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
                   {(() => { const info = getFileInfo(namePart); return <svg viewBox="0 0 16 16" fill="currentColor" className={`w-4 h-4 shrink-0 ${info.color}`} dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />; })()}
                   <span className="text-ide-text font-medium">{namePart}</span>{dirPart && <span className="text-[11px] text-ide-text-muted/50"> {dirPart}</span>}
                 </div>
-                <div className="flex items-center rounded-md bg-ide-hover overflow-hidden shrink-0">
-                  <span className="px-2.5 py-1 text-xs bg-ide-accent/15 text-ide-accent">View</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center rounded-md bg-ide-hover overflow-hidden shrink-0">
+                    <span className="px-2.5 py-1 text-xs bg-ide-accent/15 text-ide-accent">View</span>
+                  </div>
+                  {onToggleOutline && (
+                    <OutlineTrigger
+                      outlineEnabled={outlineEnabled}
+                      onToggle={onToggleOutline}
+                      filePath={fileName}
+                      fullPath={fullPath}
+                      onNavigate={onOutlineNavigate}
+                    />
+                  )}
                 </div>
               </div>
-
       <div className="flex-1 overflow-auto p-6 bg-ide-bg">
         {loading && (
           <div className="flex items-center justify-center h-32 text-ide-text-muted">Loading...</div>
