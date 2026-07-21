@@ -315,7 +315,7 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
   const handleConvert = useCallback(() => {
     const command = items.map(it => it.text).filter(t => t.trim()).join('\n')
     if (!command) return
-    const prefill: DraftPrefill = { name: 'vibe programer', command, type: 'pipe' }
+    const prefill: DraftPrefill = { name: 'Vibe programer', command, type: 'pipe' }
     window.dispatchEvent(new CustomEvent(OPEN_CMD_MODAL_EVENT, { detail: prefill }))
   }, [items])
 
@@ -461,7 +461,7 @@ export default function VibeProgramer({ onBack }: { onBack?: () => void }) {
             </button>
           )}
           <span className="text-[13px] leading-none">📝</span>
-          <span className="text-xs font-bold text-ide-text-muted tracking-wider draft-plan__title">vibe programer</span>
+          <span className="text-xs font-bold text-ide-text-muted tracking-wider draft-plan__title">Vibe programer</span>
         </div>
         <div className="flex items-center gap-2">
           <button

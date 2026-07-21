@@ -19,11 +19,11 @@ interface GameCard {
 }
 
 const GAMES: GameCard[] = [
-  { id: 'mujica', icon: <img src={mujicaIcon} alt="mujica" className="w-7 h-7 object-contain rounded" />, name: 'mujica', desc: 'Form a band of Claude agents — conduct them in parallel' },
+  { id: 'mujica', icon: <img src={mujicaIcon} alt="Mujica" className="w-7 h-7 object-contain rounded" />, name: 'Mujica', desc: 'Form a band of Claude agents — conduct them in parallel' },
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
-  { id: 'draft', icon: <span className="text-2xl leading-none">📝</span>, name: 'vibe programer', desc: 'Prompt scratchpad — chain into a pipeline command' },
+  { id: 'draft', icon: <span className="text-2xl leading-none">📝</span>, name: 'Vibe programer', desc: 'Prompt scratchpad — chain into a pipeline command' },
 ]
 
 export default function GameLauncher() {

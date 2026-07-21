@@ -11,6 +11,7 @@ export interface MujicaState {
   model: string
   workspaces: MujicaWorkspace[]
   hoveredId: string | null
+  pinnedId: string | null
   prompt: string
   permissionMode: AiPermissionMode
 }
@@ -22,6 +23,7 @@ const INITIAL: MujicaState = {
   model: '',
   workspaces: [],
   hoveredId: null,
+  pinnedId: null,
   prompt: '',
   permissionMode: 'bypassPermissions',
 }
@@ -67,7 +69,7 @@ export const mujicaStore = {
     if (!cwd) return
     const id = makeId()
     const label = `Agent ${state.workspaces.length + 1}`
-    set(s => ({ ...s, workspaces: [...s.workspaces, { id, label }], hoveredId: id }))
+    set(s => ({ ...s, workspaces: [...s.workspaces, { id, label }], pinnedId: id }))
     aiStore.ensureCreated(id, {
       cwd,
       autoApprove: true,
@@ -76,12 +78,22 @@ export const mujicaStore = {
       model: state.model || undefined,
     })
   },
+  removeWorkspace(id: string) {
+    window.api.ai.destroy(id)
+    aiStore.clearSession(id)
+    set(s => ({
+      ...s,
+      workspaces: s.workspaces.filter(w => w.id !== id),
+      hoveredId: s.hoveredId === id ? null : s.hoveredId,
+      pinnedId: s.pinnedId === id ? null : s.pinnedId,
+    }))
+  },
   clearAll() {
     for (const ws of state.workspaces) {
       window.api.ai.destroy(ws.id)
       aiStore.clearSession(ws.id)
     }
-    set(s => ({ ...s, workspaces: [], hoveredId: null }))
+    set(s => ({ ...s, workspaces: [], hoveredId: null, pinnedId: null }))
   },
   runAll() {
     const p = state.prompt.trim()
@@ -93,9 +105,7 @@ export const mujicaStore = {
     if (!p) return
     window.api.ai.send(id, p)
   },
-  // Hover output: show on hover, hide shortly after the mouse leaves node/overlay.
-  // The 200ms grace lets the mouse travel from a node to the output overlay so it
-  // can be scrolled / its permission buttons clicked — but it is NOT persistent.
+  // hover drives only the node highlight ring now (output is click-to-pin below).
   hover(id: string) {
     if (hideTimer) { clearTimeout(hideTimer); hideTimer = null }
     set(s => ({ ...s, hoveredId: id }))
@@ -106,6 +116,14 @@ export const mujicaStore = {
   scheduleHide() {
     if (hideTimer) clearTimeout(hideTimer)
     hideTimer = setTimeout(() => { hideTimer = null; set(s => ({ ...s, hoveredId: null })) }, 200)
+  },
+  // Click-to-pin output: a pinned agent's output pane stays open (persistent,
+  // scrollable, wider) until the same node is clicked again or the pane is closed.
+  togglePin(id: string) {
+    set(s => ({ ...s, pinnedId: s.pinnedId === id ? null : id }))
+  },
+  unpin() {
+    set(s => ({ ...s, pinnedId: null }))
   },
 }
 

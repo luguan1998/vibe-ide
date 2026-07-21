@@ -30,10 +30,10 @@ function basename(p: string | undefined): string {
   return parts[parts.length - 1] || p
 }
 
-// Floating overlay: only rendered while an agent node is hovered (pure-hover with
-// a short grace so the mouse can travel node → overlay). NOT a persistent pane.
-export default function MujicaHoverOutput({ hoveredId }: { hoveredId: string }) {
-  const s = useAiSession(hoveredId)
+// Persistent output pane: rendered while an agent node is pinned (click to pin,
+// click again or ✕ to close). Wider than the old hover overlay so output is readable.
+export default function MujicaOutput({ pinnedId }: { pinnedId: string }) {
+  const s = useAiSession(pinnedId)
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = scrollRef.current
@@ -41,16 +41,22 @@ export default function MujicaHoverOutput({ hoveredId }: { hoveredId: string }) 
   }, [s.messages, s.streamBuffer])
 
   return (
-    <div
-      onMouseEnter={() => mujicaStore.cancelHide()}
-      onMouseLeave={() => mujicaStore.scheduleHide()}
-      className="absolute right-0 top-0 bottom-0 w-96 bg-ide-sidebar border-l border-ide-border shadow-2xl flex flex-col z-10"
-    >
-      <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-ide-text-muted bg-ide-hover/40 shrink-0 truncate">
-        {basename(s.worktreePath) || 'agent output'}
+    <div className="absolute right-0 top-0 bottom-0 w-3/5 min-w-[720px] bg-ide-sidebar border-l border-ide-border shadow-2xl flex flex-col z-10">
+      <div className="px-3 py-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-ide-text-muted bg-ide-hover/40 shrink-0">
+        <span className="truncate flex-1">{basename(s.worktreePath) || 'agent output'}</span>
+        <button
+          onClick={() => mujicaStore.unpin()}
+          title="close"
+          className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 space-y-2">
-        {s.pendingPermission && <PermissionCard id={hoveredId} perm={s.pendingPermission} />}
+        {s.pendingPermission && <PermissionCard id={pinnedId} perm={s.pendingPermission} />}
         {s.messages.map((m, i) => {
           if (m.type === 'user' && typeof m.content === 'string') {
             return <div key={i} className="text-right text-sm text-ide-text break-words">{m.content}</div>

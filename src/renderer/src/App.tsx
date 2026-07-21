@@ -2136,7 +2136,7 @@ export default function App() {
         <span className="w-[18px] h-[18px] mr-1.5 shrink-0 -ml-1 flex items-center justify-center rounded bg-ide-accent/40 text-[11px] leading-none">🤔</span>
         <span className="text-ide-text-muted text-sm font-medium tracking-wide">Vibe IDE</span>
         <button
-          className="no-drag config-menu-area w-6 h-6 ml-4 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
+          className="no-drag config-menu-area w-6 h-6 ml-[10px] rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
           onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); sessionPanelRef.current?.toggleConfig(r) }}
           title={t('Settings')}
         >

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import MujicaCanvas from './MujicaCanvas'
-import MujicaHoverOutput from './MujicaTools'
+import MujicaOutput from './MujicaTools'
 import { mujicaStore, useMujica } from '../mujicaStore'
 
 // Nga "mujica" card dispatches this; App.tsx listens and switches the center to the canvas.
@@ -13,7 +13,7 @@ interface GameMujicaProps {
 }
 
 // Center view: just the canvas. Config lives in the right panel (MujicaConfig).
-// Agent output is a pure-hover floating overlay (only while a node is hovered).
+// Agent output is a click-to-pin pane (click a node to pin/unpin its output).
 export default function GameMujica({ onBack }: GameMujicaProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const onBackRef = useRef(onBack)
@@ -39,12 +39,15 @@ export default function GameMujica({ onBack }: GameMujicaProps) {
       <MujicaCanvas
         workspaces={m.workspaces}
         hoveredId={m.hoveredId}
+        pinnedId={m.pinnedId}
         canRun={!!m.prompt.trim()}
         onHover={mujicaStore.hover}
         onHoverEnd={mujicaStore.scheduleHide}
+        onTogglePin={mujicaStore.togglePin}
         onRunOne={mujicaStore.runOne}
+        onRemove={mujicaStore.removeWorkspace}
       />
-      {m.hoveredId && <MujicaHoverOutput hoveredId={m.hoveredId} />}
+      {m.pinnedId && <MujicaOutput pinnedId={m.pinnedId} />}
     </div>
   )
 }

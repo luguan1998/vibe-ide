@@ -1178,7 +1178,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         {dropIndex === sessions.length && dropIndex !== dragIndex && dragIndex !== sessions.length - 1 && (
           <div className="mx-1 border-t-2 border-ide-accent" />
         )}
-        {sessionGroups.length === 1 && (
+        {sessions.length === 1 && (
           <div className="text-center text-[11px] text-ide-text-muted/50 py-3 select-none">
             {t('Right-click blank area to open a new session')}
           </div>

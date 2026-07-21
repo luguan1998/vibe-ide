@@ -24,7 +24,7 @@ export default function MujicaConfig() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="px-4 py-2 bg-ide-hover/50 border-b border-ide-border shrink-0 flex items-center justify-between select-none">
-        <img src={mujicaIcon} alt="mujica" className="w-4 h-4 object-contain" />
+        <img src={mujicaIcon} alt="Mujica" className="w-4 h-4 object-contain" />
         <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider">MUJICA</span>
         <button onClick={close} className="text-[11px] text-ide-text-muted hover:text-ide-text transition-colors">close</button>
       </div>
@@ -125,7 +125,7 @@ export default function MujicaConfig() {
 
         <div className="text-[11px] text-ide-text-muted/70 pt-1 leading-relaxed">
           {m.workspaces.length} agent(s) on the canvas.<br />
-          hover a node to view output · click ▶ on a node to run just that agent.
+          click a node to pin its output · click ▶ on a node to run just that agent.
         </div>
       </div>
     </div>

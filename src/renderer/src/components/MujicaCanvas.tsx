@@ -69,14 +69,32 @@ function RunButton({ id, disabled, onRunOne }: { id: string; disabled: boolean; 
   )
 }
 
-function MujicaNode({ id, label, hovered, canRun, onHover, onHoverEnd, onRunOne }: {
+function DeleteButton({ id, onRemove }: { id: string; onRemove: (id: string) => void }) {
+  return (
+    <button
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); onRemove(id) }}
+      title="remove agent"
+      className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover transition-colors"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    </button>
+  )
+}
+
+function MujicaNode({ id, label, hovered, pinned, canRun, onHover, onHoverEnd, onRunOne, onRemove }: {
   id: string
   label: string
   hovered: boolean
+  pinned: boolean
   canRun: boolean
   onHover: (id: string) => void
   onHoverEnd: () => void
   onRunOne: (id: string) => void
+  onRemove: (id: string) => void
 }) {
   const s = useAiSession(id)
   const status = deriveStatus(s)
@@ -89,12 +107,13 @@ function MujicaNode({ id, label, hovered, canRun, onHover, onHoverEnd, onRunOne 
       // Skip hover while a mouse button is held (canvas drag-pan) to avoid flicker.
       onMouseEnter={(e) => { if (e.buttons === 0) onHover(id) }}
       onMouseLeave={onHoverEnd}
-      className={`w-full h-full rounded-lg border ${st.border} ${hovered ? 'ring-2 ring-ide-accent' : ''} bg-ide-sidebar hover:bg-ide-hover transition-colors overflow-hidden flex flex-col`}
+      className={`w-full h-full rounded-lg border ${st.border} ${hovered || pinned ? 'ring-2 ring-ide-accent' : ''} bg-ide-sidebar hover:bg-ide-hover transition-colors overflow-hidden flex flex-col`}
     >
       <div className="flex items-center gap-2 px-3 py-2 border-b border-ide-border/50">
         <span className={`w-2 h-2 rounded-full shrink-0 ${st.dot}`} />
         <span className="text-sm font-medium text-ide-text truncate flex-1">{label}</span>
         <RunButton id={id} disabled={!canRun || busy} onRunOne={onRunOne} />
+        <DeleteButton id={id} onRemove={onRemove} />
         {s.pendingPermission && (
           <span className="w-2 h-2 rounded-full bg-ide-warning animate-pulse shrink-0" title="permission requested" />
         )}
@@ -110,14 +129,25 @@ function MujicaNode({ id, label, hovered, canRun, onHover, onHoverEnd, onRunOne 
 interface MujicaCanvasProps {
   workspaces: { id: string; label: string }[]
   hoveredId: string | null
+  pinnedId: string | null
   canRun: boolean
   onHover: (id: string) => void
   onHoverEnd: () => void
+  onTogglePin: (id: string) => void
   onRunOne: (id: string) => void
+  onRemove: (id: string) => void
 }
 
-export default function MujicaCanvas({ workspaces, hoveredId, canRun, onHover, onHoverEnd, onRunOne }: MujicaCanvasProps) {
-  const positions = useMemo(() => layoutNodes(workspaces.map(w => w.id)), [workspaces])
+export default function MujicaCanvas({ workspaces, hoveredId, pinnedId, canRun, onHover, onHoverEnd, onTogglePin, onRunOne, onRemove }: MujicaCanvasProps) {
+  const [overrides, setOverrides] = useState<Record<string, { x: number; y: number }>>({})
+  const positions = useMemo(() => {
+    const base = layoutNodes(workspaces.map(w => w.id))
+    for (const ws of workspaces) {
+      const o = overrides[ws.id]
+      if (o) base.set(ws.id, o)
+    }
+    return base
+  }, [workspaces, overrides])
   const bbox = useMemo(() => {
     let maxX = 0, maxY = 0
     positions.forEach(p => {
@@ -129,6 +159,7 @@ export default function MujicaCanvas({ workspaces, hoveredId, canRun, onHover, o
 
   const [view, setView] = useState({ x: 24, y: 24, scale: 1 })
   const dragRef = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null)
+  const nodeDragRef = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null)
 
   const onWheel = useCallback((e: React.WheelEvent) => {
     setView(v => {
@@ -142,10 +173,25 @@ export default function MujicaCanvas({ workspaces, hoveredId, canRun, onHover, o
   }, [view.x, view.y])
   const onMove = useCallback((e: React.MouseEvent) => {
     const d = dragRef.current
-    if (!d) return
-    setView(v => ({ ...v, x: d.vx + (e.clientX - d.sx), y: d.vy + (e.clientY - d.sy) }))
-  }, [])
-  const onUp = useCallback(() => { dragRef.current = null }, [])
+    if (d) {
+      setView(v => ({ ...v, x: d.vx + (e.clientX - d.sx), y: d.vy + (e.clientY - d.sy) }))
+      return
+    }
+    const nd = nodeDragRef.current
+    if (nd) {
+      const dx = (e.clientX - nd.sx) / view.scale
+      const dy = (e.clientY - nd.sy) / view.scale
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) nd.moved = true
+      setOverrides(o => ({ ...o, [nd.id]: { x: nd.ox + dx, y: nd.oy + dy } }))
+    }
+  }, [view.scale])
+  const onUp = useCallback(() => {
+    // a node mousedown that didn't move past the threshold = a click → toggle pin
+    const nd = nodeDragRef.current
+    if (nd && !nd.moved) onTogglePin(nd.id)
+    dragRef.current = null
+    nodeDragRef.current = null
+  }, [onTogglePin])
 
   if (workspaces.length === 0) {
     return (
@@ -174,8 +220,17 @@ export default function MujicaCanvas({ workspaces, hoveredId, canRun, onHover, o
         {workspaces.map(ws => {
           const p = positions.get(ws.id) || { x: 0, y: 0 }
           return (
-            <div key={ws.id} className="absolute" style={{ left: p.x - NODE_W / 2, top: p.y - NODE_H / 2, width: NODE_W, height: NODE_H }}>
-              <MujicaNode id={ws.id} label={ws.label} hovered={hoveredId === ws.id} canRun={canRun} onHover={onHover} onHoverEnd={onHoverEnd} onRunOne={onRunOne} />
+            <div
+              key={ws.id}
+              className="absolute cursor-grab active:cursor-grabbing"
+              style={{ left: p.x - NODE_W / 2, top: p.y - NODE_H / 2, width: NODE_W, height: NODE_H }}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return
+                e.stopPropagation()
+                nodeDragRef.current = { id: ws.id, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false }
+              }}
+            >
+              <MujicaNode id={ws.id} label={ws.label} hovered={hoveredId === ws.id} pinned={pinnedId === ws.id} canRun={canRun} onHover={onHover} onHoverEnd={onHoverEnd} onRunOne={onRunOne} onRemove={onRemove} />
             </div>
           )
         })}
