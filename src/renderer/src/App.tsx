@@ -359,13 +359,49 @@ export default function App() {
   const pipeRunnersRef = useRef<Map<string, { cancelled: boolean; resolveIdle: (() => void) | null; sleepTimer: ReturnType<typeof setTimeout> | null; sleepResolve: (() => void) | null }>>(new Map())
   const terminalBusyRef = useRef<Record<string, boolean>>({})
   const aiBusyRef = useRef<Record<string, boolean>>({})
+  const [warnSessions, setWarnSessions] = useState<Record<string, boolean>>({})
+  const warnSessionsRef = useRef<Record<string, boolean>>({})
+  warnSessionsRef.current = warnSessions
+  const prevBusyRef = useRef<Record<string, boolean>>({})
   const agentStatus = useMemo(() => {
-    const result: Record<string, 'running' | 'idle'> = {}
+    const result: Record<string, 'running' | 'idle' | 'warn'> = {}
     for (const s of sessions) {
-      result[s.id] = (terminalBusy[s.id] || aiBusy[s.id]) ? 'running' : 'idle'
+      const busy = terminalBusy[s.id] || aiBusy[s.id]
+      result[s.id] = busy ? 'running' : (warnSessions[s.id] ? 'warn' : 'idle')
     }
     return result
-  }, [sessions, terminalBusy, aiBusy])
+  }, [sessions, terminalBusy, aiBusy, warnSessions])
+  useEffect(() => {
+    const prev = prevBusyRef.current
+    const updates: Record<string, boolean> = {}
+    let changed = false
+    for (const s of sessions) {
+      const sid = s.id
+      const busy = !!(terminalBusy[sid] || aiBusy[sid])
+      const prevBusy = prev[sid] ?? false
+      if (prevBusy && !busy && sid !== activeSessionId) {
+        updates[sid] = true
+        changed = true
+      }
+    }
+    if (activeSessionId && warnSessionsRef.current[activeSessionId]) {
+      updates[activeSessionId] = false
+      changed = true
+    }
+    const cur: Record<string, boolean> = {}
+    for (const s of sessions) cur[s.id] = !!(terminalBusy[s.id] || aiBusy[s.id])
+    prevBusyRef.current = cur
+    if (changed) {
+      setWarnSessions(p => {
+        const n = { ...p }
+        for (const [k, v] of Object.entries(updates)) {
+          if (v) n[k] = true
+          else delete n[k]
+        }
+        return n
+      })
+    }
+  }, [sessions, terminalBusy, aiBusy, activeSessionId])
   const [autoApproveSessions, setAutoApproveSessions] = useState<Record<string, boolean>>({})
   const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
   const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})

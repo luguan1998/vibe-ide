@@ -40,7 +40,7 @@
    通配符 * 会扫描 Monaco 渲染文件时的数千 DOM 节点（view-line/span/装饰），
    开文件瞬间 style recalc 成本被放大成 CPU 抖升；改用具体容器即可断掉扫描路径 */
 .titlebar-drag,
-.session-panel__stat,
+.status-badge,
 .session-panel__settings-btn,
 .session-panel__new-btn,
 .session-panel__settings-menu,
@@ -84,7 +84,7 @@ textarea {
   position: relative !important;
   overflow: hidden !important;
 }
-.session-panel__stat {
+.status-badge {
   border: 1px solid rgb(60 55 80);
   text-transform: none !important; letter-spacing: 0 !important;
   font-size: 11px !important;
@@ -208,21 +208,29 @@ textarea {
   font-weight: 600 !important;
 }
 
-/* 状态栏图标替换：⚡闪电→🖌️画笔  ☕咖啡→🌻向日葵 */
-.session-panel__stat:first-child svg {
+/* 状态栏图标替换：running 🖌️ 画笔 · idle 🌻 向日葵 · warn 🌙 月亮 */
+.status-badge__segment--running .status-badge__icon {
   display: none !important;
 }
-.session-panel__stat:first-child::before {
+.status-badge__segment--running::before {
   content: '🖌️' !important;
   font-size: 11px !important;
   line-height: 1 !important;
 }
-.session-panel__stat:last-child svg {
+.status-badge__segment--idle .status-badge__icon {
   display: none !important;
 }
-.session-panel__stat:last-child::before {
+.status-badge__segment--idle::before {
   content: '🌻' !important;
   font-size: 14px !important;
+  line-height: 1 !important;
+}
+.status-badge__segment--warn .status-badge__icon {
+  display: none !important;
+}
+.status-badge__segment--warn::before {
+  content: '🌙' !important;
+  font-size: 13px !important;
   line-height: 1 !important;
 }
 
@@ -441,7 +449,7 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
 }
 
 /* 会话统计徽章 — 弱光晕 */
-.session-panel__stat {
+.status-badge {
   box-shadow: 0 0 6px rgba(255,195,40,0.08) !important;
 }
 

@@ -45,7 +45,7 @@ body::before {
    全局 — 微圓角 · 哥特手繪字體
    ════════════════════════════════════════════════════ */
 .titlebar-drag,
-.session-panel__stat,
+.status-badge,
 .session-panel__settings-btn,
 .session-panel__new-btn,
 .session-panel__settings-menu,
@@ -86,7 +86,7 @@ html, body, #root {
   background: rgb(15 36 48) !important;
 }
 
-.session-panel__stat {
+.status-badge {
   border: 1px solid rgb(32 27 24 / 0.6) !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
@@ -108,17 +108,23 @@ html, body, #root {
   background: rgb(20 50 65) !important;
 }
 
-/* ── 狀態圖標替換：閃電 → 💀 骷髏  咖啡 → 🦜 鸚鵡 ── */
-.session-panel__stat:first-child svg { display: none !important; }
-.session-panel__stat:first-child::before {
+/* ── 狀態圖標替換：running 💀 骷髏 · idle 🦜 鸚鵡 · warn 💰 錢袋 ── */
+.status-badge__segment--running .status-badge__icon { display: none !important; }
+.status-badge__segment--running::before {
   content: '💀' !important;
   font-size: 11px !important;
   line-height: 1 !important;
 }
-.session-panel__stat:last-child svg { display: none !important; }
-.session-panel__stat:last-child::before {
+.status-badge__segment--idle .status-badge__icon { display: none !important; }
+.status-badge__segment--idle::before {
   content: '🦜' !important;
   font-size: 14px !important;
+  line-height: 1 !important;
+}
+.status-badge__segment--warn .status-badge__icon { display: none !important; }
+.status-badge__segment--warn::before {
+  content: '💰' !important;
+  font-size: 13px !important;
   line-height: 1 !important;
 }
 

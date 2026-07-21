@@ -47,22 +47,49 @@
   border-bottom: 1px solid rgb(0 0 0 / 0.06) !important;
 }
 
-/* 统计徽章 — 胶囊标签：粉底/黄底轮换 */
-.session-panel__stat {
+/* 统计徽章 — 合并胶囊：running/idle 红底 · warn 黄底（红红黄） */
+.status-badge {
   border: none !important;
-  background: rgb(255 64 129 / 0.12) !important;
-  color: rgb(255 64 129) !important;
+  background: transparent !important;
   box-shadow: none !important;
   border-radius: 9999px !important;
+  align-items: center !important;
+}
+.status-badge__segment {
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
   font-size: 11px !important;
   font-weight: 700 !important;
+  line-height: 1 !important;
   padding: 2px 8px !important;
+  align-items: center !important;
 }
-.session-panel__stat:last-child {
+.status-badge__segment--running {
+  background: rgb(255 64 129 / 0.12) !important;
+  color: rgb(255 64 129) !important;
+}
+.status-badge__segment--running.is-active {
+  background: rgb(255 64 129 / 0.24) !important;
+}
+.status-badge__segment--idle {
+  background: rgb(255 64 129 / 0.12) !important;
+  color: rgb(255 64 129) !important;
+}
+.status-badge__icon {
+  width: 16px !important;
+  height: 16px !important;
+  display: block !important;
+  align-self: center !important;
+}
+.status-badge__segment--warn {
   background: rgb(255 204 0 / 0.18) !important;
   color: rgb(180 140 0) !important;
+}
+.status-badge__segment--warn.is-active {
+  background: rgb(255 204 0 / 0.32) !important;
 }
 
 /* 工具栏按钮 — 胶囊浅灰底，悬停粉化 */

@@ -49,7 +49,7 @@
 }
 
 /* 统计徽章 — 无边框纯图标 */
-.session-panel__stat {
+.status-badge {
   border: none !important;
   background: rgba(255 255 255 / 0.45) !important;
   box-shadow: none !important;

@@ -82,17 +82,64 @@ html, body, #root {
   border: 2px solid rgb(var(--ide-border)) !important;
 }
 
-/* 统计徽章 — 凸起按钮（白底 + 浅灰阴影） */
-.session-panel__stat {
+/* 统计徽章 — NES 凸起方块按钮（2px 粗边 + 3D inset 阴影 + 硬色块） */
+.status-badge {
   border: 2px solid rgb(var(--ide-border)) !important;
   box-shadow: inset -1px -1px 0 #adafbc, inset 1px 1px 0 #fff !important;
-  text-transform: uppercase !important;
+  border-radius: 0 !important;
   background: #fff !important;
-  padding: 0 6px !important;
 }
-.session-panel__stat svg {
-  width: 13px !important;
-  height: 13px !important;
+.status-badge__segment {
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  font-weight: 700 !important;
+  font-size: 10px !important;
+  padding: 1px 6px !important;
+  border-radius: 0 !important;
+}
+.status-badge__segment .status-badge__icon { display: none !important; }
+/* 像素 emoji 替换 svg */
+.status-badge__segment--running::before {
+  content: '⚡' !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+}
+.status-badge__segment--idle::before {
+  content: '💤' !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+}
+.status-badge__segment--warn::before {
+  content: '❗' !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+}
+/* running — NES 蓝 */
+.status-badge__segment--running {
+  background: rgb(var(--ide-accent)) !important;
+  color: #fff !important;
+}
+.status-badge__segment--running.is-active {
+  box-shadow: inset 2px 2px 0 rgb(0 107 179) !important;
+}
+/* idle — NES 绿（中性） */
+.status-badge__segment--idle {
+  background: rgb(var(--ide-success)) !important;
+  color: rgb(var(--ide-text)) !important;
+}
+/* warn — NES 黄（警示） */
+.status-badge__segment--warn {
+  background: rgb(var(--ide-warning)) !important;
+  color: rgb(var(--ide-text)) !important;
+}
+.status-badge__segment--warn.is-active {
+  box-shadow: inset 2px 2px 0 rgb(199 172 23) !important;
+}
+/* divider — 粗黑竖线 */
+.status-badge__divider {
+  width: 2px !important;
+  margin: 0 !important;
+  background: rgb(var(--ide-border)) !important;
 }
 
 /* 设置 / 新建按钮 — 凸起 */
@@ -102,6 +149,9 @@ html, body, #root {
   box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   width: 26px !important;
   height: 26px !important;
+  border-radius: 0 !important;
+  /* NES 像素四角缺口 */
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
 }
 .session-panel__settings-btn:active,
 .session-panel__new-btn:active {
@@ -217,17 +267,19 @@ html, body, #root {
   font-weight: 700 !important;
 }
 
-/* Commit 输入框 — 凹陷 */
+/* Commit 输入框 — 凹陷 + 像素缺角 */
 .git-tab__commit-input {
   border: 2px solid rgb(var(--ide-border)) !important;
   box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
   background: #fff !important;
+  border-radius: 0 !important;
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
 }
 .git-tab__commit-input:focus {
   border-color: rgb(var(--ide-accent)) !important;
 }
 
-/* Commit 按钮 — 凸起 + 蓝色 */
+/* Commit 按钮 — 凸起 + 蓝色 + 像素缺角 */
 .git-tab__commit-btn {
   border: 2px solid rgb(var(--ide-border)) !important;
   box-shadow: inset -2px -2px 0 #006bb3, inset 2px 2px 0 #fff !important;
@@ -236,18 +288,37 @@ html, body, #root {
   letter-spacing: 2px !important;
   background: rgb(var(--ide-accent)) !important;
   color: #fff !important;
+  border-radius: 0 !important;
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
 }
 .git-tab__commit-btn:active {
   box-shadow: inset 2px 2px 0 #006bb3, inset -2px -2px 0 #fff !important;
 }
 
-/* Stash / Amend — 小凸起按钮 */
+/* Push 按钮 — 凸起 + 蓝色 + 像素缺角（与 commit 同语言） */
+.git-tab__push-group button {
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -2px -2px 0 #006bb3, inset 2px 2px 0 #fff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  background: rgb(var(--ide-accent)) !important;
+  color: #fff !important;
+  border-radius: 0 !important;
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
+}
+.git-tab__push-group button:active {
+  box-shadow: inset 2px 2px 0 #006bb3, inset -2px -2px 0 #fff !important;
+}
+
+/* Stash / Amend — 小凸起按钮 + 像素缺角 */
 .git-tab__stash-btn,
 .git-tab__amend-btn {
   border: 2px solid rgb(var(--ide-border)) !important;
   box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   text-transform: uppercase !important;
   background: #fff !important;
+  border-radius: 0 !important;
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
 }
 
 
@@ -264,6 +335,9 @@ html, body, #root {
   box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   text-transform: uppercase !important;
   background: #fff !important;
+  border-radius: 0 !important;
+  /* NES 像素四角缺口 — 每角缺 4×4 方块（L 形阶梯） */
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
 }
 .right-panel__tab + .right-panel__tab {
   border-left: 1px solid rgb(var(--ide-border)) !important;

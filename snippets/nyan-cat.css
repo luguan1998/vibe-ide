@@ -153,7 +153,7 @@
   position: relative !important;
 }
 
-.session-panel__stat {
+.status-badge {
   border: 1px solid rgb(40 58 90) !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
@@ -196,21 +196,29 @@
   font-size: 11px !important;
 }
 
-/* 统计图标替换 */
-.session-panel__stat:first-child svg {
+/* 统计图标替换：running 🌈 · idle ⭐ · warn ⚠️ */
+.status-badge__segment--running .status-badge__icon {
   display: none !important;
 }
-.session-panel__stat:first-child::before {
+.status-badge__segment--running::before {
   content: '🌈' !important;
   font-size: 11px !important;
   line-height: 1 !important;
 }
-.session-panel__stat:last-child svg {
+.status-badge__segment--idle .status-badge__icon {
   display: none !important;
 }
-.session-panel__stat:last-child::before {
+.status-badge__segment--idle::before {
   content: '⭐' !important;
   font-size: 14px !important;
+  line-height: 1 !important;
+}
+.status-badge__segment--warn .status-badge__icon {
+  display: none !important;
+}
+.status-badge__segment--warn::before {
+  content: '⚠️' !important;
+  font-size: 13px !important;
   line-height: 1 !important;
 }
 

@@ -610,3 +610,52 @@ html, body, #root {
 .aux-tab__scroll { scrollbar-width: none; }
 .aux-tab__scroll::-webkit-scrollbar { display: none; }
 
+/* ── status-badge：agent 状态药丸，可复用 BEM 组件（snippets 可覆盖，选择器优先级低无需 !important） ── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  background: rgb(var(--ide-hover));
+  overflow: hidden;
+}
+.status-badge__segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  color: rgb(var(--ide-text-muted));
+  transition: color .15s ease, background-color .15s ease;
+}
+.status-badge__segment--running.is-active {
+  color: rgb(var(--ide-accent));
+  background: rgb(var(--ide-accent) / 0.1);
+}
+.status-badge__segment--warn.is-active {
+  color: rgb(var(--ide-warning));
+  background: rgb(var(--ide-warning) / 0.1);
+}
+.status-badge__divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 1px 0;
+  background: rgb(var(--ide-text) / 0.15);
+}
+.status-badge__icon { flex: none; }
+/* 主题用 ::before 放 emoji 替换 svg 时，约束在 13px 盒居中，避免 emoji 撑宽胶囊 */
+.status-badge__segment::before {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  flex: none;
+  overflow: hidden;
+}
+.status-badge__count {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
