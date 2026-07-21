@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
-import SessionPanel from './components/SessionPanel'
+import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
 import MarkdownPreview from './components/MarkdownPreview'
@@ -505,6 +505,7 @@ export default function App() {
   const browserViewRef = useRef<BrowserViewHandle | null>(null)
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const centerPanelRef = useRef<HTMLDivElement>(null)
+  const sessionPanelRef = useRef<SessionPanelHandle>(null)
   // Cursor position (DiffViewer 回传，供行历史等使用)
   interface CursorHistoryEntry { fullPath: string; line: number; column: number }
   const cursorRef = useRef<CursorHistoryEntry | null>(null)
@@ -2134,6 +2135,15 @@ export default function App() {
       <div className="titlebar-drag h-9 bg-ide-sidebar border-b border-ide-border flex items-center px-4 select-none shrink-0">
         <span className="w-[18px] h-[18px] mr-1.5 shrink-0 -ml-1 flex items-center justify-center rounded bg-ide-accent/40 text-[11px] leading-none">🤔</span>
         <span className="text-ide-text-muted text-sm font-medium tracking-wide">Vibe IDE</span>
+        <button
+          className="no-drag config-menu-area w-6 h-6 ml-4 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
+          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); sessionPanelRef.current?.toggleConfig(r) }}
+          title={t('Settings')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="butt" strokeLinejoin="bevel" className="w-5 h-5">
+            <path d="M12 3 L19 8 L19 15 L12 20 L5 15 L5 8 Z M5 8 L12 13 L19 8 M12 13 L12 20" />
+          </svg>
+        </button>
         <div className="flex-1" />
         <button
           className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
@@ -2172,6 +2182,7 @@ export default function App() {
           {/* SessionPanel: always full height */}
           <div className="flex-1 overflow-hidden">
             <SessionPanel
+              ref={sessionPanelRef}
               sessions={sessions}
               activeSessionId={activeSessionId}
               onCreateSession={handleCreateSession}

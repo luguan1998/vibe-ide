@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useImperativeHandle } from 'react'
+import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
 import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Terminal, Keyboard, Filter } from 'lucide-react'
 import { useI18n } from '../i18n'
@@ -309,7 +310,11 @@ interface SessionPanelProps {
   hideRecentFiles?: boolean
 }
 
-const SessionPanel = React.memo(function SessionPanel({
+export interface SessionPanelHandle {
+  toggleConfig: (rect: DOMRect) => void
+}
+
+const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPanelProps>(function SessionPanel({
   sessions,
   activeSessionId,
   compact,
@@ -373,7 +378,7 @@ const SessionPanel = React.memo(function SessionPanel({
   recentFilesPanelEnabled = false,
   onToggleRecentFilesPanel,
   hideRecentFiles = false,
-}: SessionPanelProps) {
+}: SessionPanelProps, ref: React.ForwardedRef<SessionPanelHandle>) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [appVersion, setAppVersion] = useState('')
   const [showFileFilterRules, setShowFileFilterRules] = useState(false)
@@ -463,7 +468,6 @@ const SessionPanel = React.memo(function SessionPanel({
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cwdHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [cwdLinkSession, setCwdLinkSession] = useState<string | null>(null)
-  const configBtnRef = useRef<HTMLButtonElement>(null)
   const [configMenuStyle, setConfigMenuStyle] = useState<React.CSSProperties>({})
   const inputRef = useRef<HTMLInputElement>(null)
   const commandsRef = useRef<CustomCommandsHandle>(null)
@@ -472,9 +476,8 @@ const SessionPanel = React.memo(function SessionPanel({
   const [dragGroupIndex, setDragGroupIndex] = useState<number | null>(null)
   const [dropGroupIndex, setDropGroupIndex] = useState<number | null>(null)
 
-  const handleToggleConfig = () => {
-    if (!showConfigMenu && configBtnRef.current) {
-      const rect = configBtnRef.current.getBoundingClientRect()
+  useImperativeHandle(ref, () => ({
+    toggleConfig: (rect: DOMRect) => {
       const menuWidth = 192
       const left = Math.max(4, rect.left + rect.width / 2 - menuWidth / 2)
       setConfigMenuStyle({
@@ -483,9 +486,9 @@ const SessionPanel = React.memo(function SessionPanel({
         top: rect.bottom + 4,
         minWidth: menuWidth,
       })
-    }
-    setShowConfigMenu(!showConfigMenu)
-  }
+      setShowConfigMenu(prev => !prev)
+    },
+  }), [])
 
   useEffect(() => {
     if (renaming && inputRef.current) {
@@ -916,7 +919,7 @@ const SessionPanel = React.memo(function SessionPanel({
   return (
     <div className={`flex flex-col session-panel${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
       {/* Header + Dashboard merged */}
-      <div className="h-10 px-5 flex items-center justify-between shrink-0 session-panel__header">
+      <div className="h-10 px-5 flex items-center justify-center shrink-0 session-panel__header">
         <div className="status-badge">
           <span
             className={`status-badge__segment status-badge__segment--running${stats.running > 0 ? ' is-active' : ''}`}
@@ -946,21 +949,7 @@ const SessionPanel = React.memo(function SessionPanel({
         </div>
         <div className="flex items-center gap-1.5">
           <div className="relative config-menu-area session-panel__settings">
-            <button
-              ref={configBtnRef}
-              className={`w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 session-panel__settings-btn ${
-                showConfigMenu
-                  ? 'text-ide-accent bg-ide-accent/20'
-                  : 'text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white'
-              }`}
-              onClick={handleToggleConfig}
-              title={t('Settings')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="butt" strokeLinejoin="bevel" className="w-4 h-4">
-                <path d="M12 3 L19 8 L19 15 L12 20 L5 15 L5 8 Z M5 8 L12 13 L19 8 M12 13 L12 20" />
-              </svg>
-            </button>
-            {showConfigMenu && (
+            {showConfigMenu && createPortal(
               <div style={configMenuStyle} className="bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 config-menu-area session-panel__settings-menu">
                 {/* Language toggle */}
                 <div className="flex items-center justify-between mx-3 my-1.5">
@@ -1029,16 +1018,7 @@ const SessionPanel = React.memo(function SessionPanel({
                   </button>
                 </div>
               </div>
-            )}
-          </div>
-          <div className="relative session-panel__new">
-            <button
-              onClick={() => onCreateSession(termType)}
-              className="w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 session-panel__new-btn text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white"
-              title={`${t('New Terminal')} (${shellOptions.find(tt => tt.value === termType)?.label || termType})`}
-            >
-              <Plus size={14} />
-            </button>
+            , document.body)}
           </div>
         </div>
       </div>
@@ -1197,6 +1177,11 @@ const SessionPanel = React.memo(function SessionPanel({
         )}
         {dropIndex === sessions.length && dropIndex !== dragIndex && dragIndex !== sessions.length - 1 && (
           <div className="mx-1 border-t-2 border-ide-accent" />
+        )}
+        {sessionGroups.length === 1 && (
+          <div className="text-center text-[11px] text-ide-text-muted/50 py-3 select-none">
+            {t('Right-click blank area to open a new session')}
+          </div>
         )}
         </div>
 
@@ -1376,7 +1361,7 @@ const SessionPanel = React.memo(function SessionPanel({
               setEmptyAreaMenu(null)
             }}
           >
-            <Plus size={14} className="text-ide-text-muted" />
+            <MessageSquarePlus size={14} className="text-ide-text-muted" />
             {t('New Terminal')}
           </button>
           <button
@@ -1825,6 +1810,6 @@ const SessionPanel = React.memo(function SessionPanel({
       )}
     </div>
   )
-})
+}))
 
 export default SessionPanel

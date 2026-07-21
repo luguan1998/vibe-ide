@@ -622,7 +622,7 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.125rem 0.5rem;
+  padding: 0.125rem 0.75rem;
   color: rgb(var(--ide-text-muted));
   transition: color .15s ease, background-color .15s ease;
 }
