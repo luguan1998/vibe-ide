@@ -152,9 +152,12 @@
   background: transparent !important;
   position: relative !important;
 }
+.session-panel__header {
+  border-bottom: 1px solid rgb(40 58 90) !important;
+}
 
 .status-badge {
-  border: 2px solid rgb(40 58 90) !important;
+  border: none !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
   font-size: 11px !important;
@@ -284,8 +287,10 @@
    ════════════════════════════════════════════════════ */
 .session-group {
   border: 1px solid rgb(40 58 90) !important;
-  margin-top: 6px !important;
   background: transparent !important;
+}
+.session-group + .session-group {
+  margin-top: 6px !important;
 }
 
 .session-group__header {

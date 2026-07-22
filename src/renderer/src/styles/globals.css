@@ -610,40 +610,42 @@ html, body, #root {
 .aux-tab__scroll { scrollbar-width: none; }
 .aux-tab__scroll::-webkit-scrollbar { display: none; }
 
-/* ── status-badge：agent 状态药丸，可复用 BEM 组件（snippets 可覆盖，选择器优先级低无需 !important） ── */
+/* ── status-badge：agent 三态三连面板，可复用 BEM 组件（snippets 可覆盖，选择器优先级低无需 !important） ── */
 .status-badge {
   display: inline-flex;
-  align-items: center;
-  border-radius: 9999px;
-  background: rgb(var(--ide-hover));
+  align-items: stretch;
+  gap: 0.25rem;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
   overflow: hidden;
-  border: 2px solid rgb(var(--ide-border));
-  box-shadow: 0 1px 2px -1px rgb(0 0 0 / 0.2);
 }
 .status-badge__segment {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.125rem 0.75rem;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
   color: rgb(var(--ide-text-muted));
-  transition: color .15s ease, background-color .15s ease;
+  background: rgb(var(--ide-hover));
+  transition: color .15s ease, background-color .15s ease, border-color .15s ease;
 }
 .status-badge__segment--running.is-active {
   color: rgb(var(--ide-accent));
-  background: rgb(var(--ide-accent) / 0.1);
+  background: rgb(var(--ide-accent) / 0.14);
+  border-color: rgb(var(--ide-accent) / 0.5);
 }
 .status-badge__segment--warn.is-active {
   color: rgb(var(--ide-warning));
-  background: rgb(var(--ide-warning) / 0.1);
+  background: rgb(var(--ide-warning) / 0.14);
+  border-color: rgb(var(--ide-warning) / 0.5);
 }
-.status-badge__divider {
-  width: 1px;
-  align-self: stretch;
-  margin: 1px 0;
-  background: rgb(var(--ide-text) / 0.15);
-}
+/* 面板方式默认无竖分隔；nes 等主题可 !important 复活 __divider */
+.status-badge__divider { display: none; }
 .status-badge__icon { flex: none; }
-/* 主题用 ::before 放 emoji 替换 svg 时，约束在 13px 盒居中，避免 emoji 撑宽胶囊 */
+/* 主题用 ::before 放 emoji 替换 svg 时，约束在 13px 盒居中，避免 emoji 撑宽面板片 */
 .status-badge__segment::before {
   display: inline-flex;
   align-items: center;

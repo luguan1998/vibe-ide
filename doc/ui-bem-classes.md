@@ -25,7 +25,7 @@
 .session-panel                      # 左侧会话面板
   .session-panel__header / .session-panel__list-wrapper
     .session-panel__settings-btn / .session-panel__new-btn
-    .status-badge  # agent 三态药丸（独立 BEM 块，用在 header）
+    .status-badge  # agent 三态三连面板（独立 BEM 块，用在 header）
     .session-item / .session-item--active / .session-item--pipe-running
       .session-item__icon / .session-item__name / .session-item__actions
 
@@ -57,9 +57,9 @@
 | 类名 | 说明 |
 |------|------|
 | `session-panel__header` | 顶部统计栏 |
-| `status-badge` | agent 状态药丸容器（running/idle/warn 三态合并胶囊，独立 BEM 块） |
-| `status-badge__segment` | 单态段（修饰 `--running`/`--idle`/`--warn` + `.is-active` 高亮） |
-| `status-badge__divider` | 段间竖线分隔 |
+| `status-badge` | agent 状态三连面板容器（running/idle/warn 三态独立卡片，独立 BEM 块） |
+| `status-badge__segment` | 单态卡片段（修饰 `--running`/`--idle`/`--warn` + `.is-active` 高亮，自带圆角边框底色） |
+| `status-badge__divider` | 段间竖线分隔（默认隐藏，nes 等主题用 `!important` 复活） |
 | `status-badge__icon` / `status-badge__count` | 段内图标 / 数字 |
 | `session-panel__settings-btn` | 设置齿轮按钮（含 SVG 图标） |
 | `session-panel__settings-menu` | 设置下拉菜单容器 |

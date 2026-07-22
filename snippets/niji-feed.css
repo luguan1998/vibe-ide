@@ -54,6 +54,7 @@
   box-shadow: 0 1px 2px -1px rgb(0 0 0 / 0.12) !important;
   border-radius: 9999px !important;
   align-items: center !important;
+  gap: 0 !important;
 }
 .status-badge__segment {
   border: none !important;
