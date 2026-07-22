@@ -8,12 +8,13 @@ import { type Frontmatter, parseFrontmatter } from '@renderer/utils/frontmatter'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import OutlineTrigger from './OutlineTrigger'
 
+export const MD_SEARCH_OPEN = 'md-search-open'
+
 interface MarkdownPreviewProps {
   fullPath: string
   fileName: string
   onBack?: () => void
   scrollToHeading?: string
-  searchTrigger?: number
   outlineEnabled?: boolean
   onToggleOutline?: () => void
   onOutlineNavigate?: (line: number, headingName?: string) => void
@@ -124,7 +125,6 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   fileName,
   onBack,
   scrollToHeading,
-  searchTrigger,
   outlineEnabled,
   onToggleOutline,
   onOutlineNavigate
@@ -328,15 +328,18 @@ ${clone.innerHTML}
     }
   }, [exporting, buildExportHtml, getExportDefaultName])
 
-  // Ctrl+F trigger from App.tsx → open search bar.
-  // First-open focus is handled by the searchOpen effect below; if the bar
-  // is already open, re-focus + select so the user can retype immediately.
+  // Ctrl+F 从 App.tsx 派发瞬时事件 → 开搜索栏。事件不累积、mount 不重放，
+  // 新开的 md 天然不弹。已开时直接 focus+select 便于重输；首次开 input 未挂载，
+  // 靠下面 [searchOpen] effect 兜底聚焦。
   useEffect(() => {
-    if (searchTrigger === undefined || searchTrigger === 0) return
-    setSearchOpen(true)
-    const el = searchInputRef.current
-    if (el) { el.focus(); el.select() }
-  }, [searchTrigger])
+    const open = () => {
+      setSearchOpen(true)
+      const el = searchInputRef.current
+      if (el) { el.focus(); el.select() }
+    }
+    window.addEventListener(MD_SEARCH_OPEN, open)
+    return () => window.removeEventListener(MD_SEARCH_OPEN, open)
+  }, [])
 
   // Focus the input right after the bar mounts (searchOpen just turned true),
   // so the keyboard can type into it without an extra click.

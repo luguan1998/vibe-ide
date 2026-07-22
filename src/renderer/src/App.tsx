@@ -3,7 +3,7 @@ import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffec
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
-import MarkdownPreview from './components/MarkdownPreview'
+import MarkdownPreview, { MD_SEARCH_OPEN } from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
 import BrowserView, { BrowserViewHandle } from './components/BrowserView'
 import { isCode, isMarkdown } from './components/OutlinePanel'
@@ -270,7 +270,6 @@ export default function App() {
   }, [pollingEnabled])
 
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
-  const [mdSearchTrigger, setMdSearchTrigger] = useState(0)
   const [sessionViewModes, setSessionViewModes] = useState<Record<string, 'term' | 'gui'>>({})
   const sessionViewModesRef = useRef(sessionViewModes); sessionViewModesRef.current = sessionViewModes
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
@@ -1149,7 +1148,7 @@ export default function App() {
         if (centerView === 'markdown') {
           e.preventDefault()
           e.stopImmediatePropagation()
-          setMdSearchTrigger(k => k + 1)
+          window.dispatchEvent(new CustomEvent(MD_SEARCH_OPEN))
         } else if (centerView !== 'diff') {
           e.preventDefault()
           e.stopImmediatePropagation()
@@ -2357,7 +2356,6 @@ export default function App() {
                 fileName={markdownFile.fileName}
                 onBack={handleBackFromMarkdown}
                 scrollToHeading={mdScrollHeading}
-                searchTrigger={mdSearchTrigger}
                 outlineEnabled={outlineOverlayEnabled}
                 onToggleOutline={() => setOutlineOverlayEnabled(prev => !prev)}
                 onOutlineNavigate={handleOutlineNavigate}
