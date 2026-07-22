@@ -152,9 +152,6 @@
   background: transparent !important;
   position: relative !important;
 }
-.session-panel__header {
-  border-bottom: 1px solid rgb(40 58 90) !important;
-}
 
 .status-badge {
   border: none !important;

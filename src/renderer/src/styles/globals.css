@@ -610,41 +610,38 @@ html, body, #root {
 .aux-tab__scroll { scrollbar-width: none; }
 .aux-tab__scroll::-webkit-scrollbar { display: none; }
 
-/* ── status-badge：agent 三态三连面板，可复用 BEM 组件（snippets 可覆盖，选择器优先级低无需 !important） ── */
+/* ── status-badge：agent 三态合并药丸（三段紧贴一体，参考 niji；snippets 可覆盖，选择器优先级低无需 !important） ── */
 .status-badge {
   display: inline-flex;
-  align-items: stretch;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0;
   background: transparent;
   border: none;
-  box-shadow: none;
+  box-shadow: 0 1px 2px -1px rgb(0 0 0 / 0.12);
   padding: 0;
   overflow: hidden;
+  border-radius: 9999px;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .status-badge__segment {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 0.5rem;
-  border: 1px solid transparent;
+  padding: 2px 12px;
+  border-radius: 0;
+  border: none;
   color: rgb(var(--ide-text-muted));
   background: rgb(var(--ide-hover));
-  transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+  transition: color .15s ease, background-color .15s ease;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
-.status-badge__segment--running.is-active {
-  color: rgb(var(--ide-accent));
-  background: rgb(var(--ide-accent) / 0.14);
-  border-color: rgb(var(--ide-accent) / 0.5);
-}
-.status-badge__segment--warn.is-active {
-  color: rgb(var(--ide-warning));
-  background: rgb(var(--ide-warning) / 0.14);
-  border-color: rgb(var(--ide-warning) / 0.5);
-}
-/* 面板方式默认无竖分隔；nes 等主题可 !important 复活 __divider */
-.status-badge__divider { display: none; }
-.status-badge__icon { flex: none; }
+/* 合并药丸中间竖分隔；nes 等主题可 !important 调整 */
+.status-badge__divider { width: 1px; align-self: stretch; background: rgb(var(--ide-text-muted) / 0.3); }
+.status-badge__icon { flex: none; width: 16px; height: 16px; }
 /* 主题用 ::before 放 emoji 替换 svg 时，约束在 13px 盒居中，避免 emoji 撑宽面板片 */
 .status-badge__segment::before {
   display: inline-flex;
@@ -656,7 +653,7 @@ html, body, #root {
   overflow: hidden;
 }
 .status-badge__count {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;

@@ -43,9 +43,6 @@
   border: none !important;
   box-shadow: none !important;
 }
-.session-panel__header {
-  border-bottom: 1px solid rgb(0 0 0 / 0.06) !important;
-}
 
 /* 统计徽章 — 合并胶囊：running/idle 红底 · warn 黄底（红红黄） */
 .status-badge {
@@ -187,6 +184,8 @@
 .session-group {
   border: none !important;
   background: transparent !important;
+}
+.session-group + .session-group {
   margin-top: 10px !important;
 }
 .session-group__header {
