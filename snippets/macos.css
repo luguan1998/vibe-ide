@@ -48,14 +48,34 @@
   border-bottom: 1px solid rgba(0 0 0 / 0.08) !important;
 }
 
-/* 统计徽章 — 无边框纯图标 */
+/* 统计徽章 — macOS 独立胶囊：三段分离，活动段白底浮起（无描边） */
 .status-badge {
   border: none !important;
-  background: rgba(255 255 255 / 0.45) !important;
+  background: transparent !important;
   box-shadow: none !important;
+  gap: 4px !important;
+  padding: 0 !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
   font-size: 11px !important;
+}
+.status-badge__segment {
+  border: none !important;
+  background: rgba(255 255 255 / 0.6) !important;
+  color: rgb(var(--ide-text-muted)) !important;
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+  transition: background-color 0.12s, color 0.12s !important;
+}
+.status-badge__segment--running.is-active {
+  background: rgb(255 255 255) !important;
+  color: rgb(var(--ide-accent)) !important;
+  box-shadow: 0 1px 1.5px rgba(0 0 0 / 0.1) !important;
+}
+.status-badge__segment--warn.is-active {
+  background: rgb(255 255 255) !important;
+  color: rgb(var(--ide-warning)) !important;
+  box-shadow: 0 1px 1.5px rgba(0 0 0 / 0.1) !important;
 }
 
 /* 工具栏按钮 — 浅灰底圆角，悬停加深（提高区分度） */

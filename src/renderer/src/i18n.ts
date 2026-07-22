@@ -64,7 +64,7 @@ const ZH_MAP: Record<string, string> = {
   'Split Down': '向下分屏',
   'Recent Directories': '最近打开的目录',
   'No sessions yet': '暂无会话',
-  'Right-click blank area to open a new session': '右键空白处打开新 session',
+  'Right-click blank area to open a new session': '右键空白处打开新会话',
   'Close Session': '关闭会话',
   'Clone': '克隆',
   'Rename': '重命名',
