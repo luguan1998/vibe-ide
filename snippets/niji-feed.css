@@ -31,7 +31,7 @@
 /* 标题栏 — 纯白工具栏，底部粉色发丝线 */
 .titlebar-drag[class*="h-9"] {
   background: rgb(var(--ide-bg)) !important;
-  border-bottom: 1px solid rgb(255 64 129 / 0.16) !important;
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
 }
 
 /* 会话面板 — 浅灰侧栏底，白色卡片浮于其上（feed 卡片观感） */

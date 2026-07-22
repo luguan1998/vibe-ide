@@ -177,7 +177,6 @@ textarea {
 /* 会话分组 — dashed 笔触边框，不随高度变形 */
 .session-group {
   border: 1px dashed rgb(255 195 40 / 0.2) !important;
-  margin-top: 6px;
   background: transparent !important;
   position: relative !important;
   overflow: hidden !important;

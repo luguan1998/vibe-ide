@@ -72,7 +72,7 @@ declare global {
         showFile: (ref: string, filePath: string) => Promise<any>
         getWorktreePath: (branch: string) => Promise<any>
         applyBranchRetry: (branch: string) => Promise<any>
-        deleteWorktree: (branch: string) => Promise<any>
+        deleteWorktree: (branch: string, force?: boolean) => Promise<any>
         deleteBranch: (branch: string) => Promise<any>
         setFilterRules: (rules: string[]) => Promise<any>
         diffCommitFile: (hash: string, filePath: string, isRoot: boolean) => Promise<any>

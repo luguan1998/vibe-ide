@@ -774,7 +774,7 @@ export function registerGitHandlers(): void {
   })
 
   // Git delete worktree + branch
-  ipcMain.handle(IPC_CHANNELS.GIT_DELETE_WORKTREE, async (_event, branch: string) => {
+  ipcMain.handle(IPC_CHANNELS.GIT_DELETE_WORKTREE, async (_event, branch: string, force?: boolean) => {
     const git = getGit()
     try {
       // 1. Find worktree path
@@ -801,8 +801,20 @@ export function registerGitHandlers(): void {
         return { success: true }
       }
 
-      // 2. Remove worktree (--force to skip uncommitted changes check)
-      await git.raw(['worktree', 'remove', worktreePath, '--force'])
+      // 2. Remove worktree — locked（如 claude session 持锁）需 -f -f，否则只跳过未提交检查
+      try {
+        const removeArgs = force
+          ? ['worktree', 'remove', worktreePath, '--force', '--force']
+          : ['worktree', 'remove', worktreePath, '--force']
+        await git.raw(removeArgs)
+      } catch (removeErr: any) {
+        const msg = removeErr.message || ''
+        if (!force && /locked working tree/i.test(msg)) {
+          const reasonMatch = msg.match(/lock reason:\s*(.+?)\s*use 'remove/i)
+          return { locked: true, lockReason: reasonMatch ? reasonMatch[1] : msg }
+        }
+        throw removeErr
+      }
 
       // 3. Delete the branch
       await git.raw(['branch', '-D', branch])

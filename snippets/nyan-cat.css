@@ -32,7 +32,7 @@
    标题栏 — 深蓝渐变 + 粉色发光线
    ════════════════════════════════════════════════════ */
 .titlebar-drag[class*="h-9"] {
-  border-bottom: 1px solid rgb(242 140 245 / 0.25) !important;
+  border-bottom: 1px solid rgb(var(--ide-border)) !important;
   background: linear-gradient(180deg, rgb(10 16 38), rgb(20 32 60)) !important;
 }
 

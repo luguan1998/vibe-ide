@@ -182,7 +182,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
   const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)
   const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; filePath: string; fullPath: string } | null>(null)
-  const [confirmAction, setConfirmAction] = useState<{ type: string; filePath?: string; fileName?: string; filePaths?: string[]; count?: number } | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ type: string; filePath?: string; fileName?: string; filePaths?: string[]; count?: number; branch?: string; message?: string } | null>(null)
   const [conflictApply, setConflictApply] = useState<{ branch: string; message: string } | null>(null)
   const [remoteBranches, setRemoteBranches] = useState<{ name: string; remote: string; branch: string }[]>([])
   const [selectedRemote, setSelectedRemote] = useState<string>('')
@@ -626,18 +626,20 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   }, [rightTerminalSession, activeSessionId, onCloseRightTerminal, onWorktreeNavChange])
 
   // Delete worktree branch
-  const handleDeleteWorktree = useCallback(async (branch: string) => {
+  const handleDeleteWorktree = useCallback(async (branch: string, force = false) => {
     setContextMenu(null)
     setBusy(true)
     try {
-      if (worktreeNav && worktreeNav.worktreePath) {
+      if (!force && worktreeNav && worktreeNav.worktreePath) {
         const wtListResult = await window.api.git.getWorktreePath(branch)
         if (wtListResult.path && wtListResult.path === worktreeNav.worktreePath) {
           handleBackFromWorktree()
         }
       }
-      const result = await window.api.git.deleteWorktree(branch)
-      if (result.error) {
+      const result = await window.api.git.deleteWorktree(branch, force)
+      if (result.locked) {
+        setConfirmAction({ type: 'forceDeleteWorktree', branch, message: result.lockReason })
+      } else if (result.error) {
         setError(result.error)
       } else {
         await refreshBranches()
@@ -1887,7 +1889,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmAction(null)}>
           <div className="bg-ide-bg border border-ide-border rounded shadow-lg p-4 max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm text-ide-text mb-4">
-              {confirmAction.type === 'discard'
+              {confirmAction.type === 'forceDeleteWorktree'
+                ? t('Worktree is locked by another process ({reason}). Force remove anyway?').replace('{reason}', confirmAction.message ?? '')
+                : confirmAction.type === 'discard'
                 ? t('Discard changes to {fileName}? This cannot be undone.').replace('{fileName}', confirmAction.fileName!)
                 : confirmAction.type === 'discardAll'
                 ? t('Discard all {count} changes? This cannot be undone.').replace('{count}', String(confirmAction.count))
@@ -1908,9 +1912,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               <button
                 className="px-3 py-1.5 text-xs bg-ide-danger hover:bg-red-600 text-white rounded"
                 onClick={async () => {
-                  const { type, filePath, filePaths } = confirmAction
+                  const { type, filePath, filePaths, branch } = confirmAction
                   setConfirmAction(null)
-                  if (type === 'discard') {
+                  if (type === 'forceDeleteWorktree') {
+                    await handleDeleteWorktree(branch!, true)
+                  } else if (type === 'discard') {
                     await handleDiscard(filePath!)
                   } else if (type === 'discardAll') {
                     await handleDiscardAll(filePaths!)
