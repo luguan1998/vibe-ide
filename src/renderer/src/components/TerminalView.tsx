@@ -754,7 +754,10 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
     // Handle terminal data input
     term.onData((data: string) => {
-      window.api.terminal.write(sessionId, data)
+      // 丢弃焦点 in/out (\x1b[I/\x1b[O)：转发给 pty 会被 shell 回显成 [I/[O 垃圾
+      if (data !== '\x1b[I' && data !== '\x1b[O') {
+        window.api.terminal.write(sessionId, data)
+      }
 
       // Track commands by reading xterm buffer on Enter (uses echoed text, not raw keystrokes)
       if (onCommand) {
