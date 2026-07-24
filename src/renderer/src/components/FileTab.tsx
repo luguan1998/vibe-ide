@@ -121,6 +121,19 @@ function norm(p: string): string {
   return p.replace(/\\/g, '/')
 }
 
+function toRelPath(fullPath: string, workspace: string | null): string {
+  if (!workspace) return fullPath
+  const f = norm(fullPath)
+  const w = norm(workspace).replace(/\/+$/, '')
+  if (!w) return fullPath
+  const lower = w.toLowerCase()
+  if (f.toLowerCase() === lower) return fullPath
+  if (f.toLowerCase().startsWith(lower + '/')) {
+    return f.slice(w.length + 1).replace(/\//g, '\\')
+  }
+  return fullPath
+}
+
 function findNodeByPath(nodes: FileNode[], targetPath: string): FileNode | null {
   const t = norm(targetPath)
   for (const n of nodes) {
@@ -777,9 +790,10 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   }, [workspacePath])
 
   const handleCopyPath = useCallback((fullPath: string) => {
-    setToastPath(fullPath)
-    navigator.clipboard.writeText(`@${fullPath}`).catch(() => {})
-  }, [])
+    const rel = toRelPath(fullPath, workspacePath)
+    setToastPath(rel)
+    navigator.clipboard.writeText(`@${rel}`).catch(() => {})
+  }, [workspacePath])
 
   useEffect(() => {
     if (!workspacePath) return

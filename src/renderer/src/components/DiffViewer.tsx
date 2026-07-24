@@ -788,8 +788,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           if (!brushActive || !fullPath) return
           e.preventDefault()
           e.stopPropagation()
-          setToastPath(fullPath)
-          navigator.clipboard.writeText(`@${fullPath}`).catch(() => {})
+          setToastPath(filePath)
+          navigator.clipboard.writeText(`@${filePath}`).catch(() => {})
         }}
       >
         <div className="flex items-center gap-2 text-sm">
