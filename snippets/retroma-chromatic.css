@@ -52,9 +52,9 @@ html, body, #root { font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code',
    会话面板 — 3D 浮雕
    ════════════════════════════════════════════════════ */
 .session-panel__list-wrapper {
-  border: 4px ridge rgb(var(--ide-border)) !important;
+  border: none !important;
   background: rgb(var(--ide-bg)) !important;
-  box-shadow: inset -2px -2px 0 rgb(8 8 10), inset 2px 2px 0 rgb(34 34 38) !important;
+  box-shadow: none !important;
 }
 .status-badge {
   border: 2px groove rgb(var(--ide-border));

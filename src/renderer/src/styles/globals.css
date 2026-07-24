@@ -629,20 +629,20 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 2px 12px;
+  padding: 4px 14px;
   border-radius: 0;
   border: none;
   color: rgb(var(--ide-text-muted));
   background: rgb(var(--ide-hover));
   transition: color .15s ease, background-color .15s ease;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
-  min-height: 20px;
+  min-height: 26px;
 }
 /* 合并药丸中间竖分隔；nes 等主题可 !important 调整 */
-.status-badge__divider { width: 1px; align-self: stretch; background: rgb(var(--ide-text-muted) / 0.3); }
-.status-badge__icon { flex: none; width: 16px; height: 16px; }
+.status-badge__divider { width: 1px; align-self: stretch; background: rgb(var(--ide-text-muted) / 0.4); }
+.status-badge__icon { flex: none; width: 15px; height: 15px; }
 /* 主题用 ::before 放 emoji 替换 svg 时，约束在 13px 盒居中，避免 emoji 撑宽面板片 */
 .status-badge__segment::before {
   display: inline-flex;
@@ -654,7 +654,7 @@ html, body, #root {
   overflow: hidden;
 }
 .status-badge__count {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Terminal, Keyboard, Filter } from 'lucide-react'
+import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Terminal, Keyboard, Filter } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import SettingsPanel from './SettingsPanel'
@@ -696,6 +696,14 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setContextMenu(null)
   }
 
+  const stats = useMemo(() => {
+    const total = sessions.length
+    const running = sessions.filter(s => agentStatus[s.id] === 'running').length
+    const warn = sessions.filter(s => agentStatus[s.id] === 'warn').length
+    const idle = total - running - warn
+    return { running, idle, warn }
+  }, [sessions, agentStatus])
+
   const recentTop = recentFiles.slice(0, 4)
 
   const renderSessionItem = (
@@ -893,7 +901,34 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   return (
     <div className={`flex flex-col session-panel${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
       {/* Header + Dashboard merged */}
-      <div className="px-5 py-1.5 flex items-center justify-start shrink-0 session-panel__header">
+      <div className="px-5 py-1.5 flex items-center justify-center shrink-0 session-panel__header">
+        <div className="status-badge">
+          <span
+            className={`status-badge__segment status-badge__segment--running${stats.running > 0 ? ' is-active' : ''}`}
+            title={t('running')}
+          >
+            <Zap size={13} className={`status-badge__icon${stats.running > 0 ? ' animate-zap-glow' : ''}`} />
+            <span className="status-badge__count">{stats.running}</span>
+          </span>
+          <span className="status-badge__divider" />
+          <span
+            className="status-badge__segment status-badge__segment--idle"
+            title={t('Idle')}
+          >
+            <Coffee size={13} className="status-badge__icon" />
+            <span className="status-badge__count">{stats.idle}</span>
+          </span>
+          <span className="status-badge__divider" />
+          <span
+            className={`status-badge__segment status-badge__segment--warn${stats.warn > 0 ? ' is-active' : ''}`}
+            title={t('warn')}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="currentColor" strokeWidth="0.4" strokeLinejoin="round" strokeLinecap="round" style={{ paintOrder: 'stroke fill' }} className="status-badge__icon">
+              <path d="M12.5 2.00002H3.5C2.119 2.00002 1 3.11902 1 4.50002V9.50002C1 10.881 2.119 12 3.5 12H4V13.942C4 14.784 4.992 15.234 5.625 14.679L8.688 11.999H12.5C13.881 11.999 15 10.88 15 9.49902V4.49902C15 3.11802 13.881 1.99902 12.5 1.99902V2.00002ZM14 9.50002C14 10.328 13.328 11 12.5 11H8.312L5 13.898V11H3.5C2.672 11 2 10.328 2 9.50002V4.50002C2 3.67202 2.672 3.00002 3.5 3.00002H12.5C13.328 3.00002 14 3.67202 14 4.50002V9.50002ZM7.508 7.09002L7.5 7.00002V4.50002L7.508 4.41002C7.55 4.17702 7.754 4.00002 8 4.00002C8.246 4.00002 8.45 4.17702 8.492 4.41002L8.5 4.50002V7.00002L8.492 7.09002C8.45 7.32302 8.246 7.50002 8 7.50002C7.754 7.50002 7.55 7.32302 7.508 7.09002ZM8.75 9.25002C8.75 9.66402 8.414 10 8 10C7.586 10 7.25 9.66402 7.25 9.25002C7.25 8.83602 7.586 8.50002 8 8.50002C8.414 8.50002 8.75 8.83602 8.75 9.25002Z" />
+            </svg>
+            <span className="status-badge__count">{stats.warn}</span>
+          </span>
+        </div>
         <div className="flex items-center gap-1.5">
           <div className="relative config-menu-area session-panel__settings">
             {showConfigMenu && createPortal(

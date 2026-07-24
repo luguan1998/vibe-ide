@@ -180,7 +180,7 @@
   background: rgb(255 204 0 / 0.24) !important;
 }
 
-/* 会话分组 — author profile：路径前粉→黄渐变圆点头像 */
+/* 会话分组 — cwd 梯形 tab 包裹 + 与第一个 session 结合 */
 .session-group {
   border: none !important;
   background: transparent !important;
@@ -189,6 +189,31 @@
   margin-top: 10px !important;
 }
 .session-group__header {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+/* cwd folder tab — 梯形包裹 emoji+path，加长右边，按钮不包裹 */
+.session-group__header > div:first-child {
+  display: inline-flex !important;
+  align-self: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 2px 18px 2px 8px !important;
+  margin: 0 6px -2px !important;
+  border: 1px solid rgb(255 64 129 / 0.15) !important;
+  border-bottom: none !important;
+  border-radius: 14px 14px 0 0 !important;
+  background: linear-gradient(135deg, rgb(255 64 129 / 0.12), rgb(255 204 0 / 0.1)) !important;
+  position: relative !important;
+  z-index: 10 !important;
+  box-shadow: 0 2px 6px rgb(255 64 129 / 0.1) !important;
+}
+.session-group__header > div:first-child:hover {
+  background: linear-gradient(135deg, rgb(255 64 129 / 0.2), rgb(255 204 0 / 0.16)) !important;
+}
+/* sessions 容器 — 去外部框线 */
+.session-group__header + div {
   border: none !important;
   background: transparent !important;
 }

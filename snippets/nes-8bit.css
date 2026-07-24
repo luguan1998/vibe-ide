@@ -79,7 +79,7 @@ html, body, #root {
    ════════════════════════════════════════════════════ */
 
 .session-panel__list-wrapper {
-  border: 2px solid rgb(var(--ide-border)) !important;
+  border: none !important;
 }
 
 /* 统计徽章 — NES 凸起方块按钮（2px 粗边 + 3D inset 阴影 + 硬色块） */
@@ -96,22 +96,25 @@ html, body, #root {
   font-weight: 700 !important;
   font-size: 10px !important;
   border-radius: 0 !important;
+  min-height: 22px !important;
+  padding: 2px 10px !important;
 }
 .status-badge__segment .status-badge__icon { display: none !important; }
 /* 像素 emoji 替换 svg */
+.status-badge__segment::before { width: 14px !important; height: 14px !important; }
 .status-badge__segment--running::before {
   content: '⚡' !important;
-  font-size: 11px !important;
+  font-size: 14px !important;
   line-height: 1 !important;
 }
 .status-badge__segment--idle::before {
   content: '💤' !important;
-  font-size: 12px !important;
+  font-size: 14px !important;
   line-height: 1 !important;
 }
 .status-badge__segment--warn::before {
   content: '❗' !important;
-  font-size: 11px !important;
+  font-size: 14px !important;
   line-height: 1 !important;
 }
 /* running — NES 蓝 */
@@ -168,6 +171,13 @@ html, body, #root {
   font-weight: 700 !important;
 }
 
+/* Session 行 — NES 2px 像素框 + 3D 凸起 */
+.session-item {
+  border: 2px solid rgb(var(--ide-border)) !important;
+  box-shadow: inset -1px -1px 0 #adafbc, inset 1px 1px 0 #fff !important;
+  background: #fff !important;
+  margin: 1px 0 !important;
+}
 /* Session 行 — 选中：蓝左边框 + 浅蓝底 */
 .session-item--active {
   border-left: 2px solid rgb(var(--ide-accent)) !important;
