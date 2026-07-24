@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from
 import { SnippetInfo, SnippetsLoadResult, PetManifest, PetListResult } from '@shared/types'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
-import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, Terminal, PanelRightClose, SlidersHorizontal, SwatchBook, Info, PawPrint, Trash2 } from 'lucide-react'
+import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, PanelRightClose, SlidersHorizontal, SwatchBook, Info, PawPrint, Trash2 } from 'lucide-react'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from './SessionPanel'
 import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, PET_SCALE_MIN, PET_SCALE_MAX } from './DesktopPet/petSettings'
@@ -15,13 +15,12 @@ const MONO_KW = ['mono', 'code', 'consol', 'courier', 'fira', 'hack', 'source co
   'jetbrains', 'droid sans mono', 'dejavu sans mono', 'ubuntu mono', 'noto sans mono',
   'inconsolata', 'anonymous pro', '等宽', 'monospace']
 
-type CategoryId = 'theme' | 'session' | 'editor' | 'terminal' | 'panel' | 'pet' | 'advanced'
+type CategoryId = 'theme' | 'session' | 'middle' | 'panel' | 'pet' | 'advanced'
 
 const NAV_ITEMS: { id: CategoryId; label: string; zones: { session: boolean; editor: boolean; panel: boolean }; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'theme', label: 'Theme', zones: { session: true, editor: true, panel: true }, icon: SwatchBook },
   { id: 'session', label: 'Sidebar', zones: { session: true, editor: false, panel: false }, icon: PanelLeft },
-  { id: 'editor', label: 'Editor', zones: { session: false, editor: true, panel: false }, icon: Code },
-  { id: 'terminal', label: 'Terminal', zones: { session: false, editor: true, panel: false }, icon: Terminal },
+  { id: 'middle', label: 'Middle', zones: { session: false, editor: true, panel: false }, icon: Code },
   { id: 'panel', label: 'Right Panel', zones: { session: false, editor: false, panel: true }, icon: PanelRightClose },
   { id: 'pet', label: 'Pet', zones: { session: true, editor: true, panel: true }, icon: PawPrint },
   { id: 'advanced', label: 'Advanced', zones: { session: false, editor: false, panel: false }, icon: SlidersHorizontal },
@@ -356,18 +355,24 @@ const AppearancePanel = function AppearancePanel({
         </div>
 
         <div className="flex shrink-0 items-center justify-center gap-0 px-4 py-2 border-b border-ide-border bg-ide-sidebar/50">
-          <div className={`w-28 shrink-0 h-7 rounded-l border text-xs flex items-center justify-center transition-all ${
-            zones.session ? 'border-ide-accent bg-ide-accent/15 text-ide-accent font-medium'
-                           : 'border-ide-border bg-ide-hover/30 text-ide-text-muted'
-          }`}>{t('Affects: Sessions')}</div>
-          <div className={`w-40 shrink-0 h-7 border-t border-b text-xs flex items-center justify-center transition-all ${
-            zones.editor ? 'border-ide-accent bg-ide-accent/15 text-ide-accent font-medium'
-                         : 'border-ide-border bg-ide-hover/30 text-ide-text-muted'
-          }`}>{t('Affects: Editor')} · {t('Affects: Terminal')}</div>
-          <div className={`w-28 shrink-0 h-7 rounded-r border text-xs flex items-center justify-center transition-all ${
-            zones.panel ? 'border-ide-accent bg-ide-accent/15 text-ide-accent font-medium'
-                        : 'border-ide-border bg-ide-hover/30 text-ide-text-muted'
-          }`}>{t('Affects: Panel')}</div>
+          <button
+            onClick={() => setActiveCategory('session')}
+            className={`w-28 shrink-0 h-7 rounded-l border text-xs flex items-center justify-center transition-all ${
+              zones.session ? 'border-ide-accent bg-ide-accent/15 text-ide-accent font-medium'
+                             : 'border-ide-border bg-ide-hover/30 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
+            }`}>{t('Affects: Sessions')}</button>
+          <button
+            onClick={() => setActiveCategory('middle')}
+            className={`w-40 shrink-0 h-7 border-t border-b text-xs flex items-center justify-center transition-all ${
+              zones.editor ? 'border-ide-accent bg-ide-accent/15 text-ide-accent font-medium'
+                           : 'border-ide-border bg-ide-hover/30 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
+            }`}>{t('Affects: Editor')} · {t('Affects: Terminal')}</button>
+          <button
+            onClick={() => setActiveCategory('panel')}
+            className={`w-28 shrink-0 h-7 rounded-r border text-xs flex items-center justify-center transition-all ${
+              zones.panel ? 'border-ide-accent bg-ide-accent/15 text-ide-accent font-medium'
+                          : 'border-ide-border bg-ide-hover/30 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
+            }`}>{t('Affects: Panel')}</button>
         </div>
 
         <div className="flex flex-1 min-h-0">
@@ -538,8 +543,12 @@ const AppearancePanel = function AppearancePanel({
               </div>
             )}
 
-            {activeCategory === 'editor' && (
+            {activeCategory === 'middle' && (
               <div className="p-4 flex flex-col">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-semibold text-ide-text-muted uppercase tracking-wide">{t('Editor')}</span>
+                  <div className="flex-1 border-t border-ide-border/60" />
+                </div>
                 {onToggleInlineDiff && (
                   <ToggleRow labelKey="Force Inline Diff" descKey="Force inline diff mode (revert button uses circular icon)"
                     checked={inlineDiff} onChange={onToggleInlineDiff} zone="editor" />
@@ -558,11 +567,10 @@ const AppearancePanel = function AppearancePanel({
                     value={editorFontSize} display={String(editorFontSize)} onDelta={(d) => onAdjustEditorFontSize(d)}
                     min={8} max={30} zone="editor" />
                 )}
-              </div>
-            )}
-
-            {activeCategory === 'terminal' && (
-              <div className="p-4 flex flex-col">
+                <div className="flex items-center gap-2 mt-3 mb-1">
+                  <span className="text-xs font-semibold text-ide-text-muted uppercase tracking-wide">{t('Terminal')}</span>
+                  <div className="flex-1 border-t border-ide-border/60" />
+                </div>
                 {onAdjustTerminalFontSize && (
                   <StepperRow labelKey="Terminal Font Size"
                     value={terminalFontSize} display={String(terminalFontSize)} onDelta={(d) => onAdjustTerminalFontSize(d)}

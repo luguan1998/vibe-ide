@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Terminal, Keyboard, Filter } from 'lucide-react'
+import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import SettingsPanel from './SettingsPanel'
@@ -971,7 +971,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     setShowConfigMenu(false)
                   }}
                 >
-                  <Terminal className="size-3.5" />
+                  <Bot className="size-3.5" />
                   {t('CLI Configuration')}
                 </button>
                 </div>
@@ -1598,7 +1598,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCliConfigModal(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[400px] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-              <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Terminal className="size-3.5" />{t('CLI Configuration')}</span>
+              <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Bot className="size-3.5" />{t('CLI Configuration')}</span>
               <button
                 className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
                 onClick={() => setShowCliConfigModal(false)}

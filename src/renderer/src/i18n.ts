@@ -219,6 +219,7 @@ const ZH_MAP: Record<string, string> = {
   'Fonts': '字体',
   'Advanced': '高级',
   'Sidebar': '会话栏',
+  'Middle': '中间栏',
   'Right Panel': '右面板',
   'Terminal': '终端',
   'Affects: Global': '全局',
