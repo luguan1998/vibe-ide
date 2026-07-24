@@ -91,7 +91,10 @@ function MermaidBlock({ code }: { code: string }) {
 
   useEffect(() => {
     let cancelled = false
-    const isDark = !theme.monacoTheme.includes('light')
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--ide-bg').trim()
+    const bgRgb = bg.split(/\s+/).map(Number)
+    const bgIsLight = bgRgb.length === 3 && (bgRgb[0] * 0.299 + bgRgb[1] * 0.587 + bgRgb[2] * 0.114) > 128
+    const isDark = !theme.monacoTheme.includes('light') && !bgIsLight
     try {
       if (!mermaidInitialized) {
         mermaid.initialize({

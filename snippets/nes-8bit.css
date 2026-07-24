@@ -457,6 +457,17 @@ html, body, #root {
   box-shadow: inset 1px 1px 0 #adafbc, inset -1px -1px 0 #fff !important;
 }
 
+.md-preview pre code,
+.md-code-block code {
+  background: #000 !important;
+  color: #fff !important;
+}
+
+.md-mermaid pre code {
+  background: transparent !important;
+  color: inherit !important;
+}
+
 .md-preview blockquote {
   border-left: 1px solid rgb(var(--ide-accent)) !important;
   background: rgb(var(--ide-hover)) !important;
