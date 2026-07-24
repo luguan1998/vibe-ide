@@ -70,6 +70,15 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   background: linear-gradient(90deg, rgba(40, 65, 60, 0.3) 0%, rgba(14, 16, 16, 0.8) 100%) !important;
 }
 
+/* 三态所在横栏：旧铁板材质打底 */
+.session-panel__header {
+  background: url('assets/button_black2.png') center/cover no-repeat !important;
+}
+.status-badge__segment,
+.status-badge__divider {
+  background: transparent !important;
+}
+
 
 /* ==========================================================================
    2. TERMINAL-VIEW （中间：还原人偶身后的“仪式符文祭坛”）
@@ -158,12 +167,12 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 
 /* 右侧 Tab 栏（誓约顶栏） */
 .right-panel__tab-bar {
-  /* background: rgb(14 14 16) !important; */
+  background: url('assets/button_black.png') center/cover no-repeat !important;
   border-bottom: 2px solid rgb(28 24 22) !important;
 }
 .right-panel__tab--active {
-  color: rgb(215 145 75) !important; /* 激活时亮起暖金 */
-  border-bottom: 2px solid rgb(140 20 20) !important; /* 底部裁切血线 */
+  color: rgb(215 145 75) !important;
+  border-bottom: 2px solid rgb(140 20 20) !important;
   background-color: rgb(10 10 12) !important;
   font-weight: bold;
 }

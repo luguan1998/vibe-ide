@@ -520,7 +520,10 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* icon 1: coin (gold) */
-.session-item:nth-child(5n+1) .session-item__icon::before {
+.session-item:nth-child(17n+2) .session-item__icon::before,
+.session-item:nth-child(17n+6) .session-item__icon::before,
+.session-item:nth-child(17n+12) .session-item__icon::before,
+.session-item:nth-child(17n+16) .session-item__icon::before {
   color: #ffc107;
   box-shadow:
     5px 1px #060606,6px 1px #060606,7px 1px #060606,8px 1px #060606,9px 1px #060606,10px 1px #060606,
@@ -542,7 +545,10 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* icon 3: star (yellow) */
-.session-item:nth-child(5n+3) .session-item__icon::before {
+.session-item:nth-child(17n+4) .session-item__icon::before,
+.session-item:nth-child(17n+8) .session-item__icon::before,
+.session-item:nth-child(17n+11) .session-item__icon::before,
+.session-item:nth-child(17n+17) .session-item__icon::before {
   color: #ebe527;
   box-shadow:
     7px 1px #444,
@@ -564,7 +570,9 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* icon 4: heart (red) */
-.session-item:nth-child(5n+4) .session-item__icon::before {
+.session-item:nth-child(17n+3) .session-item__icon::before,
+.session-item:nth-child(17n+9) .session-item__icon::before,
+.session-item:nth-child(17n+14) .session-item__icon::before {
   color: #f22426;
   box-shadow:
     2px 2px #444,3px 2px #444,4px 2px #444,10px 2px #444,11px 2px #444,12px 2px #444,
@@ -584,7 +592,9 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* icon 5: trophy (NES.css) */
-.session-item:nth-child(5n+5) .session-item__icon::before {
+.session-item:nth-child(17n+1) .session-item__icon::before,
+.session-item:nth-child(17n+7) .session-item__icon::before,
+.session-item:nth-child(17n+13) .session-item__icon::before {
   color: #ebe527;
   box-shadow:
     3px 1px #444,4px 1px #444,5px 1px #444,6px 1px #444,7px 1px #444,8px 1px #444,9px 1px #444,10px 1px #444,11px 1px #444,12px 1px #444,13px 1px #444,
@@ -606,7 +616,131 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* icon 2: like / thumbs up (NES.css) */
-.session-item:nth-child(5n+2) .session-item__icon::before {
+.session-item:nth-child(17n+5) .session-item__icon::before,
+.session-item:nth-child(17n+10) .session-item__icon::before,
+.session-item:nth-child(17n+15) .session-item__icon::before {
+  color: #fff;
+  box-shadow:
+    8px 2px #333,9px 2px #333,
+    8px 3px #333,9px 3px,10px 3px #333,
+    8px 4px #333,9px 4px,10px 4px #333,
+    7px 5px #333,8px 5px,9px 5px,10px 5px #333,
+    7px 6px #333,8px 6px,9px 6px,10px 6px #333,11px 6px #333,12px 6px #333,13px 6px #333,14px 6px #333,15px 6px #333,
+    6px 7px #333,7px 7px,8px 7px,9px 7px,10px 7px,11px 7px,12px 7px,13px 7px,14px 7px,15px 7px,16px 7px #333,
+    2px 8px #333,3px 8px #333,4px 8px #333,6px 8px #333,7px 8px,8px 8px,9px 8px,10px 8px,11px 8px,12px 8px,13px 8px,14px 8px,15px 8px,16px 8px #333,
+    1px 9px #333,2px 9px #2e77be,3px 9px #2e77be,4px 9px #2e77be,5px 9px #333,6px 9px,7px 9px,8px 9px,9px 9px,10px 9px,11px 9px,12px 9px,13px 9px,14px 9px,15px 9px,16px 9px #333,
+    1px 10px #333,2px 10px #2e77be,3px 10px #2e77be,4px 10px #2e77be,5px 10px #333,6px 10px,7px 10px,8px 10px,9px 10px,10px 10px,11px 10px,12px 10px,13px 10px,14px 10px,15px 10px #333,
+    1px 11px #333,2px 11px #2e77be,3px 11px #2e77be,4px 11px #2e77be,5px 11px #333,6px 11px,7px 11px,8px 11px,9px 11px,10px 11px,11px 11px,12px 11px,13px 11px,14px 11px,15px 11px #333,
+    1px 12px #333,2px 12px #2e77be,3px 12px #2e77be,4px 12px #2e77be,5px 12px #333,6px 12px,7px 12px,8px 12px,9px 12px,10px 12px,11px 12px,12px 12px,13px 12px,14px 12px,15px 12px #333,
+    1px 13px #333,2px 13px #2e77be,3px 13px #2e77be,4px 13px #2e77be,5px 13px #333,6px 13px,7px 13px,8px 13px,9px 13px,10px 13px,11px 13px,12px 13px,13px 13px,14px 13px #333,
+    1px 14px #333,2px 14px #2e77be,3px 14px #2e77be,4px 14px #2e77be,5px 14px #333,6px 14px,7px 14px,8px 14px,9px 14px,10px 14px,11px 14px,12px 14px,13px 14px,14px 14px #333,
+    2px 15px #333,3px 15px #333,4px 15px #333,6px 15px #333,7px 15px #333,8px 15px #333,9px 15px #333,10px 15px #333,11px 15px #333,12px 15px #333,13px 15px #333;
+}
+
+/* ═══════════════════════════════════════
+   偶数组（shift 8）— 同图标不同位置
+   ═══════════════════════════════════════ */
+
+/* icon 1: coin → 偶数组偏移到 4,11,15 */
+.session-group:nth-child(even) .session-item:nth-child(17n+4) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+8) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+11) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+15) .session-item__icon::before {
+  color: #ffc107;
+  box-shadow:
+    5px 1px #060606,6px 1px #060606,7px 1px #060606,8px 1px #060606,9px 1px #060606,10px 1px #060606,
+    3px 2px #060606,4px 2px #060606,5px 2px #060606,6px 2px #fff,7px 2px #fff,8px 2px #fff,9px 2px #060606,10px 2px #060606,11px 2px #060606,12px 2px #060606,
+    2px 3px #060606,3px 3px #060606,4px 3px #fff,5px 3px #fff,6px 3px,7px 3px,8px 3px,9px 3px,10px 3px,11px 3px #060606,12px 3px #060606,
+    2px 4px #060606,3px 4px #fff,4px 4px,5px 4px,6px 4px #fff,7px 4px #fff,8px 4px #fff,9px 4px #060606,10px 4px,11px 4px,12px 4px #060606,13px 4px #060606,
+    1px 5px #060606,2px 5px #060606,3px 5px #fff,4px 5px,5px 5px,6px 5px #fff,7px 5px,8px 5px,9px 5px #060606,10px 5px,11px 5px,12px 5px #060606,13px 5px #060606,
+    1px 6px #060606,2px 6px #fff,3px 6px,4px 6px,5px 6px,6px 6px #fff,7px 6px,8px 6px,9px 6px #060606,10px 6px,11px 6px,12px 6px,13px 6px #060606,14px 6px #060606,
+    1px 7px #060606,2px 7px #fff,3px 7px,4px 7px,5px 7px,6px 7px #fff,7px 7px,8px 7px,9px 7px #060606,10px 7px,11px 7px,12px 7px,13px 7px #060606,14px 7px #060606,
+    1px 8px #060606,2px 8px #fff,3px 8px,4px 8px,5px 8px,6px 8px #fff,7px 8px,8px 8px,9px 8px #060606,10px 8px,11px 8px,12px 8px,13px 8px #060606,14px 8px #060606,
+    1px 9px #060606,2px 9px #fff,3px 9px,4px 9px,5px 9px,6px 9px #fff,7px 9px,8px 9px,9px 9px #060606,10px 9px,11px 9px,12px 9px,13px 9px #060606,14px 9px #060606,
+    1px 10px #060606,2px 10px #fff,3px 10px,4px 10px,5px 10px,6px 10px #fff,7px 10px,8px 10px,9px 10px #060606,10px 10px,11px 10px,12px 10px,13px 10px #060606,14px 10px #060606,
+    1px 11px #060606,2px 11px #fff,3px 11px,4px 11px,5px 11px,6px 11px #fff,7px 11px,8px 11px,9px 11px #060606,10px 11px,11px 11px,12px 11px,13px 11px #060606,14px 11px #060606,
+    1px 12px #060606,2px 12px #060606,3px 12px #fff,4px 12px,5px 12px,6px 12px #fff,7px 12px,8px 12px,9px 12px #060606,10px 12px,11px 12px,12px 12px #060606,13px 12px #060606,
+    2px 13px #060606,3px 13px #fff,4px 13px,5px 13px,6px 13px #fff,7px 13px #060606,8px 13px #060606,9px 13px #060606,10px 13px,11px 13px,12px 13px #060606,13px 13px #060606,
+    2px 14px #060606,3px 14px #060606,4px 14px #fff,5px 14px,6px 14px,7px 14px,8px 14px,9px 14px,10px 14px,11px 14px #060606,12px 14px #060606,
+    3px 15px #060606,4px 15px #060606,5px 15px #060606,6px 15px,7px 15px,8px 15px,9px 15px #060606,10px 15px #060606,11px 15px #060606,12px 15px #060606,
+    5px 16px #060606,6px 16px #060606,7px 16px #060606,8px 16px #060606,9px 16px #060606,10px 16px #060606;
+}
+
+/* icon 3: star → 偶数组偏移到 3,9,13,17 */
+.session-group:nth-child(even) .session-item:nth-child(17n+3) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+9) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+13) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+17) .session-item__icon::before {
+  color: #ebe527;
+  box-shadow:
+    7px 1px #444,
+    6px 2px #444,7px 2px,8px 2px #444,
+    6px 3px #444,7px 3px,8px 3px #444,
+    5px 4px #444,6px 4px,7px 4px,8px 4px,9px 4px #444,
+    5px 5px #444,6px 5px #fff,7px 5px #fff,8px 5px,9px 5px #444,
+    0px 6px #444,1px 6px #444,2px 6px #444,3px 6px #444,4px 6px #444,5px 6px #444,6px 6px #fff,7px 6px,8px 6px,9px 6px,10px 6px #444,11px 6px #444,12px 6px #444,13px 6px #444,14px 6px #444,
+    0px 7px #444,1px 7px,2px 7px,3px 7px,4px 7px #fff,5px 7px #fff,6px 7px,7px 7px,8px 7px,9px 7px,10px 7px,11px 7px,12px 7px,13px 7px,14px 7px #444,
+    1px 8px #444,2px 8px,3px 8px,4px 8px #fff,5px 8px,6px 8px,7px 8px,8px 8px,9px 8px,10px 8px,11px 8px,12px 8px #f59f54,13px 8px #444,
+    2px 9px #444,3px 9px,4px 9px,5px 9px,6px 9px,7px 9px,8px 9px,9px 9px,10px 9px,11px 9px #f59f54,12px 9px #f59f54,13px 9px #444,
+    3px 10px #444,4px 10px,5px 10px,6px 10px,7px 10px,8px 10px,9px 10px,10px 10px,11px 10px,12px 10px #444,
+    2px 11px #444,3px 11px,4px 11px,5px 11px,6px 11px,7px 11px #f59f54,8px 11px,9px 11px,10px 11px,11px 11px,12px 11px,13px 11px #444,
+    2px 12px #444,3px 12px,4px 12px,5px 12px,6px 12px #f59f54,7px 12px #f59f54,8px 12px #f59f54,9px 12px,10px 12px,11px 12px,12px 12px,13px 12px #444,
+    1px 13px #444,2px 13px,3px 13px,4px 13px #f59f54,5px 13px #f59f54,6px 13px #f59f54,7px 13px #444,8px 13px #f59f54,9px 13px #f59f54,10px 13px #f59f54,11px 13px,12px 13px,13px 13px #444,
+    1px 14px #444,2px 14px,3px 14px #f59f54,4px 14px #f59f54,5px 14px #444,6px 14px #444,8px 14px #444,9px 14px #444,10px 14px #f59f54,11px 14px #f59f54,12px 14px,13px 14px #444,
+    0px 15px #444,1px 15px #f59f54,2px 15px #f59f54,3px 15px #444,4px 15px #444,10px 15px #444,11px 15px #444,12px 15px #f59f54,13px 15px #f59f54,14px 15px #444,
+    0px 16px #444,1px 16px #444,2px 16px #444,12px 16px #444,13px 16px #444,14px 16px #444;
+}
+
+/* icon 4: heart → 偶数组偏移到 1,6,12 */
+.session-group:nth-child(even) .session-item:nth-child(17n+1) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+6) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+12) .session-item__icon::before {
+  color: #f22426;
+  box-shadow:
+    2px 2px #444,3px 2px #444,4px 2px #444,10px 2px #444,11px 2px #444,12px 2px #444,
+    1px 3px #444,2px 3px,3px 3px,4px 3px,5px 3px #444,9px 3px #444,10px 3px,11px 3px,12px 3px #842300,13px 3px #444,
+    0px 4px #444,1px 4px,2px 4px #fff,3px 4px #fff,4px 4px,5px 4px,6px 4px #444,8px 4px #444,9px 4px,10px 4px,11px 4px,12px 4px,13px 4px #842300,14px 4px #444,
+    0px 5px #444,1px 5px,2px 5px #fff,3px 5px,4px 5px,5px 5px,6px 5px,7px 5px #444,8px 5px,9px 5px,10px 5px,11px 5px,12px 5px,13px 5px #842300,14px 5px #444,
+    0px 6px #444,1px 6px,2px 6px,3px 6px,4px 6px,5px 6px,6px 6px,7px 6px,8px 6px,9px 6px,10px 6px,11px 6px,12px 6px,13px 6px #842300,14px 6px #444,
+    0px 7px #444,1px 7px,2px 7px,3px 7px,4px 7px,5px 7px,6px 7px,7px 7px,8px 7px,9px 7px,10px 7px,11px 7px,12px 7px,13px 7px #842300,14px 7px #444,
+    0px 8px #444,1px 8px,2px 8px,3px 8px,4px 8px,5px 8px,6px 8px,7px 8px,8px 8px,9px 8px,10px 8px,11px 8px,12px 8px,13px 8px #842300,14px 8px #444,
+    1px 9px #444,2px 9px,3px 9px,4px 9px,5px 9px,6px 9px,7px 9px,8px 9px,9px 9px,10px 9px,11px 9px,12px 9px #842300,13px 9px #444,
+    2px 10px #444,3px 10px,4px 10px,5px 10px,6px 10px,7px 10px,8px 10px,9px 10px,10px 10px,11px 10px #842300,12px 10px #444,
+    3px 11px #444,4px 11px,5px 11px,6px 11px,7px 11px,8px 11px,9px 11px,10px 11px #842300,11px 11px #444,
+    4px 12px #444,5px 12px,6px 12px,7px 12px,8px 12px,9px 12px #842300,10px 12px #444,
+    5px 13px #444,6px 13px,7px 13px,8px 13px #842300,9px 13px #444,
+    6px 14px #444,7px 14px #842300,8px 14px #444,
+    7px 15px #444;
+}
+
+/* icon 5: trophy → 偶数组偏移到 5,10,16 */
+.session-group:nth-child(even) .session-item:nth-child(17n+5) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+10) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+16) .session-item__icon::before {
+  color: #ebe527;
+  box-shadow:
+    3px 1px #444,4px 1px #444,5px 1px #444,6px 1px #444,7px 1px #444,8px 1px #444,9px 1px #444,10px 1px #444,11px 1px #444,12px 1px #444,13px 1px #444,
+    3px 2px #444,4px 2px,5px 2px,6px 2px,7px 2px,8px 2px,9px 2px,10px 2px,11px 2px,12px 2px #f59f54,13px 2px #444,
+    1px 3px #444,2px 3px #444,3px 3px #444,4px 3px,5px 3px #fff,6px 3px,7px 3px,8px 3px,9px 3px,10px 3px,11px 3px,12px 3px #f59f54,13px 3px #444,14px 3px #444,15px 3px #444,
+    1px 4px #444,3px 4px #444,4px 4px,5px 4px #fff,6px 4px,7px 4px,8px 4px,9px 4px,10px 4px,11px 4px,12px 4px #f59f54,13px 4px #444,15px 4px #444,
+    1px 5px #444,3px 5px #444,4px 5px,5px 5px #fff,6px 5px,7px 5px,8px 5px,9px 5px,10px 5px,11px 5px,12px 5px #f59f54,13px 5px #444,15px 5px #444,
+    2px 6px #444,3px 6px #444,4px 6px,5px 6px #fff,6px 6px,7px 6px,8px 6px,9px 6px,10px 6px,11px 6px,12px 6px #f59f54,13px 6px #444,14px 6px #444,
+    3px 7px #444,4px 7px,5px 7px #fff,6px 7px,7px 7px,8px 7px,9px 7px,10px 7px,11px 7px,12px 7px #f59f54,13px 7px #444,
+    3px 8px #444,4px 8px,5px 8px,6px 8px,7px 8px,8px 8px,9px 8px,10px 8px,11px 8px,12px 8px #f59f54,13px 8px #444,
+    4px 9px #444,5px 9px,6px 9px,7px 9px,8px 9px,9px 9px,10px 9px,11px 9px #f59f54,12px 9px #444,
+    5px 10px #444,6px 10px,7px 10px,8px 10px,9px 10px,10px 10px #f59f54,11px 10px #444,
+    6px 11px #444,7px 11px,8px 11px,9px 11px #f59f54,10px 11px #444,
+    7px 12px #444,8px 12px,9px 12px #444,
+    7px 13px #444,8px 13px,9px 13px #444,
+    6px 14px #444,7px 14px #444,8px 14px,9px 14px #444,10px 14px #444,
+    5px 15px #444,6px 15px,7px 15px,8px 15px,9px 15px,10px 15px #f59f54,11px 15px #444,
+    5px 16px #444,6px 16px #444,7px 16px #444,8px 16px #444,9px 16px #444,10px 16px #444,11px 16px #444;
+}
+
+/* icon 2: thumbs up → 偶数组偏移到 2,7,14 */
+.session-group:nth-child(even) .session-item:nth-child(17n+2) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+7) .session-item__icon::before,
+.session-group:nth-child(even) .session-item:nth-child(17n+14) .session-item__icon::before {
   color: #fff;
   box-shadow:
     8px 2px #333,9px 2px #333,
