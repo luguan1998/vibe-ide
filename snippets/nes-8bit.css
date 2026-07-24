@@ -80,6 +80,7 @@ html, body, #root {
 
 .session-panel__list-wrapper {
   border: none !important;
+  overflow: visible !important;
 }
 
 /* 统计徽章 — NES 凸起方块按钮（2px 粗边 + 3D inset 阴影 + 硬色块） */
@@ -161,35 +162,74 @@ html, body, #root {
   box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
 }
 
-/* Session 分组栏 — cwd 行高亮 */
+/* Session 分组容器 — NES 4px 粗框像素容器 */
+.session-group {
+  border: 2px solid rgb(var(--ide-border)) !important;
+  background: #fff !important;
+  overflow: visible !important;
+  position: relative !important;
+}
+.session-group:first-child {
+  margin-top: 0.5rem !important;
+}
+/* 右下角 NES 像素 <> 按钮 — 挂在 sessions 容器上避免被遮挡 */
+.session-group > div:last-child {
+  position: relative !important;
+}
+.session-group > div:last-child::after {
+  content: '' !important;
+  position: absolute !important;
+  right: 1px !important;
+  bottom: 1px !important;
+  z-index: 10 !important;
+  width: 18px !important;
+  height: 18px !important;
+  border: 2px solid rgb(var(--ide-border)) !important;
+  background-color: #209cee !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Crect width='14' height='14' fill='%23209cee'/%3E%3Crect x='4' y='4' width='2' height='1' fill='white'/%3E%3Crect x='3' y='5' width='2' height='1' fill='white'/%3E%3Crect x='2' y='6' width='2' height='1' fill='white'/%3E%3Crect x='1' y='7' width='2' height='1' fill='white'/%3E%3Crect x='2' y='8' width='2' height='1' fill='white'/%3E%3Crect x='3' y='9' width='2' height='1' fill='white'/%3E%3Crect x='4' y='10' width='2' height='1' fill='white'/%3E%3Crect x='8' y='4' width='2' height='1' fill='white'/%3E%3Crect x='9' y='5' width='2' height='1' fill='white'/%3E%3Crect x='10' y='6' width='2' height='1' fill='white'/%3E%3Crect x='11' y='7' width='2' height='1' fill='white'/%3E%3Crect x='10' y='8' width='2' height='1' fill='white'/%3E%3Crect x='9' y='9' width='2' height='1' fill='white'/%3E%3Crect x='8' y='10' width='2' height='1' fill='white'/%3E%3C/svg%3E") !important;
+  background-size: 14px 14px !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
+
+/* 分组标题栏 — 嵌在上边框上（仿 nes-container with-title） */
 .session-group__header {
-  background: rgb(var(--ide-border) / 0.06) !important;
+  width: fit-content !important;
+  height: auto !important;
+  margin: -0.6rem 0 0.4rem 0.75rem !important;
+  padding: 0 0.4rem !important;
+  background: #fff !important;
+  border-bottom: none !important;
+}
+/* 标题只留 emoji + cwd，隐藏自动确认和新增按钮 */
+.session-group__header > div:last-child {
+  display: none !important;
 }
 .session-group:has(.session-item--active) .session-group__header {
-  background: rgb(var(--ide-accent) / 0.1) !important;
-  color: rgb(var(--ide-text)) !important;
+  background: #fff !important;
+  color: rgb(var(--ide-accent)) !important;
   font-weight: 700 !important;
 }
 
-/* Session 行 — NES 2px 像素框 + 3D 凸起 */
+/* Session 行 — 容器内简洁无边框 */
 .session-item {
-  border: 2px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -1px -1px 0 #adafbc, inset 1px 1px 0 #fff !important;
-  background: #fff !important;
-  margin: 1px 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  margin: 0 !important;
 }
-/* Session 行 — 选中：蓝左边框 + 浅蓝底 */
+/* Session 行 — 选中：蓝左色条 + 浅蓝底 */
 .session-item--active {
-  border-left: 2px solid rgb(var(--ide-accent)) !important;
+  box-shadow: inset 3px 0 0 rgb(var(--ide-accent)) !important;
   background: rgb(var(--ide-accent) / 0.1) !important;
 }
 .session-item--active .session-item__name {
   font-weight: 700 !important;
 }
 
-/* AI 运行中 — 蓝左边框 */
+/* AI 运行中 — 蓝左色条 */
 .session-item--pipe-running {
-  border-left: 2px solid rgb(var(--ide-accent)) !important;
+  box-shadow: inset 3px 0 0 rgb(var(--ide-accent)) !important;
 }
 
 /* 设置菜单 — 4px 粗框 + 硬阴影 */
@@ -201,12 +241,14 @@ html, body, #root {
 
 
 /* ════════════════════════════════════════════════════
-   终端 — 白底 + 4px 边框
+   终端 — 黑底 + 2px 白边 + 2px 黑轮廓
    ════════════════════════════════════════════════════ */
 
 .term-view__canvas {
-  --term-bg: 252 252 252;
-  border: 1px solid rgb(var(--ide-border)) !important;
+  --term-bg: 0 0 0;
+  background: #000 !important;
+  border: 4px solid #fff !important;
+  outline: 3px solid rgb(var(--ide-border)) !important;
 }
 
 .term-view__header {

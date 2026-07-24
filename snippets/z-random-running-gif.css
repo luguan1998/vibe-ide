@@ -1,7 +1,15 @@
 /*
   Random Running GIF — 给 running 状态的 session 随机分配 assets 中的 GIF
   7 个 GIF 通过 nth-child 轮转分配
+  启用后替代 NES 马里奥金币效果
 */
+
+/* 覆盖 NES ::after 金币 */
+.session-item--pipe-running::after,
+.session-item.border-ide-accent\/60::after,
+.session-item:has(.animate-text-wave)::after {
+  content: none !important;
+}
 
 /* ── 非活跃 running session：背景 GIF 在右侧 ── */
 .session-item:not(.session-item--active).border-ide-accent\/60:nth-child(7n+1) {
