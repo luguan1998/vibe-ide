@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, Menu, screen } from 'electron'
 import { join, resolve, dirname } from 'path'
-import { statSync, existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'fs'
+import { statSync, existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'fs'
 import { createHash } from 'crypto'
 import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -401,6 +401,145 @@ app.whenReady().then(() => {
     } catch {
       return { css: '', snippets: [], dir: snippetsDir }
     }
+  })
+
+  // ── Pet (codex-style webp sprite sheet) — 目录策略同 snippets ──
+  // 导入方式：直接把 .webp/.png 扔进 pets/（平铺）即成宠物（默认 8×9 manifest）；
+  // 需自定义网格/帧率则建 pets/<slug>/ 子文件夹放 spritesheet.webp + pet.json。
+  const petsDir = app.isPackaged
+    ? join(dirname(exePath), 'pets')
+    : join(app.getAppPath(), 'pets')
+  const petsJsonPath = join(petsDir, 'pets.json')
+
+  function loadPetsJson(): Record<string, unknown> {
+    try {
+      if (existsSync(petsJsonPath)) {
+        return JSON.parse(readFileSync(petsJsonPath, 'utf8'))
+      }
+    } catch {}
+    return {}
+  }
+
+  function savePetsJson(state: Record<string, unknown>) {
+    try { writeFileSync(petsJsonPath, JSON.stringify(state, null, 2), 'utf8') } catch {}
+  }
+
+  const DEFAULT_PET_STATES = ['idle', 'running-right', 'running-left', 'waving', 'jumping', 'failed', 'waiting', 'running', 'review']
+
+  function defaultPetStates(cols: number): Record<string, { row: number; frames: number; loop: boolean }> {
+    const o: Record<string, { row: number; frames: number; loop: boolean }> = {}
+    DEFAULT_PET_STATES.forEach((name, i) => { o[name] = { row: i, frames: cols, loop: true } })
+    return o
+  }
+
+  function fileUrl(absPath: string): string {
+    return 'file:///' + absPath.replace(/\\/g, '/')
+  }
+
+  // 子文件夹宠物：pet.json 可选（缺省走默认 manifest），至少一张图
+  function buildPetManifest(slug: string): import('../shared/types').PetManifest | null {
+    const petDir = join(petsDir, slug)
+    let spriteFile: string | null = null
+    try {
+      for (const f of readdirSync(petDir)) {
+        const lower = f.toLowerCase()
+        if (lower.endsWith('.webp')) { spriteFile = f; break }
+        if (lower.endsWith('.png') && !spriteFile) spriteFile = f
+      }
+    } catch { return null }
+    if (!spriteFile) return null
+    let raw: any = {}
+    const petJsonPath = join(petDir, 'pet.json')
+    if (existsSync(petJsonPath)) {
+      try { raw = JSON.parse(readFileSync(petJsonPath, 'utf8')) } catch { raw = {} }
+    }
+    const cols = raw.cols ?? 8
+    return {
+      id: raw.id ?? slug,
+      displayName: raw.displayName ?? raw.id ?? slug,
+      description: raw.description,
+      spritesheetUrl: fileUrl(join(petDir, spriteFile)),
+      frameWidth: raw.frameWidth ?? 192,
+      frameHeight: raw.frameHeight ?? 208,
+      cols,
+      rows: raw.rows ?? 9,
+      frameDurationMs: raw.frameDurationMs ?? 183,
+      states: raw.states ?? defaultPetStates(cols)
+    }
+  }
+
+  // 平铺文件宠物：pets/<name>.webp → 默认 manifest
+  function buildFlatPetManifest(fileName: string): import('../shared/types').PetManifest | null {
+    const lower = fileName.toLowerCase()
+    if (!lower.endsWith('.webp') && !lower.endsWith('.png')) return null
+    const slug = fileName.replace(/\.[^.]+$/, '')
+    if (!slug) return null
+    return {
+      id: slug,
+      displayName: slug,
+      spritesheetUrl: fileUrl(join(petsDir, fileName)),
+      frameWidth: 192,
+      frameHeight: 208,
+      cols: 8,
+      rows: 9,
+      frameDurationMs: 183,
+      states: defaultPetStates(8)
+    }
+  }
+
+  function buildPetsResult(): import('../shared/types').PetListResult {
+    if (!existsSync(petsDir)) {
+      mkdirSync(petsDir, { recursive: true })
+      return { pets: [], activeId: null, dir: petsDir }
+    }
+    const state = loadPetsJson()
+    const pets: import('../shared/types').PetManifest[] = []
+    const seen = new Set<string>()
+    try {
+      for (const f of readdirSync(petsDir, { withFileTypes: true })) {
+        let m: import('../shared/types').PetManifest | null = null
+        if (f.isDirectory()) m = buildPetManifest(f.name)
+        else if (f.isFile()) m = buildFlatPetManifest(f.name)
+        if (m && !seen.has(m.id)) { seen.add(m.id); pets.push(m) }
+      }
+    } catch {}
+    return { pets, activeId: (state.activeId as string) ?? null, dir: petsDir }
+  }
+
+  function notifyPetsChanged() {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC_CHANNELS.PET_CHANGED)
+    }
+  }
+
+  ipcMain.handle(IPC_CHANNELS.PET_LIST, () => {
+    try { return buildPetsResult() } catch { return { pets: [], activeId: null, dir: petsDir } }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PET_SET_ACTIVE, (_event, id: string) => {
+    const state = loadPetsJson()
+    state.activeId = id
+    savePetsJson(state)
+    notifyPetsChanged()
+    return buildPetsResult()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PET_DELETE, (_event, id: string) => {
+    // 子文件夹或平铺文件两种
+    const folder = join(petsDir, id)
+    try {
+      if (existsSync(folder) && statSync(folder).isDirectory()) rmSync(folder, { recursive: true, force: true })
+      else {
+        for (const ext of ['.webp', '.png']) {
+          const fp = join(petsDir, id + ext)
+          if (existsSync(fp)) { rmSync(fp, { force: true }); break }
+        }
+      }
+    } catch {}
+    const state = loadPetsJson()
+    if (state.activeId === id) { state.activeId = null; savePetsJson(state) }
+    notifyPetsChanged()
+    return buildPetsResult()
   })
 
   // System fonts — list installed font families via PowerShell (cached for process lifetime)

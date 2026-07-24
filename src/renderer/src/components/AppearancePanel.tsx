@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
-import { SnippetInfo, SnippetsLoadResult } from '@shared/types'
+import { SnippetInfo, SnippetsLoadResult, PetManifest, PetListResult } from '@shared/types'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
-import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, Terminal, PanelRightClose, SlidersHorizontal, SwatchBook, Info } from 'lucide-react'
+import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, Terminal, PanelRightClose, SlidersHorizontal, SwatchBook, Info, PawPrint, Trash2 } from 'lucide-react'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from './SessionPanel'
+import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, PET_SCALE_MIN, PET_SCALE_MAX } from './DesktopPet/petSettings'
 
 const FALLBACK_FONTS = [
   'Consolas', 'Cascadia Code', 'JetBrains Mono', 'Fira Code',
@@ -14,7 +15,7 @@ const MONO_KW = ['mono', 'code', 'consol', 'courier', 'fira', 'hack', 'source co
   'jetbrains', 'droid sans mono', 'dejavu sans mono', 'ubuntu mono', 'noto sans mono',
   'inconsolata', 'anonymous pro', '等宽', 'monospace']
 
-type CategoryId = 'theme' | 'session' | 'editor' | 'terminal' | 'panel' | 'advanced'
+type CategoryId = 'theme' | 'session' | 'editor' | 'terminal' | 'panel' | 'pet' | 'advanced'
 
 const NAV_ITEMS: { id: CategoryId; label: string; zones: { session: boolean; editor: boolean; panel: boolean }; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'theme', label: 'Theme', zones: { session: true, editor: true, panel: true }, icon: SwatchBook },
@@ -22,6 +23,7 @@ const NAV_ITEMS: { id: CategoryId; label: string; zones: { session: boolean; edi
   { id: 'editor', label: 'Editor', zones: { session: false, editor: true, panel: false }, icon: Code },
   { id: 'terminal', label: 'Terminal', zones: { session: false, editor: true, panel: false }, icon: Terminal },
   { id: 'panel', label: 'Right Panel', zones: { session: false, editor: false, panel: true }, icon: PanelRightClose },
+  { id: 'pet', label: 'Pet', zones: { session: true, editor: true, panel: true }, icon: PawPrint },
   { id: 'advanced', label: 'Advanced', zones: { session: false, editor: false, panel: false }, icon: SlidersHorizontal },
 ]
 
@@ -209,6 +211,11 @@ const AppearancePanel = function AppearancePanel({
 
   const [snippetsList, setSnippetsList] = useState<SnippetInfo[]>([])
   const [snippetsDir, setSnippetsDir] = useState('')
+  const [petsList, setPetsList] = useState<PetManifest[]>([])
+  const [activePetId, setActivePetId] = useState<string | null>(null)
+  const [petsDir, setPetsDir] = useState('')
+  const [petVisible, setPetVisibleState] = useState(getPetVisible())
+  const [petScale, setPetScaleState] = useState(getPetScale())
   const [systemFonts, setSystemFonts] = useState<string[]>([])
   const fontsLoadedRef = useRef(false)
   const fontsLoadingRef = useRef(false)
@@ -242,10 +249,33 @@ const AppearancePanel = function AppearancePanel({
   useEffect(() => {
     if (open) {
       window.api.snippets.load().then(r => { setSnippetsList(r.snippets); setSnippetsDir(r.dir) }).catch(() => {})
+      window.api.pet.list().then((r: PetListResult) => { setPetsList(r.pets); setActivePetId(r.activeId); setPetsDir(r.dir) }).catch(() => {})
       setCwdEmojiDraft(cwdEmojis.join('\n'))
       setSessionEmojiDraft(sessionEmojis.join('\n'))
     }
   }, [open])
+
+  // 宠物列表热更新（设置里切换/删除、外部扔文件后刷新）+ 本地偏好（缩放/可见性）
+  useEffect(() => {
+    if (!open) return
+    const reload = () => window.api.pet.list().then((r: PetListResult) => { setPetsList(r.pets); setActivePetId(r.activeId); setPetsDir(r.dir) }).catch(() => {})
+    const h = () => reload()
+    window.api.pet.onChanged(h)
+    const offPrefs = onPetPrefsChanged(() => { setPetVisibleState(getPetVisible()); setPetScaleState(getPetScale()) })
+    return () => { window.api.pet.removeChangedListener(h); offPrefs() }
+  }, [open])
+
+  const applyPetList = (r: PetListResult) => {
+    setPetsList(r.pets); setActivePetId(r.activeId); setPetsDir(r.dir)
+  }
+  const handlePetSelect = async (id: string) => { try { applyPetList(await window.api.pet.setActive(id)) } catch {} }
+  const handlePetDelete = async (id: string) => {
+    if (petsList.length <= 1) return
+    try { applyPetList(await window.api.pet.delete(id)) } catch {}
+  }
+  const handlePetReload = async () => { try { applyPetList(await window.api.pet.list()) } catch {} }
+  const handlePetVisibleToggle = (v: boolean) => setPetVisible(v)
+  const handlePetScaleDelta = (d: number) => setPetScale(Math.min(PET_SCALE_MAX, Math.max(PET_SCALE_MIN, petScale + d * 0.1)))
 
   const applySnippetsResult = (result: SnippetsLoadResult) => {
     setSnippetsList(result.snippets)
@@ -579,6 +609,64 @@ const AppearancePanel = function AppearancePanel({
                   <ToggleRow labelKey="Polling Refresh Git/File" descKey="Poll git and file tree every 6s. Recommended: off (only for network drives where file watching is unreliable)"
                     checked={pollingEnabled} onChange={onTogglePolling} zone="global" />
                 )}
+              </div>
+            )}
+
+            {activeCategory === 'pet' && (
+              <div className="p-4 flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { if (petsDir) window.api.file.openExplorer(petsDir) }}
+                      className="flex-1 px-3 py-1.5 text-sm flex items-center gap-2 text-ide-text hover:bg-ide-hover rounded transition-colors"
+                    >
+                      <FolderOpen className="size-3.5" />
+                      <span>{t('Open Pet Folder')}</span>
+                    </button>
+                    <button
+                      onClick={() => handlePetReload()}
+                      title={t('Refresh Pets')}
+                      className="shrink-0 px-2 py-1.5 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text rounded transition-colors"
+                    >
+                      <RefreshCw className="size-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-[12px] text-ide-text-muted px-1">{t('Drop .webp into the pets/ folder to add a pet.')}</p>
+                  <div className="border-t border-ide-border my-1" />
+                  {petsList.length === 0 ? (
+                    <div className="px-3 py-2 text-[12px] text-ide-text-muted">{t('No pets found.')}</div>
+                  ) : (
+                    petsList.map(p => (
+                      <div key={p.id} className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-ide-hover transition-colors">
+                        <button onClick={() => handlePetSelect(p.id)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                          <span className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${activePetId === p.id ? 'bg-ide-accent border-ide-accent' : 'border-ide-border'}`}>
+                            {activePetId === p.id && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </span>
+                          <span className={`text-sm truncate ${activePetId === p.id ? 'text-ide-text' : 'text-ide-text-muted'}`}>{p.displayName}</span>
+                        </button>
+                        <button
+                          onClick={() => handlePetDelete(p.id)}
+                          disabled={petsList.length <= 1}
+                          title={t('Delete Pet')}
+                          className="shrink-0 p-1 text-ide-text-muted hover:text-ide-danger disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                  <div className="border-t border-ide-border" />
+                </div>
+                <ToggleRow labelKey="Show Pet" descKey="Show the desktop pet." checked={petVisible} onChange={handlePetVisibleToggle} zone="global" />
+                <StepperRow labelKey="Pet Scale" descKey="Pet display size."
+                  value={Math.round(petScale * 100)} display={`${Math.round(petScale * 100)}%`}
+                  onDelta={handlePetScaleDelta} min={Math.round(PET_SCALE_MIN * 100)} max={Math.round(PET_SCALE_MAX * 100)} zone="global" />
+                <button
+                  onClick={() => resetPetPos()}
+                  className="self-start px-3 py-1.5 text-sm text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors flex items-center gap-1.5"
+                >
+                  <RotateCcw className="size-3" />{t('Reset Position')}
+                </button>
               </div>
             )}
           </div>

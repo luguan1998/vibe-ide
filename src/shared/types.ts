@@ -136,7 +136,13 @@ export const IPC_CHANNELS = {
   // App
   APP_VERSION: 'app:version',
   SNIPPETS_LOAD: 'app:snippetsLoad',
-  SNIPPETS_TOGGLE: 'app:snippetsToggle'
+  SNIPPETS_TOGGLE: 'app:snippetsToggle',
+
+  // Pet (codex-style webp sprite sheet)
+  PET_LIST: 'pet:list',
+  PET_SET_ACTIVE: 'pet:setActive',
+  PET_DELETE: 'pet:delete',
+  PET_CHANGED: 'pet:changed'        // push: import/delete 后通知 renderer 重载
 } as const
 
 // Snippet types
@@ -150,6 +156,33 @@ export interface SnippetInfo {
 export interface SnippetsLoadResult {
   css: string
   snippets: SnippetInfo[]
+  dir: string
+}
+
+// Pet types (codex-style webp sprite sheet)
+export interface PetState {
+  row: number
+  frames: number
+  frameDurationMs?: number
+  loop?: boolean
+}
+
+export interface PetManifest {
+  id: string
+  displayName: string
+  description?: string
+  spritesheetUrl: string        // file:/// URL，renderer 直接作 background-image（无 CSP）
+  frameWidth: number            // 默认 192
+  frameHeight: number           // 默认 208
+  cols: number                  // 默认 8
+  rows: number                  // 默认 9
+  frameDurationMs: number       // 默认 183
+  states: Record<string, PetState>  // 默认 9 个 state（row 0-8）
+}
+
+export interface PetListResult {
+  pets: PetManifest[]
+  activeId: string | null
   dir: string
 }
 

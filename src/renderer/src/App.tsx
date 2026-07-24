@@ -10,6 +10,7 @@ import { isCode, isMarkdown } from './components/OutlinePanel'
 import NavBar, { NavEntry } from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
+import { DesktopPet } from './components/DesktopPet'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import GameMujica, { FOCUS_MUJICA, MUJICA_CLOSE } from './components/GameMujica'
@@ -194,6 +195,13 @@ declare global {
       snippets: {
         load: () => Promise<import('@shared/types').SnippetsLoadResult>
         toggle: (filename: string, enabled: boolean) => Promise<import('@shared/types').SnippetsLoadResult>
+      }
+      pet: {
+        list: () => Promise<import('@shared/types').PetListResult>
+        setActive: (id: string) => Promise<import('@shared/types').PetListResult>
+        delete: (id: string) => Promise<import('@shared/types').PetListResult>
+        onChanged: (callback: () => void) => any
+        removeChangedListener: (handler?: any) => void
       }
     }
   }
@@ -2632,6 +2640,9 @@ export default function App() {
           onClose={() => setExploreResult(null)}
         />
       )}
+
+      {/* Desktop pet — app-level codex-style sprite; idle/running 跟随活跃 session 的 aiBusy */}
+      <DesktopPet activeState={aiBusy[activeSessionId ?? ''] ? 'running' : 'idle'} />
     </div>
   )
 

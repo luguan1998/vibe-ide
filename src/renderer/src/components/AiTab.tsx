@@ -11,8 +11,6 @@ import { loadFilterRules } from './FileTab'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS } from '../aiStore'
 import { EXAMPLE_PROMPTS } from './examplePrompts'
-import { OCTOCAT, type PetSpriteConfig } from './petSprites'
-import { loadKeypadItems } from './VibeProgramer'
 import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch, Folder, X } from 'lucide-react'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
@@ -1653,158 +1651,6 @@ function MentionAutocomplete({
 
 // ── Main Component ─────────────────────────────────────────────
 
-// ── Pet mascot ──────────────────────────────────────────────────────
-
-let globalPetVisible = true
-
-function usePetVisibility() {
-  const [visible, setVisible] = useState(globalPetVisible)
-  useEffect(() => {
-    const handler = () => setVisible(globalPetVisible)
-    window.addEventListener('pet-visibility', handler)
-    return () => window.removeEventListener('pet-visibility', handler)
-  }, [])
-  return visible
-}
-
-function DesktopPet({ sprite }: { sprite: PetSpriteConfig }) {
-  const visible = usePetVisibility()
-  const [rightPx, setRightPx] = useState<number | null>(null)
-  const [showBubbles, setShowBubbles] = useState(false)
-  const [bubbles, setBubbles] = useState<ReturnType<typeof loadKeypadItems>>([])
-  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
-  const wrapperRef = useRef<HTMLDivElement>(null)
-  const draggingRef = useRef(false)
-  const dragMovedRef = useRef(false)
-  const startXRef = useRef(0)
-  const startYRef = useRef(0)
-  const startRightRef = useRef(0)
-
-  const width = sprite.cols * sprite.pixelSize
-
-  const getBaseRight = useCallback(() => {
-    if (!wrapperRef.current) return 0
-    return wrapperRef.current.offsetWidth * 0.1
-  }, [])
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    draggingRef.current = true
-    dragMovedRef.current = false
-    startXRef.current = e.clientX
-    startYRef.current = e.clientY
-    startRightRef.current = rightPx ?? getBaseRight()
-  }, [rightPx, getBaseRight])
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!draggingRef.current || !wrapperRef.current) return
-      const dx = e.clientX - startXRef.current
-      const dy = e.clientY - startYRef.current
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragMovedRef.current = true
-      const w = wrapperRef.current.offsetWidth
-      const newRight = startRightRef.current - dx
-      setRightPx(Math.max(0, Math.min(newRight, w - width)))
-    }
-    const handleMouseUp = (e: MouseEvent) => {
-      const wasDragging = draggingRef.current
-      const moved = dragMovedRef.current
-      draggingRef.current = false
-      if (!wasDragging || moved) return
-      setBubbles(loadKeypadItems())
-      setAnchor({ x: e.clientX, y: e.clientY })
-      setShowBubbles(v => !v)
-    }
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [width])
-
-  useEffect(() => {
-    if (!showBubbles) return
-    const handleClick = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setShowBubbles(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [showBubbles])
-
-  const handleClose = useCallback(() => {
-    globalPetVisible = false
-    window.dispatchEvent(new Event('pet-visibility'))
-  }, [])
-
-  const handleBubbleSend = useCallback((text: string) => {
-    ;(window as any).__vibeSendLine?.(text)
-    setShowBubbles(false)
-  }, [])
-
-  if (!visible) return null
-
-  const style = rightPx !== null ? { right: `${rightPx}px` } : undefined
-  const bubbleStyle = anchor ? {
-    left: `${Math.max(4, Math.min(anchor.x - 110, window.innerWidth - 224))}px`,
-    bottom: `${window.innerHeight - anchor.y + 20}px`,
-  } : undefined
-
-  return (
-    <div className="ai-tab__pet-wrapper" ref={wrapperRef}>
-      <div className={`ai-tab__pet ai-tab__pet--${sprite.name} animate-pet-float`} style={style}>
-        <button className="ai-tab__pet-close" onClick={handleClose}>&times;</button>
-        <div className="ai-tab__pet-hitarea" onMouseDown={handleMouseDown}>
-          <i className={`ai-tab__pet-sprite ai-tab__pet-sprite--${sprite.name}`} />
-        </div>
-      </div>
-      {showBubbles && anchor && (
-        <div className="ai-tab__pet-bubbles animate-fade-in" style={bubbleStyle}>
-          {bubbles.map(b => (
-            <button
-              key={b.code}
-              onClick={() => handleBubbleSend(b.text)}
-              title={`Numpad ${b.key} → ${b.text}`}
-              className="ai-tab__pet-bubble"
-            >
-              <span className="ai-tab__pet-bubble-num">{b.key}</span>
-              <span className="ai-tab__pet-bubble-text">{b.text}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-const OCTOCAT_SVG_PATH = 'M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z'
-
-function PetHeaderLogo() {
-  const { t } = useI18n()
-  const visible = usePetVisibility()
-
-  const svg = (
-    <svg height="1em" style={{ flex: 'none', lineHeight: 1 }} viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
-      <path d={OCTOCAT_SVG_PATH} fill="#D97757" fillRule="nonzero" />
-    </svg>
-  )
-
-  if (visible) return svg
-
-  const handleRestore = () => {
-    globalPetVisible = true
-    window.dispatchEvent(new Event('pet-visibility'))
-  }
-
-  return (
-    <button onClick={handleRestore} className="cursor-pointer" title={t('Click to restore pet')}>
-      {svg}
-    </button>
-  )
-}
-
 const BUSY_QUIPS = [
   'Forging the digital frontier…',
   'The empire, long divided, must unite…',
@@ -2317,7 +2163,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       {/* Header */}
       <div className="ai-tab__header flex items-center justify-between px-2 py-1 border-b border-ide-border shrink-0 acrylic-titlebar-clean">
         <div className="ai-tab__header-left flex items-center gap-1.5 min-w-0">
-            <PetHeaderLogo />
             <span className="ai-tab__session-name text-xs font-medium text-ide-text truncate">{state.name || 'untitled'}</span>
           </div>
         <div className="ai-tab__header-actions flex items-center gap-1">
@@ -2609,8 +2454,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           </button>
         </div>
       )}
-
-      <DesktopPet sprite={OCTOCAT} />
 
       {/* Input */}
       <div className="ai-tab__input-area shrink-0 p-2">

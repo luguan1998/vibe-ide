@@ -183,6 +183,25 @@ const api = {
     toggle: (filename: string, enabled: boolean) => ipcRenderer.invoke(IPC_CHANNELS.SNIPPETS_TOGGLE, filename, enabled) as Promise<import('../shared/types').SnippetsLoadResult>
   },
 
+  // Pet（codex-style webp sprite sheet；exe 同目录 pets/<slug>/）
+  pet: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.PET_LIST) as Promise<import('../shared/types').PetListResult>,
+    setActive: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.PET_SET_ACTIVE, id) as Promise<import('../shared/types').PetListResult>,
+    delete: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.PET_DELETE, id) as Promise<import('../shared/types').PetListResult>,
+    onChanged: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on(IPC_CHANNELS.PET_CHANGED, handler)
+      return handler
+    },
+    removeChangedListener: (handler?: any) => {
+      if (handler) {
+        ipcRenderer.removeListener(IPC_CHANNELS.PET_CHANGED, handler)
+      } else {
+        ipcRenderer.removeAllListeners(IPC_CHANNELS.PET_CHANGED)
+      }
+    }
+  },
+
   // Perf
   perf: {
     snapshot: () => ipcRenderer.invoke(IPC_CHANNELS.PERF_SNAPSHOT)
