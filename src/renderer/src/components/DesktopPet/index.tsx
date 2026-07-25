@@ -152,8 +152,10 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const d = (e as CustomEvent).detail as { rel: string; start: number; end: number }
-      const ref = d.start === d.end ? `@${d.rel}:${d.start}` : `@${d.rel}:${d.start}-${d.end}`
+      const d = (e as CustomEvent).detail as { rel: string; start?: number; end?: number }
+      const ref = (d.start != null && d.end != null)
+        ? (d.start === d.end ? `@${d.rel}:${d.start}` : `@${d.rel}:${d.start}-${d.end}`)
+        : `@${d.rel}`
       setDraftCmd(prev => (prev.trim() ? prev.replace(/\s+$/, '') + '; ' : '') + ref + ' → ')
       setPopupOpen(false)
       setContextOpen(true)

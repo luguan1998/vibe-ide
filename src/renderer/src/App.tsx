@@ -2369,6 +2369,7 @@ export default function App() {
                 fileName={markdownFile.fileName}
                 onBack={handleBackFromMarkdown}
                 scrollToHeading={mdScrollHeading}
+                brushActive={brushActive}
                 outlineEnabled={outlineOverlayEnabled}
                 onToggleOutline={() => setOutlineOverlayEnabled(prev => !prev)}
                 onOutlineNavigate={handleOutlineNavigate}

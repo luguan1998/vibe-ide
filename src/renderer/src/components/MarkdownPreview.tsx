@@ -8,6 +8,7 @@ import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { type Frontmatter } from '@renderer/utils/frontmatter'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
+import { ADD_ANNOTATION_EVENT } from './vibeEvents'
 import OutlineTrigger from './OutlineTrigger'
 
 export const MD_SEARCH_OPEN = 'md-search-open'
@@ -17,6 +18,7 @@ interface MarkdownPreviewProps {
   fileName: string
   onBack?: () => void
   scrollToHeading?: string
+  brushActive?: boolean
   outlineEnabled?: boolean
   onToggleOutline?: () => void
   onOutlineNavigate?: (line: number, headingName?: string) => void
@@ -168,6 +170,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   fileName,
   onBack,
   scrollToHeading,
+  brushActive = false,
   outlineEnabled,
   onToggleOutline,
   onOutlineNavigate
@@ -221,6 +224,33 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
       }
     })
   }, [])
+
+  const handleBrushClick = useCallback((e: React.MouseEvent) => {
+    if (!brushActive) return
+    const target = e.target as HTMLElement
+    if (target.closest('a, pre')) return
+    if (window.getSelection()?.toString().trim()) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    const wrapper = (target as HTMLElement).closest('.md-block') as HTMLElement | null
+    const idx = wrapper ? parseInt(wrapper.getAttribute('data-block-idx') || '', 10) : -1
+    const snippet = ((target as HTMLElement).textContent || '').trim().slice(0, 80)
+    let heading: string | null = null
+    if (idx > 0) {
+      for (let i = idx - 1; i >= 0; i--) {
+        const src = blocks[i].source.trimStart()
+        if (/^#{1,6}\s/.test(src)) {
+          heading = src.replace(/^#{1,6}\s+/, '').split('\n')[0].trim()
+          break
+        }
+      }
+    }
+
+    const ref = heading ? `**${heading}** "${snippet}"` : `"${snippet}"`
+    navigator.clipboard?.writeText(ref).catch(() => {})
+    window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: `${fileName} ${ref}` } }))
+  }, [brushActive, blocks, fullPath, fileName])
 
   const handleBlockSave = useCallback(() => {
     if (!editingBlock) return
@@ -606,7 +636,7 @@ ${clone.innerHTML}
           const dirPart = lastSep >= 0 ? fullPath.substring(0, lastSep + 1) : ''
           const namePart = lastSep >= 0 ? fullPath.substring(lastSep + 1) : fullPath
           return (
-            <div className="flex flex-col h-full animate-fade-in relative center-overlay" ref={containerRef}>
+            <div className={`flex flex-col h-full animate-fade-in relative center-overlay${brushActive ? ' diff-brush-mode' : ''}`} ref={containerRef}>
               <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0">
                 <div className="flex items-center gap-1.5 text-sm min-w-0">
                   {onBack && (
@@ -657,7 +687,7 @@ ${clone.innerHTML}
           <div className="flex items-center justify-center h-32 text-ide-danger">{error}</div>
         )}
         {!loading && !error && (
-          <div className="md-preview max-w-4xl mx-auto relative" ref={contentRef}>
+          <div className="md-preview max-w-4xl mx-auto relative" ref={contentRef} onClickCapture={handleBrushClick}>
             {frontmatter && (
               <div className="md-frontmatter mb-6">
                 {Object.entries(frontmatter).map(([key, val]) => (
@@ -675,6 +705,7 @@ ${clone.innerHTML}
                 <div
                   key={i}
                   className="md-block group hover:bg-ide-hover/30 rounded transition-colors -ml-1 -mr-1 px-1"
+                  data-block-idx={i}
                   onDoubleClick={(e) => handleBlockDoubleClick(block, e)}
                 >
                   <ReactMarkdown remarkPlugins={remarkPlugins} components={mdComponents}>
