@@ -715,7 +715,16 @@ const AppearancePanel = function AppearancePanel({
                   onDelta={handlePetFrameRateDelta} min={Math.round(PET_FRAME_RATE_MIN * 100)} max={Math.round(PET_FRAME_RATE_MAX * 100)} zone="global" compact />
                 <div className="border-t border-ide-border" />
                 <div className="flex flex-col gap-1">
-                  <span className="text-[12px] text-ide-text-muted px-1">{t('Pet States')}</span>
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[12px] text-ide-text-muted">{t('Pet States')}</span>
+                    <button
+                      onClick={() => resetPetPos()}
+                      title={t('Reset Position')}
+                      className="shrink-0 p-1 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text rounded transition-colors"
+                    >
+                      <RotateCcw className="size-3.5" />
+                    </button>
+                  </div>
                   {petStateOptions.length === 0 ? (
                     <div className="px-3 py-2 text-[12px] text-ide-text-muted">{t('No pets found.')}</div>
                   ) : (
@@ -743,12 +752,6 @@ const AppearancePanel = function AppearancePanel({
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => resetPetPos()}
-                  className="self-start px-3 py-1.5 text-sm text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors flex items-center gap-1.5"
-                >
-                  <RotateCcw className="size-3" />{t('Reset Position')}
-                </button>
               </div>
             )}
           </div>
