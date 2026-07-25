@@ -68,7 +68,7 @@
   width: 110px !important;
   height: 24px !important;
   pointer-events: none !important;
-  z-index: 0 !important;
+  z-index: 20 !important;
   background-image: url('assets/nyan.gif') !important;
   background-size: contain !important;
   background-repeat: no-repeat !important;
@@ -83,7 +83,7 @@
   width: 110px !important;
   height: 24px !important;
   pointer-events: none !important;
-  z-index: 0 !important;
+  z-index: 20 !important;
   background-image: url('assets/GB.gif') !important;
   background-size: contain !important;
   background-repeat: no-repeat !important;
@@ -98,7 +98,7 @@
   width: 110px !important;
   height: 24px !important;
   pointer-events: none !important;
-  z-index: 0 !important;
+  z-index: 20 !important;
   background-image: url('assets/jazz.gif') !important;
   background-size: contain !important;
   background-repeat: no-repeat !important;
@@ -113,7 +113,7 @@
   width: 110px !important;
   height: 24px !important;
   pointer-events: none !important;
-  z-index: 0 !important;
+  z-index: 20 !important;
   background-image: url('assets/nyandoge.gif') !important;
   background-size: contain !important;
   background-repeat: no-repeat !important;
@@ -128,7 +128,7 @@
   width: 110px !important;
   height: 24px !important;
   pointer-events: none !important;
-  z-index: 0 !important;
+  z-index: 20 !important;
   background-image: url('assets/pirate.gif') !important;
   background-size: contain !important;
   background-repeat: no-repeat !important;
@@ -143,7 +143,7 @@
   width: 110px !important;
   height: 24px !important;
   pointer-events: none !important;
-  z-index: 0 !important;
+  z-index: 20 !important;
   background-image: url('assets/rasta.gif') !important;
   background-size: contain !important;
   background-repeat: no-repeat !important;
@@ -158,7 +158,7 @@
   width: 110px !important;
   height: 24px !important;
   pointer-events: none !important;
-  z-index: 0 !important;
+  z-index: 20 !important;
   background-image: url('assets/technyancolor.gif') !important;
   background-size: contain !important;
   background-repeat: no-repeat !important;

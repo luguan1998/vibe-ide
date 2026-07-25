@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { unified } from 'unified'
+import remarkParse from 'remark-parse'
 import { FileDown } from 'lucide-react'
 import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
-import { type Frontmatter, parseFrontmatter } from '@renderer/utils/frontmatter'
+import { type Frontmatter } from '@renderer/utils/frontmatter'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import OutlineTrigger from './OutlineTrigger'
 
@@ -50,6 +52,47 @@ function resolveImagePath(src: string, mdFullPath: string): string | null {
     else if (part !== '.' && part !== '') { resolved.push(part) }
   }
   return resolved.join(sep)
+}
+
+interface BlockInfo {
+  start: number
+  end: number
+  source: string
+}
+
+function locateBody(raw: string): { meta: Frontmatter | null; body: string; bodyStart: number } {
+  const trimmed = raw.trimStart()
+  if (!trimmed.startsWith('---')) return { meta: null, body: raw, bodyStart: 0 }
+  const leadWs = raw.length - trimmed.length
+  const second = trimmed.indexOf('---', 3)
+  if (second === -1) return { meta: null, body: raw, bodyStart: 0 }
+  const fmBlock = trimmed.slice(3, second)
+  const bodyRaw = trimmed.slice(second + 3)
+  const bodyStart = leadWs + second + 3
+  const meta: Frontmatter = {}
+  for (const line of fmBlock.split('\n')) {
+    const trimmedLine = line.trim()
+    if (!trimmedLine || trimmedLine.startsWith('#')) continue
+    const ci = trimmedLine.indexOf(':')
+    if (ci === -1) continue
+    const key = trimmedLine.slice(0, ci).trim()
+    const rawVal = trimmedLine.slice(ci + 1).trim()
+    if (rawVal.startsWith('[') && rawVal.endsWith(']')) {
+      meta[key] = rawVal.slice(1, -1).split(',').map((s: string) => s.trim().replace(/^['"]|['"]$/g, ''))
+    } else {
+      meta[key] = rawVal.replace(/^['"]|['"]$/g, '')
+    }
+  }
+  return { meta: Object.keys(meta).length > 0 ? meta : null, body: bodyRaw, bodyStart }
+}
+
+function serializeFrontmatterKey(key: string, val: string | string[]): string {
+  if (Array.isArray(val)) return `${key}: [${val.map((v: string) => `'${v}'`).join(', ')}]`
+  return `${key}: ${val}`
+}
+
+function serializeFrontmatter(fm: Frontmatter): string {
+  return Object.entries(fm).map(([k, v]) => serializeFrontmatterKey(k, v)).join('\n')
 }
 
 interface TextMatch { node: Text; start: number; end: number }
@@ -129,11 +172,141 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   onToggleOutline,
   onOutlineNavigate
 }: MarkdownPreviewProps) {
-  const [content, setContent] = useState('')
+  const [rawContent, setRawContent] = useState('')
+  const [bodyStart, setBodyStart] = useState(0)
   const [frontmatter, setFrontmatter] = useState<Frontmatter | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const [editingBlock, setEditingBlock] = useState<{ start: number; end: number; rect: { top: number; left: number; width: number } } | null>(null)
+  const [savedRawContent, setSavedRawContent] = useState('')
+  const isDirty = rawContent !== savedRawContent
+  const editingBlockRef = useRef(editingBlock)
+  editingBlockRef.current = editingBlock
+  const pendingValueRef = useRef('')
+
+  const body = useMemo(() => rawContent.slice(bodyStart), [rawContent, bodyStart])
+
+  const blocks = useMemo<BlockInfo[]>(() => {
+    if (!body) return []
+    try {
+      const root = unified().use(remarkParse).parse(body)
+      return (root.children || []).map((node: any) => ({
+        start: node.position?.start?.offset ?? 0,
+        end: node.position?.end?.offset ?? 0,
+        source: body.slice(node.position?.start?.offset ?? 0, node.position?.end?.offset ?? 0)
+      }))
+    } catch {
+      return []
+    }
+  }, [body])
+
+  const handleBlockDoubleClick = useCallback((block: BlockInfo, e: React.MouseEvent) => {
+    if (editingBlockRef.current) return
+    const el = e.currentTarget as HTMLElement
+    const scrollContainer = scrollRef.current
+    const containerRect = scrollContainer?.getBoundingClientRect()
+    const elRect = el.getBoundingClientRect()
+    pendingValueRef.current = block.source
+    setEditingBlock({
+      start: block.start,
+      end: block.end,
+      rect: {
+        top: elRect.top - containerRect.top + (scrollContainer?.scrollTop ?? 0),
+        left: elRect.left - containerRect.left,
+        width: elRect.width
+      }
+    })
+  }, [])
+
+  const handleBlockSave = useCallback(() => {
+    if (!editingBlock) return
+    const newValue = pendingValueRef.current
+    const absStart = bodyStart + editingBlock.start
+    const absEnd = bodyStart + editingBlock.end
+    const original = rawContent.slice(absStart, absEnd)
+    const crlf = original.includes('\r\n')
+    const normalized = crlf ? newValue.replace(/\n/g, '\r\n') : newValue
+    setRawContent(prev => prev.slice(0, absStart) + normalized + prev.slice(absEnd))
+    setEditingBlock(null)
+  }, [editingBlock, bodyStart, rawContent])
+
+  const handleBlockCancel = useCallback(() => {
+    setEditingBlock(null)
+  }, [])
+
+  const handleBlockSaveRef = useRef(handleBlockSave)
+  handleBlockSaveRef.current = handleBlockSave
+  const handleBlockCancelRef = useRef(handleBlockCancel)
+  handleBlockCancelRef.current = handleBlockCancel
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!editingBlockRef.current) return
+      if (e.ctrlKey && e.key.toLowerCase() === 'enter') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        handleBlockSaveRef.current()
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        handleBlockCancelRef.current()
+        return
+      }
+      if (e.ctrlKey && e.key.toLowerCase() === 's') return
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [])
+
+  const editContainerRef = useRef<HTMLDivElement>(null)
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (!editingBlock || !editTextareaRef.current) return
+    const el = editTextareaRef.current
+    el.value = blocks.find(b => b.start === editingBlock.start)?.source || ''
+    pendingValueRef.current = el.value
+    el.style.height = 'auto'
+    el.style.height = `${Math.max(60, el.scrollHeight)}px`
+    el.focus()
+  }, [editingBlock, blocks])
+
+  useEffect(() => {
+    if (!editingBlock) return
+    const handler = (e: MouseEvent) => {
+      if (editContainerRef.current?.contains(e.target as Node)) return
+      handleBlockSave()
+    }
+    setTimeout(() => document.addEventListener('mousedown', handler), 0)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [editingBlock, handleBlockSave])
+
+  const handleSaveFile = useCallback(async () => {
+    if (!isDirty) return
+    await window.api.file.write(fullPath, rawContent)
+    setSavedRawContent(rawContent)
+  }, [isDirty, fullPath, rawContent])
+
+  const handleSaveFileRef = useRef(handleSaveFile)
+  handleSaveFileRef.current = handleSaveFile
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.key.toLowerCase() !== 's') return
+      if (editingBlockRef.current) return
+      if (!containerRef.current?.offsetParent) return
+      e.preventDefault()
+      handleSaveFileRef.current()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   // in-page search state
   const [searchOpen, setSearchOpen] = useState(false)
@@ -351,7 +524,7 @@ ${clone.innerHTML}
 
   useEffect(() => {
     runSearch()
-  }, [runSearch, content, searchOpen, query, matchIndex])
+  }, [runSearch, body, searchOpen, query, matchIndex])
 
   // Scroll to heading when outline triggers navigation
   useEffect(() => {
@@ -365,17 +538,21 @@ ${clone.innerHTML}
     let cancelled = false
     setLoading(true)
     setError(null)
+    setEditingBlock(null)
     window.api.file.read(fullPath).then((result: any) => {
       if (cancelled) return
       if (result.error) {
         setError(result.error)
-        setContent('')
+        setRawContent('')
         setFrontmatter(null)
+        setBodyStart(0)
       } else {
         const raw = typeof result === 'string' ? result : result.content || ''
-        const { meta, body } = parseFrontmatter(raw)
+        const { meta, body, bodyStart: bs } = locateBody(raw)
         setFrontmatter(meta)
-        setContent(body)
+        setRawContent(raw)
+        setBodyStart(bs)
+        setSavedRawContent(raw)
       }
       setLoading(false)
     }).catch((err: any) => {
@@ -429,7 +606,7 @@ ${clone.innerHTML}
           const dirPart = lastSep >= 0 ? fullPath.substring(0, lastSep + 1) : ''
           const namePart = lastSep >= 0 ? fullPath.substring(lastSep + 1) : fullPath
           return (
-            <div className="flex flex-col h-full animate-fade-in relative center-overlay">
+            <div className="flex flex-col h-full animate-fade-in relative center-overlay" ref={containerRef}>
               <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0">
                 <div className="flex items-center gap-1.5 text-sm min-w-0">
                   {onBack && (
@@ -447,16 +624,19 @@ ${clone.innerHTML}
                   <span className="text-ide-text font-medium">{namePart}</span>{dirPart && <span className="text-[11px] text-ide-text-muted/50"> {dirPart}</span>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  {isDirty && (
+                    <span className="text-[10px] text-ide-warning font-medium">● 未保存</span>
+                  )}
                   <div
                     className="flex items-center rounded-md bg-ide-hover overflow-hidden shrink-0 cursor-context-menu select-none"
-                    title="右键导出 HTML"
+                    title="右键导出 HTML · 双击段落进入编辑"
                     onContextMenu={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
                       setExportMenu({ x: e.clientX, y: e.clientY })
                     }}
                   >
-                    <span className="px-2.5 py-1 text-xs bg-ide-accent/15 text-ide-accent">View</span>
+                                          <span className="px-2.5 py-1 text-xs bg-ide-accent/15 text-ide-accent">View</span>
                   </div>
                   {onToggleOutline && (
                     <OutlineTrigger
@@ -469,7 +649,7 @@ ${clone.innerHTML}
                   )}
                 </div>
               </div>
-      <div className="flex-1 overflow-auto p-6 bg-ide-bg">
+      <div className="flex-1 overflow-auto p-6 bg-ide-bg relative" ref={scrollRef}>
         {loading && (
           <div className="flex items-center justify-center h-32 text-ide-text-muted">Loading...</div>
         )}
@@ -477,7 +657,7 @@ ${clone.innerHTML}
           <div className="flex items-center justify-center h-32 text-ide-danger">{error}</div>
         )}
         {!loading && !error && (
-          <div className="md-preview max-w-4xl mx-auto" ref={contentRef}>
+          <div className="md-preview max-w-4xl mx-auto relative" ref={contentRef}>
             {frontmatter && (
               <div className="md-frontmatter mb-6">
                 {Object.entries(frontmatter).map(([key, val]) => (
@@ -490,9 +670,61 @@ ${clone.innerHTML}
                 ))}
               </div>
             )}
-            <ReactMarkdown remarkPlugins={remarkPlugins} components={mdComponents}>
-              {content}
-            </ReactMarkdown>
+            {blocks.length > 0 ? (
+              blocks.map((block, i) => (
+                <div
+                  key={i}
+                  className="md-block group hover:bg-ide-hover/30 rounded transition-colors -ml-1 -mr-1 px-1"
+                  onDoubleClick={(e) => handleBlockDoubleClick(block, e)}
+                >
+                  <ReactMarkdown remarkPlugins={remarkPlugins} components={mdComponents}>
+                    {block.source}
+                  </ReactMarkdown>
+                </div>
+              ))
+            ) : (
+              <ReactMarkdown remarkPlugins={remarkPlugins} components={mdComponents}>
+                {body}
+              </ReactMarkdown>
+            )}
+          </div>
+        )}
+        {editingBlock && (
+          <div
+            ref={editContainerRef}
+            className="absolute z-10 left-6 right-6"
+            style={{
+              top: editingBlock.rect.top - 6,
+            }}
+          >
+            <textarea
+              ref={editTextareaRef}
+              onChange={(e) => {
+                pendingValueRef.current = e.target.value
+                e.target.style.height = 'auto'
+                e.target.style.height = `${Math.max(60, e.target.scrollHeight)}px`
+              }}
+              onKeyDown={(e) => {
+                if (e.ctrlKey && e.key === 'Enter') {
+                  e.preventDefault()
+                  handleBlockSave()
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleBlockCancel()
+                } else if (e.ctrlKey && e.key.toLowerCase() === 's') {
+                  e.preventDefault()
+                }
+              }}
+              className="w-full resize-none outline-none text-ide-text bg-ide-bg px-3 py-2"
+              style={{
+                fontFamily: 'var(--ide-font-family, "Cascadia Code", monospace)',
+                fontSize: 14,
+                lineHeight: 1.7,
+                border: 'none',
+              }}
+              spellCheck={false}
+            />
           </div>
         )}
       </div>
