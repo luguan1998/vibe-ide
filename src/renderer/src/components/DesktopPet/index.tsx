@@ -2,12 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { PetManifest, PetListResult } from '@shared/types'
 import { PetSprite } from './PetSprite'
 import { injectPetKeyframes } from './keyframes'
-import { resolveStateName, type PetActiveState } from './stateMap'
+import { resolveStateName, type PetLogicalState } from './stateMap'
+export type { PetLogicalState }
 import { loadKeypadItems } from '../VibeProgramer'
 import { getExtraBubbleSections, onPetBubblesChanged, type PetBubbleItem, type PetBubbleSection } from './bubbleRegistry'
-import { getPetScale, getPetVisible, getPetPos, setPetPos, onPetPrefsChanged } from './petSettings'
+import { getPetScale, getPetVisible, getPetPos, setPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride } from './petSettings'
 
-export function DesktopPet({ activeState }: { activeState: PetActiveState }) {
+export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) {
   const [manifest, setManifest] = useState<PetManifest | null>(null)
   const [pos, setPos] = useState(() => getPetPos())
   const [scale, setScale] = useState(() => getPetScale())
@@ -16,6 +17,8 @@ export function DesktopPet({ activeState }: { activeState: PetActiveState }) {
   const [popupAbove, setPopupAbove] = useState(true)
   const [keypadItems, setKeypadItems] = useState<ReturnType<typeof loadKeypadItems>>([])
   const [, setExtraTick] = useState(0)
+  const [, setConfigTick] = useState(0)
+  const [frameRate, setFrameRate] = useState(() => getPetFrameRate())
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number; moved: boolean } | null>(null)
@@ -34,16 +37,18 @@ export function DesktopPet({ activeState }: { activeState: PetActiveState }) {
     return () => { cancelled = true; window.api.pet.removeChangedListener(handler) }
   }, [])
 
-  // manifest 变化时注入对应 keyframes（照抄 petSprites.ts 的运行时 <style> 注入）
+  // manifest 变化时注入对应 keyframes
   useEffect(() => {
     if (manifest) injectPetKeyframes(manifest)
   }, [manifest])
 
-  // 订阅本地偏好变化（缩放/可见性/重置位置）
+  // 订阅本地偏好变化（缩放/可见性/重置位置/状态→row 配置）
   useEffect(() => onPetPrefsChanged(() => {
     setScale(getPetScale())
     setVisible(getPetVisible())
     setPos(getPetPos())
+    setFrameRate(getPetFrameRate())
+    setConfigTick(v => v + 1)
   }), [])
 
   // 订阅气泡拓展注册表变化
@@ -112,7 +117,9 @@ export function DesktopPet({ activeState }: { activeState: PetActiveState }) {
 
   if (!manifest || !visible) return null
 
-  const stateName = resolveStateName(activeState)
+  const stateName = resolveStateName(logicalState)
+  const stateFrames = manifest.states[stateName]?.frames ?? 1
+  const frames = getPetLogicalFramesOverride(logicalState) ?? stateFrames
   const wrapperStyle: React.CSSProperties = pos ? { left: pos.left, top: pos.top } : { right: 8, bottom: 8 }
 
   // 组装气泡 section：速发键 → 拓展注册表（宠物选择/删除/打开文件夹已移至设置→外观）
@@ -137,7 +144,7 @@ export function DesktopPet({ activeState }: { activeState: PetActiveState }) {
         onPointerUp={onPointerUp}
         onContextMenu={onContextMenu}
       >
-        <PetSprite manifest={manifest} stateName={stateName} scale={scale} />
+        <PetSprite manifest={manifest} stateName={stateName} scale={scale} frameRate={frameRate} frames={frames} />
       </div>
       {popupOpen && (
         <div className={`desktop-pet__bubbles${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}`}>

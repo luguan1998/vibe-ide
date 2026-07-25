@@ -5,7 +5,8 @@ import { useI18n } from '../i18n'
 import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, PanelRightClose, SlidersHorizontal, SwatchBook, Info, PawPrint, Trash2 } from 'lucide-react'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from './SessionPanel'
-import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, PET_SCALE_MIN, PET_SCALE_MAX } from './DesktopPet/petSettings'
+import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, setPetLogicalState, setPetLogicalFrames, getPetFrameRate, setPetFrameRate, getPetLogicalFramesOverride, PET_SCALE_MIN, PET_SCALE_MAX, PET_FRAME_RATE_MIN, PET_FRAME_RATE_MAX } from './DesktopPet/petSettings'
+import { resolveStateName, PET_LOGICAL_STATES, PET_LOGICAL_LABEL, PET_LOGICAL_DESC } from './DesktopPet/stateMap'
 
 const FALLBACK_FONTS = [
   'Consolas', 'Cascadia Code', 'JetBrains Mono', 'Fira Code',
@@ -41,12 +42,12 @@ function Pill({ zone }: { zone: Zone }) {
   return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${p.cls}`}>{t(p.key)}</span>
 }
 
-function ToggleRow({ labelKey, descKey, checked, onChange, zone }: {
-  labelKey: string; descKey?: string; checked: boolean; onChange: (v: boolean) => void; zone: Zone
+function ToggleRow({ labelKey, descKey, checked, onChange, zone, compact }: {
+  labelKey: string; descKey?: string; checked: boolean; onChange: (v: boolean) => void; zone: Zone; compact?: boolean
 }) {
   const { t } = useI18n()
   return (
-    <div className="flex items-start justify-between gap-3 py-2">
+    <div className={`flex items-start justify-between gap-3 ${compact ? 'py-1' : 'py-2'}`}>
       <div className="flex flex-col gap-0.5 flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm text-ide-text">{t(labelKey)}</span>
@@ -63,12 +64,12 @@ function ToggleRow({ labelKey, descKey, checked, onChange, zone }: {
   )
 }
 
-function StepperRow({ labelKey, descKey, value, display, onDelta, min, max, zone }: {
-  labelKey: string; descKey?: string; value: number; display: string; onDelta: (d: number) => void; min: number; max: number; zone: Zone
+function StepperRow({ labelKey, descKey, value, display, onDelta, min, max, zone, compact }: {
+  labelKey: string; descKey?: string; value: number; display: string; onDelta: (d: number) => void; min: number; max: number; zone: Zone; compact?: boolean
 }) {
   const { t } = useI18n()
   return (
-    <div className="flex items-start justify-between gap-3 py-2">
+    <div className={`flex items-start justify-between gap-3 ${compact ? 'py-1' : 'py-2'}`}>
       <div className="flex flex-col gap-0.5 flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm text-ide-text">{t(labelKey)}</span>
@@ -88,6 +89,40 @@ function StepperRow({ labelKey, descKey, value, display, onDelta, min, max, zone
           disabled={value >= max}
           onClick={(e) => { e.stopPropagation(); onDelta(1) }}
         >{'>'}</button>
+      </div>
+    </div>
+  )
+}
+
+function SelectRow({ labelKey, descKey, value, options, onChange, row, maxFrames, frames, onFramesChange }: {
+  labelKey: string; descKey?: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void; row?: number; maxFrames?: number; frames?: number; onFramesChange?: (n: number) => void
+}) {
+  const { t } = useI18n()
+  return (
+    <div className="flex flex-col gap-0.5 py-0.5 px-1 rounded hover:bg-ide-hover transition-colors">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="text-sm text-ide-text truncate" title={descKey ? t(descKey) : undefined}>{t(labelKey)}</span>
+        {row !== undefined && <span className="text-[11px] text-ide-text-muted font-mono shrink-0">row {row}</span>}
+      </div>
+      <div className="flex items-center gap-1">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="min-w-0 flex-1 px-1.5 py-1 text-sm text-ide-text bg-ide-hover border border-ide-border rounded focus:outline-none focus:border-ide-accent"
+        >
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        {onFramesChange && maxFrames !== undefined && (
+          <input
+            type="number"
+            min={1}
+            max={maxFrames}
+            value={frames}
+            onChange={(e) => onFramesChange(Math.max(1, Math.min(maxFrames, Math.floor(Number(e.target.value)) || 1)))}
+            title={t('Pet Frames')}
+            className="w-12 shrink-0 px-1.5 py-1 text-sm text-ide-text bg-ide-hover border border-ide-border rounded focus:outline-none focus:border-ide-accent"
+          />
+        )}
       </div>
     </div>
   )
@@ -215,6 +250,8 @@ const AppearancePanel = function AppearancePanel({
   const [petsDir, setPetsDir] = useState('')
   const [petVisible, setPetVisibleState] = useState(getPetVisible())
   const [petScale, setPetScaleState] = useState(getPetScale())
+  const [petFrameRate, setPetFrameRateState] = useState(getPetFrameRate())
+  const [, setPetConfigTick] = useState(0)
   const [systemFonts, setSystemFonts] = useState<string[]>([])
   const fontsLoadedRef = useRef(false)
   const fontsLoadingRef = useRef(false)
@@ -260,7 +297,7 @@ const AppearancePanel = function AppearancePanel({
     const reload = () => window.api.pet.list().then((r: PetListResult) => { setPetsList(r.pets); setActivePetId(r.activeId); setPetsDir(r.dir) }).catch(() => {})
     const h = () => reload()
     window.api.pet.onChanged(h)
-    const offPrefs = onPetPrefsChanged(() => { setPetVisibleState(getPetVisible()); setPetScaleState(getPetScale()) })
+    const offPrefs = onPetPrefsChanged(() => { setPetVisibleState(getPetVisible()); setPetScaleState(getPetScale()); setPetFrameRateState(getPetFrameRate()); setPetConfigTick(v => v + 1) })
     return () => { window.api.pet.removeChangedListener(h); offPrefs() }
   }, [open])
 
@@ -275,6 +312,10 @@ const AppearancePanel = function AppearancePanel({
   const handlePetReload = async () => { try { applyPetList(await window.api.pet.list()) } catch {} }
   const handlePetVisibleToggle = (v: boolean) => setPetVisible(v)
   const handlePetScaleDelta = (d: number) => setPetScale(Math.min(PET_SCALE_MAX, Math.max(PET_SCALE_MIN, petScale + d * 0.1)))
+  const handlePetFrameRateDelta = (d: number) => setPetFrameRate(Math.min(PET_FRAME_RATE_MAX, Math.max(PET_FRAME_RATE_MIN, petFrameRate + d * 0.1)))
+
+  const activePetManifest = petsList.find(p => p.id === activePetId) ?? null
+  const petStateOptions = activePetManifest ? Object.keys(activePetManifest.states).map(n => ({ value: n, label: n })) : []
 
   const applySnippetsResult = (result: SnippetsLoadResult) => {
     setSnippetsList(result.snippets)
@@ -639,7 +680,7 @@ const AppearancePanel = function AppearancePanel({
                       <RefreshCw className="size-3.5" />
                     </button>
                   </div>
-                  <p className="text-[12px] text-ide-text-muted px-1">{t('Drop .webp into the pets/ folder to add a pet.')}</p>
+                  <p className="text-[12px] text-ide-text-muted px-1">{t('Drop a folder into pets/ to add a pet. Recommended: https://petdex.dev/')}</p>
                   <div className="border-t border-ide-border my-1" />
                   {petsList.length === 0 ? (
                     <div className="px-3 py-2 text-[12px] text-ide-text-muted">{t('No pets found.')}</div>
@@ -665,10 +706,43 @@ const AppearancePanel = function AppearancePanel({
                   )}
                   <div className="border-t border-ide-border" />
                 </div>
-                <ToggleRow labelKey="Show Pet" descKey="Show the desktop pet." checked={petVisible} onChange={handlePetVisibleToggle} zone="global" />
+                <ToggleRow labelKey="Show Pet" descKey="Show the desktop pet." checked={petVisible} onChange={handlePetVisibleToggle} zone="global" compact />
                 <StepperRow labelKey="Pet Scale" descKey="Pet display size."
                   value={Math.round(petScale * 100)} display={`${Math.round(petScale * 100)}%`}
-                  onDelta={handlePetScaleDelta} min={Math.round(PET_SCALE_MIN * 100)} max={Math.round(PET_SCALE_MAX * 100)} zone="global" />
+                  onDelta={handlePetScaleDelta} min={Math.round(PET_SCALE_MIN * 100)} max={Math.round(PET_SCALE_MAX * 100)} zone="global" compact />
+                <StepperRow labelKey="Pet Frame Rate" descKey="Pet animation speed."
+                  value={Math.round(petFrameRate * 100)} display={`${Math.round(petFrameRate * 100)}%`}
+                  onDelta={handlePetFrameRateDelta} min={Math.round(PET_FRAME_RATE_MIN * 100)} max={Math.round(PET_FRAME_RATE_MAX * 100)} zone="global" compact />
+                <div className="border-t border-ide-border" />
+                <div className="flex flex-col gap-1">
+                  <span className="text-[12px] text-ide-text-muted px-1">{t('Pet States')}</span>
+                  {petStateOptions.length === 0 ? (
+                    <div className="px-3 py-2 text-[12px] text-ide-text-muted">{t('No pets found.')}</div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-1">
+                      {PET_LOGICAL_STATES.map(ls => {
+                        const name = resolveStateName(ls)
+                        const st = activePetManifest?.states[name] ?? activePetManifest?.states['idle'] ?? (activePetManifest ? Object.values(activePetManifest.states)[0] : undefined)
+                        const maxFrames = st?.frames ?? 1
+                        const frames = getPetLogicalFramesOverride(ls) ?? maxFrames
+                        return (
+                          <SelectRow
+                            key={ls}
+                            labelKey={PET_LOGICAL_LABEL[ls]}
+                            descKey={PET_LOGICAL_DESC[ls]}
+                            value={name}
+                            options={petStateOptions}
+                            onChange={(v) => setPetLogicalState(ls, v)}
+                            row={st?.row}
+                            maxFrames={maxFrames}
+                            frames={frames}
+                            onFramesChange={(n) => setPetLogicalFrames(ls, n)}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => resetPetPos()}
                   className="self-start px-3 py-1.5 text-sm text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors flex items-center gap-1.5"

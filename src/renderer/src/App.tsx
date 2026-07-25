@@ -10,7 +10,7 @@ import { isCode, isMarkdown } from './components/OutlinePanel'
 import NavBar, { NavEntry } from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
-import { DesktopPet } from './components/DesktopPet'
+import { DesktopPet, type PetLogicalState } from './components/DesktopPet'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import GameMujica, { FOCUS_MUJICA, MUJICA_CLOSE } from './components/GameMujica'
@@ -372,6 +372,8 @@ export default function App() {
   const warnSessionsRef = useRef<Record<string, boolean>>({})
   warnSessionsRef.current = warnSessions
   const prevBusyRef = useRef<Record<string, boolean>>({})
+  // 整个 app 是否聚焦（window blur / 最小化 → false），用于宠物 unfocused 状态
+  const [appFocused, setAppFocused] = useState(() => (typeof document !== 'undefined' ? document.hasFocus() : true))
   const agentStatus = useMemo(() => {
     const result: Record<string, 'running' | 'idle' | 'warn'> = {}
     for (const s of sessions) {
@@ -411,6 +413,31 @@ export default function App() {
       })
     }
   }, [sessions, terminalBusy, aiBusy, activeSessionId])
+
+  // 窗口聚焦/可见性 → appFocused（切走/最小化时宠物切 unfocused）
+  useEffect(() => {
+    const onWinFocus = () => setAppFocused(true)
+    const onWinBlur = () => setAppFocused(false)
+    const onVis = () => setAppFocused(document.hasFocus())
+    window.addEventListener('focus', onWinFocus)
+    window.addEventListener('blur', onWinBlur)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('focus', onWinFocus)
+      window.removeEventListener('blur', onWinBlur)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
+
+  // 宠物逻辑状态：warn(全局) > busy(当前 session terminal|ai) > unfocused > idle
+  const petLogicalState = useMemo<PetLogicalState>(() => {
+    if (Object.values(warnSessions).some(Boolean)) return 'warn'
+    const sid = activeSessionId ?? ''
+    if (terminalBusy[sid] || aiBusy[sid]) return 'busy'
+    if (!appFocused) return 'unfocused'
+    return 'idle'
+  }, [warnSessions, terminalBusy, aiBusy, activeSessionId, appFocused])
+
   const [autoApproveSessions, setAutoApproveSessions] = useState<Record<string, boolean>>({})
   const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
   const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
@@ -2641,8 +2668,8 @@ export default function App() {
         />
       )}
 
-      {/* Desktop pet — app-level codex-style sprite; idle/running 跟随活跃 session 的 aiBusy */}
-      <DesktopPet activeState={aiBusy[activeSessionId ?? ''] ? 'running' : 'idle'} />
+      {/* Desktop pet — warn>busy>unfocused>idle，跟随活跃 session 与窗口聚焦 */}
+      <DesktopPet logicalState={petLogicalState} />
     </div>
   )
 

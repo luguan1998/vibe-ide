@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, Menu, screen } from 'electron'
 import { join, resolve, dirname } from 'path'
-import { statSync, existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'fs'
+import { statSync, existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, openSync, readSync, closeSync } from 'fs'
 import { createHash } from 'crypto'
 import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -404,8 +404,8 @@ app.whenReady().then(() => {
   })
 
   // ── Pet (codex-style webp sprite sheet) — 目录策略同 snippets ──
-  // 导入方式：直接把 .webp/.png 扔进 pets/（平铺）即成宠物（默认 8×9 manifest）；
-  // 需自定义网格/帧率则建 pets/<slug>/ 子文件夹放 spritesheet.webp + pet.json。
+  // 导入方式：把 .webp/.png 扔进 pets/（平铺）即成宠物（按图像尺寸推导网格）；
+  // 需自定义网格/帧率则建 pets/<slug>/ 子文件夹放 spritesheet.webp + pet.json 覆盖。
   const petsDir = app.isPackaged
     ? join(dirname(exePath), 'pets')
     : join(app.getAppPath(), 'pets')
@@ -426,10 +426,48 @@ app.whenReady().then(() => {
 
   const DEFAULT_PET_STATES = ['idle', 'running-right', 'running-left', 'waving', 'jumping', 'failed', 'waiting', 'running', 'review']
 
-  function defaultPetStates(cols: number): Record<string, { row: number; frames: number; loop: boolean }> {
+  function defaultPetStates(frames: number): Record<string, { row: number; frames: number; loop: boolean }> {
     const o: Record<string, { row: number; frames: number; loop: boolean }> = {}
-    DEFAULT_PET_STATES.forEach((name, i) => { o[name] = { row: i, frames: cols, loop: true } })
+    DEFAULT_PET_STATES.forEach((name, i) => { o[name] = { row: i, frames, loop: true } })
     return o
+  }
+
+  // canonical 帧单位：从 default/pet.json（数据）读取，字面量仅兜底。
+  // 导入宠物的 pet.json 不含网格字段时，按图像尺寸 + 该单位推导 cols/rows/frameSize。
+  let _spriteUnit: { fw: number; fh: number; frames: number; cols: number } | null = null
+  function getSpriteUnit() {
+    if (_spriteUnit) return _spriteUnit
+    const fb = { fw: 192, fh: 208, frames: 6, cols: 8 }
+    try {
+      const p = join(petsDir, 'default', 'pet.json')
+      if (existsSync(p)) {
+        const r = JSON.parse(readFileSync(p, 'utf8'))
+        _spriteUnit = { fw: r.frameWidth ?? 192, fh: r.frameHeight ?? 208, frames: r.states?.idle?.frames ?? 6, cols: r.cols ?? 8 }
+        return _spriteUnit
+      }
+    } catch {}
+    _spriteUnit = fb
+    return _spriteUnit
+  }
+
+  // 读图像真实尺寸：nativeImage 对 VP8L webp 解码失败，改用文件头解析（webp VP8/VP8L/VP8X、PNG IHDR）。
+  function readImageSize(absPath: string): { w: number; h: number } {
+    let fd: number | undefined
+    try {
+      fd = openSync(absPath, 'r')
+      const head = Buffer.alloc(32)
+      readSync(fd, head, 0, 32, 0)
+      if (head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47) {
+        return { w: head.readUInt32BE(16), h: head.readUInt32BE(20) }
+      }
+      if (head.toString('ascii', 0, 4) === 'RIFF' && head.toString('ascii', 8, 12) === 'WEBP') {
+        const t = head.toString('ascii', 12, 16)
+        if (t === 'VP8X') return { w: (head[24] | (head[25] << 8) | (head[26] << 16)) + 1, h: (head[27] | (head[28] << 8) | (head[29] << 16)) + 1 }
+        if (t === 'VP8L') { const v = head.readUInt32LE(21); return { w: (v & 0x3FFF) + 1, h: ((v >> 14) & 0x3FFF) + 1 } }
+        if (t === 'VP8 ') return { w: head.readUInt16LE(26) & 0x3FFF, h: head.readUInt16LE(28) & 0x3FFF }
+      }
+    } catch {} finally { if (fd !== undefined) { try { closeSync(fd) } catch {} } }
+    return { w: 0, h: 0 }
   }
 
   function fileUrl(absPath: string): string {
@@ -453,18 +491,24 @@ app.whenReady().then(() => {
     if (existsSync(petJsonPath)) {
       try { raw = JSON.parse(readFileSync(petJsonPath, 'utf8')) } catch { raw = {} }
     }
-    const cols = raw.cols ?? 8
+    const unit = getSpriteUnit()
+    const sz = readImageSize(join(petDir, spriteFile))
+    const W = sz.w, H = sz.h
+    const cols = raw.cols ?? (W > 0 ? Math.max(1, Math.round(W / unit.fw)) : unit.cols)
+    const rows = raw.rows ?? (H > 0 ? Math.max(1, Math.round(H / unit.fh)) : 9)
+    const frameWidth = raw.frameWidth ?? (W > 0 ? Math.round(W / cols) : unit.fw)
+    const frameHeight = raw.frameHeight ?? (H > 0 ? Math.round(H / rows) : unit.fh)
     return {
       id: raw.id ?? slug,
       displayName: raw.displayName ?? raw.id ?? slug,
       description: raw.description,
       spritesheetUrl: fileUrl(join(petDir, spriteFile)),
-      frameWidth: raw.frameWidth ?? 192,
-      frameHeight: raw.frameHeight ?? 208,
+      frameWidth,
+      frameHeight,
       cols,
-      rows: raw.rows ?? 9,
+      rows,
       frameDurationMs: raw.frameDurationMs ?? 183,
-      states: raw.states ?? defaultPetStates(cols)
+      states: raw.states ?? defaultPetStates(unit.frames)
     }
   }
 
@@ -474,16 +518,23 @@ app.whenReady().then(() => {
     if (!lower.endsWith('.webp') && !lower.endsWith('.png')) return null
     const slug = fileName.replace(/\.[^.]+$/, '')
     if (!slug) return null
+    const unit = getSpriteUnit()
+    const sz = readImageSize(join(petsDir, fileName))
+    const W = sz.w, H = sz.h
+    const cols = W > 0 ? Math.max(1, Math.round(W / unit.fw)) : unit.cols
+    const rows = H > 0 ? Math.max(1, Math.round(H / unit.fh)) : 9
+    const frameWidth = W > 0 ? Math.round(W / cols) : unit.fw
+    const frameHeight = H > 0 ? Math.round(H / rows) : unit.fh
     return {
       id: slug,
       displayName: slug,
       spritesheetUrl: fileUrl(join(petsDir, fileName)),
-      frameWidth: 192,
-      frameHeight: 208,
-      cols: 8,
-      rows: 9,
+      frameWidth,
+      frameHeight,
+      cols,
+      rows,
       frameDurationMs: 183,
-      states: defaultPetStates(8)
+      states: defaultPetStates(unit.frames)
     }
   }
 

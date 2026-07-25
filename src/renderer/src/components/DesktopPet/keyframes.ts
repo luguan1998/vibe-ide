@@ -3,7 +3,6 @@ import type { PetManifest } from '@shared/types'
 const STYLE_ID = 'desktop-pet-keyframes'
 
 // 按 manifest 注入 @keyframes pet-row-N（每行一条，按 row 去重）。
-// 照抄 petSprites.ts injectSpriteCSS 的"运行时 <style> 注入 + 去重"思路。
 export function injectPetKeyframes(manifest: PetManifest): void {
   if (typeof document === 'undefined') return
   const sig = `${manifest.id}:${manifest.frameWidth}:${manifest.frameHeight}:${manifest.cols}:${manifest.rows}`
@@ -18,11 +17,10 @@ export function injectPetKeyframes(manifest: PetManifest): void {
     if (seenRows.has(st.row)) continue
     seenRows.add(st.row)
     const frames = st.frames
-    const endX = -(frames - 1) * fw
     const yPos = -st.row * fh
     rules.push(`@keyframes pet-row-${st.row} {
-  from { background-position: 0 ${yPos}px; }
-  to   { background-position: ${endX}px ${yPos}px; }
+  from { background-position: 0px ${yPos}px; }
+  to   { background-position: calc(-1 * (var(--pet-frames, ${frames}) - 1) * var(--pet-fw, ${fw}px)) ${yPos}px; }
 }`)
   }
   void cols
