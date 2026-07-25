@@ -668,4 +668,12 @@ html, body, #root {
   font-variant-numeric: tabular-nums;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+.status-badge__segment--running.is-active {
+  color: rgb(var(--ide-accent));
+  background: rgb(var(--ide-accent) / 0.12);
+}
+.status-badge__segment--warn.is-active {
+  color: rgb(var(--ide-warning));
+  background: rgb(var(--ide-warning) / 0.12);
+}
 

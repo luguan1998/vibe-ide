@@ -264,8 +264,8 @@ class FileLinkProvider implements ILinkProvider {
 }
 
 const DETECTION_DELAY = 2000  // term 启动 2s 后开始检测
-const IDLE_THRESHOLD = 2000   // 2秒无输出 → 判空闲
-const RUNNING_DEBOUNCE = 3000  // 3s 连续输出 → 切忙碌
+const IDLE_THRESHOLD = 1000   // 2秒无输出 → 判空闲
+const RUNNING_DEBOUNCE = 1000  // 3s 连续输出 → 切忙碌
 // OSC 标题检测正则（模块级常量，避免每次 onData 重新编译）
 // 匹配 OSC 0 (图标+标题) / OSC 1 (图标) / OSC 2 (窗口标题)
 const OSC_TITLE_RE = /\x1b\](0|1|2);([^\x07\x1b]*?)(\x07|\x1b\\)/g
@@ -336,6 +336,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   pageUpShortcutRef.current = pageUpShortcut
   const onOscTitleRef = useRef(onOscTitle)
   onOscTitleRef.current = onOscTitle
+  const onAgentStatusChangeRef = useRef(onAgentStatusChange)
+  onAgentStatusChangeRef.current = onAgentStatusChange
   // File picker modal — ref ensures fresh callback without effect re-runs
   const [filePicker, setFilePicker] = useState<{
     matches: string[]
@@ -901,6 +903,14 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       window.api.terminal.removeExitListener(exitHandlerRef.current)
     }
 
+    prevStatusRef.current = 'idle'
+    activationStartRef.current = 0
+    lastOutputRef.current = 0
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current)
+      idleTimerRef.current = null
+    }
+
     // Register new listeners and store handlers for cleanup
     dataHandlerRef.current = window.api.terminal.onData((data: { id: string; data: string }) => {
       if (data.id === sessionId && xtermRef.current) {
@@ -908,7 +918,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
         // Agent idle detection + OSC title extraction (main terminals only)
         // 一次 stripAnsiAndExtractOscTitle 同时完成 OSC 标题提取和 ANSI strip，避免重复正则扫描
-        if (!isAux && (onAgentStatusChange || onOscTitleRef.current) && detectionReadyRef.current) {
+        if (!isAux && (onAgentStatusChangeRef.current || onOscTitleRef.current) && detectionReadyRef.current) {
           const { clean, oscTitle } = stripAnsiAndExtractOscTitle(data.data)
 
           // OSC 标题 → 通知父组件
@@ -917,7 +927,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           }
 
           // Idle 检测
-          if (onAgentStatusChange && clean.trim()) {
+          if (onAgentStatusChangeRef.current && clean.trim()) {
 
             lastOutputRef.current = Date.now()
             const wasIdle = prevStatusRef.current === 'idle'
@@ -930,7 +940,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
               if (Date.now() - activationStartRef.current >= RUNNING_DEBOUNCE) {
                 prevStatusRef.current = 'running'
                 activationStartRef.current = 0
-                onAgentStatusChange(sessionId, 'running')
+                onAgentStatusChangeRef.current(sessionId, 'running')
               }
             }
 
@@ -939,7 +949,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
             idleTimerRef.current = setTimeout(() => {
               if (Date.now() - lastOutputRef.current >= IDLE_THRESHOLD) {
                 prevStatusRef.current = 'idle'
-                onAgentStatusChange!(sessionId, 'idle')
+                onAgentStatusChangeRef.current!(sessionId, 'idle')
               }
               if (activationStartRef.current > 0 &&
                   Date.now() - lastOutputRef.current >= IDLE_THRESHOLD + RUNNING_DEBOUNCE) {
@@ -976,6 +986,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     }, DETECTION_DELAY)
 
     return () => {
+      onAgentStatusChangeRef.current?.(sessionId, 'idle')
       if (dataHandlerRef.current) {
         window.api.terminal.removeDataListener(dataHandlerRef.current)
         dataHandlerRef.current = null
