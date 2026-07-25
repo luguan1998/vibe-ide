@@ -576,6 +576,7 @@ html, body, #root {
   width: 100%;
   box-sizing: border-box;
   resize: none;
+  max-height: 40vh;
   padding: 6px 8px;
   border-radius: 12px;
   background: rgb(var(--ide-sidebar));

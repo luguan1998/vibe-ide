@@ -156,7 +156,15 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
       const ref = (d.start != null && d.end != null)
         ? (d.start === d.end ? `@${d.rel}:${d.start}` : `@${d.rel}:${d.start}-${d.end}`)
         : `@${d.rel}`
-      setDraftCmd(prev => (prev.trim() ? prev.replace(/\s+$/, '') + '; ' : '') + ref + ' → ')
+      setDraftCmd(prev => {
+        if (!prev.trim()) return ref + ' → '
+        const lastSep = prev.lastIndexOf('; ')
+        const lastAnno = lastSep > -1 ? prev.slice(lastSep + 2) : prev
+        if (/^@.+? →\s*$/.test(lastAnno)) {
+          return (lastSep > -1 ? prev.slice(0, lastSep + 2) : '') + ref + ' → '
+        }
+        return prev.replace(/\s+$/, '') + '; ' + ref + ' → '
+      })
       setPopupOpen(false)
       setContextOpen(true)
       requestAnimationFrame(() => {
@@ -169,6 +177,16 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     window.addEventListener(ADD_ANNOTATION_EVENT, handler)
     return () => window.removeEventListener(ADD_ANNOTATION_EVENT, handler)
   }, [])
+
+  useEffect(() => {
+    const el = contextInputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const maxH = window.innerHeight * 0.4
+    const h = el.scrollHeight
+    el.style.height = Math.min(h, maxH) + 'px'
+    el.style.overflowY = h > maxH ? '' : 'hidden'
+  }, [draftCmd])
 
   // 气泡面板打开时：点面板外关闭（面板与宠物都在 wrapperRef 内，DOM 包含判定）
   useEffect(() => {
