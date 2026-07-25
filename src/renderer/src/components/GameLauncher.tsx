@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react'
-import { FOCUS_GAME_DRAFT } from './VibeProgramer'
+import React, { useState } from 'react'
 import { FOCUS_MUJICA } from './GameMujica'
 import { useMujica } from '../mujicaStore'
 import MujicaConfig from './MujicaConfig'
@@ -7,9 +6,8 @@ import mujicaIcon from '@renderer/assets/mujica.png?inline'
 import Game2048 from './Game2048'
 import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
-import VibeProgramer from './VibeProgramer'
 
-type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro' | 'draft' | 'mujica'
+type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro' | 'mujica'
 
 interface GameCard {
   id: Exclude<GameId, 'menu'>
@@ -23,18 +21,11 @@ const GAMES: GameCard[] = [
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
-  { id: 'draft', icon: <span className="text-2xl leading-none">📝</span>, name: 'Vibe programer', desc: 'Prompt scratchpad — chain into a pipeline command' },
 ]
 
 export default function GameLauncher() {
   const [currentGame, setCurrentGame] = useState<GameId>('menu')
   const mujicaActive = useMujica().active
-
-  useEffect(() => {
-    const handler = () => setCurrentGame('draft')
-    window.addEventListener(FOCUS_GAME_DRAFT, handler)
-    return () => window.removeEventListener(FOCUS_GAME_DRAFT, handler)
-  }, [])
 
   // When mujica is the active center view, this tab becomes its config panel.
   if (mujicaActive) {
@@ -58,7 +49,6 @@ export default function GameLauncher() {
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />
       case '2048': return <Game2048 onBack={back} />
-      case 'draft': return <VibeProgramer onBack={back} />
     }
   }
 

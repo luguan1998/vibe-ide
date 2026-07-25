@@ -1,10 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { PetManifest, PetListResult } from '@shared/types'
 import { PetSprite } from './PetSprite'
 import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState } from './stateMap'
 export type { PetLogicalState }
-import { loadKeypadItems } from '../VibeProgramer'
+import { loadKeypadItems } from '../keypadItems'
+import { Settings } from 'lucide-react'
+import { KeypadConfigModal } from '../KeypadConfigModal'
+import { ADD_ANNOTATION_EVENT } from '../vibeEvents'
 import { getExtraBubbleSections, onPetBubblesChanged, type PetBubbleItem, type PetBubbleSection } from './bubbleRegistry'
 import { getPetScale, getPetVisible, getPetPos, setPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride } from './petSettings'
 
@@ -15,12 +18,16 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
   const [visible, setVisible] = useState(() => getPetVisible())
   const [popupOpen, setPopupOpen] = useState(false)
   const [popupAbove, setPopupAbove] = useState(true)
+  const [contextOpen, setContextOpen] = useState(false)
+  const [configOpen, setConfigOpen] = useState(false)
+  const [draftCmd, setDraftCmd] = useState('')
   const [keypadItems, setKeypadItems] = useState<ReturnType<typeof loadKeypadItems>>([])
   const [, setExtraTick] = useState(0)
   const [, setConfigTick] = useState(0)
   const [frameRate, setFrameRate] = useState(() => getPetFrameRate())
 
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const contextInputRef = useRef<HTMLTextAreaElement>(null)
   const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number; moved: boolean } | null>(null)
 
   // 加载 active manifest + 订阅 PET_CHANGED（设置里切换/删除后热重载）
@@ -90,6 +97,7 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
       setKeypadItems(loadKeypadItems())
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
       setPopupAbove(rect.top > 240)
+      setContextOpen(false)
       setPopupOpen(v => !v)
     } else if (d && d.moved) {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -99,21 +107,79 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    setKeypadItems(loadKeypadItems())
+    setPopupOpen(false)
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     setPopupAbove(rect.top > 240)
-    setPopupOpen(true)
+    setDraftCmd('')
+    setContextOpen(true)
+  }, [])
+
+  const onContextKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
+    e.preventDefault()
+    const text = (e.currentTarget.value || '').trim()
+    if (text) {
+      const fn = text.includes(' → ') ? '__vibeSendLine' : '__vibeSendPetCommand'
+      ;(window as any)[fn]?.(text)
+    }
+    setDraftCmd('')
+    setContextOpen(false)
+  }, [])
+
+  useEffect(() => {
+    if (!contextOpen) return
+    const id = requestAnimationFrame(() => {
+      const el = contextInputRef.current
+      if (!el) return
+      el.focus({ preventScroll: true })
+      el.selectionStart = el.selectionEnd = el.value.length
+    })
+    return () => cancelAnimationFrame(id)
+  }, [contextOpen])
+
+  useLayoutEffect(() => {
+    if (!contextOpen && !configOpen) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      if (configOpen) setConfigOpen(false)
+      else setContextOpen(false)
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [contextOpen, configOpen])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent).detail as { rel: string; start: number; end: number }
+      const ref = d.start === d.end ? `@${d.rel}:${d.start}` : `@${d.rel}:${d.start}-${d.end}`
+      setDraftCmd(prev => (prev.trim() ? prev.replace(/\s+$/, '') + '; ' : '') + ref + ' → ')
+      setPopupOpen(false)
+      setContextOpen(true)
+      requestAnimationFrame(() => {
+        const el = contextInputRef.current
+        if (!el) return
+        el.focus({ preventScroll: true })
+        el.selectionStart = el.selectionEnd = el.value.length
+      })
+    }
+    window.addEventListener(ADD_ANNOTATION_EVENT, handler)
+    return () => window.removeEventListener(ADD_ANNOTATION_EVENT, handler)
   }, [])
 
   // 气泡面板打开时：点面板外关闭（面板与宠物都在 wrapperRef 内，DOM 包含判定）
   useEffect(() => {
-    if (!popupOpen) return
+    if (!popupOpen && !contextOpen) return
     const onDown = (ev: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(ev.target as Node)) setPopupOpen(false)
+      if (wrapperRef.current && !wrapperRef.current.contains(ev.target as Node)) {
+        setPopupOpen(false)
+        setContextOpen(false)
+      }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [popupOpen])
+  }, [popupOpen, contextOpen])
 
   if (!manifest || !visible) return null
 
@@ -166,6 +232,23 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
           ))}
         </div>
       )}
+      {contextOpen && (
+        <div className={`desktop-pet__context${popupAbove ? ' desktop-pet__context--above' : ' desktop-pet__context--below'}`}>
+          <textarea
+            ref={contextInputRef}
+            className="desktop-pet__context-input"
+            rows={2}
+            value={draftCmd}
+            onChange={(e) => setDraftCmd(e.target.value)}
+            onKeyDown={onContextKeyDown}
+            placeholder="输入命令，Enter 发送"
+          />
+          <button className="desktop-pet__context-gear" onClick={() => setConfigOpen(true)} title="配置速发键">
+            <Settings size={14} />
+          </button>
+        </div>
+      )}
+      <KeypadConfigModal open={configOpen} onClose={() => setConfigOpen(false)} />
     </div>
   )
 }

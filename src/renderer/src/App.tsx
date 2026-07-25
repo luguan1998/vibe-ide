@@ -19,7 +19,7 @@ import { aiStore } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { getFileInfo, FILE_ICON_PATHS } from './components/FileIcons'
-import { DRAFT_PIPE_STOP, FOCUS_GAME_DRAFT, ADD_ANNOTATION_EVENT, toRelPath } from './components/VibeProgramer'
+import { ADD_ANNOTATION_EVENT, toRelPath } from './components/vibeEvents'
 import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
@@ -897,18 +897,6 @@ export default function App() {
     await waitDraftIdle(sessionId)
   }, [waitDraftIdle])
 
-  const cancelDraftPipe = useCallback((sessionId: string) => {
-    const s = draftSleepRef.current.get(sessionId)
-    if (s) { clearTimeout(s.timer); draftSleepRef.current.delete(sessionId); s.resolve() }
-    const arr = draftWaitersRef.current.get(sessionId)
-    if (arr && arr.length) {
-      draftWaitersRef.current.delete(sessionId)
-      arr.forEach(r => r())
-    }
-  }, [])
-
-  const cancelDraftPipeRef = useRef(cancelDraftPipe)
-  cancelDraftPipeRef.current = cancelDraftPipe
 
   const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     const v = status === 'running'
@@ -988,8 +976,15 @@ export default function App() {
   activeSessionIdRef.current = activeSessionId
 
   useEffect(() => {
-    (window as any).__vibeWaitIdle = () => { return waitDraftIdle(activeSessionIdRef.current) }
     (window as any).__vibeSendLine = (text: string) => sendDraftLine(activeSessionIdRef.current, text)
+    const PET_CMD_PREFIX = '/btw '
+    ;(window as any).__vibeSendPetCommand = (text: string) => {
+      const sid = activeSessionIdRef.current
+      if (!sid || !text.trim()) return
+      const t = text.trim()
+      const isGui = sessionViewModesRef.current[sid] === 'gui'
+      sendDraftLine(sid, isGui ? t : PET_CMD_PREFIX + t)
+    }
     ;(window as any).__vibeAppendInput = (text: string) => {
       const sid = activeSessionIdRef.current
       if (!sid) return
@@ -1171,14 +1166,6 @@ export default function App() {
         e.stopImmediatePropagation()
         setShowCodeSearch(true)
         setCodeSearchFocusTrigger(k => k + 1)
-        return
-      }
-
-      // game.draftPlan → switch to game tab, open draft plan, focus input
-      if (eventMatchesBinding(e, bindings['game.draftPlan'])) {
-        e.preventDefault()
-        e.stopImmediatePropagation()
-        window.dispatchEvent(new CustomEvent(FOCUS_GAME_DRAFT))
         return
       }
 
@@ -1644,17 +1631,6 @@ export default function App() {
     }
   }, [activeSessionId, sessionViewModes])
 
-  useEffect(() => {
-    const handler = () => {
-      const sessionId = activeSessionIdRef.current
-      if (sessionId) {
-        cancelPipeRef.current(sessionId)
-        cancelDraftPipeRef.current(sessionId)
-      }
-    }
-    window.addEventListener(DRAFT_PIPE_STOP, handler)
-    return () => window.removeEventListener(DRAFT_PIPE_STOP, handler)
-  }, [])
   const handleCloneWithInit = useCallback(async (sessionId: string, cwd: string, shell: string | undefined, command: string) => {
     try {
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8 })
@@ -1893,9 +1869,7 @@ export default function App() {
     const rel = toRelPath(fp, activeSessionCwd)
     const ref = start === end ? `@${rel}:${start}` : `@${rel}:${start}-${end}`
     navigator.clipboard?.writeText(ref).catch(() => {})
-    setRightPanelCollapsed(false)
     window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { fullPath: fp, rel, start, end } }))
-    window.dispatchEvent(new CustomEvent(FOCUS_GAME_DRAFT, { detail: { focus: 'annotation' } }))
   }, [diffFile?.fullPath, activeSessionCwd])
 
   const [mdScrollHeading, setMdScrollHeading] = useState<string | undefined>(undefined)

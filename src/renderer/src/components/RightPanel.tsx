@@ -5,7 +5,6 @@ import GitTab from './GitTab'
 import AuxTab from './AuxTab'
 import FileTab from './FileTab'
 import GameLauncher from './GameLauncher'
-import { FOCUS_GAME_DRAFT } from './VibeProgramer'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { AuxTerminalTab, RecentFileEntry } from '@shared/types'
 
@@ -534,20 +533,6 @@ function RightPanel({
       setActiveSection('git')
     }
   }, [lineHistoryPayload])
-
-  // Alt+J → 切换到 Game 面板
-  useEffect(() => {
-    const handler = () => {
-      setVisibleTabs(prev => {
-        if (prev['game']) return prev
-        const next = { ...prev, game: true }
-        return next
-      })
-      setActiveSection('game')
-    }
-    window.addEventListener(FOCUS_GAME_DRAFT, handler)
-    return () => window.removeEventListener(FOCUS_GAME_DRAFT, handler)
-  }, [])
 
   // 确保 activeSection 始终可见（处理隐藏当前 tab 的情况）
   useEffect(() => {
