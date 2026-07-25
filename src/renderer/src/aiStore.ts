@@ -90,6 +90,9 @@ let rafScheduled = false
 let lastFlush = 0
 let throttleTimer: ReturnType<typeof setTimeout> | null = null
 const THROTTLE_MS = 200
+let activeSid: string | null = null
+const BG_FLUSH_MS = 1500
+let lastBgFlush = new Map<string, number>()
 
 function emit() {
   for (const l of listeners) l()
@@ -131,12 +134,17 @@ export const aiStore = {
   clearSession(sid: string) {
     createdSessions.delete(sid)
     pendingTokens.delete(sid)
+    lastBgFlush.delete(sid)
     setStates(prev => {
       if (!(sid in prev)) return prev
       const next = { ...prev }
       delete next[sid]
       return next
     })
+  },
+  setActiveSession(sid: string | null) {
+    activeSid = sid
+    if (sid) flushSidNow(sid)
   },
   refreshUserTurns(sid: string) {
     const cwd = sessionStates[sid]?.cwd
@@ -149,6 +157,7 @@ export const aiStore = {
     for (const sid of createdSessions) window.api.ai.destroy(sid)
     createdSessions.clear()
     pendingTokens.clear()
+    lastBgFlush.clear()
     if (throttleTimer) { clearTimeout(throttleTimer); throttleTimer = null }
     setStates(() => ({}))
   },
@@ -222,21 +231,39 @@ export const aiStore = {
   },
 }
 
-// ── Token flush (RAF coalescing + 200ms throttle) ──
-// 原样从 AiTab.tsx 搬运,逻辑不变。
+// ── Token flush (RAF coalescing + 200ms throttle; inactive sessions throttled to BG_FLUSH_MS) ──
+
+function applyBuf(sid: string, buf: { text: string; thinking: string }) {
+  aiStore.updateSession(sid, (s) => ({
+    ...s,
+    streamBuffer: buf.text ? s.streamBuffer + buf.text : s.streamBuffer,
+    thinkingBuffer: buf.thinking ? s.thinkingBuffer + buf.thinking : s.thinkingBuffer,
+    thinkingStartedAt: buf.thinking && !s.thinkingBuffer ? Date.now() : s.thinkingStartedAt,
+    streaming: true,
+  }))
+}
+
+function flushSidNow(sid: string) {
+  const buf = pendingTokens.get(sid)
+  if (!buf) return
+  pendingTokens.delete(sid)
+  lastBgFlush.delete(sid)
+  applyBuf(sid, buf)
+}
 
 function flushTokens() {
-  const batched = pendingTokens
-  pendingTokens = new Map()
-  batched.forEach((buf, sid) => {
-    aiStore.updateSession(sid, (s) => ({
-      ...s,
-      streamBuffer: buf.text ? s.streamBuffer + buf.text : s.streamBuffer,
-      thinkingBuffer: buf.thinking ? s.thinkingBuffer + buf.thinking : s.thinkingBuffer,
-      thinkingStartedAt: buf.thinking && !s.thinkingBuffer ? Date.now() : s.thinkingStartedAt,
-      streaming: true,
-    }))
+  const now = Date.now()
+  const stillPending = new Map<string, { text: string; thinking: string }>()
+  pendingTokens.forEach((buf, sid) => {
+    const flush = sid === activeSid || (now - (lastBgFlush.get(sid) ?? 0) >= BG_FLUSH_MS)
+    if (flush) {
+      if (sid !== activeSid) lastBgFlush.set(sid, now)
+      applyBuf(sid, buf)
+    } else {
+      stillPending.set(sid, buf)
+    }
   })
+  pendingTokens = stillPending
 }
 
 // ── IPC listeners(模块级挂一次)──

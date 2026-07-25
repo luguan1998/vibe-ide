@@ -533,6 +533,10 @@ export default function App() {
     mujicaStore.setDefaultCwd(sessions.find(s => s.id === activeSessionId)?.cwd ?? null)
   }, [sessions, activeSessionId])
 
+  React.useEffect(() => {
+    aiStore.setActiveSession(activeSessionId)
+  }, [activeSessionId])
+
   // Terminal refs for focus management (keyed by sessionId)
   const terminalRefs = useRef<Record<string, TerminalViewHandle>>({})
   const aiTabRefs = useRef<Record<string, AiTabHandle>>({})
