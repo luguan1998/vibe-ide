@@ -1,21 +1,6 @@
 {
-  "id": "default",
-  "displayName": "Default Pet",
-  "description": "Codex-style sprite sheet, 8 cols x 9 rows, 192x208 per frame",
-  "frameWidth": 192,
-  "frameHeight": 208,
-  "cols": 8,
-  "rows": 9,
-  "frameDurationMs": 183,
-  "states": {
-    "idle":           { "row": 0, "frames": 6, "loop": true },
-    "running-right":  { "row": 1, "frames": 6, "loop": true },
-    "running-left":   { "row": 2, "frames": 6, "loop": true },
-    "waving":         { "row": 3, "frames": 6, "loop": true },
-    "jumping":        { "row": 4, "frames": 6, "loop": true },
-    "failed":         { "row": 5, "frames": 6, "loop": true },
-    "waiting":        { "row": 6, "frames": 6, "loop": true },
-    "running":        { "row": 7, "frames": 6, "loop": true },
-    "review":         { "row": 8, "frames": 6, "loop": true }
-  }
+  "id": "capvolt",
+  "displayName": "Pikachu‌",
+  "description": "\u4e00\u53ea\u52c7\u6562\u7684\u5c0f\u578b\u9ec4\u8272\u7535\u6c14\u9f20 Codex \u5ba0\u7269\uff0c\u6234\u7740\u7ea2\u767d\u8bad\u7ec3\u5e08\u5e3d\u3002",
+  "spritesheetPath": "spritesheet.webp"
 }
