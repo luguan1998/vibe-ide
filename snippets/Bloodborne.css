@@ -1,5 +1,5 @@
 /* ==========================================================================
-   【血源诅咒 (Bloodborne) todo 官方游戏 UI 像素级像素还原方案】
+   【血源诅咒 游戏 UI 像素级像素还原方案】--实际ai画出来L并非血缘..
    ========================================================================== */
 
 :root {
@@ -72,7 +72,7 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 
 /* 三态所在横栏：旧铁板材质打底 */
 .session-panel__header {
-  background: url('assets/button_black2.png') center/cover no-repeat !important;
+  background: url('assets/button_black2.png') center/92% 100% no-repeat !important;
 }
 .status-badge__segment,
 .status-badge__divider {
