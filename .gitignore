@@ -12,3 +12,4 @@ __pycache__/
 .codegraph
 .mcp.json
 snippets/snippets.json
+pets/pets.json

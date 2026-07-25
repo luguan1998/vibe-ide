@@ -1834,7 +1834,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     },
   }), [setInputValue, setInputValues])
 
-  useEffect(() => {
+  const autoGrow = useCallback(() => {
     const el = inputRef.current
     if (!el) return
     el.style.height = 'auto'
@@ -1842,7 +1842,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     const newH = Math.min(el.scrollHeight, maxH)
     el.style.height = `${newH}px`
     el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden'
-  }, [inputValue])
+  }, [])
+
+  useEffect(() => { autoGrow() }, [inputValue, autoGrow])
 
   // ── Update session state helper(委托给单例 store)──
   const updateSession = useCallback((sessionId: string, updater: (s: AiSessionState) => AiSessionState) => {
@@ -1924,8 +1926,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   useEffect(() => {
     if (isActive && inputRef.current) {
       inputRef.current.focus({ preventScroll: true })
+      autoGrow()
     }
-  }, [isActive])
+  }, [isActive, autoGrow])
 
   // ── Dispatch a message to the subprocess (shared core) ──
   // Immediate send and piped auto-send both funnel through here.
@@ -2262,8 +2265,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               <button
                 key={s.session_id || s.id}
                 onClick={async () => {
+                  setSessionHistoryOpen(false)
+                  setSessionHistoryList([])
                   if (activeSessionId) {
-                    // Load conversation history from .jsonl before resuming
                     const history = await window.api.ai.loadSessionMessages(s.session_id || s.id, workspacePath || '')
                     const sessionName = s.name && s.name !== s.session_id ? s.name : ''
                     updateSession(activeSessionId, () => ({
@@ -2289,8 +2293,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       ...(cliCommand ? { cliCommand } : {}),
                     })
                   }
-                  setSessionHistoryOpen(false)
-                  setSessionHistoryList([])
                 }}
                 className="ai-tab__history-item w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left"
               >
@@ -2397,6 +2399,12 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             )
           })
         })()}
+        {!state.ready && state.messages.length > 0 && (
+          <div className="ai-tab__resume flex items-center gap-2 max-w-[92%] px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in">
+            <span className="h-3.5 w-3.5 rounded-full border-2 border-ide-accent/30 border-t-ide-accent animate-spin shrink-0" />
+            <span>{t('Resuming session...')}</span>
+          </div>
+        )}
         {/* Busy indicator — thinking + streaming + sparkle */}
         {state.busy && (
           <div className="ai-tab__busy max-w-[92%] space-y-1.5 animate-fade-in">
@@ -2456,7 +2464,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       )}
 
       {/* Input */}
-      <div className="ai-tab__input-area shrink-0 p-2">
+      <div className="ai-tab__input-area shrink-0 px-2 pt-2 pb-0">
         <div className="relative">
           {slashMenuOpen && (
             <div className="absolute bottom-full left-0 right-0 mb-1 z-20">
@@ -2495,7 +2503,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                           transition-colors focus-within:border-ide-accent">
 
             {/* Textarea zone */}
-            <div className="ai-tab__input-zone px-3 pt-2.5 pb-1.5">
+            <div className="ai-tab__input-zone px-3 pt-1.5 pb-0">
               <textarea
                 ref={inputRef}
                 value={inputValue}
@@ -2600,14 +2608,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   } catch {}
                   el.dispatchEvent(new Event('input', { bubbles: true }))
                 }}
-                className="ai-tab__textarea w-full text-sm bg-transparent px-0 py-0.5 text-ide-text
+                className="ai-tab__textarea w-full text-sm bg-transparent px-0 pt-0.5 pb-px min-h-[3rem] text-ide-text
                            placeholder:text-ide-text-muted/50 resize-none
                            focus:outline-none disabled:opacity-50 leading-relaxed text-sm"
               />
             </div>
 
             {/* Bottom toolbar */}
-            <div className="ai-tab__input-toolbar flex items-center gap-2 px-2 py-1.5
+            <div className="ai-tab__input-toolbar flex items-center gap-2 px-2 pt-0 pb-1.5
                             border-t border-ide-border/30">
               {/* LEFT: Context bar + model badge */}
               <div className="ai-tab__toolbar-left flex items-center gap-2 shrink-0">
