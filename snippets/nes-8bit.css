@@ -449,18 +449,21 @@ html, body, #root {
 .md-preview code {
   border: 1px solid rgb(var(--ide-border)) !important;
   background: rgb(var(--ide-hover)) !important;
+  color: rgb(var(--ide-text)) !important;
 }
 
 .md-preview pre,
 .md-code-block {
   border: 1px solid rgb(var(--ide-border)) !important;
   box-shadow: inset 1px 1px 0 #adafbc, inset -1px -1px 0 #fff !important;
+  background: #fff !important;
 }
 
 .md-preview pre code,
 .md-code-block code {
-  background: #000 !important;
-  color: #fff !important;
+  filter: brightness(0.6) contrast(1.15) saturate(1.3) !important;
+  border: none !important;
+  background: transparent !important;
 }
 
 .md-mermaid pre code {
