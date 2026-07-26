@@ -886,7 +886,7 @@ export default function App() {
     if (!sessionId) return
     const isGui = sessionViewModesRef.current[sessionId] === 'gui'
     if (isGui) {
-      aiTabRefs.current[sessionId]?.setValue(text)
+      aiTabRefs.current[sessionId]?.sendText(text)
       aiTabRefs.current[sessionId]?.focus()
       return
     }

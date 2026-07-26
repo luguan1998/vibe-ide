@@ -46,6 +46,7 @@ export interface AiTabHandle {
   focus: () => void
   setValue: (text: string) => void
   appendText: (text: string) => void
+  sendText: (text: string) => void
 }
 
 // ── Tool type classification ──────────────────────────────────────
@@ -1811,6 +1812,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   useEffect(() => { closeMention() }, [activeSessionId, closeMention])
 
+  const dispatchMessageRef = useRef<((message: string) => Promise<void>) | null>(null)
+
   useImperativeHandle(ref, () => ({
     focus: () => { inputRef.current?.focus({ preventScroll: true }) },
     setValue: (text: string) => { setInputValue(text) },
@@ -1831,6 +1834,10 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         el.selectionStart = el.selectionEnd = el.value.length
         el.scrollTop = el.scrollHeight
       })
+    },
+    sendText: (text: string) => {
+      if (!text.trim()) return
+      dispatchMessageRef.current?.(text.trim())
     },
   }), [setInputValue, setInputValues])
 
@@ -1948,6 +1955,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     })
     await window.api.ai.send(activeSessionId, message)
   }, [activeSessionId, updateSession])
+
+  dispatchMessageRef.current = dispatchMessage
 
   // ── Send handler (immediate, idle only) ──
   const handleSend = useCallback(async () => {

@@ -217,7 +217,7 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
   // 组装气泡 section：速发键 → 拓展注册表（宠物选择/删除/打开文件夹已移至设置→外观）
   const keypadSection: PetBubbleSection = {
     id: 'keypad',
-    items: keypadItems.map(k => ({ id: k.code, label: k.text, badge: k.key, onAction: () => k.directSend ? sendLine(k.text) : appendInput(k.text) }))
+    items: keypadItems.map(k => ({ id: k.code, label: k.directSend ? k.text : k.text + '…', badge: k.key, onAction: () => k.directSend ? sendLine(k.text) : appendInput(k.text) }))
   }
   const sections: PetBubbleSection[] = [keypadSection, ...getExtraBubbleSections()]
 
