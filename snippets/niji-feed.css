@@ -488,7 +488,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
   border: 1px solid rgb(0 0 0 / 0.06) !important;
   border-radius: 12px !important;
 }
-.md-code-block code { color: rgb(40 40 44) !important; background: none !important; }
+.md-code-block code {
+  color: rgb(40 40 44) !important;
+  background: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  font-weight: inherit !important;
+}
 .md-preview blockquote {
   border-left: 4px solid rgb(255 204 0) !important;
   background: rgb(255 204 0 / 0.08) !important;
