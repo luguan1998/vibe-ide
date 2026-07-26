@@ -18,12 +18,12 @@ export const DEFAULT_PET_LOGICAL_STATE: Record<PetLogicalState, string> = {
 export const PET_LOGICAL_STATES: PetLogicalState[] = ['idle', 'busy', 'warn', 'unfocused', 'doubleTap', 'sendMessage']
 
 export const PET_LOGICAL_LABEL: Record<PetLogicalState, string> = {
-  idle: 'Pet State: Idle',
-  busy: 'Pet State: Busy',
-  warn: 'Pet State: Warn',
-  unfocused: 'Pet State: Unfocused',
-  doubleTap: 'Pet State: Double Tap',
-  sendMessage: 'Pet State: Send Message',
+  idle: 'Pet Idle',
+  busy: 'Pet Busy',
+  warn: 'Pet Warn',
+  unfocused: 'Pet Sleep',
+  doubleTap: 'Pet Double Tap',
+  sendMessage: 'Pet Send Message',
 }
 
 export const PET_LOGICAL_DESC: Record<PetLogicalState, string> = {
