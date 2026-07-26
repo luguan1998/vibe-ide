@@ -5,6 +5,7 @@ import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { trimToMatch, highlightMatches } from './SearchPanel'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
+import { ADD_ANNOTATION_EVENT } from './vibeEvents'
 
 // File clipboard for cut/copy/paste
 interface FileClipboard {
@@ -224,7 +225,7 @@ function collectDirPaths(nodes: FileNode[], acc: Set<string> = new Set()): Set<s
 }
 
 // File tree item component
-function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onSearchInFolder, inlineSearch, onCopyPath }: {
+function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onSearchInFolder, inlineSearch, onCopyPath, brushActive, workspacePath }: {
   node: FileNode
   depth: number
   expandedDirs: Set<string>
@@ -240,6 +241,8 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   onSearchInFolder?: (path: string) => void
   inlineSearch?: InlineSearch
   onCopyPath?: (fullPath: string) => void
+  brushActive?: boolean
+  workspacePath?: string | null
 }) {
   const { t } = useI18n()
   const isDir = node.type === 'directory'
@@ -266,6 +269,13 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
 
   const handleClick = (e: React.MouseEvent) => {
     if (isRenaming || isCreating) return
+    if (brushActive && !isDir) {
+      e.preventDefault()
+      e.stopPropagation()
+      const rel = toRelPath(node.path, workspacePath ?? null)
+      window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel } }))
+      return
+    }
     if (e.ctrlKey && onCopyPath) {
       e.preventDefault()
       e.stopPropagation()
@@ -490,6 +500,8 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                 onSearchInFolder={onSearchInFolder}
                 inlineSearch={inlineSearch}
                 onCopyPath={onCopyPath}
+                brushActive={brushActive}
+                workspacePath={workspacePath}
               />
             ))
           )}
@@ -632,18 +644,11 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
   const [archExpanded, setArchExpanded] = useState(false)
   const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(null)
-  const [toastPath, setToastPath] = useState<string | null>(null)
   const [nameFilter, setNameFilter] = useState('')
   const [nameSearchResults, setNameSearchResults] = useState<FileNode[]>([])
   const [nameSearching, setNameSearching] = useState(false)
   const [nameOnly, setNameOnly] = useState(false)
   const { t } = useI18n()
-
-  useEffect(() => {
-    if (!toastPath) return
-    const id = setTimeout(() => setToastPath(null), 1500)
-    return () => clearTimeout(id)
-  }, [toastPath])
 
   // ── recently file section ──
   const [recentExpanded, setRecentExpanded] = useState(true)
@@ -780,8 +785,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
 
   const handleCopyPath = useCallback((fullPath: string) => {
     const rel = toRelPath(fullPath, workspacePath)
-    setToastPath(rel)
-    navigator.clipboard.writeText(`@${rel}`).catch(() => {})
+    window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel } }))
   }, [workspacePath])
 
   useEffect(() => {
@@ -1414,6 +1418,8 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 onSearchInFolder={(p) => openSearch(p)}
                 inlineSearch={inlineSearchPayload}
                 onCopyPath={handleCopyPath}
+                brushActive={brushActive}
+                workspacePath={workspacePath}
               />
             ))}
           </div>
@@ -1439,6 +1445,12 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 className={`group pl-[30px] pr-2 py-0.5 flex items-center gap-1.5 cursor-pointer hover:bg-ide-hover ft-fname ${selectedRecentIndex === i ? 'bg-ide-accent/10 text-ide-text' : ''}`}
                 title={`${f.path}${f.line ? ':' + f.line : ''}`}
                 onClick={(e) => {
+                  if (brushActive) {
+                    e.preventDefault()
+                    const rel = toRelPath(f.path, workspacePath ?? null)
+                    window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel } }))
+                    return
+                  }
                   if (e.ctrlKey) { e.preventDefault(); handleCopyPath(f.path); return }
                   onOpenRecentFile?.(f.path, f.line)
                 }}
@@ -1723,24 +1735,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
         </div>
       )}
 
-      {toastPath && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
-          <div className="flex flex-col items-center gap-2 px-5 py-3 rounded-xl border shadow-2xl pointer-events-auto animate-fade-in"
-            style={{
-              backgroundColor: 'rgb(var(--ide-sidebar-bg, 30 30 30))',
-              borderColor: 'rgba(34,197,94,0.5)',
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7 text-emerald-400">
-              <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="text-sm text-emerald-400 font-medium">{t('Copied to clipboard')}</span>
-              <span className="text-xs text-ide-text-muted truncate max-w-[280px]" title={toastPath}>@{toastPath}</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

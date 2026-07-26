@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
+import { ADD_ANNOTATION_EVENT, toRelPath } from './vibeEvents'
 
 interface ImagePreviewProps {
   fullPath: string
   fileName: string
   onBack?: () => void
+  brushActive?: boolean
 }
 
 function toFileUrl(localPath: string): string {
@@ -16,7 +18,8 @@ function toFileUrl(localPath: string): string {
 const ImagePreview = React.memo(function ImagePreview({
   fullPath,
   fileName,
-  onBack
+  onBack,
+  brushActive = false
 }: ImagePreviewProps) {
   const [imgSrc] = useState(() => toFileUrl(fullPath))
   const [error, setError] = useState<string | null>(null)
@@ -38,8 +41,15 @@ const ImagePreview = React.memo(function ImagePreview({
       const dirPart = lastSep >= 0 ? fullPath.substring(0, lastSep + 1) : ''
       const namePart = lastSep >= 0 ? fullPath.substring(lastSep + 1) : fullPath
       return (
-        <div className="flex flex-col h-full animate-fade-in center-overlay">
-          <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0">
+        <div className={`flex flex-col h-full animate-fade-in center-overlay${brushActive ? ' diff-brush-mode' : ''}`}>
+          <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0"
+            onClick={(e) => {
+              if (!brushActive) return
+              e.preventDefault()
+              e.stopPropagation()
+              const rel = toRelPath(fullPath, null)
+              window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: rel || fileName } }))
+            }}>
             <div className="flex items-center gap-1.5 text-sm min-w-0">
               {onBack && (
                 <button

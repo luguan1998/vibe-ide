@@ -8,7 +8,7 @@ import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { type Frontmatter } from '@renderer/utils/frontmatter'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
-import { ADD_ANNOTATION_EVENT } from './vibeEvents'
+import { ADD_ANNOTATION_EVENT, toRelPath } from './vibeEvents'
 import OutlineTrigger from './OutlineTrigger'
 
 export const MD_SEARCH_OPEN = 'md-search-open'
@@ -248,7 +248,6 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
     }
 
     const ref = heading ? `**${heading}** "${snippet}"` : `"${snippet}"`
-    navigator.clipboard?.writeText(ref).catch(() => {})
     window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: `${fileName} ${ref}` } }))
   }, [brushActive, blocks, fullPath, fileName])
 
@@ -637,7 +636,13 @@ ${clone.innerHTML}
           const namePart = lastSep >= 0 ? fullPath.substring(lastSep + 1) : fullPath
           return (
             <div className={`flex flex-col h-full animate-fade-in relative center-overlay${brushActive ? ' diff-brush-mode' : ''}`} ref={containerRef}>
-              <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0" title="Ctrl+L 切换编辑模式 · 双击段落进入编辑">
+              <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0" title="Ctrl+L 切换编辑模式 · 双击段落进入编辑"
+                onClick={(e) => {
+                  if (!brushActive) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: fileName } }))
+                }}>
                 <div className="flex items-center gap-1.5 text-sm min-w-0">
                   {onBack && (
                     <button

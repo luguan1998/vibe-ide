@@ -1904,9 +1904,7 @@ export default function App() {
     const fp = diffFile?.fullPath
     if (!fp) return
     const rel = toRelPath(fp, activeSessionCwd)
-    const ref = start === end ? `@${rel}:${start}` : `@${rel}:${start}-${end}`
-    navigator.clipboard?.writeText(ref).catch(() => {})
-    window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { fullPath: fp, rel, start, end } }))
+    window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel, start, end } }))
   }, [diffFile?.fullPath, activeSessionCwd])
 
   const [mdScrollHeading, setMdScrollHeading] = useState<string | undefined>(undefined)
@@ -2445,6 +2443,7 @@ export default function App() {
                 fullPath={imageFile.fullPath}
                 fileName={imageFile.fileName}
                 onBack={handleBackFromImage}
+                brushActive={brushActive}
               />
             </div>
           )}

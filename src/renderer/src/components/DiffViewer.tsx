@@ -5,6 +5,7 @@ import { ENCODING_GROUPS, DEFAULT_ENCODING } from '@shared/encodings'
 import { useI18n } from '../i18n'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import OutlineTrigger from './OutlineTrigger'
+import { ADD_ANNOTATION_EVENT } from './vibeEvents'
 
 let _monacoConfigured = false
 let _monacoGlobal: any = null
@@ -285,13 +286,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const [unreadableReason, setUnreadableReason] = useState<string>('')
   const [encodingContextMenu, setEncodingContextMenu] = useState<{ x: number; y: number } | null>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
-  const [toastPath, setToastPath] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!toastPath) return
-    const id = setTimeout(() => setToastPath(null), 1500)
-    return () => clearTimeout(id)
-  }, [toastPath])
 
   // Editor refs for imperative line jumping
   const diffEditorRef = useRef<any>(null)
@@ -788,8 +782,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           if (!brushActive || !fullPath) return
           e.preventDefault()
           e.stopPropagation()
-          setToastPath(filePath)
-          navigator.clipboard.writeText(`@${filePath}`).catch(() => {})
+          window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: filePath } }))
         }}
       >
         <div className="flex items-center gap-2 text-sm">
@@ -1184,25 +1177,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
                 ))}
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {toastPath && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
-          <div className="flex flex-col items-center gap-2 px-5 py-3 rounded-xl border shadow-2xl pointer-events-auto animate-fade-in"
-            style={{
-              backgroundColor: 'rgb(var(--ide-sidebar-bg, 30 30 30))',
-              borderColor: 'rgba(34,197,94,0.5)',
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-7 h-7 text-emerald-400">
-              <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="text-sm text-emerald-400 font-medium">{t('Copied to clipboard')}</span>
-              <span className="text-xs text-ide-text-muted truncate max-w-[320px]" title={toastPath}>@{toastPath}</span>
-            </div>
           </div>
         </div>
       )}
