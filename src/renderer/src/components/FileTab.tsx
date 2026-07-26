@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Lightbulb, Eye, Clock, X, Pencil, Search, Filter, FileText } from 'lucide-react'
+import { Lightbulb, Clock, X, Pencil, Search, Filter, FileText } from 'lucide-react'
 import { FileNode, RecentFileEntry, GrepMatch, CodeSymbol } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { trimToMatch, highlightMatches } from './SearchPanel'
@@ -274,6 +274,10 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
     }
     if (isDir) {
       onToggle(node.path)
+    } else if (node.name.toLowerCase().endsWith('.md') && onPreviewMarkdown) {
+      onPreviewMarkdown(node.path, node.name)
+    } else if (getFileInfo(node.name).kind === 'image' && onPreviewImage) {
+      onPreviewImage(node.path, node.name)
     } else {
       onOpenFile(node.path)
     }
@@ -404,30 +408,6 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                 <Search className="ft-icon" />
               </button>
             ) : null}
-            {!isDir && node.name.toLowerCase().endsWith('.md') && onPreviewMarkdown && (
-              <button
-                className="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onPreviewMarkdown(node.path, node.name)
-                }}
-                title="Preview Markdown"
-              >
-                <Eye className="ft-icon" />
-              </button>
-            )}
-            {!isDir && getFileInfo(node.name).kind === 'image' && onPreviewImage && (
-              <button
-                className="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onPreviewImage(node.path, node.name)
-                }}
-                title="Preview Image"
-              >
-                <Eye className="ft-icon" />
-              </button>
-            )}
           </>
         )}
       </div>

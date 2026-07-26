@@ -637,7 +637,7 @@ ${clone.innerHTML}
           const namePart = lastSep >= 0 ? fullPath.substring(lastSep + 1) : fullPath
           return (
             <div className={`flex flex-col h-full animate-fade-in relative center-overlay${brushActive ? ' diff-brush-mode' : ''}`} ref={containerRef}>
-              <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0">
+              <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0" title="Ctrl+L 切换编辑模式 · 双击段落进入编辑">
                 <div className="flex items-center gap-1.5 text-sm min-w-0">
                   {onBack && (
                     <button
@@ -659,7 +659,6 @@ ${clone.innerHTML}
                   )}
                   <div
                     className="flex items-center rounded-md bg-ide-hover overflow-hidden shrink-0 cursor-context-menu select-none"
-                    title="右键导出 HTML · 双击段落进入编辑"
                     onContextMenu={(e) => {
                       e.preventDefault()
                       e.stopPropagation()

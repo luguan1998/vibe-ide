@@ -2125,9 +2125,10 @@ export default function App() {
   }, [activeSessionId, handleSwitchSession])
 
   const handlePreviewMarkdown = useCallback((fullPath: string, fileName: string) => {
+    recordRecentFile(fullPath)
     setMarkdownFile({ fullPath, fileName })
     setCenterView('markdown')
-  }, [])
+  }, [recordRecentFile])
 
   const handleBackFromMarkdown = useCallback(() => {
     setCenterView('terminal')
@@ -2135,9 +2136,10 @@ export default function App() {
   }, [])
 
   const handlePreviewImage = useCallback((fullPath: string, fileName: string) => {
+    recordRecentFile(fullPath)
     setImageFile({ fullPath, fileName })
     setCenterView('image')
-  }, [])
+  }, [recordRecentFile])
 
   const handleBackFromImage = useCallback(() => {
     setCenterView('terminal')
