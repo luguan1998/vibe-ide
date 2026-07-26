@@ -2635,7 +2635,7 @@ export default function App() {
               top: 40,
               right: 16,
               width: 480,
-              maxHeight: '60vh',
+              maxHeight: 'calc(100vh - 56px)',
             }}
             onClick={(e) => e.stopPropagation()}
           >

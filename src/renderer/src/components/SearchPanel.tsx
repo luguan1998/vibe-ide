@@ -530,7 +530,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
         {mode === 'smart' && smartResults.length > 0 && query.trim() && (() => {
           return (
             <>
-              <div className="px-3 py-1.5 text-xs text-ide-text-muted border-b border-ide-border bg-ide-hover/30 flex items-center justify-between">
+              <div className="sticky top-0 z-10 px-3 py-1.5 text-xs text-ide-text-muted border-b border-ide-border bg-ide-sidebar flex items-center justify-between">
                 <span>{smartResults.length} {t('symbols')}</span>
                 {smartConfidence === 'high' && <span className="text-ide-accent/70">{t('高置信度')}</span>}
                 {smartConfidence === 'low' && <span className="text-ide-warning">{t('低置信度')}</span>}
@@ -595,7 +595,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
 
           return (
           <>
-            <div className="px-3 py-1.5 text-xs text-ide-text-muted border-b border-ide-border bg-ide-hover/30 flex items-center justify-between">
+            <div className="sticky top-0 z-10 px-3 py-1.5 text-xs text-ide-text-muted border-b border-ide-border bg-ide-sidebar flex items-center justify-between">
               <span>
                 {visibleTotal} {t('matches')}
                 {excludedFiles.size > 0 && <span className="text-ide-text-muted/50 ml-1">({t('from')} {total} {t('total')})</span>}
