@@ -72,7 +72,9 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 
 /* 三态所在横栏：旧铁板材质打底 */
 .session-panel__header {
-  background: url('assets/button_black2.png') center/92% 100% no-repeat !important;
+  background: url('assets/button_black2.png') center/92% 66px no-repeat rgb(14 14 16) !important;
+  background-position-y: calc(50% + 0.5px) !important;
+  border-bottom: none !important;
 }
 .status-badge__segment,
 .status-badge__divider {
