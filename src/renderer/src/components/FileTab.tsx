@@ -170,6 +170,22 @@ function setNodesChildrenMap(nodes: FileNode[], map: Map<string, FileNode[]>): F
 
 interface NameMatch { name: string; path: string; type: 'file' | 'directory'; relativePath: string }
 
+function compactFileNodes(nodes: FileNode[]) {
+  const compact = (n: FileNode) => {
+    if (!n.children) return
+    for (const ch of n.children) compact(ch)
+    let kids = n.children
+    while (kids.length === 1 && kids[0].type === 'directory') {
+      const child = kids[0]
+      n.name = n.name ? `${n.name}/${child.name}` : child.name
+      n.path = child.path
+      n.children = child.children
+      kids = child.children || []
+    }
+  }
+  nodes.forEach(compact)
+}
+
 function buildTreeFromMatches(matches: NameMatch[], cwd: string): FileNode[] {
   const root: FileNode[] = []
   const dirMap = new Map<string, FileNode>()
@@ -195,6 +211,7 @@ function buildTreeFromMatches(matches: NameMatch[], cwd: string): FileNode[] {
       }
     }
   }
+  compactFileNodes(root)
   return root
 }
 
@@ -908,6 +925,22 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     })
   }, [])
 
+  const compactResultNodes = (nodes: ResultNode[]) => {
+    const compact = (n: ResultNode) => {
+      if (n.type !== 'dir') return
+      for (const ch of n.children) compact(ch)
+      let kids = n.children
+      while (kids.length === 1 && kids[0].type === 'dir') {
+        const child = kids[0]
+        n.name = n.name ? `${n.name}/${child.name}` : child.name
+        n.path = child.path
+        n.children = child.children
+        kids = child.children
+      }
+    }
+    nodes.forEach(compact)
+  }
+
   // Build a directory-nested tree from the flat grouped results (dirs first, then by name asc).
   const resultTree = useMemo<ResultNode[]>(() => {
     const root: ResultNode[] = []
@@ -938,6 +971,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       nodes.forEach(n => { if (n.type === 'dir') sortRec(n.children) })
     }
     sortRec(root)
+    compactResultNodes(root)
     return root
   }, [groupedResults])
 
