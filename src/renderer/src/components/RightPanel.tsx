@@ -24,7 +24,6 @@ interface RightPanelProps {
   onSelectAuxTab?: (sessionId: string, index: number) => void
   onSplitAuxTerminal?: (sessionId: string, tabIndex: number) => void
   onResizeAuxSplit?: (sessionId: string, tabId: string, sizes: number[]) => void
-  searchFocusTrigger?: number
   clearAuxBufferTrigger?: { sid: string; n: number }
 
   onOpenFileFromExplorer?: (fullPath: string) => void
@@ -383,7 +382,7 @@ function RightPanel({
   rightTerminalSessions, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
   activeAuxIndex, onCloseAuxTerminal, onSelectAuxTab, onSplitAuxTerminal, onResizeAuxSplit,
-  searchFocusTrigger, clearAuxBufferTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage,
+  clearAuxBufferTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage,
   onDiffScroll,
   onToggleCollapse,
   capsuleTabs = true,
@@ -497,18 +496,6 @@ function RightPanel({
     window.addEventListener('keydown', handleKey, true)
     return () => window.removeEventListener('keydown', handleKey, true)
   }, [activeSection, visibleList])
-
-  // Ctrl+F → 切换到 File 面板（FileTab 内自动进入搜索视图）
-  useEffect(() => {
-    if (searchFocusTrigger !== undefined && searchFocusTrigger > 0) {
-      setVisibleTabs(prev => {
-        if (prev['file']) return prev
-        const next = { ...prev, file: true }
-        return next
-      })
-      setActiveSection('file')
-    }
-  }, [searchFocusTrigger])
 
   // navigateToFilePayload → 切换到 File 面板
   useEffect(() => {
@@ -632,7 +619,6 @@ function RightPanel({
           onEditRecentFile={onEditRecentFile}
           isActive={activeSection === 'file'}
           brushActive={brushActive}
-          searchFocusTrigger={searchFocusTrigger}
           onExploreNode={onExploreNode}
         />
       </div>

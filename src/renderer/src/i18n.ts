@@ -300,7 +300,7 @@ const ZH_MAP: Record<string, string> = {
   'No active session': '无活动会话',
   'Search context in project...': '在项目中搜索文字内容...',
   'No results found': '无搜索结果',
-  'Click search btn to close': '点击搜索按钮关闭',
+
   'truncated': '已截断',
   'matches': '条结果',
   'Replace with...': '替换为...',

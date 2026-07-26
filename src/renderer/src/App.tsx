@@ -11,6 +11,7 @@ import NavBar, { NavEntry } from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import { DesktopPet, type PetLogicalState } from './components/DesktopPet'
+import SearchPanel from './components/SearchPanel'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import GameMujica, { FOCUS_MUJICA, MUJICA_CLOSE } from './components/GameMujica'
@@ -207,7 +208,7 @@ declare global {
   }
 }
 
-type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser' | 'mujica'
+type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser' | 'mujica' | 'search'
 
 interface DiffFileState {
   defaultEdit?: boolean
@@ -297,8 +298,11 @@ export default function App() {
   const [showCodeSearch, setShowCodeSearch] = useState(false)
   const [codeSearchFocusTrigger, setCodeSearchFocusTrigger] = useState(0)
   const [exploreResult, setExploreResult] = useState<{ query: string; content: string } | null>(null)
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const searchBtnRef = useRef<HTMLButtonElement>(null)
 
   const showCodeSearchRef = useRef(false); showCodeSearchRef.current = showCodeSearch
+  const showSearchDropdownRef = useRef(false); showSearchDropdownRef.current = showSearchDropdown
   const exploreResultRef = useRef(exploreResult); exploreResultRef.current = exploreResult
   const closeCodeSearch = useCallback(() => {
     setShowCodeSearch(false)
@@ -1169,7 +1173,7 @@ export default function App() {
         return
       }
 
-      // search.focus → focus search in right panel (md preview: route to in-page search)
+      // search.focus → open search dropdown (md preview: route to in-page search)
       if (eventMatchesBinding(e, bindings['search.focus'])) {
         if (centerView === 'markdown') {
           e.preventDefault()
@@ -1178,6 +1182,7 @@ export default function App() {
         } else if (centerView !== 'diff') {
           e.preventDefault()
           e.stopImmediatePropagation()
+          setShowSearchDropdown(true)
           setSearchFocusTrigger(k => k + 1)
         }
       }
@@ -1350,7 +1355,7 @@ export default function App() {
         }
       }
 
-      // Escape priority: call graph → code search → explore result → focus return
+      // Escape priority: call graph → code search → explore result → search dropdown → focus return
       if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         if (callGraphFocalNodeRef.current) {
           e.preventDefault(); e.stopImmediatePropagation()
@@ -1365,6 +1370,11 @@ export default function App() {
         if (exploreResultRef.current) {
           e.preventDefault(); e.stopImmediatePropagation()
           setExploreResult(null)
+          return
+        }
+        if (showSearchDropdownRef.current) {
+          e.preventDefault(); e.stopImmediatePropagation()
+          setShowSearchDropdown(false)
           return
         }
         const active = document.activeElement as HTMLElement | null
@@ -2158,6 +2168,18 @@ export default function App() {
         </button>
         <div className="flex-1" />
         <button
+          ref={searchBtnRef}
+          className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${showSearchDropdown ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+          style={{ marginRight: 16 }}
+          onClick={() => setShowSearchDropdown(true)}
+          title={t('Search')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="17" y1="17" x2="22" y2="22" />
+          </svg>
+        </button>
+        <button
           className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
           style={{ marginRight: 16 }}
           onClick={() => setCenterView('browser')}
@@ -2516,7 +2538,6 @@ export default function App() {
             onSelectAuxTab={handleSelectAuxTab}
             onSplitAuxTerminal={handleSplitAuxTerminal}
             onResizeAuxSplit={handleResizeAuxSplit}
-            searchFocusTrigger={searchFocusTrigger}
             clearAuxBufferTrigger={clearAuxBufferTrigger}
             navigateToFilePayload={navigateToFilePayload}
             onNavigateToFile={handleNavigateToFile}
@@ -2600,6 +2621,31 @@ export default function App() {
         solid={navBarSolid}
         onSelect={handleNavBarSelect}
       />
+
+      {/* Search Dropdown — titlebar 搜索图标浮窗 */}
+      {showSearchDropdown && (
+        <div className="fixed inset-0 z-50" onClick={() => setShowSearchDropdown(false)}>
+          <div
+            className="absolute bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+            style={{
+              top: 40,
+              right: 16,
+              width: 480,
+              maxHeight: '60vh',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SearchPanel
+              cwd={activeSessionCwd}
+              onOpenFile={(fullPath, lineNumber) => {
+                handleOpenSearchResult(fullPath, lineNumber)
+              }}
+              focusTrigger={searchFocusTrigger}
+              onExploreNode={(node: any) => setCallGraphFocalNode(node)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Call Graph Overlay — rendered at App level like NavBar to stay on top */}
       {callGraphFocalNode && (

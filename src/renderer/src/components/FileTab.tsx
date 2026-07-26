@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Lightbulb, Eye, Clock, X, Pencil, Search, Filter, FileText } from 'lucide-react'
 import { FileNode, RecentFileEntry, GrepMatch, CodeSymbol } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
-import SearchPanel, { trimToMatch, highlightMatches } from './SearchPanel'
+import { trimToMatch, highlightMatches } from './SearchPanel'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
 
@@ -59,7 +59,6 @@ interface FileTabProps {
   onOpenFileAtLine?: (fullPath: string, lineNumber?: number) => void
   isActive?: boolean
   brushActive?: boolean
-  searchFocusTrigger?: number
   onExploreNode?: (node: CodeSymbol) => void
 }
 
@@ -613,7 +612,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, brushActive, searchFocusTrigger, onExploreNode }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, brushActive, onExploreNode }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -637,7 +636,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [archExpanded, setArchExpanded] = useState(false)
   const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(null)
   const [toastPath, setToastPath] = useState<string | null>(null)
-  const [searchMode, setSearchMode] = useState(false)
   const [nameFilter, setNameFilter] = useState('')
   const [nameSearchResults, setNameSearchResults] = useState<FileNode[]>([])
   const [nameSearching, setNameSearching] = useState(false)
@@ -649,12 +647,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     const id = setTimeout(() => setToastPath(null), 1500)
     return () => clearTimeout(id)
   }, [toastPath])
-
-  useEffect(() => {
-    if (searchFocusTrigger !== undefined && searchFocusTrigger > 0) {
-      setSearchMode(true)
-    }
-  }, [searchFocusTrigger])
 
   // ── recently file section ──
   const [recentExpanded, setRecentExpanded] = useState(true)
@@ -1305,20 +1297,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
             </div>
           </div>
           <button
-            className={`shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${searchMode ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-            onClick={() => setSearchMode(v => !v)}
-            title={searchMode ? t('关闭搜索') : t('搜索文本内容')}
-          >
-            {searchMode ? (
-              <X className="w-4 h-4" />
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            )}
-          </button>
-          <button
             className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
             onClick={() => setExpandedDirs(new Set())}
             title={t('Collapse All')}
@@ -1340,14 +1318,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           )}
         </div>
       )}
-      {searchMode ? (
-        <SearchPanel
-          cwd={workspacePath}
-          onOpenFile={(fullPath, lineNumber) => onOpenFileAtLine?.(fullPath, lineNumber)}
-          focusTrigger={searchFocusTrigger}
-          onExploreNode={onExploreNode}
-        />
-      ) : (
       <div
         className="flex-1 min-h-0 overflow-y-auto file-tab__tree"
         onContextMenu={(e) => {
@@ -1435,7 +1405,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           </div>
         )}
       </div>
-      )}
       {sectionVis.recently && wsRecent.length > 0 && (
         <div className="shrink-0 border-t border-ide-border max-h-[14rem] overflow-y-auto file-tab__section">
           <div
