@@ -322,11 +322,11 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
             placeholder="输入命令，Enter 发送"
           />
           <div className="flex items-center gap-1 self-end">
-            <button className="desktop-pet__context-gear" onClick={handleSend} title="Enter发送">
-              <Send size={14} />
-            </button>
             <button className="desktop-pet__context-gear" onClick={() => setConfigOpen(true)} title="配置速发键">
               <Settings size={14} />
+            </button>
+            <button className="desktop-pet__context-gear" onClick={handleSend} title="Enter发送">
+              <Send size={14} />
             </button>
           </div>
         </div>
