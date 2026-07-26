@@ -590,7 +590,6 @@ html, body, #root {
 }
 .desktop-pet__context-input:focus {
   border-color: rgb(var(--ide-accent) / 0.6);
-  background: rgb(var(--ide-accent) / 0.06);
 }
 .desktop-pet__context-input::placeholder {
   color: rgb(var(--ide-text-muted) / 0.6);

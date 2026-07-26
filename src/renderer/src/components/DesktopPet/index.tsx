@@ -9,7 +9,7 @@ import { Settings } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT } from '../vibeEvents'
 import { getExtraBubbleSections, onPetBubblesChanged, type PetBubbleItem, type PetBubbleSection } from './bubbleRegistry'
-import { getPetScale, getPetVisible, getPetPos, setPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride } from './petSettings'
+import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride } from './petSettings'
 
 export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) {
   const [manifest, setManifest] = useState<PetManifest | null>(null)
@@ -58,6 +58,15 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
       clearTimeout(transientTimerRef.current)
     }
   }, [])
+
+  const prevVisibleRef = useRef(visible)
+  useEffect(() => {
+    if (visible && !prevVisibleRef.current) {
+      resetPetPos()
+      setPos(null)
+    }
+    prevVisibleRef.current = visible
+  }, [visible])
 
   // 订阅本地偏好变化（缩放/可见性/重置位置/状态→row 配置）
   useEffect(() => onPetPrefsChanged(() => {
@@ -240,13 +249,16 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     return () => document.removeEventListener('mousedown', onDown)
   }, [popupOpen, contextOpen])
 
-  if (!manifest || !visible) return null
+  if (!manifest) return null
 
   const effectiveLogicalState = transientState ?? logicalState
   const stateName = resolveStateName(effectiveLogicalState)
   const stateFrames = manifest.states[stateName]?.frames ?? 1
   const frames = getPetLogicalFramesOverride(effectiveLogicalState) ?? stateFrames
-  const wrapperStyle: React.CSSProperties = pos ? { left: pos.left, top: pos.top } : { right: 8, bottom: 8 }
+  const defaultStyle: React.CSSProperties = (visible || (!popupOpen && !contextOpen))
+    ? { right: 8, bottom: 8 }
+    : { left: 70, bottom: 8 }
+  const wrapperStyle: React.CSSProperties = pos ? { left: pos.left, top: pos.top } : defaultStyle
 
   // 组装气泡 section：速发键 → 拓展注册表（宠物选择/删除/打开文件夹已移至设置→外观）
   const keypadSection: PetBubbleSection = {
@@ -263,15 +275,17 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
 
   return (
     <div className="desktop-pet__wrapper" ref={wrapperRef} style={wrapperStyle}>
-      <div
-        className="desktop-pet__hitarea"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onContextMenu={onContextMenu}
-      >
-        <PetSprite manifest={manifest} stateName={stateName} scale={scale} frameRate={frameRate} frames={frames} />
-      </div>
+      {visible && (
+        <div
+          className="desktop-pet__hitarea"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onContextMenu={onContextMenu}
+        >
+          <PetSprite manifest={manifest} stateName={stateName} scale={scale} frameRate={frameRate} frames={frames} />
+        </div>
+      )}
       {popupOpen && (
         <div className={`desktop-pet__bubbles${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}`}>
           {sections.map(sec => (
