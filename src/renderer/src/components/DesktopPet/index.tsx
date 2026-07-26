@@ -5,7 +5,7 @@ import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
-import { Settings } from 'lucide-react'
+import { Settings, Send } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT } from '../vibeEvents'
 import { getExtraBubbleSections, onPetBubblesChanged, type PetBubbleItem, type PetBubbleSection } from './bubbleRegistry'
@@ -162,17 +162,21 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     setContextOpen(true)
   }, [])
 
-  const onContextKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
-    e.preventDefault()
-    const text = (e.currentTarget.value || '').trim()
+  const handleSend = useCallback(() => {
+    const text = draftCmd.trim()
     if (text) {
       ;(window as any).__vibeSendLine?.(text)
       triggerTransient('sendMessage')
     }
     setDraftCmd('')
     setContextOpen(false)
-  }, [triggerTransient])
+  }, [draftCmd, triggerTransient])
+
+  const onContextKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
+    e.preventDefault()
+    handleSend()
+  }, [handleSend])
 
   useEffect(() => {
     if (!contextOpen) return
@@ -317,9 +321,14 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
             onKeyDown={onContextKeyDown}
             placeholder="输入命令，Enter 发送"
           />
-          <button className="desktop-pet__context-gear" onClick={() => setConfigOpen(true)} title="配置速发键">
-            <Settings size={14} />
-          </button>
+          <div className="flex items-center gap-1 self-end">
+            <button className="desktop-pet__context-gear" onClick={handleSend} title="Enter发送">
+              <Send size={14} />
+            </button>
+            <button className="desktop-pet__context-gear" onClick={() => setConfigOpen(true)} title="配置速发键">
+              <Settings size={14} />
+            </button>
+          </div>
         </div>
       )}
       <KeypadConfigModal open={configOpen} onClose={() => setConfigOpen(false)} />
