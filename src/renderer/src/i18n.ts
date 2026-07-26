@@ -202,7 +202,7 @@ const ZH_MAP: Record<string, string> = {
   'Reset Position': '重置位置',
   'Open Pet Folder': '打开宠物文件夹',
   'Refresh Pets': '刷新宠物',
-  'Drop a folder into pets/ to add a pet. Recommended: https://petdex.dev/': '把文件夹放进 pets/ 里，宠物推荐 https://petdex.dev/',
+  'Drop a folder into pets/ to add a pet. Recommended: https://petdex.dev/': '把文件夹放进宠物文件夹里，宠物推荐 https://petdex.dev/',
   'No pets found.': '暂无宠物。',
   'Delete Pet': '删除宠物',
   'Pet States': '宠物状态',

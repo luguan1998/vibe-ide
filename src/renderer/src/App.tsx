@@ -1880,6 +1880,11 @@ export default function App() {
   // 处理从中间终端点击文件路径打开文件
   const handleOpenFileFromTerminal = useCallback((fullPath: string, lineNumber?: number) => {
     recordRecentFile(fullPath, lineNumber)
+    if (isMarkdownFile(fullPath)) {
+      setMarkdownFile({ fullPath, fileName: fullPath.split(/[\\/]/).pop() || fullPath })
+      setCenterView('markdown')
+      return
+    }
     let filePath = fullPath
     if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
       filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
@@ -1899,6 +1904,11 @@ export default function App() {
   // 处理从右侧终端点击文件路径打开文件 - 直接切换到 edit 模式
   const handleOpenFileFromRightTerminal = useCallback((fullPath: string, lineNumber?: number) => {
     recordRecentFile(fullPath, lineNumber)
+    if (isMarkdownFile(fullPath)) {
+      setMarkdownFile({ fullPath, fileName: fullPath.split(/[\\/]/).pop() || fullPath })
+      setCenterView('markdown')
+      return
+    }
     const rightCwd = activeSessionCwd
     let filePath = fullPath
     if (rightCwd && fullPath.startsWith(rightCwd)) {
