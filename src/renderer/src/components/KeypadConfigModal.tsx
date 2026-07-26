@@ -38,7 +38,7 @@ export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: (
                     ? 'text-ide-accent hover:bg-ide-accent/15'
                     : 'text-ide-text-muted/50 hover:text-ide-text-muted hover:bg-ide-hover'
                 }`}
-                title={k.directSend ? '直接发送：点击即发送到终端' : '仅填入：只写入终端，不回车发送'}
+                title={k.directSend ? '这条命令会立刻发送给agent' : '仅填入：只写入输入框，不回车发送'}
               >
                 {k.directSend ? (
                   <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
