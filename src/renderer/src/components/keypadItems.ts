@@ -33,3 +33,26 @@ export function onKeypadChanged(cb: () => void): () => void {
   window.addEventListener(KEYPAD_CHANGED, h)
   return () => window.removeEventListener(KEYPAD_CHANGED, h)
 }
+
+const BTW_PREFIX_KEY = 'vibe-ide-btw-prefix'
+const DEFAULT_BTW_PREFIX = ''
+export const BTW_PREFIX_CHANGED = 'vibe-ide-btw-prefix-changed'
+
+export function loadBtwPrefix(): string {
+  try {
+    const raw = localStorage.getItem(BTW_PREFIX_KEY)
+    if (raw && raw.trim()) return raw
+  } catch {}
+  return DEFAULT_BTW_PREFIX
+}
+
+export function saveBtwPrefix(prefix: string): void {
+  try { localStorage.setItem(BTW_PREFIX_KEY, prefix.trim() || DEFAULT_BTW_PREFIX) } catch {}
+  window.dispatchEvent(new Event(BTW_PREFIX_CHANGED))
+}
+
+export function onBtwPrefixChanged(cb: () => void): () => void {
+  const h = () => cb()
+  window.addEventListener(BTW_PREFIX_CHANGED, h)
+  return () => window.removeEventListener(BTW_PREFIX_CHANGED, h)
+}

@@ -981,14 +981,6 @@ export default function App() {
 
   useEffect(() => {
     (window as any).__vibeSendLine = (text: string) => sendDraftLine(activeSessionIdRef.current, text)
-    const PET_CMD_PREFIX = '/btw '
-    ;(window as any).__vibeSendPetCommand = (text: string) => {
-      const sid = activeSessionIdRef.current
-      if (!sid || !text.trim()) return
-      const t = text.trim()
-      const isGui = sessionViewModesRef.current[sid] === 'gui'
-      sendDraftLine(sid, isGui ? t : PET_CMD_PREFIX + t)
-    }
     ;(window as any).__vibeAppendInput = (text: string) => {
       const sid = activeSessionIdRef.current
       if (!sid) return

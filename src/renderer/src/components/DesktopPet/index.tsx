@@ -4,7 +4,7 @@ import { PetSprite } from './PetSprite'
 import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState } from './stateMap'
 export type { PetLogicalState }
-import { loadKeypadItems } from '../keypadItems'
+import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
 import { Settings } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT } from '../vibeEvents'
@@ -110,7 +110,11 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     setPopupOpen(false)
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     setPopupAbove(rect.top > 240)
-    setDraftCmd('')
+    setDraftCmd(prev => {
+      if (prev.trim()) return prev
+      const pfx = loadBtwPrefix()
+      return pfx && !pfx.endsWith(' ') ? pfx + ' ' : pfx
+    })
     setContextOpen(true)
   }, [])
 
@@ -119,8 +123,7 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     e.preventDefault()
     const text = (e.currentTarget.value || '').trim()
     if (text) {
-      const fn = text.includes(' → ') ? '__vibeSendLine' : '__vibeSendPetCommand'
-      ;(window as any)[fn]?.(text)
+      ;(window as any).__vibeSendLine?.(text)
     }
     setDraftCmd('')
     setContextOpen(false)
@@ -186,9 +189,9 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     const h = el.scrollHeight
     el.style.height = Math.min(h, maxH) + 'px'
     el.style.overflowY = h > maxH ? '' : 'hidden'
-  }, [draftCmd])
+  }, [draftCmd, contextOpen])
 
-  // 气泡面板打开时：点面板外关闭（面板与宠物都在 wrapperRef 内，DOM 包含判定）
+  // 气泡面板打开时：点面板外关闭；context 面板点外只隐藏不清空内容
   useEffect(() => {
     if (!popupOpen && !contextOpen) return
     const onDown = (ev: MouseEvent) => {
