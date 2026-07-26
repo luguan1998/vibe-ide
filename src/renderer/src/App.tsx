@@ -370,6 +370,8 @@ export default function App() {
   const [pipeRunning, setPipeRunning] = useState<Record<string, boolean>>({})
   const [pipeProgress, setPipeProgress] = useState<Record<string, { current: number; total: number }>>({})
   const pipeRunnersRef = useRef<Map<string, { cancelled: boolean; resolveIdle: (() => void) | null; sleepTimer: ReturnType<typeof setTimeout> | null; sleepResolve: (() => void) | null }>>(new Map())
+  const pipeQueueRef = useRef<Map<string, string[]>>(new Map())
+  const pipeProcessingRef = useRef<Map<string, boolean>>(new Map())
   const terminalBusyRef = useRef<Record<string, boolean>>({})
   const aiBusyRef = useRef<Record<string, boolean>>({})
   const [warnSessions, setWarnSessions] = useState<Record<string, boolean>>({})
@@ -923,6 +925,8 @@ export default function App() {
   }, [notifyDraftIdle])
 
   const cancelPipe = useCallback((sessionId: string) => {
+    pipeQueueRef.current.delete(sessionId)
+    pipeProcessingRef.current.delete(sessionId)
     const runner = pipeRunnersRef.current.get(sessionId)
     if (!runner) return
     runner.cancelled = true
@@ -931,48 +935,71 @@ export default function App() {
     if (runner.sleepResolve) { const r = runner.sleepResolve; runner.sleepResolve = null; r() }
   }, [])
 
-  const handlePipeCommand = useCallback(async (command: string) => {
-    const sessionId = activeSessionId
-    if (!sessionId) return
+  const processPipeQueue = useCallback(async (sessionId: string) => {
+    const queue = pipeQueueRef.current.get(sessionId)
+    if (!queue || queue.length === 0) {
+      pipeProcessingRef.current.delete(sessionId)
+      pipeRunnersRef.current.delete(sessionId)
+      setPipeRunning(prev => { const n = { ...prev }; delete n[sessionId]; return n })
+      setPipeProgress(prev => { const n = { ...prev }; delete n[sessionId]; return n })
+      return
+    }
+    const command = queue.shift()!
+    const isGui = sessionViewModesRef.current[sessionId] === 'gui'
     const PIPE_DETECT_DELAY = 2000
-    cancelPipe(sessionId)
     const lines = command.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean)
-    if (lines.length === 0) return
     const runner = { cancelled: false, resolveIdle: null as (() => void) | null, sleepTimer: null as ReturnType<typeof setTimeout> | null, sleepResolve: null as (() => void) | null }
     pipeRunnersRef.current.set(sessionId, runner)
     setPipeRunning(prev => ({ ...prev, [sessionId]: true }))
-    setPipeProgress(prev => ({ ...prev, [sessionId]: { current: 0, total: lines.length } }))
+    setPipeProgress(prev => ({ ...prev, [sessionId]: { current: 0, total: lines.length + queue.reduce((s, c) => s + c.split('\n').filter(Boolean).length, 0) } }))
     const sleep = (ms: number) => new Promise<void>(resolve => {
       runner.sleepResolve = resolve
       runner.sleepTimer = setTimeout(() => { runner.sleepResolve = null; resolve() }, ms)
     })
+    const isBusy = () => isGui ? aiBusyRef.current[sessionId] === true : terminalBusyRef.current[sessionId] === true
+    let globalIdx = 0
     for (let i = 0; i < lines.length; i++) {
       if (runner.cancelled) break
-      setPipeProgress(prev => ({ ...prev, [sessionId]: { current: i + 1, total: lines.length } }))
+      globalIdx++
+      setPipeProgress(prev => {
+        const p = prev[sessionId]
+        return p ? { ...prev, [sessionId]: { current: Math.min(globalIdx, p.total), total: p.total } } : prev
+      })
       if (i === 0) {
         await new Promise<void>(resolve => {
           if (runner.cancelled) { resolve(); return }
-          if (terminalBusyRef.current[sessionId] !== true) { resolve(); return }
+          if (!isBusy()) { resolve(); return }
           runner.resolveIdle = resolve
         })
         if (runner.cancelled) break
       }
-      window.api.terminal.write(sessionId, lines[i] + '\r')
+      if (isGui) {
+        aiTabRefs.current[sessionId]?.sendText(lines[i])
+      } else {
+        window.api.terminal.write(sessionId, lines[i] + '\r')
+      }
       await sleep(PIPE_DETECT_DELAY)
       if (runner.cancelled) break
       await new Promise<void>(resolve => {
         if (runner.cancelled) { resolve(); return }
-        if (terminalBusyRef.current[sessionId] !== true) { resolve(); return }
+        if (!isBusy()) { resolve(); return }
         runner.resolveIdle = resolve
       })
       if (runner.cancelled) break
     }
-    if (pipeRunnersRef.current.get(sessionId) === runner) {
-      pipeRunnersRef.current.delete(sessionId)
-      setPipeRunning(prev => { const n = { ...prev }; delete n[sessionId]; return n })
-      setPipeProgress(prev => { const n = { ...prev }; delete n[sessionId]; return n })
+    processPipeQueue(sessionId)
+  }, [])
+
+  const handlePipeCommand = useCallback(async (command: string) => {
+    const sessionId = activeSessionId
+    if (!sessionId) return
+    if (!pipeQueueRef.current.has(sessionId)) pipeQueueRef.current.set(sessionId, [])
+    pipeQueueRef.current.get(sessionId)!.push(command)
+    if (!pipeProcessingRef.current.get(sessionId)) {
+      pipeProcessingRef.current.set(sessionId, true)
+      processPipeQueue(sessionId)
     }
-  }, [activeSessionId, cancelPipe])
+  }, [activeSessionId, processPipeQueue])
 
   const cancelPipeRef = useRef(cancelPipe)
   cancelPipeRef.current = cancelPipe
@@ -1008,7 +1035,15 @@ export default function App() {
     if (aiBusyRef.current[sessionId] !== v) {
       aiBusyRef.current = { ...aiBusyRef.current, [sessionId]: v }
     }
-    if (status === 'idle') notifyDraftIdle(sessionId)
+    if (status === 'idle') {
+      const runner = pipeRunnersRef.current.get(sessionId)
+      if (runner && !runner.cancelled && runner.resolveIdle) {
+        const resolve = runner.resolveIdle
+        runner.resolveIdle = null
+        resolve()
+      }
+      notifyDraftIdle(sessionId)
+    }
   }, [notifyDraftIdle])
 
   const handleToggleAutoApprove = useCallback(async (sessionId: string, cwd: string) => {

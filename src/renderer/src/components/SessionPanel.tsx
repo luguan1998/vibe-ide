@@ -446,12 +446,30 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const prevSessionIdsRef = useRef<Set<string>>(new Set())
   const [renaming, setRenaming] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
+  const [showAppendCmdModal, setShowAppendCmdModal] = useState(false)
+  const [appendCmdSessionId, setAppendCmdSessionId] = useState<string | null>(null)
+  const [appendCmdDraft, setAppendCmdDraft] = useState('')
+  const appendCmdAnchorYRef = useRef(0)
+
+  const hourglassSvg = (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-text-muted">
+      <path d="M5 22h14M5 2h14M17 22v-4.17a3 3 0 0 0-.59-1.8L12 11l-4.41 5.03A3 3 0 0 0 7 17.83V22" />
+      <path d="M7 2v4.17a3 3 0 0 0 .59 1.8L12 13l4.41-5.03A3 3 0 0 0 17 6.17V2" />
+    </svg>
+  )
+  const handleSendAppendCmd = () => {
+    if (!appendCmdDraft.trim() || !appendCmdSessionId) return
+    onSwitchSession(appendCmdSessionId)
+    onPipeCommand?.(appendCmdDraft)
+    setShowAppendCmdModal(false)
+  }
   const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; name: string; left: number; top: number } | null>(null)
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cwdHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [cwdLinkSession, setCwdLinkSession] = useState<string | null>(null)
   const [configMenuStyle, setConfigMenuStyle] = useState<React.CSSProperties>({})
   const inputRef = useRef<HTMLInputElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const commandsRef = useRef<CustomCommandsHandle>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
@@ -899,7 +917,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   )
 
   return (
-    <div className={`flex flex-col session-panel${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
+    <div ref={panelRef} className={`flex flex-col session-panel${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
       {/* Header + Dashboard merged */}
       <div className="px-5 py-1.5 flex items-center justify-center shrink-0 session-panel__header">
         <div className="status-badge">
@@ -1308,12 +1326,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
             onClick={() => {
-              const session = sessions.find(s => s.id === contextMenu.sessionId)
-              if (session) startRename(session)
+              setAppendCmdSessionId(contextMenu.sessionId)
+              setAppendCmdDraft('')
+              appendCmdAnchorYRef.current = contextMenu.y
+              setShowAppendCmdModal(true)
+              setContextMenu(null)
             }}
           >
-            <Pencil size={14} className="text-ide-text-muted" />
-            <span>{t('Rename')}</span>
+            {hourglassSvg}
+            <span>追加命令</span>
           </button>
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover flex items-center gap-2"
@@ -1787,6 +1808,32 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 onClick={handleClaudeEditSave}
               >保存</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 追加命令 Modal */}
+      {showAppendCmdModal && (
+        <div className="fixed inset-0 z-50" onClick={() => setShowAppendCmdModal(false)} onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setShowAppendCmdModal(false) } }}>
+          <div className="fixed flex flex-col z-[51] w-[230px]" style={{ left: (panelRef.current?.getBoundingClientRect().right ?? 300) + 8, top: appendCmdAnchorYRef.current - 24 }} onClick={e => e.stopPropagation()}>
+            <textarea
+              className="w-full box-border resize-none max-h-[40vh] px-2 py-1.5 rounded-xl bg-ide-bg border border-ide-border text-ide-text text-[11px] leading-[1.3] outline-none transition-colors duration-[120ms] focus:border-ide-accent/60 placeholder:text-ide-text-muted/60 shadow-[0_2px_6px_rgb(0_0_0_/_0.25)]"
+              value={appendCmdDraft}
+              onChange={e => setAppendCmdDraft(e.target.value)}
+              placeholder="输入命令，Enter 发送..."
+              rows={3}
+              autoFocus
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSendAppendCmd()
+                }
+                if (e.key === 'Escape') {
+                  e.stopPropagation()
+                  setShowAppendCmdModal(false)
+                }
+              }}
+            />
           </div>
         </div>
       )}
