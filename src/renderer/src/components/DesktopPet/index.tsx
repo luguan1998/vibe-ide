@@ -2,14 +2,14 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import type { PetManifest, PetListResult } from '@shared/types'
 import { PetSprite } from './PetSprite'
 import { injectPetKeyframes } from './keyframes'
-import { resolveStateName, type PetLogicalState } from './stateMap'
+import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
 import { Settings } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT } from '../vibeEvents'
 import { getExtraBubbleSections, onPetBubblesChanged, type PetBubbleItem, type PetBubbleSection } from './bubbleRegistry'
-import { getPetScale, getPetVisible, getPetPos, setPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride } from './petSettings'
+import { getPetScale, getPetVisible, getPetPos, setPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride } from './petSettings'
 
 export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) {
   const [manifest, setManifest] = useState<PetManifest | null>(null)
@@ -25,10 +25,13 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
   const [, setExtraTick] = useState(0)
   const [, setConfigTick] = useState(0)
   const [frameRate, setFrameRate] = useState(() => getPetFrameRate())
+  const [transientState, setTransientState] = useState<PetLogicalState | null>(null)
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const contextInputRef = useRef<HTMLTextAreaElement>(null)
   const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number; moved: boolean } | null>(null)
+  const singleClickTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const transientTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
   // 加载 active manifest + 订阅 PET_CHANGED（设置里切换/删除后热重载）
   useEffect(() => {
@@ -49,6 +52,13 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     if (manifest) injectPetKeyframes(manifest)
   }, [manifest])
 
+  useEffect(() => {
+    return () => {
+      clearTimeout(singleClickTimerRef.current)
+      clearTimeout(transientTimerRef.current)
+    }
+  }, [])
+
   // 订阅本地偏好变化（缩放/可见性/重置位置/状态→row 配置）
   useEffect(() => onPetPrefsChanged(() => {
     setScale(getPetScale())
@@ -67,6 +77,16 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
   const appendInput = useCallback((text: string) => {
     ;(window as any).__vibeAppendInput?.(text)
   }, [])
+
+  const triggerTransient = useCallback((state: PetLogicalState) => {
+    if (!TRANSIENT_LOGICAL_STATES.includes(state)) return
+    if (getPetLogicalStateOverride(state) === '') return
+    setTransientState(state)
+    clearTimeout(transientTimerRef.current)
+    const st = manifest?.states[resolveStateName(state)]
+    const dur = st ? (st.frameDurationMs ?? manifest?.frameDurationMs ?? 183) * (st.frames ?? 1) / frameRate : 2000
+    transientTimerRef.current = setTimeout(() => setTransientState(null), Math.max(dur, 400))
+  }, [manifest, frameRate])
 
   // 拖拽：左键按下 → 移动改 left/top → 松开持久；未移动则视为点击开气泡
   const onPointerDown = useCallback((e: React.PointerEvent) => {
@@ -97,16 +117,28 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     dragRef.current = null
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch {}
     if (d && !d.moved) {
-      setKeypadItems(loadKeypadItems())
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-      setPopupAbove(rect.top > 240)
-      setContextOpen(false)
-      setPopupOpen(v => !v)
+      const el = e.currentTarget as HTMLElement
+      const rect = el.getBoundingClientRect()
+      if (singleClickTimerRef.current) {
+        clearTimeout(singleClickTimerRef.current)
+        singleClickTimerRef.current = undefined
+        setPopupOpen(false)
+        setContextOpen(false)
+        triggerTransient('doubleTap')
+        return
+      }
+      singleClickTimerRef.current = setTimeout(() => {
+        singleClickTimerRef.current = undefined
+        setKeypadItems(loadKeypadItems())
+        setPopupAbove(rect.top > 240)
+        setContextOpen(false)
+        setPopupOpen(v => !v)
+      }, 300)
     } else if (d && d.moved) {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
       setPetPos({ left: rect.left, top: rect.top })
     }
-  }, [])
+  }, [triggerTransient])
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -127,10 +159,11 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     const text = (e.currentTarget.value || '').trim()
     if (text) {
       ;(window as any).__vibeSendLine?.(text)
+      triggerTransient('sendMessage')
     }
     setDraftCmd('')
     setContextOpen(false)
-  }, [])
+  }, [triggerTransient])
 
   useEffect(() => {
     if (!contextOpen) return
@@ -209,9 +242,10 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
 
   if (!manifest || !visible) return null
 
-  const stateName = resolveStateName(logicalState)
+  const effectiveLogicalState = transientState ?? logicalState
+  const stateName = resolveStateName(effectiveLogicalState)
   const stateFrames = manifest.states[stateName]?.frames ?? 1
-  const frames = getPetLogicalFramesOverride(logicalState) ?? stateFrames
+  const frames = getPetLogicalFramesOverride(effectiveLogicalState) ?? stateFrames
   const wrapperStyle: React.CSSProperties = pos ? { left: pos.left, top: pos.top } : { right: 8, bottom: 8 }
 
   // 组装气泡 section：速发键 → 拓展注册表（宠物选择/删除/打开文件夹已移至设置→外观）

@@ -426,9 +426,11 @@ app.whenReady().then(() => {
 
   const DEFAULT_PET_STATES = ['idle', 'running-right', 'running-left', 'waving', 'jumping', 'failed', 'waiting', 'running', 'review']
 
+  const PET_STATE_FRAME_OVERRIDES: Record<string, number> = { waving: 4, jumping: 4 }
+
   function defaultPetStates(frames: number): Record<string, { row: number; frames: number; loop: boolean }> {
     const o: Record<string, { row: number; frames: number; loop: boolean }> = {}
-    DEFAULT_PET_STATES.forEach((name, i) => { o[name] = { row: i, frames, loop: true } })
+    DEFAULT_PET_STATES.forEach((name, i) => { o[name] = { row: i, frames: PET_STATE_FRAME_OVERRIDES[name] ?? frames, loop: true } })
     return o
   }
 

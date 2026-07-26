@@ -5,8 +5,8 @@ import { useI18n } from '../i18n'
 import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, PanelRightClose, SlidersHorizontal, SwatchBook, Info, PawPrint, Trash2 } from 'lucide-react'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from './SessionPanel'
-import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, setPetLogicalState, setPetLogicalFrames, getPetFrameRate, setPetFrameRate, getPetLogicalFramesOverride, PET_SCALE_MIN, PET_SCALE_MAX, PET_FRAME_RATE_MIN, PET_FRAME_RATE_MAX } from './DesktopPet/petSettings'
-import { resolveStateName, PET_LOGICAL_STATES, PET_LOGICAL_LABEL, PET_LOGICAL_DESC } from './DesktopPet/stateMap'
+import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, setPetLogicalState, setPetLogicalFrames, getPetFrameRate, setPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, PET_SCALE_MIN, PET_SCALE_MAX, PET_FRAME_RATE_MIN, PET_FRAME_RATE_MAX } from './DesktopPet/petSettings'
+import { resolveStateName, PET_LOGICAL_STATES, PET_LOGICAL_LABEL, PET_LOGICAL_DESC, DEFAULT_PET_LOGICAL_STATE } from './DesktopPet/stateMap'
 
 const FALLBACK_FONTS = [
   'Consolas', 'Cascadia Code', 'JetBrains Mono', 'Fira Code',
@@ -94,36 +94,31 @@ function StepperRow({ labelKey, descKey, value, display, onDelta, min, max, zone
   )
 }
 
-function SelectRow({ labelKey, descKey, value, options, onChange, row, maxFrames, frames, onFramesChange }: {
-  labelKey: string; descKey?: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void; row?: number; maxFrames?: number; frames?: number; onFramesChange?: (n: number) => void
+function SelectRow({ labelKey, value, options, onChange, maxFrames, frames, onFramesChange }: {
+  labelKey: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void; maxFrames?: number; frames?: number; onFramesChange?: (n: number) => void
 }) {
   const { t } = useI18n()
   return (
-    <div className="flex flex-col gap-0.5 py-0.5 px-1 rounded hover:bg-ide-hover transition-colors">
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span className="text-sm text-ide-text truncate" title={descKey ? t(descKey) : undefined}>{t(labelKey)}</span>
-        {row !== undefined && <span className="text-[11px] text-ide-text-muted font-mono shrink-0">row {row}</span>}
-      </div>
-      <div className="flex items-center gap-1">
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="min-w-0 flex-1 px-1.5 py-1 text-sm text-ide-text bg-ide-hover border border-ide-border rounded focus:outline-none focus:border-ide-accent"
-        >
-          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        {onFramesChange && maxFrames !== undefined && (
-          <input
-            type="number"
-            min={1}
-            max={maxFrames}
-            value={frames}
-            onChange={(e) => onFramesChange(Math.max(1, Math.min(maxFrames, Math.floor(Number(e.target.value)) || 1)))}
-            title={t('Pet Frames')}
-            className="w-12 shrink-0 px-1.5 py-1 text-sm text-ide-text bg-ide-hover border border-ide-border rounded focus:outline-none focus:border-ide-accent"
-          />
-        )}
-      </div>
+    <div className="flex items-center gap-1 py-0.5 px-1 rounded hover:bg-ide-hover transition-colors min-w-0">
+      <span className="text-sm text-ide-text truncate shrink-0">{t(labelKey)}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="min-w-0 flex-1 px-1 py-0.5 text-xs text-ide-text bg-ide-hover border border-ide-border rounded focus:outline-none focus:border-ide-accent"
+      >
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      {onFramesChange && maxFrames !== undefined && (
+        <input
+          type="number"
+          min={1}
+          max={maxFrames}
+          value={frames}
+          onChange={(e) => onFramesChange(Math.max(1, Math.min(maxFrames, Math.floor(Number(e.target.value)) || 1)))}
+          title={t('Pet Frames')}
+          className="w-10 shrink-0 px-1 py-0.5 text-xs text-ide-text bg-ide-hover border border-ide-border rounded focus:outline-none focus:border-ide-accent"
+        />
+      )}
     </div>
   )
 }
@@ -315,7 +310,7 @@ const AppearancePanel = function AppearancePanel({
   const handlePetFrameRateDelta = (d: number) => setPetFrameRate(Math.min(PET_FRAME_RATE_MAX, Math.max(PET_FRAME_RATE_MIN, petFrameRate + d * 0.1)))
 
   const activePetManifest = petsList.find(p => p.id === activePetId) ?? null
-  const petStateOptions = activePetManifest ? Object.keys(activePetManifest.states).map(n => ({ value: n, label: n })) : []
+  const petStateOptions = activePetManifest ? Object.keys(activePetManifest.states).map(n => ({ value: n, label: `${n} (row ${activePetManifest.states[n].row})` })) : []
 
   const applySnippetsResult = (result: SnippetsLoadResult) => {
     setSnippetsList(result.snippets)
@@ -730,22 +725,23 @@ const AppearancePanel = function AppearancePanel({
                   ) : (
                     <div className="grid grid-cols-2 gap-1">
                       {PET_LOGICAL_STATES.map(ls => {
-                        const name = resolveStateName(ls)
-                        const st = activePetManifest?.states[name] ?? activePetManifest?.states['idle'] ?? (activePetManifest ? Object.values(activePetManifest.states)[0] : undefined)
-                        const maxFrames = st?.frames ?? 1
-                        const frames = getPetLogicalFramesOverride(ls) ?? maxFrames
+                        const rawName = getPetLogicalStateOverride(ls) ?? DEFAULT_PET_LOGICAL_STATE[ls]
+                        const resolved = resolveStateName(ls)
+                        const st = activePetManifest?.states[resolved] ?? activePetManifest?.states['idle'] ?? (activePetManifest ? Object.values(activePetManifest.states)[0] : undefined)
+                        const maxFrames = Math.max(st?.frames ?? 1, 8)
+                        const frames = getPetLogicalFramesOverride(ls) ?? st?.frames ?? maxFrames
+                        const isEmpty = rawName === ''
+                        const options = ls === 'idle' ? petStateOptions : [{ value: '', label: '—' }, ...petStateOptions]
                         return (
                           <SelectRow
                             key={ls}
                             labelKey={PET_LOGICAL_LABEL[ls]}
-                            descKey={PET_LOGICAL_DESC[ls]}
-                            value={name}
-                            options={petStateOptions}
+                            value={rawName}
+                            options={options}
                             onChange={(v) => setPetLogicalState(ls, v)}
-                            row={st?.row}
-                            maxFrames={maxFrames}
-                            frames={frames}
-                            onFramesChange={(n) => setPetLogicalFrames(ls, n)}
+                            maxFrames={isEmpty ? undefined : maxFrames}
+                            frames={isEmpty ? undefined : frames}
+                            onFramesChange={isEmpty ? undefined : (n) => setPetLogicalFrames(ls, n)}
                           />
                         )
                       })}
