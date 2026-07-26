@@ -197,7 +197,7 @@ const ZH_MAP: Record<string, string> = {
   'Pet display size.': '宠物显示尺寸。',
   'Pet Frame Rate': '宠物帧率',
   'Pet animation speed.': '宠物动画播放速度。',
-  'Pet Frames': '宠物帧数',
+  'Pet Frames': '宠物帧数，只播放前n帧',
   'Reset Position': '重置位置',
   'Open Pet Folder': '打开宠物文件夹',
   'Refresh Pets': '刷新宠物',
