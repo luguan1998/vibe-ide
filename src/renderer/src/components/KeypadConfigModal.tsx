@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { loadKeypadItems, saveKeypadItems, loadBtwPrefix, saveBtwPrefix } from './keypadItems'
+import { loadKeypadItems, saveKeypadItems, loadBtwPrefix, saveBtwPrefix, type KeypadItem } from './keypadItems'
 
 export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [draft, setDraft] = useState(() => loadKeypadItems())
+  const [draft, setDraft] = useState<KeypadItem[]>(() => loadKeypadItems())
   const [btwPrefix, setBtwPrefix] = useState(() => loadBtwPrefix())
   useEffect(() => { if (open) { setDraft(loadKeypadItems()); setBtwPrefix(loadBtwPrefix()) } }, [open])
   if (!open) return null
   const change = (code: string, text: string) => setDraft(prev => prev.map(k => k.code === code ? { ...k, text } : k))
+  const toggleDirectSend = (code: string) => setDraft(prev => prev.map(k => k.code === code ? { ...k, directSend: !k.directSend } : k))
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
@@ -30,6 +31,27 @@ export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: (
                 onChange={(e) => change(k.code, e.target.value)}
                 className="flex-1 min-w-0 text-xs bg-ide-bg border border-dashed border-ide-border rounded-[4px_8px_5px_7px] px-2 py-1 text-ide-text focus:outline-none focus:border-ide-accent"
               />
+              <button
+                onClick={() => toggleDirectSend(k.code)}
+                className={`shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                  k.directSend
+                    ? 'text-ide-accent hover:bg-ide-accent/15'
+                    : 'text-ide-text-muted/50 hover:text-ide-text-muted hover:bg-ide-hover'
+                }`}
+                title={k.directSend ? '直接发送：点击即发送到终端' : '仅填入：只写入终端，不回车发送'}
+              >
+                {k.directSend ? (
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                    <path fillRule="evenodd" d="M3.5 2.75a.75.75 0 0 0-1.5 0v14.5a.75.75 0 0 0 1.5 0V12a.75.75 0 0 1 .75-.75h9.69l-2.22 2.22a.75.75 0 1 0 1.06 1.06l3.5-3.5a.75.75 0 0 0 0-1.06l-3.5-3.5a.75.75 0 1 0-1.06 1.06l2.22 2.22H4.25a.75.75 0 0 1-.75-.75V2.75Z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                    <rect x="7.5" y="2.5" width="2" height="12" rx="0.5" />
+                    <rect x="6" y="15.5" width="5" height="2" rx="0.5" />
+                    <path d="M11.5 6h5a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                  </svg>
+                )}
+              </button>
             </div>
           ))}
         </div>

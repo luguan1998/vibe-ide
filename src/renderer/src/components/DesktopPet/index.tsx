@@ -64,6 +64,9 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
   const sendLine = useCallback((text: string) => {
     ;(window as any).__vibeSendLine?.(text)
   }, [])
+  const appendInput = useCallback((text: string) => {
+    ;(window as any).__vibeAppendInput?.(text)
+  }, [])
 
   // 拖拽：左键按下 → 移动改 left/top → 松开持久；未移动则视为点击开气泡
   const onPointerDown = useCallback((e: React.PointerEvent) => {
@@ -214,7 +217,7 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
   // 组装气泡 section：速发键 → 拓展注册表（宠物选择/删除/打开文件夹已移至设置→外观）
   const keypadSection: PetBubbleSection = {
     id: 'keypad',
-    items: keypadItems.map(k => ({ id: k.code, label: k.text, badge: k.key, onAction: () => sendLine(k.text) }))
+    items: keypadItems.map(k => ({ id: k.code, label: k.text, badge: k.key, onAction: () => k.directSend ? sendLine(k.text) : appendInput(k.text) }))
   }
   const sections: PetBubbleSection[] = [keypadSection, ...getExtraBubbleSections()]
 
