@@ -284,6 +284,10 @@ interface SessionPanelProps {
   onSetUiFontFamily?: (font: string) => void
   termFontFamily?: string
   onSetTermFontFamily?: (font: string) => void
+  mdFontFamily?: string
+  onSetMdFontFamily?: (font: string) => void
+  mdFontSize?: number
+  onSetMdFontSize?: (n: number) => void
   onResetUiStyle?: () => void
   recentFiles?: RecentFileEntry[]
   onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
@@ -354,6 +358,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onSetUiFontFamily,
   termFontFamily = 'Consolas',
   onSetTermFontFamily,
+  mdFontFamily = '',
+  onSetMdFontFamily,
+  mdFontSize = 14,
+  onSetMdFontSize,
   onResetUiStyle,
   recentFiles = [],
   onOpenRecentFile,
@@ -1591,6 +1599,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onSetUiFontFamily={onSetUiFontFamily}
         termFontFamily={termFontFamily}
         onSetTermFontFamily={onSetTermFontFamily}
+        mdFontFamily={mdFontFamily}
+        onSetMdFontFamily={onSetMdFontFamily}
+        mdFontSize={mdFontSize}
+        onSetMdFontSize={onSetMdFontSize}
         terminalFontSize={terminalFontSize}
         onAdjustTerminalFontSize={onAdjustTerminalFontSize}
         autoUtf8={autoUtf8}

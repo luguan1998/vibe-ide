@@ -172,6 +172,10 @@ interface AppearancePanelProps {
   onSetUiFontFamily?: (f: string) => void
   termFontFamily?: string
   onSetTermFontFamily?: (f: string) => void
+  mdFontFamily?: string
+  onSetMdFontFamily?: (f: string) => void
+  mdFontSize?: number
+  onSetMdFontSize?: (n: number) => void
   terminalFontSize?: number
   onAdjustTerminalFontSize?: (delta: number) => void
   autoUtf8?: boolean
@@ -204,6 +208,8 @@ const AppearancePanel = function AppearancePanel({
   fontFamily = 'Consolas', onSetFontFamily,
   uiFontFamily = 'Consolas', onSetUiFontFamily,
   termFontFamily = 'Consolas', onSetTermFontFamily,
+  mdFontFamily = '', onSetMdFontFamily,
+  mdFontSize = 14, onSetMdFontSize,
   terminalFontSize = 14, onAdjustTerminalFontSize,
   autoUtf8 = true, onToggleAutoUtf8,
   cgEnabled = true, onToggleCgEnabled,
@@ -628,6 +634,35 @@ const AppearancePanel = function AppearancePanel({
                 )}
                 {onSetUiFontFamily && (
                   <FontRow labelKey="UI Font" value={uiFontFamily} recommended="Consolas" onChange={onSetUiFontFamily} zone="global" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
+                )}
+                <div className="flex items-center gap-2 mt-3 mb-1">
+                  <span className="text-xs font-semibold text-ide-text-muted uppercase tracking-wide">{t('MD Preview')}</span>
+                  <div className="flex-1 border-t border-ide-border/60" />
+                </div>
+                {onSetMdFontFamily && (
+                  <div className="flex items-start justify-between gap-3 py-2">
+                    <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-ide-text">{t('MD Font')}</span>
+                        <Pill zone="editor" />
+                      </div>
+                    </div>
+                    <select
+                      className="shrink-0 bg-ide-hover border border-ide-border rounded text-sm text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent"
+                      value={mdFontFamily}
+                      onChange={(e) => onSetMdFontFamily(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={loadSystemFonts}
+                    >
+                      <option value="">{t('Inherit UI Font')}</option>
+                      {renderFontOptions(mdFontFamily, 'Consolas')}
+                    </select>
+                  </div>
+                )}
+                {onSetMdFontSize && (
+                  <StepperRow labelKey="MD Font Size"
+                    value={mdFontSize} display={String(mdFontSize)} onDelta={(d) => onSetMdFontSize(mdFontSize + d)}
+                    min={8} max={30} zone="editor" />
                 )}
               </div>
             )}

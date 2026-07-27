@@ -458,6 +458,9 @@ input[type="checkbox"] { accent-color: rgb(38 223 162); }
    ════════════════════════════════════════════════════ */
 
 /* heading 層級色：青→金→綠→紅→藍 */
+.md-preview,
+.ai-tab__user-bubble { font-family: 'Belwe', 'Burbank', 'Caudex', 'Noto Serif SC', 'SimSun', monospace !important; }
+
 .md-preview h1 { color: rgb(38 200 200) !important; border-bottom-color: rgb(38 200 200) !important; border-bottom-width: 2px !important; }
 .md-preview h2 { color: rgb(228 180 100) !important; border-bottom-color: rgb(228 180 100) !important; }
 .md-preview h3 { color: rgb(38 223 162) !important; }
