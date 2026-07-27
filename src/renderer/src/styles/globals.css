@@ -369,7 +369,7 @@ html, body, #root {
 .md-preview pre {
   background-color: rgb(var(--ide-sidebar)); border: 1px solid rgb(var(--ide-accent));
   border-radius: 6px; padding: 1em; margin-bottom: 1em; overflow-x: auto;
-  font-family: var(--ide-font-family), monospace;
+  font-family: var(--ide-font-family), 'Consolas', 'Cascadia Code', monospace;
   font-size: 13px; line-height: 1.5;
 }
 .md-preview pre code { background: none; padding: 0; border: none; border-radius: 0; font-size: inherit; color: rgb(var(--ide-text)); }
@@ -380,7 +380,7 @@ html, body, #root {
 }
 .md-code-block pre {
   background: none; border: none; padding: 1em 1em 1em 1em; margin: 0;
-  font-family: var(--ide-font-family), monospace;
+  font-family: var(--ide-font-family), 'Consolas', 'Cascadia Code', monospace;
   font-size: 13px; line-height: 1.5;
 }
 .md-code-block code { background: none; padding: 0; border: none; border-radius: 0; font-size: inherit; color: rgb(var(--ide-text)); }
@@ -389,7 +389,7 @@ html, body, #root {
   padding: 2px 10px; font-size: 11px; line-height: 1.4;
   background-color: rgb(var(--ide-accent) / 0.2);
   color: rgb(var(--ide-accent)); border-radius: 10px;
-  font-family: var(--ide-font-family), monospace;
+  font-family: var(--ide-font-family), 'Consolas', 'Cascadia Code', monospace;
 }
 .md-search-match { background-color: rgb(var(--ide-accent) / 0.3); color: inherit; border-radius: 2px; }
 .md-search-match-current { background-color: rgb(var(--ide-accent) / 0.6); }
@@ -405,7 +405,7 @@ html, body, #root {
 .md-preview code {
   background-color: rgb(var(--ide-accent) / 0.08); border: 1px solid rgb(var(--ide-accent) / 0.15);
   border-radius: 4px; padding: 0.15em 0.4em;
-  font-family: var(--ide-font-family), monospace;
+  font-family: var(--ide-font-family), 'Consolas', 'Cascadia Code', monospace;
   font-size: 0.9em; color: rgb(var(--ide-accent-hover));
 }
 .md-preview blockquote {
@@ -444,7 +444,7 @@ html, body, #root {
   font-weight: 500;
   color: rgb(var(--ide-accent));
   background-color: rgb(var(--ide-hover));
-  font-family: var(--ide-font-family), monospace;
+  font-family: var(--ide-font-family), 'Consolas', 'Cascadia Code', monospace;
 }
 .md-fm-val {
   flex: 1;

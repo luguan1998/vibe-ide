@@ -753,7 +753,7 @@ ${clone.innerHTML}
               }}
               className="w-full resize-none outline-none text-ide-text bg-ide-bg px-3 py-2"
               style={{
-                fontFamily: 'var(--ide-font-family, "Cascadia Code", monospace)',
+                fontFamily: 'var(--ide-font-family), Consolas, Cascadia Code, monospace',
                 fontSize: 14,
                 lineHeight: 1.7,
                 border: 'none',
