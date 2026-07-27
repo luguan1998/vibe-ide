@@ -279,6 +279,7 @@ const AppearancePanel = function AppearancePanel({
 
   useEffect(() => {
     if (open) {
+      setDragOffset({ x: 24, y: -24 })
       window.api.snippets.load().then(r => { setSnippetsList(r.snippets); setSnippetsDir(r.dir) }).catch(() => {})
       window.api.pet.list().then((r: PetListResult) => { setPetsList(r.pets); setActivePetId(r.activeId); setPetsDir(r.dir) }).catch(() => {})
       setCwdEmojiDraft(cwdEmojis.join('\n'))
