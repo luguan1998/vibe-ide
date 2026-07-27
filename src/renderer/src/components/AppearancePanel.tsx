@@ -202,8 +202,8 @@ const AppearancePanel = function AppearancePanel({
   diffSplitRatio = 0.3, onSetDiffSplitRatio,
   editorFontSize = 14, onAdjustEditorFontSize,
   fontFamily = 'Consolas', onSetFontFamily,
-  uiFontFamily = 'Cascadia Code', onSetUiFontFamily,
-  termFontFamily = 'Cascadia Code', onSetTermFontFamily,
+  uiFontFamily = 'Consolas', onSetUiFontFamily,
+  termFontFamily = 'Consolas', onSetTermFontFamily,
   terminalFontSize = 14, onAdjustTerminalFontSize,
   autoUtf8 = true, onToggleAutoUtf8,
   cgEnabled = true, onToggleCgEnabled,
@@ -614,7 +614,7 @@ const AppearancePanel = function AppearancePanel({
                     min={8} max={30} zone="terminal" />
                 )}
                 {onSetTermFontFamily && (
-                  <FontRow labelKey="Terminal Font" value={termFontFamily} recommended="Cascadia Code" monoOnly onChange={onSetTermFontFamily} zone="terminal" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
+                  <FontRow labelKey="Terminal Font" value={termFontFamily} recommended="Consolas" monoOnly onChange={onSetTermFontFamily} zone="terminal" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
                 )}
               </div>
             )}
@@ -627,7 +627,7 @@ const AppearancePanel = function AppearancePanel({
                     checked={capsuleTabs} onChange={onToggleCapsuleTabs} zone="panel" />
                 )}
                 {onSetUiFontFamily && (
-                  <FontRow labelKey="UI Font" value={uiFontFamily} recommended="Cascadia Code" onChange={onSetUiFontFamily} zone="global" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
+                  <FontRow labelKey="UI Font" value={uiFontFamily} recommended="Consolas" onChange={onSetUiFontFamily} zone="global" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
                 )}
               </div>
             )}

@@ -502,13 +502,13 @@ export default function App() {
   })
   const [fontFamily, setFontFamily] = useState(() => {
     try {
-      return localStorage.getItem('vibe-ide-font-family') || 'Cascadia Code'
-    } catch { return 'Cascadia Code' }
+      return localStorage.getItem('vibe-ide-font-family') || 'Consolas'
+    } catch { return 'Consolas' }
   })
   const [termFontFamily, setTermFontFamily] = useState(() => {
     try {
-      return localStorage.getItem('vibe-ide-term-font') || 'Cascadia Code'
-    } catch { return 'Cascadia Code' }
+      return localStorage.getItem('vibe-ide-term-font') || 'Consolas'
+    } catch { return 'Consolas' }
   })
   const centerViewRef = React.useRef<CenterView>('terminal')
 
@@ -2307,8 +2307,8 @@ export default function App() {
               setInlineDiff(false)
               setDiffSplitRatio(0.3)
               setSessionFontFamily('Consolas')
-              setFontFamily('Cascadia Code')
-              setTermFontFamily('Cascadia Code')
+              setFontFamily('Consolas')
+              setTermFontFamily('Consolas')
             }}
             focusSettingsTrigger={focusSettingsTrigger}
             onExecuteCommand={handleExecuteCommand}
