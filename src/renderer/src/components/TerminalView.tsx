@@ -264,8 +264,8 @@ class FileLinkProvider implements ILinkProvider {
 }
 
 const DETECTION_DELAY = 2000  // term 启动 2s 后开始检测
-const IDLE_THRESHOLD = 1000   // 2秒无输出 → 判空闲
-const RUNNING_DEBOUNCE = 1000  // 3s 连续输出 → 切忙碌
+const IDLE_THRESHOLD = 1600   // 1.6秒无输出 → 判空闲 仅有秒数变化场景不要切回去
+const RUNNING_DEBOUNCE = 1600  // 1.6s 连续输出 → 切忙碌
 // OSC 标题检测正则（模块级常量，避免每次 onData 重新编译）
 // 匹配 OSC 0 (图标+标题) / OSC 1 (图标) / OSC 2 (窗口标题)
 const OSC_TITLE_RE = /\x1b\](0|1|2);([^\x07\x1b]*?)(\x07|\x1b\\)/g
