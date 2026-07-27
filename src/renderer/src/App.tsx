@@ -25,12 +25,9 @@ import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
 import type { TerminalViewHandle } from './components/TerminalView'
+import { getMainShellType, getAuxShellType } from './utils/shellPrefs'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
-
-function getAuxShellType(): string {
-  try { return localStorage.getItem('vibe-ide-aux-term-type') || 'cmd' } catch { return 'cmd' }
-}
 
 // Declare the window API type
 declare global {
@@ -1514,7 +1511,7 @@ export default function App() {
 
   // Create a new terminal session — ask user to pick a directory first
   const [isOpening, setIsOpening] = useState(false)
-  const handleCreateSession = useCallback(async (shell?: string) => {
+  const handleCreateSession = useCallback(async (shell: string = getMainShellType()) => {
     try {
       setIsOpening(true)
       const dirResult = await window.api.workspace.pickDir()
@@ -1532,7 +1529,7 @@ export default function App() {
   }, [autoUtf8])
 
   // Create a terminal session at a specific path (no directory picker)
-  const handleCreateSessionAt = useCallback(async (cwd: string, shell?: string) => {
+  const handleCreateSessionAt = useCallback(async (cwd: string, shell: string = getMainShellType()) => {
     try {
       setIsOpening(true)
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8 })
@@ -1621,7 +1618,7 @@ export default function App() {
       }
 
       // 2. Create new terminal session (same cwd)
-      const session = await window.api.terminal.create({ cwd: current.cwd, autoUtf8 })
+      const session = await window.api.terminal.create({ cwd: current.cwd, shell: getMainShellType(), autoUtf8 })
 
       // 3. Store fork resume ID for the new session
       setForkSessions(prev => ({ ...prev, [session.id]: result.newClaudeSessionId! }))

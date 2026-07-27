@@ -1,7 +1,8 @@
 import { ipcMain, BrowserWindow } from 'electron'
+import { execSync } from 'child_process'
 import { existsSync } from 'fs'
 import { readFile, writeFile, mkdir, unlink } from 'fs/promises'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import * as pty from 'node-pty'
 import { IPC_CHANNELS, CreateTerminalOptions, TerminalSession } from '../shared/types'
 
@@ -66,19 +67,66 @@ async function syncAutoApproveHook(cwd: string): Promise<void> {
   )
 }
 
+// 找 PowerShell 7：默认路径 → 预览版 → where.exe 走 PATH（Store/scoop/winget）；命中后返裸名 pwsh.exe，因 WindowsApps 别名按全路径 spawn 会失败
+// refresh=true 强制重扫（开 shell 下拉时），否则读缓存（spawn 时）；冷启动未扫过则自动扫一次
+let pwshCache: string | null | undefined
+function findPwsh(refresh = false): string | null {
+  if (!refresh && pwshCache !== undefined) return pwshCache
+  const defaultPath = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
+  if (existsSync(defaultPath)) { pwshCache = defaultPath; return defaultPath }
+  const previewPath = 'C:\\Program Files\\PowerShell\\7-preview\\pwsh.exe'
+  if (existsSync(previewPath)) { pwshCache = previewPath; return previewPath }
+  try {
+    execSync('where.exe pwsh', { timeout: 2000, stdio: 'ignore' })
+    pwshCache = 'pwsh.exe'
+    return 'pwsh.exe'
+  } catch {}
+  pwshCache = null
+  return null
+}
+
+// 找 Git Bash：候选路径 → 从 PATH 上的 git.exe 反推 Git 根（bash.exe 通常不在系统 PATH，但 git.exe 在）
+// refresh=true 强制重扫（开 shell 下拉时），否则读缓存（spawn 时）；冷启动未扫过则自动扫一次
+let gitBashCache: string | null | undefined
+function findGitBash(refresh = false): string | null {
+  if (!refresh && gitBashCache !== undefined) return gitBashCache
+  const candidates = [
+    'C:\\Program Files\\Git\\bin\\bash.exe',
+    'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
+    `${process.env.LOCALAPPDATA}\\Programs\\Git\\bin\\bash.exe`
+  ]
+  for (const p of candidates) if (existsSync(p)) { gitBashCache = p; return p }
+  // git.exe 在 PATH（安装器把 Git\cmd 加进系统 PATH），bash.exe 通常不在 → 从 git.exe 往上找
+  try {
+    const out = execSync('where.exe git', { encoding: 'utf8', timeout: 2000 })
+    for (const line of out.split(/\r?\n/)) {
+      let dir = dirname(line.trim())
+      for (let i = 0; i < 4 && dir; i++) {
+        const binBash = join(dir, 'bin', 'bash.exe')
+        if (existsSync(binBash)) { gitBashCache = binBash; return binBash }
+        const usrBash = join(dir, 'usr', 'bin', 'bash.exe')
+        if (existsSync(usrBash)) { gitBashCache = usrBash; return usrBash }
+        dir = dirname(dir)
+      }
+    }
+  } catch {}
+  gitBashCache = null
+  return null
+}
+
 // 🌀 诸法皆空，shell 亦如是 — 按名取径，不执一相
 function resolveShell(shellType?: string): { shell: string; args: string[] } {
   if (!shellType) {
     // 默认：PowerShell 7 → PowerShell 5
-    const pwshPath = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
-    if (existsSync(pwshPath)) return { shell: pwshPath, args: ['-NoLogo'] }
+    const pwshPath = findPwsh()
+    if (pwshPath) return { shell: pwshPath, args: ['-NoLogo'] }
     return { shell: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', args: ['-NoLogo'] }
   }
 
   switch (shellType) {
     case 'pwsh': {
-      const pwshPath = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
-      if (existsSync(pwshPath)) return { shell: pwshPath, args: ['-NoLogo'] }
+      const pwshPath = findPwsh()
+      if (pwshPath) return { shell: pwshPath, args: ['-NoLogo'] }
       // 用户选了 pwsh 但没装 → 退到 powershell
       return { shell: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', args: ['-NoLogo'] }
     }
@@ -91,17 +139,10 @@ function resolveShell(shellType?: string): { shell: string; args: string[] } {
     case 'cmd':
       return { shell: 'C:\\Windows\\System32\\cmd.exe', args: [] }
     case 'git-bash': {
-      // Git Bash 可能在多个位置
-      const candidates = [
-        'C:\\Program Files\\Git\\bin\\bash.exe',
-        'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
-        `${process.env.LOCALAPPDATA}\\Programs\\Git\\bin\\bash.exe`
-      ]
-      for (const p of candidates) {
-        if (existsSync(p)) return { shell: p, args: ['--login'] }
-      }
-      // Fallback: try PATH
-      return { shell: 'bash.exe', args: ['--login'] }
+      const bashPath = findGitBash()
+      if (bashPath) return { shell: bashPath, args: ['--login'] }
+      // 没装 git-bash → 退到 cmd（不回退裸 bash.exe：会误启 WSL）
+      return { shell: 'C:\\Windows\\System32\\cmd.exe', args: [] }
     }
     case 'wsl':
       return { shell: 'C:\\Windows\\System32\\wsl.exe', args: [] }
@@ -122,7 +163,7 @@ function resolveShell(shellType?: string): { shell: string; args: string[] } {
 // entry is still in `terminals`: PTY_CLOSE / cleanupTerminals delete the entry
 // synchronously before kill()'s async onExit fires, so a missing entry means the
 // user intended to close — emit PTY_EXIT and don't restart.
-function spawnPty(id: string, cwd: string, shellType: string | undefined, name: string, autoUtf8: boolean, cols = 80, rows = 24): pty.IPty {
+function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUtf8: boolean, cols = 80, rows = 24): pty.IPty {
   const { shell, args } = resolveShell(shellType)
   const ptyProcess = pty.spawn(shell, args, {
     name: 'xterm-256color',
@@ -209,7 +250,7 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, name: 
         data: '\x1b[?1049l\x1b[?25h\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1l\x1b[0m\r\n[Process exited, restarting shell...]\r\n'
       })
     }
-    managed.pty = spawnPty(id, managed.session.cwd, managed.session.shell, managed.session.name, managed.autoUtf8, managed.cols, managed.rows)
+    managed.pty = spawnPty(id, managed.session.cwd, managed.session.shell, managed.autoUtf8, managed.cols, managed.rows)
   })
 
   return ptyProcess
@@ -223,7 +264,7 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
     const shells: { value: string; label: string }[] = []
 
     // pwsh
-    if (existsSync('C:\\Program Files\\PowerShell\\7\\pwsh.exe')) {
+    if (findPwsh(true)) {
       shells.push({ value: 'pwsh', label: 'PowerShell 7' })
     }
     // powershell
@@ -235,12 +276,7 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
       shells.push({ value: 'cmd', label: 'CMD' })
     }
     // git-bash
-    const gitBashCandidates = [
-      'C:\\Program Files\\Git\\bin\\bash.exe',
-      'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
-      `${process.env.LOCALAPPDATA}\\Programs\\Git\\bin\\bash.exe`
-    ]
-    if (gitBashCandidates.some(p => existsSync(p))) {
+    if (findGitBash(true)) {
       shells.push({ value: 'git-bash', label: 'Git Bash' })
     }
     // wsl
@@ -259,7 +295,7 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
       const name = options.name || `Terminal ${terminals.size + 1}`
       const autoUtf8 = options.autoUtf8 !== false
 
-      const ptyProcess = spawnPty(id, cwd, options.shell, name, autoUtf8)
+      const ptyProcess = spawnPty(id, cwd, options.shell, autoUtf8)
 
       const session: TerminalSession = {
         id,
