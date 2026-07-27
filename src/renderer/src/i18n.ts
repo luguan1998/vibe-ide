@@ -28,6 +28,7 @@ const EN_MAP: Record<string, string> = {
   'Affects: Editor': 'Editor',
   'Affects: Panel': 'Panel',
   'Affects: Terminal': 'Terminal',
+  'Show remote': 'Show remote',
 }
 
 const ZH_MAP: Record<string, string> = {
@@ -273,6 +274,7 @@ const ZH_MAP: Record<string, string> = {
   'No commits yet': '暂无提交',
   'Load more commits': '加载更多提交',
   'No branches': '暂无分支',
+  'Show remote': '显示远程分支',
 
   // GitTab - Commit area
   'Commit message...': '输入提交信息...',

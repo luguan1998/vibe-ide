@@ -144,6 +144,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [untrackedExpanded, setUntrackedExpanded] = useState(true)
   const [logExpanded, setLogExpanded] = useState(false)
   const [branchesExpanded, setBranchesExpanded] = useState(false)
+  const [showRemoteBranches, setShowRemoteBranches] = useState(false)
   const [status, setStatus] = useState<GitStatusResult | null>(null)
   const statusRef = useRef(status)
   statusRef.current = status
@@ -1078,6 +1079,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     })
   }
 
+  const visibleBranches = showRemoteBranches ? branches : branches.filter(b => !b.remote)
+
   return (
     <>
       {/* Branch info bar */}
@@ -1588,7 +1591,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           {/* Branches */}
           <div className="border-b border-ide-border">
             <div
-              className="pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+              className="pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between group"
               onClick={() => setBranchesExpanded(!branchesExpanded)}
             >
               <div className="flex items-center gap-1">
@@ -1599,15 +1602,26 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   <circle cx="18" cy="6" r="3" />
                   <path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 0-2 2v2" />
                 </svg>
-                <span>{t('Branches ({count})').replace('{count}', String(branches.length))}</span>
+                <span>{t('Branches ({count})').replace('{count}', String(visibleBranches.length))}</span>
               </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowRemoteBranches(v => !v) }}
+                title={t('Show remote')}
+                className={`shrink-0 w-4 h-4 flex items-center justify-center rounded transition-opacity ${showRemoteBranches ? 'opacity-100 text-ide-accent' : 'opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10'}`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
+                </svg>
+              </button>
             </div>
             {branchesExpanded && (
             <div className="flex flex-col">
-              {branches.length === 0 ? (
+              {visibleBranches.length === 0 ? (
                 <div className="px-2 py-2 text-xs text-ide-text-muted text-center">{t('No branches')}</div>
               ) : (
-                branches.map(branch => {
+                visibleBranches.map(branch => {
                   const isOriginalBranch = worktreeNav && branch.name === worktreeNav.originalBranch
                   return (
                   <div
