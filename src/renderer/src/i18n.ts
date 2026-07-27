@@ -124,6 +124,7 @@ const ZH_MAP: Record<string, string> = {
   'Jump to Next Prompt': '跳到下条命令',
   'Toggle Preview / Edit': '切换预览/编辑',
   'Clone Current Session': '克隆当前会话',
+  'Quick Open File': '快速打开文件',
   'Feather Pen (Brush Mode)': '羽毛笔（画笔模式）',
 
   // File Tree
@@ -318,6 +319,11 @@ const ZH_MAP: Record<string, string> = {
   'from': '来自',
   'total': '总计',
   'Sort by extension': '按后缀排序',
+
+  // QuickOpen
+  'Type to search files...': '输入以搜索文件...',
+  'No matches': '无匹配',
+  'Type to search': '输入以搜索',
 
   // Custom Commands
   'Custom Command': '自定义命令',
