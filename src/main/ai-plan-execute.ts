@@ -53,7 +53,7 @@ export function registerPlanExecuteHandlers(): void {
         aiSessions.delete(sessionId)
       }
 
-      const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, resumeSessionId: claudeSessionId })
+      const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, resumeSessionId: claudeSessionId })
       if ('error' in result) {
         send(IPC_CHANNELS.AI_ERROR, {
           sessionId,
@@ -63,7 +63,7 @@ export function registerPlanExecuteHandlers(): void {
         return { success: false, error: result.error, installCmd: result.installCmd }
       }
 
-      attachAiProcess(sessionId, result, cwd, model)
+      attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand)
 
       const newSession = aiSessions.get(sessionId)
       if (newSession && prev) {
@@ -97,7 +97,7 @@ export function registerPlanExecuteHandlers(): void {
     }
 
     // 3. Spawn fresh subprocess in bypassPermissions mode (no --resume = clean context)
-    const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model })
+    const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir })
     if ('error' in result) {
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,
@@ -108,7 +108,7 @@ export function registerPlanExecuteHandlers(): void {
     }
 
     // 4. Attach stdout/stderr/error/exit handlers
-    attachAiProcess(sessionId, result, cwd, model)
+    attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand)
 
     if (prev?.contextWindow || prev?.model) {
       const newSession = aiSessions.get(sessionId)

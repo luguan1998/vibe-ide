@@ -492,7 +492,6 @@ export interface AiSessionState {
   userTurns: UserTurn[]
   cwd: string
   worktreePath?: string
-  resumeSessionId?: string
   pipedPrompt?: string
 }
 
@@ -505,6 +504,7 @@ export interface AiCreateOptions {
   permissionMode: AiPermissionMode
   resumeSessionId?: string
   cliCommand?: string
+  configDir?: string
   enableWorktree?: boolean
 }
 

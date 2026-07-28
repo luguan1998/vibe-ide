@@ -158,7 +158,7 @@ declare global {
       removeStartupOpenPathListener: (handler?: any) => void
       ai: {
         checkAvailable: (cliCommand?: string) => Promise<{ available: boolean; installCmd?: string; error?: string }>
-        create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; resumeSessionId?: string; cliCommand?: string; model?: string; enableWorktree?: boolean }) => Promise<{ success: boolean; error?: string }>
+        create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; resumeSessionId?: string; cliCommand?: string; configDir?: string; model?: string; enableWorktree?: boolean }) => Promise<{ success: boolean; error?: string }>
         send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>
         cancel: (sessionId: string) => Promise<boolean>
         destroy: (sessionId: string) => Promise<boolean>
@@ -171,8 +171,8 @@ declare global {
         onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => any
         removeModelChangedListener: (handler?: any) => void
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
-        listSessions: (cwd?: string) => Promise<{ sessions: any[]; error?: string }>
-        loadSessionMessages: (resumeSessionId: string, cwd: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
+        listSessions: (cwd?: string, configDir?: string) => Promise<{ sessions: any[]; error?: string }>
+        loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
         revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) => Promise<{ success: boolean; error?: string }>
         fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
         onMessage: (callback: (data: any) => void) => any

@@ -9,7 +9,7 @@ import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
 import { cleanMessageContent, formatConversationMarkdown } from '../utils/aiConversationFormatter'
 import { loadFilterRules } from './FileTab'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
-import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS } from '../aiStore'
+import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig } from '../aiStore'
 import { EXAMPLE_PROMPTS } from './examplePrompts'
 import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch, Folder, X } from 'lucide-react'
 import { DiffEditor, Editor } from '@monaco-editor/react'
@@ -1864,15 +1864,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // ── Session lifecycle: check availability then auto-create AI session ──
   useEffect(() => {
     if (!activeSessionId || !workspacePath) return
-    const cliCommand = (() => {
-      try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined }
-    })()
+    const { cliCommand, configDir } = readAiCliConfig()
     aiStore.ensureCreated(activeSessionId, {
       cwd: workspacePath,
       autoApprove,
       permissionMode,
       ...(resumeSessionId ? { resumeSessionId } : {}),
       cliCommand,
+      configDir,
       ...(worktreeEnabled ? { enableWorktree: true } : {}),
     })
   }, [activeSessionId, workspacePath, worktreeEnabled])
@@ -2201,7 +2200,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           {/* Session history */}
           <button
             onClick={async () => {
-              const result = await window.api.ai.listSessions(workspacePath || undefined)
+              const { configDir } = readAiCliConfig()
+              const result = await window.api.ai.listSessions(workspacePath || undefined, configDir)
               if (result.sessions?.length > 0) {
                 setSessionHistoryList(result.sessions)
                 setSessionHistoryOpen(true)
@@ -2222,14 +2222,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 const next = !worktreeEnabled
                 setWorktreeEnabled(next)
                 handleDestroySession(activeSessionId)
-                const cliCommand = (() => {
-                  try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined }
-                })()
+                const { cliCommand, configDir } = readAiCliConfig()
                 aiStore.ensureCreated(activeSessionId, {
                   cwd: workspacePath,
                   autoApprove,
                   permissionMode,
                   cliCommand,
+                  configDir,
                   ...(next ? { enableWorktree: true } : {}),
                 })
                 onViewAi()
@@ -2249,14 +2248,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             onClick={() => {
               if (!activeSessionId || !workspacePath) return
               handleDestroySession(activeSessionId)
-              const cliCommand = (() => {
-                try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined }
-              })()
+              const { cliCommand, configDir } = readAiCliConfig()
               aiStore.ensureCreated(activeSessionId, {
                 cwd: workspacePath,
                 autoApprove,
                 permissionMode,
                 cliCommand,
+                configDir,
                 ...(worktreeEnabled ? { enableWorktree: true } : {}),
               })
               onViewAi()
@@ -2280,7 +2278,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   setSessionHistoryOpen(false)
                   setSessionHistoryList([])
                   if (activeSessionId) {
-                    const history = await window.api.ai.loadSessionMessages(s.session_id || s.id, workspacePath || '')
+                    const { cliCommand, configDir } = readAiCliConfig()
+                    const history = await window.api.ai.loadSessionMessages(s.session_id || s.id, workspacePath || '', configDir)
                     const sessionName = s.name && s.name !== s.session_id ? s.name : ''
                     updateSession(activeSessionId, () => ({
                       ...EMPTY_SESSION,
@@ -2290,12 +2289,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       name: sessionName,
                       cwd: workspacePath || '',
                       ready: false,
-                      resumeSessionId: s.session_id || s.id,
                     }))
                     await window.api.ai.destroy(activeSessionId)
-                    const cliCommand = (() => {
-                      try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined }
-                    })()
                     window.api.ai.create({
                       sessionId: activeSessionId,
                       cwd: workspacePath || '',
@@ -2303,6 +2298,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       permissionMode,
                       resumeSessionId: s.session_id || s.id,
                       ...(cliCommand ? { cliCommand } : {}),
+                      ...(configDir ? { configDir } : {}),
                     })
                   }
                 }}

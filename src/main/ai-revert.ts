@@ -26,8 +26,9 @@ async function truncateJsonlAtUserMessage(
   cwd: string,
   userMessageIndex: number,
   keepTarget: boolean,
+  configDir?: string,
 ): Promise<{ truncated: string[] } | { error: string }> {
-  const projectDir = resolveProjectDir(cwd)
+  const projectDir = resolveProjectDir(cwd, configDir)
   if (!projectDir) return { error: 'Project directory not found under ~/.claude/projects/' }
 
   const jsonlPath = join(projectDir, `${claudeSessionId}.jsonl`)
@@ -81,13 +82,13 @@ export function registerRevertHandlers(): void {
     const effectiveCwd = prev?.cwd || cwd
 
     // 1. Truncate JSONL
-    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, false)
+    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, false, prev?.configDir)
     if ('error' in result) {
       return { success: false, error: result.error }
     }
 
     // 2. Write truncated JSONL back
-    const projectDir = resolveProjectDir(effectiveCwd)!
+    const projectDir = resolveProjectDir(effectiveCwd, prev?.configDir)!
     const jsonlPath = join(projectDir, `${claudeSessionId}.jsonl`)
     try {
       await writeFile(jsonlPath, result.truncated.join('\n') + '\n', 'utf-8')
@@ -107,6 +108,8 @@ export function registerRevertHandlers(): void {
       cwd: effectiveCwd,
       permissionMode: prev?.permissionMode || 'bypassPermissions',
       model: prev?.model,
+      cliCommand: prev?.cliCommand,
+      configDir: prev?.configDir,
       ...(hasHistory ? { resumeSessionId: claudeSessionId } : {}),
     })
     if ('error' in spawnResult) {
@@ -118,7 +121,7 @@ export function registerRevertHandlers(): void {
       return { success: false, error: spawnResult.error, installCmd: spawnResult.installCmd }
     }
 
-    attachAiProcess(sessionId, spawnResult, effectiveCwd, prev?.model)
+    attachAiProcess(sessionId, spawnResult, effectiveCwd, prev?.model, prev?.configDir, prev?.cliCommand)
 
     if (prev?.contextWindow || prev?.model) {
       const s = aiSessions.get(sessionId)
@@ -159,14 +162,14 @@ export function registerRevertHandlers(): void {
     const effectiveCwd = prev?.cwd || cwd
 
     // 1. Truncate JSONL (keep target message for fork)
-    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, true)
+    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, true, prev?.configDir)
     if ('error' in result) {
       return { success: false, error: result.error }
     }
 
     // 2. Generate new session ID and write to new JSONL
     const newClaudeSessionId = randomUUID()
-    const projectDir = resolveProjectDir(effectiveCwd)!
+    const projectDir = resolveProjectDir(effectiveCwd, prev?.configDir)!
     const newJsonlPath = join(projectDir, `${newClaudeSessionId}.jsonl`)
     try {
       await writeFile(newJsonlPath, result.truncated.join('\n') + '\n', 'utf-8')
@@ -187,7 +190,7 @@ export function registerRevertHandlers(): void {
     const claudeSessionId = prev?.claudeSessionId
     if (!claudeSessionId) return [] as UserTurn[]
     const effectiveCwd = prev?.cwd || cwd
-    const projectDir = resolveProjectDir(effectiveCwd)
+    const projectDir = resolveProjectDir(effectiveCwd, prev?.configDir)
     if (!projectDir) return [] as UserTurn[]
     const jsonlPath = join(projectDir, `${claudeSessionId}.jsonl`)
     let content: string

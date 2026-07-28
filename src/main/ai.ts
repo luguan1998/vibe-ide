@@ -17,6 +17,8 @@ export interface ManagedAiSession {
   contextWindow?: number
   permissionMode?: AiPermissionMode
   model?: string
+  configDir?: string
+  cliCommand?: string
   pendingPermission?: {
     requestId: string
     toolName: string
@@ -43,7 +45,7 @@ const COMMAND_ARGS_RE = /<command-args>([\s\S]*?)<\/command-args>/
 
 // 从 slash 命令的 caveat/command/stdout 组行重建纯文本（如 "/model haiku"）。
 // command-name 内容已含 `/`，不另补。无 command-name 返回 ''。
-export function reconstructSlashCommand(groupContents: string[]): string {
+function reconstructSlashCommand(groupContents: string[]): string {
   let name = ''
   let args = ''
   for (const c of groupContents) {
@@ -118,7 +120,7 @@ export function send(channel: string, data: any): void {
 
 const AI_INSTALL_CMD = 'npm install -g @anthropic-ai/claude-code@latest'
 
-export type BinaryResult = { binary: string } | { error: string; installCmd: string }
+type BinaryResult = { binary: string } | { error: string; installCmd: string }
 type SpawnError = { error: string; installCmd: string }
 
 export function findBinary(customCommand?: string): BinaryResult {
@@ -135,7 +137,7 @@ export function findBinary(customCommand?: string): BinaryResult {
 
 // Sanitize env on Windows: Git Bash / MSYS2 leaks Unix-style vars (HOME, SHELL, OSTYPE, …)
 // that confuse the CLI's OS detection. Strip them so the subprocess sees a clean Windows env.
-export function sanitizeEnvForCli(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+function sanitizeEnvForCli(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const childEnv: NodeJS.ProcessEnv = { ...env }
   if (process.platform === 'win32') {
     const unixVars = [
@@ -154,7 +156,7 @@ export function sanitizeEnvForCli(env: NodeJS.ProcessEnv = process.env): NodeJS.
 // Build the standard Claude CLI arg list (stream-json + permission-prompt-tool stdio).
 // Explicit platform description is appended to --append-system-prompt as a safety net
 // in case env sanitization is incomplete.
-export function buildClaudeArgs(opts: {
+function buildClaudeArgs(opts: {
   cwd: string
   permissionMode: AiPermissionMode
   resumeSessionId?: string
@@ -217,6 +219,7 @@ export function spawnClaude(opts: {
   permissionMode: AiPermissionMode
   resumeSessionId?: string
   cliCommand?: string
+  configDir?: string
   model?: string
   enableWorktree?: boolean
 }): ChildProcess | SpawnError {
@@ -224,9 +227,11 @@ export function spawnClaude(opts: {
   if ('error' in resolved) return resolved
 
   const args = buildClaudeArgs(opts)
+  const env = sanitizeEnvForCli()
+  if (opts.configDir) env.CLAUDE_CONFIG_DIR = resolveConfigDir(opts.configDir)
   return spawn(resolved.binary, args, {
     cwd: opts.cwd,
-    env: sanitizeEnvForCli(),
+    env,
     stdio: ['pipe', 'pipe', 'pipe'],
     shell: process.platform === 'win32',
   })
@@ -275,7 +280,7 @@ async function extractFileChange(sessionId: string, block: any, cwd: string): Pr
   const claudeSessionId = session?.claudeSessionId
   let turnIndex = 0
   if (claudeSessionId) {
-    const projectDir = resolveProjectDir(cwd)
+    const projectDir = resolveProjectDir(cwd, session?.configDir)
     if (projectDir) {
       try {
         const jsonl = await readFile(join(projectDir, `${claudeSessionId}.jsonl`), 'utf-8')
@@ -556,14 +561,14 @@ function djb2Hash(s: string): number {
   return h
 }
 
-export function normalizeCwdToProjectDir(cwd: string): string {
+function normalizeCwdToProjectDir(cwd: string): string {
   let t = cwd.replace(/[^a-zA-Z0-9]/g, '-')
   if (t.length <= CLI_PROJECT_DIR_MAX) return t
   return `${t.slice(0, CLI_PROJECT_DIR_MAX)}-${Math.abs(djb2Hash(cwd)).toString(36)}`
 }
 
-async function listSessionsForCwd(cwd: string): Promise<{ sessions: any[] }> {
-  const projectsRoot = join(homedir(), '.claude', 'projects')
+async function listSessionsForCwd(cwd: string, configDir?: string): Promise<{ sessions: any[] }> {
+  const projectsRoot = join(resolveConfigDir(configDir), 'projects')
   let projectDirName = normalizeCwdToProjectDir(cwd).toLowerCase()
 
   // Try both lowercase and original case
@@ -616,8 +621,21 @@ async function listSessionsForCwd(cwd: string): Promise<{ sessions: any[] }> {
 
 // ── Load full session history from .jsonl for resume display ──
 
-export function resolveProjectDir(cwd: string): string | null {
-  const projectsRoot = join(homedir(), '.claude', 'projects')
+// Resolve the Claude config dir: user-configured directory (with ~ expansion) wins,
+// otherwise ~/.claude. Shared by spawn-side CLAUDE_CONFIG_DIR and all JSONL read paths.
+function resolveConfigDir(configDir?: string): string {
+  const home = homedir()
+  if (configDir && configDir.trim()) {
+    const v = configDir.trim()
+    if (v === '~') return home
+    if (v.startsWith('~/') || v.startsWith('~\\')) return join(home, v.slice(2))
+    return isAbsolute(v) ? v : join(home, v)
+  }
+  return join(home, '.claude')
+}
+
+export function resolveProjectDir(cwd: string, configDir?: string): string | null {
+  const projectsRoot = join(resolveConfigDir(configDir), 'projects')
   // Synchronous scan needed here — only a few dirs
   try {
     const allDirs = require('fs').readdirSync(projectsRoot)
@@ -634,12 +652,12 @@ function getContextWindowForCliSession(cliSessionId: string): number | undefined
   return rendererId ? aiSessions.get(rendererId)?.contextWindow : undefined
 }
 
-async function loadSessionMessages(resumeSessionId: string, cwd: string): Promise<{
+async function loadSessionMessages(resumeSessionId: string, cwd: string, configDir?: string): Promise<{
   messages: AiMessage[]
   model: string
   slashCommands: string[]
 }> {
-  const projectDir = resolveProjectDir(cwd)
+  const projectDir = resolveProjectDir(cwd, configDir)
   if (!projectDir) return { messages: [], model: '', slashCommands: [] }
 
   const jsonlPath = join(projectDir, `${resumeSessionId}.jsonl`)
@@ -794,7 +812,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string): Promis
 // Attach all process event handlers (stdout/stderr/error/exit) to a spawned Claude CLI process.
 // Shared between initial AI_CREATE spawn and plan-execute restart — extracted so
 // the restart path reuses identical NDJSON parsing / error reporting / lifecycle logic.
-export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: string, model?: string): void {
+export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: string, model?: string, configDir?: string, cliCommand?: string): void {
   const session: ManagedAiSession = {
     process: proc,
     sessionId,
@@ -802,6 +820,8 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     lineBuffer: '',
     ready: true,
     model,
+    configDir,
+    cliCommand,
   }
   aiSessions.set(sessionId, session)
 
@@ -892,13 +912,13 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
   })
 
   // List available sessions for resume
-  ipcMain.handle(IPC_CHANNELS.AI_LIST_SESSIONS, async (_event, cwd?: string) => {
-    return listSessionsForCwd(cwd || '')
+  ipcMain.handle(IPC_CHANNELS.AI_LIST_SESSIONS, async (_event, cwd?: string, configDir?: string) => {
+    return listSessionsForCwd(cwd || '', configDir)
   })
 
   // Load full message history from .jsonl for resume display
-  ipcMain.handle(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, async (_event, resumeSessionId: string, cwd: string) => {
-    return loadSessionMessages(resumeSessionId, cwd)
+  ipcMain.handle(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, async (_event, resumeSessionId: string, cwd: string, configDir?: string) => {
+    return loadSessionMessages(resumeSessionId, cwd, configDir)
   })
 
   // Check if claude/openclaude/opencc CLI is available
@@ -912,7 +932,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
 
   // Spawn claude/openclaude/opencc subprocess
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
-    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, enableWorktree } = options
+    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, configDir, enableWorktree } = options
 
     const existing = aiSessions.get(sessionId)
     if (existing) {
@@ -924,7 +944,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
 
     const preSnapshot = enableWorktree ? snapshotWorktrees(cwd) : undefined
 
-    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId, cliCommand, enableWorktree })
+    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId, cliCommand, configDir, enableWorktree })
     if ('error' in result) {
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,
@@ -934,7 +954,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
       return { success: false, error: result.error, installCmd: result.installCmd }
     }
 
-    attachAiProcess(sessionId, result, cwd)
+    attachAiProcess(sessionId, result, cwd, undefined, configDir, cliCommand)
 
     const created = aiSessions.get(sessionId)
     if (created) {

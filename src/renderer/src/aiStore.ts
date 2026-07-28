@@ -103,14 +103,26 @@ function setStates(updater: (prev: Record<string, AiSessionState>) => Record<str
   emit()
 }
 
-export interface EnsureCreatedOpts {
+interface EnsureCreatedOpts {
   cwd: string
   autoApprove: boolean
   permissionMode: AiPermissionMode
   resumeSessionId?: string
   cliCommand?: string
+  configDir?: string
   enableWorktree?: boolean
   model?: string
+}
+
+export function readAiCliConfig(): { cliCommand?: string; configDir?: string } {
+  try {
+    return {
+      cliCommand: localStorage.getItem('vibe-ide-ai-cli-command') || undefined,
+      configDir: localStorage.getItem('vibe-ide-ai-config-dir') || undefined,
+    }
+  } catch {
+    return {}
+  }
 }
 
 export const aiStore = {
@@ -164,7 +176,9 @@ export const aiStore = {
   ensureCreated(sid: string, opts: EnsureCreatedOpts) {
     if (createdSessions.has(sid)) return
     createdSessions.add(sid)
-    const cliCommand = opts.cliCommand ?? (() => { try { return localStorage.getItem('vibe-ide-ai-cli-command') || undefined } catch { return undefined } })()
+    const fallback = readAiCliConfig()
+    const cliCommand = opts.cliCommand ?? fallback.cliCommand
+    const configDir = opts.configDir ?? fallback.configDir
     window.api.ai.checkAvailable(cliCommand).then((result: any) => {
       if (!result.available) {
         aiStore.updateSession(sid, () => ({
@@ -186,10 +200,11 @@ export const aiStore = {
         permissionMode: opts.permissionMode,
         ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}),
         ...(cliCommand ? { cliCommand } : {}),
+        ...(configDir ? { configDir } : {}),
         ...(opts.enableWorktree ? { enableWorktree: true } : {}),
         ...(opts.model ? { model: opts.model } : {}),
       })
-      aiStore.updateSession(sid, () => ({ ...EMPTY_SESSION, cwd: opts.cwd, ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}) }))
+      aiStore.updateSession(sid, () => ({ ...EMPTY_SESSION, cwd: opts.cwd }))
     }).catch(() => {
       aiStore.updateSession(sid, () => ({
         ...EMPTY_SESSION,

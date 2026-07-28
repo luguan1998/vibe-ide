@@ -373,6 +373,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     try { return localStorage.getItem('vibe-ide-ai-cli-command') || '' } catch { return '' }
   })
   const [cliCommandDraft, setCliCommandDraft] = useState('')
+  const [cliConfigDir, setCliConfigDir] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-ai-config-dir') || '' } catch { return '' }
+  })
+  const [cliConfigDirDraft, setCliConfigDirDraft] = useState('')
   const [defaultAgent, setDefaultAgent] = useState(() => {
     try { return localStorage.getItem('vibe-ide-default-agent') || '' } catch { return '' }
   })
@@ -986,6 +990,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors flex items-center gap-1.5"
                   onClick={() => {
                     setCliCommandDraft(cliCommand)
+                    setCliConfigDirDraft(cliConfigDir)
                     setDefaultAgentDraft(defaultAgent)
                     setShowCliConfigModal(true)
                     setShowConfigMenu(false)
@@ -1677,6 +1682,22 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     try { localStorage.setItem('vibe-ide-ai-cli-command', val) } catch {}
                   }}
                   placeholder="可选: claude, openclaude, opencc"
+                  className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                />
+              </label>
+              {/* AI Config Dir */}
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('Claude Config Dir')}</span>
+                <input
+                  type="text"
+                  value={cliConfigDirDraft}
+                  onChange={(e) => setCliConfigDirDraft(e.target.value)}
+                  onBlur={() => {
+                    const val = cliConfigDirDraft.trim()
+                    setCliConfigDir(val)
+                    try { localStorage.setItem('vibe-ide-ai-config-dir', val) } catch {}
+                  }}
+                  placeholder="~/.claude"
                   className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
               </label>
