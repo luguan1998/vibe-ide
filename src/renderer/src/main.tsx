@@ -55,6 +55,14 @@ async function bootstrap() {
     }
   } catch { /* 加载失败不阻断启动 */ }
 
+  try {
+    const root = document.documentElement
+    const mdf = localStorage.getItem('vibe-ide-md-font')
+    if (mdf) root.style.setProperty('--md-font-family', mdf)
+    const mds = localStorage.getItem('vibe-ide-md-font-size')
+    if (mds) root.style.setProperty('--md-font-size', mds + 'px')
+  } catch {}
+
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <ErrorBoundary>

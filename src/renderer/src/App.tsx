@@ -510,16 +510,6 @@ export default function App() {
       return localStorage.getItem('vibe-ide-term-font') || 'Consolas'
     } catch { return 'Consolas' }
   })
-  const [mdFontFamily, setMdFontFamily] = useState(() => {
-    try {
-      return localStorage.getItem('vibe-ide-md-font') || ''
-    } catch { return '' }
-  })
-  const [mdFontSize, setMdFontSize] = useState(() => {
-    try {
-      return parseInt(localStorage.getItem('vibe-ide-md-font-size') || '14', 10)
-    } catch { return 14 }
-  })
   const centerViewRef = React.useRef<CenterView>('terminal')
 
   // Keep ref in sync so IPC listener always sees latest centerView
@@ -699,22 +689,6 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-term-font', termFontFamily) } catch {}
   }, [termFontFamily])
-  React.useEffect(() => {
-    try { localStorage.setItem('vibe-ide-md-font', mdFontFamily) } catch {}
-  }, [mdFontFamily])
-  React.useEffect(() => {
-    if (mdFontFamily) {
-      document.documentElement.style.setProperty('--md-font-family', mdFontFamily)
-    } else {
-      document.documentElement.style.removeProperty('--md-font-family')
-    }
-  }, [mdFontFamily])
-  React.useEffect(() => {
-    try { localStorage.setItem('vibe-ide-md-font-size', String(mdFontSize)) } catch {}
-  }, [mdFontSize])
-  React.useEffect(() => {
-    document.documentElement.style.setProperty('--md-font-size', mdFontSize + 'px')
-  }, [mdFontSize])
   React.useEffect(() => {
     document.documentElement.style.setProperty('--ide-term-font', termFontFamily)
   }, [termFontFamily])
@@ -2325,10 +2299,6 @@ export default function App() {
             onSetUiFontFamily={setFontFamily}
             termFontFamily={termFontFamily}
             onSetTermFontFamily={setTermFontFamily}
-            mdFontFamily={mdFontFamily}
-            onSetMdFontFamily={setMdFontFamily}
-            mdFontSize={mdFontSize}
-            onSetMdFontSize={setMdFontSize}
             onResetUiStyle={() => {
               setTerminalFontSize(14)
               setEditorFontSize(14)
@@ -2339,8 +2309,6 @@ export default function App() {
               setSessionFontFamily('Consolas')
               setFontFamily('Consolas')
               setTermFontFamily('Consolas')
-              setMdFontFamily('')
-              setMdFontSize(14)
             }}
             focusSettingsTrigger={focusSettingsTrigger}
             onExecuteCommand={handleExecuteCommand}

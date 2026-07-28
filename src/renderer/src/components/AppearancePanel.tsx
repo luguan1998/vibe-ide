@@ -172,10 +172,6 @@ interface AppearancePanelProps {
   onSetUiFontFamily?: (f: string) => void
   termFontFamily?: string
   onSetTermFontFamily?: (f: string) => void
-  mdFontFamily?: string
-  onSetMdFontFamily?: (f: string) => void
-  mdFontSize?: number
-  onSetMdFontSize?: (n: number) => void
   terminalFontSize?: number
   onAdjustTerminalFontSize?: (delta: number) => void
   autoUtf8?: boolean
@@ -208,8 +204,6 @@ const AppearancePanel = function AppearancePanel({
   fontFamily = 'Consolas', onSetFontFamily,
   uiFontFamily = 'Consolas', onSetUiFontFamily,
   termFontFamily = 'Consolas', onSetTermFontFamily,
-  mdFontFamily = '', onSetMdFontFamily,
-  mdFontSize = 14, onSetMdFontSize,
   terminalFontSize = 14, onAdjustTerminalFontSize,
   autoUtf8 = true, onToggleAutoUtf8,
   cgEnabled = true, onToggleCgEnabled,
@@ -221,6 +215,21 @@ const AppearancePanel = function AppearancePanel({
 }: AppearancePanelProps) {
   const { themes, currentThemeId, setTheme } = useTheme()
   const { t } = useI18n()
+  const [mdFontFamily, setMdFontFamily] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-md-font') || '' } catch { return '' }
+  })
+  const [mdFontSize, setMdFontSize] = useState(() => {
+    try { return parseInt(localStorage.getItem('vibe-ide-md-font-size') || '14', 10) } catch { return 14 }
+  })
+  useEffect(() => {
+    if (mdFontFamily) document.documentElement.style.setProperty('--md-font-family', mdFontFamily)
+    else document.documentElement.style.removeProperty('--md-font-family')
+    try { localStorage.setItem('vibe-ide-md-font', mdFontFamily) } catch {}
+  }, [mdFontFamily])
+  useEffect(() => {
+    document.documentElement.style.setProperty('--md-font-size', mdFontSize + 'px')
+    try { localStorage.setItem('vibe-ide-md-font-size', String(mdFontSize)) } catch {}
+  }, [mdFontSize])
   const [activeCategory, setActiveCategory] = useState<CategoryId>('theme')
   const [dragOffset, setDragOffset] = useState({ x: 24, y: -24 })
   const dragRef = useRef<{ startX: number; startY: number; offX: number; offY: number } | null>(null)
@@ -386,7 +395,7 @@ const AppearancePanel = function AppearancePanel({
               <button
                 className="px-2.5 py-1 text-xs text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover rounded transition-colors flex items-center gap-1"
                 onMouseDown={(e) => e.stopPropagation()}
-                onClick={onResetUiStyle}
+                onClick={() => { onResetUiStyle?.(); setMdFontFamily(''); setMdFontSize(14) }}
               ><RotateCcw className="size-3" />{t('Reset Defaults')}</button>
             )}
             <button
@@ -639,31 +648,27 @@ const AppearancePanel = function AppearancePanel({
                   <span className="text-xs font-semibold text-ide-text-muted uppercase tracking-wide">{t('MD Preview')}</span>
                   <div className="flex-1 border-t border-ide-border/60" />
                 </div>
-                {onSetMdFontFamily && (
-                  <div className="flex items-start justify-between gap-3 py-2">
-                    <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-ide-text">{t('MD Font')}</span>
-                        <Pill zone="editor" />
-                      </div>
+                <div className="flex items-start justify-between gap-3 py-2">
+                  <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-ide-text">{t('MD Font')}</span>
+                      <Pill zone="editor" />
                     </div>
-                    <select
-                      className="shrink-0 bg-ide-hover border border-ide-border rounded text-sm text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent"
-                      value={mdFontFamily}
-                      onChange={(e) => onSetMdFontFamily(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={loadSystemFonts}
-                    >
-                      <option value="">{t('Inherit UI Font')}</option>
-                      {renderFontOptions(mdFontFamily, 'Consolas')}
-                    </select>
                   </div>
-                )}
-                {onSetMdFontSize && (
-                  <StepperRow labelKey="MD Font Size"
-                    value={mdFontSize} display={String(mdFontSize)} onDelta={(d) => onSetMdFontSize(mdFontSize + d)}
-                    min={8} max={30} zone="editor" />
-                )}
+                  <select
+                    className="shrink-0 bg-ide-hover border border-ide-border rounded text-sm text-ide-text px-1.5 py-0.5 outline-none focus:border-ide-accent"
+                    value={mdFontFamily}
+                    onChange={(e) => setMdFontFamily(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onFocus={loadSystemFonts}
+                  >
+                    <option value="">{t('Inherit UI Font')}</option>
+                    {renderFontOptions(mdFontFamily, 'Consolas')}
+                  </select>
+                </div>
+                <StepperRow labelKey="MD Font Size"
+                  value={mdFontSize} display={String(mdFontSize)} onDelta={(d) => setMdFontSize(mdFontSize + d)}
+                  min={8} max={30} zone="editor" />
               </div>
             )}
 

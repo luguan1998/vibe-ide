@@ -167,7 +167,7 @@ export const ChatMarkdown = React.memo(function ChatMarkdown({ text, className =
   }, [workspacePath, onOpenFile])
 
   return (
-    <div className={`ai-tab__markdown md-preview text-sm ${className}`} onClick={handleClick}>
+    <div className={`ai-tab__markdown md-preview ${className}`} onClick={handleClick}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={codeOverrides}>
         {cleanMessageContent(text)}
       </ReactMarkdown>
@@ -209,7 +209,7 @@ export function StreamingMarkdown({ text, className = '', workspacePath, onOpenF
   }, [workspacePath, onOpenFile])
 
   return (
-    <div className={`ai-tab__markdown ai-tab__markdown--streaming md-preview text-sm ${className}`} onClick={handleClick}>
+    <div className={`ai-tab__markdown ai-tab__markdown--streaming md-preview ${className}`} onClick={handleClick}>
       {safePart && (
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={codeOverrides}>
           {safePart}
@@ -975,7 +975,7 @@ function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, o
         onMouseEnter={() => { clearHideTimer(); setShowPopover(true) }}
         onMouseLeave={() => { hideTimerRef.current = setTimeout(() => setShowPopover(false), 300) }}
       >
-        <div className="ai-tab__user-bubble px-3 py-2 rounded-2xl bg-ide-accent/12 border-2 border-ide-accent/30 text-ide-text text-sm whitespace-pre-wrap">
+        <div className="ai-tab__user-bubble px-3 py-2 rounded-2xl bg-ide-accent/12 border-2 border-ide-accent/30 text-ide-text whitespace-pre-wrap">
           {cleanedContent}
         </div>
 
