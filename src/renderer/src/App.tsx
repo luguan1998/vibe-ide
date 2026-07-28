@@ -35,7 +35,7 @@ declare global {
     api: {
       terminal: {
         rename(id: string, newName: string): Promise<RenameTerminalResult>
-        create: (options?: { cwd?: string; name?: string; shell?: string; autoUtf8?: boolean }) => Promise<TerminalSession>
+        create: (options?: { cwd?: string; name?: string; shell?: string; autoUtf8?: boolean; initCommand?: string }) => Promise<TerminalSession>
         getShells: () => Promise<{ value: string; label: string }[]>
         setAutoApprove: (id: string, cwd: string, enabled: boolean) => Promise<{ success: boolean }>
         write: (id: string, data: string) => void
@@ -218,6 +218,10 @@ interface DiffFileState {
   revision: number          // 递增以强制 DiffViewer 重新加载内容
   compareOriginalContent?: string  // 文件对比模式：左侧文件内容
   compareOriginalPath?: string     // 文件对比模式：左侧文件路径
+}
+
+function readDefaultAgent(): string {
+  try { return localStorage.getItem('vibe-ide-default-agent') || '' } catch { return '' }
 }
 
 export default function App() {
@@ -1516,7 +1520,7 @@ export default function App() {
       setIsOpening(true)
       const dirResult = await window.api.workspace.pickDir()
       if (dirResult.canceled) return
-      const session = await window.api.terminal.create({ cwd: dirResult.path, shell, autoUtf8 })
+      const session = await window.api.terminal.create({ cwd: dirResult.path, shell, autoUtf8, initCommand: readDefaultAgent() })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
       setCenterView('terminal')
@@ -1532,7 +1536,7 @@ export default function App() {
   const handleCreateSessionAt = useCallback(async (cwd: string, shell: string = getMainShellType()) => {
     try {
       setIsOpening(true)
-      const session = await window.api.terminal.create({ cwd, shell, autoUtf8 })
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: readDefaultAgent() })
       setSessions(prev => [...prev, session])
       setActiveSessionId(session.id)
       setCenterView('terminal')
@@ -1580,7 +1584,8 @@ export default function App() {
   // Clone a terminal session (same cwd), insert below parent
   const handleCloneSession = useCallback(async (parentId: string | null, cwd: string, shell?: string, name?: string) => {
     try {
-      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name })
+      const fromGui = !!(parentId && sessionViewModes[parentId] === 'gui')
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name, initCommand: fromGui ? undefined : readDefaultAgent() })
       setSessions(prev => {
         if (parentId == null) return [...prev, session]
         const parentIndex = prev.findIndex(s => s.id === parentId)
@@ -1667,7 +1672,7 @@ export default function App() {
 
   const handleCloneWithInit = useCallback(async (sessionId: string, cwd: string, shell: string | undefined, command: string) => {
     try {
-      const session = await window.api.terminal.create({ cwd, shell, autoUtf8 })
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: command })
       setSessions(prev => {
         const parentIndex = prev.findIndex(s => s.id === sessionId)
         if (parentIndex === -1) return [...prev, session]
@@ -1678,51 +1683,16 @@ export default function App() {
       setActiveSessionId(session.id)
       setCenterView('terminal')
       setDiffFile(null)
-      const normalized = command.replace(/\r\n/g, '\n')
-      if (autoUtf8) {
-        setTimeout(() => {
-          window.api.terminal.write(session.id, normalized.replace(/\n/g, '\r'))
-        }, 600)
-      } else {
-        window.api.terminal.write(session.id, normalized.replace(/\n/g, '\r'))
-      }
     } catch (err) {
       console.error('Failed to clone with init:', err)
     }
   }, [autoUtf8])
 
-  // Init command: clone active session and write command into the new clone
   const handleInitCommand = useCallback(async (command: string) => {
     const activeSession = sessions.find(s => s.id === activeSessionId)
     if (!activeSession) return
-    try {
-      const session = await window.api.terminal.create({
-        cwd: activeSession.cwd,
-        shell: activeSession.shell,
-        autoUtf8
-      })
-      setSessions(prev => {
-        const parentIndex = prev.findIndex(s => s.id === activeSessionId)
-        if (parentIndex === -1) return [...prev, session]
-        const next = [...prev]
-        next.splice(parentIndex + 1, 0, session)
-        return next
-      })
-      setActiveSessionId(session.id)
-      setCenterView('terminal')
-      setDiffFile(null)
-      const normalized = command.replace(/\r\n/g, '\n')
-      if (autoUtf8) {
-        setTimeout(() => {
-          window.api.terminal.write(session.id, normalized.replace(/\n/g, '\r'))
-        }, 600)
-      } else {
-        window.api.terminal.write(session.id, normalized.replace(/\n/g, '\r'))
-      }
-    } catch (err) {
-      console.error('Failed to init session:', err)
-    }
-  }, [activeSessionId, sessions, autoUtf8])
+    await handleCloneWithInit(activeSession.id, activeSession.cwd, activeSession.shell, command)
+  }, [activeSessionId, sessions, handleCloneWithInit])
 
   // Close a terminal session
   const handleCloseSession = useCallback(async (id: string) => {

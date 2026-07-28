@@ -163,7 +163,7 @@ function resolveShell(shellType?: string): { shell: string; args: string[] } {
 // entry is still in `terminals`: PTY_CLOSE / cleanupTerminals delete the entry
 // synchronously before kill()'s async onExit fires, so a missing entry means the
 // user intended to close — emit PTY_EXIT and don't restart.
-function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUtf8: boolean, cols = 80, rows = 24): pty.IPty {
+function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUtf8: boolean, cols = 80, rows = 24, initCommand?: string): pty.IPty {
   const { shell, args } = resolveShell(shellType)
   const ptyProcess = pty.spawn(shell, args, {
     name: 'xterm-256color',
@@ -178,7 +178,7 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUt
     }) as Record<string, string>
   })
 
-  const doStartupInit = autoUtf8 !== false
+  const doStartupInit = autoUtf8 !== false || !!initCommand
   let startupDone = !doStartupInit
 
   ptyProcess.onData((data: string) => {
@@ -200,12 +200,19 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUt
         })
       }
       const shellName = shell.toLowerCase()
-      if (shellName.includes('powershell') || shellName.includes('pwsh')) {
-        try { managed.pty.write('chcp 65001 >$null\r') } catch {}
-        try { managed.pty.write('Clear-Host\r') } catch {}
-      } else if (shellName.includes('cmd')) {
-        try { managed.pty.write('chcp 65001 >nul\r') } catch {}
-        try { managed.pty.write('cls\r') } catch {}
+      if (autoUtf8) {
+        if (shellName.includes('powershell') || shellName.includes('pwsh')) {
+          try { managed.pty.write('chcp 65001 >$null\r') } catch {}
+          try { managed.pty.write('Clear-Host\r') } catch {}
+        } else if (shellName.includes('cmd')) {
+          try { managed.pty.write('chcp 65001 >nul\r') } catch {}
+          try { managed.pty.write('cls\r') } catch {}
+        }
+      }
+      if (initCommand) {
+        let cmd = initCommand.replace(/\r\n/g, '\n').replace(/\n/g, '\r')
+        if (!cmd.endsWith('\r')) cmd += '\r'
+        try { managed.pty.write(cmd) } catch {}
       }
     }, 600)
   }
@@ -295,7 +302,7 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
       const name = options.name || `Terminal ${terminals.size + 1}`
       const autoUtf8 = options.autoUtf8 !== false
 
-      const ptyProcess = spawnPty(id, cwd, options.shell, autoUtf8)
+      const ptyProcess = spawnPty(id, cwd, options.shell, autoUtf8, 80, 24, options.initCommand)
 
       const session: TerminalSession = {
         id,

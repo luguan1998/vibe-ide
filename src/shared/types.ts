@@ -213,6 +213,7 @@ export interface CreateTerminalOptions {
   name?: string
   shell?: string
   autoUtf8?: boolean
+  initCommand?: string
 }
 
 // Git types

@@ -373,6 +373,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     try { return localStorage.getItem('vibe-ide-ai-cli-command') || '' } catch { return '' }
   })
   const [cliCommandDraft, setCliCommandDraft] = useState('')
+  const [defaultAgent, setDefaultAgent] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-default-agent') || '' } catch { return '' }
+  })
+  const [defaultAgentDraft, setDefaultAgentDraft] = useState('')
   const [claudeGroups, setClaudeGroups] = useState<ClaudeConfigGroup[]>([])
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [showClaudeGroupEditModal, setShowClaudeGroupEditModal] = useState(false)
@@ -982,6 +986,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors flex items-center gap-1.5"
                   onClick={() => {
                     setCliCommandDraft(cliCommand)
+                    setDefaultAgentDraft(defaultAgent)
                     setShowCliConfigModal(true)
                     setShowConfigMenu(false)
                   }}
@@ -1614,8 +1619,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {/* CLI Configuration Modal — Shell Type + AI CLI Command */}
       {showCliConfigModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCliConfigModal(false)}>
-          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[400px] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[440px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-9 py-3 border-b border-ide-border shrink-0">
               <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Bot className="size-3.5" />{t('CLI Configuration')}</span>
               <button
                 className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
@@ -1624,7 +1629,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 ×
               </button>
             </div>
-            <div className="p-4 flex flex-col gap-4">
+            <div className="px-9 py-4 flex flex-col gap-4">
               {/* Shell Type */}
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-ide-text-muted">{t('Shell Type')}</span>
@@ -1672,6 +1677,21 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     try { localStorage.setItem('vibe-ide-ai-cli-command', val) } catch {}
                   }}
                   placeholder="可选: claude, openclaude, opencc"
+                  className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('Default Agent')}</span>
+                <input
+                  type="text"
+                  value={defaultAgentDraft}
+                  onChange={(e) => setDefaultAgentDraft(e.target.value)}
+                  onBlur={() => {
+                    const val = defaultAgentDraft.trim()
+                    setDefaultAgent(val)
+                    try { localStorage.setItem('vibe-ide-default-agent', val) } catch {}
+                  }}
+                  placeholder={t('Optional. Auto-run on new session (empty = disabled)')}
                   className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
               </label>
