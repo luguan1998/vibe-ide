@@ -1,5 +1,5 @@
 /*
-  Large Font — 放大 File / Git /cc gui面板字体
+  Large Font — 放大 File / Git面板字体
   文件夹 > 文件名，文件夹大写
 */
 
@@ -31,44 +31,3 @@
   font-size: 15px !important; 
 }
 
-/* AI 对话区 — 助手正文 / 用户气泡 / thinking / 代码块 */
-.ai-tab__markdown {
-  font-size: 15px !important;
-}
-
-.ai-tab__markdown pre,
-.ai-tab__markdown .md-code-block,
-.ai-tab__markdown table {
-  font-size: 14px !important;
-}
-
-.ai-tab__user-bubble {
-  font-size: 15px !important;
-}
-
-.ai-tab__thinking-text {
-  font-size: 14px !important;
-}
-
-/* Markdown 预览 */
-.md-preview {
-  font-size: 15px !important;
-}
-
-.md-preview pre,
-.md-preview .md-code-block,
-.md-preview table {
-  font-size: 14px !important;
-}
-
-.md-preview h1 {
-  font-size: 24px !important;
-}
-
-.md-preview h2 {
-  font-size: 20px !important;
-}
-
-.md-preview h3 {
-  font-size: 17px !important;
-}
