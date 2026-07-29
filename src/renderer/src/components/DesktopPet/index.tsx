@@ -292,7 +292,7 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
       )}
       {popupOpen && (
         <div className={`desktop-pet__bubbles${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}`}>
-          {sections.map(sec => (
+          {sections.map((sec, si) => (
             <div className="desktop-pet__bubble-section" key={sec.id}>
               {sec.items.map(it => (
                 <button
@@ -306,6 +306,16 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
                   <span className="desktop-pet__bubble-text">{it.label}</span>
                 </button>
               ))}
+              {si === 0 && (
+                <button
+                  className="desktop-pet__context-gear justify-self-end"
+                  style={{ gridColumn: 2 }}
+                  onClick={() => setConfigOpen(true)}
+                  title="配置速发键"
+                >
+                  <Settings size={14} />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -322,9 +332,6 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
             placeholder="输入命令，Enter 发送"
           />
           <div className="flex items-center gap-1 self-end">
-            <button className="desktop-pet__context-gear" onClick={() => setConfigOpen(true)} title="配置速发键">
-              <Settings size={14} />
-            </button>
             <button className="desktop-pet__context-gear" onClick={handleSend} title="Enter发送">
               <Send size={14} />
             </button>

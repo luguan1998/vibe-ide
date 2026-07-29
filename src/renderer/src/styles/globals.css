@@ -489,7 +489,7 @@ html, body, #root {
 }
 .desktop-pet__bubbles {
   position: absolute;
-  left: -62px;
+  left: -50px;
   width: 220px;
   display: flex;
   flex-direction: column;
@@ -565,7 +565,7 @@ html, body, #root {
 
 .desktop-pet__context {
   position: absolute;
-  left: -62px;
+  left: -50px;
   width: 220px;
   display: flex;
   flex-direction: column;
