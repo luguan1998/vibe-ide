@@ -979,7 +979,7 @@ function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, o
           {cleanedContent}
         </div>
 
-        {showPopover && userMessageIndex > 0 && !isInternal && (
+        {showPopover && userMessageIndex > 0 && !isInternal && !isBusy && (
           <div ref={popoverRef}
             className="ai-tab__user-popover absolute right-0 top-full mt-1 z-40
                        bg-ide-sidebar border border-ide-border rounded-lg shadow-lg
