@@ -161,7 +161,7 @@ const ZH_MAP: Record<string, string> = {
   // FileTab
   'New File': '新建文件',
   'New Folder': '新建文件夹',
-  'Open in Explorer': '打开文件所在位置',
+  'Open in Explorer': '打开文件位置',
   'Compare with Current': '放入左侧比较',
   'Delete': '删除',
   'Folder name': '文件夹名称',
@@ -297,12 +297,13 @@ const ZH_MAP: Record<string, string> = {
   'more files': '更多文件',
 
   // GitTab - File context menu
-  'Open in File Panel': '在 File 面板中打开',
-  'Open Containing Folder': '打开文件所在位置',
+  'Open in File Panel': '在 Dir 面板中打开',
+  'Open Containing Folder': '打开文件位置',
 
   // GitTab - Commit context menu
   'Copy Message': '复制提交信息',
   'Copy Hash': '复制哈希值',
+  'Copy Path': '复制文件路径',
 
   // GitTab - Section headers (keep English)
 

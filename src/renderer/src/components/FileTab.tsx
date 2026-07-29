@@ -626,6 +626,8 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
   const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; node: FileNode } | null>(null)
+  const [copied, setCopied] = useState(false)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ type: string; filePath: string; fileName: string } | null>(null)
   const [highlightedFilePath, setHighlightedFilePath] = useState<string | null>(null)
   // ── in-tree content search (reuses search.grep) ──
@@ -1245,6 +1247,16 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     await window.api.file.openExplorer(node.path)
   }, [])
 
+  const handleCopyFilePath = useCallback((path: string) => {
+    navigator.clipboard.writeText(path)
+    setCopied(true)
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+    copyTimerRef.current = setTimeout(() => {
+      setCopied(false)
+      setFileContextMenu(null)
+    }, 600)
+  }, [])
+
   const handleCut = useCallback((node: FileNode) => {
     setFileContextMenu(null)
     setFileClipboard({ path: node.path, name: node.name, operation: 'cut' })
@@ -1604,12 +1616,30 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
             </>
           ) : (
             <>
-              <button
-                className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
-                onClick={() => handleOpenExplorer(fileContextMenu.node)}
-              >
-                {t('Open in Explorer')}
-              </button>
+              <div className="flex items-center">
+                <button
+                  className="flex-1 px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                  onClick={() => handleOpenExplorer(fileContextMenu.node)}
+                >
+                  {t('Open in Explorer')}
+                </button>
+                <button
+                  className="px-2 py-1.5 text-ide-text-muted hover:text-ide-accent hover:bg-ide-hover shrink-0"
+                  title={t('Copy Path')}
+                  onClick={() => handleCopyFilePath(fileContextMenu.node.path)}
+                >
+                  {copied ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-success">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               {onCompareWithCurrent && currentEditFilePath && currentEditFilePath !== fileContextMenu.node.path && (
                 <>
                   <div className="border-t border-ide-border my-1" />
