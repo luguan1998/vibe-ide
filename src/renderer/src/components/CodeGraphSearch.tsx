@@ -456,7 +456,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
             <div className="border-t border-ide-border px-3 py-3 text-center">
               <div className="text-xs text-ide-text-muted/70 mb-2">{t('CodeGraph CLI is not installed')}</div>
               <div className="text-[11px] text-ide-text-muted/50 bg-ide-hover/50 rounded px-2 py-1 font-mono select-all">
-                npm install -g @colbymchenry/codegraph@1.0.1
+                npm install -g @colbymchenry/codegraph@latest
               </div>
             </div>
           )}

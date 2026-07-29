@@ -19,8 +19,7 @@ let pendingRebuild = false
 let rebuildCooldownUntil = 0
 let _moduleDirCache: string | null | undefined = undefined
 
-const CODEGRAPH_REQUIRED_VERSION = '1.0.1'
-const CODEGRAPH_INSTALL_CMD = `npm install -g @colbymchenry/codegraph@${CODEGRAPH_REQUIRED_VERSION}`
+const CODEGRAPH_INSTALL_CMD = `npm install -g @colbymchenry/codegraph@latest`
 
 /** Check if codegraph CLI is available in PATH */
 function isCodegraphCliAvailable(): boolean {
