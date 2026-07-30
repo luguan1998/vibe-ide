@@ -949,11 +949,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
             idleTimerRef.current = setTimeout(() => {
               if (Date.now() - lastOutputRef.current >= IDLE_THRESHOLD) {
                 prevStatusRef.current = 'idle'
-                onAgentStatusChangeRef.current!(sessionId, 'idle')
-              }
-              if (activationStartRef.current > 0 &&
-                  Date.now() - lastOutputRef.current >= IDLE_THRESHOLD + RUNNING_DEBOUNCE) {
                 activationStartRef.current = 0
+                onAgentStatusChangeRef.current!(sessionId, 'idle')
               }
               idleTimerRef.current = null
             }, IDLE_THRESHOLD)
