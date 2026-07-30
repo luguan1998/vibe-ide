@@ -73,6 +73,16 @@ function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 
   return 'default'
 }
 
+function isMergeTool(name: string): boolean {
+  const c = getToolCategory(name)
+  return c === 'search' || c === 'web' || c === 'command'
+}
+
+function isPureToolMessage(msg: AiMessage): boolean {
+  return !msg.parentToolUseId && !msg.error && msg.role !== 'user'
+    && !!msg.toolUse && msg.toolUse.length > 0 && !msg.content && !msg.thinking
+}
+
 const DIFF_LANG_MAP: Record<string, string> = {
   'ts': 'typescript', 'tsx': 'typescript', 'mts': 'typescript', 'cts': 'typescript',
   'js': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript', 'jsx': 'javascript',
@@ -277,7 +287,9 @@ function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web
   if (category === 'question') return <HelpCircle className={cls} />
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
-      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+      <g transform="translate(12 12) scale(1.00) translate(-12 -12)">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+      </g>
     </svg>
   )
 }
@@ -1055,7 +1067,7 @@ function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScroll }: { 
         onClick={() => setOpen(v => !v)}
         className="ai-tab__thinking-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
       >
-        <span className="shrink-0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3" aria-labelledby="lightBulbIconTitle">
+        <span className="shrink-0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 shrink-0" aria-labelledby="lightBulbIconTitle">
           <title id="lightBulbIconTitle">Light Bulb</title>
           <path d="M16 12C15.3333333 12.6666667 15 14 15 16L15 17 9 17 9 16C9 14 8.66666667 12.6666667 8 12 5.6739597 9.6739597 5.41421356 6.10050506 7.75735931 3.75735931 10.1005051 1.41421356 13.8994949 1.41421356 16.2426407 3.75735931 18.5857864 6.10050506 18.4068484 9.59315157 16 12zM10 21L14 21"/>
         </svg></span>
@@ -2364,24 +2376,65 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           const userMessages = state.messages.filter(m => m.role === 'user' && m.content && m.type === 'user')
           const totalUserMessages = userMessages.length
 
-          const groups: Array<{ type: 'agent'; messages: AiMessage[]; parentId: string; startIndex: number } | { type: 'msg'; message: AiMessage; index: number }> = []
+          const groups: Array<
+            | { type: 'agent'; messages: AiMessage[]; parentId: string; startIndex: number }
+            | { type: 'msg'; message: AiMessage; index: number }
+            | { type: 'readSummary'; tools: AiToolUse[]; firstToolId: string }
+            | { type: 'toolCard'; tool: AiToolUse }
+          > = []
+          const hideTools = viewMode === 1 || viewMode === 2
+          const readBuffer: AiToolUse[] = []
+          let firstToolId = ''
+          const flushReads = () => {
+            if (readBuffer.length === 0) return
+            if (hideTools) { readBuffer.length = 0; firstToolId = ''; return }
+            if (readBuffer.length >= 2) {
+              groups.push({ type: 'readSummary', tools: [...readBuffer], firstToolId })
+            } else {
+              groups.push({ type: 'toolCard', tool: readBuffer[0] })
+            }
+            readBuffer.length = 0
+            firstToolId = ''
+          }
           for (let i = 0; i < state.messages.length; i++) {
             const msg = state.messages[i]
             if (msg.parentToolUseId) {
+              flushReads()
               const prev = groups[groups.length - 1]
               if (prev && prev.type === 'agent' && prev.parentId === msg.parentToolUseId) {
                 prev.messages.push(msg)
               } else {
                 groups.push({ type: 'agent', messages: [msg], parentId: msg.parentToolUseId, startIndex: i })
               }
+              continue
+            }
+            const isStreamingLast = i === state.messages.length - 1 && state.busy
+            if (isPureToolMessage(msg) && !isStreamingLast) {
+              for (const tool of msg.toolUse ?? []) {
+                if (isMergeTool(tool.name)) {
+                  if (readBuffer.length === 0) firstToolId = tool.id
+                  readBuffer.push(tool)
+                } else {
+                  flushReads()
+                  if (!hideTools) groups.push({ type: 'toolCard', tool })
+                }
+              }
             } else {
+              flushReads()
               groups.push({ type: 'msg', message: msg, index: i })
             }
           }
+          flushReads()
 
           return groups.map((item, gi) => {
             if (item.type === 'agent') {
               return <CollapsibleAgentGroup key={`agent-${item.startIndex}`} messages={item.messages} workspacePath={workspacePath} onOpenFile={onOpenFile} viewMode={viewMode} />
+            }
+            if (item.type === 'readSummary') {
+              return <CollapsedToolsSummary key={`read-${item.firstToolId}`} tools={item.tools} />
+            }
+            if (item.type === 'toolCard') {
+              return <AiToolCallCard key={`tool-${item.tool.id}`} tool={item.tool} />
             }
             const msg = item.message
             const uIdx = msg.role === 'user' && msg.content && msg.type === 'user'
