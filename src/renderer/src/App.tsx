@@ -299,7 +299,6 @@ export default function App() {
   const [codeSearchFocusTrigger, setCodeSearchFocusTrigger] = useState(0)
   const [exploreResult, setExploreResult] = useState<{ query: string; content: string } | null>(null)
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
-  const searchBtnRef = useRef<HTMLButtonElement>(null)
 
   const showCodeSearchRef = useRef(false); showCodeSearchRef.current = showCodeSearch
   const showSearchDropdownRef = useRef(false); showSearchDropdownRef.current = showSearchDropdown
@@ -2183,7 +2182,6 @@ export default function App() {
         </button>
         <div className="flex-1" />
         <button
-          ref={searchBtnRef}
           className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${showSearchDropdown ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
           style={{ marginRight: 16 }}
           onClick={() => setShowSearchDropdown(true)}
@@ -2638,29 +2636,31 @@ export default function App() {
       />
 
       {/* Search Dropdown — titlebar 搜索图标浮窗 */}
-      {showSearchDropdown && (
-        <div className="fixed inset-0 z-50" onClick={() => setShowSearchDropdown(false)}>
-          <div
-            className="absolute bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl flex flex-col overflow-hidden animate-fade-in"
-            style={{
-              top: 40,
-              right: 16,
-              width: 480,
-              maxHeight: 'calc(100vh - 56px)',
+      <div
+        className="fixed inset-0 z-50"
+        style={{ display: showSearchDropdown ? 'block' : 'none' }}
+        onClick={() => setShowSearchDropdown(false)}
+      >
+        <div
+          className="absolute bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+          style={{
+            top: 40,
+            right: 16,
+            width: 480,
+            maxHeight: 'calc(100vh - 56px)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <SearchPanel
+            cwd={activeSessionCwd}
+            onOpenFile={(fullPath, lineNumber) => {
+              handleOpenSearchResult(fullPath, lineNumber)
             }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <SearchPanel
-              cwd={activeSessionCwd}
-              onOpenFile={(fullPath, lineNumber) => {
-                handleOpenSearchResult(fullPath, lineNumber)
-              }}
-              focusTrigger={searchFocusTrigger}
-              onExploreNode={(node: any) => setCallGraphFocalNode(node)}
-            />
-          </div>
+            focusTrigger={searchFocusTrigger}
+            onExploreNode={(node: any) => setCallGraphFocalNode(node)}
+          />
         </div>
-      )}
+      </div>
 
       {/* Call Graph Overlay — rendered at App level like NavBar to stay on top */}
       {callGraphFocalNode && (

@@ -165,6 +165,8 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
   const smartCtxMenuRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const prevCwdRef = useRef<string | null>(cwd)
+  const cwdRef = useRef<string | null>(cwd); cwdRef.current = cwd
 
   // Smart context menu dismiss
   useEffect(() => {
@@ -215,6 +217,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
     setSearching(true); setError(null)
     try {
       const r = await window.api.code.findRelevantContext(q.trim(), { searchLimit: 10, traversalDepth: 2, maxNodes: 30 })
+      if (cwdRef.current !== cwd) { setSearching(false); return }
       if (r.error) { setSmartResults([]); setSmartRoots(new Set()); setSmartConfidence(undefined); setError(r.error) }
       else {
         const rootSet = new Set(r.roots || [])
@@ -249,6 +252,7 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
         wholeWord,
         include: includePattern || undefined
       })
+      if (cwdRef.current !== cwd) { setSearching(false); return }
       setResults(result.matches)
       setTotal(result.total)
       setTruncated(result.truncated)
@@ -269,8 +273,27 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
     }
   }, [doSearch, mode])
 
-  // Re-search when options change
+  // cwd 切换清空结果；选项/查询变化重新搜索
   useEffect(() => {
+    if (prevCwdRef.current !== cwd) {
+      prevCwdRef.current = cwd
+      if (searchTimer.current) clearTimeout(searchTimer.current)
+      setResults([])
+      setTotal(0)
+      setTruncated(false)
+      setSearching(false)
+      setError(null)
+      setExcludedFiles(new Set())
+      setReplaceResult(null)
+      setShowReplaceConfirm(false)
+      setCollapsedFiles(new Set())
+      setSmartResults([])
+      setSmartRoots(new Set())
+      setSmartConfidence(undefined)
+      setQuery('')
+      setReplacement('')
+      return
+    }
     if (query.trim()) {
       if (searchTimer.current) clearTimeout(searchTimer.current)
       searchTimer.current = setTimeout(() => doSearch(query), 100)

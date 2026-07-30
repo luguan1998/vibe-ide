@@ -562,7 +562,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }
 
   useEffect(() => {
-    const handleClick = () => { setContextMenu(null); setEmptyAreaMenu(null) }
+    const handleClick = () => {
+      setContextMenu(null)
+      setEmptyAreaMenu(null)
+      setCloneSubmenu(null)
+      if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
+    }
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
   }, [])
@@ -703,11 +708,17 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const handleContextMenu = (e: React.MouseEvent, sessionId: string) => {
     e.preventDefault()
     e.stopPropagation()
+    setEmptyAreaMenu(null)
+    setCloneSubmenu(null)
+    if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
     setContextMenu({ x: e.clientX, y: e.clientY, sessionId })
   }
 
   const handleEmptyAreaContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
+    setContextMenu(null)
+    setCloneSubmenu(null)
+    if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
     setEmptyAreaMenu({ x: e.clientX, y: e.clientY })
   }
 
