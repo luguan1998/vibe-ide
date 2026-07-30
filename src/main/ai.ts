@@ -105,6 +105,9 @@ export function parseUserTurns(lines: string[]): UserTurn[] {
 }
 
 export const aiSessions = new Map<string, ManagedAiSession>()
+// TEMP: one-time log per session confirming sub-agent thinking_delta carries the parent marker
+// (so the live-buffer suppression in stream_event is actually hitting). Remove once confirmed.
+const subagentThinkingProbeDone = new Set<string>()
 // Reverse map: CLI session ID (e.g. "claude-xxx") → renderer session ID ("term-xxxxx")
 // Used by loadSessionMessages to look up contextWindow from the correct aiSessions entry.
 const cliSessionToRenderer = new Map<string, string>()
@@ -373,7 +376,10 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       // CLI emits intermediate assistant messages after each content block.
       // All are sent through — thinking-only messages preserve per-turn thinking.
       if (textParts.length === 0 && toolUses.length === 0 && thinkingParts.length === 0) break
-      const parentToolUseId = msg.message?.parent_tool_use_id
+      // Sub-agent (Task/Agent) assistant messages carry parent_tool_use_id. The CLI transcript
+      // uses top-level linking fields (isSidechain/parentUuid), so the stream field may sit at
+      // top level (msg.parent_tool_use_id) rather than under msg.message — read both.
+      const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
       const session = aiSessions.get(sessionId)
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
@@ -401,7 +407,20 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         if (deltaType === 'text_delta' && delta.text) {
           send(IPC_CHANNELS.AI_STREAM_TOKEN, { sessionId, token: delta.text })
         } else if (deltaType === 'thinking_delta' && delta.thinking) {
-          send(IPC_CHANNELS.AI_STREAM_TOKEN, { sessionId, token: delta.thinking, kind: 'thinking' })
+          // Sub-agent thinking would otherwise stream into the main thinkingBuffer and expand
+          // live at top level. The CLI puts the sub-agent marker at top-level
+          // (msg.parent_tool_use_id), same as assistant messages — when present, skip the token
+          // so sub-agent thinking stays collapsed inside its (collapsed) agent group unless the
+          // user expands it. Main-agent thinking (no marker) streams as before.
+          const subParent = msg.parent_tool_use_id || msg.message?.parent_tool_use_id
+          if (subParent) {
+            if (!subagentThinkingProbeDone.has(sessionId)) {
+              subagentThinkingProbeDone.add(sessionId)
+              console.log(`[STK ${sessionId}] sub-agent thinking_delta carries parent marker — suppressed from live buffer`)
+            }
+          } else {
+            send(IPC_CHANNELS.AI_STREAM_TOKEN, { sessionId, token: delta.thinking, kind: 'thinking' })
+          }
         }
         // Skip signature_delta, input_json_delta — not for live display
       }
@@ -504,6 +523,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       // User-initiated cancel: treat result as aborted, not error
       const wasCancelled = session?.cancelRequested
       if (wasCancelled) session!.cancelRequested = false
+      const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
         type: 'result',
@@ -513,6 +533,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         costUsd: msg.total_cost_usd,
         durationMs: msg.duration_ms,
         numTurns: msg.num_turns,
+        parentToolUseId: parentToolUseId || undefined,
         // result.usage is cumulative across the turn — omit so renderer keeps last assistant value
         timestamp: Date.now(),
       })
@@ -525,6 +546,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       if (Array.isArray(content)) {
         for (const block of content) {
           if (block.type === 'tool_result') {
+            const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
             send(IPC_CHANNELS.AI_MESSAGE, {
               sessionId,
               type: 'user',
@@ -534,6 +556,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
                 content: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
                 isError: block.is_error || false,
               },
+              parentToolUseId: parentToolUseId || undefined,
               timestamp: Date.now(),
             })
           }
@@ -652,45 +675,43 @@ function getContextWindowForCliSession(cliSessionId: string): number | undefined
   return rendererId ? aiSessions.get(rendererId)?.contextWindow : undefined
 }
 
-async function loadSessionMessages(resumeSessionId: string, cwd: string, configDir?: string): Promise<{
+interface TranscriptParseResult {
   messages: AiMessage[]
   model: string
   slashCommands: string[]
-}> {
-  const projectDir = resolveProjectDir(cwd, configDir)
-  if (!projectDir) return { messages: [], model: '', slashCommands: [] }
+}
 
-  const jsonlPath = join(projectDir, `${resumeSessionId}.jsonl`)
-  let content: string
-  try { content = await readFile(jsonlPath, 'utf-8') } catch { return { messages: [], model: '', slashCommands: [] } }
-
-  const lines = content.split('\n').filter(Boolean)
+// Parse transcript JSONL lines (main session or sub-agent sidecar) into AiMessage[].
+// Local toolUseIndex per call → no id collisions across main + sidecars. parentToolUseId
+// stamps sub-agent messages so MessageList groups them under the parent Agent tool_use.
+// allowSidechain=false (main) skips stray isSidechain lines; true (sidecar) keeps them
+// (sidecar lines are all isSidechain). turnByLine (main only) emits reconstructed user turns
+// at their line index for revert-index alignment; absent (sidecar) → user-string lines
+// (the sub-agent task prompt) are skipped.
+function parseTranscriptLines(
+  lines: string[],
+  sid: string,
+  opts: { parentToolUseId?: string; allowSidechain?: boolean; turnByLine?: Map<number, UserTurn> }
+): TranscriptParseResult {
   const messages: AiMessage[] = []
   let model = ''
   const slashCommands: string[] = []
-
-  // Track tool_use IDs so we can merge tool_result into them
   const toolUseIndex = new Map<string, { msgIdx: number; toolIdx: number }>()
-
-  // User turns from parseUserTurns — single source of truth shared with revert truncation,
-  // so resume display and revert cut point stay aligned (slash groups collapse to 1 even
-  // when a failing /model interleaves a type=system error line mid-group).
-  const turnByLine = new Map<number, UserTurn>()
-  for (const t of parseUserTurns(lines)) turnByLine.set(t.lineIdx, t)
+  const allowSidechain = opts.allowSidechain ?? false
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const line = lines[lineIdx]
     let msg: any
     try { msg = JSON.parse(line) } catch { continue }
 
-    // Skip non-conversation lines
     if (['permission-mode', 'file-history-snapshot', 'stream_event', 'content_block_delta',
       'content_block_start', 'content_block_stop', 'message_start', 'message_delta',
       'message_stop', 'keep_alive', 'control_cancel_request', 'tool_progress',
       'permission_request', 'control_request', 'attachment'].includes(msg.type)) continue
 
+    if (!allowSidechain && msg.isSidechain === true) continue
+
     const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now()
-    const sid = resumeSessionId
 
     if (msg.type === 'system') {
       if (msg.subtype === 'init') {
@@ -705,8 +726,8 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string, configD
     // User turn (plain text or reconstructed slash group) — sourced from parseUserTurns so
     // the count matches revert truncation exactly; slash-group continuation lines are skipped
     // in the msg.type==='user' branch below.
-    if (turnByLine.has(lineIdx)) {
-      const turn = turnByLine.get(lineIdx)!
+    if (opts.turnByLine && opts.turnByLine.has(lineIdx)) {
+      const turn = opts.turnByLine.get(lineIdx)!
       messages.push({
         sessionId: sid, type: 'user', role: 'user',
         messageId: msg.message?.id,
@@ -727,7 +748,6 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string, configD
         else if (block.type === 'tool_use') {
           const tu: AiToolUse = { id: block.id, name: block.name, input: block.input }
           toolUses.push(tu)
-          // Record position so we can merge tool_result later
           toolUseIndex.set(block.id, { msgIdx: messages.length, toolIdx: toolUses.length - 1 })
         }
       }
@@ -742,6 +762,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string, configD
         content: assistantContent,
         thinking: assistantThinking,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
+        parentToolUseId: opts.parentToolUseId,
         contextPercent: calcContextPercent(msg.message?.usage, getContextWindowForCliSession(sid)),
         timestamp: ts,
       })
@@ -753,7 +774,6 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string, configD
       // String user lines: plain text and slash-group heads are already emitted by the
       // turnByLine branch above; slash-group continuation lines (cleanText empty) are skipped.
       if (typeof userContent === 'string') continue
-      // Array content: may contain tool_result blocks
       if (Array.isArray(userContent)) {
         for (const block of userContent) {
           if (block.type === 'tool_result') {
@@ -761,18 +781,15 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string, configD
             const resultContent = typeof block.content === 'string' ? block.content : JSON.stringify(block.content)
             const result: AiToolResult = { toolUseId, content: resultContent, isError: block.is_error || false }
 
-            // Merge into existing assistant message's toolUse if found
             const pos = toolUseIndex.get(toolUseId)
             if (pos) {
               const existingMsg = messages[pos.msgIdx]
               if (existingMsg.toolUse) {
                 existingMsg.toolUse[pos.toolIdx] = { ...existingMsg.toolUse[pos.toolIdx], result }
               }
-              // No separate AiMessage for merged tool_result
             }
           }
         }
-        // If the user content also has a text part (rare), add as user message
         const textPart = userContent.find(b => b.type === 'text')
         if (textPart) {
           messages.push({
@@ -789,6 +806,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string, configD
         messages.push({
           sessionId: sid, type: 'result',
           error: msg.errors?.join('\n') || msg.result || 'Unknown error',
+          parentToolUseId: opts.parentToolUseId,
           timestamp: ts,
         })
       } else {
@@ -798,7 +816,7 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string, configD
           costUsd: msg.total_cost_usd,
           numTurns: msg.num_turns,
           durationMs: msg.duration_ms,
-          // result.usage is cumulative across the turn — see handleNdjsonMessage result case
+          parentToolUseId: opts.parentToolUseId,
           timestamp: ts,
         })
       }
@@ -807,6 +825,69 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string, configD
   }
 
   return { messages, model, slashCommands }
+}
+
+// Recursively inline sub-agent sidecar transcripts under their parent Agent tool_use.
+// The CLI stores each sub-agent's full transcript in
+// <projectDir>/<sessionId>/subagents/agent-<agentId>.jsonl (isSidechain:true), NOT inline in
+// the main jsonl. The Agent tool_result text carries "agentId: <hex>" which maps to the
+// sidecar filename. We parse each sidecar with parentToolUseId = the Agent tool_use id so
+// MessageList groups the sub-agent's messages under the Agent card. Depth-limited (5) as a
+// runaway-recursion backstop. Missing/unreadable sidecars are skipped (graceful degradation).
+async function inlineSubagents(
+  messages: AiMessage[],
+  projectDir: string,
+  parentSessionId: string,
+  depth: number
+): Promise<void> {
+  if (depth > 5) return
+
+  const insertions: Array<{ afterIdx: number; msgs: AiMessage[] }> = []
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]
+    if (!msg.toolUse) continue
+    for (const tool of msg.toolUse) {
+      if (tool.name !== 'Agent' || !tool.result?.content) continue
+      const m = /agentId:\s*([0-9a-f]{8,})/i.exec(tool.result.content)
+      if (!m) continue
+      const sidecarPath = join(projectDir, parentSessionId, 'subagents', `agent-${m[1]}.jsonl`)
+      let sidecarContent: string
+      try { sidecarContent = await readFile(sidecarPath, 'utf-8') } catch { continue }
+      const parsed = parseTranscriptLines(sidecarContent.split('\n').filter(Boolean), parentSessionId, {
+        parentToolUseId: tool.id,
+        allowSidechain: true,
+      })
+      insertions.push({ afterIdx: i, msgs: parsed.messages })
+      await inlineSubagents(parsed.messages, projectDir, parentSessionId, depth + 1)
+    }
+  }
+
+  for (let k = insertions.length - 1; k >= 0; k--) {
+    messages.splice(insertions[k].afterIdx + 1, 0, ...insertions[k].msgs)
+  }
+}
+
+async function loadSessionMessages(resumeSessionId: string, cwd: string, configDir?: string): Promise<{
+  messages: AiMessage[]
+  model: string
+  slashCommands: string[]
+}> {
+  const projectDir = resolveProjectDir(cwd, configDir)
+  if (!projectDir) return { messages: [], model: '', slashCommands: [] }
+
+  const jsonlPath = join(projectDir, `${resumeSessionId}.jsonl`)
+  let content: string
+  try { content = await readFile(jsonlPath, 'utf-8') } catch { return { messages: [], model: '', slashCommands: [] } }
+
+  const lines = content.split('\n').filter(Boolean)
+  const turnByLine = new Map<number, UserTurn>()
+  for (const t of parseUserTurns(lines)) turnByLine.set(t.lineIdx, t)
+
+  const parsed = parseTranscriptLines(lines, resumeSessionId, { allowSidechain: false, turnByLine })
+  await inlineSubagents(parsed.messages, projectDir, resumeSessionId, 0)
+
+  return { messages: parsed.messages, model: parsed.model, slashCommands: parsed.slashCommands }
 }
 
 // Attach all process event handlers (stdout/stderr/error/exit) to a spawned Claude CLI process.

@@ -463,16 +463,22 @@ export function MessageList({ messages, userTurns, viewMode, busy, workspacePath
     readBuffer.length = 0
     firstToolId = ''
   }
+  // Async sub-agents (and the main agent) interleave in the live stream, so consecutive-
+  // same-parent grouping would split one agent into many fragments. Map each parentToolUseId
+  // to a single agent group; all of that parent's messages collect into it at first-occurrence
+  // position (right after the spawning Agent tool_use card), regardless of interleaving.
+  const agentGroupByParent = new Map<string, { type: 'agent'; messages: AiMessage[]; parentId: string; startIndex: number }>()
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
     if (msg.parentToolUseId) {
       flushReads()
-      const prev = groups[groups.length - 1]
-      if (prev && prev.type === 'agent' && prev.parentId === msg.parentToolUseId) {
-        prev.messages.push(msg)
-      } else {
-        groups.push({ type: 'agent', messages: [msg], parentId: msg.parentToolUseId, startIndex: i })
+      let g = agentGroupByParent.get(msg.parentToolUseId)
+      if (!g) {
+        g = { type: 'agent', messages: [], parentId: msg.parentToolUseId, startIndex: i }
+        agentGroupByParent.set(msg.parentToolUseId, g)
+        groups.push(g)
       }
+      g.messages.push(msg)
       continue
     }
     const isStreamingLast = i === messages.length - 1 && busy
