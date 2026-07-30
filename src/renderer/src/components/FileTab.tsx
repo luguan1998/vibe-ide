@@ -1655,6 +1655,19 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 </>
               )}
               <div className="border-t border-ide-border my-1" />
+              {fileClipboard && (
+                <button
+                  className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+                  onClick={() => {
+                    const p = fileContextMenu.node.path
+                    const sep = p.includes('\\') ? '\\' : '/'
+                    const idx = p.lastIndexOf(sep)
+                    handlePaste(idx > 0 ? p.slice(0, idx) : p)
+                  }}
+                >
+                  {t('Paste')} ({fileClipboard.operation === 'cut' ? t('Move') : t('Copy')}: {fileClipboard.name})
+                </button>
+              )}
               <button
                 className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
                 onClick={() => handleCut(fileContextMenu.node)}

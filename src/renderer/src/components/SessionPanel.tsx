@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Shield, ShieldCheck, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter } from 'lucide-react'
 import { useI18n } from '../i18n'
+import { readAiCliConfig } from '../aiStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import { getMainShellType, setMainShellType, getAuxShellType, setAuxShellType } from '@renderer/utils/shellPrefs'
 import SettingsPanel from './SettingsPanel'
@@ -126,6 +127,12 @@ function dirNameOf(path: string): string {
   return parts[parts.length - 1] ?? path
 }
 
+function formatBytes(n: number): string {
+  if (n < 1000) return `${n} B`
+  if (n < 1000000) return `${(n / 1000).toFixed(1)} kB`
+  return `${(n / 1000000).toFixed(1)} MB`
+}
+
 function loadRecentDirs(): string[] {
   try {
     const raw = localStorage.getItem('vibe-ide-recent-dirs')
@@ -242,8 +249,7 @@ interface SessionPanelProps {
   onReorderGroup?: (fromGroupIndex: number, toGroupIndex: number) => void
   commandHistory?: Record<string, string[]>
   agentStatus?: Record<string, 'running' | 'idle' | 'warn'>
-  autoApproveSessions?: Record<string, boolean>
-  onToggleAutoApprove?: (sessionId: string, cwd: string) => void
+  onResumeClaudeHistory?: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResetCache?: (sessionId: string) => void
   pollingEnabled?: boolean
   onTogglePolling?: (value: boolean) => void
@@ -312,8 +318,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onReorderGroup,
   commandHistory = {},
   agentStatus = {},
-  autoApproveSessions = {},
-  onToggleAutoApprove,
+  onResumeClaudeHistory,
   onResetCache,
   pollingEnabled = false,
   onTogglePolling,
@@ -455,6 +460,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [appendCmdSessionId, setAppendCmdSessionId] = useState<string | null>(null)
   const [appendCmdDraft, setAppendCmdDraft] = useState('')
   const appendCmdAnchorYRef = useRef(0)
+
+  const [claudeHistorySession, setClaudeHistorySession] = useState<TerminalSession | null>(null)
+  const [claudeHistoryList, setClaudeHistoryList] = useState<any[]>([])
+  const [claudeHistoryLoading, setClaudeHistoryLoading] = useState(false)
+  const [claudeHistoryError, setClaudeHistoryError] = useState('')
+  const claudeHistoryReqIdRef = useRef(0)
+  const [claudeHistoryMode, setClaudeHistoryMode] = useState<'tui' | 'gui'>('tui')
 
   const hourglassSvg = (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-text-muted">
@@ -729,10 +741,64 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   const recentTop = recentFiles.slice(0, 4)
 
+  const fetchClaudeHistory = useCallback(async (cwd: string) => {
+    const reqId = ++claudeHistoryReqIdRef.current
+    setClaudeHistoryLoading(true)
+    setClaudeHistoryError('')
+    try {
+      const { configDir } = readAiCliConfig()
+      const r = await window.api.ai.listSessions(cwd || undefined, configDir)
+      if (claudeHistoryReqIdRef.current !== reqId) return
+      setClaudeHistoryList(r.sessions || [])
+    } catch (e: any) {
+      if (claudeHistoryReqIdRef.current !== reqId) return
+      setClaudeHistoryError(e?.message || '加载失败')
+    } finally {
+      if (claudeHistoryReqIdRef.current === reqId) setClaudeHistoryLoading(false)
+    }
+  }, [])
+
+  const closeClaudeHistory = useCallback(() => {
+    claudeHistoryReqIdRef.current++
+    setClaudeHistorySession(null)
+    setClaudeHistoryList([])
+    setClaudeHistoryError('')
+    setClaudeHistoryLoading(false)
+  }, [])
+
+  const openClaudeHistory = useCallback((session: TerminalSession) => {
+    setClaudeHistorySession(session)
+    setClaudeHistoryList([])
+    setClaudeHistoryError('')
+    fetchClaudeHistory(session.cwd)
+  }, [fetchClaudeHistory])
+
+  const selectClaudeHistory = useCallback((s: any) => {
+    if (!claudeHistorySession) return
+    const cwd = claudeHistorySession.cwd
+    const historySessionId = s.session_id || s.id
+    const name = s.name && s.name !== historySessionId ? s.name : ''
+    closeClaudeHistory()
+    onResumeClaudeHistory?.(historySessionId, cwd, name, claudeHistoryMode)
+  }, [claudeHistorySession, onResumeClaudeHistory, closeClaudeHistory, claudeHistoryMode])
+
+  useEffect(() => {
+    if (!claudeHistorySession) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        closeClaudeHistory()
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [claudeHistorySession, closeClaudeHistory])
+
   const renderSessionItem = (
     session: TerminalSession,
     dragIdx: number,
-    opts: { showAutoApprove: boolean; showCwd: boolean; outerClass: string; nameClass: string; minHeightClass: string }
+    opts: { showHistory: boolean; showCwd: boolean; outerClass: string; nameClass: string; minHeightClass: string }
   ) => (
     <div
       key={session.id}
@@ -843,17 +909,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           )}
         </div>
         <div className={`flex items-center session-item__actions ${opts.showCwd ? 'absolute right-3 top-1/2 -translate-y-1/2' : ''}`}>
-          {opts.showAutoApprove && onToggleAutoApprove && (
+          {opts.showHistory && onResumeClaudeHistory && (
             <button
-              onClick={(e) => { e.stopPropagation(); onToggleAutoApprove(session.id, session.cwd) }}
-              className={`w-5 h-5 rounded transition-all shrink-0 flex items-center justify-center ${
-                autoApproveSessions[session.id]
-                  ? 'text-ide-accent opacity-100'
-                  : 'text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white'
-              }`}
-              title={autoApproveSessions[session.id] ? t('Auto Approve: ON') : t('Auto Approve: OFF')}
+              onClick={(e) => { e.stopPropagation(); openClaudeHistory(session) }}
+              className="w-5 h-5 rounded transition-all shrink-0 flex items-center justify-center text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white"
+              title={t('Session History')}
             >
-              {autoApproveSessions[session.id] ? <ShieldCheck size={13} /> : <Shield size={13} />}
+              <svg height="1em" style={{ flex: 'none', lineHeight: 1 }} viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z" fill="#D97757" fillRule="nonzero" />
+              </svg>
             </button>
           )}
           {pipeRunning?.[session.id] && (
@@ -1132,23 +1196,17 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     >{dirName}</span>
                   </div>
                   <div className="flex items-center">
-                  {onToggleAutoApprove && (() => {
-                    const anyOn = group.sessions.some(s => autoApproveSessions[s.id])
-                    const firstSession = group.sessions[0]
-                    return firstSession ? (
+                  {onResumeClaudeHistory && (() => {
+                    const target = group.sessions.find(s => s.id === activeSessionId) || group.sessions[0]
+                    return target ? (
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onToggleAutoApprove(firstSession.id, firstSession.cwd)
-                        }}
-                        className={`w-5 h-5 rounded transition-all shrink-0 flex items-center justify-center ${
-                          anyOn
-                            ? 'text-ide-accent opacity-100'
-                            : 'text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white'
-                        }`}
-                        title={anyOn ? t('Auto Approve: ON') : t('Auto Approve: OFF')}
+                        onClick={(e) => { e.stopPropagation(); openClaudeHistory(target) }}
+                        className="w-5 h-5 rounded transition-all shrink-0 flex items-center justify-center text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white"
+                        title={t('Session History')}
                       >
-                        {anyOn ? <ShieldCheck size={13} /> : <Shield size={13} />}
+                        <svg height="1em" style={{ flex: 'none', lineHeight: 1 }} viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z" fill="#D97757" fillRule="nonzero" />
+                        </svg>
                       </button>
                     ) : null
                   })()}
@@ -1168,7 +1226,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 <div>
                 {group.sessions.map((session) => {
                   const flatIdx = flatIndexMap.indexOf(sessions.findIndex(si => si.id === session.id))
-                  return renderSessionItem(session, flatIdx, { showAutoApprove: false, showCwd: false, outerClass: 'pl-4 pr-3 py-1 cursor-pointer transition-colors min-h-[44px] h-auto', nameClass: 'line-clamp-2 break-all', minHeightClass: 'min-h-[44px]' })
+                  return renderSessionItem(session, flatIdx, { showHistory: false, showCwd: false, outerClass: 'pl-4 pr-3 py-1 cursor-pointer transition-colors min-h-[44px] h-auto', nameClass: 'line-clamp-2 break-all', minHeightClass: 'min-h-[44px]' })
                 })}
                 </div>
               </div>
@@ -1176,7 +1234,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           })
         ) : (
           <div className="bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-panel__flat-list">
-            {sessions.map((session, index) => renderSessionItem(session, index, { showAutoApprove: true, showCwd: true, outerClass: 'px-3 py-1 cursor-pointer transition-colors relative', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[32px]' }))}
+            {sessions.map((session, index) => renderSessionItem(session, index, { showHistory: true, showCwd: true, outerClass: 'px-3 py-1 cursor-pointer transition-colors relative', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[32px]' }))}
           </div>
         )}
         {dropGroupIndex !== null && dropGroupIndex === sessionGroups.length && dropGroupIndex !== dragGroupIndex && (
@@ -1872,6 +1930,70 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 }
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {claudeHistorySession && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={closeClaudeHistory}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[380px] max-h-[70vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-ide-text">{t('Session History')}</span>
+                <div className="flex items-center rounded bg-ide-sidebar border border-ide-border p-0.5">
+                  <button
+                    onClick={() => setClaudeHistoryMode('tui')}
+                    className={`px-2 py-0.5 text-[11px] rounded transition-colors ${claudeHistoryMode === 'tui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                  >TUI</button>
+                  <button
+                    onClick={() => setClaudeHistoryMode('gui')}
+                    className={`px-2 py-0.5 text-[11px] rounded transition-colors ${claudeHistoryMode === 'gui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                  >GUI</button>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  className="w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  onClick={() => fetchClaudeHistory(claudeHistorySession.cwd)}
+                  disabled={claudeHistoryLoading}
+                  title={t('Refresh')}
+                ><RotateCcw size={13} /></button>
+                <button
+                  className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                  onClick={closeClaudeHistory}
+                >×</button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {claudeHistoryLoading ? (
+                <div className="flex items-center justify-center gap-2 py-8 text-xs text-ide-text-muted">
+                  <Loader2 size={14} className="animate-spin" /><span>{t('Loading...')}</span>
+                </div>
+              ) : claudeHistoryError ? (
+                <div className="py-8 text-center text-xs text-ide-danger px-4">{claudeHistoryError}</div>
+              ) : claudeHistoryList.length === 0 ? (
+                <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
+              ) : (
+                claudeHistoryList.map((s: any) => {
+                  const timeStr = s.timestamp ? new Date(s.timestamp).toLocaleString() : ''
+                  return (
+                    <button
+                      key={s.session_id || s.id}
+                      onClick={() => selectClaudeHistory(s)}
+                      className="w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left"
+                    >
+                      <div className="truncate">{s.name || s.session_id || s.id}</div>
+                      {timeStr && (
+                        <div className="flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-1">
+                          <span className="truncate mr-2">{timeStr}</span>
+                          {s.sizeBytes > 0 && <span className="shrink-0">{formatBytes(s.sizeBytes)}</span>}
+                        </div>
+                      )}
+                    </button>
+                  )
+                })
+              )}
+            </div>
           </div>
         </div>
       )}

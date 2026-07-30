@@ -16,7 +16,7 @@ import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import GameMujica, { FOCUS_MUJICA, MUJICA_CLOSE } from './components/GameMujica'
 import { mujicaStore } from './mujicaStore'
-import { aiStore } from './aiStore'
+import { aiStore, readAiCliConfig } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { getFileInfo, FILE_ICON_PATHS } from './components/FileIcons'
@@ -37,7 +37,6 @@ declare global {
         rename(id: string, newName: string): Promise<RenameTerminalResult>
         create: (options?: { cwd?: string; name?: string; shell?: string; autoUtf8?: boolean; initCommand?: string }) => Promise<TerminalSession>
         getShells: () => Promise<{ value: string; label: string }[]>
-        setAutoApprove: (id: string, cwd: string, enabled: boolean) => Promise<{ success: boolean }>
         write: (id: string, data: string) => void
         resize: (id: string, cols: number, rows: number) => void
         close: (id: string) => Promise<boolean>
@@ -445,7 +444,6 @@ export default function App() {
     return 'idle'
   }, [warnSessions, terminalBusy, aiBusy, activeSessionId, appFocused])
 
-  const [autoApproveSessions, setAutoApproveSessions] = useState<Record<string, boolean>>({})
   const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
   const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
   const [forkSessions, setForkSessions] = useState<Record<string, string>>({})
@@ -1046,20 +1044,6 @@ export default function App() {
       notifyDraftIdle(sessionId)
     }
   }, [notifyDraftIdle])
-
-  const handleToggleAutoApprove = useCallback(async (sessionId: string, cwd: string) => {
-    setAutoApproveSessions(prev => {
-      const next = !prev[sessionId]
-      window.api.terminal.setAutoApprove(sessionId, cwd, next)
-      const updated = { ...prev }
-      if (next) {
-        updated[sessionId] = true
-      } else {
-        delete updated[sessionId]
-      }
-      return updated
-    })
-  }, [])
 
   const handleResetCache = useCallback((sessionId: string) => {
     terminalRefs.current[sessionId]?.clearBuffer()
@@ -1723,11 +1707,6 @@ export default function App() {
       delete next[id]
       return next
     })
-    setAutoApproveSessions(prev => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
     // 清理该 session 的全部右侧终端
     const rightTerms = rightTerminalSessions[id]
     if (rightTerms && rightTerms.length > 0) {
@@ -2126,6 +2105,38 @@ export default function App() {
     }
   }, [activeSessionId, handleSwitchSession])
 
+  const handleResumeClaudeHistory = useCallback(async (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => {
+    try {
+      setIsOpening(true)
+      const shell = getMainShellType()
+      let initCommand: string | undefined
+      if (mode === 'tui') {
+        const { cliCommand, configDir } = readAiCliConfig()
+        const bin = cliCommand || 'claude'
+        const isPosix = shell === 'bash' || shell === 'sh' || shell === 'zsh' || shell === 'gitbash'
+        const binPart = bin.includes(' ') ? (shell === 'cmd' ? `"${bin}"` : isPosix ? `'${bin}'` : `& '${bin}'`) : bin
+        const base = `${binPart} --resume ${historySessionId}`
+        initCommand = !configDir ? base
+          : shell === 'cmd' ? `set "CLAUDE_CONFIG_DIR=${configDir}" && ${base}`
+          : isPosix ? `CLAUDE_CONFIG_DIR='${configDir}' ${base}`
+          : `$env:CLAUDE_CONFIG_DIR='${configDir}'; ${base}`
+      }
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name: name || undefined, initCommand })
+      setSessions(prev => [...prev, session])
+      setActiveSessionId(session.id)
+      setCenterView('terminal')
+      setDiffFile(null)
+      if (mode === 'gui') {
+        await aiStore.resumeSession(session.id, historySessionId, cwd, { autoApprove: false, permissionMode: 'bypassPermissions', name })
+        setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))
+      }
+    } catch (err) {
+      console.error('Failed to resume claude history:', err)
+    } finally {
+      setIsOpening(false)
+    }
+  }, [autoUtf8])
+
   const handlePreviewMarkdown = useCallback((fullPath: string, fileName: string) => {
     recordRecentFile(fullPath)
     setMarkdownFile({ fullPath, fileName })
@@ -2233,8 +2244,7 @@ export default function App() {
             onReorderGroup={handleReorderGroup}
             commandHistory={commandHistory}
             agentStatus={agentStatus}
-            autoApproveSessions={autoApproveSessions}
-            onToggleAutoApprove={handleToggleAutoApprove}
+            onResumeClaudeHistory={handleResumeClaudeHistory}
             onResetCache={handleResetCache}
             pollingEnabled={pollingEnabled}
             onTogglePolling={(v) => { setPollingEnabled(v); try { localStorage.setItem('vibe-ide-polling', v ? '1' : '0') } catch {} }}
@@ -2449,7 +2459,7 @@ export default function App() {
                         activeSessionId={session.id}
                         workspacePath={session.cwd}
                         isActive={session.id === activeSessionId}
-                        autoApprove={autoApproveSessions[session.id] ?? false}
+                        autoApprove={false}
                         permissionMode={aiPermissionModes[session.id] ?? 'bypassPermissions'}
                         onPermissionModeChange={(mode: AiPermissionMode) => {
                           setAiPermissionModes(prev => ({ ...prev, [session.id]: mode }))

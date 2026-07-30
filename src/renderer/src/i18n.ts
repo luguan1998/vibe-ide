@@ -87,9 +87,6 @@ const ZH_MAP: Record<string, string> = {
   'Copy': '复制',
   'Paste': '粘贴',
   'Move': '移动',
-  'Auto Approve': '自动确认',
-  'Auto Approve: ON': '自动确认：开',
-  'Auto Approve: OFF': '自动确认：关',
   'Clear Screen': '清屏',
 
   // SettingsPanel
@@ -417,6 +414,7 @@ const ZH_MAP: Record<string, string> = {
   'prompt.refactor': '识别可以重构以提升可读性、可维护性或性能的代码。提出具体的改动建议并说明理由。保持现有行为不变——不做功能性变更。优先关注影响最大的改进。',
   // AI Permission Modes
   'Session History': '会话历史',
+  'No history sessions': '暂无历史会话',
   'New Session': '新建会话',
   'Copy Conversation': '拷贝对话',
   'Copy as Markdown (content follows eye filter)': '复制为 Markdown（内容随 eye 按钮筛选）',

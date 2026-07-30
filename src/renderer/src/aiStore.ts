@@ -217,6 +217,46 @@ export const aiStore = {
       }))
     })
   },
+  async resumeSession(sid: string, historySessionId: string, cwd: string, opts: {
+    autoApprove: boolean
+    permissionMode: AiPermissionMode
+    name?: string
+    cliCommand?: string
+    configDir?: string
+  }) {
+    const fallback = readAiCliConfig()
+    const cliCommand = opts.cliCommand ?? fallback.cliCommand
+    const configDir = opts.configDir ?? fallback.configDir
+    let messages: any[] = []
+    let model = ''
+    let slashCommands: any[] = []
+    try {
+      const history = await window.api.ai.loadSessionMessages(historySessionId, cwd, configDir)
+      messages = history.messages || []
+      model = history.model || ''
+      slashCommands = history.slashCommands || []
+    } catch {}
+    try { await window.api.ai.destroy(sid) } catch {}
+    createdSessions.add(sid)
+    window.api.ai.create({
+      sessionId: sid,
+      cwd,
+      autoApprove: opts.autoApprove,
+      permissionMode: opts.permissionMode,
+      resumeSessionId: historySessionId,
+      ...(cliCommand ? { cliCommand } : {}),
+      ...(configDir ? { configDir } : {}),
+    })
+    aiStore.updateSession(sid, () => ({
+      ...EMPTY_SESSION,
+      messages,
+      model,
+      slashCommands: enrichSlashCommands(slashCommands),
+      name: opts.name || '',
+      cwd,
+      ready: false,
+    }))
+  },
   handlePermissionResponse(
     sessionId: string, requestId: string, approved: boolean,
     tool: string, toolInput?: Record<string, any>, feedback?: string

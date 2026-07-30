@@ -201,9 +201,21 @@ html, body, #root {
   background: #fff !important;
   border-bottom: none !important;
 }
-/* 标题只留 emoji + cwd，隐藏自动确认和新增按钮 */
+/* 标题右侧按钮（历史会话/新建终端）— hover 才显示；隐藏时 absolute 脱流 + 透明 + 点击穿透，标题保持窄，不挡边框线 */
+.session-group__header { position: relative !important; }
 .session-group__header > div:last-child {
-  display: none !important;
+  position: absolute !important;
+  left: 100% !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.12s ease !important;
+}
+.session-group__header:hover > div:last-child,
+.session-group__header > div:last-child:hover {
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }
 .session-group:has(.session-item--active) .session-group__header {
   background: #fff !important;
