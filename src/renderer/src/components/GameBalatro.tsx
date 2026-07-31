@@ -329,6 +329,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   const [enhancing, setEnhancing] = useState<Enhancement | null>(null)
   const [pendingTarots, setPendingTarots] = useState<TarotDef[]>([])
   const [anim, setAnim] = useState<AnimState | null>(null)
+  const [scoreBoard, setScoreBoard] = useState<{ chips: number; mult: number; total: number } | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [lastPlayed, setLastPlayed] = useState<string | null>(null)
   const [maxHand, setMaxHand] = useState(0)
@@ -336,6 +337,8 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   const [handsCount, setHandsCount] = useState(0)
   const [history, setHistory] = useState<{ name: string; lvl: number; score: number }[]>([])
   const [showInfo, setShowInfo] = useState(true)
+  const [cardsExpanded, setCardsExpanded] = useState(false)
+  const [celebrating, setCelebrating] = useState(false)
   const lockedRef = useRef(false)
   const animTimers = useRef<number[]>([])
   const lastDrawnRef = useRef(-1)
@@ -400,12 +403,15 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     setEnhancing(null)
     setPendingTarots([])
     setAnim(null)
+    setScoreBoard(null)
     setToast(null)
     setLastPlayed(null)
     setMaxHand(0)
     setEarned(0)
     setHandsCount(0)
     setHistory([])
+    setCardsExpanded(false)
+    setCelebrating(false)
     setGameState('playing')
   }, [clearTimers, drawTo])
 
@@ -482,6 +488,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     }
     mult += luckyMult
     const total = Math.floor(chips * mult)
+    setScoreBoard({ chips, mult, total })
 
     let earn = luckyMoney
     earn += played.filter(c => c.enh === 'gold').length * 3
@@ -525,40 +532,47 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     animTimers.current.push(window.setTimeout(() => setAnim(null), settleAt))
 
     animTimers.current.push(window.setTimeout(() => {
-      lockedRef.current = false
       const newRoundScore = roundScore + total
       setRoundScore(newRoundScore)
       if (newRoundScore >= target) {
-        const reward = BLIND_REWARDS[blindIdx]
-        if (blindIdx === 2) {
-          if (ante + 1 >= ANTE_TARGETS.length) {
-            setGameState('won')
-            return
+        setCelebrating(true)
+        animTimers.current.push(window.setTimeout(() => {
+          lockedRef.current = false
+          setCelebrating(false)
+          const reward = BLIND_REWARDS[blindIdx]
+          if (blindIdx === 2) {
+            if (ante + 1 >= ANTE_TARGETS.length) {
+              setGameState('won')
+              return
+            }
+            setAnte(a => a + 1)
+            setBlindIdx(0)
+            setBoss(null)
+            setRoundScore(0)
+            setHandsLeft(4)
+            setDiscardsLeft(3)
+            deckRef.current = shuffle(createDeck())
+            lastDrawnRef.current = -1
+            setHand(drawTo([], effHandSizeFor(null, vouchers)))
+            enterShop(reward)
+          } else {
+            const nextBoss = blindIdx === 1 ? BOSSES[Math.floor(Math.random() * BOSSES.length)] : boss
+            setBlindIdx(i => i + 1)
+            setBoss(nextBoss)
+            setRoundScore(0)
+            setHandsLeft(4)
+            setDiscardsLeft(3)
+            deckRef.current = shuffle(createDeck())
+            lastDrawnRef.current = -1
+            setHand(drawTo([], effHandSizeFor(nextBoss, vouchers)))
+            enterShop(reward)
           }
-          setAnte(a => a + 1)
-          setBlindIdx(0)
-          setBoss(null)
-          setRoundScore(0)
-          setHandsLeft(4)
-          setDiscardsLeft(3)
-          deckRef.current = shuffle(createDeck())
-          lastDrawnRef.current = -1
-          setHand(drawTo([], effHandSizeFor(null, vouchers)))
-          enterShop(reward)
-        } else {
-          const nextBoss = blindIdx === 1 ? BOSSES[Math.floor(Math.random() * BOSSES.length)] : boss
-          setBlindIdx(i => i + 1)
-          setBoss(nextBoss)
-          setRoundScore(0)
-          setHandsLeft(4)
-          setDiscardsLeft(3)
-          deckRef.current = shuffle(createDeck())
-          lastDrawnRef.current = -1
-          setHand(drawTo([], effHandSizeFor(nextBoss, vouchers)))
-          enterShop(reward)
+        }, 1000))
+      } else {
+        lockedRef.current = false
+        if (newHandsLeft <= 0) {
+          setGameState('lost')
         }
-      } else if (newHandsLeft <= 0) {
-        setGameState('lost')
       }
     }, settleAt))
   }, [selected, hand, handsLeft, roundScore, target, ante, blindIdx, boss, effHandSize, vouchers, jokers, levels, enhancing, gameState, drawTo, clearTimers, enterShop])
@@ -660,6 +674,13 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
 
   const skipReward = Math.max(1, Math.ceil(BLIND_REWARDS[blindIdx] / 2))
   const blindName = blindIdx === 2 && boss ? boss.name : blindIdx === 1 ? 'BIG BLIND' : 'SMALL BLIND'
+  const CARD_LIMIT = 6
+  const totalSlots = MAX_JOKERS + pendingTarots.length
+  const showCollapse = totalSlots > CARD_LIMIT
+  const visibleSlots = cardsExpanded || !showCollapse ? totalSlots : CARD_LIMIT
+  const jokerCount = Math.min(MAX_JOKERS, visibleSlots)
+  const tarotCount = Math.max(0, visibleSlots - MAX_JOKERS)
+  const hiddenCount = totalSlots - CARD_LIMIT
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none select-none relative" style={{ background: BAL.bg, color: BAL.text }}>
@@ -672,6 +693,47 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
         @keyframes cardPop {
           0% { transform: scale(0.8); opacity: 0; }
           100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes scorePop {
+          0% { transform: translateY(40%) scale(0.7); opacity: 0; filter: brightness(2.2); }
+          60% { transform: translateY(-5%) scale(1.1); opacity: 1; }
+          100% { transform: translateY(0) scale(1); opacity: 1; filter: brightness(1); }
+        }
+        @keyframes progressPulse {
+          0%, 100% { filter: brightness(1.05); }
+          50% { filter: brightness(1.75); }
+        }
+        @keyframes shineSweep {
+          0% { transform: translateX(-150%); }
+          100% { transform: translateX(750%); }
+        }
+        @keyframes chipIn {
+          0% { transform: translateX(-26px) scale(0.88); opacity: 0; }
+          100% { transform: translateX(0) scale(1); opacity: 1; }
+        }
+        @keyframes multIn {
+          0% { transform: translateX(26px) scale(0.88); opacity: 0; }
+          100% { transform: translateX(0) scale(1); opacity: 1; }
+        }
+        @keyframes collideL {
+          0%, 100% { transform: translateX(0); }
+          40% { transform: translateX(12px); }
+          72% { transform: translateX(-3px); }
+        }
+        @keyframes collideR {
+          0%, 100% { transform: translateX(0); }
+          40% { transform: translateX(-12px); }
+          72% { transform: translateX(3px); }
+        }
+        @keyframes totalPop {
+          0% { transform: scale(0.4); opacity: 0; }
+          55% { transform: scale(1.12); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes bulbBlink {
+          0%, 100% { opacity: 1; }
+          45% { opacity: 0.15; }
+          55% { opacity: 0.15; }
         }
       `}</style>
       <div
@@ -696,10 +758,16 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
         </div>
       </div>
 
-      <div className="px-3 py-1.5 shrink-0" style={{ background: BAL.panel2, borderBottom: `1px solid ${BAL.border}` }}>
-        <div className="flex items-center justify-between mb-1">
+      <div className="relative px-3 py-2 shrink-0" style={{ background: 'linear-gradient(180deg,#1b2620,#0f1612)', borderBottom: `1px solid ${BAL.border}` }}>
+        <div className="absolute inset-x-3 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(232,184,76,0.55), transparent)' }} />
+        <div className="absolute top-1.5 left-1.5 w-2 h-2 pointer-events-none" style={{ borderTop: `1px solid ${BAL.goldDim}`, borderLeft: `1px solid ${BAL.goldDim}` }} />
+        <div className="absolute top-1.5 right-1.5 w-2 h-2 pointer-events-none" style={{ borderTop: `1px solid ${BAL.goldDim}`, borderRight: `1px solid ${BAL.goldDim}` }} />
+        <div className="absolute bottom-1.5 left-1.5 w-2 h-2 pointer-events-none" style={{ borderBottom: `1px solid ${BAL.goldDim}`, borderLeft: `1px solid ${BAL.goldDim}` }} />
+        <div className="absolute bottom-1.5 right-1.5 w-2 h-2 pointer-events-none" style={{ borderBottom: `1px solid ${BAL.goldDim}`, borderRight: `1px solid ${BAL.goldDim}` }} />
+
+        <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[11px] font-bold tracking-widest" style={{ color: boss ? BAL.goldBright : BAL.muted }}>
+            <span className="text-[12px] font-black tracking-[0.18em]" style={{ color: boss ? BAL.mult : BAL.white }}>
               {blindName}
             </span>
             {boss && <span className="text-[11px] truncate" style={{ color: BAL.mult }}>{boss.desc}</span>}
@@ -714,33 +782,113 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             </button>
           )}
         </div>
-        <div className="flex justify-between text-[11px] mb-1">
-          <span style={{ color: BAL.muted }}>
-            目标 {target.toLocaleString()}
-            {boss && boss.effect === 'wall' ? ' ×1.5' : ''}
-          </span>
-          <span className="tabular-nums" style={{ color: BAL.chips }}>{roundScore.toLocaleString()}</span>
-        </div>
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: BAL.bg, border: `1px solid ${BAL.borderDim}` }}>
+
+        <div className="h-px mb-1.5" style={{ background: 'linear-gradient(90deg, transparent, rgba(232,184,76,0.35), transparent)' }} />
+
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="flex flex-col gap-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[8px] font-black tracking-[0.25em]" style={{ color: BAL.dim }}>TARGET</span>
+              <span className="text-[13px] leading-none font-black tabular-nums" style={{ color: BAL.gold }}>
+                {target.toLocaleString()}
+                {boss && boss.effect === 'wall' ? ' ×1.5' : ''}
+              </span>
+            </div>
+            <span
+              key={roundScore}
+              className="block text-[26px] leading-none font-black tabular-nums"
+              style={{
+                color: roundScore > 0 ? BAL.goldBright : BAL.goldDim,
+                textShadow: roundScore > 0 ? '0 0 14px rgba(255,209,102,0.45)' : 'none',
+                animation: 'scorePop 0.28s ease-out',
+              }}
+            >
+              {roundScore.toLocaleString()}
+            </span>
+          </div>
+          <div className="flex flex-col items-center shrink-0">
+            <div className="h-[14px] flex items-center mb-1">
+              {lastPlayed && (
+                <span className="text-[10px] font-black tracking-[0.2em] whitespace-nowrap" style={{ color: BAL.gold }}>
+                  {HAND_CN[lastPlayed]}{levels[lastPlayed] > 1 ? ` Lv${levels[lastPlayed]}` : ''}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
           <div
-            className="h-full transition-all duration-300"
-            style={{ width: `${Math.min(100, (roundScore / target) * 100)}%`, background: `linear-gradient(90deg, ${BAL.gold}, ${BAL.goldBright})` }}
-          />
+            key={`sb-c-${anim ? anim.stage : 2}-${anim ? anim.chips : (scoreBoard?.chips ?? 0)}`}
+            className="flex flex-col items-center px-2.5 py-1 rounded-[3px] min-w-[64px]"
+            style={{
+              background: 'linear-gradient(180deg,#143a5c,#0c2540)',
+              border: '1px solid rgba(0,157,255,0.45)',
+              opacity: anim || scoreBoard ? 1 : 0.35,
+              animation: anim && anim.stage === 0 ? 'chipIn 0.16s ease-out' : anim && anim.stage === 1 ? 'chipIn 0.1s ease-out, collideL 0.3s 0.1s ease-out' : 'none',
+            }}
+          >
+            <span className="text-[7px] font-black tracking-[0.2em] mb-px" style={{ color: 'rgba(0,157,255,0.75)' }}>CHIPS</span>
+            <span className="text-[17px] font-black tabular-nums leading-none" style={{ color: '#009dff', textShadow: '0 0 8px rgba(0,157,255,0.45)' }}>
+              {(anim ? anim.chips : (scoreBoard?.chips ?? 0)).toLocaleString()}
+            </span>
+          </div>
+          <span className="text-lg font-black shrink-0" style={{ color: BAL.mult, opacity: anim && anim.stage === 0 ? 0.25 : anim || scoreBoard ? 1 : 0.35, transition: 'opacity 0.12s' }}>×</span>
+          <div
+            key={`sb-m-${anim ? anim.stage : 2}-${anim ? anim.mult : (scoreBoard?.mult ?? 1)}`}
+            className="flex flex-col items-center px-2.5 py-1 rounded-[3px] min-w-[64px]"
+            style={{
+              background: 'linear-gradient(180deg,#5c1424,#400d18)',
+              border: '1px solid rgba(254,95,85,0.5)',
+              opacity: anim && anim.stage === 0 ? 0.25 : anim || scoreBoard ? 1 : 0.35,
+              animation: anim && anim.stage >= 1 ? 'multIn 0.12s ease-out, collideR 0.3s 0.12s ease-out' : 'none',
+            }}
+          >
+            <span className="text-[7px] font-black tracking-[0.2em] mb-px" style={{ color: 'rgba(254,95,85,0.8)' }}>MULT</span>
+            <span className="text-[17px] font-black tabular-nums leading-none" style={{ color: '#fe5f55', textShadow: '0 0 8px rgba(254,95,85,0.45)' }}>
+              ×{(anim ? anim.mult : (scoreBoard?.mult ?? 1))}
+            </span>
+          </div>
+          </div>
+          </div>
+        </div>
+
+        <div
+          className="relative h-[10px] rounded-[2px] overflow-hidden"
+          style={{
+            background: '#0a120c',
+            border: `1px solid ${celebrating ? BAL.goldBright : BAL.borderDim}`,
+            boxShadow: celebrating ? '0 0 14px rgba(255,209,102,0.45)' : 'none',
+            transition: 'box-shadow 0.3s, border-color 0.3s',
+          }}
+        >
+          <div className="absolute inset-y-0 left-1/4 w-px" style={{ background: celebrating ? 'rgba(255,209,102,0.5)' : 'rgba(232,184,76,0.18)' }} />
+          <div className="absolute inset-y-0 left-2/4 w-px" style={{ background: celebrating ? 'rgba(255,209,102,0.5)' : 'rgba(232,184,76,0.18)' }} />
+          <div className="absolute inset-y-0 left-3/4 w-px" style={{ background: celebrating ? 'rgba(255,209,102,0.5)' : 'rgba(232,184,76,0.18)' }} />
+          <div
+            className="h-full relative transition-all duration-300"
+            style={{
+              width: `${Math.min(100, (roundScore / target) * 100)}%`,
+              background: celebrating ? 'linear-gradient(90deg,#ffd166,#fff0c0)' : 'linear-gradient(90deg,#b8860b,#ffd166)',
+              animation: celebrating ? 'progressPulse 0.7s ease-in-out infinite' : 'none',
+            }}
+          >
+            {celebrating && (
+              <div className="absolute inset-y-0 w-8" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent)', animation: 'shineSweep 1.1s ease-in-out infinite' }} />
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="px-3 py-1.5 shrink-0 flex items-center gap-1.5 justify-center" style={{ background: BAL.panel2, borderBottom: `1px solid ${BAL.border}` }}>
-        {Array.from({ length: MAX_JOKERS }).map((_, i) => {
+      <div className={`px-3 py-1.5 shrink-0 flex items-center gap-1.5 ${cardsExpanded ? 'overflow-x-auto justify-start' : 'justify-center'}`} style={{ background: BAL.panel2, borderBottom: `1px solid ${BAL.border}` }}>
+        {Array.from({ length: jokerCount }).map((_, i) => {
           const j = jokers[i]
           if (!j) {
             return (
-              <div key={`empty-${i}`} className="w-9 h-11 rounded-[4px] border border-dashed" style={{ borderColor: BAL.borderDim }} />
+              <div key={`empty-${i}`} className="w-9 h-11 rounded-[4px] border border-dashed shrink-0" style={{ borderColor: BAL.borderDim }} />
             )
           }
           return (
             <div
               key={j.id}
-              className="relative w-10 h-12 rounded-[4px] flex items-center justify-center group"
+              className="relative w-10 h-12 rounded-[4px] flex items-center justify-center group shrink-0"
               title={`${j.name} — ${j.desc}`}
               style={{ background: j.face, border: '1px solid rgba(0,0,0,0.3)', boxShadow: `0 2px 6px ${BAL.goldSoft}` }}
             >
@@ -756,10 +904,10 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             </div>
           )
         })}
-        {pendingTarots.length > 0 && (
+        {tarotCount > 0 && (
           <>
             <div className="w-px h-7 mx-0.5 shrink-0" style={{ background: BAL.borderDim }} />
-            {pendingTarots.map(t => (
+            {pendingTarots.slice(0, tarotCount).map(t => (
               <button
                 key={t.id}
                 onClick={() => activateTarot(t)}
@@ -775,6 +923,16 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
               </button>
             ))}
           </>
+        )}
+        {showCollapse && (
+          <button
+            onClick={() => setCardsExpanded(e => !e)}
+            title={cardsExpanded ? '收起' : '展开全部'}
+            className="w-9 h-11 rounded-[4px] flex items-center justify-center font-black shrink-0"
+            style={{ background: 'rgba(232,184,76,0.15)', border: `1px solid ${BAL.goldDim}`, color: BAL.gold }}
+          >
+            {cardsExpanded ? '−' : '+'}{!cardsExpanded && hiddenCount > 0 ? hiddenCount : ''}
+          </button>
         )}
       </div>
 
@@ -930,10 +1088,28 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
 
       {gameState === 'shop' && (
         <div className="absolute inset-0 z-20 flex flex-col" style={{ background: 'rgba(9,14,11,0.96)' }}>
-          <div className="px-3 py-2 shrink-0 flex items-center justify-between border-b" style={{ borderColor: BAL.border }}>
-            <span className="text-sm font-black tracking-widest" style={{ color: BAL.gold }}>SHOP</span>
-            <span className="text-xs font-bold tabular-nums" style={{ color: BAL.gold }}>💲{money}</span>
+          <div className="relative shrink-0 border-b" style={{ borderColor: BAL.border }}>
+          <div className="flex flex-col items-center pt-3 pb-2">
+            <div className="flex justify-center gap-1 mb-1.5">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <span key={`t-${i}`} className="w-[5px] h-[5px] rounded-full" style={{ background: BAL.goldBright, boxShadow: '0 0 5px rgba(255,209,102,0.9)', animation: `bulbBlink 1.6s ${i * 0.1}s ease-in-out infinite` }} />
+              ))}
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="w-[5px] h-[5px] rounded-full" style={{ background: BAL.goldBright, boxShadow: '0 0 5px rgba(255,209,102,0.9)', animation: 'bulbBlink 1.6s 1.2s ease-in-out infinite' }} />
+              <span className="text-2xl font-black tracking-[0.3em] pl-[0.3em] leading-none" style={{ color: BAL.goldBright, textShadow: '0 0 8px rgba(255,209,102,0.9), 0 0 22px rgba(255,209,102,0.45), 0 2px 0 rgba(0,0,0,0.55)' }}>
+                SHOP
+              </span>
+              <span className="w-[5px] h-[5px] rounded-full" style={{ background: BAL.goldBright, boxShadow: '0 0 5px rgba(255,209,102,0.9)', animation: 'bulbBlink 1.6s 1.3s ease-in-out infinite' }} />
+            </div>
+            <div className="flex justify-center gap-1 mt-1.5">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <span key={`b-${i}`} className="w-[5px] h-[5px] rounded-full" style={{ background: BAL.goldBright, boxShadow: '0 0 5px rgba(255,209,102,0.9)', animation: `bulbBlink 1.6s ${(i + 14) * 0.1}s ease-in-out infinite` }} />
+              ))}
+            </div>
           </div>
+          <div className="absolute right-3 top-3 text-xs font-bold tabular-nums" style={{ color: BAL.gold }}>💲{money}</div>
+        </div>
           {shopInfo && (
             <div className="px-3 py-1 text-[10px] shrink-0" style={{ color: BAL.muted }}>
               盲注奖励 +${shopInfo.reward} · 利息 +${shopInfo.interest}
