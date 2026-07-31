@@ -288,11 +288,11 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
       {hasContent && (
         <div className="ai-tab__message-content max-w-[92%] space-y-1.5">
           {!hideThink && message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} />}
+          {message.content && <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />}
           {!hideTools && message.toolUse && message.toolUse.length >= 2 && <CollapsedToolsSummary tools={message.toolUse} />}
           {!hideTools && message.toolUse && message.toolUse.length === 1 && (
             <AiToolCallCard key={message.toolUse[0].id} tool={message.toolUse[0]} />
           )}
-          {message.content && <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />}
         </div>
       )}
       {showMeta && (

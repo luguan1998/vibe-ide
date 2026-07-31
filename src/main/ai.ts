@@ -105,9 +105,6 @@ export function parseUserTurns(lines: string[]): UserTurn[] {
 }
 
 export const aiSessions = new Map<string, ManagedAiSession>()
-// TEMP: one-time log per session confirming sub-agent thinking_delta carries the parent marker
-// (so the live-buffer suppression in stream_event is actually hitting). Remove once confirmed.
-const subagentThinkingProbeDone = new Set<string>()
 // Reverse map: CLI session ID (e.g. "claude-xxx") → renderer session ID ("term-xxxxx")
 // Used by loadSessionMessages to look up contextWindow from the correct aiSessions entry.
 const cliSessionToRenderer = new Map<string, string>()
@@ -408,17 +405,11 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
           send(IPC_CHANNELS.AI_STREAM_TOKEN, { sessionId, token: delta.text })
         } else if (deltaType === 'thinking_delta' && delta.thinking) {
           // Sub-agent thinking would otherwise stream into the main thinkingBuffer and expand
-          // live at top level. The CLI puts the sub-agent marker at top-level
-          // (msg.parent_tool_use_id), same as assistant messages — when present, skip the token
-          // so sub-agent thinking stays collapsed inside its (collapsed) agent group unless the
-          // user expands it. Main-agent thinking (no marker) streams as before.
-          const subParent = msg.parent_tool_use_id || msg.message?.parent_tool_use_id
-          if (subParent) {
-            if (!subagentThinkingProbeDone.has(sessionId)) {
-              subagentThinkingProbeDone.add(sessionId)
-              console.log(`[STK ${sessionId}] sub-agent thinking_delta carries parent marker — suppressed from live buffer`)
-            }
-          } else {
+          // live at top level. Skip it when the sub-agent marker (top-level parent_tool_use_id,
+          // same as assistant messages) is present — the thinking survives in the completed
+          // sub-agent message (collapsed ThinkingBlock) inside its agent group. Main-agent
+          // thinking (no marker) streams as before.
+          if (!(msg.parent_tool_use_id || msg.message?.parent_tool_use_id)) {
             send(IPC_CHANNELS.AI_STREAM_TOKEN, { sessionId, token: delta.thinking, kind: 'thinking' })
           }
         }
