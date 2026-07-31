@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
-import { readFile, readdir, stat } from 'fs/promises'
+import { readFile, readdir, stat, rm } from 'fs/promises'
 import { join, isAbsolute, relative } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
@@ -231,6 +231,22 @@ function detectUnmanagedWorktree(cwd: string, before: Set<string>): string | nul
   return null
 }
 
+// The CLI creates the worktree a moment after the ready message, so poll every
+// 500ms (up to ~4s) to record it for destroy cleanup.
+function trackWorktreeLater(sessionId: string, attempts: number): void {
+  setTimeout(() => {
+    const cur = aiSessions.get(sessionId)
+    if (!cur || cur.worktreePath) return
+    const wt = detectNewWorktree(cur.cwd, cur.preWorktreeSnapshot!)
+    if (wt) {
+      cur.worktreePath = wt
+      cur.cwd = wt
+    } else if (attempts > 0) {
+      trackWorktreeLater(sessionId, attempts - 1)
+    }
+  }, 500)
+}
+
 // Best-effort worktree teardown: taskkill leaves the dying process holding files for
 // a few hundred ms on Windows, so the remove is retried. Also deletes the linked branch
 // (git worktree remove never touches it), run from the main repo so it works after
@@ -240,22 +256,47 @@ async function removeWorktree(wtPath: string): Promise<void> {
   let repoCwd = wtPath
   try {
     const out = execSync('git worktree list --porcelain', { cwd: wtPath, encoding: 'utf-8', timeout: 5000, stdio: 'pipe' })
-    const lines = out.split('\n')
-    if (lines[0]?.startsWith('worktree ')) repoCwd = lines[0].replace('worktree ', '').trim()
-    for (const line of lines) {
-      if (line.startsWith('branch ')) branch = line.replace('branch ', '').trim().replace(/^refs\/heads\//, '')
+    // porcelain blocks are separated by blank lines; find the block whose worktree
+    // line matches wtPath so branch belongs to THIS worktree, not some other one.
+    for (const block of out.split(/\n\s*\n/)) {
+      const wtLine = block.split('\n').find(l => l.startsWith('worktree '))
+      if (wtLine && wtLine.replace('worktree ', '').trim().toLowerCase() === wtPath.toLowerCase()) {
+        const br = block.split('\n').find(l => l.startsWith('branch '))
+        if (br) branch = br.replace('branch ', '').trim().replace(/^refs\/heads\//, '')
+        break
+      }
     }
-  } catch { return /* already removed by the CLI itself */ }
+    const first = out.split('\n').find(l => l.startsWith('worktree '))
+    if (first) repoCwd = first.replace('worktree ', '').trim()
+  } catch {
+    // git record already gone, but the directory may be orphaned → fs.rm sweep below
+  }
+  let removed = false
   for (let i = 0; i < 3; i++) {
     try {
       execSync(`git worktree remove --force "${wtPath}"`, { cwd: repoCwd, encoding: 'utf-8', timeout: 10000, stdio: 'pipe' })
-      if (branch) {
-        try { execSync(`git branch -D "${branch}"`, { cwd: repoCwd, encoding: 'utf-8', timeout: 5000, stdio: 'pipe' }) } catch { /* branch already gone */ }
-      }
+      removed = true
+      break
+    } catch (e: any) {
+      // "is not a working tree" means git removed its record on a prior attempt —
+      // only the directory (and branch) remain
+      if ((e?.message || '').includes('is not a working tree')) { removed = true; break }
+      if (i === 2) break
+      await new Promise(r => setTimeout(r, 300))
+    }
+  }
+  if (removed && branch) {
+    try { execSync(`git branch -D "${branch}"`, { cwd: repoCwd, encoding: 'utf-8', timeout: 5000, stdio: 'pipe' }) } catch { /* branch already gone */ }
+  }
+  // Once the git record is gone the dir can only be swept directly; locked files
+  // (right after taskkill) release within a second or two, so retry before giving up.
+  for (let i = 0; i < 3; i++) {
+    try {
+      await rm(wtPath, { recursive: true, force: true })
       return
     } catch {
-      if (i === 2) return
-      await new Promise(r => setTimeout(r, 300))
+      if (i === 2) return // give up — directory left behind
+      await new Promise(r => setTimeout(r, 400))
     }
   }
 }
@@ -373,6 +414,11 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
           s.worktreePath = wtPath
           s.cwd = wtPath
           payload.worktreePath = wtPath
+        } else {
+          // CLI creates the worktree after the ready message — poll briefly so
+          // destroy can clean it up without relying on the snapshot fallback
+          // (which mis-attributes worktrees when several agents spawn together)
+          trackWorktreeLater(sessionId, 8)
         }
       }
       send(IPC_CHANNELS.AI_READY, payload)
@@ -1211,9 +1257,16 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     } else {
       try { session.process.kill('SIGTERM') } catch { /* already dead */ }
     }
-    const wt = session.worktreePath ?? (session.enableWorktree && session.preWorktreeSnapshot
-      ? detectUnmanagedWorktree(session.cwd, session.preWorktreeSnapshot)
-      : null)
+    let wt = session.worktreePath
+    if (!wt && session.enableWorktree && session.preWorktreeSnapshot) {
+      // trackWorktreeLater may not have fired if the agent was deleted quickly —
+      // give the CLI a short window to create the worktree before the fallback
+      for (let i = 0; i < 5 && !wt; i++) {
+        await new Promise(r => setTimeout(r, 200))
+        wt = session.worktreePath ?? detectNewWorktree(session.cwd, session.preWorktreeSnapshot)
+      }
+      if (!wt) wt = detectUnmanagedWorktree(session.cwd, session.preWorktreeSnapshot)
+    }
     if (wt) await removeWorktree(wt)
     return true
   })
