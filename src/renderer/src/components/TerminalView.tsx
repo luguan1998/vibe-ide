@@ -113,50 +113,88 @@ async function resolveAndOpenFile(
 }
 
 /**
- * Strip ANSI escape codes from terminal output
+ * 清洗捕获的原始输入字节流，模拟 readline 行内编辑，还原用户意图的可见文本。
+ * 回放时发干净文本，不再依赖运行时补全/调历史；Ctrl+C 取消的输入不进历史，避免乱码。
+ * 已知退化：Tab 补全/方向键调历史的结果不在输入流中，清洗后记为补全/调出前的文本。
+ * 保留 \n（Shift+Enter 换行标记，回放时由调用方还原为 \x1b\r）。
  */
-function stripAnsiForCommand(text: string): string {
-  return text
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
-    .replace(/\x1b\][^\x07]*\x07/g, '')
-    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '') // Strip other control chars
+function sanitizeTrackedCommand(raw: string): string {
+  let out = ''
+  let i = 0
+  while (i < raw.length) {
+    const ch = raw[i]
+    const code = ch.charCodeAt(0)
+    if (ch === '\x1b') {
+      const next = raw[i + 1]
+      if (next === '[' || next === 'O') {
+        // CSI \x1b[...<final> 或 SS3 \x1b O <letter>：含 private 前缀 ? < > =
+        const m = raw.slice(i).match(/^\x1b[\[O][?><=]?[0-9;]*[A-Za-z~]/)
+        if (m) { i += m[0].length; continue }
+      } else if (next === ']') {
+        // OSC：BEL(\x07) 或 ST(\x1b\\) 终止
+        const m = raw.slice(i).match(/^\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/)
+        if (m) { i += m[0].length; continue }
+      } else if (next === '\\') {
+        i += 2  // ST 余尾
+        continue
+      }
+      i += 2
+      continue
+    }
+    if (ch === '\x03' || ch === '\x15') {
+      out = ''
+      i++
+      continue
+    }
+    if (ch === '\x17') {
+      out = out.replace(/\s*\S+$/, '')
+      i++
+      continue
+    }
+    if (ch === '\x08' || ch === '\x7f') {
+      out = out.slice(0, -1)
+      i++
+      continue
+    }
+    if (code < 0x20 && ch !== '\n') {
+      i++  // \t 等控制符丢弃，保留 \n（Shift+Enter 换行标记）
+      continue
+    }
+    out += ch
+    i++
+  }
+  return out
 }
 
 /**
- * Extract the shell command from a terminal line (prompt + command, or raw input).
- * Returns null only for empty Enter or whitespace-only lines.
+ * 剥掉行首的 shell prompt / 水印前缀（如 ">|xterm.js(6.1.0-beta.290)"），只留命令本体。
+ * 仅当行首疑似 prompt 字符(> $ # ❯ ┃ ▶ → λ ] ))时才剥，避免误伤行首为字母的纯命令。
+ * 只处理第一行，保留 \n 续行（Shift+Enter 多行）。
  */
-function extractShellCommand(line: string): string | null {
-  let clean = line.trim()
-  if (!clean) return null
-
-  // Try to find a known prompt boundary and strip it
+function stripPromptPrefix(s: string): string {
+  const nl = s.indexOf('\n')
+  const head = nl >= 0 ? s.slice(0, nl) : s
+  const tail = nl >= 0 ? s.slice(nl) : ''
+  const h = head.trimEnd()
+  if (!h) return ''
+  if (!/^[>$#❯┃▶→λ\])]/.test(h)) return s
   const promptEnds = [
     '> ', '$ ', '# ', '] ', ') ', '❯ ', '┃ ', '▶ ', '→ ', 'λ ',
     '>', '$', '#', ']', ')', '❯', '┃', '▶', '→', 'λ'
   ]
   let bestIdx = -1
   let bestLen = 0
-
   for (const end of promptEnds) {
-    const idx = clean.lastIndexOf(end)
+    const idx = h.lastIndexOf(end)
     if (idx > bestIdx || (idx === bestIdx && end.length > bestLen)) {
       bestIdx = idx
       bestLen = end.length
     }
   }
-
-  if (bestIdx >= 0) {
-    const after = clean.slice(bestIdx + bestLen).trim()
-    // Non-empty text after prompt → real command
-    if (after && !/^[%<>❯┃▶→λ\s]*$/.test(after)) return after
-    // Prompt found but nothing after → empty Enter, skip
-    return null
-  }
-
-  // No known prompt — return the whole stripped line (e.g. Claude Code, custom prompts)
-  if (/^[%<>❯┃▶→λ\s]*$/.test(clean)) return null
-  return clean
+  if (bestIdx < 0) return s
+  const after = h.slice(bestIdx + bestLen).trim()
+  if (!after || /^[%<>❯┃▶→λ\s]*$/.test(after)) return ''
+  return after + tail
 }
 
 /**
@@ -330,6 +368,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   const { theme: currentTheme } = useTheme()
   const newlineShortcutRef = useRef(newlineShortcut)
   newlineShortcutRef.current = newlineShortcut
+  const pendingInputRef = useRef('')
   const pageDownShortcutRef = useRef(pageDownShortcut)
   pageDownShortcutRef.current = pageDownShortcut
   const pageUpShortcutRef = useRef(pageUpShortcut)
@@ -594,6 +633,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         e.preventDefault()
         e.stopImmediatePropagation()
         window.api.terminal.write(sessionId, '\x1b\r')
+        if (onCommand && term.buffer.active.type !== 'alternate') pendingInputRef.current += '\n'
         return
       }
       // 📜 翻页快捷键：有滚动条时操作视口，无滚动条时透传 PTY（shell 自有行为）
@@ -757,26 +797,20 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     // Handle terminal data input
     term.onData((data: string) => {
       // 丢弃焦点 in/out (\x1b[I/\x1b[O)：转发给 pty 会被 shell 回显成 [I/[O 垃圾
-      if (data !== '\x1b[I' && data !== '\x1b[O') {
+      const sent = data !== '\x1b[I' && data !== '\x1b[O'
+      if (sent) {
         window.api.terminal.write(sessionId, data)
       }
 
-      // Track commands by reading xterm buffer on Enter (uses echoed text, not raw keystrokes)
-      if (onCommand) {
-        for (const ch of data) {
-          if (ch === '\r') {
-            const buffer = term.buffer.active
-            // Skip command extraction when in alternate screen (TUI apps: vim, htop, etc.)
-            if (buffer.type === 'alternate') continue
-            const cursorY = buffer.baseY + buffer.cursorY
-            const line = buffer.getLine(cursorY)
-            if (line) {
-              const lineText = line.translateToString(true)
-              const clean = stripAnsiForCommand(lineText)
-              const cmd = extractShellCommand(clean)
-              if (cmd) onCommand(cmd)
-            }
-          }
+      // Capture actual sent bytes; flush on Enter (\r). Shift+Enter injects '\n' as newline marker, restored to \x1b\r on replay.
+      // flush 时清洗 readline 行内编辑控制符并剥 prompt 前缀，避免取消/补全/水印污染历史记录。
+      if (onCommand && term.buffer.active.type !== 'alternate') {
+        if (sent) pendingInputRef.current += data
+        let i
+        while ((i = pendingInputRef.current.indexOf('\r')) >= 0) {
+          const cmd = stripPromptPrefix(sanitizeTrackedCommand(pendingInputRef.current.slice(0, i)))
+          pendingInputRef.current = pendingInputRef.current.slice(i + 1)
+          if (cmd) onCommand(cmd)
         }
       }
     })

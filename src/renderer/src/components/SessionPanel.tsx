@@ -303,6 +303,41 @@ export interface SessionPanelHandle {
   toggleConfig: (rect: DOMRect) => void
 }
 
+function SessionCmdCopyButton({ cmd }: { cmd: string }) {
+  const { t } = useI18n()
+  const [copied, setCopied] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  return (
+    <button
+      className={
+        copied
+          ? 'shrink-0 transition-opacity p-0.5 opacity-100 text-ide-success'
+          : 'opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-text shrink-0 transition-opacity p-0.5'
+      }
+      onClick={(e) => {
+        e.stopPropagation()
+        navigator.clipboard.writeText(cmd).then(() => {
+          setCopied(true)
+          if (timerRef.current) clearTimeout(timerRef.current)
+          timerRef.current = setTimeout(() => setCopied(false), 1500)
+        })
+      }}
+      title={t('Copy')}
+    >
+      {copied ? (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
+    </button>
+  )
+}
+
 const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPanelProps>(function SessionPanel({
   sessions,
   activeSessionId,
@@ -1551,19 +1586,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     <span className="truncate flex-1" title={cmd}>
                       {cmd.length > 60 ? cmd.slice(0, 60) + '...' : cmd}
                     </span>
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        await navigator.clipboard.writeText(cmd)
-                      }}
-                      className="opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-text shrink-0 transition-opacity p-0.5"
-                      title={t('Copy')}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                      </svg>
-                    </button>
+                    <SessionCmdCopyButton cmd={cmd} />
                   </div>
                 ))
               )}

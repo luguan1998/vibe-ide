@@ -223,6 +223,35 @@ function readDefaultAgent(): string {
   try { return localStorage.getItem('vibe-ide-default-agent') || '' } catch { return '' }
 }
 
+function HistoryCopyButton({ cmd }: { cmd: string }) {
+  const [copied, setCopied] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  return (
+    <button
+      className="shrink-0 text-ide-text-muted/40 hover:text-ide-text transition-colors"
+      onClick={(e) => {
+        e.stopPropagation()
+        navigator.clipboard.writeText(cmd).then(() => {
+          setCopied(true)
+          if (timerRef.current) clearTimeout(timerRef.current)
+          timerRef.current = setTimeout(() => setCopied(false), 1500)
+        })
+      }}
+      title="Copy"
+    >
+      {copied ? (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-3.5 text-ide-success">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 16 16" fill="currentColor" className="size-3.5">
+          <path fillRule="evenodd" d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2Zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6ZM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2Z" clipRule="evenodd" />
+        </svg>
+      )}
+    </button>
+  )
+}
+
 export default function App() {
   const { t } = useI18n()
   const [sessions, setSessions] = useState<TerminalSession[]>([])
@@ -1325,7 +1354,7 @@ export default function App() {
           e.stopImmediatePropagation()
           const idx = historySelectedIndexRef.current
           if (cmds[idx]) {
-            window.api.terminal.write(activeSessionId, cmds[idx] + '\r')
+            window.api.terminal.write(activeSessionId, cmds[idx].replace(/\n/g, '\x1b\r') + '\r')
           }
           setShowHistory(false)
           return
@@ -2590,25 +2619,14 @@ export default function App() {
                         i === historySelectedIndex ? 'bg-ide-accent/20 text-ide-text' : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
                       }`}
                       onClick={() => {
-                        window.api.terminal.write(activeSessionId, cmd)
+                        window.api.terminal.write(activeSessionId, cmd.replace(/\n/g, '\x1b\r'))
                         setShowHistory(false)
                       }}
                       onMouseEnter={() => setHistorySelectedIndex(i)}
                     >
                       <span className="text-ide-text-muted shrink-0 w-8 text-right text-xs">{i + 1}</span>
                       <span className="truncate flex-1" title={cmd}>{cmd}</span>
-                      <button
-                        className="shrink-0 text-ide-text-muted/40 hover:text-ide-text transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigator.clipboard.writeText(cmd)
-                        }}
-                        title="Copy"
-                      >
-                        <svg viewBox="0 0 16 16" fill="currentColor" className="size-3.5">
-                          <path fillRule="evenodd" d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2Zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6ZM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2Z" clipRule="evenodd" />
-                        </svg>
-                      </button>
+                      <HistoryCopyButton cmd={cmd} />
                     </div>
                   ))
                 )}
