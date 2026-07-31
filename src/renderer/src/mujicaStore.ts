@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import { aiStore } from './aiStore'
 import type { AiPermissionMode } from '@shared/types'
 
-export interface MujicaWorkspace { id: string; label: string }
+export interface MujicaWorkspace { id: string; label: string; worktree: boolean; persona: string }
 
 export interface MujicaState {
   active: boolean
@@ -69,12 +69,61 @@ export const mujicaStore = {
     if (!cwd) return
     const id = makeId()
     const label = `Agent ${state.workspaces.length + 1}`
-    set(s => ({ ...s, workspaces: [...s.workspaces, { id, label }], pinnedId: id }))
+    const ws: MujicaWorkspace = { id, label, worktree: true, persona: '' }
+    set(s => ({ ...s, workspaces: [...s.workspaces, ws] }))
     aiStore.ensureCreated(id, {
       cwd,
       autoApprove: true,
       permissionMode: state.permissionMode,
-      enableWorktree: true,
+      enableWorktree: ws.worktree,
+      model: state.model || undefined,
+    })
+  },
+  setLabel(id: string, label: string) {
+    set(s => ({ ...s, workspaces: s.workspaces.map(w => w.id === id ? { ...w, label } : w) }))
+  },
+  setPersona(id: string, text: string) {
+    set(s => ({ ...s, workspaces: s.workspaces.map(w => w.id === id ? { ...w, persona: text } : w) }))
+  },
+  // onBlur commit: persona only reaches the CLI at spawn time (--append-system-prompt),
+  // so an idle agent is destroyed + respawned with the new persona. If the agent has
+  // run (messages/busy) the respawn is skipped — the config UI disables editing then.
+  commitPersona(id: string) {
+    const cwd = effectiveCwd()
+    if (!cwd) return
+    const ws = state.workspaces.find(w => w.id === id)
+    if (!ws) return
+    const s = aiStore.getSessionState(id)
+    if (!s.busy && !s.streaming && s.messages.length === 0) {
+      window.api.ai.destroy(id)
+      aiStore.clearSession(id)
+      aiStore.ensureCreated(id, {
+        cwd,
+        autoApprove: true,
+        permissionMode: state.permissionMode,
+        enableWorktree: ws.worktree,
+        persona: ws.persona,
+        model: state.model || undefined,
+      })
+    }
+  },
+  // Toggle worktree isolation for an idle agent: destroy + respawn the session so
+  // --worktree takes effect at spawn time. Only callable before the agent has run
+  // (canvas disables the button once messages exist / it's busy).
+  setWorktree(id: string, enabled: boolean) {
+    const cwd = effectiveCwd()
+    if (!cwd) return
+    set(s => ({ ...s, workspaces: s.workspaces.map(w => w.id === id ? { ...w, worktree: enabled } : w) }))
+    const s = aiStore.getSessionState(id)
+    if (s.ready || s.messages.length > 0) {
+      window.api.ai.destroy(id)
+      aiStore.clearSession(id)
+    }
+    aiStore.ensureCreated(id, {
+      cwd,
+      autoApprove: true,
+      permissionMode: state.permissionMode,
+      enableWorktree: enabled,
       model: state.model || undefined,
     })
   },

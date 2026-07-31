@@ -53,7 +53,7 @@ export function registerPlanExecuteHandlers(): void {
         aiSessions.delete(sessionId)
       }
 
-      const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, resumeSessionId: claudeSessionId })
+      const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, resumeSessionId: claudeSessionId, persona: prev?.persona })
       if ('error' in result) {
         send(IPC_CHANNELS.AI_ERROR, {
           sessionId,
@@ -69,6 +69,7 @@ export function registerPlanExecuteHandlers(): void {
       if (newSession && prev) {
         newSession.claudeSessionId = claudeSessionId
         newSession.permissionMode = 'bypassPermissions'
+        newSession.persona = prev.persona
         if (prev.contextWindow) newSession.contextWindow = prev.contextWindow
       }
 
@@ -97,7 +98,7 @@ export function registerPlanExecuteHandlers(): void {
     }
 
     // 3. Spawn fresh subprocess in bypassPermissions mode (no --resume = clean context)
-    const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir })
+    const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, persona: prev?.persona })
     if ('error' in result) {
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,
@@ -110,11 +111,12 @@ export function registerPlanExecuteHandlers(): void {
     // 4. Attach stdout/stderr/error/exit handlers
     attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand)
 
-    if (prev?.contextWindow || prev?.model) {
+    if (prev?.contextWindow || prev?.model || prev?.persona) {
       const newSession = aiSessions.get(sessionId)
       if (newSession) {
         if (prev.contextWindow) newSession.contextWindow = prev.contextWindow
         if (prev.model) newSession.model = prev.model
+        if (prev.persona) newSession.persona = prev.persona
       }
     }
 

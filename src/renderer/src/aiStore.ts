@@ -112,6 +112,7 @@ interface EnsureCreatedOpts {
   configDir?: string
   enableWorktree?: boolean
   model?: string
+  persona?: string
 }
 
 export function readAiCliConfig(): { cliCommand?: string; configDir?: string } {
@@ -203,6 +204,7 @@ export const aiStore = {
         ...(configDir ? { configDir } : {}),
         ...(opts.enableWorktree ? { enableWorktree: true } : {}),
         ...(opts.model ? { model: opts.model } : {}),
+        ...(opts.persona?.trim() ? { persona: opts.persona } : {}),
       })
       aiStore.updateSession(sid, () => ({ ...EMPTY_SESSION, cwd: opts.cwd }))
     }).catch(() => {

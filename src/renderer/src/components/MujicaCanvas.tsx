@@ -4,7 +4,7 @@ import { useAiSession } from '../aiStore'
 import type { AiSessionState } from '@shared/types'
 
 const NODE_W = 240
-const NODE_H = 96
+const NODE_H = 64
 const RANK_SEP = 60
 const NODE_SEP = 24
 
@@ -16,15 +16,6 @@ function deriveStatus(s: AiSessionState): NodeStatus {
   if (s.busy || s.streaming) return 'running'
   if (s.messages.some(m => m.type === 'result')) return 'done'
   return 'idle'
-}
-
-function lastPreview(s: AiSessionState): string {
-  if (s.streaming && s.streamBuffer) return s.streamBuffer
-  for (let i = s.messages.length - 1; i >= 0; i--) {
-    const m = s.messages[i]
-    if (m.type === 'assistant' && m.content) return m.content
-  }
-  return ''
 }
 
 function basename(p: string | undefined): string {
@@ -69,6 +60,33 @@ function RunButton({ id, disabled, onRunOne }: { id: string; disabled: boolean; 
   )
 }
 
+function WorktreeButton({ enabled, canToggle, onToggle }: {
+  enabled: boolean
+  canToggle: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); onToggle() }}
+      disabled={!canToggle}
+      title={enabled ? 'run in worktree' : 'run in main repo'}
+      className={`shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${
+        enabled
+          ? 'text-ide-accent hover:bg-ide-hover'
+          : 'text-ide-text-muted/40 hover:bg-ide-hover hover:text-ide-text-muted'
+      } disabled:opacity-40 disabled:cursor-not-allowed`}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+        <line x1="6" y1="3" x2="6" y2="15" />
+        <circle cx="18" cy="6" r="3" />
+        <circle cx="6" cy="18" r="3" />
+        <path d="M18 9a9 9 0 0 1-9 9" />
+      </svg>
+    </button>
+  )
+}
+
 function DeleteButton({ id, onRemove }: { id: string; onRemove: (id: string) => void }) {
   return (
     <button
@@ -85,9 +103,11 @@ function DeleteButton({ id, onRemove }: { id: string; onRemove: (id: string) => 
   )
 }
 
-function MujicaNode({ id, label, hovered, pinned, canRun, onHover, onHoverEnd, onRunOne, onRemove }: {
+function MujicaNode({ id, label, worktree, persona, hovered, pinned, canRun, onHover, onHoverEnd, onRunOne, onRemove, onToggleWorktree }: {
   id: string
   label: string
+  worktree: boolean
+  persona: string
   hovered: boolean
   pinned: boolean
   canRun: boolean
@@ -95,13 +115,14 @@ function MujicaNode({ id, label, hovered, pinned, canRun, onHover, onHoverEnd, o
   onHoverEnd: () => void
   onRunOne: (id: string) => void
   onRemove: (id: string) => void
+  onToggleWorktree: () => void
 }) {
   const s = useAiSession(id)
   const status = deriveStatus(s)
   const st = STATUS_STYLE[status]
   const wt = basename(s.worktreePath)
-  const preview = lastPreview(s)
   const busy = status === 'creating' || status === 'running'
+  const canToggleWorktree = status === 'idle'
   return (
     <div
       // Skip hover while a mouse button is held (canvas drag-pan) to avoid flicker.
@@ -112,6 +133,13 @@ function MujicaNode({ id, label, hovered, pinned, canRun, onHover, onHoverEnd, o
       <div className="flex items-center gap-2 px-3 py-2 border-b border-ide-border/50">
         <span className={`w-2 h-2 rounded-full shrink-0 ${st.dot}`} />
         <span className="text-sm font-medium text-ide-text truncate flex-1">{label}</span>
+        {persona && (
+          <span
+            className="shrink-0 w-1.5 h-1.5 rounded-full bg-ide-accent"
+            title={persona.split('\n')[0]}
+          />
+        )}
+        <WorktreeButton enabled={worktree} canToggle={canToggleWorktree} onToggle={onToggleWorktree} />
         <RunButton id={id} disabled={!canRun || busy} onRunOne={onRunOne} />
         <DeleteButton id={id} onRemove={onRemove} />
         {s.pendingPermission && (
@@ -119,15 +147,12 @@ function MujicaNode({ id, label, hovered, pinned, canRun, onHover, onHoverEnd, o
         )}
       </div>
       <div className="px-3 py-1 text-[11px] text-ide-text-muted truncate">{wt || st.label}</div>
-      <div className={`px-3 py-1 text-xs ${st.text} flex-1 overflow-hidden`}>
-        <div className="line-clamp-2 break-words">{preview || st.label}</div>
-      </div>
     </div>
   )
 }
 
 interface MujicaCanvasProps {
-  workspaces: { id: string; label: string }[]
+  workspaces: { id: string; label: string; worktree: boolean; persona: string }[]
   hoveredId: string | null
   pinnedId: string | null
   canRun: boolean
@@ -136,9 +161,10 @@ interface MujicaCanvasProps {
   onTogglePin: (id: string) => void
   onRunOne: (id: string) => void
   onRemove: (id: string) => void
+  onToggleWorktree: (id: string, enabled: boolean) => void
 }
 
-export default function MujicaCanvas({ workspaces, hoveredId, pinnedId, canRun, onHover, onHoverEnd, onTogglePin, onRunOne, onRemove }: MujicaCanvasProps) {
+export default function MujicaCanvas({ workspaces, hoveredId, pinnedId, canRun, onHover, onHoverEnd, onTogglePin, onRunOne, onRemove, onToggleWorktree }: MujicaCanvasProps) {
   const [overrides, setOverrides] = useState<Record<string, { x: number; y: number }>>({})
   const positions = useMemo(() => {
     const base = layoutNodes(workspaces.map(w => w.id))
@@ -230,7 +256,7 @@ export default function MujicaCanvas({ workspaces, hoveredId, pinnedId, canRun, 
                 nodeDragRef.current = { id: ws.id, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false }
               }}
             >
-              <MujicaNode id={ws.id} label={ws.label} hovered={hoveredId === ws.id} pinned={pinnedId === ws.id} canRun={canRun} onHover={onHover} onHoverEnd={onHoverEnd} onRunOne={onRunOne} onRemove={onRemove} />
+              <MujicaNode id={ws.id} label={ws.label} worktree={ws.worktree} persona={ws.persona} hovered={hoveredId === ws.id} pinned={pinnedId === ws.id} canRun={canRun} onHover={onHover} onHoverEnd={onHoverEnd} onRunOne={onRunOne} onRemove={onRemove} onToggleWorktree={() => onToggleWorktree(ws.id, !ws.worktree)} />
             </div>
           )
         })}

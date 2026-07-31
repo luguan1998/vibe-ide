@@ -32,6 +32,7 @@ export interface ManagedAiSession {
   enableWorktree?: boolean
   worktreePath?: string
   preWorktreeSnapshot?: Set<string>
+  persona?: string
 }
 
 const LOCAL_CMD_TAG_RE = /<local-command-caveat>[\s\S]*?<\/local-command-caveat>|<command-name>[\s\S]*?<\/command-name>|<command-message>[\s\S]*?<\/command-message>|<command-args>[\s\S]*?<\/command-args>|<local-command-stdout>[\s\S]*?<\/local-command-stdout>|<system-reminder>[\s\S]*?<\/system-reminder>/g
@@ -162,6 +163,7 @@ function buildClaudeArgs(opts: {
   resumeSessionId?: string
   model?: string
   enableWorktree?: boolean
+  persona?: string
 }): string[] {
   const platformDesc = process.platform === 'win32'
     ? 'Windows (use paths like C:\\Users\\... with backslashes)'
@@ -187,6 +189,9 @@ function buildClaudeArgs(opts: {
   }
   if (opts.enableWorktree) {
     args.push('--worktree')
+  }
+  if (opts.persona?.trim()) {
+    args.push('--append-system-prompt', opts.persona.trim())
   }
   return args
 }
@@ -222,6 +227,7 @@ export function spawnClaude(opts: {
   configDir?: string
   model?: string
   enableWorktree?: boolean
+  persona?: string
 }): ChildProcess | SpawnError {
   const resolved = findBinary(opts.cliCommand)
   if ('error' in resolved) return resolved
@@ -1004,7 +1010,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
 
   // Spawn claude/openclaude/opencc subprocess
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
-    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, configDir, enableWorktree } = options
+    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, configDir, enableWorktree, persona } = options
 
     const existing = aiSessions.get(sessionId)
     if (existing) {
@@ -1016,7 +1022,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
 
     const preSnapshot = enableWorktree ? snapshotWorktrees(cwd) : undefined
 
-    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId, cliCommand, configDir, enableWorktree })
+    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId, cliCommand, configDir, enableWorktree, persona })
     if ('error' in result) {
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,
@@ -1031,6 +1037,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     const created = aiSessions.get(sessionId)
     if (created) {
       created.permissionMode = permMode
+      created.persona = persona?.trim() || undefined
       if (enableWorktree && preSnapshot) {
         created.enableWorktree = true
         created.preWorktreeSnapshot = preSnapshot

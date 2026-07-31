@@ -31,15 +31,22 @@ const BOMB: FruitDef = { emoji: '\u{1F4A3}', juice: '#37474f', r: 30, score: 0 }
 
 const KNIFE_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
-  '<path d="M16 2 C18.5 7, 20 13, 19.5 20 L12.5 20 C12 13, 13.5 7, 16 2 Z" fill="#dde5ea" stroke="#8a97a0" stroke-width="0.7"/>' +
-  '<path d="M16 4.5 L17.2 18 L14.8 18 Z" fill="rgba(255,255,255,0.55)"/>' +
-  '<rect x="11.5" y="20" width="9" height="2.5" rx="1" fill="#546e7a" stroke="#37474f" stroke-width="0.5"/>' +
-  '<rect x="12.5" y="22.5" width="7" height="8.5" rx="1.5" fill="#8d6e63" stroke="#5d4037" stroke-width="0.5"/>' +
-  '<rect x="13.5" y="26.2" width="5" height="1.3" rx="0.6" fill="#5d4037"/>' +
-  '<rect x="13.5" y="28.6" width="5" height="1.3" rx="0.6" fill="#5d4037"/>' +
-  '<circle cx="14.1" cy="24.4" r="0.7" fill="#cfd8dc"/><circle cx="17.9" cy="24.4" r="0.7" fill="#cfd8dc"/>' +
+  '<g transform="translate(16 16) scale(1 0.6) rotate(-30) translate(-16 -16)">' +
+  '<path d="M16 3.2 C13.5 7.4, 12.7 12.4, 13.1 17.5 L13.5 17.5 C13.1 12.4, 13.9 7.4, 16.2 3.6 Z" fill="rgba(0,0,0,0.28)"/>' +
+  '<path d="M15.4 2.2 C13.2 6.6, 12.7 12, 13.1 17.5 L19.6 17.5 C20.2 12.2, 19.3 6.4, 17.8 2.2 C17 1.5, 16.2 1.5, 15.4 2.2 Z" fill="#c7d0d8" stroke="#79858f" stroke-width="0.7"/>' +
+  '<path d="M15.4 2.2 C13.2 6.6, 12.7 12, 13.1 17.5 L14.6 17.5 C14.2 12, 14.7 7, 16.3 3.1 Z" fill="rgba(255,255,255,0.6)"/>' +
+  '<path d="M17.8 2.2 C19.3 6.4, 20.2 12.2, 19.6 17.5" stroke="rgba(255,255,255,0.4)" stroke-width="0.9" fill="none" stroke-linecap="round"/>' +
+  '<ellipse cx="16.4" cy="18.3" rx="4.9" ry="1.6" fill="#4e342e" stroke="#1d1109" stroke-width="0.6"/>' +
+  '<ellipse cx="16.4" cy="18.3" rx="2.6" ry="0.9" fill="#8d6e63"/>' +
+  '<rect x="12.9" y="19.6" width="7" height="10.8" rx="1.3" fill="#8d5a33"/>' +
+  '<rect x="13.4" y="19.6" width="2" height="10.8" fill="#a8733f"/>' +
+  '<path d="M13.2 20.8 L16.4 22.2 L19.6 20.8 L16.4 23.6 Z" fill="#2a1708" opacity="0.92"/>' +
+  '<path d="M13.2 24.2 L16.4 25.6 L19.6 24.2 L16.4 27 Z" fill="#2a1708" opacity="0.92"/>' +
+  '<path d="M13.2 27.6 L16.4 29 L19.6 27.6 L16.4 30.4 Z" fill="#2a1708" opacity="0.92"/>' +
+  '<rect x="12.7" y="30.4" width="7.4" height="1.6" rx="0.8" fill="#4e342e" stroke="#1d1109" stroke-width="0.5"/>' +
+  '</g>' +
   '</svg>'
-)}") 16 3, crosshair`
+)}") 9 9, crosshair`
 
 const distSegPt = (ax: number, ay: number, bx: number, by: number, px: number, py: number) => {
   const dx = bx - ax; const dy = by - ay

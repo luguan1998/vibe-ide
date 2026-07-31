@@ -46,6 +46,7 @@ export default function GameMujica({ onBack }: GameMujicaProps) {
         onTogglePin={mujicaStore.togglePin}
         onRunOne={mujicaStore.runOne}
         onRemove={mujicaStore.removeWorkspace}
+        onToggleWorktree={mujicaStore.setWorktree}
       />
       {m.pinnedId && <MujicaOutput pinnedId={m.pinnedId} />}
     </div>
