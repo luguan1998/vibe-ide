@@ -6,8 +6,9 @@ import mujicaIcon from '@renderer/assets/mujica.png?inline'
 import Game2048 from './Game2048'
 import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
+import GameFruitNinja from './GameFruitNinja'
 
-type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro' | 'mujica'
+type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro' | 'mujica' | 'fruitninja'
 
 interface GameCard {
   id: Exclude<GameId, 'menu'>
@@ -21,6 +22,7 @@ const GAMES: GameCard[] = [
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
+  { id: 'fruitninja', icon: <span className="text-2xl leading-none">🍉</span>, name: 'Fruit Ninja', desc: 'Slice fruits with your swipe — dodge the bombs' },
 ]
 
 export default function GameLauncher() {
@@ -49,6 +51,7 @@ export default function GameLauncher() {
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />
       case '2048': return <Game2048 onBack={back} />
+      case 'fruitninja': return <GameFruitNinja onBack={back} />
     }
   }
 

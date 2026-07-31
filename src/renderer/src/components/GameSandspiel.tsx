@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useTheme } from '../themes'
 
-const COLS = 200
+const COLS = 150
 const ROWS = 150
 const CELL = 4
 const W = COLS * CELL
