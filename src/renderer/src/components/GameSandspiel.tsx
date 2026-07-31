@@ -9,6 +9,7 @@ const H = ROWS * CELL
 
 const EMPTY = 0; const SAND = 1; const WATER = 2; const WOOD = 3; const FIRE = 4; const STONE = 5
 const LAVA = 6; const OIL = 7; const PLANT = 8; const GAS = 9; const SEED = 10; const GUN = 11; const WIND = 12
+const LEAF = 13; const FLOWER = 14
 
 interface ElDef { id: number; label: string; color: string; icon: string }
 
@@ -20,6 +21,8 @@ const PALETTE: ElDef[] = [
   { id: WOOD, label: 'Wood', color: '#8b5e3c', icon: '\u{1F7EB}' },
   { id: SEED, label: 'Seed', color: '#8d6e63', icon: '\u{1F331}' },
   { id: PLANT, label: 'Plant', color: '#4caf50', icon: '\u{1F33F}' },
+  { id: LEAF, label: 'Leaf', color: '#81c784', icon: '\u{1F343}' },
+  { id: FLOWER, label: 'Flower', color: '#f06292', icon: '\u{1F338}' },
   { id: FIRE, label: 'Fire', color: '#f44336', icon: '\u{1F525}' },
   { id: GUN, label: 'Gunpowder', color: '#374151', icon: '\u{1F4A3}' },
   { id: WIND, label: 'Wind', color: '#7dd3fc', icon: '\u{1F300}' },
@@ -50,6 +53,8 @@ const COLORS: Record<number, number> = {
   [LAVA]: RGBA(230, 81, 0),
   [OIL]: RGBA(93, 64, 55),
   [PLANT]: RGBA(76, 175, 80),
+  [LEAF]: RGBA(129, 199, 132),
+  [FLOWER]: RGBA(240, 98, 146),
   [GAS]: RGBA(206, 147, 216),
   [SEED]: RGBA(141, 110, 99),
   [GUN]: RGBA(55, 65, 81),
@@ -95,6 +100,7 @@ export default function GameSandspiel({ onBack }: { onBack?: () => void }) {
     gridRef.current[i] = v
     if (v === FIRE) heatRef.current[i] = 120 + Math.random() * 40 | 0
     else if (v === PLANT) heatRef.current[i] = (15 << 3) | 0
+    else if (v === FLOWER) heatRef.current[i] = 300 + (Math.random() * 400 | 0)
     else if (v === WIND) heatRef.current[i] = 60 + Math.random() * 40 | 0
     else if (v === EMPTY) heatRef.current[i] = 0
     dirtyRef.current.add(i)
@@ -132,7 +138,7 @@ export default function GameSandspiel({ onBack }: { onBack?: () => void }) {
       const lo = ltr ? 1 : COLS - 2; const hi = ltr ? COLS - 2 : 1; const st = ltr ? 1 : -1
       for (let x = lo; ltr ? x <= hi : x >= hi; x += st) {
         const i = idx(y, x); const v = g[i]
-        if (v === EMPTY || v === WOOD || v === STONE || v === PLANT || v === WIND) continue
+        if (v === EMPTY || v === WOOD || v === STONE || v === PLANT || v === WIND || v === LEAF || v === FLOWER) continue
         const b = idx(y + 1, x)
 
         if (v === SAND || v === SEED || v === GUN) {
@@ -199,7 +205,7 @@ export default function GameSandspiel({ onBack }: { onBack?: () => void }) {
             const ny = y + dy; const nx = x + dx
             if (ny < 0 || ny >= ROWS || nx < 0 || nx >= COLS) continue
             const ni = idx(ny, nx); const t = g[ni]
-            if ((t === WOOD || t === PLANT || t === SEED) && Math.random() < (v === LAVA ? 0.06 : 0.03)) { g[ni] = FIRE; h[ni] = 80; d.add(ni) }
+            if ((t === WOOD || t === PLANT || t === SEED || t === LEAF || t === FLOWER) && Math.random() < (v === LAVA ? 0.06 : 0.03)) { g[ni] = FIRE; h[ni] = 80; d.add(ni) }
             else if (t === OIL) { g[ni] = FIRE; h[ni] = 150; d.add(ni); if (v === FIRE) h[i] += 10 }
             else if (t === GAS) { g[ni] = FIRE; h[ni] = 60; d.add(ni); if (v === FIRE) h[i] += 15 }
             else if (t === GUN) {
@@ -250,7 +256,18 @@ export default function GameSandspiel({ onBack }: { onBack?: () => void }) {
       }
     }
 
-    // seed → plant + fractal binary tree (heat = energy<<3 | forked<<2 | dir, dir: 0=up, 1=up-left, 2=up-right)
+    // seed → tree: heat = energy<<2 | dir (energy 6bit; dir: 0=up 1=up-left 2=up-right; 3 = mature tip → foliage/bloom)
+    const leafDensity = (yy: number, xx: number) => {
+      let n = 0
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const y2 = yy + dy, x2 = xx + dx
+        if (y2 >= 0 && y2 < ROWS && x2 >= 0 && x2 < COLS) {
+          const t = g[idx(y2, x2)]
+          if (t === LEAF || t === FLOWER) n++
+        }
+      }
+      return n
+    }
     for (let y = 1; y < ROWS; y++) {
       for (let x = 1; x < COLS - 1; x++) {
         const i = idx(y, x)
@@ -260,31 +277,77 @@ export default function GameSandspiel({ onBack }: { onBack?: () => void }) {
           const hasWater = g[b] === WATER ||
             g[idx(y, x - 1)] === WATER || g[idx(y, x + 1)] === WATER ||
             g[idx(y - 1, x)] === WATER || (d2 >= 0 && g[d2] === WATER)
-          if (hasWater) { g[i] = PLANT; h[i] = (30 << 3) | 0; d.add(i) }
+          if (hasWater) { g[i] = PLANT; h[i] = (26 + (Math.random() * 5 | 0)) << 2; d.add(i) }
         } else if (g[i] === PLANT) {
-          const val = h[i]; let e = val >> 3; const forked = (val >> 2) & 1; const dir = val & 3
-          if (e <= 0) continue
-          // fork first (all dirs can fork), then continue growing
-          if (!forked && Math.random() < 0.04 && e > 6 && y > 0 && x > 0 && x < COLS - 1) {
+          const v = h[i]; let e = v >> 2
+          if ((v & 3) === 3) {
+            // mature tip: fill a radius-2 disc up to its leaf budget, then stop growing forever
+            const budget = v >> 2
+            if (budget < 10 && Math.random() < 0.02) {
+              let dx = 0, dy = 0, t = 0
+              do { dx = (Math.random() * 5 | 0) - 2; dy = (Math.random() * 5 | 0) - 2; t++ }
+              while (t < 4 && (dx === 0 && dy === 0 || dx * dx + dy * dy > 5))
+              const ny = y + dy; const nx = x + dx
+              if (ny >= 0 && ny < ROWS && nx >= 0 && nx < COLS && g[idx(ny, nx)] === EMPTY && leafDensity(ny, nx) < 3) {
+                g[idx(ny, nx)] = LEAF; h[i] = ((budget + 1) << 2) | 3; d.add(idx(ny, nx))
+              }
+            }
+            if (Math.random() < 0.005) {
+              // bloom replaces a leaf so foliage never chokes the flowers out
+              const dx = (Math.random() * 3 | 0) - 1; const dy = (Math.random() * 3 | 0) - 1
+              const ny = y + dy; const nx = x + dx
+              if ((dx || dy) && ny >= 0 && ny < ROWS && nx >= 0 && nx < COLS) {
+                const ni = idx(ny, nx)
+                if (g[ni] === EMPTY || g[ni] === LEAF) { g[ni] = FLOWER; h[ni] = 300 + (Math.random() * 400 | 0); d.add(ni) }
+              }
+            }
+            continue
+          }
+          if (e === 0) continue
+          // run-length steering: trunk rigid, branches change ±1 rarely (no drunk walk)
+          let dir = v & 3
+          if (e > 18) {
+            if (Math.random() < 0.004) dir = dir === 0 ? (Math.random() < 0.5 ? 1 : 2) : 0
+          } else if (Math.random() < 0.02) {
+            if (dir === 0) dir = Math.random() < 0.5 ? 1 : 2
+            else if (Math.random() < 0.25) dir = 0
+          }
+          // fork: trunk tip whorls 2-3 times, main branches fork once, twigs never fork
+          const forkP = e > 18 ? 0.0005 : e > 12 ? 0.05 : e > 6 ? 0.015 : 0
+          if (e >= 6 && Math.random() < forkP && y > 0 && x > 0 && x < COLS - 1) {
             const ul = idx(y - 1, x - 1); const ur = idx(y - 1, x + 1)
             if (g[ul] === EMPTY && g[ur] === EMPTY) {
-              const ce = Math.max(3, (e - 2) / 2 | 0)
-              g[ul] = PLANT; h[ul] = (ce << 3) | 1; d.add(ul)
-              g[ur] = PLANT; h[ur] = (ce << 3) | 2; d.add(ur)
-              h[i] = ((e - 2) << 3) | (1 << 2) | dir
+              const ce = Math.max(2, (e - 2) >> 1)
+              g[ul] = PLANT; h[ul] = (ce << 2) | 1; d.add(ul)
+              g[ur] = PLANT; h[ur] = (ce << 2) | 2; d.add(ur)
+              h[i] = ((e - 2) << 2) | dir
               e -= 2
             }
           }
-          // then grow in direction
+          // grow: trunk fast, branches slower, twigs slowest
           let ny = y - 1, nx = x
           if (dir === 1) nx--
           else if (dir === 2) nx++
-          if (ny >= 0 && nx >= 0 && nx < COLS && Math.random() < 0.12 && e > 0) {
+          if (ny >= 0 && nx >= 0 && nx < COLS && Math.random() < (e > 18 ? 0.12 : e > 12 ? 0.08 : 0.08) && e > 0) {
             const ni = idx(ny, nx)
             if (g[ni] === EMPTY) {
-              g[ni] = PLANT; h[ni] = ((e - 1) << 3) | (0 << 2) | dir; h[i] = 0; d.add(ni)
+              const ne = e - 1
+              g[ni] = PLANT; h[ni] = ne === 0 ? 3 : (ne << 2) | dir; h[i] = 0; d.add(ni)
+            } else if (Math.random() < 0.5) {
+              // blocked: waste energy so the twig withers into a leafy tip instead of wandering forever
+              const ne = e - 1
+              h[i] = ne === 0 ? 3 : (ne << 2) | dir
             }
           }
+        } else if (g[i] === LEAF) {
+          // leaves bloom so blossoms fill the canopy, not just branch tips
+          if (Math.random() < 0.0005) {
+            g[i] = FLOWER; h[i] = 300 + (Math.random() * 400 | 0); d.add(i)
+          }
+        } else if (g[i] === FLOWER) {
+          // bloom withers back into a leaf so the canopy never shrinks
+          h[i]--
+          if (h[i] <= 0) { g[i] = LEAF; h[i] = 0; d.add(i) }
         }
       }
     }

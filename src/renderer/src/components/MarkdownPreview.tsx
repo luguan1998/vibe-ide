@@ -171,9 +171,9 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   onBack,
   scrollToHeading,
   brushActive = false,
-  outlineEnabled,
+  outlineEnabled = false,
   onToggleOutline,
-  onOutlineNavigate
+  onOutlineNavigate = () => {}
 }: MarkdownPreviewProps) {
   const [rawContent, setRawContent] = useState('')
   const [bodyStart, setBodyStart] = useState(0)
@@ -218,8 +218,8 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
       start: block.start,
       end: block.end,
       rect: {
-        top: elRect.top - containerRect.top + (scrollContainer?.scrollTop ?? 0),
-        left: elRect.left - containerRect.left,
+        top: elRect.top - (containerRect?.top ?? 0) + (scrollContainer?.scrollTop ?? 0),
+        left: elRect.left - (containerRect?.left ?? 0),
         width: elRect.width
       }
     })
