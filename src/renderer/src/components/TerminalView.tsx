@@ -328,6 +328,20 @@ function stripAnsiEscapes(data: string): string {
   return stripAnsiAndExtractOscTitle(data).clean
 }
 
+/**
+ * 只提取 OSC 标题（\x1b]0|1|2;...），不做 CSI/回退符 strip。
+ * 供 TUI（alternate screen）高频输出使用——单遍 OSC 正则，多数包无匹配快速失败。
+ */
+function extractOscTitle(data: string): string | null {
+  let title: string | null = null
+  OSC_TITLE_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = OSC_TITLE_RE.exec(data)) !== null) {
+    if (!title) title = m[2].trim()
+  }
+  return title
+}
+
 function hasPrompt(lineText: string): boolean {
   return lineText.startsWith('> ')
 }
@@ -953,6 +967,16 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         // Agent idle detection + OSC title extraction (main terminals only)
         // 一次 stripAnsiAndExtractOscTitle 同时完成 OSC 标题提取和 ANSI strip，避免重复正则扫描
         if (!isAux && (onAgentStatusChangeRef.current || onOscTitleRef.current) && detectionReadyRef.current) {
+          // TUI（alternate screen）的 spinner/状态行重绘不是 agent 活动：
+          // 跳过 idle 检测的全包正则 + trim + timer 重置，只保留 OSC 标题提取
+          if (xtermRef.current?.buffer.active.type === 'alternate') {
+            if (onOscTitleRef.current) {
+              const oscTitle = extractOscTitle(data.data)
+              if (oscTitle) onOscTitleRef.current(sessionId, oscTitle)
+            }
+            return
+          }
+
           const { clean, oscTitle } = stripAnsiAndExtractOscTitle(data.data)
 
           // OSC 标题 → 通知父组件
