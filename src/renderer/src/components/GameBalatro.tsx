@@ -284,7 +284,7 @@ function CardView({ card, selected, disabled, onClick }: { card: Card; selected:
     <button
       onClick={onClick}
       disabled={disabled}
-      className="relative w-10 h-14 rounded-[4px] transition-all duration-100 cursor-pointer select-none shrink-0"
+      className="relative w-12 h-[66px] rounded-[4px] transition-all duration-100 cursor-pointer select-none shrink-0"
       style={{
         background: card.enh ? ENH_BG[card.enh] : BAL.white,
         border: selected ? `2px solid ${BAL.goldBright}` : '1px solid rgba(0,0,0,0.25)',
@@ -293,15 +293,15 @@ function CardView({ card, selected, disabled, onClick }: { card: Card; selected:
       }}
     >
       <div className="absolute top-0.5 left-1 flex flex-col items-center leading-none">
-        <span className="text-[10px] font-bold" style={{ color: info.color }}>{card.rank}</span>
-        <span className="text-[9px]" style={{ color: info.color }}>{info.sym}</span>
+        <span className="text-[12px] font-bold" style={{ color: info.color }}>{card.rank}</span>
+        <span className="text-[11px]" style={{ color: info.color }}>{info.sym}</span>
       </div>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-base" style={{ color: info.color }}>{info.sym}</span>
+        <span className="text-xl" style={{ color: info.color }}>{info.sym}</span>
       </div>
       {card.enh && (
         <div className="absolute inset-x-0 bottom-0 flex justify-center pb-0.5">
-          <span className="text-[10px] leading-none" style={{ filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.6))' }}>{ENH_MARK[card.enh]}</span>
+          <span className="text-[13px] leading-none" style={{ filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.6))' }}>{ENH_MARK[card.enh]}</span>
         </div>
       )}
     </button>
@@ -681,14 +681,14 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
 
       <div className="flex items-center justify-between px-3 py-1.5 shrink-0" style={{ background: BAL.panel, borderBottom: `1px solid ${BAL.border}` }}>
         <div className="flex items-center gap-2 min-w-0">
-          <button onClick={onBack} className="shrink-0" style={{ color: BAL.muted }}>
+          <button onClick={onBack} className="shrink-0 w-7 h-7 rounded flex items-center justify-center" style={{ color: BAL.muted }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
           <span className="text-xs font-black tracking-widest" style={{ color: BAL.gold }}>{'🃏'} BALATRO</span>
         </div>
-        <div className="flex items-center gap-2.5 text-[11px] tabular-nums">
+        <div className="flex items-center gap-2.5 text-[12px] tabular-nums">
           <span className="font-bold" style={{ color: BAL.gold }}>💲{money}</span>
           <span className="text-[10px]" style={{ color: BAL.muted }}>Ante {ante + 1}/8</span>
           <span style={{ color: BAL.text }}>✋{handsLeft}</span>
@@ -699,22 +699,22 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       <div className="px-3 py-1.5 shrink-0" style={{ background: BAL.panel2, borderBottom: `1px solid ${BAL.border}` }}>
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[10px] font-bold tracking-widest" style={{ color: boss ? BAL.goldBright : BAL.muted }}>
+            <span className="text-[11px] font-bold tracking-widest" style={{ color: boss ? BAL.goldBright : BAL.muted }}>
               {blindName}
             </span>
-            {boss && <span className="text-[10px] truncate" style={{ color: BAL.mult }}>{boss.desc}</span>}
+            {boss && <span className="text-[11px] truncate" style={{ color: BAL.mult }}>{boss.desc}</span>}
           </div>
           {blindIdx !== 2 && (
             <button
               onClick={skipBlind}
-              className="text-[10px] px-1.5 py-0.5 rounded shrink-0"
+              className="text-[11px] font-bold px-2.5 py-1 rounded shrink-0"
               style={{ border: `1px solid ${BAL.goldDim}`, color: BAL.gold, background: 'rgba(232,184,76,0.08)' }}
             >
               跳过 → ${skipReward}
             </button>
           )}
         </div>
-        <div className="flex justify-between text-[10px] mb-1">
+        <div className="flex justify-between text-[11px] mb-1">
           <span style={{ color: BAL.muted }}>
             目标 {target.toLocaleString()}
             {boss && boss.effect === 'wall' ? ' ×1.5' : ''}
@@ -740,16 +740,16 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           return (
             <div
               key={j.id}
-              className="relative w-9 h-11 rounded-[4px] flex items-center justify-center"
+              className="relative w-10 h-12 rounded-[4px] flex items-center justify-center"
               title={`${j.name} — ${j.desc}`}
               style={{ background: j.face, border: '1px solid rgba(0,0,0,0.3)', boxShadow: `0 2px 6px ${BAL.goldSoft}` }}
             >
-              <span className="text-[13px] leading-none">{j.glyph}</span>
+              <span className="text-sm leading-none">{j.glyph}</span>
               <button
                 onClick={() => sellJoker(j.id)}
                 title="卖出 $1"
-                className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full text-[8px] leading-none flex items-center justify-center font-bold"
-                style={{ background: BAL.mult, color: '#fff' }}
+                className="absolute -top-2 -right-2 w-[18px] h-[18px] rounded-full text-[10px] leading-none flex items-center justify-center font-bold"
+                style={{ background: BAL.mult, color: '#fff', border: '1px solid rgba(0,0,0,0.3)' }}
               >
                 ×
               </button>
@@ -764,7 +764,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
                 key={t.id}
                 onClick={() => activateTarot(t)}
                 title={`${t.name} — ${t.desc}`}
-                className="w-7 h-9 rounded-[3px] flex items-center justify-center text-[10px] shrink-0"
+                className="w-10 h-12 rounded-[4px] flex items-center justify-center text-[14px] shrink-0"
                 style={{
                   background: ENH_BG[t.enh],
                   border: enhancing === t.enh ? `2px solid ${BAL.goldBright}` : '1px solid rgba(0,0,0,0.3)',
@@ -784,10 +784,10 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             <span className="w-5 h-6 rounded-[2px] flex items-center justify-center text-[10px] shrink-0" style={{ background: ENH_BG[enhancing], border: '1px solid rgba(0,0,0,0.3)' }}>
               {ENH_MARK[enhancing]}
             </span>
-            <span className="text-[11px] font-bold" style={{ color: BAL.gold }}>
+            <span className="text-[12px] font-bold" style={{ color: BAL.gold }}>
               点击一张手牌应用 {TAROTS.find(t => t.enh === enhancing)?.name}
             </span>
-            <button onClick={() => setEnhancing(null)} title="退出选择,塔罗保留" className="ml-auto text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ border: `1px solid ${BAL.border}`, color: BAL.muted }}>
+            <button onClick={() => setEnhancing(null)} title="退出选择,塔罗保留" className="ml-auto text-[11px] px-2.5 py-1 rounded shrink-0" style={{ border: `1px solid ${BAL.border}`, color: BAL.muted }}>
               取消
             </button>
           </div>
@@ -816,7 +816,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           <button
             onClick={playHand}
             disabled={selected.size === 0 || handsLeft <= 0 || gameState !== 'playing' || !!enhancing}
-            className="px-5 py-1.5 rounded-lg text-xs font-black transition-colors"
+            className="px-6 py-2 rounded-lg text-[13px] font-black transition-colors"
             style={{ background: BAL.gold, color: '#111', opacity: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !enhancing ? 1 : 0.35 }}
           >
             出牌 ({handsLeft})
@@ -824,7 +824,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           <button
             onClick={discardHand}
             disabled={selected.size === 0 || discardsLeft <= 0 || gameState !== 'playing' || !!enhancing}
-            className="px-5 py-1.5 rounded-lg text-xs font-bold transition-colors"
+            className="px-6 py-2 rounded-lg text-[13px] font-bold transition-colors"
             style={{ border: `1px solid ${BAL.border}`, color: BAL.gold, opacity: selected.size > 0 && discardsLeft > 0 && gameState === 'playing' && !enhancing ? 1 : 0.35 }}
           >
             弃牌 ({discardsLeft})
@@ -838,9 +838,9 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       </div>
 
       <div className="shrink-0 border-t" style={{ background: BAL.panel, borderColor: BAL.border }}>
-        <button onClick={() => setShowInfo(s => !s)} className="w-full flex items-center justify-between px-3 py-1.5 select-none">
-          <span className="text-[9px] font-black tracking-widest" style={{ color: BAL.goldDim }}>HAND LEVELS</span>
-          <span className="text-[9px] font-black tracking-widest" style={{ color: BAL.dim }}>{showInfo ? 'STATS ▾' : 'STATS ▸'}</span>
+        <button onClick={() => setShowInfo(s => !s)} className="w-full flex items-center justify-between px-3 py-2 select-none">
+          <span className="text-[10px] font-black tracking-widest" style={{ color: BAL.goldDim }}>HAND LEVELS</span>
+          <span className="text-[10px] font-black tracking-widest" style={{ color: BAL.dim }}>{showInfo ? 'STATS ▾' : 'STATS ▸'}</span>
         </button>
         {showInfo && <div className="px-3 pb-2 flex gap-3">
           <div className="grid grid-cols-2 gap-1 flex-1 min-w-0">
@@ -854,8 +854,8 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
                   title={ht}
                   style={{ background: up ? 'rgba(232,184,76,0.10)' : BAL.bg, border: `1px solid ${up ? BAL.goldDim : 'rgba(43,64,51,0.4)'}` }}
                 >
-                  <span className="text-[9px] truncate" style={{ color: up ? BAL.text : BAL.dim }}>{HAND_CN[ht]}</span>
-                  <span className="text-[9px] font-bold tabular-nums shrink-0" style={{ color: up ? BAL.goldBright : BAL.dim }}>
+                  <span className="text-[10px] truncate" style={{ color: up ? BAL.text : BAL.dim }}>{HAND_CN[ht]}</span>
+                  <span className="text-[10px] font-bold tabular-nums shrink-0" style={{ color: up ? BAL.goldBright : BAL.dim }}>
                     {up ? `Lv${lv}` : ''}
                   </span>
                 </div>
@@ -863,21 +863,21 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             })}
           </div>
           <div className="w-[112px] shrink-0 flex flex-col gap-0.5">
-            <div className="flex items-center justify-between text-[9px]">
+            <div className="flex items-center justify-between text-[10px]">
               <span style={{ color: BAL.dim }}>最高单手</span>
               <span className="tabular-nums font-bold" style={{ color: BAL.chips }}>{maxHand.toLocaleString()}</span>
             </div>
-            <div className="flex items-center justify-between text-[9px]">
+            <div className="flex items-center justify-between text-[10px]">
               <span style={{ color: BAL.dim }}>累计赚取</span>
               <span className="tabular-nums font-bold" style={{ color: BAL.gold }}>${earned}</span>
             </div>
-            <div className="flex items-center justify-between text-[9px]">
+            <div className="flex items-center justify-between text-[10px]">
               <span style={{ color: BAL.dim }}>打出</span>
               <span className="tabular-nums font-bold" style={{ color: BAL.text }}>{handsCount} 手</span>
             </div>
             <div className="border-t mt-0.5 pt-0.5 flex-1 overflow-hidden" style={{ borderColor: BAL.borderDim }}>
               {history.map((h, i) => (
-                <div key={i} className="flex items-center justify-between text-[9px] leading-[13px]">
+                <div key={i} className="flex items-center justify-between text-[10px] leading-[14px]">
                   <span className="truncate mr-1" style={{ color: BAL.muted }}>{HAND_CN[h.name]} Lv{h.lvl}</span>
                   <span className="tabular-nums shrink-0" style={{ color: BAL.muted }}>+{h.score.toLocaleString()}</span>
                 </div>
@@ -943,22 +943,23 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             {shopItems.map(item => {
               const canBuy = money >= item.cost && !(item.kind === 'joker' && jokers.length >= MAX_JOKERS)
               return (
-                <div key={`${item.kind}-${item.id}`} className="flex items-center gap-2 px-2 py-1.5 rounded-md" style={{ background: BAL.panel, border: `1px solid ${BAL.border}` }}>
-                  <span className="w-7 h-9 rounded-[3px] flex items-center justify-center text-[11px] shrink-0" style={{ background: shopIcon(item).bg, border: '1px solid rgba(0,0,0,0.3)' }}>
+                <div
+                  key={`${item.kind}-${item.id}`}
+                  onClick={() => buyItem(item)}
+                  title={canBuy ? `购买 ${item.name}` : item.kind === 'joker' && jokers.length >= MAX_JOKERS ? 'Joker 槽位已满' : '金币不足'}
+                  className={`flex items-center gap-2 px-2.5 py-2 rounded-md ${canBuy ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                  style={{ background: BAL.panel, border: `1px solid ${canBuy ? BAL.border : 'rgba(43,64,51,0.4)'}`, opacity: canBuy ? 1 : 0.55 }}
+                >
+                  <span className="w-8 h-10 rounded-[3px] flex items-center justify-center text-[13px] shrink-0" style={{ background: shopIcon(item).bg, border: '1px solid rgba(0,0,0,0.3)' }}>
                     {shopIcon(item).mark}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-bold" style={{ color: BAL.goldBright }}>{item.name}</div>
-                    <div className="text-[10px] truncate" style={{ color: BAL.muted }}>{item.desc}</div>
+                    <div className="text-[12px] font-bold" style={{ color: BAL.goldBright }}>{item.name}</div>
+                    <div className="text-[11px] truncate" style={{ color: BAL.muted }}>{item.desc}</div>
                   </div>
-                  <button
-                    onClick={() => buyItem(item)}
-                    disabled={!canBuy}
-                    className="px-2 py-1 rounded text-[11px] font-bold shrink-0 tabular-nums"
-                    style={{ background: canBuy ? BAL.gold : BAL.panel2, color: canBuy ? '#111' : BAL.dim, border: `1px solid ${canBuy ? BAL.goldBright : BAL.border}` }}
-                  >
+                  <span className="px-2.5 py-1.5 rounded text-[12px] font-bold shrink-0 tabular-nums" style={{ background: canBuy ? BAL.gold : BAL.panel2, color: canBuy ? '#111' : BAL.dim, border: `1px solid ${canBuy ? BAL.goldBright : BAL.border}` }}>
                     ${item.cost}
-                  </button>
+                  </span>
                 </div>
               )
             })}
@@ -970,12 +971,12 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             <button
               onClick={reroll}
               disabled={money < REROLL_COST}
-              className="px-2.5 py-1 rounded text-[11px] font-bold"
+              className="px-3 py-1.5 rounded text-[12px] font-bold"
               style={{ border: `1px solid ${BAL.border}`, color: BAL.gold, opacity: money >= REROLL_COST ? 1 : 0.4 }}
             >
               🔄 Reroll ${REROLL_COST}
             </button>
-            <button onClick={() => setGameState('playing')} className="px-4 py-1.5 rounded text-xs font-black" style={{ background: BAL.gold, color: '#111' }}>
+            <button onClick={() => setGameState('playing')} className="px-5 py-2 rounded text-[13px] font-black" style={{ background: BAL.gold, color: '#111' }}>
               ▶ 继续
             </button>
           </div>
@@ -987,7 +988,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           <div className="text-3xl">{'🏆'}</div>
           <div className="text-lg font-black tracking-widest" style={{ color: BAL.gold }}>YOU WIN!</div>
           <div className="text-[11px]" style={{ color: BAL.muted }}>最高单手 {maxHand.toLocaleString()} · 打出 {handsCount} 手</div>
-          <button onClick={startGame} className="px-4 py-1.5 rounded text-xs font-black" style={{ background: BAL.gold, color: '#111' }}>
+          <button onClick={startGame} className="px-5 py-2 rounded text-[13px] font-black" style={{ background: BAL.gold, color: '#111' }}>
             新游戏
           </button>
         </div>
@@ -997,7 +998,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-20" style={{ background: 'rgba(9,14,11,0.9)' }}>
           <div className="text-base font-black tracking-widest" style={{ color: BAL.mult }}>GAME OVER</div>
           <div className="text-[11px]" style={{ color: BAL.muted }}>Ante {ante + 1} · 最高单手 {maxHand.toLocaleString()}</div>
-          <button onClick={startGame} className="px-4 py-1.5 rounded text-xs font-black" style={{ background: BAL.gold, color: '#111' }}>
+          <button onClick={startGame} className="px-5 py-2 rounded text-[13px] font-black" style={{ background: BAL.gold, color: '#111' }}>
             再来一次
           </button>
         </div>
