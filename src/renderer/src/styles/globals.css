@@ -285,6 +285,18 @@ html, body, #root {
   animation: textWave 6s linear infinite;
 }
 
+/* 选中 session 的波浪渐变用亮色主色，保证在 accent/20 背景上可读 */
+.session-item--active .animate-text-wave {
+  background-image: linear-gradient(
+    90deg,
+    rgb(var(--ide-text)) 0%,
+    rgb(var(--ide-text)) 40%,
+    rgb(var(--ide-accent)) 50%,
+    rgb(var(--ide-text)) 60%,
+    rgb(var(--ide-text)) 100%
+  );
+}
+
 /* Focus indicator — inset shadow with subtle inner glow, follows border-radius */
 .focus-frame {
   position: relative;
