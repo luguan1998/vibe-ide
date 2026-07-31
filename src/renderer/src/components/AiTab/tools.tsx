@@ -265,7 +265,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
   const newContent = editContent?.newContent
 
   return (
-    <div className="ai-tab__tool-call inline-block max-w-full animate-fade-in">
+    <div className="ai-tab__tool-call inline-block max-w-full mr-1 animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
         className={`ai-tab__tool-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${
