@@ -31,12 +31,15 @@ const BOMB: FruitDef = { emoji: '\u{1F4A3}', juice: '#37474f', r: 30, score: 0 }
 
 const KNIFE_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
-  '<path d="M16 1 L19.5 13 L12.5 13 Z" fill="#eceff1" stroke="#90a4ae" stroke-width="0.8"/>' +
-  '<rect x="11.5" y="13" width="9" height="2.5" rx="0.8" fill="#ffca28"/>' +
-  '<rect x="12.5" y="15.5" width="7" height="12" rx="2" fill="#795548"/>' +
-  '<rect x="13.8" y="19" width="4.4" height="2.2" rx="1" fill="#5d4037"/>' +
+  '<path d="M16 2 C18.5 7, 20 13, 19.5 20 L12.5 20 C12 13, 13.5 7, 16 2 Z" fill="#dde5ea" stroke="#8a97a0" stroke-width="0.7"/>' +
+  '<path d="M16 4.5 L17.2 18 L14.8 18 Z" fill="rgba(255,255,255,0.55)"/>' +
+  '<rect x="11.5" y="20" width="9" height="2.5" rx="1" fill="#546e7a" stroke="#37474f" stroke-width="0.5"/>' +
+  '<rect x="12.5" y="22.5" width="7" height="8.5" rx="1.5" fill="#8d6e63" stroke="#5d4037" stroke-width="0.5"/>' +
+  '<rect x="13.5" y="26.2" width="5" height="1.3" rx="0.6" fill="#5d4037"/>' +
+  '<rect x="13.5" y="28.6" width="5" height="1.3" rx="0.6" fill="#5d4037"/>' +
+  '<circle cx="14.1" cy="24.4" r="0.7" fill="#cfd8dc"/><circle cx="17.9" cy="24.4" r="0.7" fill="#cfd8dc"/>' +
   '</svg>'
-)}") 16 2, crosshair`
+)}") 16 3, crosshair`
 
 const distSegPt = (ax: number, ay: number, bx: number, by: number, px: number, py: number) => {
   const dx = bx - ax; const dy = by - ay
@@ -311,16 +314,20 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
     const trail = trailRef.current
     if (trail.length >= 2) {
       const now = performance.now()
-      for (const pass of [0, 1]) {
-        ctx.strokeStyle = pass === 0 ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.55)'
-        ctx.lineWidth = pass === 0 ? 13 : 5
+      const passes: [string, number, number][] = [
+        ['rgba(255,210,110,0.13)', 20, 1],
+        ['rgba(255,255,255,0.45)', 8, 0.8],
+        ['rgba(255,255,255,0.95)', 3, 0.6],
+      ]
+      for (const [color, width, alphaScale] of passes) {
+        ctx.strokeStyle = color
+        ctx.lineWidth = width
         ctx.lineCap = 'round'
         ctx.lineJoin = 'round'
         ctx.beginPath()
         for (let i = 0; i < trail.length; i++) {
           const age = (now - trail[i].t) / 220
-          const a = 1 - age
-          if (pass === 1) ctx.globalAlpha = Math.max(0, a)
+          ctx.globalAlpha = Math.max(0, 1 - age) * alphaScale
           if (i === 0) ctx.moveTo(trail[i].x, trail[i].y)
           else ctx.lineTo(trail[i].x, trail[i].y)
         }
@@ -427,6 +434,20 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
       if (prev) checkSlice(prev.x, prev.y, p.x, p.y)
       prevMouseRef.current = p
       trailRef.current.push({ ...p, t: performance.now() })
+      const parts = partsRef.current
+      if (parts.length < 300) {
+        for (let i = 0; i < 2; i++) {
+          const a = Math.random() * Math.PI * 2
+          const s = 0.8 + Math.random() * 2.2
+          parts.push({
+            x: p.x, y: p.y,
+            vx: Math.cos(a) * s, vy: Math.sin(a) * s - 0.5,
+            life: 10 + (Math.random() * 12 | 0), maxLife: 22,
+            color: Math.random() < 0.35 ? '#ffffff' : '#ffd166',
+            size: 0.8 + Math.random() * 1.4,
+          })
+        }
+      }
     }
     const onUp = () => {
       swipingRef.current = false

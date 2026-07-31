@@ -740,7 +740,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           return (
             <div
               key={j.id}
-              className="relative w-10 h-12 rounded-[4px] flex items-center justify-center"
+              className="relative w-10 h-12 rounded-[4px] flex items-center justify-center group"
               title={`${j.name} — ${j.desc}`}
               style={{ background: j.face, border: '1px solid rgba(0,0,0,0.3)', boxShadow: `0 2px 6px ${BAL.goldSoft}` }}
             >
@@ -748,7 +748,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
               <button
                 onClick={() => sellJoker(j.id)}
                 title="卖出 $1"
-                className="absolute -top-2 -right-2 w-[18px] h-[18px] rounded-full text-[10px] leading-none flex items-center justify-center font-bold"
+                className="absolute -top-1.5 -right-1.5 w-[15px] h-[15px] rounded-full text-[9px] leading-none flex items-center justify-center font-bold opacity-0 group-hover:opacity-100 transition-opacity"
                 style={{ background: BAL.mult, color: '#fff', border: '1px solid rgba(0,0,0,0.3)' }}
               >
                 ×
