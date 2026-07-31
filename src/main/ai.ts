@@ -219,6 +219,47 @@ function detectNewWorktree(cwd: string, before: Set<string>): string | null {
   return null
 }
 
+// Destroy fallback: find any worktree spawned since preSnapshot that ready-detection
+// never recorded (path lacks .claude/worktrees/, e.g. cwd is not the repo root).
+function detectUnmanagedWorktree(cwd: string, before: Set<string>): string | null {
+  try {
+    const after = snapshotWorktrees(cwd)
+    for (const p of after) {
+      if (!before.has(p)) return p
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+// Best-effort worktree teardown: taskkill leaves the dying process holding files for
+// a few hundred ms on Windows, so the remove is retried. Also deletes the linked branch
+// (git worktree remove never touches it), run from the main repo so it works after
+// removal. Silently gives up after 3 tries.
+async function removeWorktree(wtPath: string): Promise<void> {
+  let branch = ''
+  let repoCwd = wtPath
+  try {
+    const out = execSync('git worktree list --porcelain', { cwd: wtPath, encoding: 'utf-8', timeout: 5000, stdio: 'pipe' })
+    const lines = out.split('\n')
+    if (lines[0]?.startsWith('worktree ')) repoCwd = lines[0].replace('worktree ', '').trim()
+    for (const line of lines) {
+      if (line.startsWith('branch ')) branch = line.replace('branch ', '').trim().replace(/^refs\/heads\//, '')
+    }
+  } catch { return /* already removed by the CLI itself */ }
+  for (let i = 0; i < 3; i++) {
+    try {
+      execSync(`git worktree remove --force "${wtPath}"`, { cwd: repoCwd, encoding: 'utf-8', timeout: 10000, stdio: 'pipe' })
+      if (branch) {
+        try { execSync(`git branch -D "${branch}"`, { cwd: repoCwd, encoding: 'utf-8', timeout: 5000, stdio: 'pipe' }) } catch { /* branch already gone */ }
+      }
+      return
+    } catch {
+      if (i === 2) return
+      await new Promise(r => setTimeout(r, 300))
+    }
+  }
+}
+
 export function spawnClaude(opts: {
   cwd: string
   permissionMode: AiPermissionMode
@@ -1152,25 +1193,28 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
   })
 
   // Destroy session entirely
-  ipcMain.handle(IPC_CHANNELS.AI_DESTROY, (_event, sessionId: string) => {
+  ipcMain.handle(IPC_CHANNELS.AI_DESTROY, async (_event, sessionId: string) => {
     const session = aiSessions.get(sessionId)
     if (!session) return false
-    if (process.platform === 'win32') {
-      spawn('taskkill', ['/pid', String(session.process.pid), '/f', '/t'])
-    } else {
-      session.process.kill('SIGTERM')
-    }
-    if (session.worktreePath) {
-      try {
-        execSync(`git worktree remove --force "${session.worktreePath}"`, {
-          cwd: session.worktreePath, encoding: 'utf-8', timeout: 10000, stdio: 'pipe',
-        })
-      } catch { /* worktree may already be gone */ }
-    }
+    // Deregister first so a concurrent create with the same id (mujica respawn)
+    // can't be clobbered by the async worktree cleanup below.
     aiSessions.delete(sessionId)
     for (const [cliId, rendererId] of cliSessionToRenderer) {
       if (rendererId === sessionId) { cliSessionToRenderer.delete(cliId); break }
     }
+    // execSync taskkill so the process tree is gone before the worktree remove runs
+    // (async spawn leaves files locked on Windows → remove fails → worktree leaks).
+    if (process.platform === 'win32') {
+      try {
+        execSync(`taskkill /pid ${session.process.pid} /f /t`, { timeout: 5000, stdio: 'pipe' })
+      } catch { /* already dead */ }
+    } else {
+      try { session.process.kill('SIGTERM') } catch { /* already dead */ }
+    }
+    const wt = session.worktreePath ?? (session.enableWorktree && session.preWorktreeSnapshot
+      ? detectUnmanagedWorktree(session.cwd, session.preWorktreeSnapshot)
+      : null)
+    if (wt) await removeWorktree(wt)
     return true
   })
 }
