@@ -123,6 +123,7 @@ const BAL = {
   dim: '#5c6f5e',
   chips: '#ffd166',
   mult: '#ff6b5e',
+  blue: '#028CF1',
   white: '#f2ecd8',
   red: '#d64545',
   black: '#1c1c1c',
@@ -1077,6 +1078,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           45% { opacity: 0.15; }
           55% { opacity: 0.15; }
         }
+        .bal-play-btn:not(:disabled):hover { filter: brightness(1.2); }
       `}</style>
       <div
         className="absolute inset-0 pointer-events-none z-30"
@@ -1178,7 +1180,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             key={`sb-c-${anim ? anim.stage : 2}-${sbChips}`}
             className="flex flex-col items-center justify-center px-2.5 py-1.5 rounded-[3px] min-w-[64px]"
             style={{
-              background: '#028CF1',
+              background: BAL.blue,
               boxShadow: 'inset 0 0 12px rgba(255,255,255,0.15)',
               opacity: anim && anim.stage === 0 ? 0.25 : sbVisible ? 1 : 0.35,
               animation: anim && anim.stage === 0 ? 'chipIn 0.16s ease-out' : anim && anim.stage === 1 ? 'chipIn 0.1s ease-out, collideL 0.3s 0.1s ease-out' : 'none',
@@ -1332,10 +1334,13 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             <button
               onClick={playHand}
               disabled={selected.size === 0 || handsLeft <= 0 || gameState !== 'playing' || !!activeTarot || (boss?.effect === 'min-hand' && !bossMuted && selected.size < 4)}
-              className="w-[110px] flex items-start justify-center px-3 pt-1.5 pb-2 rounded-lg text-[13px] font-black transition-colors"
+              className="bal-play-btn w-[110px] flex items-start justify-center px-3 pt-1.5 pb-2 rounded-lg text-[13px] font-black transition-all duration-100"
               style={{
-                background: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? BAL.gold : 'transparent',
+                background: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? BAL.blue : 'transparent',
+                boxShadow: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? 'inset 0 0 12px rgba(255,255,255,0.15)' : 'none',
+                border: `1px solid ${selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? BAL.blue : BAL.border}`,
                 color: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? '#fff' : BAL.gold,
+                textShadow: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? '2px 2px 0 rgba(0,0,0,0.55)' : 'none',
                 opacity: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? 1 : 0.35,
               }}
             >
