@@ -89,11 +89,13 @@ interface PackState {
 interface StakeDef {
   name: string
   color: string
-  targetMult: number
+  targetGrowth: number
   handSize: number
   jokerSlots: number
+  discards: number
   startMoney: number
-  interestDiv: number
+  noSmallReward: boolean
+  rent: number
 }
 
 interface AnimState {
@@ -155,7 +157,8 @@ const HAND_BASE: Record<string, [number, number]> = {
   'Straight Flush': [100, 8],
   'Royal Flush': [100, 8],
 }
-const ANTE_TARGETS = [100, 150, 250, 400, 600, 900, 1300, 2000]
+const ANTE_TARGETS = [300, 800, 2000, 5000, 11000, 20000, 35000, 50000]
+const BLIND_MULT = [1, 1.5, 2]
 const HAND_TYPES_ORDER = ['High Card', 'Pair', 'Two Pair', 'Three of a Kind', 'Straight', 'Flush', 'Full House', 'Four of a Kind', 'Straight Flush', 'Royal Flush']
 const HAND_CN: Record<string, string> = {
   'High Card': '高牌',
@@ -197,14 +200,14 @@ const RARITY_BORDER: Record<Rarity, string> = {
 const RARITY_WEIGHTS: [Rarity, number][] = [['common', 60], ['uncommon', 30], ['rare', 10]]
 const REVERSE_SUIT: Record<Suit, Suit> = { hearts: 'spades', spades: 'hearts', diamonds: 'clubs', clubs: 'diamonds' }
 const STAKES: StakeDef[] = [
-  { name: '白', color: '#e8e8e8', targetMult: 1, handSize: 0, jokerSlots: 0, startMoney: 4, interestDiv: 1 },
-  { name: '红', color: '#ff6b5e', targetMult: 1.1, handSize: 0, jokerSlots: 0, startMoney: 4, interestDiv: 1 },
-  { name: '绿', color: '#6edb6e', targetMult: 1.2, handSize: 0, jokerSlots: 0, startMoney: 4, interestDiv: 1 },
-  { name: '黑', color: '#9aa6b0', targetMult: 1.3, handSize: 0, jokerSlots: 0, startMoney: 3, interestDiv: 1 },
-  { name: '蓝', color: '#5eb0ff', targetMult: 1.4, handSize: -1, jokerSlots: 0, startMoney: 4, interestDiv: 1 },
-  { name: '紫', color: '#b06eff', targetMult: 1.5, handSize: 0, jokerSlots: -1, startMoney: 4, interestDiv: 1 },
-  { name: '橙', color: '#ff9d45', targetMult: 1.6, handSize: 0, jokerSlots: 0, startMoney: 0, interestDiv: 1 },
-  { name: '金', color: '#ffd166', targetMult: 1.7, handSize: 0, jokerSlots: 0, startMoney: 4, interestDiv: 2 },
+  { name: '白', color: '#e8e8e8', targetGrowth: 0, handSize: 0, jokerSlots: 0, discards: 0, startMoney: 4, noSmallReward: false, rent: 0 },
+  { name: '红', color: '#ff6b5e', targetGrowth: 0, handSize: 0, jokerSlots: 0, discards: 0, startMoney: 4, noSmallReward: true, rent: 0 },
+  { name: '绿', color: '#6edb6e', targetGrowth: 0.125, handSize: 0, jokerSlots: 0, discards: 0, startMoney: 4, noSmallReward: false, rent: 0 },
+  { name: '黑', color: '#9aa6b0', targetGrowth: 0, handSize: 0, jokerSlots: -1, discards: 0, startMoney: 4, noSmallReward: false, rent: 0 },
+  { name: '蓝', color: '#5eb0ff', targetGrowth: 0, handSize: 0, jokerSlots: 0, discards: -1, startMoney: 4, noSmallReward: false, rent: 0 },
+  { name: '紫', color: '#b06eff', targetGrowth: 0.25, handSize: 0, jokerSlots: 0, discards: 0, startMoney: 4, noSmallReward: false, rent: 0 },
+  { name: '橙', color: '#ff9d45', targetGrowth: 0, handSize: 0, jokerSlots: 0, discards: 0, startMoney: 0, noSmallReward: false, rent: 0 },
+  { name: '金', color: '#ffd166', targetGrowth: 0, handSize: 0, jokerSlots: 0, discards: 0, startMoney: 4, noSmallReward: false, rent: 3 },
 ]
 
 const BOSSES: Boss[] = [
@@ -441,6 +444,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   const [nullifyBoss, setNullifyBoss] = useState(false)
   const [jokerState, setJokerState] = useState<Record<string, number>>({})
   const [stakeIdx, setStakeIdx] = useState(() => Math.min(Number(localStorage.getItem('balatro.stake') || 0), STAKES.length - 1))
+  const [sortMode, setSortMode] = useState<'rank' | 'suit'>('rank')
   const [anim, setAnim] = useState<AnimState | null>(null)
   const [scoreBoard, setScoreBoard] = useState<{ chips: number; mult: number; total: number } | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -470,7 +474,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   const baseTarget = ante < ANTE_TARGETS.length
     ? ANTE_TARGETS[ante]
     : Math.ceil(ANTE_TARGETS[ANTE_TARGETS.length - 1] * 1.5 ** (ante - ANTE_TARGETS.length + 1))
-  const target = Math.ceil(baseTarget * stake.targetMult * (boss && boss.effect === 'wall' && !bossMuted ? 1.5 : 1))
+  const target = Math.ceil(baseTarget * BLIND_MULT[blindIdx] * (1 + stake.targetGrowth * ante) * (boss && boss.effect === 'wall' && !bossMuted ? 1.5 : 1))
   const maxAnteRecord = Number(localStorage.getItem('balatro.maxAnte') || 0)
   const preview = (() => {
     if (gameState !== 'playing' || selected.size === 0) return null
@@ -551,8 +555,12 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
 
   const enterShop = useCallback((reward: number) => {
     const cur = moneyRef.current
-    const interest = Math.min(5, Math.floor((cur + reward) / (5 * stake.interestDiv)))
+    const interest = Math.min(5, Math.floor((cur + reward) / 5))
     let next = cur + reward + interest
+    if (stake.rent > 0) {
+      next = Math.max(0, next - stake.rent)
+      showToast(`租用费 -$${stake.rent}`)
+    }
     const tag = pendingTag
     if (tag === 'money-double') {
       next *= 2
@@ -572,7 +580,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     if (tag === 'instant-pack') setOpenPack(buildPack(PACK_IDS[Math.floor(Math.random() * PACK_IDS.length)]))
     setPendingTag(null)
     setGameState('shop')
-  }, [pendingTag, stake.interestDiv, showToast, buildPack])
+  }, [pendingTag, stake, showToast, buildPack])
 
   const startGame = useCallback(() => {
     clearTimers()
@@ -589,7 +597,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     setBlindIdx(0)
     setBoss(null)
     setHandsLeft(4)
-    setDiscardsLeft(3)
+    setDiscardsLeft(3 + stake.discards)
     setJokers([])
     setJokerState({})
     setLevels({})
@@ -611,7 +619,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     setCardsExpanded(false)
     setCelebrating(false)
     setGameState('playing')
-  }, [clearTimers, drawTo, stake.handSize, stake.startMoney])
+  }, [clearTimers, drawTo, stake])
 
   const toggleCard = useCallback((id: string) => {
     setSelected(prev => {
@@ -795,7 +803,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
         animTimers.current.push(window.setTimeout(() => {
           lockedRef.current = false
           setCelebrating(false)
-          const reward = BLIND_REWARDS[blindIdx]
+          const reward = stake.noSmallReward && blindIdx === 0 ? 0 : BLIND_REWARDS[blindIdx]
           if (blindIdx === 2) {
             if (ante + 1 >= ANTE_TARGETS.length) {
               showToast('进入无尽模式!')
@@ -816,7 +824,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             setBoss(null)
             setRoundScore(0)
             setHandsLeft(4)
-            setDiscardsLeft(3)
+            setDiscardsLeft(3 + stake.discards)
             deckRef.current = shuffle(createDeck())
             discardPileRef.current = []
             lastDrawnRef.current = -1
@@ -838,7 +846,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             setNullifyBoss(false)
             setRoundScore(0)
             setHandsLeft(nextBoss && nextBoss.effect === 'needle' && !nextMuted ? 1 : 4)
-            setDiscardsLeft(3)
+            setDiscardsLeft(3 + stake.discards)
             deckRef.current = shuffle(createDeck())
             discardPileRef.current = []
             lastDrawnRef.current = -1
@@ -855,7 +863,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
         }
       }
     }, settleAt))
-  }, [selected, hand, handsLeft, roundScore, target, ante, blindIdx, boss, bossMuted, effHandSize, vouchers, jokers, levels, activeTarot, gameState, drawTo, clearTimers, enterShop, jokerState, showToast, stakeIdx, stake.handSize, nullifyBoss])
+  }, [selected, hand, handsLeft, roundScore, target, ante, blindIdx, boss, bossMuted, effHandSize, vouchers, jokers, levels, activeTarot, gameState, drawTo, clearTimers, enterShop, jokerState, showToast, stakeIdx, stake, nullifyBoss])
 
   const discardHand = useCallback(() => {
     if (lockedRef.current) return
@@ -879,6 +887,23 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     })
   }, [selected, hand, discardsLeft, handsLeft, gameState, effHandSize, drawTo, activeTarot, boss, bossMuted, jokers])
 
+  const sortHand = useCallback((mode: 'rank' | 'suit') => {
+    setHand(h => {
+      if (mode === 'suit') {
+        return [...h].sort((a, b) => {
+          const d = SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit)
+          if (d !== 0) return d
+          return RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank)
+        })
+      }
+      return [...h].sort((a, b) => {
+        const d = RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank)
+        if (d !== 0) return d
+        return SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit)
+      })
+    })
+  }, [])
+
   const skipBlind = useCallback(() => {
     if (lockedRef.current) return
     if (gameState !== 'playing' || blindIdx === 2) return
@@ -890,14 +915,14 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     setBoss(nextBoss)
     setRoundScore(0)
     setHandsLeft(nextBoss && nextBoss.effect === 'needle' && !nextMuted ? 1 : 4)
-    setDiscardsLeft(3)
+    setDiscardsLeft(3 + stake.discards)
     deckRef.current = shuffle(createDeck())
     discardPileRef.current = []
     lastDrawnRef.current = -1
     setHand(drawTo([], effHandSizeFor(nextMuted ? null : nextBoss, vouchers) + stake.handSize))
     setSelected(new Set())
     enterShop(0)
-  }, [gameState, blindIdx, boss, nullifyBoss, vouchers, drawTo, enterShop, stake.handSize])
+  }, [gameState, blindIdx, boss, nullifyBoss, vouchers, drawTo, enterShop, stake])
 
   const buyItem = useCallback((item: ShopItem) => {
     if (gameState !== 'shop' || money < item.cost) return
@@ -980,7 +1005,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       if (openPack) setOpenPack(null)
-      else if (gameState === 'shop') setGameState('playing')
+      else if (gameState === 'shop') { setScoreBoard(null); setGameState('playing') }
       else if (activeTarot) setActiveTarot(null)
     }
     window.addEventListener('keydown', onKey, true)
@@ -1108,6 +1133,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           <div className="flex flex-col items-center gap-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-[8px] font-black tracking-[0.25em]" style={{ color: BAL.dim }}>TARGET</span>
+              <span className="text-[9px]" style={{ color: BAL.gold }}>🎯</span>
               <span className="text-[13px] leading-none font-black tabular-nums" style={{ color: BAL.gold }}>
                 {target.toLocaleString()}
                 {boss && boss.effect === 'wall' ? ' ×1.5' : ''}
@@ -1115,13 +1141,19 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             </div>
             <span
               key={roundScore}
-              className="block text-[26px] leading-none font-black tabular-nums"
+              className="inline-flex items-center gap-1 text-[26px] leading-none font-black tabular-nums"
               style={{
                 color: roundScore > 0 ? BAL.goldBright : BAL.goldDim,
                 textShadow: roundScore > 0 ? '0 0 14px rgba(255,209,102,0.45)' : 'none',
                 animation: 'scorePop 0.28s ease-out',
               }}
             >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <line x1="12" y1="2" x2="12" y2="22" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <line x1="5" y1="5" x2="19" y2="19" />
+                <line x1="19" y1="5" x2="5" y2="19" />
+              </svg>
               {roundScore.toLocaleString()}
             </span>
           </div>
@@ -1138,32 +1170,30 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             <div className="flex items-center gap-1.5">
           <div
             key={`sb-c-${anim ? anim.stage : 2}-${sbChips}`}
-            className="flex flex-col items-center px-2.5 py-1 rounded-[3px] min-w-[64px]"
+            className="flex flex-col items-center justify-center px-2.5 py-1.5 rounded-[3px] min-w-[64px]"
             style={{
-              background: 'linear-gradient(180deg,#143a5c,#0c2540)',
-              border: '1px solid rgba(0,157,255,0.45)',
+              background: '#028CF1',
+              boxShadow: 'inset 0 0 12px rgba(255,255,255,0.15)',
               opacity: anim && anim.stage === 0 ? 0.25 : sbVisible ? 1 : 0.35,
               animation: anim && anim.stage === 0 ? 'chipIn 0.16s ease-out' : anim && anim.stage === 1 ? 'chipIn 0.1s ease-out, collideL 0.3s 0.1s ease-out' : 'none',
             }}
           >
-            <span className="text-[7px] font-black tracking-[0.2em] mb-px" style={{ color: 'rgba(0,157,255,0.75)' }}>CHIPS</span>
-            <span className="text-[17px] font-black tabular-nums leading-none" style={{ color: '#009dff', textShadow: '0 0 8px rgba(0,157,255,0.45)' }}>
+            <span className="text-[17px] font-black tabular-nums leading-none" style={{ color: '#fff', fontWeight: 900, textShadow: '2px 2px 0 rgba(0,0,0,0.55)' }}>
               {sbChips.toLocaleString()}
             </span>
           </div>
           <span className="text-lg font-black shrink-0" style={{ color: BAL.mult, opacity: anim && anim.stage === 0 ? 0.25 : sbVisible ? 1 : 0.35, transition: 'opacity 0.12s' }}>×</span>
           <div
             key={`sb-m-${anim ? anim.stage : 2}-${sbMult}`}
-            className="flex flex-col items-center px-2.5 py-1 rounded-[3px] min-w-[64px]"
+            className="flex flex-col items-center justify-center px-2.5 py-1.5 rounded-[3px] min-w-[64px]"
             style={{
-              background: 'linear-gradient(180deg,#5c1424,#400d18)',
-              border: '1px solid rgba(254,95,85,0.5)',
+              background: '#FB4942',
+              boxShadow: 'inset 0 0 12px rgba(255,255,255,0.15)',
               opacity: anim && anim.stage === 0 ? 0.25 : sbVisible ? 1 : 0.35,
               animation: anim && anim.stage >= 1 ? 'multIn 0.12s ease-out, collideR 0.3s 0.12s ease-out' : 'none',
             }}
           >
-            <span className="text-[7px] font-black tracking-[0.2em] mb-px" style={{ color: 'rgba(254,95,85,0.8)' }}>MULT</span>
-            <span className="text-[17px] font-black tabular-nums leading-none" style={{ color: '#fe5f55', textShadow: '0 0 8px rgba(254,95,85,0.45)' }}>
+            <span className="text-[17px] font-black tabular-nums leading-none" style={{ color: '#fff', fontWeight: 900, textShadow: '2px 2px 0 rgba(0,0,0,0.55)' }}>
               ×{sbMult}
             </span>
           </div>
@@ -1291,23 +1321,58 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={playHand}
-            disabled={selected.size === 0 || handsLeft <= 0 || gameState !== 'playing' || !!activeTarot || (boss?.effect === 'min-hand' && !bossMuted && selected.size < 4)}
-            className="px-6 py-2 rounded-lg text-[13px] font-black transition-colors"
-            style={{ background: BAL.gold, color: '#111', opacity: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? 1 : 0.35 }}
-          >
-            出牌 ({handsLeft})
-          </button>
-          <button
-            onClick={discardHand}
-            disabled={selected.size === 0 || discardsLeft <= 0 || gameState !== 'playing' || !!activeTarot || (boss?.effect === 'no-discard' && !bossMuted)}
-            className="px-6 py-2 rounded-lg text-[13px] font-bold transition-colors"
-            style={{ border: `1px solid ${BAL.border}`, color: BAL.gold, opacity: selected.size > 0 && discardsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'no-discard' && !bossMuted) ? 1 : 0.35 }}
-          >
-            弃牌 ({discardsLeft})
-          </button>
+        <div className="flex flex-col gap-1.5 shrink-0 w-full">
+          <div className="flex items-stretch gap-2">
+            <button
+              onClick={playHand}
+              disabled={selected.size === 0 || handsLeft <= 0 || gameState !== 'playing' || !!activeTarot || (boss?.effect === 'min-hand' && !bossMuted && selected.size < 4)}
+              className="flex-1 flex items-start justify-center px-4 pt-1.5 pb-2 rounded-lg text-[13px] font-black transition-colors"
+              style={{ background: BAL.gold, color: '#111', opacity: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? 1 : 0.35 }}
+            >
+              出牌 ({handsLeft})
+            </button>
+            <div className="flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 rounded-lg shrink-0" style={{ border: '3px solid rgba(255,255,255,0.85)' }}>
+              <button
+                onClick={() => sortHand(sortMode)}
+                disabled={hand.length === 0 || gameState !== 'playing' || !!activeTarot}
+                className="px-2 rounded text-[12px] font-bold leading-none transition-colors"
+                style={{ color: BAL.gold, opacity: hand.length > 0 && gameState === 'playing' && !activeTarot ? 1 : 0.35 }}
+              >
+                理牌
+              </button>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={() => { setSortMode('rank'); sortHand('rank') }}
+                  className="px-2.5 py-0.5 rounded text-[12px] font-bold transition-colors"
+                  style={{
+                    background: sortMode === 'rank' ? BAL.gold : 'transparent',
+                    color: sortMode === 'rank' ? '#111' : BAL.gold,
+                  }}
+                >
+                  点数
+                </button>
+                <button
+                  onClick={() => { setSortMode('suit'); sortHand('suit') }}
+                  className="px-2.5 py-0.5 rounded text-[12px] font-bold transition-colors"
+                  style={{
+                    background: sortMode === 'suit' ? BAL.gold : 'transparent',
+                    color: sortMode === 'suit' ? '#111' : BAL.gold,
+                  }}
+                >
+                  花色
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={discardHand}
+              disabled={selected.size === 0 || discardsLeft <= 0 || gameState !== 'playing' || !!activeTarot || (boss?.effect === 'no-discard' && !bossMuted)}
+              className="flex-1 flex items-start justify-center px-4 pt-1.5 pb-2 rounded-lg text-[13px] font-bold transition-colors"
+              style={{ border: `1px solid ${BAL.border}`, color: BAL.gold, opacity: selected.size > 0 && discardsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'no-discard' && !bossMuted) ? 1 : 0.35 }}
+            >
+              弃牌 ({discardsLeft})
+            </button>
+          </div>
+          <div className="h-2" />
         </div>
 
         <div className="text-[10px]" style={{ color: BAL.dim }}>
@@ -1476,7 +1541,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             >
               🔄 Reroll {rerollFree ? '免费' : `$${REROLL_COST}`}
             </button>
-            <button onClick={() => setGameState('playing')} className="px-5 py-2 rounded text-[13px] font-black" style={{ background: BAL.gold, color: '#111' }}>
+            <button onClick={() => { setScoreBoard(null); setGameState('playing') }} className="px-5 py-2 rounded text-[13px] font-black" style={{ background: BAL.gold, color: '#111' }}>
               ▶ 继续
             </button>
           </div>
