@@ -1022,6 +1022,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   const jokerCount = Math.min(jokerSlots, visibleSlots)
   const tarotCount = Math.max(0, visibleSlots - jokerSlots)
   const hiddenCount = totalSlots - CARD_LIMIT
+  const canDiscard = selected.size > 0 && discardsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'no-discard' && !bossMuted)
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none select-none relative" style={{ background: BAL.bg, color: BAL.text }}>
@@ -1092,13 +1093,10 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           <span className="text-xs font-black tracking-widest" style={{ color: BAL.gold }}>{'🃏'} BALATRO</span>
         </div>
         <div className="flex items-center gap-2.5 text-[12px] tabular-nums">
-          <span className="font-bold" style={{ color: BAL.gold }}>💲{money}</span>
           <span className="text-[10px]" style={{ color: BAL.muted }}>
             Ante {ante + 1}{ante >= ANTE_TARGETS.length - 1 ? ' ∞' : `/${ANTE_TARGETS.length}`}
             <span style={{ color: stake.color }}> · {stake.name}</span>
           </span>
-          <span style={{ color: BAL.text }}>✋{handsLeft}</span>
-          <span style={{ color: BAL.text }}>🗑{discardsLeft}</span>
         </div>
       </div>
 
@@ -1139,23 +1137,31 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
                 {boss && boss.effect === 'wall' ? ' ×1.5' : ''}
               </span>
             </div>
-            <span
-              key={roundScore}
-              className="inline-flex items-center gap-1 text-[26px] leading-none font-black tabular-nums"
+            <div
+              className="inline-flex items-center px-2.5 py-1.5 rounded-[3px]"
               style={{
-                color: roundScore > 0 ? BAL.goldBright : BAL.goldDim,
-                textShadow: roundScore > 0 ? '0 0 14px rgba(255,209,102,0.45)' : 'none',
-                animation: 'scorePop 0.28s ease-out',
+                background: roundScore > 0 ? BAL.gold : 'rgba(232,184,76,0.12)',
+                boxShadow: 'inset 0 0 12px rgba(255,255,255,0.15)',
               }}
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                <line x1="12" y1="2" x2="12" y2="22" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <line x1="5" y1="5" x2="19" y2="19" />
-                <line x1="19" y1="5" x2="5" y2="19" />
-              </svg>
-              {roundScore.toLocaleString()}
-            </span>
+              <span
+                key={roundScore}
+                className="inline-flex items-center gap-1 text-[26px] leading-none font-black tabular-nums"
+                style={{
+                  color: roundScore > 0 ? '#fff' : BAL.goldDim,
+                  textShadow: '2px 2px 0 rgba(0,0,0,0.55)',
+                  animation: 'scorePop 0.28s ease-out',
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <line x1="12" y1="2" x2="12" y2="22" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <line x1="5" y1="5" x2="19" y2="19" />
+                  <line x1="19" y1="5" x2="5" y2="19" />
+                </svg>
+                {roundScore.toLocaleString()}
+              </span>
+            </div>
           </div>
           <div className="flex flex-col items-center shrink-0">
             <div className="h-[14px] flex items-center mb-1">
@@ -1287,7 +1293,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
         )}
       </div>
 
-      <div className="flex-1 flex flex-col items-center overflow-y-auto p-3 gap-2.5" style={{ minHeight: 0 }}>
+      <div className="relative flex-1 flex flex-col items-center overflow-y-auto p-3 gap-2.5" style={{ minHeight: 0 }}>
         {activeTarot && (
           <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-md w-full" style={{ background: 'rgba(232,184,76,0.12)', border: `1px solid ${BAL.goldDim}` }}>
             <span className="w-5 h-6 rounded-[2px] flex items-center justify-center text-[10px] shrink-0" style={{ background: activeTarot.face, border: '1px solid rgba(0,0,0,0.3)' }}>
@@ -1322,20 +1328,24 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
         </div>
 
         <div className="flex flex-col gap-1.5 shrink-0 w-full">
-          <div className="flex items-stretch gap-2">
+          <div className="flex items-stretch justify-center gap-1.5">
             <button
               onClick={playHand}
               disabled={selected.size === 0 || handsLeft <= 0 || gameState !== 'playing' || !!activeTarot || (boss?.effect === 'min-hand' && !bossMuted && selected.size < 4)}
-              className="flex-1 flex items-start justify-center px-4 pt-1.5 pb-2 rounded-lg text-[13px] font-black transition-colors"
-              style={{ background: BAL.gold, color: '#111', opacity: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? 1 : 0.35 }}
+              className="w-[110px] flex items-start justify-center px-3 pt-1.5 pb-2 rounded-lg text-[13px] font-black transition-colors"
+              style={{
+                background: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? BAL.gold : 'transparent',
+                color: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? '#fff' : BAL.gold,
+                opacity: selected.size > 0 && handsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'min-hand' && !bossMuted && selected.size < 4) ? 1 : 0.35,
+              }}
             >
               出牌 ({handsLeft})
             </button>
-            <div className="flex flex-col items-center justify-center gap-0.5 px-1 py-0.5 rounded-lg shrink-0" style={{ border: '3px solid rgba(255,255,255,0.85)' }}>
+            <div className="flex flex-col items-center justify-center gap-0.5 px-0.5 py-0.5 rounded-lg shrink-0" style={{ border: '3px solid rgba(255,255,255,0.85)' }}>
               <button
                 onClick={() => sortHand(sortMode)}
                 disabled={hand.length === 0 || gameState !== 'playing' || !!activeTarot}
-                className="px-2 rounded text-[12px] font-bold leading-none transition-colors"
+                className="px-1.5 rounded text-[12px] font-bold leading-none transition-colors"
                 style={{ color: BAL.gold, opacity: hand.length > 0 && gameState === 'playing' && !activeTarot ? 1 : 0.35 }}
               >
                 理牌
@@ -1343,21 +1353,15 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
               <div className="flex items-center gap-0.5">
                 <button
                   onClick={() => { setSortMode('rank'); sortHand('rank') }}
-                  className="px-2.5 py-0.5 rounded text-[12px] font-bold transition-colors"
-                  style={{
-                    background: sortMode === 'rank' ? BAL.gold : 'transparent',
-                    color: sortMode === 'rank' ? '#111' : BAL.gold,
-                  }}
+                  className="px-1.5 py-0.5 rounded text-[12px] font-bold transition-colors"
+                  style={{ background: BAL.gold, color: '#fff' }}
                 >
                   点数
                 </button>
                 <button
                   onClick={() => { setSortMode('suit'); sortHand('suit') }}
-                  className="px-2.5 py-0.5 rounded text-[12px] font-bold transition-colors"
-                  style={{
-                    background: sortMode === 'suit' ? BAL.gold : 'transparent',
-                    color: sortMode === 'suit' ? '#111' : BAL.gold,
-                  }}
+                  className="px-1.5 py-0.5 rounded text-[12px] font-bold transition-colors"
+                  style={{ background: BAL.gold, color: '#fff' }}
                 >
                   花色
                 </button>
@@ -1365,9 +1369,16 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             </div>
             <button
               onClick={discardHand}
-              disabled={selected.size === 0 || discardsLeft <= 0 || gameState !== 'playing' || !!activeTarot || (boss?.effect === 'no-discard' && !bossMuted)}
-              className="flex-1 flex items-start justify-center px-4 pt-1.5 pb-2 rounded-lg text-[13px] font-bold transition-colors"
-              style={{ border: `1px solid ${BAL.border}`, color: BAL.gold, opacity: selected.size > 0 && discardsLeft > 0 && gameState === 'playing' && !activeTarot && !(boss?.effect === 'no-discard' && !bossMuted) ? 1 : 0.35 }}
+              disabled={!canDiscard}
+              className="w-[110px] flex items-start justify-center px-3 pt-1.5 pb-2 rounded-lg text-[13px] font-bold transition-colors"
+              style={{
+                background: canDiscard ? BAL.mult : 'transparent',
+                boxShadow: canDiscard ? 'inset 0 0 12px rgba(255,255,255,0.15)' : 'none',
+                border: `1px solid ${canDiscard ? BAL.mult : BAL.border}`,
+                color: canDiscard ? '#fff' : BAL.gold,
+                textShadow: canDiscard ? '2px 2px 0 rgba(0,0,0,0.55)' : 'none',
+                opacity: canDiscard ? 1 : 0.35,
+              }}
             >
               弃牌 ({discardsLeft})
             </button>
@@ -1375,10 +1386,6 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           <div className="h-2" />
         </div>
 
-        <div className="text-[10px]" style={{ color: BAL.dim }}>
-          Deck {deckRef.current.length}
-          {lastPlayed && levels[lastPlayed] > 1 && <span> · {HAND_CN[lastPlayed]} Lv{levels[lastPlayed]}</span>}
-        </div>
       </div>
 
       <div className="shrink-0 border-t" style={{ background: BAL.panel, borderColor: BAL.border }}>
@@ -1427,6 +1434,18 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
                 </div>
               ))}
               {history.length === 0 && <div className="text-[9px]" style={{ color: BAL.dim }}>暂无记录</div>}
+            </div>
+            <div className="flex items-center justify-between border-t mt-0.5 pt-0.5" style={{ borderColor: BAL.borderDim }}>
+              <span className="text-[11px] font-bold tabular-nums" style={{ color: BAL.gold }}>💲{money}</span>
+              <div className="flex items-center gap-1">
+                <div className="w-3.5 h-5 rounded-[2px] relative overflow-hidden" style={{ background: '#1b3a5e', border: '1px solid rgba(255,255,255,0.4)' }}>
+                  <div className="absolute inset-[2px] rounded-[1px]" style={{ border: '1px solid rgba(255,255,255,0.45)' }} />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rotate-45" style={{ border: '1px solid #ffd166' }} />
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold tabular-nums" style={{ color: BAL.muted }}>{deckRef.current.length}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1494,7 +1513,6 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
               ))}
             </div>
           </div>
-          <div className="absolute right-3 top-3 text-xs font-bold tabular-nums" style={{ color: BAL.gold }}>💲{money}</div>
         </div>
           {shopInfo && (
             <div className="px-3 py-1 text-[10px] shrink-0" style={{ color: BAL.muted }}>
@@ -1541,9 +1559,12 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             >
               🔄 Reroll {rerollFree ? '免费' : `$${REROLL_COST}`}
             </button>
-            <button onClick={() => { setScoreBoard(null); setGameState('playing') }} className="px-5 py-2 rounded text-[13px] font-black" style={{ background: BAL.gold, color: '#111' }}>
-              ▶ 继续
-            </button>
+            <div className="flex items-center">
+              <span className="text-[22px] font-black tabular-nums leading-none mr-3" style={{ color: BAL.gold, textShadow: '2px 2px 0 rgba(0,0,0,0.5)' }}>💲{money}</span>
+              <button onClick={() => { setScoreBoard(null); setGameState('playing') }} className="px-5 py-2 rounded text-[13px] font-black" style={{ background: BAL.gold, color: '#111' }}>
+                ▶ 继续
+              </button>
+            </div>
           </div>
         </div>
       )}
