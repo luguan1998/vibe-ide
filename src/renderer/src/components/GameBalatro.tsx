@@ -1105,7 +1105,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
         <div className="h-px mb-1.5" style={{ background: 'linear-gradient(90deg, transparent, rgba(232,184,76,0.35), transparent)' }} />
 
         <div className="flex items-center justify-between gap-2 mb-1.5">
-          <div className="flex flex-col gap-1 min-w-0">
+          <div className="flex flex-col items-center gap-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-[8px] font-black tracking-[0.25em]" style={{ color: BAL.dim }}>TARGET</span>
               <span className="text-[13px] leading-none font-black tabular-nums" style={{ color: BAL.gold }}>
