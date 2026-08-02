@@ -94,11 +94,17 @@ app.on('second-instance', (_event, commandLine) => {
 })
 
 function createWindow(): void {
+  // 初始尺寸不超当前工作区：小屏/高缩放笔记本（1366x768、125% 缩放的 1920x1080 等）
+  // 下 1400x900 会超出屏幕，无边框窗口上边缘连同 WCO 窗口控制按钮被顶出可视区，
+  // 表现为"全屏占住"且无法最小化。clamp 后窗口必然完整落在工作区内（反复出现的问题）
+  const workArea = screen.getPrimaryDisplay().workArea
+  const winWidth = Math.min(1400, workArea.width)
+  const winHeight = Math.min(900, workArea.height)
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 900,
-    minHeight: 600,
+    width: winWidth,
+    height: winHeight,
+    minWidth: Math.min(900, workArea.width),
+    minHeight: Math.min(600, workArea.height),
     show: false,
     frame: false,
     titleBarStyle: 'hidden',
@@ -120,10 +126,9 @@ function createWindow(): void {
   })
 
   // Center window within the work area (excludes taskbar) on first launch
-  const workArea = screen.getPrimaryDisplay().workArea
-  const x = Math.round(workArea.x + (workArea.width - 1400) / 2)
-  const y = Math.round(workArea.y + (workArea.height - 900) / 2)
-  mainWindow.setBounds({ x, y, width: 1400, height: 900 })
+  const x = Math.round(workArea.x + (workArea.width - winWidth) / 2)
+  const y = Math.round(workArea.y + (workArea.height - winHeight) / 2)
+  mainWindow.setBounds({ x, y, width: winWidth, height: winHeight })
 
   mainWindow.on('ready-to-show', () => {
     mainWindow!.show()
