@@ -225,7 +225,7 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
   const [expanded, setExpanded] = useState(false)
   const toolCount = messages.reduce((acc, m) => acc + (m.toolUse ? m.toolUse.length : 0), 0)
   return (
-    <div className="ai-tab__agent-group border-l-[3px] border-ide-accent/40 pl-2 ml-2 space-y-1 animate-fade-in">
+    <div className="ai-tab__agent-group w-full max-w-[960px] mx-auto border-l-[3px] border-ide-accent/40 pl-2 ml-2 space-y-1 animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
         className="ai-tab__agent-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
@@ -279,14 +279,14 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
       : null
 
   return (
-    <div className="ai-tab__message ai-tab__message--assistant space-y-1 animate-fade-in">
+    <div className="ai-tab__message ai-tab__message--assistant flex flex-col items-center space-y-1 animate-fade-in">
       {errorStatus && (
-        <div className={`ai-tab__status-pill text-[9px] font-medium px-1 ${errorStatus.color}`}>
+        <div className={`ai-tab__status-pill w-full max-w-[960px] text-[9px] font-medium px-1 ${errorStatus.color}`}>
           {errorStatus!.label}
         </div>
       )}
       {hasContent && (
-        <div className="ai-tab__message-content max-w-[92%] space-y-1.5">
+        <div className="ai-tab__message-content w-full max-w-[960px] space-y-1.5">
           {!hideThink && message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} />}
           {message.content && <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />}
           {!hideTools && message.toolUse && message.toolUse.length >= 2 && <CollapsedToolsSummary tools={message.toolUse} />}
@@ -296,7 +296,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
         </div>
       )}
       {showMeta && (
-        <div className="ai-tab__message-meta flex items-center gap-2 text-[11px] text-ide-text-muted/50 px-1 group/meta">
+        <div className="ai-tab__message-meta w-full max-w-[960px] -mt-3 flex items-center gap-2 text-[11px] text-ide-text-muted/50 px-1 group/meta">
           <span className="inline-flex items-center gap-0.5">
             <span className="text-sm">✻</span>
             <span>Churned for {((message.durationMs || 0) / 1000).toFixed(1)}s</span>

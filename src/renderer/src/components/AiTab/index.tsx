@@ -773,14 +773,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           onFork={handleFork}
         />
         {!state.ready && state.messages.length > 0 && (
-          <div className="ai-tab__resume flex items-center gap-2 max-w-[92%] px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in">
+          <div className="ai-tab__resume flex items-center gap-2 w-full max-w-[960px] mx-auto px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in">
             <span className="h-3.5 w-3.5 rounded-full border-2 border-ide-accent/30 border-t-ide-accent animate-spin shrink-0" />
             <span>{t('Resuming session...')}</span>
           </div>
         )}
         {/* Busy indicator — thinking + streaming + sparkle */}
         {state.busy && (
-          <div className="ai-tab__busy max-w-[92%] space-y-1.5 animate-fade-in">
+          <div className="ai-tab__busy w-full max-w-[960px] mx-auto space-y-1.5 animate-fade-in">
             {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll />}
             {state.streamBuffer ? (
               <div>
