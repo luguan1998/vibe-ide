@@ -837,7 +837,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       )}
 
       {/* Input */}
-      <div className="ai-tab__input-area shrink-0 px-2 pt-2 pb-0">
+      <div className="ai-tab__input-area shrink-0 w-full max-w-[992px] mx-auto px-2 pt-2 pb-0">
         <div className="relative">
           {slashMenuOpen && (
             <div className="absolute bottom-full left-0 right-0 mb-1 z-20">

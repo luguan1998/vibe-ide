@@ -194,19 +194,36 @@ export const aiStore = {
         }))
         return
       }
-      window.api.ai.create({
-        sessionId: sid,
-        cwd: opts.cwd,
-        autoApprove: opts.autoApprove,
-        permissionMode: opts.permissionMode,
-        ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}),
-        ...(cliCommand ? { cliCommand } : {}),
-        ...(configDir ? { configDir } : {}),
-        ...(opts.enableWorktree ? { enableWorktree: true } : {}),
-        ...(opts.model ? { model: opts.model } : {}),
-        ...(opts.persona?.trim() ? { persona: opts.persona } : {}),
-      })
-      aiStore.updateSession(sid, () => ({ ...EMPTY_SESSION, cwd: opts.cwd }))
+      const finish = (messages: any[], model: string, slashCommands: any[]) => {
+        window.api.ai.create({
+          sessionId: sid,
+          cwd: opts.cwd,
+          autoApprove: opts.autoApprove,
+          permissionMode: opts.permissionMode,
+          ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}),
+          ...(cliCommand ? { cliCommand } : {}),
+          ...(configDir ? { configDir } : {}),
+          ...(opts.enableWorktree ? { enableWorktree: true } : {}),
+          ...(opts.model ? { model: opts.model } : {}),
+          ...(opts.persona?.trim() ? { persona: opts.persona } : {}),
+        })
+        aiStore.updateSession(sid, () => ({
+          ...EMPTY_SESSION,
+          cwd: opts.cwd,
+          messages,
+          model,
+          slashCommands: enrichSlashCommands(slashCommands),
+        }))
+      }
+      if (opts.resumeSessionId) {
+        // CLI --resume 不重放历史事件流，须先从 JSONL 预填历史（与 resumeSession 一致），
+        // 否则 fork/恢复的新会话渲染空白
+        window.api.ai.loadSessionMessages(opts.resumeSessionId, opts.cwd, configDir)
+          .then((history: any) => finish(history?.messages || [], history?.model || '', history?.slashCommands || []))
+          .catch(() => finish([], '', []))
+      } else {
+        finish([], '', [])
+      }
     }).catch(() => {
       aiStore.updateSession(sid, () => ({
         ...EMPTY_SESSION,

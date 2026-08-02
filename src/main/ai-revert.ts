@@ -15,7 +15,6 @@ import {
   send,
   spawnClaude,
   resolveProjectDir,
-  cleanText,
   parseUserTurns,
 } from './ai'
 
@@ -45,20 +44,15 @@ async function truncateJsonlAtUserMessage(
   const targetLineIdx = turns[userMessageIndex].lineIdx
 
   // keepTarget=false (revert): truncate BEFORE the target (exclude it).
-  // keepTarget=true (fork): truncate AFTER the target (include it). For a slash-group target,
-  // extend endIdx to the group's last wrapper line — tolerating interspersed non-user lines
-  // (the old break-on-first-non-user logic dropped a mid-group stdout when /model failed).
+  // keepTarget=true (fork): keep the ENTIRE turn (user message + its assistant reply + result),
+  // up to (but not including) the next user message — fork from the meta row points at the
+  // turn's user message, so cutting at the user line alone would drop the finished reply.
   let endIdx = targetLineIdx
   if (keepTarget) {
     const nextTurnStart = userMessageIndex + 1 < turns.length
       ? turns[userMessageIndex + 1].lineIdx
       : lines.length
-    for (let j = targetLineIdx + 1; j < nextTurnStart; j++) {
-      let m2: any
-      try { m2 = JSON.parse(lines[j]) } catch { continue }
-      const u2 = m2.type === 'user' && typeof m2.message?.content === 'string'
-      if (u2 && cleanText(m2.message.content) === '' && !m2.isMeta) endIdx = j
-    }
+    endIdx = nextTurnStart - 1
   }
   const truncated = keepTarget ? lines.slice(0, endIdx + 1) : lines.slice(0, targetLineIdx)
 

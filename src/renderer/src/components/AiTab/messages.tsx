@@ -1,20 +1,8 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import type { AiMessage, AiToolUse, AiSessionState, AiPermissionRequest, AiPermissionMode, AiSlashCommand, RecentFileEntry, UserTurn } from '@shared/types'
-import { AI_FILE_EDIT_TOOLS } from '@shared/types'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { useStableCodeOverrides } from '../MarkdownCodeBlock'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
+import type { AiMessage, AiToolUse, UserTurn } from '@shared/types'
 import { useI18n } from '../../i18n'
-import { FILE_PATH_REGEX, parseFilePath } from '../../utils/filePathUtils'
-import { cleanMessageContent, formatConversationMarkdown } from '../../utils/aiConversationFormatter'
-import { loadFilterRules } from '../FileTab'
-import { getFileInfo, FILE_ICON_PATHS } from '../FileIcons'
-import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig } from '../../aiStore'
-import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch, Folder, X } from 'lucide-react'
-import { DiffEditor, Editor } from '@monaco-editor/react'
-import { useTheme } from '../../themes'
-import { displayLabel, getShortcuts } from '../../shortcuts'
+import { cleanMessageContent } from '../../utils/aiConversationFormatter'
+import { ChevronDown, Check, Undo2, MessageSquare, GitFork, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
 import { ToolIcon, AiToolCallCard, CollapsedToolsSummary, isMergeTool, isPureToolMessage } from './tools'
 import { ChatMarkdown } from './markdown'
 interface TodoItem {
@@ -51,11 +39,18 @@ export function deriveTodoList(messages: AiMessage[]): TodoItem[] {
   }
   return [...tasks.values()].filter(t => t.status !== 'deleted')
 }
+// 真实用户输入：tool_result 回填消息也是 type:'user' 的 AiMessage（CLI 把工具结果写进
+// user 行），但它们紧跟含 tool_use 的 assistant 之后，不得计入 userTurns/revert/fork 索引
+export function isRealUserInput(messages: AiMessage[], i: number): boolean {
+  const m = messages[i]
+  if (!m || m.role !== 'user' || m.type !== 'user' || !m.content) return false
+  return !(i > 0 && messages[i - 1].type === 'assistant')
+}
+
 export function findMessageIndexForUserMessage(messages: AiMessage[], userMessageIndex: number): number {
   let count = 0
   for (let i = 0; i < messages.length; i++) {
-    const m = messages[i]
-    if (m.role === 'user' && m.content && m.type === 'user') {
+    if (isRealUserInput(messages, i)) {
       if (count === userMessageIndex) return i
       count++
     }
@@ -63,14 +58,12 @@ export function findMessageIndexForUserMessage(messages: AiMessage[], userMessag
   return -1
 }
 
-function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, isInternal }: {
+function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAndCode, isInternal }: {
   message: AiMessage
   userMessageIndex: number
-  totalUserMessages: number
   isBusy: boolean
   onRevert: (idx: number) => void
   onRevertAndCode: (idx: number) => void
-  onFork: (idx: number) => void
   isInternal?: boolean
 }) {
   const { t } = useI18n()
@@ -97,7 +90,7 @@ function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, o
   if (!cleanedContent) return null
 
   return (
-    <div className="ai-tab__message ai-tab__message--user flex justify-end animate-fade-in">
+    <div className="ai-tab__message ai-tab__message--user w-full max-w-[960px] mx-auto flex justify-end animate-fade-in">
       <div className="ai-tab__message-wrap max-w-[85%] relative"
         onMouseEnter={() => { clearHideTimer(); setShowPopover(true) }}
         onMouseLeave={() => { hideTimerRef.current = setTimeout(() => setShowPopover(false), 300) }}
@@ -131,16 +124,6 @@ function AiUserMessage({ message, userMessageIndex, totalUserMessages, isBusy, o
             >
               <MessageSquare size={12} className="shrink-0" />
               {t('Revert conversation only')}
-            </button>
-            <button
-              onClick={() => { setShowPopover(false); onFork(userMessageIndex) }}
-              disabled={isBusy}
-              className="ai-tab__user-popover-item w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left text-ide-text-muted
-                         hover:bg-ide-hover hover:text-ide-text
-                         disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              <GitFork size={12} className="shrink-0" />
-              {t('Fork to new session')}
             </button>
           </div>
         )}
@@ -245,7 +228,6 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
               workspacePath={workspacePath}
               onOpenFile={onOpenFile}
               userMessageIndex={-1}
-              totalUserMessages={0}
               isBusy={false}
               onRevert={() => {}}
               onRevertAndCode={() => {}}
@@ -258,12 +240,14 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
     </div>
   )
 }
-function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, viewMode }: {
+function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, viewMode, onFork, forkIdx }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   copyText?: string
   viewMode?: number
+  onFork: (idx: number) => void
+  forkIdx: number
 }) {
   const { t } = useI18n()
   const hideTools = viewMode === 1 || viewMode === 2
@@ -303,6 +287,15 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
             {message.isAborted && <span className="text-ide-text-muted/40"> · paused by user</span>}
           </span>
           {copyText && <CopyButton text={copyText} />}
+          {forkIdx >= 0 && (
+            <button
+              onClick={() => onFork(forkIdx)}
+              className="shrink-0 opacity-0 group-hover/meta:opacity-100 transition-opacity hover:text-ide-accent"
+              title={t('Fork to new session')}
+            >
+              <GitFork size={12} />
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -385,12 +378,11 @@ export function TodoListPanel({ items }: { items: TodoItem[] }) {
   )
 }
 
-const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, totalUserMessages, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal }: {
+const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   userMessageIndex: number
-  totalUserMessages: number
   isBusy: boolean
   onRevert: (idx: number) => void
   onRevertAndCode: (idx: number) => void
@@ -412,7 +404,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   if (message.error) {
     inner = <AiErrorMessage message={message} />
   } else if (message.role === 'user') {
-    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} totalUserMessages={totalUserMessages} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} onFork={onFork} isInternal={isInternal} />
+    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} isInternal={isInternal} />
   } else if (
     message.type === 'result'
     && message.costUsd == null
@@ -424,7 +416,18 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
     // success 且无 meta → 重复消息，不渲染
     return null
   } else {
-    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} viewMode={viewMode} />
+    // fork 语义 = 保留到该 AI 回复正文结束：第 N 个主会话 result = 第 N 回合完成，
+    // 其 forkIdx = 其之前真实用户输入数 - 1（截断点 = 该回合的 user 消息索引，
+    // main 端会保留整个回合）
+    let forkIdx = -1
+    if (message.type === 'result' && !message.parentToolUseId) {
+      let count = 0
+      for (let j = 0; j < msgIndex; j++) {
+        if (isRealUserInput(allMessages, j)) count++
+      }
+      forkIdx = count - 1
+    }
+    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} viewMode={viewMode} onFork={onFork} forkIdx={forkIdx} />
   }
 
   return <>{inner}</>
@@ -441,8 +444,7 @@ export function MessageList({ messages, userTurns, viewMode, busy, workspacePath
   onRevertAndCode: (idx: number) => void
   onFork: (idx: number) => void
 }) {
-  const userMessages = messages.filter(m => m.role === 'user' && m.content && m.type === 'user')
-  const totalUserMessages = userMessages.length
+  const userMessages = messages.filter((m, i) => isRealUserInput(messages, i))
   const groups: Array<
     | { type: 'agent'; messages: AiMessage[]; parentId: string; startIndex: number }
     | { type: 'msg'; message: AiMessage; index: number }
@@ -510,7 +512,7 @@ export function MessageList({ messages, userTurns, viewMode, busy, workspacePath
       return <AiToolCallCard key={`tool-${item.tool.id}`} tool={item.tool} />
     }
     const msg = item.message
-    const uIdx = msg.role === 'user' && msg.content && msg.type === 'user'
+    const uIdx = isRealUserInput(messages, item.index)
       ? userMessages.indexOf(msg)
       : -1
     return (
@@ -522,7 +524,6 @@ export function MessageList({ messages, userTurns, viewMode, busy, workspacePath
         workspacePath={workspacePath}
         onOpenFile={onOpenFile}
         userMessageIndex={uIdx}
-        totalUserMessages={totalUserMessages}
         isBusy={busy}
         onRevert={onRevert}
         onRevertAndCode={onRevertAndCode}
