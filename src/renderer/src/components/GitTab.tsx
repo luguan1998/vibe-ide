@@ -736,16 +736,16 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   }, [refreshStatus, refreshStashCount])
 
   // Push
-  const handlePush = useCallback(async () => {
+  const handlePush = useCallback(async (force = false) => {
     setBusy(true)
     try {
       if (selectedRemote) {
         const parts = selectedRemote.split('/')
         const remote = parts[0]
         const branch = parts.slice(1).join('/')
-        await window.api.git.push(remote, branch)
+        await window.api.git.push(remote, branch, force)
       } else {
-        await window.api.git.push()
+        await window.api.git.push(undefined, undefined, force)
       }
       await refreshStatus()
       await refreshGraph()
@@ -1769,7 +1769,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             <div className="relative mt-2">
               <div className="flex git-tab__push-group">
                 <button
-                  onClick={handlePush}
+                  onClick={() => handlePush()}
                   disabled={busy}
                   className="flex-1 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-l transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -1794,7 +1794,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
-                    onClick={handlePush}
+                    onClick={() => handlePush()}
                     disabled={busy}
                     className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${!selectedRemote ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text hover:bg-ide-hover'} disabled:opacity-40`}
                   >
@@ -1810,6 +1810,14 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                       <span className="text-ide-text-muted">{rb.remote}/</span>{rb.branch}
                     </button>
                   ))}
+                  <div className="border-t border-ide-border my-1" />
+                  <button
+                    onClick={() => { setShowPushDropdown(false); setConfirmAction({ type: 'forcePush' }) }}
+                    disabled={busy}
+                    className="w-full px-3 py-1.5 text-left text-xs transition-colors text-ide-danger hover:bg-ide-danger/10 disabled:opacity-40"
+                  >
+                    Force Push (-f)
+                  </button>
                 </div>
               )}
             </div>
@@ -1943,6 +1951,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                 ? t('Drop the latest stash? This cannot be undone.')
                 : confirmAction.type === 'deleteAll'
                 ? t('Delete all {count} untracked files?').replace('{count}', String(confirmAction.count))
+                : confirmAction.type === 'forcePush'
+                ? t('Force push? This overwrites remote history and cannot be undone.')
                 : t('Delete {fileName}?').replace('{fileName}', confirmAction.fileName!)
               }
             </p>
@@ -1968,6 +1978,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                     await handleStashDrop()
                   } else if (type === 'deleteAll') {
                     await handleDeleteAllUntracked(filePaths!)
+                  } else if (type === 'forcePush') {
+                    await handlePush(true)
                   } else {
                     await handleDeleteFile(filePath!)
                   }

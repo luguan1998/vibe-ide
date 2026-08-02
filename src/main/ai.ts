@@ -1257,7 +1257,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     } else {
       try { session.process.kill('SIGTERM') } catch { /* already dead */ }
     }
-    let wt = session.worktreePath
+    let wt: string | null = session.worktreePath ?? null
     if (!wt && session.enableWorktree && session.preWorktreeSnapshot) {
       // trackWorktreeLater may not have fired if the agent was deleted quickly —
       // give the CLI a short window to create the worktree before the fallback

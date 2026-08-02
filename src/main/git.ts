@@ -575,13 +575,14 @@ export function registerGitHandlers(): void {
   })
 
   // Git push
-  ipcMain.handle(IPC_CHANNELS.GIT_PUSH, async (_event, remote?: string, branch?: string) => {
+  ipcMain.handle(IPC_CHANNELS.GIT_PUSH, async (_event, remote?: string, branch?: string, force?: boolean) => {
     try {
       const git = getGit()
+      const opts = force ? ['--force'] : []
       if (remote && branch) {
-        await git.push(remote, branch)
+        await git.push(remote, branch, opts)
       } else {
-        await git.push()
+        await git.push(opts)
       }
       return { success: true }
     } catch (err: any) {
