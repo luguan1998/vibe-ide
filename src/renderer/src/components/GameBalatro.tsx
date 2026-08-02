@@ -151,6 +151,7 @@ const SUIT_INFO: Record<Suit, { sym: string; color: string }> = {
 const ODD_RANKS = new Set(['A', '3', '5', '7', '9'])
 const EVEN_RANKS = new Set(['2', '4', '6', '8', '10'])
 const FIB_RANKS = new Set(['A', '2', '3', '5', '8'])
+const MAX_TAROTS = 2
 const HAND_BASE: Record<string, [number, number]> = {
   'High Card': [5, 1],
   Pair: [10, 2],
@@ -163,7 +164,7 @@ const HAND_BASE: Record<string, [number, number]> = {
   'Straight Flush': [100, 8],
   'Royal Flush': [100, 8],
 }
-const ANTE_TARGETS = [300, 800, 2000, 5000, 11000, 20000, 35000, 50000]
+const ANTE_TARGETS = [100, 300, 800, 2000, 5000, 11000, 20000, 35000]
 const PLANET_SCALE: Record<string, [number, number]> = {
   'High Card': [10, 1],
   Pair: [15, 2],
@@ -180,14 +181,9 @@ const PLANET_SCALE: Record<string, [number, number]> = {
 function handWithLevel(name: string, lvl: number): { chips: number; mult: number } {
   const [bc, bm] = HAND_BASE[name] || [5, 1]
   const [sc, sm] = PLANET_SCALE[name] || [30, 4]
-  let c = 0
-  let m = 0
-  for (let i = 1; i < lvl; i++) {
-    const f = i <= 4 ? 1 : i <= 7 ? 0.75 : 0.5
-    c += sc * f
-    m += sm * f
-  }
-  return { chips: bc + Math.round(c), mult: bm + Math.round(m) }
+  const c = sc * (lvl - 1)
+  const m = sm * (lvl - 1)
+  return { chips: bc + c, mult: bm + m }
 }
 const BLIND_MULT = [1, 1.5, 2]
 const HAND_TYPES_ORDER = ['High Card', 'Pair', 'Two Pair', 'Three of a Kind', 'Straight', 'Flush', 'Full House', 'Four of a Kind', 'Straight Flush', 'Royal Flush']
@@ -332,6 +328,26 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
+function sortByRank(cards: Card[]): Card[] {
+  return [...cards].sort((a, b) => {
+    const d = RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank)
+    if (d !== 0) return d
+    return SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit)
+  })
+}
+
+function sortBySuit(cards: Card[]): Card[] {
+  return [...cards].sort((a, b) => {
+    const d = SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit)
+    if (d !== 0) return d
+    return RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank)
+  })
+}
+
+function sortCards(mode: 'rank' | 'suit', cards: Card[]): Card[] {
+  return mode === 'suit' ? sortBySuit(cards) : sortByRank(cards)
+}
+
 function evaluateHand(cards: Card[]): HandType | null {
   if (cards.length === 0) return null
   const ranks = cards.map(c => RANK_VALUES[c.rank]).sort((a, b) => a - b)
@@ -340,7 +356,7 @@ function evaluateHand(cards: Card[]): HandType | null {
   for (const r of ranks) counts[r] = (counts[r] || 0) + 1
   const groups = Object.entries(counts).map(([r, c]) => ({ rank: parseInt(r), count: c })).sort((a, b) => b.count - a.count)
 
-  const isFlush = suits.every(s => s === suits[0])
+  const isFlush = cards.length === 5 && suits.every(s => s === suits[0])
   const isStraight = (() => {
     if (new Set(ranks).size !== 5) return false
     if (ranks[4] - ranks[0] === 4) return true
@@ -353,13 +369,14 @@ function evaluateHand(cards: Card[]): HandType | null {
       ? { name: 'Royal Flush', chips: 100, mult: 8 }
       : { name: 'Straight Flush', chips: 100, mult: 8 }
   }
-  if (groups.length === 2 && groups[0].count === 4) return { name: 'Four of a Kind', chips: 60, mult: 7 }
-  if (groups.length === 2 && groups[0].count === 3) return { name: 'Full House', chips: 40, mult: 4 }
+  if (groups[0].count === 4) return { name: 'Four of a Kind', chips: 60, mult: 7 }
+  if (groups[0].count === 3 && groups[1]?.count === 2) return { name: 'Full House', chips: 40, mult: 4 }
   if (isFlush) return { name: 'Flush', chips: 35, mult: 4 }
   if (isStraight) return { name: 'Straight', chips: 30, mult: 4 }
   if (groups[0].count === 3) return { name: 'Three of a Kind', chips: 30, mult: 3 }
-  if (groups.length === 3 && groups[0].count === 2 && groups[1].count === 2) return { name: 'Two Pair', chips: 20, mult: 2 }
-  if (groups[0].count === 2) return { name: 'Pair', chips: 10, mult: 2 }
+  const pairCount = groups.filter(g => g.count === 2).length
+  if (pairCount >= 2) return { name: 'Two Pair', chips: 20, mult: 2 }
+  if (pairCount === 1) return { name: 'Pair', chips: 10, mult: 2 }
   return { name: 'High Card', chips: 5, mult: 1 }
 }
 
@@ -595,8 +612,8 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     if (deckRef.current.length === 0) return currentHand
     const result = drawCardsFromDeck(deckRef.current, currentHand, needed)
     deckRef.current = result.deck
-    return result.hand
-  }, [])
+    return sortCards(sortMode, result.hand)
+  }, [sortMode])
 
   const buildPack = useCallback((kind: PackKind): PackState => {
     if (kind === 'standard') {
@@ -750,8 +767,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     } else if (t.action.kind === 'tarot-x2') {
       setPendingTarots(ps => {
         const pick = () => ({ ...TAROTS[Math.floor(Math.random() * TAROTS.length)], uid: crypto.randomUUID() })
-        const added = [pick(), pick()]
-        return [...ps.filter(p => (p.uid || p.id) !== (t.uid || t.id)), ...added]
+        return [...ps.filter(p => (p.uid || p.id) !== (t.uid || t.id)), pick(), pick()].slice(0, MAX_TAROTS)
       })
       showToast('The Emperor:+2 塔罗')
     } else {
@@ -972,20 +988,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   }, [selected, hand, discardsLeft, handsLeft, gameState, effHandSize, drawTo, activeTarot, boss, bossMuted, jokers, lastPlayed])
 
   const sortHand = useCallback((mode: 'rank' | 'suit') => {
-    setHand(h => {
-      if (mode === 'suit') {
-        return [...h].sort((a, b) => {
-          const d = SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit)
-          if (d !== 0) return d
-          return RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank)
-        })
-      }
-      return [...h].sort((a, b) => {
-        const d = RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank)
-        if (d !== 0) return d
-        return SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit)
-      })
-    })
+    setHand(h => sortCards(mode, h))
   }, [])
 
   const skipBlind = useCallback(() => {
@@ -1011,6 +1014,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   const buyItem = useCallback((item: ShopItem) => {
     if (gameState !== 'shop' || money < item.cost) return
     if (item.kind === 'joker' && jokers.length >= jokerSlots) return
+    if (item.kind === 'tarot' && pendingTarots.length >= MAX_TAROTS) return
     setMoney(m => {
       const n = m - item.cost
       moneyRef.current = n
@@ -1036,7 +1040,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       setVouchers(v => v + 1)
     }
     setShopItems(items => items.filter(i => i.uid !== item.uid))
-  }, [gameState, money, jokers, jokerSlots, levels, showToast, buildPack, triggerJokerHook])
+  }, [gameState, money, jokers, jokerSlots, pendingTarots.length, levels, showToast, buildPack, triggerJokerHook])
 
   const reroll = useCallback(() => {
     if (rerollFree) {
@@ -1055,9 +1059,10 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   const pickPackOption = useCallback((opt: PackState['options'][number]) => {
     if (!openPack) return
     if (openPack.kind === 'standard') {
-      setHand(h => [...h, opt as Card])
+      setHand(h => sortCards(sortMode, [...h, opt as Card]))
     } else if (openPack.kind === 'tarot') {
-      setPendingTarots(ps => [...ps, { ...(opt as TarotDef), uid: crypto.randomUUID() }])
+      if (pendingTarots.length >= MAX_TAROTS) showToast('塔罗槽位已满（最多 2 张）')
+      else setPendingTarots(ps => [...ps, { ...(opt as TarotDef), uid: crypto.randomUUID() }])
     } else {
       const p = opt as { hand: string }
       const nxt = (levels[p.hand] || 1) + 1
@@ -1066,7 +1071,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       showToast(`${p.hand} → Lv${nxt}`)
     }
     setOpenPack(null)
-  }, [openPack, levels, showToast, triggerJokerHook])
+  }, [openPack, levels, showToast, triggerJokerHook, sortMode, pendingTarots.length])
 
   const sellJoker = useCallback((key: string) => {
     const j = jokers.find(x => (x.uid || x.id) === key)
@@ -1084,6 +1089,12 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     })
     showToast(`卖出 ${j ? j.name : ''} +$${sell}`)
   }, [jokers, showToast])
+
+  const discardTarot = useCallback((key: string) => {
+    const t = pendingTarots.find(x => (x.uid || x.id) === key)
+    setPendingTarots(ps => ps.filter(x => (x.uid || x.id) !== key))
+    showToast(`丢弃 ${t ? t.name : ''}`)
+  }, [pendingTarots, showToast])
 
   useEffect(() => {
     if (gameState !== 'playing' || lockedRef.current || activeTarot) return
@@ -1364,19 +1375,28 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           <>
             <div className="w-px h-7 mx-0.5 shrink-0" style={{ background: BAL.borderDim }} />
             {pendingTarots.slice(0, tarotCount).map(t => (
-              <button
-                key={t.uid || t.id}
-                onClick={() => activateTarot(t)}
-                title={`${t.name} — ${t.desc}`}
-                className="w-10 h-12 rounded-[4px] flex items-center justify-center text-[14px] shrink-0"
-                style={{
-                  background: t.face,
-                  border: activeTarot?.id === t.id ? `2px solid ${BAL.goldBright}` : '1px solid rgba(0,0,0,0.3)',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
-                }}
-              >
-                {t.glyph}
-              </button>
+              <div key={t.uid || t.id} className="relative group shrink-0">
+                <button
+                  onClick={() => activateTarot(t)}
+                  title={`${t.name} — ${t.desc}`}
+                  className="w-10 h-12 rounded-[4px] flex items-center justify-center text-[14px]"
+                  style={{
+                    background: t.face,
+                    border: activeTarot?.id === t.id ? `2px solid ${BAL.goldBright}` : '1px solid rgba(0,0,0,0.3)',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
+                  }}
+                >
+                  {t.glyph}
+                </button>
+                <button
+                  onClick={() => discardTarot(t.uid || t.id)}
+                  title="出售"
+                  className="absolute -top-1.5 -right-1.5 w-[15px] h-[15px] rounded-full text-[9px] leading-none flex items-center justify-center font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ background: BAL.mult, color: '#fff', border: '1px solid rgba(0,0,0,0.3)' }}
+                >
+                  ×
+                </button>
+              </div>
             ))}
           </>
         )}
@@ -1623,7 +1643,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
           )}
           <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
             {shopItems.map(item => {
-              const canBuy = money >= item.cost && !(item.kind === 'joker' && jokers.length >= jokerSlots)
+              const canBuy = money >= item.cost && !(item.kind === 'joker' && jokers.length >= jokerSlots) && !(item.kind === 'tarot' && pendingTarots.length >= MAX_TAROTS)
               const itemBorder = item.kind === 'joker'
                 ? RARITY_BORDER[JOKERS.find(x => x.id === item.id)?.rarity || 'common']
                 : item.kind === 'pack' ? 'rgba(110,219,110,0.5)' : BAL.border
@@ -1631,7 +1651,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
                 <div
                   key={item.uid || `${item.kind}-${item.id}`}
                   onClick={() => buyItem(item)}
-                  title={canBuy ? `购买 ${item.name}` : item.kind === 'joker' && jokers.length >= jokerSlots ? 'Joker 槽位已满' : '金币不足'}
+                  title={canBuy ? `购买 ${item.name}` : item.kind === 'joker' && jokers.length >= jokerSlots ? 'Joker 槽位已满' : item.kind === 'tarot' && pendingTarots.length >= MAX_TAROTS ? '塔罗槽位已满（最多 2 张）' : '金币不足'}
                   className={`flex items-center gap-2 px-2.5 py-2 rounded-md ${canBuy ? 'cursor-pointer' : 'cursor-not-allowed'}`}
                   style={{ background: BAL.panel, border: `1px solid ${canBuy ? itemBorder : 'rgba(43,64,51,0.4)'}`, opacity: canBuy ? 1 : 0.55 }}
                 >
