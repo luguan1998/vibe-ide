@@ -5,6 +5,7 @@ const H = 640
 const GRAVITY = 0.1
 const MAX_LIVES = 3
 const BEST_KEY = 'fruitninja-best'
+const TARGET_SCORE = 50
 
 interface FruitDef { emoji: string; juice: string; r: number; score: number }
 interface Fruit extends FruitDef { x: number; y: number; vx: number; vy: number; rot: number; vr: number; bomb: boolean }
@@ -81,6 +82,9 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
   const [best, setBest] = useState(() => {
     try { return parseInt(localStorage.getItem(BEST_KEY) ?? '0', 10) || 0 } catch { return 0 }
   })
+  const [success, setSuccess] = useState(false)
+  const successShownRef = useRef(false)
+  const successPausedRef = useRef(false)
 
   const woodGrainRef = useRef<{ y: number; amp: number; freq: number; phase: number; alpha: number; light: boolean }[] | null>(null)
   if (!woodGrainRef.current) {
@@ -147,6 +151,11 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
     }
     scoreRef.current += f.score * comboRef.current
     setScore(scoreRef.current)
+    if (!successShownRef.current && scoreRef.current >= TARGET_SCORE) {
+      successShownRef.current = true
+      successPausedRef.current = true
+      setSuccess(true)
+    }
     const combo = comboRef.current
     popupsRef.current.push({
       x: f.x, y: f.y - f.r,
@@ -194,9 +203,10 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
   }, [sliceFruit])
 
   const update = useCallback(() => {
+    if (successPausedRef.current) return
     if (!gameOverRef.current) {
       spawnAccRef.current++
-      if (spawnAccRef.current >= Math.max(70, 280 - slicedRef.current * 2)) {
+      if (spawnAccRef.current >= Math.max(70, 160 - slicedRef.current * 2)) {
         spawnAccRef.current = 0
         spawnFruit()
         if (Math.random() < 0.18) spawnFruit()
@@ -411,8 +421,9 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
       animRef.current = requestAnimationFrame(loop)
     }
     animRef.current = requestAnimationFrame(loop)
+    spawnFruit()
     return () => cancelAnimationFrame(animRef.current)
-  }, [update, render])
+  }, [update, render, spawnFruit])
 
   const getPos = useCallback((e: MouseEvent | React.MouseEvent) => {
     const c = canvasRef.current; if (!c) return null
@@ -489,7 +500,11 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
     flashRef.current = 0
     gameOverRef.current = false
     setGameOver(false)
-  }, [])
+    successShownRef.current = false
+    successPausedRef.current = false
+    setSuccess(false)
+    spawnFruit()
+  }, [spawnFruit])
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none">
@@ -527,6 +542,22 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
           className="max-w-full max-h-full"
           style={{ aspectRatio: `${W} / ${H}`, cursor: KNIFE_CURSOR, borderRadius: 8, outline: '1px solid rgba(255,255,255,0.08)' }}
         />
+        {success && !gameOver && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ide-bg/60 backdrop-blur-sm z-10">
+            <div className="text-2xl text-ide-accent font-bold">{'\u{1F389}'} Success! {'\u{1F389}'}</div>
+            <div className="text-sm text-ide-text">{TARGET_SCORE} Points Achieved</div>
+            <div className="text-[11px] text-ide-text-muted">Keep going for a higher score</div>
+            <button
+              onClick={() => {
+                successPausedRef.current = false
+                setSuccess(false)
+              }}
+              className="px-4 py-1 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-lg transition-colors"
+            >
+              Keep Playing
+            </button>
+          </div>
+        )}
         {gameOver && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ide-bg/70 backdrop-blur-sm z-10">
             <div className="text-sm text-ide-danger font-bold">Game Over</div>
