@@ -1,5 +1,7 @@
 import React from 'react'
+import { Power } from 'lucide-react'
 import { mujicaStore, useMujica } from '../mujicaStore'
+import { MUJICA_PERSONAS } from '../mujicaPersonas'
 import type { MujicaWorkspace } from '../mujicaStore'
 import { useAiSession } from '../aiStore'
 import { MUJICA_CLOSE } from './GameMujica'
@@ -55,6 +57,24 @@ function AgentCard({ ws }: { ws: MujicaWorkspace }) {
         title={disabled ? 'locked while running' : ''}
         className="w-full px-2 py-1 rounded text-xs bg-ide-panel border border-ide-border text-ide-text outline-none focus:border-ide-accent disabled:opacity-40 disabled:cursor-not-allowed"
       />
+      <select
+        value={MUJICA_PERSONAS.find(p => p.prompt === ws.persona)?.id ?? ''}
+        onChange={e => {
+          const p = MUJICA_PERSONAS.find(x => x.id === e.target.value)
+          mujicaStore.setPersona(ws.id, p ? p.prompt : '')
+          mujicaStore.commitPersona(ws.id)
+        }}
+        disabled={disabled}
+        title={disabled ? 'locked while running' : 'persona preset · Ave Mujica 成员二创'}
+        className="w-full px-2 py-1 rounded text-xs bg-ide-panel border border-ide-border text-ide-text outline-none focus:border-ide-accent disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <option value="">🎭 persona preset</option>
+        {MUJICA_PERSONAS.map(p => (
+          <option key={p.id} value={p.id}>
+            {p.name} · {p.codeRole}
+          </option>
+        ))}
+      </select>
       <textarea
         value={ws.persona}
         onChange={e => mujicaStore.setPersona(ws.id, e.target.value)}
@@ -84,7 +104,13 @@ export default function MujicaConfig() {
       <div className="px-4 py-2 bg-ide-hover/50 border-b border-ide-border shrink-0 flex items-center justify-between select-none">
         <img src={mujicaIcon} alt="Mujica" className="w-4 h-4 object-contain" />
         <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider">MUJICA</span>
-        <button onClick={close} className="text-[11px] text-ide-text-muted hover:text-ide-text transition-colors">close</button>
+        <button
+          onClick={close}
+          title="close"
+          className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md border border-ide-border bg-ide-panel/80 text-ide-text-muted hover:text-ide-danger hover:border-ide-danger/40 hover:bg-ide-hover transition-colors"
+        >
+          <Power className="w-3.5 h-3.5" />
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {/* shared prompt — broadcast to all agents; highest priority config */}

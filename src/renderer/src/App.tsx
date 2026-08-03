@@ -15,7 +15,7 @@ import SearchPanel from './components/SearchPanel'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import GameMujica, { FOCUS_MUJICA, MUJICA_CLOSE } from './components/GameMujica'
-import { mujicaStore } from './mujicaStore'
+import { mujicaStore, useMujica } from './mujicaStore'
 import { aiStore, readAiCliConfig } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
@@ -546,6 +546,10 @@ export default function App() {
   React.useEffect(() => {
     centerViewRef.current = centerView
   }, [centerView])
+
+  // mujica stays active while its agents run even after the center view is switched away —
+  // the session panel shows a restore pill when it's hidden but still running.
+  const mujicaActive = useMujica().active
 
   // Nga "mujica" card requests the canvas as a center view (covers the terminal area, not full-app)
   React.useEffect(() => {
@@ -2330,6 +2334,8 @@ export default function App() {
             recentFiles={recentFiles}
             onOpenRecentFile={handleOpenRecentFile}
             onRemoveRecentFile={removeRecentFile}
+            mujicaRestoreVisible={mujicaActive && centerView !== 'mujica'}
+            onRestoreMujica={() => window.dispatchEvent(new CustomEvent(FOCUS_MUJICA))}
           />
           </div>
           {/* Outline + floating recent files — shared flex container so outline scrolling respects recent-files height */}
