@@ -436,6 +436,7 @@ html, body, #root {
 .md-preview img { max-width: 100%; height: auto; border-radius: 6px; margin: 0.5em 0; }
 .md-preview del { text-decoration: line-through; color: rgb(var(--ide-danger)); }
 .md-preview > *:first-child { margin-top: 0; }
+.md-preview > *:last-child { margin-bottom: 0; }
 
 
 /* ── Frontmatter card ── */

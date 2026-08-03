@@ -280,7 +280,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
         </div>
       )}
       {showMeta && (
-        <div className="ai-tab__message-meta w-full max-w-[960px] -mt-3 flex items-center gap-2 text-[11px] text-ide-text-muted/50 group/meta">
+        <div className="ai-tab__message-meta w-full max-w-[960px] flex items-center gap-2 text-[11px] text-ide-text-muted/50 group/meta">
           <span className="inline-flex items-center gap-0.5">
             <span className="text-sm">✻</span>
             <span>Churned for {((message.durationMs || 0) / 1000).toFixed(1)}s</span>
