@@ -416,13 +416,13 @@ function generateShop(): ShopItem[] {
     items.push({ kind: 'joker', uid: crypto.randomUUID(), id: j.id, name: j.name, desc: j.desc, cost: j.cost })
   }
   const p0 = PLANETS[Math.floor(Math.random() * PLANETS.length)]
-  items.push({ kind: 'planet', uid: crypto.randomUUID(), id: p0.id, name: p0.name, desc: `${p0.hand} 等级 +1`, cost: 4 })
+  items.push({ kind: 'planet', uid: crypto.randomUUID(), id: p0.id, name: p0.name, desc: `${HAND_CN[p0.hand]} 等级 +1`, cost: 4 })
   if (Math.random() < 0.5) {
     const t = TAROTS[Math.floor(Math.random() * TAROTS.length)]
     items.push({ kind: 'tarot', uid: crypto.randomUUID(), id: t.id, name: t.name, desc: t.desc, cost: 3 })
   } else {
     const p = PLANETS[Math.floor(Math.random() * PLANETS.length)]
-    items.push({ kind: 'planet', uid: crypto.randomUUID(), id: p.id, name: p.name, desc: `${p.hand} 等级 +1`, cost: 4 })
+    items.push({ kind: 'planet', uid: crypto.randomUUID(), id: p.id, name: p.name, desc: `${HAND_CN[p.hand]} 等级 +1`, cost: 4 })
   }
   if (Math.random() < SHOP_VOUCHER_CHANCE) {
     const v = VOUCHERS[Math.floor(Math.random() * VOUCHERS.length)]
@@ -1106,7 +1106,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
         const nxt = (levels[p.hand] || 1) + 1
         setLevels(h => ({ ...h, [p.hand]: nxt }))
         setJokerState(prev => triggerJokerHook('onPlanet', prev))
-        showToast(`${p.hand} → Lv${nxt}`)
+        showToast(`${HAND_CN[p.hand]} → Lv${nxt}`)
       }
     } else if (item.kind === 'pack') {
       setOpenPack(buildPack(item.packKind!))
@@ -1152,7 +1152,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       const nxt = (levels[p.hand] || 1) + 1
       setLevels(h => ({ ...h, [p.hand]: nxt }))
       setJokerState(prev => triggerJokerHook('onPlanet', prev))
-      showToast(`${p.hand} → Lv${nxt}`)
+      showToast(`${HAND_CN[p.hand]} → Lv${nxt}`)
     }
     setOpenPack(null)
   }, [openPack, levels, showToast, triggerJokerHook, sortMode, pendingTarots.length, jokers, jokerSlots])
@@ -1815,7 +1815,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
                 ) : (
                   <div className="w-12 h-[66px] rounded-[4px] flex flex-col items-center justify-center gap-0.5" style={{ background: 'linear-gradient(160deg,#1a2b40,#0d1622)', border: '1px solid rgba(0,0,0,0.3)' }}>
                     <span className="text-xl leading-none">🪐</span>
-                    <span className="text-[9px] font-bold" style={{ color: BAL.gold }}>{(opt as { hand: string }).hand}</span>
+                    <span className="text-[9px] font-bold" style={{ color: BAL.gold }}>{HAND_CN[(opt as { hand: string }).hand]}</span>
                   </div>
                 )}
                 <span className="text-[9px] truncate max-w-[60px]" style={{ color: BAL.muted }}>

@@ -110,6 +110,7 @@ export const IPC_CHANNELS = {
   AI_CREATE: 'ai:create',
   AI_SEND: 'ai:send',
   AI_CANCEL: 'ai:cancel',
+  AI_FORCE_STOP: 'ai:forceStop',
   AI_DESTROY: 'ai:destroy',
   AI_CHECK_AVAILABLE: 'ai:checkAvailable',
   AI_LIST_SESSIONS: 'ai:listSessions',
@@ -470,6 +471,12 @@ export interface AiSlashCommand {
   argumentHint?: string
 }
 
+export interface AiRunningTool {
+  tool: string
+  elapsed: number
+  updatedAt: number
+}
+
 export interface AiExamplePrompt {
   label: string
   prompt: string
@@ -493,6 +500,7 @@ export interface AiSessionState {
   cwd: string
   worktreePath?: string
   pipedPrompt?: string
+  runningTools: Record<string, AiRunningTool>
 }
 
 export type AiPermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions'

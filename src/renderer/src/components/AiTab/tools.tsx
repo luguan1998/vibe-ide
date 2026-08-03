@@ -26,7 +26,7 @@ const AGENT_TOOLS = new Set(['Agent'])
 const QUESTION_TOOLS = new Set(['AskUserQuestion'])
 const TASK_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'TaskOutput', 'TaskStop'])
 
-function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'task' | 'default' {
+export function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'task' | 'default' {
   if (AI_FILE_EDIT_TOOLS.has(name)) return 'file'
   if (COMMAND_TOOLS.has(name)) return 'command'
   if (SEARCH_TOOLS.has(name)) return 'search'

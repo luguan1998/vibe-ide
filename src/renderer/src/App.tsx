@@ -160,6 +160,7 @@ declare global {
         create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; resumeSessionId?: string; cliCommand?: string; configDir?: string; model?: string; enableWorktree?: boolean }) => Promise<{ success: boolean; error?: string }>
         send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>
         cancel: (sessionId: string) => Promise<boolean>
+        forceStop: (sessionId: string) => Promise<{ success: boolean; error?: string }>
         destroy: (sessionId: string) => Promise<boolean>
         respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>, feedback?: string) => Promise<{ success: boolean }>
         clearAndExecutePlan: (sessionId: string, planFilePath: string, model?: string, resume?: boolean) => Promise<{ success: boolean; error?: string }>

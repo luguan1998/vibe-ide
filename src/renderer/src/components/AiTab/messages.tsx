@@ -13,13 +13,39 @@ interface TodoItem {
   parentToolUseId?: string
 }
 
+function extractTaskId(tool: AiToolUse): string {
+  const content = tool.result?.content || ''
+  if (!content) return ''
+  try {
+    const parsed = JSON.parse(content)
+    if (parsed && typeof parsed.id === 'string') return parsed.id
+    if (parsed && typeof parsed.taskId === 'string') return parsed.taskId
+  } catch { /* fall through */ }
+  const m = content.match(/["']?id["']?\s*[:=]\s*["']?([^"'\s,}]+)/)
+  return m ? m[1] : ''
+}
+
 export function deriveTodoList(messages: AiMessage[]): TodoItem[] {
   const tasks = new Map<string, TodoItem>()
+  const createdOrder: string[] = []
   for (const msg of messages) {
     if (!msg.toolUse) continue
     for (const tool of msg.toolUse) {
-      if (tool.name === 'TaskCreate') {
-        const id = String(tasks.size + 1)
+      if (tool.name === 'TodoWrite') {
+        const todos = (tool.input?.todos || []) as Array<{ content?: string; status?: string; activeForm?: string }>
+        tasks.clear()
+        todos.forEach((td, i) => {
+          const status = td.status === 'completed' || td.status === 'in_progress' ? td.status : 'pending'
+          tasks.set(`${tool.id}-${i}`, {
+            id: `${tool.id}-${i}`,
+            subject: td.content || td.activeForm || '',
+            status,
+            parentToolUseId: msg.parentToolUseId,
+          })
+        })
+      } else if (tool.name === 'TaskCreate') {
+        const realId = extractTaskId(tool)
+        const id = realId || String(tasks.size + 1)
         tasks.set(id, {
           id,
           subject: tool.input?.subject || '',
@@ -27,10 +53,13 @@ export function deriveTodoList(messages: AiMessage[]): TodoItem[] {
           status: 'pending',
           parentToolUseId: msg.parentToolUseId,
         })
+        if (realId) createdOrder.push(realId)
       } else if (tool.name === 'TaskUpdate') {
-        const taskId = String(tool.input?.taskId || '')
+        const rawId = String(tool.input?.taskId ?? '')
         const newStatus = tool.input?.status as TodoItem['status'] | undefined
-        const existing = tasks.get(taskId)
+        const existing = tasks.get(rawId)
+          ?? tasks.get(createdOrder[Number(rawId) - 1])
+          ?? tasks.get(String(Number(rawId)))
         if (existing && newStatus) {
           existing.status = newStatus
         }

@@ -19,6 +19,7 @@ import { useTheme } from '../../themes'
 import { displayLabel, getShortcuts } from '../../shortcuts'
 import { StreamingMarkdown } from './markdown'
 import { ThinkingBlock, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, MessageList } from './messages'
+import { ToolIcon, getToolCategory } from './tools'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, ModeSelector } from './inputArea'
 import type { MentionItem } from './inputArea'
@@ -94,6 +95,16 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       ? ` (${Math.floor(busySeconds / 60)}m ${busySeconds % 60}s)`
       : ` (${busySeconds}s)`
     : ''
+
+  // Stop button two-stage: 点过一次软中断后 5s 内仍 busy 才升级强杀，未点击不自动武装
+  const [interruptTried, setInterruptTried] = useState(false)
+  const [forceArmed, setForceArmed] = useState(false)
+  useEffect(() => {
+    if (!state.busy) { setInterruptTried(false); setForceArmed(false); return }
+    if (!interruptTried) return
+    const t = setTimeout(() => setForceArmed(true), 5000)
+    return () => clearTimeout(t)
+  }, [state.busy, interruptTried])
 
   // Sync AI busy state to parent agentStatus (OR with terminal detection)
   useEffect(() => {
@@ -781,6 +792,17 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         {/* Busy indicator — thinking + streaming + sparkle */}
         {state.busy && (
           <div className="ai-tab__busy w-full max-w-[960px] mx-auto space-y-1.5 animate-fade-in">
+            {Object.keys(state.runningTools).length > 0 && (
+              <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">
+                {Object.entries(state.runningTools).map(([id, rt]) => (
+                  <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-hover text-ide-text-muted border border-ide-border/50">
+                    <ToolIcon category={getToolCategory(rt.tool)} />
+                    <span className="truncate max-w-[160px]">{rt.tool}</span>
+                    <span className="text-ide-text-muted/50">{Math.round(rt.elapsed)}s</span>
+                  </span>
+                ))}
+              </div>
+            )}
             {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll />}
             {state.streamBuffer ? (
               <div>
@@ -1026,11 +1048,20 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 {state.busy ? (
                   <button
                     type="button"
-                    onClick={() => activeSessionId && window.api.ai.cancel(activeSessionId)}
-                    className="ai-tab__stop-btn w-7 h-7 flex items-center justify-center rounded-lg
-                               bg-ide-danger/20 hover:bg-ide-danger/30 text-ide-danger
-                               transition-colors"
-                    title={t('Cancel')}
+                    onClick={() => {
+                      if (!activeSessionId) return
+                      if (forceArmed) aiStore.forceStop(activeSessionId)
+                      else {
+                        setInterruptTried(true)
+                        window.api.ai.cancel(activeSessionId)
+                      }
+                    }}
+                    className={`ai-tab__stop-btn w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                      forceArmed
+                        ? 'bg-ide-danger text-white hover:bg-ide-danger/90'
+                        : 'bg-ide-danger/20 hover:bg-ide-danger/30 text-ide-danger'
+                    }`}
+                    title={forceArmed ? t('Force Stop') : t('Cancel')}
                   >
                     <Square size={13} strokeWidth={2.5} />
                   </button>

@@ -1340,6 +1340,45 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     return true
   })
 
+  // Force stop — kill + --resume respawn so the conversation survives even when the CLI
+  // is stuck in a long tool/sub-agent that ignores interrupt.
+  ipcMain.handle(IPC_CHANNELS.AI_FORCE_STOP, (_event, sessionId: string) => {
+    const session = aiSessions.get(sessionId)
+    if (!session) return { success: false, error: 'Session not found' }
+    const claudeSessionId = session.claudeSessionId
+    if (!claudeSessionId) return { success: false, error: 'No claudeSessionId cached' }
+    const cwd = session.cwd
+    const permissionMode = session.permissionMode || 'bypassPermissions'
+    session.cancelRequested = true
+    killAiProcess(session.process)
+    aiSessions.delete(sessionId)
+
+    const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, persona: session.persona })
+    if ('error' in result) {
+      send(IPC_CHANNELS.AI_ERROR, {
+        sessionId,
+        error: result.error,
+        installCmd: result.installCmd,
+      })
+      return { success: false, error: result.error, installCmd: result.installCmd }
+    }
+
+    attachAiProcess(sessionId, result, cwd, session.model, session.configDir, session.cliCommand)
+
+    const newSession = aiSessions.get(sessionId)
+    if (newSession) {
+      newSession.claudeSessionId = claudeSessionId
+      newSession.permissionMode = permissionMode
+      newSession.contextWindow = session.contextWindow
+      newSession.persona = session.persona
+      if (session.model) newSession.model = session.model
+      newSession.enableWorktree = session.enableWorktree
+      newSession.worktreePath = session.worktreePath
+      newSession.preWorktreeSnapshot = session.preWorktreeSnapshot
+    }
+    return { success: true }
+  })
+
   // Destroy session entirely
   ipcMain.handle(IPC_CHANNELS.AI_DESTROY, async (_event, sessionId: string) => {
     const session = aiSessions.get(sessionId)

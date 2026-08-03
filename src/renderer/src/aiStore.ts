@@ -9,6 +9,7 @@ export const EMPTY_SESSION: AiSessionState = {
   slashCommands: [], model: '', contextPercent: null, name: '',
   fileChangesByTurn: [], userTurns: [],
   cwd: '', worktreePath: undefined, pipedPrompt: '',
+  runningTools: {},
 }
 
 export const SLASH_COMMAND_DESCRIPTIONS: Record<string, { description: string; argumentHint?: string }> = {
@@ -303,6 +304,19 @@ export const aiStore = {
     }))
     window.api.ai.askResume(sessionId, answers)
   },
+  async forceStop(sid: string) {
+    const res = await window.api.ai.forceStop(sid)
+    if (!res?.success) return
+    aiStore.updateSession(sid, (s) => ({
+      ...s,
+      busy: false,
+      streaming: false,
+      streamBuffer: '',
+      thinkingBuffer: '',
+      thinkingStartedAt: null,
+      runningTools: {},
+    }))
+  },
 }
 
 // ── Token flush (RAF coalescing + 200ms throttle; inactive sessions throttled to BG_FLUSH_MS) ──
@@ -437,6 +451,20 @@ function initListeners() {
       const isUserMsg = msg.type === 'user' && msg.role === 'user' && typeof msg.content === 'string' && msg.content.trim()
       const newName = isUserMsg && !s0.name ? msg.content.trim().slice(0, 60) : s0.name
 
+      let runningTools = s0.runningTools
+      if (msg.type === 'result') {
+        runningTools = {}
+      } else if (msg.toolResult) {
+        runningTools = { ...runningTools }
+        delete runningTools[msg.toolResult.toolUseId]
+      } else if (msg.toolUse?.length) {
+        const doneIds = msg.toolUse.filter((t: any) => t.result).map((t: any) => t.id)
+        if (doneIds.length > 0) {
+          runningTools = { ...runningTools }
+          for (const id of doneIds) delete runningTools[id]
+        }
+      }
+
       return {
         ...s0,
         messages,
@@ -447,6 +475,7 @@ function initListeners() {
         thinkingBuffer: clearThinking || msg.type === 'result' ? '' : s0.thinkingBuffer,
         thinkingStartedAt: clearThinking || msg.type === 'result' ? null : s0.thinkingStartedAt,
         contextPercent: msg.contextPercent != null ? Math.round(msg.contextPercent) : s0.contextPercent,
+        runningTools,
       }
     })
     if (msg.type === 'result') aiStore.refreshUserTurns(msg.sessionId)
@@ -478,6 +507,25 @@ function initListeners() {
     })
   })
 
+  // ── onProgress ──
+  window.api.ai.onProgress((data: any) => {
+    if (!data.sessionId) return
+    aiStore.updateSession(data.sessionId, (s) => {
+      const prev = s.runningTools[data.toolUseId]
+      return {
+        ...s,
+        runningTools: {
+          ...s.runningTools,
+          [data.toolUseId]: {
+            tool: data.tool || prev?.tool || 'tool',
+            elapsed: data.elapsed ?? prev?.elapsed ?? 0,
+            updatedAt: Date.now(),
+          },
+        },
+      }
+    })
+  })
+
   // ── onPermission ──
   window.api.ai.onPermission((perm: any) => {
     aiStore.updateSession(perm.sessionId, (s) => ({
@@ -488,6 +536,7 @@ function initListeners() {
       streamBuffer: '',
       thinkingBuffer: '',
       thinkingStartedAt: null,
+      runningTools: {},
     }))
   })
 
@@ -550,6 +599,7 @@ function initListeners() {
         ...s,
         ready: true,
         busy: false, streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null,
+        runningTools: {},
         messages,
       }
     })

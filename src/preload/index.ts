@@ -251,6 +251,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_SEND, { sessionId, message }),
     cancel: (sessionId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_CANCEL, sessionId),
+    forceStop: (sessionId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_FORCE_STOP, sessionId),
     destroy: (sessionId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_DESTROY, sessionId),
     respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>, feedback?: string) =>
