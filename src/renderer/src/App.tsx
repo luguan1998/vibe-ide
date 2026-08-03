@@ -170,6 +170,7 @@ declare global {
         onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => any
         removeModelChangedListener: (handler?: any) => void
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
+        resolveConfigDir: (configDir?: string) => Promise<string>
         listSessions: (cwd?: string, configDir?: string) => Promise<{ sessions: any[]; error?: string }>
         loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
         revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) => Promise<{ success: boolean; error?: string }>
@@ -2148,10 +2149,13 @@ export default function App() {
         const isPosix = shell === 'bash' || shell === 'sh' || shell === 'zsh' || shell === 'gitbash'
         const binPart = bin.includes(' ') ? (shell === 'cmd' ? `"${bin}"` : isPosix ? `'${bin}'` : `& '${bin}'`) : bin
         const base = `${binPart} --resume ${historySessionId}`
-        initCommand = !configDir ? base
-          : shell === 'cmd' ? `set "CLAUDE_CONFIG_DIR=${configDir}" && ${base}`
-          : isPosix ? `CLAUDE_CONFIG_DIR='${configDir}' ${base}`
-          : `$env:CLAUDE_CONFIG_DIR='${configDir}'; ${base}`
+        // Bare names (.opencc) resolve to ~/.opencc so the tui launch and the gui history
+        // lookup agree on the same config dir. Use the resolved absolute path in the env var.
+        const resolvedConfigDir = configDir ? await window.api.ai.resolveConfigDir(configDir) : ''
+        initCommand = !resolvedConfigDir ? base
+          : shell === 'cmd' ? `set "CLAUDE_CONFIG_DIR=${resolvedConfigDir}" && ${base}`
+          : isPosix ? `CLAUDE_CONFIG_DIR='${resolvedConfigDir}' ${base}`
+          : `$env:CLAUDE_CONFIG_DIR='${resolvedConfigDir}'; ${base}`
       }
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name: name || undefined, initCommand })
       setSessions(prev => [...prev, session])

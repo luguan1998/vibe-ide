@@ -2,7 +2,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
 import { readFile, readdir, stat, rm } from 'fs/promises'
-import { join, isAbsolute, relative } from 'path'
+import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
 import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, UserTurn } from '../shared/types'
@@ -209,18 +209,30 @@ function snapshotWorktrees(cwd: string): Set<string> {
   } catch { return new Set() }
 }
 
-function detectNewWorktree(cwd: string, before: Set<string>): string | null {
+// The CLI mirrors the config-dir name inside the repo as its project-local folder (claude →
+// ./.claude/worktrees, openclaude → ./.openclaude/worktrees, a custom ".opencc" → ./.opencc/worktrees).
+// Deriving the marker from the config dir keeps one field driving both history lookup
+// (~/.opencc/projects) and worktree detection — no per-binary hard-coding.
+function configDirMarker(configDir?: string): string {
+  return basename(resolveConfigDir(configDir))
+}
+
+function isCliWorktree(p: string, marker: string): boolean {
+  return p.includes(`${marker}/worktrees/`) || p.includes(`${marker}\\worktrees\\`)
+}
+
+function detectNewWorktree(cwd: string, before: Set<string>, marker: string): string | null {
   try {
     const after = snapshotWorktrees(cwd)
     for (const p of after) {
-      if (!before.has(p) && p.includes('.claude/worktrees/')) return p
+      if (!before.has(p) && isCliWorktree(p, marker)) return p
     }
   } catch { /* ignore */ }
   return null
 }
 
 // Destroy fallback: find any worktree spawned since preSnapshot that ready-detection
-// never recorded (path lacks .claude/worktrees/, e.g. cwd is not the repo root).
+// never recorded (path lacks <config-dir>/worktrees, e.g. cwd is not the repo root).
 function detectUnmanagedWorktree(cwd: string, before: Set<string>): string | null {
   try {
     const after = snapshotWorktrees(cwd)
@@ -237,7 +249,7 @@ function trackWorktreeLater(sessionId: string, attempts: number): void {
   setTimeout(() => {
     const cur = aiSessions.get(sessionId)
     if (!cur || cur.worktreePath) return
-    const wt = detectNewWorktree(cur.cwd, cur.preWorktreeSnapshot!)
+    const wt = detectNewWorktree(cur.cwd, cur.preWorktreeSnapshot!, configDirMarker(cur.configDir))
     if (wt) {
       cur.worktreePath = wt
       cur.cwd = wt
@@ -409,7 +421,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       }
       const payload: any = { sessionId, tools: msg.tools, model: msg.model, slashCommands: msg.slash_commands }
       if (s?.enableWorktree && !s.worktreePath && s.preWorktreeSnapshot) {
-        const wtPath = detectNewWorktree(s.cwd, s.preWorktreeSnapshot)
+        const wtPath = detectNewWorktree(s.cwd, s.preWorktreeSnapshot, configDirMarker(s.configDir))
         if (wtPath) {
           s.worktreePath = wtPath
           s.cwd = wtPath
@@ -438,10 +450,6 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
           if (block.thinking) thinkingParts.push(block.thinking)
         } else if (block.type === 'tool_use') {
           toolUses.push({ id: block.id, name: block.name, input: block.input })
-          // [PLAN-MODE-DEBUG] spot ExitPlanMode tool_use (should be followed by control_request)
-          if (block.name === 'ExitPlanMode' || block.name === 'EnterPlanMode') {
-            console.log(`[PLAN-MODE-DEBUG ${sessionId}] tool_use ${block.name} id=${block.id} inputKeys=${Object.keys(block.input || {}).join(',')}`)
-          }
           if (isFileEditTool(block.name)) {
             const session = aiSessions.get(sessionId)
             // Plan mode: never open diff for file-edit tools — the model is only describing
@@ -573,12 +581,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       if (toolName === 'AskUserQuestion' && session) {
         session.awaitingUserInput = true
         killAiProcess(session.process)
-        console.log(`[PLAN-MODE-DEBUG ${sessionId}] AskUserQuestion killed CLI proactively (prevents LLM continuing on auto-filled empty answer); card surfaced, awaiting user answer via ask-resume`)
       }
-
-      // [PLAN-MODE-DEBUG] trace every permission request — this is what should drive the UI card
-      const fp = toolInput?.file_path || toolInput?.path || ''
-      console.log(`[PLAN-MODE-DEBUG ${sessionId}] control_request tool=${toolName} req_id=${requestId} toolInputKeys=${Object.keys(toolInput || {}).join(',')}${fp ? ` file_path=${fp}` : ''} → sending IPC AI_PERMISSION`)
 
       send(IPC_CHANNELS.AI_PERMISSION, {
         sessionId,
@@ -1069,6 +1072,88 @@ export function killAiProcess(proc: ChildProcess): void {
   }
 }
 
+// Format the user's AskUserQuestion answers into a follow-up prompt message sent via --resume.
+// Port of desktop-cc-gui-main/src-tauri/src/engine/claude_message_content.rs:format_ask_user_answer.
+//
+// Why this exists: Claude CLI in stream-json input mode auto-fills an empty answer ~0.5s after
+// sending an AskUserQuestion control_request, regardless of --permission-prompt-tool stdio.
+// Sending a real control_response arrives too late — the LLM already saw "User has answered:
+// ." and proceeded. Kill-and-resume dodges this: we kill the auto-fill path, then --resume the
+// same claude session with the real answers as a fresh user message.
+function formatAskUserAnswer(answers: Record<string, string>): string {
+  const entries = Object.entries(answers).filter(([, v]) => v && v.trim())
+  if (entries.length === 0) {
+    return 'The user skipped this AskUserQuestion without selecting an option. Do not ask the same question again; continue the original task using the available context and reasonable assumptions.'
+  }
+  // Match reference impl: "questionText=answer" pairs joined by "; "
+  // Keys here are question text (not question IDs) — LLM only uses these for natural-language hint
+  const parts = entries.map(([q, a]) => `${q}=${a}`)
+
+  const structuredAnswers: Record<string, string[]> = {}
+  for (const [q, a] of entries) structuredAnswers[q] = [a]
+  const payload = JSON.stringify({ answers: structuredAnswers, skippedQuestionIds: [] })
+  const base64 = Buffer.from(payload, 'utf-8').toString('base64')
+
+  return `The user answered the AskUserQuestion: ${parts.join('; ')}. Please continue based on this selection. AskUserQuestionResultBase64:${base64}`
+}
+
+// Kill-and-resume for AskUserQuestion. Shared by the ai:askResume IPC (answer via the question
+// card) and by AI_SEND (a message typed into the prompt box while awaitingUserInput — the
+// subprocess is already dead, so a raw stdin write would vanish silently). The old session's
+// worktree fields are carried onto the resumed session so AI_DESTROY still cleans up the
+// original worktree after a question/answer round-trip.
+export function resumeAfterAsk(sessionId: string, answers: Record<string, string>): { success: boolean; error?: string; installCmd?: string } {
+  const session = aiSessions.get(sessionId)
+  if (!session) return { success: false, error: 'Session not found' }
+
+  const claudeSessionId = session.claudeSessionId
+  const cwd = session.cwd
+  const permissionMode = session.permissionMode || 'bypassPermissions'
+
+  if (!claudeSessionId) return { success: false, error: 'No claudeSessionId cached (system/init not received yet)' }
+
+  // Kill the auto-filling subprocess. Safe to call even if the AskUserQuestion
+  // control_request handler already killed it (Windows taskkill /f /t is a no-op on
+  // a dead PID; Unix kill is wrapped in try/catch inside killAiProcess). Clear the
+  // flag so the new subprocess's eventual exit is not misclassified as proactive.
+  killAiProcess(session.process)
+  session.awaitingUserInput = false
+  aiSessions.delete(sessionId)
+
+  const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, persona: session.persona })
+  if ('error' in result) {
+    send(IPC_CHANNELS.AI_ERROR, {
+      sessionId,
+      error: result.error,
+      installCmd: result.installCmd,
+    })
+    return { success: false, error: result.error, installCmd: result.installCmd }
+  }
+
+  attachAiProcess(sessionId, result, cwd, session.model, session.configDir, session.cliCommand)
+
+  const newSession = aiSessions.get(sessionId)
+  if (newSession) {
+    newSession.claudeSessionId = claudeSessionId
+    newSession.permissionMode = permissionMode
+    newSession.contextWindow = session.contextWindow
+    newSession.persona = session.persona
+    if (session.model) newSession.model = session.model
+    // Preserve worktree tracking so destroy() still removes the original worktree
+    newSession.enableWorktree = session.enableWorktree
+    newSession.worktreePath = session.worktreePath
+    newSession.preWorktreeSnapshot = session.preWorktreeSnapshot
+  }
+
+  const prompt = formatAskUserAnswer(answers)
+  result.stdin!.write(JSON.stringify({
+    type: 'user',
+    message: { role: 'user', content: prompt },
+  }) + '\n')
+
+  return { success: true }
+}
+
 export function registerAiHandlers(win: BrowserWindow | null): void {
   mainWindow = win
 
@@ -1093,6 +1178,14 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
       return { available: true, binary: result.binary }
     }
     return { available: false, error: result.error, installCmd: result.installCmd }
+  })
+
+  // Resolve a config-dir input (bare name → ~/name, ~/x → home-relative, absolute → as-is) to
+  // the absolute path. History sessions live under this resolved dir; the worktree marker in
+  // the repo is its basename. Shared so the tui launch command and the history/worktree logic
+  // agree on the same resolved path.
+  ipcMain.handle(IPC_CHANNELS.AI_RESOLVE_CONFIG_DIR, (_event, configDir?: string) => {
+    return resolveConfigDir(configDir)
   })
 
   // Spawn claude/openclaude/opencc subprocess
@@ -1138,6 +1231,15 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
   ipcMain.handle(IPC_CHANNELS.AI_SEND, (_event, payload: AiSendPayload) => {
     const session = aiSessions.get(payload.sessionId)
     if (!session || !session.ready) return { success: false, error: 'AI not ready' }
+    // AskUserQuestion kills the subprocess while waiting for an answer — stdin is a dead
+    // pipe, so a raw write would vanish silently. Route the typed message through
+    // kill-and-resume as the free-text answer so the conversation actually continues.
+    if (session.awaitingUserInput) {
+      const questions = (session.pendingPermission?.toolInput?.questions || []) as Array<{ question: string }>
+      const answers: Record<string, string> = {}
+      for (const q of questions) answers[q.question] = payload.message
+      return resumeAfterAsk(payload.sessionId, answers)
+    }
     const ndjson = JSON.stringify({
       type: 'user',
       message: { role: 'user', content: payload.message },
@@ -1263,7 +1365,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
       // give the CLI a short window to create the worktree before the fallback
       for (let i = 0; i < 5 && !wt; i++) {
         await new Promise(r => setTimeout(r, 200))
-        wt = session.worktreePath ?? detectNewWorktree(session.cwd, session.preWorktreeSnapshot)
+        wt = session.worktreePath ?? detectNewWorktree(session.cwd, session.preWorktreeSnapshot, configDirMarker(session.configDir))
       }
       if (!wt) wt = detectUnmanagedWorktree(session.cwd, session.preWorktreeSnapshot)
     }

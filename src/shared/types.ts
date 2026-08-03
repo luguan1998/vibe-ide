@@ -120,6 +120,7 @@ export const IPC_CHANNELS = {
   AI_SET_MODEL: 'ai:setModel',
   AI_SET_VISIBLE: 'ai:setVisible',       // invoke: renderer hidden → main drops stream tokens
   AI_ASK_RESUME: 'ai:askResume',
+  AI_RESOLVE_CONFIG_DIR: 'ai:resolveConfigDir',
   AI_REVERT: 'ai:revert',
   AI_FORK: 'ai:fork',
   AI_LIST_USER_TURNS: 'ai:listUserTurns',  // invoke: real user turns from JSONL (single source of truth for revert index)

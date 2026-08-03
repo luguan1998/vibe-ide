@@ -1818,7 +1818,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     setCliConfigDir(val)
                     try { localStorage.setItem('vibe-ide-ai-config-dir', val) } catch {}
                   }}
-                  placeholder="~/.claude"
+                  placeholder=".opencc / ~/.claude"
                   className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
               </label>

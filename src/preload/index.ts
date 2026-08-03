@@ -261,6 +261,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_PERMISSION_MODE, { sessionId, mode }),
     askResume: (sessionId: string, answers: Record<string, string>) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_ASK_RESUME, { sessionId, answers }),
+    resolveConfigDir: (configDir?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_RESOLVE_CONFIG_DIR, configDir),
     setModel: (sessionId: string, model: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_MODEL, { sessionId, model }),
     setVisible: (visible: boolean) =>
