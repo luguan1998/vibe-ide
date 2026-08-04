@@ -1,0 +1,130 @@
+/*
+  左侧session栏目标签化
+*/
+
+/* 标题栏 — 底部发丝线 */
+.titlebar-drag[class*="h-9"] {
+  border-bottom: 1px solid rgb(var(--ide-border) / 0.6) !important;
+}
+
+/* 会话面板 — 侧栏 vibrancy 模拟（面板色渐变底） */
+.session-panel {
+  background: rgb(var(--ide-sidebar)) !important;
+}
+.session-panel__list-wrapper {
+  background: rgb(var(--ide-sidebar)) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 工具栏按钮 — 圆角，悬停加深 */
+.session-panel__settings-btn,
+.session-panel__new-btn {
+  border: none !important;
+  background: rgb(var(--ide-hover) / 0.55) !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
+  transition: background-color 0.15s, color 0.15s !important;
+}
+.session-panel__settings-btn:hover,
+.session-panel__new-btn:hover {
+  background: rgb(var(--ide-hover)) !important;
+  color: rgb(var(--ide-text)) !important;
+}
+/* 配置按钮菜单打开态 — 主题色激活（精确命中 bg-ide-accent/20，不误伤 hover:bg-ide-accent） */
+.session-panel__settings-btn[class*="bg-ide-accent/20"] {
+  background: rgb(var(--ide-accent) / 0.16) !important;
+  color: rgb(var(--ide-accent)) !important;
+}
+
+/* 配置菜单 — 面板色毛玻璃 + 主题色菜单高亮 */
+.session-panel__settings-menu {
+  background: rgb(var(--ide-panel) / 0.85) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgb(var(--ide-border) / 0.6) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 28px rgba(0 0 0 / 0.18) !important;
+}
+.session-panel__settings-menu button {
+  border-radius: 6px !important;
+  border: none !important;
+}
+.session-panel__settings-menu button:hover {
+  background: rgb(var(--ide-accent) / 0.15) !important;
+  color: rgb(var(--ide-accent)) !important;
+}
+
+/* 会话项 — 源列表：圆角内缩选中块，无左条 */
+.session-item {
+  border: none !important;
+  background: rgb(var(--ide-bg)) !important;
+  border-radius: 6px !important;
+  margin: 1px 6px !important;
+  transition: background-color 0.12s, color 0.12s !important;
+}
+.session-item:hover {
+  background: rgb(var(--ide-hover) / 0.55) !important;
+}
+.session-item--active {
+  background: rgb(var(--ide-accent) / 0.16) !important;
+  color: rgb(var(--ide-accent)) !important;
+  border-left: none !important;
+  box-shadow: 0 1px 2px rgba(0 0 0 / 0.15) !important;
+}
+.session-item--active .session-item__name { color: rgb(var(--ide-accent)) !important; }
+.session-item--active .session-item__cwd,
+.session-item--active .session-item__cwd span {
+  color: rgb(var(--ide-accent) / 0.72) !important;
+  opacity: 1 !important;
+}
+.session-item--active .session-item__actions button { color: rgb(var(--ide-accent) / 0.85) !important; }
+.session-item--active .session-item__actions button:hover {
+  background: rgb(var(--ide-accent) / 0.2) !important;
+  color: rgb(var(--ide-accent)) !important;
+}
+
+/* 会话分组 — cwd 梯形 tab 包裹 + 与第一个 session 结合 */
+.session-group {
+  border: none !important;
+  background: transparent !important;
+}
+.session-group + .session-group {
+  margin-top: 8px !important;
+}
+.session-group__header {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+/* cwd folder tab — 梯形包裹 emoji+path，加长右边，按钮不包裹 */
+.session-group__header > div:first-child {
+  display: inline-flex !important;
+  align-self: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 2px 12px 2px 6px !important;
+  margin: 0 6px -1px !important;
+  border: 1px solid rgb(var(--ide-border) / 0.6) !important;
+  border-bottom: none !important;
+  border-radius: 8px 8px 0 0 !important;
+  background: rgb(var(--ide-panel) / 0.85) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
+  backdrop-filter: blur(12px) saturate(180%) !important;
+  position: relative !important;
+  z-index: 10 !important;
+  box-shadow: 0 1px 2px rgba(0 0 0 / 0.04) !important;
+}
+.session-group__header > div:first-child:hover {
+  background: rgb(var(--ide-accent) / 0.06) !important;
+}
+/* sessions 容器 — 去外部框线 */
+.session-group__header + div {
+  border: none !important;
+  background: transparent !important;
+}
+.session-group__path {
+  color: rgb(var(--ide-text)) !important;
+  font-weight: 600 !important;
+}
+.session-panel__flat-list { background: transparent !important; border: none !important; }
