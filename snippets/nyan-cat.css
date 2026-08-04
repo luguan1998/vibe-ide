@@ -218,8 +218,9 @@
 }
 .status-badge__segment--warn::before {
   content: '💎' !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   line-height: 1 !important;
+  transform: translateY(-1px) !important;
 }
 
 /* ════════════════════════════════════════════════════

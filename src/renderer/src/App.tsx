@@ -2535,9 +2535,9 @@ export default function App() {
               })}
             </Suspense>
           </div>
-          {/* mujica canvas — display-toggle so state + running agents survive hide (close = switch back to terminal) */}
+          {/* mujica canvas — display-toggle so state + running agents survive hide (ESC = collapse, restore pill shows in session list) */}
           <div className="flex-1 mx-1 mb-0 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'mujica' ? 'flex' : 'none' }}>
-            <GameMujica onBack={() => { mujicaStore.setActive(false); setCenterView('terminal') }} />
+            <GameMujica onCollapse={() => setCenterView('terminal')} />
           </div>
           {/* Drag-over overlay for file compare */}
           {isDragOverEdit && (
