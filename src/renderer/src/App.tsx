@@ -20,6 +20,8 @@ import { aiStore, readAiCliConfig } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { getFileInfo, FILE_ICON_PATHS } from './components/FileIcons'
+import iconPattern from '@renderer/assets/icon-pattern.png?inline'
+import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
 import { ADD_ANNOTATION_EVENT, toRelPath } from './components/vibeEvents'
 import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
@@ -2211,7 +2213,13 @@ export default function App() {
     <div className="h-full w-full flex flex-col bg-ide-bg">
       {/* Title Bar */}
       <div className="titlebar-drag h-9 bg-ide-sidebar border-b border-ide-border flex items-center px-4 select-none shrink-0">
-        <span className="w-[18px] h-[18px] mr-1.5 shrink-0 -ml-1 flex items-center justify-center rounded bg-ide-accent/40 text-[11px] leading-none">🤔</span>
+        <span className="relative w-[18px] h-[18px] mr-1.5 shrink-0 -ml-1 block">
+          <span
+            className="absolute inset-0 bg-ide-accent"
+            style={{ maskImage: `url(${iconBgMask})`, WebkitMaskImage: `url(${iconBgMask})`, maskSize: 'contain', WebkitMaskSize: 'contain', maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat', maskPosition: 'center', WebkitMaskPosition: 'center' }}
+          />
+          <img src={iconPattern} alt="" className="absolute inset-0 w-full h-full object-contain" />
+        </span>
         <span className="text-ide-text-muted text-sm font-medium tracking-wide">Vibe IDE</span>
         <button
           className="no-drag config-menu-area w-6 h-6 ml-[10px] rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"

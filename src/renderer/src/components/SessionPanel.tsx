@@ -1625,7 +1625,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       })()}
 
       {/* Keyboard Shortcuts Modal */}
-      {showShortcuts && (
+      {showShortcuts && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowShortcuts(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
@@ -1642,10 +1642,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* File Filter Rules Modal */}
-      {showFileFilterRules && (
+      {showFileFilterRules && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowFileFilterRules(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
@@ -1696,10 +1696,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
 
-      <AppearancePanel
+      {createPortal(<AppearancePanel
         open={showAppearance}
         onClose={() => setShowAppearance(false)}
         capsuleTabs={capsuleTabs}
@@ -1740,10 +1740,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onSetSessionEmojis={(arr) => { setSessionEmojis(arr); saveSessionEmojis(arr) }}
         onResetUiStyle={onResetUiStyle}
         onCreateSessionAt={onCreateSessionAt}
-      />
+      />, document.body)}
 
       {/* CLI Configuration Modal — Shell Type + AI CLI Command */}
-      {showCliConfigModal && (
+      {showCliConfigModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCliConfigModal(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[440px] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-9 py-3 border-b border-ide-border shrink-0">
@@ -1897,10 +1897,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Claude 配置组 编辑子弹窗 */}
-      {showClaudeGroupEditModal && (
+      {showClaudeGroupEditModal && createPortal(
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowClaudeGroupEditModal(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[460px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
@@ -1969,7 +1969,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* 追加命令 Modal */}
       {showAppendCmdModal && (

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { FolderOpen, FolderGit2, ChevronRight, Clock } from 'lucide-react'
+import iconImg from '@renderer/assets/icon.png?inline'
 
 const MAX_RECENT_DIRS = 10
 
@@ -50,7 +51,7 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ isOpening, onOpenFolde
     return (
       <div className="flex-1 flex items-center justify-center bg-ide-bg relative">
         <div className="text-center select-none">
-          <div className="w-16 h-16 mx-auto mb-5 flex items-center justify-center rounded-lg bg-ide-accent/40 text-4xl">🤔</div>
+          <img src={iconImg} alt="Vibe IDE" className="w-16 h-16 mx-auto mb-5 object-contain" />
           <h1 className="text-xl font-semibold text-ide-text mb-2 tracking-wide">Vibe IDE</h1>
           <p className="text-sm text-ide-text-muted mb-8">
             A vibe-driven terminal IDE
@@ -74,7 +75,7 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ isOpening, onOpenFolde
         <div className="w-full max-w-[520px] px-8 py-10 select-none">
         {/* Header */}
         <div className="text-center mb-10">
-          <div className="w-14 h-14 mx-auto mb-4 flex items-center justify-center rounded-lg bg-ide-accent/40 text-3xl">🤔</div>
+          <img src={iconImg} alt="Vibe IDE" className="w-14 h-14 mx-auto mb-4 object-contain" />
           <h1 className="text-xl font-semibold text-ide-text mb-1.5 tracking-wide">Vibe IDE</h1>
           <p className="text-sm text-ide-text-muted">
             A vibe-driven terminal IDE
