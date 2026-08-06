@@ -78,6 +78,14 @@ export function parseUserTurns(lines: string[]): UserTurn[] {
 
     const cleaned = cleanText(msg.message.content)
     if (cleaned !== '') {
+      // 系统注入消息（AskUserQuestion 回答、plan 批准、continuation）带 isMeta，
+      // 只存在于 JSONL，不计入用户轮次，否则重载渲染成用户气泡且 revert 索引错位。
+      // 兜底：修复前写入的旧会话无 isMeta 标记，按内容特征识别
+      if (msg.isMeta === true
+        || cleaned.includes('AskUserQuestionResultBase64:')
+        || cleaned.startsWith('The user skipped this AskUserQuestion')) {
+        i++; continue
+      }
       turns.push({ lineIdx: i, content: cleaned, isInternal: false })
       i++
       continue
@@ -1299,6 +1307,7 @@ export function resumeAfterAsk(sessionId: string, answers: Record<string, string
   result.stdin!.write(JSON.stringify({
     type: 'user',
     message: { role: 'user', content: prompt },
+    isMeta: true,
   }) + '\n')
 
   return { success: true }

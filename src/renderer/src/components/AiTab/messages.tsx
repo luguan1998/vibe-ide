@@ -379,7 +379,7 @@ export function TodoListPanel({ items }: { items: TodoItem[] }) {
   const total = items.length
 
   return (
-    <div className="ai-tab__todo-panel shrink-0 border-b border-ide-border/30 animate-fade-in">
+    <div className="ai-tab__todo-panel shrink-0 border-b border-ide-border/30 animate-fade-in w-full max-w-[992px] mx-auto">
       <button
         onClick={() => setCollapsed(v => !v)}
         className="ai-tab__todo-toggle w-full flex items-center gap-1.5 px-2 py-1.5 hover:bg-ide-hover/30 transition-colors"
