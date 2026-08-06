@@ -9,7 +9,7 @@ import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAN
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
 import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X } from 'lucide-react'
 import { StreamingMarkdown } from './markdown'
-import { ThinkingBlock, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, MessageList } from './messages'
+import { ThinkingBlock, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, ModeSelector } from './inputArea'
@@ -30,7 +30,7 @@ interface AiTabProps {
   onViewAi: () => void
   onRenameSession: (name: string) => void
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
-  onForkSession?: (userMessageIndex: number) => void
+  onForkSession?: (userMessageIndex: number, content?: string, occurrence?: number) => void
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   resumeSessionId?: string
   brushActive?: boolean
@@ -447,6 +447,12 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
     if (targetMsgIdx < 0) return
 
+    // Renderer's userMessageIndex can drift below the JSONL turn index (AskUserQuestion
+    // answers / plan approvals / continuation prompts exist only in the JSONL). Pass the
+    // clicked message's content + occurrence so the main process resolves the true turn.
+    const targetContent = state.messages[targetMsgIdx]?.content
+    const occurrence = targetContent ? countContentOccurrencesBefore(state.messages, targetMsgIdx, targetContent) : 0
+
     const savedMessages = state.messages
     const savedFileChanges = state.fileChangesByTurn
 
@@ -471,6 +477,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       userMessageIndex,
       scope: 'conversation',
       cwd: workspacePath,
+      ...(targetContent ? { content: targetContent, occurrence } : {}),
     })
 
     if (!result.success) {
@@ -521,8 +528,11 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   const handleFork = useCallback(async (userMessageIndex: number) => {
     if (!activeSessionId || !onForkSession) return
-    onForkSession(userMessageIndex)
-  }, [activeSessionId, onForkSession])
+    const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
+    const targetContent = targetMsgIdx >= 0 ? state.messages[targetMsgIdx]?.content : undefined
+    const occurrence = targetContent ? countContentOccurrencesBefore(state.messages, targetMsgIdx, targetContent) : 0
+    onForkSession(userMessageIndex, targetContent, occurrence)
+  }, [activeSessionId, onForkSession, state.messages])
 
   // ── Todo list ──
   const todoItems = useMemo(() => deriveTodoList(state.messages), [state.messages])

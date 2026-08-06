@@ -87,6 +87,15 @@ export function findMessageIndexForUserMessage(messages: AiMessage[], userMessag
   return -1
 }
 
+// 该 content 在真实用户输入中、index 之前出现的次数 = index 处消息的 occurrence（0-based）
+export function countContentOccurrencesBefore(messages: AiMessage[], index: number, content: string): number {
+  let occurrence = 0
+  for (let i = 0; i < index; i++) {
+    if (isRealUserInput(messages, i) && messages[i].content === content) occurrence++
+  }
+  return occurrence
+}
+
 function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAndCode, isInternal }: {
   message: AiMessage
   userMessageIndex: number

@@ -572,6 +572,13 @@ export interface AiRevertPayload {
   userMessageIndex: number   // index of the target user message among real user messages
   scope: 'conversation' | 'both'
   cwd: string
+  // Renderer's user-message index can drift below the JSONL turn index (injected turns like
+  // AskUserQuestion answers / plan approvals / continuation prompts never reach the live
+  // stream). When present, the main process resolves the target turn by content + occurrence
+  // instead of trusting userMessageIndex. occurrence = which occurrence of that content the
+  // user clicked (0-based, counted among renderer user messages).
+  content?: string
+  occurrence?: number
 }
 
 // Fork conversation at a specific user message: create a new truncated JSONL with a fresh
@@ -580,4 +587,6 @@ export interface AiForkPayload {
   sessionId: string
   userMessageIndex: number
   cwd: string
+  content?: string
+  occurrence?: number
 }

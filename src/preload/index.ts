@@ -270,9 +270,9 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_MODEL, { sessionId, model }),
     setVisible: (visible: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_VISIBLE, visible),
-    revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) =>
+    revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string; content?: string; occurrence?: number }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_REVERT, payload),
-    fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) =>
+    fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string; content?: string; occurrence?: number }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_FORK, payload),
     listUserTurns: (sessionId: string, cwd: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_USER_TURNS, { sessionId, cwd }),

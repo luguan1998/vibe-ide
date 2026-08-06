@@ -1627,7 +1627,7 @@ export default function App() {
   }, [autoUtf8, sessionViewModes])
 
   // Fork AI conversation at a specific user message
-  const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number) => {
+  const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number, content?: string, occurrence?: number) => {
     try {
       const current = sessions.find(s => s.id === currentSessionId)
       if (!current) return
@@ -1637,6 +1637,7 @@ export default function App() {
         sessionId: currentSessionId,
         userMessageIndex,
         cwd: current.cwd,
+        ...(content ? { content, occurrence } : {}),
       })
       if (!result.success || !result.newClaudeSessionId) {
         console.error('Fork failed:', result.error)
@@ -2520,8 +2521,8 @@ export default function App() {
                           }
                         }}
                         resumeSessionId={forkSessions[session.id]}
-                        onForkSession={(userMessageIndex: number) => {
-                          handleForkSession(session.id, userMessageIndex)
+                        onForkSession={(userMessageIndex: number, content?: string, occurrence?: number) => {
+                          handleForkSession(session.id, userMessageIndex, content, occurrence)
                         }}
                         onAgentStatusChange={handleAiAgentStatusChange}
                         brushActive={brushActive}
