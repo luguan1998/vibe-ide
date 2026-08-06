@@ -634,18 +634,31 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         for (const block of content) {
           if (block.type === 'tool_result') {
             const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
+            const resultContent = typeof block.content === 'string' ? block.content : JSON.stringify(block.content)
             send(IPC_CHANNELS.AI_MESSAGE, {
               sessionId,
               type: 'user',
               role: 'user',
               toolResult: {
                 toolUseId: block.tool_use_id,
-                content: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
+                content: resultContent,
                 isError: block.is_error || false,
               },
               parentToolUseId: parentToolUseId || undefined,
               timestamp: Date.now(),
             })
+            // Backgrounded agents (async_launched) return "Async agent launched successfully...
+            // agentId: <hex>" but stream their transcript only to a sidecar file; watch it
+            // so the live UI shows the sub-agent's tool calls. (Completed foreground agents
+            // also embed an "agentId:" trailer — matching the launch marker excludes them.)
+            const launchMatch = /Async agent launched successfully[\s\S]*?agentId:\s*([0-9a-f]{8,})/i.exec(resultContent)
+            if (launchMatch) {
+              const session = aiSessions.get(sessionId)
+              const cliSessionId = msg.sessionId || session?.claudeSessionId
+              if (cliSessionId) {
+                startSidecarWatcher(sessionId, cliSessionId, launchMatch[1], block.tool_use_id, cwd, session?.configDir)
+              }
+            }
           }
         }
       }
@@ -657,6 +670,140 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       console.log(`[ai:${sessionId}] unhandled NDJSON type='${msg.type}':`, JSON.stringify(msg).slice(0, 300))
       break
   }
+}
+
+// ── Live sub-agent sidecar watchers ──────────────────────────────
+// Backgrounded agents write their transcript to <projectDir>/<cliSessionId>/
+// subagents/agent-<agentId>.jsonl — never into the main stream. Poll the sidecar
+// and forward new lines as AI_MESSAGE events (parentToolUseId = spawning Agent
+// tool_use id) so the live agent group shows the sub-agent's tool calls in real time.
+interface SidecarWatcher {
+  sessionId: string       // renderer session id (AI_MESSAGE routing)
+  sidecarPath: string
+  parentToolUseId: string // spawning Agent tool_use id
+  lastLineIdx: number     // sidecar lines already forwarded
+  unchangedPolls: number  // consecutive polls with no new lines
+  misses: number          // consecutive polls where the file was missing/unreadable
+  timer: NodeJS.Timeout
+}
+const sidecarWatchers = new Map<string, SidecarWatcher>()
+const SIDECAR_POLL_MS = 1000
+const SIDECAR_STOP_UNCHANGED_POLLS = 180 // 3min of silence → agent finished (covers long silent tools)
+const SIDECAR_STOP_MISS_POLLS = 10      // sidecar never appeared → nothing to watch
+
+function stopSidecarWatcher(key: string): void {
+  const w = sidecarWatchers.get(key)
+  if (!w) return
+  clearInterval(w.timer)
+  sidecarWatchers.delete(key)
+}
+
+function stopSidecarWatchersForSession(sessionId: string): void {
+  for (const [key, w] of sidecarWatchers) {
+    if (w.sessionId === sessionId) stopSidecarWatcher(key)
+  }
+}
+
+function emitSidecarMessage(sessionId: string, msg: any, parentToolUseId: string): void {
+  switch (msg.type) {
+    case 'assistant': {
+      const content = msg.message?.content
+      if (!Array.isArray(content)) return
+      const textParts: string[] = []
+      const thinkingParts: string[] = []
+      const toolUses: AiToolUse[] = []
+      for (const block of content) {
+        if (block.type === 'text') textParts.push(block.text)
+        else if (block.type === 'thinking' && block.thinking) thinkingParts.push(block.thinking)
+        else if (block.type === 'tool_use') toolUses.push({ id: block.id, name: block.name, input: block.input })
+      }
+      if (textParts.length === 0 && toolUses.length === 0 && thinkingParts.length === 0) return
+      send(IPC_CHANNELS.AI_MESSAGE, {
+        sessionId,
+        type: 'assistant',
+        role: 'assistant',
+        messageId: msg.message?.id,
+        model: msg.message?.model,
+        content: cleanText(textParts.join('\n')) || undefined,
+        thinking: thinkingParts.length > 0 ? cleanText(thinkingParts.join('\n')) : undefined,
+        toolUse: toolUses.length > 0 ? toolUses : undefined,
+        parentToolUseId,
+        timestamp: Date.now(),
+      })
+      break
+    }
+    case 'user': {
+      const content = msg.message?.content
+      if (!Array.isArray(content)) return
+      for (const block of content) {
+        if (block.type !== 'tool_result') continue
+        send(IPC_CHANNELS.AI_MESSAGE, {
+          sessionId,
+          type: 'user',
+          role: 'user',
+          toolResult: {
+            toolUseId: block.tool_use_id,
+            content: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
+            isError: block.is_error || false,
+          },
+          parentToolUseId,
+          timestamp: Date.now(),
+        })
+      }
+      break
+    }
+  }
+}
+
+function pollSidecarWatcher(key: string): void {
+  const w = sidecarWatchers.get(key)
+  if (!w) return
+  readFile(w.sidecarPath, 'utf-8').then((content) => {
+    const watcher = sidecarWatchers.get(key)
+    if (!watcher) return
+    watcher.misses = 0
+    // A trailing segment without '\n' may be a line still being written — hold it back
+    // so a mid-write read doesn't permanently drop that line.
+    const segments = content.endsWith('\n') ? content.split('\n') : content.split('\n').slice(0, -1)
+    const lines = segments.filter(Boolean)
+    if (lines.length <= watcher.lastLineIdx) {
+      watcher.unchangedPolls++
+      if (watcher.unchangedPolls >= SIDECAR_STOP_UNCHANGED_POLLS) stopSidecarWatcher(key)
+      return
+    }
+    watcher.unchangedPolls = 0
+    for (let i = watcher.lastLineIdx; i < lines.length; i++) {
+      let lineMsg: any
+      try { lineMsg = JSON.parse(lines[i]) } catch { continue }
+      if (lineMsg.type !== 'assistant' && lineMsg.type !== 'user') continue
+      emitSidecarMessage(watcher.sessionId, lineMsg, watcher.parentToolUseId)
+    }
+    watcher.lastLineIdx = lines.length
+  }).catch(() => {
+    const watcher = sidecarWatchers.get(key)
+    if (!watcher) return
+    watcher.misses++
+    if (watcher.misses >= SIDECAR_STOP_MISS_POLLS) stopSidecarWatcher(key)
+  })
+}
+
+function startSidecarWatcher(sessionId: string, cliSessionId: string, agentId: string, parentToolUseId: string, cwd: string, configDir?: string): void {
+  const key = `${sessionId}:${parentToolUseId}`
+  if (sidecarWatchers.has(key)) return
+  const projectDir = resolveProjectDir(cwd, configDir)
+  if (!projectDir) return
+  const sidecarPath = join(projectDir, cliSessionId, 'subagents', `agent-${agentId}.jsonl`)
+  const watcher: SidecarWatcher = {
+    sessionId,
+    sidecarPath,
+    parentToolUseId,
+    lastLineIdx: 0,
+    unchangedPolls: 0,
+    misses: 0,
+    timer: setInterval(() => pollSidecarWatcher(key), SIDECAR_POLL_MS),
+  }
+  sidecarWatchers.set(key, watcher)
+  pollSidecarWatcher(key)
 }
 
 // ── Session list: read from ~/.claude/projects/<normalized-cwd>/ ──
@@ -1031,6 +1178,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     // (a new process may have been spawned for the same sessionId via resume)
     const current = aiSessions.get(sessionId)
     if (current?.process.pid === proc.pid) {
+      stopSidecarWatchersForSession(sessionId)
       aiSessions.delete(sessionId)
       send(IPC_CHANNELS.AI_ERROR, { sessionId, error: err.message })
     }
@@ -1046,6 +1194,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
       if (current!.awaitingUserInput === true) {
         return
       }
+      stopSidecarWatchersForSession(sessionId)
       aiSessions.delete(sessionId)
       if (code !== 0 && code !== null) {
         const stderrMsg = stderrChunks.join('\n').trim()
@@ -1118,6 +1267,7 @@ export function resumeAfterAsk(sessionId: string, answers: Record<string, string
   // flag so the new subprocess's eventual exit is not misclassified as proactive.
   killAiProcess(session.process)
   session.awaitingUserInput = false
+  stopSidecarWatchersForSession(sessionId)
   aiSessions.delete(sessionId)
 
   const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, persona: session.persona })
@@ -1351,6 +1501,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     const permissionMode = session.permissionMode || 'bypassPermissions'
     session.cancelRequested = true
     killAiProcess(session.process)
+    stopSidecarWatchersForSession(sessionId)
     aiSessions.delete(sessionId)
 
     const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, persona: session.persona })
@@ -1385,6 +1536,7 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     if (!session) return false
     // Deregister first so a concurrent create with the same id (mujica respawn)
     // can't be clobbered by the async worktree cleanup below.
+    stopSidecarWatchersForSession(sessionId)
     aiSessions.delete(sessionId)
     for (const [cliId, rendererId] of cliSessionToRenderer) {
       if (rendererId === sessionId) { cliSessionToRenderer.delete(cliId); break }
