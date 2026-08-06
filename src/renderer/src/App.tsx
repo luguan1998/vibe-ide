@@ -82,6 +82,7 @@ declare global {
         readWithEncoding: (filePath: string, encoding?: string, forceOpen?: boolean) => Promise<{ content: string; encoding: string; bom: boolean; confidence: number; error?: string }>
         writeWithEncoding: (filePath: string, content: string, encoding?: string) => Promise<{ success: boolean; error?: string }>
         list: (dirPath: string) => Promise<any>
+        getPathForFile: (file: File) => string
         tree: (dirPath: string, depth?: number, skipPatterns?: string[]) => Promise<any>
         delete: (filePath: string) => Promise<any>
         rename: (oldPath: string, newPath: string) => Promise<any>
@@ -802,7 +803,8 @@ export default function App() {
       if (!isFileDrag(e)) return
       const panel = centerPanelRef.current
       if (!panel || !panel.contains(e.target as Node)) return
-      if (!diffFileRef.current?.defaultEdit) return
+      // md 预览自身处理图片拖入，diff 对比不拦截
+      if (!diffFileRef.current?.defaultEdit || centerViewRef.current === 'markdown') return
       e.preventDefault()
       e.stopImmediatePropagation()
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
@@ -813,6 +815,7 @@ export default function App() {
     const onDragLeave = (e: DragEvent) => {
       const panel = centerPanelRef.current
       if (!panel) return
+      if (centerViewRef.current === 'markdown') return
       // 仅当鼠标离开中心面板区域时隐藏 overlay
       if (e.target === panel || !panel.contains(e.relatedTarget as Node)) {
         e.preventDefault()
@@ -826,7 +829,7 @@ export default function App() {
 
     const onDrop = async (e: DragEvent) => {
       if (!isFileDrag(e)) return
-      if (!diffFileRef.current?.defaultEdit) return
+      if (!diffFileRef.current?.defaultEdit || centerViewRef.current === 'markdown') return
       e.preventDefault()
       e.stopImmediatePropagation()
       if (dragHideTimer) { clearTimeout(dragHideTimer); dragHideTimer = null }

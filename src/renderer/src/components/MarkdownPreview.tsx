@@ -56,6 +56,23 @@ function resolveImagePath(src: string, mdFullPath: string): string | null {
   return resolved.join(sep)
 }
 
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tiff', '.tif', '.ico', '.svg'])
+
+function isImageFile(file: File): boolean {
+  return file.type.startsWith('image/') || IMAGE_EXTS.has('.' + (file.name.split('.').pop() || '').toLowerCase())
+}
+
+function uniqueName(stem: string, ext: string, taken: Set<string>): string {
+  let name = stem + ext
+  let i = 1
+  while (taken.has(name)) {
+    name = `${stem}-${i}${ext}`
+    i++
+  }
+  taken.add(name)
+  return name
+}
+
 interface BlockInfo {
   start: number
   end: number
@@ -361,6 +378,8 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   const [exporting, setExporting] = useState(false)
   const exportStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const exportMenuPos = useAdaptiveMenuPos(!!exportMenu, exportMenu?.x ?? 0, exportMenu?.y ?? 0)
+  const [dragOver, setDragOver] = useState(false)
+  const [hoverBlockIdx, setHoverBlockIdx] = useState(-1)
 
   const handleLinkClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
@@ -530,6 +549,88 @@ ${clone.innerHTML}
     }
   }, [exporting, buildExportHtml, getExportDefaultName])
 
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer?.types.includes('Files')) return
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+    setDragOver(true)
+    const targetEl = e.target as Element | null
+    const wrapper = targetEl?.closest ? (targetEl.closest('.md-block') as HTMLElement | null) : null
+    setHoverBlockIdx(wrapper ? parseInt(wrapper.getAttribute('data-block-idx') || '', 10) : -1)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    const rt = e.relatedTarget
+    if (rt instanceof Node && scrollRef.current?.contains(rt)) return
+    setDragOver(false)
+    setHoverBlockIdx(-1)
+  }, [])
+
+  const handleDropImage = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    setHoverBlockIdx(-1)
+    setEditingBlock(null)
+    if (loading || error) return
+    const files = e.dataTransfer?.files
+    if (!files || files.length === 0) return
+    const images = Array.from(files).filter(isImageFile)
+    if (images.length === 0) return
+    const targetEl = e.target as Element | null
+    const wrapper = targetEl?.closest ? (targetEl.closest('.md-block') as HTMLElement | null) : null
+    const dropIdx = wrapper ? parseInt(wrapper.getAttribute('data-block-idx') || '', 10) : -1
+    const sep = fullPath.includes('\\') ? '\\' : '/'
+    const dir = fullPath.substring(0, fullPath.lastIndexOf(sep))
+    const assetsDir = dir + sep + 'assets'
+    try {
+      const mk = await window.api.file.createDir(assetsDir)
+      if (mk?.error) throw new Error(mk.error)
+      const listResult = await window.api.file.list(assetsDir)
+      if (listResult?.error) throw new Error(listResult.error)
+      const taken = new Set<string>(listResult.map((f: any) => f.name))
+      const links: string[] = []
+      for (const file of images) {
+        const srcPath = window.api.file.getPathForFile(file) || ((file as any).path as string | undefined)
+        if (!srcPath) continue
+        const dot = file.name.lastIndexOf('.')
+        const stem = dot > 0 ? file.name.substring(0, dot) : file.name
+        const ext = dot >= 0 ? file.name.substring(dot) : ''
+        const destName = uniqueName(stem, ext, taken)
+        const copyResult = await window.api.file.copy(srcPath, assetsDir + sep + destName)
+        if (copyResult?.error) throw new Error(copyResult.error)
+        links.push(`![${stem || 'image'}](assets/${destName})`)
+      }
+      if (links.length === 0) return
+      const crlf = rawContent.includes('\r\n')
+      const nl = crlf ? '\r\n' : '\n'
+      const joinedLinks = links.join(nl + nl)
+      let newContent = rawContent
+      let insertWhere = '文件末尾'
+      if (dropIdx >= 0 && dropIdx < blocks.length) {
+        // 落在段落上 → 插入到该段落末尾（去掉块尾部换行，链接另起一行）
+        const blockStart = bodyStart + blocks[dropIdx].start
+        let insertAt = bodyStart + blocks[dropIdx].end
+        while (insertAt > blockStart && /[\r\n]/.test(newContent[insertAt - 1])) insertAt--
+        newContent = newContent.slice(0, insertAt) + nl + joinedLinks + nl + newContent.slice(insertAt)
+        insertWhere = '段落末尾'
+      } else {
+        // 空白处 → 追加到文件末尾
+        if (newContent && !newContent.endsWith('\n')) newContent += nl
+        newContent += joinedLinks + nl
+      }
+      const writeResult = await window.api.file.write(fullPath, newContent)
+      if (writeResult?.error) throw new Error(writeResult.error)
+      setRawContent(newContent)
+      setSavedRawContent(newContent)
+      setExportStatus({ text: `已插入 ${links.length} 张图片到 ${insertWhere}`, type: 'success' })
+    } catch (err: any) {
+      setExportStatus({ text: '插入图片失败: ' + String(err?.message || err), type: 'error' })
+    } finally {
+      if (exportStatusTimerRef.current) clearTimeout(exportStatusTimerRef.current)
+      exportStatusTimerRef.current = setTimeout(() => setExportStatus(null), 3000)
+    }
+  }, [loading, error, fullPath, rawContent, blocks, bodyStart])
+
   // Ctrl+F 从 App.tsx 派发瞬时事件 → 开搜索栏。事件不累积、mount 不重放，
   // 新开的 md 天然不弹。已开时直接 focus+select 便于重输；首次开 input 未挂载，
   // 靠下面 [searchOpen] effect 兜底聚焦。
@@ -683,7 +784,13 @@ ${clone.innerHTML}
                   )}
                 </div>
               </div>
-      <div className="flex-1 overflow-auto p-6 bg-ide-bg relative" ref={scrollRef}>
+      <div
+        className="flex-1 overflow-auto p-6 bg-ide-bg relative"
+        ref={scrollRef}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDropImage}
+      >
         {loading && (
           <div className="flex items-center justify-center h-32 text-ide-text-muted">Loading...</div>
         )}
@@ -708,7 +815,7 @@ ${clone.innerHTML}
               blocks.map((block, i) => (
                 <div
                   key={i}
-                  className="md-block group hover:bg-ide-hover/30 rounded transition-colors -ml-1 -mr-1 px-1"
+                  className={`md-block group hover:bg-ide-hover/30 rounded transition-colors -ml-1 -mr-1 px-1${dragOver && hoverBlockIdx === i ? ' outline-2 outline-dashed outline-ide-accent/70' : ''}`}
                   data-block-idx={i}
                   onDoubleClick={(e) => handleBlockDoubleClick(block, e)}
                 >
@@ -763,6 +870,14 @@ ${clone.innerHTML}
           </div>
         )}
       </div>
+
+      {dragOver && (
+        <div className="absolute inset-x-0 top-10 bottom-0 z-20 flex items-end justify-center pb-6 pointer-events-none">
+          <span className="px-3 py-1.5 rounded-md bg-ide-accent/15 text-ide-accent text-xs">
+            {hoverBlockIdx >= 0 ? '松开以插入该段落末尾' : '松开以追加到文件末尾'}
+          </span>
+        </div>
+      )}
 
       {searchOpen && (
         <div className="absolute top-12 right-3 z-20 flex items-center gap-1 p-1.5 bg-ide-sidebar border border-ide-border rounded-md shadow-lg">
