@@ -604,7 +604,6 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
         {/* Grep mode results */}
         {mode === 'grep' && results.length > 0 && (() => {
           const allFiles = Object.keys(groupedResults)
-          const allCollapsed = allFiles.length > 0 && allFiles.every(f => collapsedFiles.has(f))
           const handleCollapseAll = () => setCollapsedFiles(new Set(allFiles))
           const handleExpandAll = () => setCollapsedFiles(new Set())
           const toggleFile = (file: string) => {

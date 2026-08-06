@@ -16,58 +16,6 @@ function getGit(): SimpleGit {
   return gitInstance
 }
 
-function mapStatus(raw: string, index: string): GitStatusResult {
-  const files: GitFileStatus[] = []
-
-  // Parse the status output
-  const lines = raw.split('\n').filter(Boolean)
-  for (const line of lines) {
-    const statusCode = line.substring(0, 2)
-    const filePath = line.substring(3)
-    const staged = statusCode[0] !== ' ' && statusCode[0] !== '?'
-    let status: GitFileStatus['status'] = 'unstaged'
-
-    if (statusCode === '??') status = 'untracked'
-    else if (statusCode.startsWith('A')) status = 'added'
-    else if (statusCode.startsWith('M') || statusCode[1] === 'M') status = 'modified'
-    else if (statusCode.startsWith('D') || statusCode[1] === 'D') status = 'deleted'
-    else if (statusCode.startsWith('R')) status = 'renamed'
-    else if (statusCode.startsWith('C')) status = 'copied'
-    else if (statusCode.startsWith('U')) status = 'conflicted'
-
-    files.push({
-      path: filePath,
-      status,
-      staged,
-      oldPath: status === 'renamed' ? filePath.split(' -> ')[0] : undefined
-    })
-  }
-
-  // Parse branch info from index line
-  const branchMatch = index.match(/## (.+)/)
-  const branchInfo = branchMatch ? branchMatch[1] : ''
-  const branch = branchInfo.split('...')[0].replace('[', '').trim()
-  const aheadMatch = branchInfo.match(/ahead (\d+)/)
-  const behindMatch = branchInfo.match(/behind (\d+)/)
-
-  const stagedCount = files.filter(f => f.staged).length
-  const unstagedCount = files.filter(f => !f.staged && f.status !== 'untracked').length
-  const untrackedCount = files.filter(f => f.status === 'untracked').length
-
-  return {
-    files,
-    branch,
-    ahead: aheadMatch ? parseInt(aheadMatch[1]) : 0,
-    behind: behindMatch ? parseInt(behindMatch[1]) : 0,
-    staged: stagedCount,
-    unstaged: unstagedCount,
-    untracked: untrackedCount,
-    clean: files.length === 0,
-    truncated: false,
-    totalFiles: files.length
-  }
-}
-
 export function registerGitHandlers(): void {
   // Set git workspace path — switches git instance to a new directory
   ipcMain.handle(IPC_CHANNELS.GIT_SET_WORKSPACE, async (_event, path: string) => {
@@ -878,20 +826,6 @@ export function registerGitHandlers(): void {
   })
 }
 
-function mapSimpleGitStatus(f: any): GitFileStatus['status'] {
-  const workingDir = f.working_dir
-  const index = f.index
-
-  if (index === '?' && workingDir === '?') return 'untracked'
-  if (index === 'A') return 'added'
-  if (index === 'M' || workingDir === 'M') return 'modified'
-  if (index === 'D' || workingDir === 'D') return 'deleted'
-  if (index === 'R') return 'renamed'
-  if (index === 'C') return 'copied'
-  if (index === 'U') return 'conflicted'
-  if (index !== ' ' && index !== '?') return 'staged'
-  return 'unstaged'
-}
 
 export function mapShortStatus(code: string, from?: string): GitFileStatus['status'] {
   switch (code) {

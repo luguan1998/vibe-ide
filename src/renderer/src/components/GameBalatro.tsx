@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades'
 type Rank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K'
@@ -231,13 +231,6 @@ const VOUCHERS: VoucherDef[] = [
 ]
 const VOUCHER_MAX_HANDS = 1
 const VOUCHER_MAX_DISCARDS = 3
-const TAGS: Record<TagId, { name: string; desc: string }> = {
-  'money-double': { name: 'Money Tag', desc: '进入商店时金币翻倍' },
-  'free-pack': { name: 'Pack Tag', desc: '商店赠送一个免费包' },
-  'free-reroll': { name: 'Reroll Tag', desc: '首次 Reroll 免费' },
-  'instant-pack': { name: 'Juggle Tag', desc: '立即开一个随机包' },
-  'boss-nullify': { name: 'Nullify Tag', desc: '下个 Boss 效果无效' },
-}
 const TAG_IDS: TagId[] = ['money-double', 'free-pack', 'free-reroll', 'instant-pack', 'boss-nullify']
 const RARITY_BORDER: Record<Rarity, string> = {
   common: 'rgba(150,160,150,0.55)',

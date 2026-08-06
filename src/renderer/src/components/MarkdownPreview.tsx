@@ -8,7 +8,7 @@ import { useStableCodeOverrides } from './MarkdownCodeBlock'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { type Frontmatter } from '@renderer/utils/frontmatter'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
-import { ADD_ANNOTATION_EVENT, toRelPath } from './vibeEvents'
+import { ADD_ANNOTATION_EVENT } from './vibeEvents'
 import OutlineTrigger from './OutlineTrigger'
 
 export const MD_SEARCH_OPEN = 'md-search-open'
@@ -44,9 +44,12 @@ function resolveImagePath(src: string, mdFullPath: string): string | null {
   if (!src) return null
   if (/^(https?:|data:|#)/i.test(src)) return null // external / data URL / anchor — not local
   const sep = mdFullPath.includes('\\') ? '\\' : '/'
+  const normalized = src.replace(/\\/g, '/')
+  // Absolute paths (D:\... / D:/... / /...) — use directly, not resolved against md dir
+  if (/^[A-Za-z]:\//.test(normalized)) return normalized.replace(/\//g, sep)
+  if (normalized.startsWith('/')) return normalized
   const dir = mdFullPath.substring(0, mdFullPath.lastIndexOf(sep))
   // Normalize: resolve relative path against md file directory
-  const normalized = src.replace(/\\/g, '/')
   const parts = normalized.split('/')
   const resolved: string[] = dir.split(sep)
   for (const part of parts) {
@@ -103,15 +106,6 @@ function locateBody(raw: string): { meta: Frontmatter | null; body: string; body
     }
   }
   return { meta: Object.keys(meta).length > 0 ? meta : null, body: bodyRaw, bodyStart }
-}
-
-function serializeFrontmatterKey(key: string, val: string | string[]): string {
-  if (Array.isArray(val)) return `${key}: [${val.map((v: string) => `'${v}'`).join(', ')}]`
-  return `${key}: ${val}`
-}
-
-function serializeFrontmatter(fm: Frontmatter): string {
-  return Object.entries(fm).map(([k, v]) => serializeFrontmatterKey(k, v)).join('\n')
 }
 
 interface TextMatch { node: Text; start: number; end: number }
@@ -445,7 +439,8 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
         if (!absPath) return src
         const sep = absPath.includes('\\') ? '\\' : '/'
         const parts = absPath.split(sep)
-        return 'file:///' + parts.map(p => encodeURIComponent(p)).join('/')
+        const drive = /^[A-Za-z]:$/.test(parts[0] || '')
+        return 'file:///' + parts.map((p, i) => (drive && i === 0 ? p : encodeURIComponent(p))).join('/')
       }, [src, fullPath])
       return <img src={resolvedSrc} alt={alt} {...props} />
     }
@@ -678,7 +673,7 @@ ${clone.innerHTML}
         setBodyStart(0)
       } else {
         const raw = typeof result === 'string' ? result : result.content || ''
-        const { meta, body, bodyStart: bs } = locateBody(raw)
+        const { meta, bodyStart: bs } = locateBody(raw)
         setFrontmatter(meta)
         setRawContent(raw)
         setBodyStart(bs)

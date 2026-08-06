@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import MujicaCanvas from './MujicaCanvas'
 import MujicaOutput from './MujicaTools'
 import { mujicaStore, useMujica } from '../mujicaStore'

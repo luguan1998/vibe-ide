@@ -298,7 +298,6 @@ export function registerPtyHandlers(win: BrowserWindow | null): void {
   ipcMain.handle(IPC_CHANNELS.PTY_CLOSE, async (_event, id: string) => {
     const managed = terminals.get(id)
     if (managed) {
-      const { cwd } = managed.session
       managed.pty.kill()
       terminals.delete(id)
       return true

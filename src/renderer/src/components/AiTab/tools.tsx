@@ -1,20 +1,9 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import type { AiMessage, AiToolUse, AiSessionState, AiPermissionRequest, AiPermissionMode, AiSlashCommand, RecentFileEntry, UserTurn } from '@shared/types'
+import { useState, useCallback } from 'react'
+import type { AiMessage, AiToolUse } from '@shared/types'
 import { AI_FILE_EDIT_TOOLS } from '@shared/types'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { useStableCodeOverrides } from '../MarkdownCodeBlock'
-import { useI18n } from '../../i18n'
-import { FILE_PATH_REGEX, parseFilePath } from '../../utils/filePathUtils'
-import { cleanMessageContent, formatConversationMarkdown } from '../../utils/aiConversationFormatter'
-import { loadFilterRules } from '../FileTab'
-import { getFileInfo, FILE_ICON_PATHS } from '../FileIcons'
-import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig } from '../../aiStore'
-import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch, Folder, X } from 'lucide-react'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../../themes'
-import { displayLabel, getShortcuts } from '../../shortcuts'
+import { ChevronDown, HelpCircle } from 'lucide-react'
 // ── Tool type classification ──────────────────────────────────────
 
 const COMMAND_TOOLS = new Set(['Bash', 'bash', 'terminal', 'run_command', 'execute_command'])

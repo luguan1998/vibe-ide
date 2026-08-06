@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import OutlinePanel from './OutlinePanel'
 
 interface OutlineTriggerProps {

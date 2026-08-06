@@ -1891,7 +1891,7 @@ export default function App() {
   }, [diffFile?.fullPath, activeSessionCwd])
 
   const [mdScrollHeading, setMdScrollHeading] = useState<string | undefined>(undefined)
-  const [outlineScrollTrigger, setOutlineScrollTrigger] = useState(0)
+  const [, setOutlineScrollTrigger] = useState(0)
 
   // 处理从中间终端点击文件路径打开文件
   const handleOpenFileFromTerminal = useCallback((fullPath: string, lineNumber?: number) => {

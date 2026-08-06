@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react'
 import { useI18n } from '../i18n'
 import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
 import GitGraph from './GitGraph'
@@ -164,11 +164,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [loadingMoreGraph, setLoadingMoreGraph] = useState(false)
   const loadingMoreRef = useRef(false)
   const [branches, setBranches] = useState<GitBranch[]>([])
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [diffContent, setDiffContent] = useState<string>('')
-  const [diffStaged, setDiffStaged] = useState<boolean>(false)
+  const [, setSelectedFile] = useState<string | null>(null)
+  const [, setDiffContent] = useState<string>('')
+  const [, setDiffStaged] = useState<boolean>(false)
   const [commitMessage, setCommitMessage] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const pendingGitPathRef = useRef<string | null>(null)
@@ -178,7 +178,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [commitIsRoot, setCommitIsRoot] = useState(false)
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   const [commitFileCount, setCommitFileCount] = useState(0)
-  const [commitDiff, setCommitDiff] = useState<string>('')
+  const [, setCommitDiff] = useState<string>('')
   const fsChangedHandlerRef = useRef<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
   const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { RotateCcw, X } from 'lucide-react'
 import { useI18n } from '../i18n'
 import {
@@ -8,7 +8,6 @@ import {
   resetShortcuts,
   displayLabel,
   keybindingFromEvent,
-  type ShortcutDef,
 } from '../shortcuts'
 
 export default function SettingsPanel() {
