@@ -1,0 +1,182 @@
+/*
+  水墨山水 · 冷白宣纸 · 黛青远山 — 叠加 GitHub Light，纯 snippet
+*/
+
+/* ── 主题变量（ThemeProvider 内联样式，必须 !important） ── */
+:root {
+  --ide-bg: 247 248 246 !important;
+  --ide-sidebar: 239 241 238 !important;
+  --ide-panel: 243 244 242 !important;
+  --ide-border: 214 219 213 !important;
+  --ide-text: 46 50 46 !important;
+  --ide-text-muted: 124 132 125 !important;
+  --ide-accent: 61 107 94 !important;
+  --ide-accent-hover: 51 90 79 !important;
+  --ide-success: 74 125 90 !important;
+  --ide-danger: 176 58 46 !important;
+  --ide-warning: 160 106 44 !important;
+  --ide-hover: 231 235 230 !important;
+  --ide-active: 221 230 223 !important;
+  --scrollbar-thumb: 195 203 196 !important;
+  --scrollbar-thumb-hover: 154 165 156 !important;
+  --selection-bg: 61 107 94 !important;
+  --selection-opacity: 0.25 !important;
+  --focus-outline: 61 107 94 !important;
+  --monaco-margin-bg: 247 248 246 !important;
+}
+
+/* ── 滚动条：细淡墨圆条 ── */
+::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(46 50 46 / 0.22) !important;
+  border-radius: 9999px !important;
+  border: 2px solid transparent !important;
+  background-clip: content-box !important;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(46 50 46 / 0.38) !important;
+  background-clip: content-box !important;
+}
+::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+/* xterm 自绘滚动条 — 同款淡墨 */
+.xterm .xterm-viewport::-webkit-scrollbar {
+  display: none !important;
+}
+.xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
+  background: rgb(46 50 46 / 0.22) !important;
+  border-radius: 9999px !important;
+  border: 2px solid transparent !important;
+  background-clip: content-box !important;
+  min-width: 7px !important;
+}
+
+/* ── 标题栏：冷白宣纸 + 淡墨底边 ── */
+.titlebar-drag[class*="h-9"] {
+  background: rgb(247 248 246) !important;
+  border-bottom: 1px solid rgb(46 50 46 / 0.08) !important;
+}
+
+/* ── 终端背景：水墨山水图（占位，换图改 url 即可） ── */
+:root {
+  --terminal-bg-image: url('assets/ink-wash.jpg');
+  --terminal-bg-overlay: rgba(247 248 246 / 0.55);
+}
+.term-view__canvas {
+  --term-bg: 247 248 246;
+  background-image: linear-gradient(var(--terminal-bg-overlay), var(--terminal-bg-overlay)), var(--terminal-bg-image) !important;
+  background-size: cover, cover !important;
+  background-position: center 25%, center 25% !important;
+}
+.xterm .xterm-viewport,
+.xterm .xterm-screen,
+.xterm .xterm-screen canvas {
+  background: transparent !important;
+}
+.ai-tab {
+  position: relative !important;
+  background-image: linear-gradient(var(--terminal-bg-overlay), var(--terminal-bg-overlay)), var(--terminal-bg-image) !important;
+  background-size: cover, cover !important;
+  background-position: center 25%, center 25% !important;
+}
+
+/* ── 左侧 Session：毛笔笔记 ──
+   纸：列表容器透出宣纸底 + 笔记本边栏竖线 + 行间横线
+   墨点：每行左侧一枚，hover 落笔变深，active 黛青晕开 */
+
+/* 笔记本纸纹 */
+.session-panel__list {
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 27px, rgb(46 50 46 / 0.04) 27px 28px),
+    linear-gradient(90deg, transparent 7px, rgb(61 107 94 / 0.10) 7px 8px, transparent 8px) !important;
+}
+.session-panel__list-wrapper {
+  background: rgb(247 248 246) !important;
+}
+
+/* 分组卡片 / 最近文件卡片 — 透明，浮于纸面 */
+.session-group,
+.session-panel__flat-list,
+.session-panel__recent-files {
+  background: transparent !important;
+  border-color: rgb(46 50 46 / 0.10) !important;
+}
+
+/* 分组标题：底部分隔换毛笔断墨线 */
+.session-group__header {
+  position: relative !important;
+  border-bottom: none !important;
+  background: rgb(239 241 238 / 0.7) !important;
+}
+.session-group__header::after {
+  content: '' !important;
+  position: absolute !important;
+  left: 10px !important;
+  right: 10px !important;
+  bottom: 0 !important;
+  height: 1px !important;
+  pointer-events: none !important;
+  background: linear-gradient(90deg,
+    rgb(46 50 46 / 0.30) 0% 4%,
+    rgb(46 50 46 / 0.10) 8% 20%,
+    transparent 26% 34%,
+    rgb(46 50 46 / 0.14) 42% 62%,
+    transparent 70% 78%,
+    rgb(46 50 46 / 0.26) 88% 96%,
+    rgb(46 50 46 / 0.10) 100%) !important;
+}
+/* 行间：毛笔断墨分隔线（起笔重 → 飞白 → 收笔顿） */
+.session-item {
+  position: relative !important;
+}
+.session-item:not(:last-child)::after {
+  content: '' !important;
+  position: absolute !important;
+  left: 10px !important;
+  right: 12px !important;
+  bottom: 0 !important;
+  height: 1px !important;
+  pointer-events: none !important;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgb(46 50 46 / 0.14) 5% 10%,
+    transparent 16% 24%,
+    rgb(46 50 46 / 0.07) 44% 64%,
+    transparent 74% 82%,
+    rgb(46 50 46 / 0.16) 90% 96%,
+    transparent 100%) !important;
+}
+
+/* hover：墨晕从左侧漾开 */
+.session-item:hover {
+  background: radial-gradient(ellipse 130% 100% at 0% 50%, rgb(46 50 46 / 0.06) 0%, transparent 60%) !important;
+}
+
+/* active：黛青墨条 + 墨晕背景 */
+.session-item--active {
+  background:
+    radial-gradient(ellipse 130% 100% at 0% 50%, rgb(61 107 94 / 0.14) 0%, transparent 55%),
+    rgb(236 241 238) !important;
+  border-left: 3px solid rgb(61 107 94) !important;
+}
+
+/* ── Markdown 预览：代码块/引用保留黛青，仅减弱代码块边框 ── */
+.md-preview pre {
+  border-color: rgb(46 50 46 / 0.16) !important;
+  background-color: rgb(239 241 238) !important;
+}
+.md-code-block {
+  border-color: rgb(46 50 46 / 0.12) !important;
+  background-color: rgb(239 241 238) !important;
+}
+.md-mermaid {
+  border-color: rgb(46 50 46 / 0.12) !important;
+}

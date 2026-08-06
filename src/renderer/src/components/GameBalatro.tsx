@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades'
 type Rank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K'
 type Enhancement = 'gold' | 'glass' | 'steel' | 'lucky' | 'bonus' | 'mult' | 'stone'
-type BossEffect = 'needle' | 'wall' | 'manacle' | 'no-discard' | 'min-hand' | 'reversed' | 'tax' | 'mute-enh'
+type BossEffect = 'needle' | 'wall' | 'manacle' | 'no-discard' | 'min-hand' | 'first-hand' | 'tax' | 'mute-enh'
 type Rarity = 'common' | 'uncommon' | 'rare'
 type TagId = 'money-double' | 'free-pack' | 'free-reroll' | 'instant-pack' | 'boss-nullify'
 type PackKind = 'standard' | 'tarot' | 'planet' | 'joker'
@@ -172,7 +172,7 @@ const HAND_BASE: Record<string, [number, number]> = {
   'Straight Flush': [100, 8],
   'Royal Flush': [100, 8],
 }
-const ANTE_TARGETS = [100, 300, 800, 2000, 5000, 11000, 20000, 35000]
+const ANTE_TARGETS = [200, 300, 800, 2000, 5000, 11000, 20000, 35000]
 const PLANET_SCALE: Record<string, [number, number]> = {
   'High Card': [10, 1],
   Pair: [15, 2],
@@ -238,7 +238,6 @@ const RARITY_BORDER: Record<Rarity, string> = {
   rare: 'rgba(200,120,255,0.8)',
 }
 const RARITY_WEIGHTS: [Rarity, number][] = [['common', 60], ['uncommon', 30], ['rare', 10]]
-const REVERSE_SUIT: Record<Suit, Suit> = { hearts: 'spades', spades: 'hearts', diamonds: 'clubs', clubs: 'diamonds' }
 const STAKES: StakeDef[] = [
   { name: '白', color: '#e8e8e8', targetGrowth: 0, handSize: 0, jokerSlots: 0, discards: 0, startMoney: 4, noSmallReward: false, rent: 0 },
   { name: '红', color: '#ff6b5e', targetGrowth: 0, handSize: 0, jokerSlots: 0, discards: 0, startMoney: 4, noSmallReward: true, rent: 0 },
@@ -256,7 +255,7 @@ const BOSSES: Boss[] = [
   { name: 'The Manacle', desc: '手牌上限 -1', effect: 'manacle', color: '#9aa6b0' },
   { name: 'The Hook', desc: '禁止弃牌', effect: 'no-discard', color: '#5eb0ff' },
   { name: 'The Mouth', desc: '出牌必须 ≥4 张', effect: 'min-hand', color: '#b06eff' },
-  { name: 'The Reverse', desc: '花色反转判定(♥↔♠,♦↔♣)', effect: 'reversed', color: '#ff9d45' },
+  { name: 'The Mouth', desc: '只认本局第一种打出的牌型', effect: 'first-hand', color: '#ff9d45' },
   { name: 'The Tax', desc: '本盲注开始 -$3', effect: 'tax', color: '#d64545' },
   { name: 'The Mute', desc: '增强牌全部失效', effect: 'mute-enh', color: '#6edb6e' },
 ]
@@ -542,6 +541,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   const [ante, setAnte] = useState(0)
   const [blindIdx, setBlindIdx] = useState(0)
   const [boss, setBoss] = useState<Boss | null>(null)
+  const [bossLockedType, setBossLockedType] = useState<string | null>(null)
   const [handsLeft, setHandsLeft] = useState(4)
   const [discardsLeft, setDiscardsLeft] = useState(3)
   const [jokers, setJokers] = useState<Joker[]>([])
@@ -597,11 +597,12 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   const preview = (() => {
     if (gameState !== 'playing' || selected.size === 0) return null
     const played = hand.filter(c => selected.has(c.id))
-    const evalCards = boss && boss.effect === 'reversed' && !bossMuted
-      ? played.map(c => ({ ...c, suit: REVERSE_SUIT[c.suit] }))
-      : played
-    const ht = evaluateHand(evalCards)
+    const ht = evaluateHand(played)
     if (!ht) return null
+    const firstTypeLock = boss && boss.effect === 'first-hand' && !bossMuted
+    if (firstTypeLock && bossLockedType !== null && ht.name !== bossLockedType) {
+      return { chips: 0, mult: 0, total: 0, name: ht.name, lvl: levels[ht.name] || 1 }
+    }
     const lvl = levels[ht.name] || 1
     const hwl = handWithLevel(ht.name, lvl)
     let chips = hwl.chips
@@ -612,7 +613,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       chips += played.filter(c => c.enh === 'stone').length * 50
     }
     const ctx: JokerCtx = {
-      played: evalCards,
+      played,
       hand,
       handType: ht,
       money,
@@ -725,6 +726,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     setAnte(a => a + 1)
     setBlindIdx(0)
     setBoss(null)
+    setBossLockedType(null)
     setRoundScore(0)
     setHandsLeft(4 + voucherHands)
     setDiscardsLeft(3 + stake.discards + voucherDiscards)
@@ -748,6 +750,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     setAnte(0)
     setBlindIdx(0)
     setBoss(null)
+    setBossLockedType(null)
     setHandsLeft(4)
     setDiscardsLeft(3 + stake.discards)
     setJokers([])
@@ -850,14 +853,17 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     if (boss && boss.effect === 'min-hand' && !bossMuted && selected.size < 4) return
     lockedRef.current = true
     const played = hand.filter(c => selected.has(c.id))
-    const evalCards = boss && boss.effect === 'reversed' && !bossMuted
-      ? played.map(c => ({ ...c, suit: REVERSE_SUIT[c.suit] }))
-      : played
-    const ht = evaluateHand(evalCards)
+    const ht = evaluateHand(played)
     if (!ht) {
       lockedRef.current = false
       return
     }
+    const firstTypeLock = boss && boss.effect === 'first-hand' && !bossMuted
+    if (firstTypeLock && bossLockedType === null) {
+      setBossLockedType(ht.name)
+      showToast(`Boss 锁定牌型:${HAND_CN[ht.name] || ht.name}`)
+    }
+    const typeMismatch = firstTypeLock && bossLockedType !== null && ht.name !== bossLockedType
     const enhMuted = boss && boss.effect === 'mute-enh' && !bossMuted
     const lvl = levels[ht.name] || 1
     const hwl = handWithLevel(ht.name, lvl)
@@ -875,7 +881,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       chips += played.filter(c => c.enh === 'stone').length * 50
     }
     const ctx: JokerCtx = {
-      played: evalCards,
+      played,
       hand,
       handType: ht,
       money: moneyRef.current,
@@ -915,6 +921,11 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       }
     }
     mult += luckyMult
+    if (typeMismatch) {
+      chips = 0
+      mult = 0
+      steps.length = 0
+    }
     const total = Math.floor(chips * mult)
     setScoreBoard({ chips, mult, total })
 
@@ -989,6 +1000,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             setAnte(a => a + 1)
             setBlindIdx(0)
             setBoss(null)
+            setBossLockedType(null)
             setRoundScore(0)
             setHandsLeft(4 + voucherHands)
             setDiscardsLeft(3 + stake.discards + voucherDiscards)
@@ -1001,6 +1013,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             const nextMuted = nullifyBoss && !!nextBoss
             setBlindIdx(i => i + 1)
             setBoss(nextBoss)
+            setBossLockedType(null)
             if (nextBoss && nextBoss.effect === 'tax' && !nextMuted) {
               setMoney(m => {
                 const n = Math.max(0, m - 3)
@@ -1028,7 +1041,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
         }
       }
     }, settleAt))
-  }, [selected, hand, handsLeft, roundScore, target, ante, blindIdx, boss, bossMuted, effHandSize, vouchers, voucherHands, voucherDiscards, jokers, levels, activeTarot, gameState, drawTo, clearTimers, enterShop, jokerState, showToast, stakeIdx, stake, nullifyBoss, lastPlayed])
+  }, [selected, hand, handsLeft, roundScore, target, ante, blindIdx, boss, bossMuted, effHandSize, vouchers, voucherHands, voucherDiscards, jokers, levels, activeTarot, gameState, drawTo, clearTimers, enterShop, jokerState, showToast, stakeIdx, stake, nullifyBoss, bossLockedType, lastPlayed])
 
   const discardHand = useCallback(() => {
     if (lockedRef.current) return
@@ -1066,6 +1079,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     const nextMuted = nullifyBoss && !!nextBoss
     setBlindIdx(i => i + 1)
     setBoss(nextBoss)
+    setBossLockedType(null)
     setRoundScore(0)
     setHandsLeft(nextBoss && nextBoss.effect === 'needle' && !nextMuted ? 1 : 4 + voucherHands)
     setDiscardsLeft(3 + stake.discards + voucherDiscards)
@@ -1295,6 +1309,11 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
               {blindName}
             </span>
             {boss && <span className="text-[11px] truncate" style={{ color: boss.color }}>{boss.desc}</span>}
+            {boss && boss.effect === 'first-hand' && !bossMuted && bossLockedType && (
+              <span className="text-[11px] font-black shrink-0" style={{ color: boss.color }}>
+                锁定:{HAND_CN[bossLockedType] || bossLockedType}
+              </span>
+            )}
           </div>
           {blindIdx !== 2 && (
             <button

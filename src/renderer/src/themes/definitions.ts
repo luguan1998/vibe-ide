@@ -663,54 +663,56 @@ const mikuLight: IDETheme = {
   titleBar: { color: '#eef7f5', symbolColor: '#7a9a95', backgroundColor: '#eef7f5' }
 }
 
-// 🏮 Retro Chinese — 大闹天宫国风主题
-// 朱红 + 翠绿 + 赤金 + 玄青 四色体系，适配 snippets/retro-chinese.css
+// 🏮 Retro Chinese — 水墨山水国风主题
+// 冷白宣纸 + 浓墨 + 黛青远山，与 snippets/ink-wash.css 同配色体系
 const retroChinese: IDETheme = {
   id: 'retro-chinese',
   label: 'Retro Chinese',
   css: {
-    'ide-bg': t('#12100e'),
-    'ide-sidebar': t('#181612'),
-    'ide-panel': t('#1e1c16'),
-    'ide-border': t('#463a28'),
-    'ide-text': t('#ebe6dc'),
-    'ide-text-muted': t('#b9af9e'),
-    'ide-accent': t('#c7322b'),
-    'ide-accent-hover': t('#e65046'),
-    'ide-success': t('#64aa64'),
-    'ide-danger': t('#c7322b'),
-    'ide-warning': t('#d2a532'),
-    'ide-hover': t('#34281e'),
-    'ide-active': t('#482a1e'),
-    'scrollbar-thumb': t('#463a28'),
-    'scrollbar-thumb-hover': t('#8c5a32'),
-    'selection-bg': t('#c7322b'),
-    'selection-opacity': '0.3',
-    'focus-outline': t('#d2a532'),
-    'monaco-margin-bg': t('#12100e')
+    'ide-bg': t('#f7f8f6'),
+    'ide-sidebar': t('#eff1ee'),
+    'ide-panel': t('#f3f4f2'),
+    'ide-border': t('#d6dbd5'),
+    'ide-text': t('#2e322e'),
+    'ide-text-muted': t('#7c847d'),
+    'ide-accent': t('#3d6b5e'),
+    'ide-accent-hover': t('#335a4f'),
+    'ide-success': t('#4a7d5a'),
+    'ide-danger': t('#b03a2e'),
+    'ide-warning': t('#a06a2c'),
+    'ide-hover': t('#e7ebe6'),
+    'ide-active': t('#dde6df'),
+    'scrollbar-thumb': t('#c3cbc4'),
+    'scrollbar-thumb-hover': t('#9aa59c'),
+    'selection-bg': t('#3d6b5e'),
+    'selection-opacity': '0.25',
+    'focus-outline': t('#3d6b5e'),
+    'monaco-margin-bg': t('#f7f8f6')
   },
   terminal: {
-    background: '#12100e', foreground: '#ebe6dc', cursor: '#c7322b', cursorAccent: '#12100e',
-    selectionBackground: hexToRgba('#c7322b', 0.3),
-    black: '#34281e', red: '#c7322b', green: '#64aa64', yellow: '#d2a532',
-    blue: '#6496c8', magenta: '#9678b4', cyan: '#5ab8a8', white: '#ebe6dc',
-    brightBlack: '#b9af9e', brightRed: '#e65046', brightGreen: '#82c882',
-    brightYellow: '#e6c346', brightBlue: '#82b4e6', brightMagenta: '#b496d2',
-    brightCyan: '#7ad0c0', brightWhite: '#ffffff'
+    background: '#f7f8f6', foreground: '#2e322e', cursor: '#3d6b5e', cursorAccent: '#f7f8f6',
+    selectionBackground: hexToRgba('#3d6b5e', 0.25),
+    black: '#2e322e', red: '#b03a2e', green: '#4a7d5a', yellow: '#a06a2c',
+    blue: '#3d6b8e', magenta: '#7a5a8c', cyan: '#3a7a7a', white: '#7c847d',
+    brightBlack: '#9aa59c', brightRed: '#c84a3a', brightGreen: '#5a9168',
+    brightYellow: '#b8862e', brightBlue: '#5a8aa8', brightMagenta: '#9a6a9a',
+    brightCyan: '#5a9a9a', brightWhite: '#1a1e1a',
+    fontWeight: '500',
+    allowTransparency: false
   },
   monacoTheme: 'vibe-ide-retro-chinese',
   monacoRules: [
-    { token: 'comment', foreground: '#b9af9e', fontStyle: 'italic' },
-    { token: 'keyword', foreground: '#c7322b' },
-    { token: 'string', foreground: '#64aa64' },
-    { token: 'number', foreground: '#d2a532' },
-    { token: 'type', foreground: '#82b4e6' },
-    { token: 'function', foreground: '#e6c346' },
-    { token: 'variable', foreground: '#ebe6dc' },
-    { token: 'constant', foreground: '#9678b4' },
-    { token: 'regexp', foreground: '#e65046' }
+    { token: 'comment', foreground: '#7c847d', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#3d6b5e' },
+    { token: 'string', foreground: '#4a7d5a' },
+    { token: 'number', foreground: '#a06a2c' },
+    { token: 'type', foreground: '#335a4f' },
+    { token: 'function', foreground: '#2f6a8c' },
+    { token: 'variable', foreground: '#2e322e' },
+    { token: 'constant', foreground: '#7a5a8c' },
+    { token: 'regexp', foreground: '#b03a2e' }
   ],
-  titleBar: { color: '#181612', symbolColor: '#d2a532', backgroundColor: '#181612' }
+  titleBar: { color: '#eff1ee', symbolColor: '#7c847d', backgroundColor: '#eff1ee' }
 }
 
 export const THEMES: IDETheme[] = [
