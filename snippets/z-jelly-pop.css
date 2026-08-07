@@ -1,0 +1,23 @@
+/*
+  选中时 session / 右侧 tab 的果冻回弹动画
+*/
+@keyframes z-jelly-pop {
+  0%   { transform: scale(1, 1); }
+  25%  { transform: scale(0.9, 1.1); }
+  50%  { transform: scale(1.1, 0.9); }
+  75%  { transform: scale(0.95, 1.05); }
+  100% { transform: scale(1, 1); }
+}
+
+.session-item--active,
+.right-panel__tab--active {
+  animation: z-jelly-pop 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) !important;
+  will-change: transform !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-item--active,
+  .right-panel__tab--active {
+    animation: none !important;
+  }
+}
