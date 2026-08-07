@@ -456,8 +456,8 @@ export default function App() {
   // 窗口聚焦/可见性 → appFocused（切走/最小化时宠物切 unfocused）
   useEffect(() => {
     const onWinFocus = () => setAppFocused(true)
-    const onWinBlur = () => setAppFocused(false)
-    const onVis = () => setAppFocused(document.hasFocus())
+    const onWinBlur = () => { setAppFocused(false); setBrushActive(false) }
+    const onVis = () => { setAppFocused(document.hasFocus()); if (!document.hasFocus()) setBrushActive(false) }
     window.addEventListener('focus', onWinFocus)
     window.addEventListener('blur', onWinBlur)
     document.addEventListener('visibilitychange', onVis)
