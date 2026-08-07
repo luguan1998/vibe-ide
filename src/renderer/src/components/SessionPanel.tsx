@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2 } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2 } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { readAiCliConfig } from '../aiStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -134,6 +134,21 @@ function formatBytes(n: number): string {
   if (n < 1000) return `${n} B`
   if (n < 1000000) return `${(n / 1000).toFixed(1)} kB`
   return `${(n / 1000000).toFixed(1)} MB`
+}
+
+function buildHistoryTurns(messages: any[]): { role: 'user' | 'assistant'; text: string }[] {
+  const turns: { role: 'user' | 'assistant'; text: string }[] = []
+  for (const m of messages || []) {
+    if (m.type !== 'user' && m.type !== 'assistant') continue
+    const role: 'user' | 'assistant' = m.role === 'user' ? 'user' : 'assistant'
+    let text = typeof m.content === 'string' ? m.content.replace(/\s+/g, ' ').trim() : ''
+    if (!text && Array.isArray(m.toolUse) && m.toolUse.length > 0) text = `工具 ×${m.toolUse.length}`
+    if (!text) continue
+    const last = turns[turns.length - 1]
+    if (last && last.role === role) last.text += ' ' + text
+    else turns.push({ role, text })
+  }
+  return turns
 }
 
 function loadRecentDirs(): string[] {
@@ -514,6 +529,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [claudeHistoryError, setClaudeHistoryError] = useState('')
   const claudeHistoryReqIdRef = useRef(0)
   const [claudeHistoryMode, setClaudeHistoryMode] = useState<'tui' | 'gui'>('tui')
+  const [expandedHistory, setExpandedHistory] = useState<{ id: string; turns: { role: 'user' | 'assistant'; text: string }[]; loading: boolean } | null>(null)
 
   const hourglassSvg = (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-text-muted">
@@ -831,7 +847,26 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setClaudeHistoryList([])
     setClaudeHistoryError('')
     setClaudeHistoryLoading(false)
+    setExpandedHistory(null)
   }, [])
+
+  const toggleHistoryExpand = useCallback(async (s: any) => {
+    if (!claudeHistorySession) return
+    const id = s.session_id || s.id
+    if (expandedHistory?.id === id) {
+      setExpandedHistory(null)
+      return
+    }
+    setExpandedHistory({ id, turns: [], loading: true })
+    const { configDir } = readAiCliConfig()
+    try {
+      const r = await window.api.ai.loadSessionMessages(id, claudeHistorySession.cwd, configDir)
+      if (r?.error) throw new Error(r.error)
+      setExpandedHistory(prev => prev?.id === id ? { id, turns: buildHistoryTurns(r.messages), loading: false } : prev)
+    } catch (e: any) {
+      setExpandedHistory(prev => prev?.id === id ? { id, turns: [{ role: 'assistant', text: e?.message || '加载失败' }], loading: false } : prev)
+    }
+  }, [claudeHistorySession, expandedHistory])
 
   const openClaudeHistory = useCallback((session: TerminalSession) => {
     setClaudeHistorySession(session)
@@ -2070,13 +2105,14 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               ) : (
                 claudeHistoryList.map((s: any) => {
                   const timeStr = s.timestamp ? new Date(s.timestamp).toLocaleString() : ''
+                  const hist = expandedHistory?.id === (s.session_id || s.id) ? expandedHistory : null
                   return (
                     <div
                       key={s.session_id || s.id}
                       onClick={() => selectClaudeHistory(s)}
                       className="group w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left relative cursor-pointer"
                     >
-                      <div className="truncate pr-6">{s.name || s.session_id || s.id}</div>
+                      <div className="truncate pr-12">{s.name || s.session_id || s.id}</div>
                       {timeStr && (
                         <div className="flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-1">
                           <span className="truncate mr-2">{timeStr}</span>
@@ -2084,12 +2120,39 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         </div>
                       )}
                       <button
+                        onClick={(e) => { e.stopPropagation(); toggleHistoryExpand(s) }}
+                        className={`absolute right-7 top-1.5 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-all ${hist ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                        title={t('Expand')}
+                      >
+                        <ChevronDown size={12} className={`transition-transform ${hist ? 'rotate-180' : ''}`} />
+                      </button>
+                      <button
                         onClick={(e) => { e.stopPropagation(); deleteClaudeHistory(s) }}
                         className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
                         title={t('Delete')}
                       >
                         <Trash2 size={12} />
                       </button>
+                      {hist && (
+                        <div className="mt-1.5 pt-1.5 border-t border-ide-border/50 max-h-40 overflow-y-auto space-y-0.5">
+                          {hist.loading ? (
+                            <div className="flex items-center gap-1.5 text-[11px] text-ide-text-muted py-0.5">
+                              <Loader2 size={11} className="animate-spin" /><span>{t('Loading...')}</span>
+                            </div>
+                          ) : (
+                            hist.turns.map((tr, ti) => (
+                              <div key={ti} className="flex items-start gap-1 text-[11px] leading-snug" title={tr.text}>
+                                <span className={`shrink-0 w-4 text-center select-none rounded ${tr.role === 'user' ? 'text-ide-accent' : 'text-ide-success'}`}>
+                                  {tr.role === 'user' ? '问' : '答'}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate text-ide-text-muted/80">
+                                  {tr.text.length > 60 ? tr.text.slice(0, 60) + '…' : tr.text}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })
