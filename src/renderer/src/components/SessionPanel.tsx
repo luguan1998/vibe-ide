@@ -307,6 +307,11 @@ export interface SessionPanelHandle {
   toggleConfig: (rect: DOMRect) => void
 }
 
+// hover 预览 timer 清理：清掉并置 null，统一入口避免各处重复 clearTimeout 判断
+function clearTimer(ref: { current: ReturnType<typeof setTimeout> | null }) {
+  if (ref.current) { clearTimeout(ref.current); ref.current = null }
+}
+
 function SessionCmdCopyButton({ cmd }: { cmd: string }) {
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
@@ -523,6 +528,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }
   const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; name: string; left: number; top: number } | null>(null)
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastMouseMoveAtRef = useRef(0)
   const cwdHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [cwdLinkSession, setCwdLinkSession] = useState<string | null>(null)
   const [configMenuStyle, setConfigMenuStyle] = useState<React.CSSProperties>({})
@@ -554,6 +560,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       inputRef.current.select()
     }
   }, [renaming])
+
+  useEffect(() => () => { clearTimer(hoverTimerRef) }, [])
+  useEffect(() => {
+    const handler = () => { lastMouseMoveAtRef.current = Date.now() }
+    window.addEventListener('mousemove', handler)
+    return () => window.removeEventListener('mousemove', handler)
+  }, [])
 
   // Track new sessions to record their cwd as recent directories
   useEffect(() => {
@@ -870,19 +883,26 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       onClick={() => onSwitchSession(session.id)}
       onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
       onContextMenu={(e) => handleContextMenu(e, session.id)}
+      // mouseEnter 驱动 + 真实移动校验：display:none→visible 或 item 插入鼠标下会派发幽灵 mouseover（无 mousemove 伴随），
+      // 判非真实 hover 不打开；timer 触发时再校验鼠标仍在 item 上，防 leave 丢失导致异常打开
       onMouseEnter={(e) => {
         const rect = e.currentTarget.getBoundingClientRect()
+        const itemEl = e.currentTarget
+        const enterAt = Date.now()
+        const mx = e.clientX
+        const my = e.clientY
+        clearTimer(hoverTimerRef)
         hoverTimerRef.current = setTimeout(() => {
-          setHoverPreview({ sessionId: session.id, name: session.name, left: rect.right + 6, top: rect.top })
+          if (lastMouseMoveAtRef.current < enterAt - 300) return
+          const el = document.elementFromPoint(mx, my)
+          if (el && itemEl.contains(el)) {
+            setHoverPreview({ sessionId: session.id, name: session.name, left: rect.right + 6, top: rect.top })
+          }
         }, 600)
       }}
       onMouseLeave={() => {
-        if (hoverTimerRef.current) {
-          clearTimeout(hoverTimerRef.current)
-        }
-        hoverTimerRef.current = setTimeout(() => {
-          setHoverPreview(null)
-        }, 200)
+        clearTimer(hoverTimerRef)
+        hoverTimerRef.current = setTimeout(() => setHoverPreview(null), 200)
       }}
       onDragStart={() => { setDragIndex(dragIdx); setDragGroupIndex(null); setDropGroupIndex(null) }}
       onDragOver={(e) => {
@@ -1573,16 +1593,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <div
             className="fixed z-50 bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-80 max-h-64 flex flex-col"
             style={{ left: hoverPreview.left, top: hoverPreview.top }}
-            onMouseEnter={() => {
-              if (hoverTimerRef.current) {
-                clearTimeout(hoverTimerRef.current)
-                hoverTimerRef.current = null
-              }
-            }}
+            onMouseEnter={() => { clearTimer(hoverTimerRef) }}
             onMouseLeave={() => {
-              hoverTimerRef.current = setTimeout(() => {
-                setHoverPreview(null)
-              }, 300)
+              clearTimer(hoverTimerRef)
+              hoverTimerRef.current = setTimeout(() => setHoverPreview(null), 300)
             }}
           >
             <div className="flex items-center px-3 py-1 border-b border-ide-border shrink-0 bg-ide-sidebar">
