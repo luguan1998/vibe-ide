@@ -15,11 +15,13 @@ import SearchPanel from './components/SearchPanel'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import GameMujica, { FOCUS_MUJICA, MUJICA_CLOSE } from './components/GameMujica'
-import { mujicaStore } from './mujicaStore'
+import { mujicaStore, useMujica } from './mujicaStore'
 import { aiStore, readAiCliConfig } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { getFileInfo, FILE_ICON_PATHS } from './components/FileIcons'
+import iconPattern from '@renderer/assets/icon-pattern.png?inline'
+import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
 import { ADD_ANNOTATION_EVENT, toRelPath } from './components/vibeEvents'
 import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
@@ -62,7 +64,7 @@ declare global {
         stashPush: (message?: string) => Promise<any>
         stashPop: () => Promise<any>
         stashDrop: () => Promise<any>
-        push: (remote?: string, branch?: string) => Promise<any>
+        push: (remote?: string, branch?: string, force?: boolean) => Promise<any>
         remoteBranches: () => Promise<any>
         init: () => Promise<any>
         show: (hash: string) => Promise<any>
@@ -82,6 +84,7 @@ declare global {
         readWithEncoding: (filePath: string, encoding?: string, forceOpen?: boolean) => Promise<{ content: string; encoding: string; bom: boolean; confidence: number; error?: string }>
         writeWithEncoding: (filePath: string, content: string, encoding?: string) => Promise<{ success: boolean; error?: string }>
         list: (dirPath: string) => Promise<any>
+        getPathForFile: (file: File) => string
         tree: (dirPath: string, depth?: number, skipPatterns?: string[]) => Promise<any>
         delete: (filePath: string) => Promise<any>
         rename: (oldPath: string, newPath: string) => Promise<any>
@@ -160,6 +163,7 @@ declare global {
         create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; resumeSessionId?: string; cliCommand?: string; configDir?: string; model?: string; enableWorktree?: boolean }) => Promise<{ success: boolean; error?: string }>
         send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>
         cancel: (sessionId: string) => Promise<boolean>
+        forceStop: (sessionId: string) => Promise<{ success: boolean; error?: string }>
         destroy: (sessionId: string) => Promise<boolean>
         respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>, feedback?: string) => Promise<{ success: boolean }>
         clearAndExecutePlan: (sessionId: string, planFilePath: string, model?: string, resume?: boolean) => Promise<{ success: boolean; error?: string }>
@@ -170,6 +174,7 @@ declare global {
         onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => any
         removeModelChangedListener: (handler?: any) => void
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
+        resolveConfigDir: (configDir?: string) => Promise<string>
         listSessions: (cwd?: string, configDir?: string) => Promise<{ sessions: any[]; error?: string }>
         loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
         revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) => Promise<{ success: boolean; error?: string }>
@@ -547,6 +552,10 @@ export default function App() {
     centerViewRef.current = centerView
   }, [centerView])
 
+  // mujica stays active while its agents run even after the center view is switched away —
+  // the session panel shows a restore pill when it's hidden but still running.
+  const mujicaActive = useMujica().active
+
   // Nga "mujica" card requests the canvas as a center view (covers the terminal area, not full-app)
   React.useEffect(() => {
     const openMujica = () => { mujicaStore.setActive(true); setCenterView('mujica') }
@@ -796,7 +805,8 @@ export default function App() {
       if (!isFileDrag(e)) return
       const panel = centerPanelRef.current
       if (!panel || !panel.contains(e.target as Node)) return
-      if (!diffFileRef.current?.defaultEdit) return
+      // md 预览自身处理图片拖入，diff 对比不拦截
+      if (!diffFileRef.current?.defaultEdit || centerViewRef.current === 'markdown') return
       e.preventDefault()
       e.stopImmediatePropagation()
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
@@ -807,6 +817,7 @@ export default function App() {
     const onDragLeave = (e: DragEvent) => {
       const panel = centerPanelRef.current
       if (!panel) return
+      if (centerViewRef.current === 'markdown') return
       // 仅当鼠标离开中心面板区域时隐藏 overlay
       if (e.target === panel || !panel.contains(e.relatedTarget as Node)) {
         e.preventDefault()
@@ -820,7 +831,7 @@ export default function App() {
 
     const onDrop = async (e: DragEvent) => {
       if (!isFileDrag(e)) return
-      if (!diffFileRef.current?.defaultEdit) return
+      if (!diffFileRef.current?.defaultEdit || centerViewRef.current === 'markdown') return
       e.preventDefault()
       e.stopImmediatePropagation()
       if (dragHideTimer) { clearTimeout(dragHideTimer); dragHideTimer = null }
@@ -1618,7 +1629,7 @@ export default function App() {
   }, [autoUtf8, sessionViewModes])
 
   // Fork AI conversation at a specific user message
-  const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number) => {
+  const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number, content?: string, occurrence?: number) => {
     try {
       const current = sessions.find(s => s.id === currentSessionId)
       if (!current) return
@@ -1628,6 +1639,7 @@ export default function App() {
         sessionId: currentSessionId,
         userMessageIndex,
         cwd: current.cwd,
+        ...(content ? { content, occurrence } : {}),
       })
       if (!result.success || !result.newClaudeSessionId) {
         console.error('Fork failed:', result.error)
@@ -1882,7 +1894,7 @@ export default function App() {
   }, [diffFile?.fullPath, activeSessionCwd])
 
   const [mdScrollHeading, setMdScrollHeading] = useState<string | undefined>(undefined)
-  const [outlineScrollTrigger, setOutlineScrollTrigger] = useState(0)
+  const [, setOutlineScrollTrigger] = useState(0)
 
   // 处理从中间终端点击文件路径打开文件
   const handleOpenFileFromTerminal = useCallback((fullPath: string, lineNumber?: number) => {
@@ -2144,10 +2156,13 @@ export default function App() {
         const isPosix = shell === 'bash' || shell === 'sh' || shell === 'zsh' || shell === 'gitbash'
         const binPart = bin.includes(' ') ? (shell === 'cmd' ? `"${bin}"` : isPosix ? `'${bin}'` : `& '${bin}'`) : bin
         const base = `${binPart} --resume ${historySessionId}`
-        initCommand = !configDir ? base
-          : shell === 'cmd' ? `set "CLAUDE_CONFIG_DIR=${configDir}" && ${base}`
-          : isPosix ? `CLAUDE_CONFIG_DIR='${configDir}' ${base}`
-          : `$env:CLAUDE_CONFIG_DIR='${configDir}'; ${base}`
+        // Bare names (.opencc) resolve to ~/.opencc so the tui launch and the gui history
+        // lookup agree on the same config dir. Use the resolved absolute path in the env var.
+        const resolvedConfigDir = configDir ? await window.api.ai.resolveConfigDir(configDir) : ''
+        initCommand = !resolvedConfigDir ? base
+          : shell === 'cmd' ? `set "CLAUDE_CONFIG_DIR=${resolvedConfigDir}" && ${base}`
+          : isPosix ? `CLAUDE_CONFIG_DIR='${resolvedConfigDir}' ${base}`
+          : `$env:CLAUDE_CONFIG_DIR='${resolvedConfigDir}'; ${base}`
       }
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name: name || undefined, initCommand })
       setSessions(prev => [...prev, session])
@@ -2198,7 +2213,13 @@ export default function App() {
     <div className="h-full w-full flex flex-col bg-ide-bg">
       {/* Title Bar */}
       <div className="titlebar-drag h-9 bg-ide-sidebar border-b border-ide-border flex items-center px-4 select-none shrink-0">
-        <span className="w-[18px] h-[18px] mr-1.5 shrink-0 -ml-1 flex items-center justify-center rounded bg-ide-accent/40 text-[11px] leading-none">🤔</span>
+        <span className="relative w-[18px] h-[18px] mr-1.5 shrink-0 -ml-1 block">
+          <span
+            className="absolute inset-0 bg-ide-accent"
+            style={{ maskImage: `url(${iconBgMask})`, WebkitMaskImage: `url(${iconBgMask})`, maskSize: 'contain', WebkitMaskSize: 'contain', maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat', maskPosition: 'center', WebkitMaskPosition: 'center' }}
+          />
+          <img src={iconPattern} alt="" className="absolute inset-0 w-full h-full object-contain" />
+        </span>
         <span className="text-ide-text-muted text-sm font-medium tracking-wide">Vibe IDE</span>
         <button
           className="no-drag config-menu-area w-6 h-6 ml-[10px] rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
@@ -2330,6 +2351,8 @@ export default function App() {
             recentFiles={recentFiles}
             onOpenRecentFile={handleOpenRecentFile}
             onRemoveRecentFile={removeRecentFile}
+            mujicaRestoreVisible={mujicaActive && centerView !== 'mujica'}
+            onRestoreMujica={() => window.dispatchEvent(new CustomEvent(FOCUS_MUJICA))}
           />
           </div>
           {/* Outline + floating recent files — shared flex container so outline scrolling respects recent-files height */}
@@ -2506,8 +2529,8 @@ export default function App() {
                           }
                         }}
                         resumeSessionId={forkSessions[session.id]}
-                        onForkSession={(userMessageIndex: number) => {
-                          handleForkSession(session.id, userMessageIndex)
+                        onForkSession={(userMessageIndex: number, content?: string, occurrence?: number) => {
+                          handleForkSession(session.id, userMessageIndex, content, occurrence)
                         }}
                         onAgentStatusChange={handleAiAgentStatusChange}
                         brushActive={brushActive}
@@ -2524,9 +2547,9 @@ export default function App() {
               })}
             </Suspense>
           </div>
-          {/* mujica canvas — display-toggle so state + running agents survive hide (close = switch back to terminal) */}
+          {/* mujica canvas — display-toggle so state + running agents survive hide (ESC = collapse, restore pill shows in session list) */}
           <div className="flex-1 mx-1 mb-0 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'mujica' ? 'flex' : 'none' }}>
-            <GameMujica onBack={() => { mujicaStore.setActive(false); setCenterView('terminal') }} />
+            <GameMujica onCollapse={() => setCenterView('terminal')} />
           </div>
           {/* Drag-over overlay for file compare */}
           {isDragOverEdit && (

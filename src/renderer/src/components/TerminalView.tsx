@@ -10,7 +10,7 @@ import { SearchAddon } from '@xterm/addon-search'
 
 import { useTheme } from '../themes'
 import { loadFilterRules } from './FileTab'
-import { EDITABLE_EXTENSIONS, FILE_PATH_REGEX, parseFilePath, isBareFilename } from '../utils/filePathUtils'
+import { FILE_PATH_REGEX, parseFilePath, isBareFilename } from '../utils/filePathUtils'
 import '@xterm/xterm/css/xterm.css'
 
 function readTerminalBgImage(): string {
@@ -322,10 +322,6 @@ function stripAnsiAndExtractOscTitle(data: string): { clean: string; oscTitle: s
     })
     .replace(/[\b\x08]/g, '')                // 回退符
   return { clean, oscTitle }
-}
-
-function stripAnsiEscapes(data: string): string {
-  return stripAnsiAndExtractOscTitle(data).clean
 }
 
 /**

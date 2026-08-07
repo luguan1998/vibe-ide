@@ -76,6 +76,7 @@ export function registerPlanExecuteHandlers(): void {
       result.stdin!.write(JSON.stringify({
         type: 'user',
         message: { role: 'user', content: 'The plan has been approved. Please proceed with implementation using the existing context.' },
+        isMeta: true,
       }) + '\n')
 
       return { success: true }
@@ -125,6 +126,7 @@ export function registerPlanExecuteHandlers(): void {
     result.stdin!.write(JSON.stringify({
       type: 'user',
       message: { role: 'user', content: firstMessage },
+      isMeta: true,
     }) + '\n')
 
     return { success: true }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 function createEmptyGrid(): number[][] {
   return Array.from({ length: 4 }, () => Array(4).fill(0))

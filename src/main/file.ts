@@ -1,7 +1,7 @@
 import { ipcMain, shell } from 'electron'
 import { readFile, writeFile, readdir, rename, mkdir, rm, cp, stat } from 'fs/promises'
 import { statSync } from 'fs'
-import { join, dirname, basename, extname, relative } from 'path'
+import { join, dirname, extname, relative } from 'path'
 import { IPC_CHANNELS, FileNode } from '../shared/types'
 import * as iconv from 'iconv-lite'
 import * as jschardet from 'jschardet'

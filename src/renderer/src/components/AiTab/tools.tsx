@@ -1,20 +1,9 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import type { AiMessage, AiToolUse, AiSessionState, AiPermissionRequest, AiPermissionMode, AiSlashCommand, RecentFileEntry, UserTurn } from '@shared/types'
+import { useState, useCallback } from 'react'
+import type { AiMessage, AiToolUse } from '@shared/types'
 import { AI_FILE_EDIT_TOOLS } from '@shared/types'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { useStableCodeOverrides } from '../MarkdownCodeBlock'
-import { useI18n } from '../../i18n'
-import { FILE_PATH_REGEX, parseFilePath } from '../../utils/filePathUtils'
-import { cleanMessageContent, formatConversationMarkdown } from '../../utils/aiConversationFormatter'
-import { loadFilterRules } from '../FileTab'
-import { getFileInfo, FILE_ICON_PATHS } from '../FileIcons'
-import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig } from '../../aiStore'
-import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch, Folder, X } from 'lucide-react'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../../themes'
-import { displayLabel, getShortcuts } from '../../shortcuts'
+import { ChevronDown, HelpCircle } from 'lucide-react'
 // ── Tool type classification ──────────────────────────────────────
 
 const COMMAND_TOOLS = new Set(['Bash', 'bash', 'terminal', 'run_command', 'execute_command'])
@@ -26,7 +15,7 @@ const AGENT_TOOLS = new Set(['Agent'])
 const QUESTION_TOOLS = new Set(['AskUserQuestion'])
 const TASK_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'TaskOutput', 'TaskStop'])
 
-function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'task' | 'default' {
+export function getToolCategory(name: string): 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'task' | 'default' {
   if (AI_FILE_EDIT_TOOLS.has(name)) return 'file'
   if (COMMAND_TOOLS.has(name)) return 'command'
   if (SEARCH_TOOLS.has(name)) return 'search'
@@ -265,7 +254,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
   const newContent = editContent?.newContent
 
   return (
-    <div className="ai-tab__tool-call inline-block max-w-full mr-1 animate-fade-in">
+    <div className="ai-tab__tool-call block w-full max-w-[960px] mx-auto animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
         className={`ai-tab__tool-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${
@@ -321,7 +310,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
 export function CollapsedToolsSummary({ tools }: { tools: AiToolUse[] }) {
   const [expanded, setExpanded] = useState(false)
   return (
-    <div className="ai-tab__tools-summary animate-fade-in">
+    <div className="ai-tab__tools-summary w-full max-w-[960px] mx-auto animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
         className="ai-tab__tools-summary-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"

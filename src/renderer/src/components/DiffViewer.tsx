@@ -8,9 +8,7 @@ import OutlineTrigger from './OutlineTrigger'
 import { ADD_ANNOTATION_EVENT } from './vibeEvents'
 
 let _monacoConfigured = false
-let _monacoGlobal: any = null
 function configureMonacoBase(monaco: any) {
-  _monacoGlobal = monaco
   if (_monacoConfigured) return
   _monacoConfigured = true
   const compilerOpts = {
@@ -96,56 +94,6 @@ interface DiffViewerProps {
 }
 
 type ViewMode = 'diff' | 'edit'
-
-function parseDiffContent(diff: string): { original: string; modified: string } {
-  const originalLines: string[] = []
-  const modifiedLines: string[] = []
-
-  const lines = diff.split('\n')
-  let inHunk = false
-
-  for (const line of lines) {
-    // Skip diff header lines
-    if (line.startsWith('diff ') || line.startsWith('index ') ||
-        line.startsWith('--- ') || line.startsWith('+++ ')) {
-      continue
-    }
-
-    // Process hunk headers - mark we're in content area
-    if (line.startsWith('@@')) {
-      inHunk = true
-      continue
-    }
-
-    // Only process lines inside hunks
-    if (!inHunk) continue
-
-    // Skip "No newline at end of file" marker — it's metadata, not content
-    if (line.startsWith('\\ ')) continue
-
-    // Handle diff content lines
-    if (line.startsWith('-')) {
-      // Removed line - goes to original only
-      originalLines.push(line.slice(1))
-    } else if (line.startsWith('+')) {
-      // Added line - goes to modified only
-      modifiedLines.push(line.slice(1))
-    } else if (line.startsWith(' ')) {
-      // Context line - goes to both
-      originalLines.push(line.slice(1))
-      modifiedLines.push(line.slice(1))
-    } else if (line === '') {
-      // Empty line within hunk - goes to both
-      originalLines.push('')
-      modifiedLines.push('')
-    }
-  }
-
-  return {
-    original: originalLines.join('\n'),
-    modified: modifiedLines.join('\n')
-  }
-}
 
 function parseDiffStats(diff: string): { additions: number; deletions: number } {
   let additions = 0
@@ -242,7 +190,7 @@ function computeRevertBtnTop(editor: any, ln: number): number {
 
 function computeRevertBtnLeft(editorDom: HTMLElement | null, containerDom: HTMLElement | null): number {
   if (!editorDom || !containerDom) return 4
-  return editorDom.getBoundingClientRect().left - containerDom.getBoundingClientRect().left + 4
+  return editorDom.getBoundingClientRect().left - containerDom.getBoundingClientRect().left
 }
 
 function FilePathDisplay({ filePath }: { filePath: string }) {
@@ -274,7 +222,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }, [fullPath, defaultEdit])
   const [originalContent, setOriginalContent] = useState<string>('')
   const [modifiedContent, setModifiedContent] = useState<string>('')
-  const [saving, setSaving] = useState(false)
+  const [, setSaving] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [diffStats, setDiffStats] = useState<{ additions: number; deletions: number }>({ additions: 0, deletions: 0 })

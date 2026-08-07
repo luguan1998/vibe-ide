@@ -110,6 +110,7 @@ export const IPC_CHANNELS = {
   AI_CREATE: 'ai:create',
   AI_SEND: 'ai:send',
   AI_CANCEL: 'ai:cancel',
+  AI_FORCE_STOP: 'ai:forceStop',
   AI_DESTROY: 'ai:destroy',
   AI_CHECK_AVAILABLE: 'ai:checkAvailable',
   AI_LIST_SESSIONS: 'ai:listSessions',
@@ -120,6 +121,7 @@ export const IPC_CHANNELS = {
   AI_SET_MODEL: 'ai:setModel',
   AI_SET_VISIBLE: 'ai:setVisible',       // invoke: renderer hidden → main drops stream tokens
   AI_ASK_RESUME: 'ai:askResume',
+  AI_RESOLVE_CONFIG_DIR: 'ai:resolveConfigDir',
   AI_REVERT: 'ai:revert',
   AI_FORK: 'ai:fork',
   AI_LIST_USER_TURNS: 'ai:listUserTurns',  // invoke: real user turns from JSONL (single source of truth for revert index)
@@ -469,6 +471,12 @@ export interface AiSlashCommand {
   argumentHint?: string
 }
 
+export interface AiRunningTool {
+  tool: string
+  elapsed: number
+  updatedAt: number
+}
+
 export interface AiExamplePrompt {
   label: string
   prompt: string
@@ -492,6 +500,7 @@ export interface AiSessionState {
   cwd: string
   worktreePath?: string
   pipedPrompt?: string
+  runningTools: Record<string, AiRunningTool>
 }
 
 export type AiPermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions'
@@ -563,6 +572,13 @@ export interface AiRevertPayload {
   userMessageIndex: number   // index of the target user message among real user messages
   scope: 'conversation' | 'both'
   cwd: string
+  // Renderer's user-message index can drift below the JSONL turn index (injected turns like
+  // AskUserQuestion answers / plan approvals / continuation prompts never reach the live
+  // stream). When present, the main process resolves the target turn by content + occurrence
+  // instead of trusting userMessageIndex. occurrence = which occurrence of that content the
+  // user clicked (0-based, counted among renderer user messages).
+  content?: string
+  occurrence?: number
 }
 
 // Fork conversation at a specific user message: create a new truncated JSONL with a fresh
@@ -571,4 +587,6 @@ export interface AiForkPayload {
   sessionId: string
   userMessageIndex: number
   cwd: string
+  content?: string
+  occurrence?: number
 }

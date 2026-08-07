@@ -640,7 +640,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [searching, setSearching] = useState(false)
   const [expandedResultFiles, setExpandedResultFiles] = useState<Set<string>>(new Set())
   const [collapsedResultDirs, setCollapsedResultDirs] = useState<Set<string>>(new Set())
-  const [searchJustClosed, setSearchJustClosed] = useState(false)
+  const [, setSearchJustClosed] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [docTree, setDocTree] = useState<DocTreeNode[]>([])
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())

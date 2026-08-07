@@ -59,7 +59,7 @@ function layoutGraph(nodes: Map<string, GraphNode>, edges: GraphEdge[]) {
   const g = new dagre.graphlib.Graph()
   g.setGraph({ rankdir: 'LR', ranksep: RANK_SEP, nodesep: NODE_SEP, marginx: 40, marginy: 40 })
   g.setDefaultEdgeLabel(() => ({}))
-  for (const [id, n] of nodes) g.setNode(id, { width: NODE_W, height: NODE_H })
+  for (const [id] of nodes) g.setNode(id, { width: NODE_W, height: NODE_H })
   for (const e of edges) g.setEdge(e.from, e.to)
   dagre.layout(g)
   const pos = new Map<string, { x: number; y: number }>()
@@ -87,7 +87,7 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
   const [dragging, setDragging] = useState<string | null>(null)
   const [rightPanning, setRightPanning] = useState<{ sx: number; sy: number; vx: number; vy: number } | null>(null)
   const [draggedNodes, setDraggedNodes] = useState<Set<string>>(new Set())
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null)
+  const [, setHoveredNode] = useState<string | null>(null)
   const [iconHoveredNode, setIconHoveredNode] = useState<string | null>(null)
   const [tooltipNode, setTooltipNode] = useState<string | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
@@ -206,7 +206,6 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
 
   // Has callers/callees
   const hasCallers = useCallback((nodeId: string) => edges.some(e => e.to === nodeId), [edges])
-  const hasCallees = useCallback((nodeId: string) => edges.some(e => e.from === nodeId), [edges])
 
   // Init — default to showing callers 3 levels deep, callees 1 level
   useEffect(() => {
@@ -346,7 +345,6 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
               const canLeft = true
               const canRight = true
               const callersActive = gn.callersExpanded && hasCallers(gn.id)
-              const isHovered = hoveredNode === gn.id
               const isIconHovered = iconHoveredNode === gn.id
               const showTrash = callersActive && isIconHovered
               return (

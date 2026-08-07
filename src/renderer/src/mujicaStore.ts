@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react'
 import { aiStore } from './aiStore'
-import type { AiPermissionMode } from '@shared/types'
+import { MUJICA_PERSONAS } from './mujicaPersonas'
+import type { MujicaPersona } from './mujicaPersonas'
+import type { AiPermissionMode, AiSessionState } from '@shared/types'
 
 export interface MujicaWorkspace { id: string; label: string; worktree: boolean; persona: string }
 
@@ -45,6 +47,16 @@ function effectiveCwd(): string | null {
   return state.baseRepo ?? state.defaultCwd
 }
 
+// Random persona for a new agent; as long as some preset is unused by existing
+// workspaces, pick only from the unused ones so the 5 members don't repeat
+// before each has appeared once. After the first round, fall back to all presets.
+function pickPersona(): MujicaPersona | undefined {
+  const used = new Set(state.workspaces.map(w => w.persona))
+  const unused = MUJICA_PERSONAS.filter(p => !used.has(p.prompt))
+  const pool = unused.length > 0 ? unused : MUJICA_PERSONAS
+  return pool[Math.floor(Math.random() * pool.length)]
+}
+
 // Singleton store shared by the center canvas (GameMujica) and the right-panel
 // config (MujicaConfig) — both live in different parts of the React tree, so a
 // module-level store (same pattern as aiStore) avoids prop threading through
@@ -68,14 +80,17 @@ export const mujicaStore = {
     const cwd = effectiveCwd()
     if (!cwd) return
     const id = makeId()
-    const label = `Agent ${state.workspaces.length + 1}`
-    const ws: MujicaWorkspace = { id, label, worktree: true, persona: '' }
+    const picked = pickPersona()
+    const label = picked ? picked.name : `Agent ${state.workspaces.length + 1}`
+    const persona = picked ? picked.prompt : ''
+    const ws: MujicaWorkspace = { id, label, worktree: true, persona }
     set(s => ({ ...s, workspaces: [...s.workspaces, ws] }))
     aiStore.ensureCreated(id, {
       cwd,
       autoApprove: true,
       permissionMode: state.permissionMode,
       enableWorktree: ws.worktree,
+      persona,
       model: state.model || undefined,
     })
   },
@@ -178,4 +193,31 @@ export const mujicaStore = {
 
 export function useMujica(): MujicaState {
   return useSyncExternalStore(mujicaStore.subscribe, mujicaStore.getSnapshot)
+}
+
+// Agent 空闲口径与 MujicaConfig.isIdle 一致：非空闲 = 未 ready（creating）/ busy / streaming / 已有消息。
+function isAgentBusy(s: AiSessionState): boolean {
+  return !s.ready || s.busy || s.streaming || s.messages.length > 0
+}
+
+function subscribeMujicaCounts(cb: () => void) {
+  const un1 = mujicaStore.subscribe(cb)
+  const un2 = aiStore.subscribe(cb)
+  return () => { un1(); un2() }
+}
+
+function getMujicaCounts(): string {
+  let total = 0
+  let active = 0
+  for (const ws of state.workspaces) {
+    total++
+    if (isAgentBusy(aiStore.getSessionState(ws.id))) active++
+  }
+  return `${active}/${total}`
+}
+
+// "Mujica a/b"：b=创建 agent 数，a=非空闲 agent 数。返回字符串快照，
+// 字符串不变时 useSyncExternalStore 不触发 re-render（ai 高频 emit 但计数不动的场景）。
+export function useMujicaCounts(): string {
+  return useSyncExternalStore(subscribeMujicaCounts, getMujicaCounts)
 }

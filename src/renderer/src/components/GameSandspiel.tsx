@@ -30,15 +30,6 @@ const PALETTE: ElDef[] = [
   { id: STONE, label: 'Stone', color: '#6b7280', icon: '\u{2B1C}' },
 ]
 
-// Fire colors by heat level
-const FIRE_COLORS = [
-  [0.0, 0.0, 0.0],       // dead (won't be used)
-  [0.72, 0.52, 0.04],    // dark ember
-  [0.90, 0.35, 0.04],    // orange
-  [0.98, 0.70, 0.05],    // yellow
-  [0.95, 0.85, 0.30],    // white-yellow
-]
-
 const BRUSH_SIZES = [1, 2, 3, 5]
 
 const RGBA = (r: number, g: number, b: number, a = 255) =>
@@ -105,11 +96,6 @@ export default function GameSandspiel({ onBack }: { onBack?: () => void }) {
     else if (v === EMPTY) heatRef.current[i] = 0
     dirtyRef.current.add(i)
   }, [])
-
-  const gc = (y: number, x: number) => {
-    if (y < 0 || y >= ROWS || x < 0 || x >= COLS) return -1
-    return gridRef.current[idx(y, x)]
-  }
 
   const paint = useCallback((gy: number, gx: number) => {
     const e = elRef.current; const r = brushRef.current

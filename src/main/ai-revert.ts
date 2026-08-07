@@ -15,7 +15,6 @@ import {
   send,
   spawnClaude,
   resolveProjectDir,
-  cleanText,
   parseUserTurns,
 } from './ai'
 
@@ -27,38 +26,54 @@ async function truncateJsonlAtUserMessage(
   userMessageIndex: number,
   keepTarget: boolean,
   configDir?: string,
+  content?: string,
+  occurrence?: number,
 ): Promise<{ truncated: string[] } | { error: string }> {
   const projectDir = resolveProjectDir(cwd, configDir)
   if (!projectDir) return { error: 'Project directory not found under ~/.claude/projects/' }
 
   const jsonlPath = join(projectDir, `${claudeSessionId}.jsonl`)
-  let content: string
-  try { content = await readFile(jsonlPath, 'utf-8') } catch {
+  let fileContent: string
+  try { fileContent = await readFile(jsonlPath, 'utf-8') } catch {
     return { error: `Session file not found: ${jsonlPath}` }
   }
 
-  const lines = content.split('\n').filter(Boolean)
+  const lines = fileContent.split('\n').filter(Boolean)
   const turns = parseUserTurns(lines)
-  if (userMessageIndex < 0 || userMessageIndex >= turns.length) {
+
+  // Renderer's userMessageIndex can drift below the JSONL turn index: injected turns
+  // (AskUserQuestion answers, plan approvals, continuation prompts) exist only in the
+  // JSONL and never reach the live stream. When the renderer passes content, resolve the
+  // target turn by content + occurrence (which occurrence of that content was clicked);
+  // fall back to the index when content is absent or unmatched.
+  let targetTurnIdx = userMessageIndex
+  if (content && turns.length > 0) {
+    let found = -1
+    let seen = 0
+    const occ = occurrence ?? 0
+    for (let i = 0; i < turns.length; i++) {
+      if (turns[i].content === content) {
+        if (seen === occ) { found = i; break }
+        seen++
+      }
+    }
+    if (found >= 0) targetTurnIdx = found
+  }
+  if (targetTurnIdx < 0 || targetTurnIdx >= turns.length) {
     return { error: `User message index ${userMessageIndex} not found (found ${turns.length} user turns)` }
   }
-  const targetLineIdx = turns[userMessageIndex].lineIdx
+  const targetLineIdx = turns[targetTurnIdx].lineIdx
 
   // keepTarget=false (revert): truncate BEFORE the target (exclude it).
-  // keepTarget=true (fork): truncate AFTER the target (include it). For a slash-group target,
-  // extend endIdx to the group's last wrapper line — tolerating interspersed non-user lines
-  // (the old break-on-first-non-user logic dropped a mid-group stdout when /model failed).
+  // keepTarget=true (fork): keep the ENTIRE turn (user message + its assistant reply + result),
+  // up to (but not including) the next user message — fork from the meta row points at the
+  // turn's user message, so cutting at the user line alone would drop the finished reply.
   let endIdx = targetLineIdx
   if (keepTarget) {
-    const nextTurnStart = userMessageIndex + 1 < turns.length
-      ? turns[userMessageIndex + 1].lineIdx
+    const nextTurnStart = targetTurnIdx + 1 < turns.length
+      ? turns[targetTurnIdx + 1].lineIdx
       : lines.length
-    for (let j = targetLineIdx + 1; j < nextTurnStart; j++) {
-      let m2: any
-      try { m2 = JSON.parse(lines[j]) } catch { continue }
-      const u2 = m2.type === 'user' && typeof m2.message?.content === 'string'
-      if (u2 && cleanText(m2.message.content) === '' && !m2.isMeta) endIdx = j
-    }
+    endIdx = nextTurnStart - 1
   }
   const truncated = keepTarget ? lines.slice(0, endIdx + 1) : lines.slice(0, targetLineIdx)
 
@@ -82,7 +97,7 @@ export function registerRevertHandlers(): void {
     const effectiveCwd = prev?.cwd || cwd
 
     // 1. Truncate JSONL
-    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, false, prev?.configDir)
+    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, false, prev?.configDir, payload.content, payload.occurrence)
     if ('error' in result) {
       return { success: false, error: result.error }
     }
@@ -162,7 +177,7 @@ export function registerRevertHandlers(): void {
     const effectiveCwd = prev?.cwd || cwd
 
     // 1. Truncate JSONL (keep target message for fork)
-    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, true, prev?.configDir)
+    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, true, prev?.configDir, payload.content, payload.occurrence)
     if ('error' in result) {
       return { success: false, error: result.error }
     }

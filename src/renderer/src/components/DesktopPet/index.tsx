@@ -260,7 +260,7 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
   const stateFrames = manifest.states[stateName]?.frames ?? 1
   const frames = getPetLogicalFramesOverride(effectiveLogicalState) ?? stateFrames
   const defaultStyle: React.CSSProperties = (visible || (!popupOpen && !contextOpen))
-    ? { right: 8, bottom: 8 }
+    ? { left: 8, bottom: 8 }
     : { left: 70, bottom: 8 }
   const wrapperStyle: React.CSSProperties = pos ? { left: pos.left, top: pos.top } : defaultStyle
 

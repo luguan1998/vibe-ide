@@ -675,7 +675,6 @@ const LANG_KINDS: Record<string, string[]> = {
   svelte: ['function', 'method', 'class', 'interface', 'enum', 'type_alias', 'constant'],
   unknown: ['function', 'method', 'class', 'interface'],
 }
-const KIND_ORDER = ['function', 'method', 'class', 'interface', 'type_alias', 'enum', 'constant', 'variable', 'property', 'module', 'component']
 
 // Filter outline tree: keep items whose kind is in filter, or have descendants in filter
 function HeadingBadge({ level }: { level: number }) {

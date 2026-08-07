@@ -1,24 +1,16 @@
 export { ChatMarkdown, StreamingMarkdown } from './markdown'
 export { InlineAnnotationInput } from './permissions'
 import React, { useState, useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import type { AiMessage, AiToolUse, AiSessionState, AiPermissionRequest, AiPermissionMode, AiSlashCommand, RecentFileEntry, UserTurn } from '@shared/types'
-import { AI_FILE_EDIT_TOOLS } from '@shared/types'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { useStableCodeOverrides } from '../MarkdownCodeBlock'
+import type { AiSessionState, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { useI18n } from '../../i18n'
-import { FILE_PATH_REGEX, parseFilePath } from '../../utils/filePathUtils'
-import { cleanMessageContent, formatConversationMarkdown } from '../../utils/aiConversationFormatter'
+import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { loadFilterRules } from '../FileTab'
-import { getFileInfo, FILE_ICON_PATHS } from '../FileIcons'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, ChevronDown, ChevronUp, Check, HelpCircle, FileText, Undo2, MessageSquare, GitFork, MessageSquarePlus, Copy, Circle, Loader2, ListTodo, Eye, EyeOff, Plug, GitBranch, Folder, X } from 'lucide-react'
-import { DiffEditor, Editor } from '@monaco-editor/react'
-import { useTheme } from '../../themes'
-import { displayLabel, getShortcuts } from '../../shortcuts'
+import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X } from 'lucide-react'
 import { StreamingMarkdown } from './markdown'
-import { ThinkingBlock, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, MessageList } from './messages'
+import { ThinkingBlock, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList } from './messages'
+import { ToolIcon, getToolCategory } from './tools'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, ModeSelector } from './inputArea'
 import type { MentionItem } from './inputArea'
@@ -38,7 +30,7 @@ interface AiTabProps {
   onViewAi: () => void
   onRenameSession: (name: string) => void
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
-  onForkSession?: (userMessageIndex: number) => void
+  onForkSession?: (userMessageIndex: number, content?: string, occurrence?: number) => void
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   resumeSessionId?: string
   brushActive?: boolean
@@ -94,6 +86,16 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       ? ` (${Math.floor(busySeconds / 60)}m ${busySeconds % 60}s)`
       : ` (${busySeconds}s)`
     : ''
+
+  // Stop button two-stage: 点过一次软中断后 5s 内仍 busy 才升级强杀，未点击不自动武装
+  const [interruptTried, setInterruptTried] = useState(false)
+  const [forceArmed, setForceArmed] = useState(false)
+  useEffect(() => {
+    if (!state.busy) { setInterruptTried(false); setForceArmed(false); return }
+    if (!interruptTried) return
+    const t = setTimeout(() => setForceArmed(true), 5000)
+    return () => clearTimeout(t)
+  }, [state.busy, interruptTried])
 
   // Sync AI busy state to parent agentStatus (OR with terminal detection)
   useEffect(() => {
@@ -445,6 +447,12 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
     if (targetMsgIdx < 0) return
 
+    // Renderer's userMessageIndex can drift below the JSONL turn index (AskUserQuestion
+    // answers / plan approvals / continuation prompts exist only in the JSONL). Pass the
+    // clicked message's content + occurrence so the main process resolves the true turn.
+    const targetContent = state.messages[targetMsgIdx]?.content
+    const occurrence = targetContent ? countContentOccurrencesBefore(state.messages, targetMsgIdx, targetContent) : 0
+
     const savedMessages = state.messages
     const savedFileChanges = state.fileChangesByTurn
 
@@ -469,6 +477,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       userMessageIndex,
       scope: 'conversation',
       cwd: workspacePath,
+      ...(targetContent ? { content: targetContent, occurrence } : {}),
     })
 
     if (!result.success) {
@@ -519,18 +528,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   const handleFork = useCallback(async (userMessageIndex: number) => {
     if (!activeSessionId || !onForkSession) return
-    onForkSession(userMessageIndex)
-  }, [activeSessionId, onForkSession])
+    const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
+    const targetContent = targetMsgIdx >= 0 ? state.messages[targetMsgIdx]?.content : undefined
+    const occurrence = targetContent ? countContentOccurrencesBefore(state.messages, targetMsgIdx, targetContent) : 0
+    onForkSession(userMessageIndex, targetContent, occurrence)
+  }, [activeSessionId, onForkSession, state.messages])
 
   // ── Todo list ──
   const todoItems = useMemo(() => deriveTodoList(state.messages), [state.messages])
-
-  // ── Status text ──
-  const statusText = !state.ready
-    ? t('Connecting...')
-    : state.streaming
-      ? t('Streaming...')
-      : null
 
   // ── Copy entire conversation ──
   const [conversationCopied, setConversationCopied] = useState(false)
@@ -773,14 +778,25 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           onFork={handleFork}
         />
         {!state.ready && state.messages.length > 0 && (
-          <div className="ai-tab__resume flex items-center gap-2 max-w-[92%] px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in">
+          <div className="ai-tab__resume flex items-center gap-2 w-full max-w-[960px] mx-auto px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in">
             <span className="h-3.5 w-3.5 rounded-full border-2 border-ide-accent/30 border-t-ide-accent animate-spin shrink-0" />
             <span>{t('Resuming session...')}</span>
           </div>
         )}
         {/* Busy indicator — thinking + streaming + sparkle */}
         {state.busy && (
-          <div className="ai-tab__busy max-w-[92%] space-y-1.5 animate-fade-in">
+          <div className="ai-tab__busy w-full max-w-[960px] mx-auto space-y-1.5 animate-fade-in">
+            {Object.keys(state.runningTools).length > 0 && (
+              <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">
+                {Object.entries(state.runningTools).map(([id, rt]) => (
+                  <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-hover text-ide-text-muted border border-ide-border/50">
+                    <ToolIcon category={getToolCategory(rt.tool)} />
+                    <span className="truncate max-w-[160px]">{rt.tool}</span>
+                    <span className="text-ide-text-muted/50">{Math.round(rt.elapsed)}s</span>
+                  </span>
+                ))}
+              </div>
+            )}
             {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll />}
             {state.streamBuffer ? (
               <div>
@@ -837,7 +853,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       )}
 
       {/* Input */}
-      <div className="ai-tab__input-area shrink-0 px-2 pt-2 pb-0">
+      <div className="ai-tab__input-area shrink-0 w-full max-w-[992px] mx-auto px-2 pt-2 pb-0">
         <div className="relative">
           {slashMenuOpen && (
             <div className="absolute bottom-full left-0 right-0 mb-1 z-20">
@@ -1026,11 +1042,20 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 {state.busy ? (
                   <button
                     type="button"
-                    onClick={() => activeSessionId && window.api.ai.cancel(activeSessionId)}
-                    className="ai-tab__stop-btn w-7 h-7 flex items-center justify-center rounded-lg
-                               bg-ide-danger/20 hover:bg-ide-danger/30 text-ide-danger
-                               transition-colors"
-                    title={t('Cancel')}
+                    onClick={() => {
+                      if (!activeSessionId) return
+                      if (forceArmed) aiStore.forceStop(activeSessionId)
+                      else {
+                        setInterruptTried(true)
+                        window.api.ai.cancel(activeSessionId)
+                      }
+                    }}
+                    className={`ai-tab__stop-btn w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                      forceArmed
+                        ? 'bg-ide-danger text-white hover:bg-ide-danger/90'
+                        : 'bg-ide-danger/20 hover:bg-ide-danger/30 text-ide-danger'
+                    }`}
+                    title={forceArmed ? t('Force Stop') : t('Cancel')}
                   >
                     <Square size={13} strokeWidth={2.5} />
                   </button>

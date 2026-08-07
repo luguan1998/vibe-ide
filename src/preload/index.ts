@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IPC_CHANNELS } from '../shared/types'
 
 const api = {
@@ -54,7 +54,7 @@ const api = {
     stashPush: (message?: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_PUSH, message),
     stashPop: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_POP),
     stashDrop: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_STASH_DROP),
-    push: (remote?: string, branch?: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_PUSH, remote, branch),
+    push: (remote?: string, branch?: string, force?: boolean) => ipcRenderer.invoke(IPC_CHANNELS.GIT_PUSH, remote, branch, force),
     remoteBranches: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_REMOTE_BRANCHES),
     init: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_INIT),
     show: (hash: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW, hash),
@@ -76,6 +76,7 @@ const api = {
     readWithEncoding: (filePath: string, encoding?: string, forceOpen?: boolean) => ipcRenderer.invoke(IPC_CHANNELS.FILE_READ_ENCODING, filePath, encoding, forceOpen),
     writeWithEncoding: (filePath: string, content: string, encoding?: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_WRITE_ENCODING, filePath, content, encoding),
     list: (dirPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_LIST, dirPath),
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
     tree: (dirPath: string, depth?: number, skipPatterns?: string[]) => ipcRenderer.invoke(IPC_CHANNELS.FILE_TREE, dirPath, depth, skipPatterns),
     delete: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_DELETE, filePath),
     rename: (oldPath: string, newPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_RENAME, oldPath, newPath),
@@ -251,6 +252,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_SEND, { sessionId, message }),
     cancel: (sessionId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_CANCEL, sessionId),
+    forceStop: (sessionId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_FORCE_STOP, sessionId),
     destroy: (sessionId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_DESTROY, sessionId),
     respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>, feedback?: string) =>
@@ -261,13 +264,15 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_PERMISSION_MODE, { sessionId, mode }),
     askResume: (sessionId: string, answers: Record<string, string>) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_ASK_RESUME, { sessionId, answers }),
+    resolveConfigDir: (configDir?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_RESOLVE_CONFIG_DIR, configDir),
     setModel: (sessionId: string, model: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_MODEL, { sessionId, model }),
     setVisible: (visible: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_VISIBLE, visible),
-    revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) =>
+    revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string; content?: string; occurrence?: number }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_REVERT, payload),
-    fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) =>
+    fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string; content?: string; occurrence?: number }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_FORK, payload),
     listUserTurns: (sessionId: string, cwd: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_USER_TURNS, { sessionId, cwd }),

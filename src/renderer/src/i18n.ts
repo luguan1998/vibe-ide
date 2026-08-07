@@ -166,6 +166,7 @@ const ZH_MAP: Record<string, string> = {
   'Empty directory': '空目录',
   'No workspace': '无工作目录',
   'Cancel': '取消',
+  'Force Stop': '强制停止',
   'Save': '保存',
   'Confirm': '确认',
   'Delete {fileName}?': '确定删除 {fileName}？',

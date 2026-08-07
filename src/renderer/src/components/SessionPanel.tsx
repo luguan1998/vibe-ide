@@ -11,6 +11,8 @@ import AppearancePanel from './AppearancePanel'
 import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand } from './CustomCommands'
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
+import mujicaIcon from '@renderer/assets/mujica.png?inline'
+import { useMujicaCounts } from '../mujicaStore'
 
 // ── Claude 配置组（model/provider 多组切换）──
 interface ClaudeConfigGroup {
@@ -297,6 +299,8 @@ interface SessionPanelProps {
   recentFilesPanelEnabled?: boolean
   onToggleRecentFilesPanel?: (v: boolean) => void
   hideRecentFiles?: boolean
+  mujicaRestoreVisible?: boolean
+  onRestoreMujica?: () => void
 }
 
 export interface SessionPanelHandle {
@@ -401,6 +405,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   recentFilesPanelEnabled = false,
   onToggleRecentFilesPanel,
   hideRecentFiles = false,
+  mujicaRestoreVisible = false,
+  onRestoreMujica,
 }: SessionPanelProps, ref: React.ForwardedRef<SessionPanelHandle>) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [appVersion, setAppVersion] = useState('')
@@ -786,6 +792,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }, [sessions, agentStatus])
 
   const recentTop = recentFiles.slice(0, 4)
+  const mujicaCounts = useMujicaCounts()
 
   const fetchClaudeHistory = useCallback(async (cwd: string) => {
     const reqId = ++claudeHistoryReqIdRef.current
@@ -1338,6 +1345,28 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
       </div>
 
+      {/* Mujica restore — canvas active but center view switched away (e.g. session switch);
+          row skeleton mirrors a session item, icon sized to match the session emoji */}
+      {mujicaRestoreVisible && (
+        <div className="shrink-0 mx-2 mb-2 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={onRestoreMujica}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRestoreMujica?.() } }}
+            title="restore mujica page"
+            className="group px-3 py-1 cursor-pointer transition-colors relative min-h-[32px] session-item text-ide-text-muted hover:bg-ide-hover hover:text-ide-text select-none"
+          >
+            <div className="flex items-center justify-between min-h-[32px]">
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <img src={mujicaIcon} alt="Mujica" className="w-4 h-4 object-contain shrink-0" />
+                <span className="truncate min-w-0 text-sm session-item__name">Mujica {mujicaCounts}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Context Menu */}
       {contextMenu && (
         <div
@@ -1596,7 +1625,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       })()}
 
       {/* Keyboard Shortcuts Modal */}
-      {showShortcuts && (
+      {showShortcuts && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowShortcuts(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
@@ -1613,10 +1642,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* File Filter Rules Modal */}
-      {showFileFilterRules && (
+      {showFileFilterRules && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowFileFilterRules(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
@@ -1667,10 +1696,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
 
-      <AppearancePanel
+      {createPortal(<AppearancePanel
         open={showAppearance}
         onClose={() => setShowAppearance(false)}
         capsuleTabs={capsuleTabs}
@@ -1711,10 +1740,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onSetSessionEmojis={(arr) => { setSessionEmojis(arr); saveSessionEmojis(arr) }}
         onResetUiStyle={onResetUiStyle}
         onCreateSessionAt={onCreateSessionAt}
-      />
+      />, document.body)}
 
       {/* CLI Configuration Modal — Shell Type + AI CLI Command */}
-      {showCliConfigModal && (
+      {showCliConfigModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCliConfigModal(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[440px] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-9 py-3 border-b border-ide-border shrink-0">
@@ -1789,7 +1818,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     setCliConfigDir(val)
                     try { localStorage.setItem('vibe-ide-ai-config-dir', val) } catch {}
                   }}
-                  placeholder="~/.claude"
+                  placeholder=".opencc / ~/.claude"
                   className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
               </label>
@@ -1868,10 +1897,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Claude 配置组 编辑子弹窗 */}
-      {showClaudeGroupEditModal && (
+      {showClaudeGroupEditModal && createPortal(
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowClaudeGroupEditModal(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[460px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
@@ -1940,7 +1969,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* 追加命令 Modal */}
       {showAppendCmdModal && (
