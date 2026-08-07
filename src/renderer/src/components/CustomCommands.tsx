@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
 import { Pencil, X, MessageSquarePlus, ListOrdered } from 'lucide-react'
 import { useI18n } from '../i18n'
+import { ModalOverlay } from './ModalOverlay'
 
 export interface CustomCommand {
   id: string
@@ -282,7 +283,7 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
 
         {/* Custom Command Modal */}
         {showCustomCmdModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setShowCustomCmdModal(false); setEditingCustomCmd(null) }}>
+          <ModalOverlay onClose={() => { setShowCustomCmdModal(false); setEditingCustomCmd(null) }}>
             <div
               className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl flex flex-col absolute"
               style={{ top: modalPos.top, left: modalPos.left, width: modalW, height: modalH }}
@@ -370,7 +371,7 @@ const CustomCommands = forwardRef<CustomCommandsHandle, CustomCommandsProps>(
               <div onMouseDown={startResize('s')} onClick={(e) => e.stopPropagation()} className="absolute bottom-0 left-0 w-full h-1.5 cursor-ns-resize hover:bg-ide-accent/40" />
               <div onMouseDown={startResize('se')} onClick={(e) => e.stopPropagation()} className="absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize hover:bg-ide-accent" />
             </div>
-          </div>
+          </ModalOverlay>
         )}
       </>
     )

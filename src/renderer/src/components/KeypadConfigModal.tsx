@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, Send, ClipboardPaste } from 'lucide-react'
 import { loadKeypadItems, saveKeypadItems, loadBtwPrefix, saveBtwPrefix, type KeypadItem } from './keypadItems'
+import { ModalOverlay } from './ModalOverlay'
 
 export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [draft, setDraft] = useState<KeypadItem[]>(() => loadKeypadItems())
@@ -24,7 +25,7 @@ export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: (
   const change = (code: string, text: string) => setDraft(prev => prev.map(k => k.code === code ? { ...k, text } : k))
   const toggleDirectSend = (code: string) => setDraft(prev => prev.map(k => k.code === code ? { ...k, directSend: !k.directSend } : k))
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
       <div
         className="bg-ide-sidebar border border-dashed border-ide-border rounded-[8px_12px_6px_10px] p-4 w-max min-w-56 max-w-[90vw] max-h-[80%] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -88,6 +89,6 @@ export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: (
           >取消</button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }

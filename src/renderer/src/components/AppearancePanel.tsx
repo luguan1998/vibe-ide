@@ -4,6 +4,7 @@ import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
 import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, PanelRightClose, SlidersHorizontal, SwatchBook, Info, PawPrint, Trash2 } from 'lucide-react'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
+import { ModalOverlay } from './ModalOverlay'
 import { DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from './SessionPanel'
 import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, setPetLogicalState, setPetLogicalFrames, getPetFrameRate, setPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, PET_SCALE_MIN, PET_SCALE_MAX, PET_FRAME_RATE_MIN, PET_FRAME_RATE_MAX } from './DesktopPet/petSettings'
 import { resolveStateName, PET_LOGICAL_STATES, PET_LOGICAL_LABEL, DEFAULT_PET_LOGICAL_STATE } from './DesktopPet/stateMap'
@@ -386,7 +387,7 @@ const AppearancePanel = function AppearancePanel({
   const zones = NAV_ITEMS.find(n => n.id === activeCategory)!.zones
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-start pt-24 pl-12" onClick={onClose}>
+    <ModalOverlay onClose={onClose} className="fixed inset-0 z-50 flex items-start justify-start pt-24 pl-12">
       <div className="bg-ide-bg/50 backdrop-blur-xl border border-ide-border/80 rounded-2xl shadow-2xl w-[760px] max-h-[80vh] flex flex-col" style={{ transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0 cursor-move" onMouseDown={onHeaderMouseDown}>
           <span className="text-base font-semibold text-ide-text flex items-center gap-1.5"><Palette className="size-4" />{t('Appearance')}</span>
@@ -794,7 +795,7 @@ const AppearancePanel = function AppearancePanel({
           </div>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 

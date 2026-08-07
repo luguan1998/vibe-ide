@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Lightbulb, Clock, X, Pencil, Search, Filter, FileText } from 'lucide-react'
 import { FileNode, RecentFileEntry, GrepMatch, CodeSymbol } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
+import { ModalOverlay } from './ModalOverlay'
 import { trimToMatch, highlightMatches } from './SearchPanel'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { useI18n } from '../i18n'
@@ -1524,7 +1525,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
 
       {/* Confirm Dialog */}
       {confirmAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmAction(null)}>
+        <ModalOverlay onClose={() => setConfirmAction(null)}>
           <div className="bg-ide-bg border border-ide-border rounded shadow-lg p-4 max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm text-ide-text mb-4">
               {t('Delete {fileName}?').replace('{fileName}', confirmAction.fileName)}
@@ -1551,7 +1552,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Context Menu for file explorer */}

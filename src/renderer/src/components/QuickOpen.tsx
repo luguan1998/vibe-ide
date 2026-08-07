@@ -3,6 +3,7 @@ import { Folder } from 'lucide-react'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { loadFilterRules } from './FileTab'
 import { useI18n } from '../i18n'
+import { ModalOverlay } from './ModalOverlay'
 
 interface QuickOpenItem {
   name: string
@@ -100,10 +101,8 @@ export default function QuickOpen({ open, cwd, onSelect, onClose }: QuickOpenPro
   const q = query.replace(/^@/, '').trim()
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] bg-black/40"
-         onMouseDown={onClose}>
-      <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[600px] max-w-[80vw] max-h-[60vh] flex flex-col"
-           onMouseDown={(e) => e.stopPropagation()}>
+    <ModalOverlay onClose={onClose} className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] bg-black/40">
+      <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[600px] max-w-[80vw] max-h-[60vh] flex flex-col">
         <input
           ref={inputRef}
           value={query}
@@ -139,6 +138,6 @@ export default function QuickOpen({ open, cwd, onSelect, onClose }: QuickOpenPro
           )}
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }

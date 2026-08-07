@@ -7,6 +7,7 @@ import { readAiCliConfig } from '../aiStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import { getMainShellType, setMainShellType, getAuxShellType, setAuxShellType } from '@renderer/utils/shellPrefs'
 import SettingsPanel from './SettingsPanel'
+import { ModalOverlay } from './ModalOverlay'
 import AppearancePanel from './AppearancePanel'
 import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand } from './CustomCommands'
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
@@ -1656,7 +1657,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
       {/* Keyboard Shortcuts Modal */}
       {showShortcuts && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowShortcuts(false)}>
+        <ModalOverlay onClose={() => setShowShortcuts(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
               <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Keyboard className="size-3.5" />{t('Keyboard Shortcuts')}</span>
@@ -1671,12 +1672,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               <SettingsPanel />
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       , document.body)}
 
       {/* File Filter Rules Modal */}
       {showFileFilterRules && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowFileFilterRules(false)}>
+        <ModalOverlay onClose={() => setShowFileFilterRules(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[420px] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
               <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Filter className="size-3.5" />{t('File Filter Rules')}</span>
@@ -1725,7 +1726,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               </div>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       , document.body)}
 
 
@@ -1774,7 +1775,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
       {/* CLI Configuration Modal — Shell Type + AI CLI Command */}
       {showCliConfigModal && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCliConfigModal(false)}>
+        <ModalOverlay onClose={() => setShowCliConfigModal(false)}>
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[440px] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-9 py-3 border-b border-ide-border shrink-0">
               <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Bot className="size-3.5" />{t('CLI Configuration')}</span>
@@ -1926,12 +1927,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               </div>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       , document.body)}
 
       {/* Claude 配置组 编辑子弹窗 */}
       {showClaudeGroupEditModal && createPortal(
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowClaudeGroupEditModal(false)}>
+        <ModalOverlay onClose={() => setShowClaudeGroupEditModal(false)} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[460px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
               <span className="text-sm font-semibold text-ide-text">{editingGroup ? '编辑 provider 配置' : '新建 provider 配置'}</span>
@@ -1998,12 +1999,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               >保存</button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       , document.body)}
 
       {/* 追加命令 Modal */}
       {showAppendCmdModal && (
-        <div className="fixed inset-0 z-50" onClick={() => setShowAppendCmdModal(false)} onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setShowAppendCmdModal(false) } }}>
+        <ModalOverlay onClose={() => setShowAppendCmdModal(false)} className="fixed inset-0 z-50" onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setShowAppendCmdModal(false) } }}>
           <div className="fixed flex flex-col z-[51] w-[230px]" style={{ left: (panelRef.current?.getBoundingClientRect().right ?? 300) + 8, top: appendCmdAnchorYRef.current - 24 }} onClick={e => e.stopPropagation()}>
             <textarea
               className="w-full box-border resize-none max-h-[40vh] px-2 py-1.5 rounded-xl bg-ide-bg border border-ide-border text-ide-text text-[11px] leading-[1.3] outline-none transition-colors duration-[120ms] focus:border-ide-accent/60 placeholder:text-ide-text-muted/60 shadow-[0_2px_6px_rgb(0_0_0_/_0.25)]"
@@ -2024,11 +2025,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               }}
             />
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {claudeHistorySession && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={closeClaudeHistory}>
+        <ModalOverlay onClose={closeClaudeHistory} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[380px] max-h-[70vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
               <div className="flex items-center gap-2">
@@ -2095,7 +2096,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               )}
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   )

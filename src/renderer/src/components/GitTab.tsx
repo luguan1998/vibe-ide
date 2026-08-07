@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react'
 import { useI18n } from '../i18n'
 import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
+import { ModalOverlay } from './ModalOverlay'
 import GitGraph from './GitGraph'
 
 interface GitTabProps {
@@ -1938,7 +1939,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
       {/* Confirm Dialog */}
       {confirmAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmAction(null)}>
+        <ModalOverlay onClose={() => setConfirmAction(null)}>
           <div className="bg-ide-bg border border-ide-border rounded shadow-lg p-4 max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm text-ide-text mb-4">
               {confirmAction.type === 'forceDeleteWorktree'
@@ -1989,12 +1990,12 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Conflict Dialog */}
       {conflictApply && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConflictApply(null)}>
+        <ModalOverlay onClose={() => setConflictApply(null)}>
           <div className="bg-ide-bg border border-ide-border rounded shadow-lg p-4 max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm text-ide-text mb-2">
               {t('Conflicts detected while merging {branch}').replace('{branch}', conflictApply.branch)}
@@ -2023,7 +2024,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </>
   )

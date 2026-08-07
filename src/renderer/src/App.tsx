@@ -12,6 +12,7 @@ import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import { DesktopPet, type PetLogicalState } from './components/DesktopPet'
 import SearchPanel from './components/SearchPanel'
+import { ModalOverlay } from './components/ModalOverlay'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import GameMujica, { FOCUS_MUJICA, MUJICA_CLOSE } from './components/GameMujica'
@@ -2626,7 +2627,7 @@ export default function App() {
         const cmds = commandHistory[activeSessionId] || []
         const sessionName = sessions.find(s => s.id === activeSessionId)?.name || activeSessionId
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowHistory(false)}>
+          <ModalOverlay onClose={() => setShowHistory(false)}>
             <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[600px] max-h-[500px] flex flex-col" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-center px-4 py-2.5 border-b border-ide-border shrink-0 bg-ide-sidebar">
                 <span className="text-sm font-semibold text-ide-text truncate">{sessionName}</span>
@@ -2656,7 +2657,7 @@ export default function App() {
                 )}
               </div>
             </div>
-          </div>
+          </ModalOverlay>
         )
       })()}
 
@@ -2678,10 +2679,9 @@ export default function App() {
       />
 
       {/* Search Dropdown — titlebar 搜索图标浮窗 */}
-      <div
-        className="fixed inset-0 z-50"
+      <ModalOverlay
+        onClose={() => setShowSearchDropdown(false)}
         style={{ display: showSearchDropdown ? 'block' : 'none' }}
-        onClick={() => setShowSearchDropdown(false)}
       >
         <div
           className="absolute bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl flex flex-col overflow-hidden animate-fade-in"
@@ -2702,7 +2702,7 @@ export default function App() {
             onExploreNode={(node: any) => setCallGraphFocalNode(node)}
           />
         </div>
-      </div>
+      </ModalOverlay>
 
       {/* Call Graph Overlay — rendered at App level like NavBar to stay on top */}
       {callGraphFocalNode && (
