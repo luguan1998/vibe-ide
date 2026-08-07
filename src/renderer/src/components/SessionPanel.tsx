@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2 } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { readAiCliConfig } from '../aiStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -847,6 +847,22 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     closeClaudeHistory()
     onResumeClaudeHistory?.(historySessionId, cwd, name, claudeHistoryMode)
   }, [claudeHistorySession, onResumeClaudeHistory, closeClaudeHistory, claudeHistoryMode])
+
+  const deleteClaudeHistory = useCallback(async (s: any) => {
+    if (!claudeHistorySession) return
+    const historySessionId = s.session_id || s.id
+    const { configDir } = readAiCliConfig()
+    try {
+      const r = await window.api.ai.deleteSession(historySessionId, claudeHistorySession.cwd, configDir)
+      if (r?.success) {
+        setClaudeHistoryList(prev => prev.filter(x => (x.session_id || x.id) !== historySessionId))
+      } else {
+        setClaudeHistoryError(r?.error || '删除失败')
+      }
+    } catch (e: any) {
+      setClaudeHistoryError(e?.message || '删除失败')
+    }
+  }, [claudeHistorySession])
 
   useEffect(() => {
     if (!claudeHistorySession) return
@@ -2054,19 +2070,26 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 claudeHistoryList.map((s: any) => {
                   const timeStr = s.timestamp ? new Date(s.timestamp).toLocaleString() : ''
                   return (
-                    <button
+                    <div
                       key={s.session_id || s.id}
                       onClick={() => selectClaudeHistory(s)}
-                      className="w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left"
+                      className="group w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left relative cursor-pointer"
                     >
-                      <div className="truncate">{s.name || s.session_id || s.id}</div>
+                      <div className="truncate pr-6">{s.name || s.session_id || s.id}</div>
                       {timeStr && (
                         <div className="flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-1">
                           <span className="truncate mr-2">{timeStr}</span>
                           {s.sizeBytes > 0 && <span className="shrink-0">{formatBytes(s.sizeBytes)}</span>}
                         </div>
                       )}
-                    </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteClaudeHistory(s) }}
+                        className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
+                        title={t('Delete')}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   )
                 })
               )}

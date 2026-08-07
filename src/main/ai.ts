@@ -1325,6 +1325,19 @@ export function registerAiHandlers(win: BrowserWindow | null): void {
     return listSessionsForCwd(cwd || '', configDir)
   })
 
+  ipcMain.handle(IPC_CHANNELS.AI_DELETE_SESSION, async (_event, sessionId: string, cwd: string, configDir?: string) => {
+    if (!/^[a-zA-Z0-9_-]+$/.test(sessionId)) return { success: false, error: 'invalid session id' }
+    const projectDir = resolveProjectDir(cwd, configDir)
+    if (!projectDir) return { success: false, error: 'project dir not found' }
+    try {
+      await rm(join(projectDir, `${sessionId}.jsonl`), { force: true })
+      await rm(join(projectDir, sessionId), { force: true, recursive: true })
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e?.message || '删除失败' }
+    }
+  })
+
   // Load full message history from .jsonl for resume display
   ipcMain.handle(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, async (_event, resumeSessionId: string, cwd: string, configDir?: string) => {
     return loadSessionMessages(resumeSessionId, cwd, configDir)

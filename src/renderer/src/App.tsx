@@ -176,6 +176,7 @@ declare global {
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
         resolveConfigDir: (configDir?: string) => Promise<string>
         listSessions: (cwd?: string, configDir?: string) => Promise<{ sessions: any[]; error?: string }>
+        deleteSession: (sessionId: string, cwd: string, configDir?: string) => Promise<{ success: boolean; error?: string }>
         loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
         revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) => Promise<{ success: boolean; error?: string }>
         fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
