@@ -522,6 +522,8 @@ html, body, #root {
   align-items: center;
   gap: 4px;
   max-width: 100%;
+  min-width: 0;
+  width: 100%;
   padding: 3px 8px;
   border-radius: 12px;
   background: rgb(var(--ide-sidebar));

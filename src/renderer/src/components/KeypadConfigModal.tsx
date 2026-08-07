@@ -1,18 +1,32 @@
-import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { X, Send, ClipboardPaste } from 'lucide-react'
 import { loadKeypadItems, saveKeypadItems, loadBtwPrefix, saveBtwPrefix, type KeypadItem } from './keypadItems'
 
 export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [draft, setDraft] = useState<KeypadItem[]>(() => loadKeypadItems())
   const [btwPrefix, setBtwPrefix] = useState(() => loadBtwPrefix())
+  const listRef = useRef<HTMLDivElement>(null)
+  const MAX_TEXT_H = 120
+  const autoGrow = (el: HTMLTextAreaElement) => {
+    el.style.height = 'auto'
+    const h = el.scrollHeight
+    el.style.height = Math.min(h, MAX_TEXT_H) + 'px'
+    el.style.overflowY = h > MAX_TEXT_H ? 'auto' : 'hidden'
+  }
   useEffect(() => { if (open) { setDraft(loadKeypadItems()); setBtwPrefix(loadBtwPrefix()) } }, [open])
+  useEffect(() => {
+    if (!open) return
+    requestAnimationFrame(() => {
+      listRef.current?.querySelectorAll('textarea').forEach(el => autoGrow(el as HTMLTextAreaElement))
+    })
+  }, [open, draft])
   if (!open) return null
   const change = (code: string, text: string) => setDraft(prev => prev.map(k => k.code === code ? { ...k, text } : k))
   const toggleDirectSend = (code: string) => setDraft(prev => prev.map(k => k.code === code ? { ...k, directSend: !k.directSend } : k))
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-ide-sidebar border border-dashed border-ide-border rounded-[8px_12px_6px_10px] p-4 w-80 max-h-[80%] overflow-y-auto"
+        className="bg-ide-sidebar border border-dashed border-ide-border rounded-[8px_12px_6px_10px] p-4 w-max min-w-56 max-w-[90vw] max-h-[80%] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
@@ -21,15 +35,18 @@ export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: (
             <X size={14} />
           </button>
         </div>
-        <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-4 mb-2 text-[10px] text-ide-text-muted/70">
+          <span className="flex items-center gap-1"><Send size={11} className="-scale-x-100" /> 点击即发送</span>
+          <span className="flex items-center gap-1"><ClipboardPaste size={11} /> 仅填入输入框</span>
+        </div>
+        <div className="flex flex-col gap-2" ref={listRef}>
           {draft.map(k => (
             <div key={k.code} className="flex items-center gap-2">
-              <span className="w-5 text-center text-sm font-bold text-ide-accent">{k.key}</span>
-              <input
-                type="text"
+              <textarea
                 value={k.text}
-                onChange={(e) => change(k.code, e.target.value)}
-                className="flex-1 min-w-0 text-xs bg-ide-bg border border-dashed border-ide-border rounded-[4px_8px_5px_7px] px-2 py-1 text-ide-text focus:outline-none focus:border-ide-accent"
+                onChange={(e) => { change(k.code, e.target.value); autoGrow(e.currentTarget) }}
+                rows={1}
+                className="min-w-56 text-xs leading-4 [field-sizing:content] bg-ide-bg border border-dashed border-ide-border rounded-[4px_8px_5px_7px] px-2 py-1 text-ide-text focus:outline-none focus:border-ide-accent resize-none overflow-hidden"
               />
               <button
                 onClick={() => toggleDirectSend(k.code)}
@@ -41,15 +58,9 @@ export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: (
                 title={k.directSend ? '这条命令会立刻发送给agent' : '仅填入：只写入输入框，不回车发送'}
               >
                 {k.directSend ? (
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                    <path fillRule="evenodd" d="M3.5 2.75a.75.75 0 0 0-1.5 0v14.5a.75.75 0 0 0 1.5 0V12a.75.75 0 0 1 .75-.75h9.69l-2.22 2.22a.75.75 0 1 0 1.06 1.06l3.5-3.5a.75.75 0 0 0 0-1.06l-3.5-3.5a.75.75 0 1 0-1.06 1.06l2.22 2.22H4.25a.75.75 0 0 1-.75-.75V2.75Z" clipRule="evenodd" />
-                  </svg>
+                  <Send size={14} className="-scale-x-100" />
                 ) : (
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                    <rect x="7.5" y="2.5" width="2" height="12" rx="0.5" />
-                    <rect x="6" y="15.5" width="5" height="2" rx="0.5" />
-                    <path d="M11.5 6h5a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                  </svg>
+                  <ClipboardPaste size={14} />
                 )}
               </button>
             </div>

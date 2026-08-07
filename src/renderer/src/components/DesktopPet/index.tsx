@@ -5,7 +5,7 @@ import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
-import { Settings, Send } from 'lucide-react'
+import { Settings, Send, ClipboardPaste } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT } from '../vibeEvents'
 import { getExtraBubbleSections, onPetBubblesChanged, type PetBubbleItem, type PetBubbleSection } from './bubbleRegistry'
@@ -267,7 +267,14 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
   // 组装气泡 section：速发键 → 拓展注册表（宠物选择/删除/打开文件夹已移至设置→外观）
   const keypadSection: PetBubbleSection = {
     id: 'keypad',
-    items: keypadItems.map(k => ({ id: k.code, label: k.directSend ? k.text : k.text + '…', badge: k.key, onAction: () => k.directSend ? sendLine(k.text) : appendInput(k.text) }))
+    items: keypadItems.map(k => ({
+      id: k.code,
+      label: k.text,
+      badge: k.directSend
+        ? <Send size={10} className="-scale-x-100" />
+        : <ClipboardPaste size={10} className="text-ide-text-muted/60" />,
+      onAction: () => k.directSend ? sendLine(k.text) : appendInput(k.text),
+    }))
   }
   const sections: PetBubbleSection[] = [keypadSection, ...getExtraBubbleSections()]
 
