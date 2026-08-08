@@ -448,6 +448,17 @@ html, body, #root {
   background: #fff !important;
 }
 
+/* AI 输入框 — 黑边框缺角 + 灰白内部 */
+.ai-tab__input-pill {
+  border: 2px solid rgb(var(--ide-border)) !important;
+}
+
+/* 内部 textarea — 去掉全局白底和 2px 边框，露出灰白 */
+.ai-tab__textarea {
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
+  background: transparent !important;
+}
+
 
 /* ════════════════════════════════════════════════════
    Markdown 预览（DiffViewer）
