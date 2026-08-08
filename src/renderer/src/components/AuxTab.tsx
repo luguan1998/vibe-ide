@@ -79,24 +79,24 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
   // Load CLAUDE.md (or AGENTS.md) commands（复用 GitTab pendingPathRef 防 stale 模式）
   const pendingPathRef = useRef<string | null>(null)
 
+  const loadCommands = useCallback(async (targetPath: string | null) => {
+    if (!targetPath) {
+      if (pendingPathRef.current === targetPath) setCommands([])
+      return
+    }
+    const content = await loadMdContent(targetPath)
+    if (pendingPathRef.current !== targetPath) return
+    if (!content) { setCommands([]); return }
+    setCommands(parseCommands(content))
+  }, [])
+
   useEffect(() => {
     const targetPath = effectiveGitPath
     pendingPathRef.current = targetPath
     setSelectedCommandIndex(null)
     hasAutoFocused.current = false
-
-    const load = async () => {
-      if (!targetPath) {
-        if (pendingPathRef.current === targetPath) setCommands([])
-        return
-      }
-      const content = await loadMdContent(targetPath)
-      if (pendingPathRef.current !== targetPath) return
-      if (!content) { setCommands([]); return }
-      setCommands(parseCommands(content))
-    }
-    load()
-  }, [effectiveGitPath])
+    loadCommands(targetPath)
+  }, [effectiveGitPath, loadCommands])
 
   // 切 session 或切走 tab 时清除键盘导航高亮
   useEffect(() => { setSelectedCommandIndex(null) }, [activeSessionId])
@@ -110,6 +110,15 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
       hasAutoFocused.current = true
     }
   }, [commands.length > 0])
+
+  // 手动刷新：重新解析 CLAUDE.md 命令
+  const handleRefreshCommands = useCallback(async () => {
+    const targetPath = effectiveGitPath
+    pendingPathRef.current = targetPath
+    setSelectedCommandIndex(null)
+    hasAutoFocused.current = false
+    await loadCommands(targetPath)
+  }, [effectiveGitPath, loadCommands])
 
   // Sync ref for keyboard handler (avoid re-registration on every index change)
   useEffect(() => { selectedCommandIndexRef.current = selectedCommandIndex }, [selectedCommandIndex])
@@ -393,8 +402,19 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
       {commands.length > 0 && (
         <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '32%', overflowY: 'auto' }}>
           {!showTabBar && (
-            <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-ide-accent sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm border-b border-ide-border">
-              {t('Commands')}
+            <div className="px-2 py-1 group flex items-center justify-between sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm border-b border-ide-border">
+              <span className="text-[10px] uppercase tracking-wider text-ide-accent">{t('Commands')}</span>
+              <button
+                onClick={handleRefreshCommands}
+                className="w-4 h-4 mr-1 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-all"
+                title={t('Refresh')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
+                  <polyline points="23 4 23 10 17 10" />
+                  <polyline points="1 20 1 14 7 14" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+              </button>
             </div>
           )}
           {commands.map((cmd, i) => (
