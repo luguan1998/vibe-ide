@@ -122,6 +122,7 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
     return { grid: g2, popPos: pos }
   }, [])
 
+  const containerRef = useRef<HTMLDivElement>(null)
   const [initialState] = useState(initGrid)
   const [grid, setGrid] = useState<number[][]>(initialState.grid)
   const [score, setScore] = useState(0)
@@ -169,6 +170,12 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     const handle = (e: KeyboardEvent) => {
+      // 游戏 tab 隐藏（display:none）时组件仍挂载，必须放行方向键，否则会吞掉全局输入框光标移动
+      const el = containerRef.current
+      if (!el || !el.offsetParent) return
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
       if (gameStateRef.current === 'won' || gameStateRef.current === 'over') return
       switch (e.key) {
         case 'ArrowLeft': e.preventDefault(); slide('left'); break
@@ -182,7 +189,7 @@ export default function Game2048({ onBack }: { onBack?: () => void }) {
   }, [slide, init])
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none" tabIndex={-1}>
+    <div ref={containerRef} className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none" tabIndex={-1}>
       <style>{`
         @keyframes pop {
           0% { transform: scale(0); opacity: 0; }

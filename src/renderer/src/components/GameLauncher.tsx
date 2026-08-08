@@ -7,8 +7,9 @@ import Game2048 from './Game2048'
 import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
 import GameFruitNinja from './GameFruitNinja'
+import GameVampire, { MAGE_SVG_URL } from './GameVampire'
 
-type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro' | 'mujica' | 'fruitninja'
+type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro' | 'mujica' | 'fruitninja' | 'vampire'
 
 interface GameCard {
   id: Exclude<GameId, 'menu'>
@@ -23,6 +24,7 @@ const GAMES: GameCard[] = [
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
   { id: 'fruitninja', icon: <span className="text-2xl leading-none">🍉</span>, name: 'Fruit Ninja', desc: 'Slice fruits with your swipe — dodge the bombs' },
+  { id: 'vampire', icon: <img src={MAGE_SVG_URL} alt="Vampire Survivors" className="w-6 h-6" />, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes' },
 ]
 
 export default function GameLauncher() {
@@ -52,6 +54,7 @@ export default function GameLauncher() {
       case 'sandspiel': return <GameSandspiel onBack={back} />
       case '2048': return <Game2048 onBack={back} />
       case 'fruitninja': return <GameFruitNinja onBack={back} />
+      case 'vampire': return <GameVampire onBack={back} />
     }
   }
 
