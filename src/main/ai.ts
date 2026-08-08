@@ -118,6 +118,12 @@ export const aiSessions = new Map<string, ManagedAiSession>()
 // Used by loadSessionMessages to look up contextWindow from the correct aiSessions entry.
 const cliSessionToRenderer = new Map<string, string>()
 let mainWindow: BrowserWindow | null = null
+
+// 窗口可能在运行期重建（macOS activate 等），快照引用会失效，
+// 由 index.ts 在窗口创建/销毁时同步更新。
+export function setAiMainWindow(win: BrowserWindow | null): void {
+  mainWindow = win
+}
 let rendererVisible = true
 
 export function send(channel: string, data: any): void {
@@ -1313,8 +1319,7 @@ export function resumeAfterAsk(sessionId: string, answers: Record<string, string
   return { success: true }
 }
 
-export function registerAiHandlers(win: BrowserWindow | null): void {
-  mainWindow = win
+export function registerAiHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.AI_SET_VISIBLE, (_event, visible: boolean) => {
     rendererVisible = !!visible

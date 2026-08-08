@@ -17,6 +17,12 @@ interface ManagedPty {
 const terminals = new Map<string, ManagedPty>()
 let mainWindow: BrowserWindow | null = null
 
+// 窗口可能在运行期重建（macOS activate 等），快照引用会失效，
+// 由 index.ts 在窗口创建/销毁时同步更新。
+export function setPtyMainWindow(win: BrowserWindow | null): void {
+  mainWindow = win
+}
+
 // Auto-restart debounce: more than RESTART_MAX restarts within RESTART_WINDOW_MS means
 // the shell is crash-looping (e.g. a broken profile makes it exit on spawn). Stop
 // restarting and let the session end for real instead of spinning forever.
@@ -213,8 +219,7 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUt
   return ptyProcess
 }
 
-export function registerPtyHandlers(win: BrowserWindow | null): void {
-  mainWindow = win
+export function registerPtyHandlers(): void {
 
   // 返回本机已安装的 shell 列表
   ipcMain.handle(IPC_CHANNELS.PTY_GET_SHELLS, () => {

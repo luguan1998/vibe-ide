@@ -4,8 +4,8 @@ import { statSync, existsSync, readFileSync, writeFileSync, mkdirSync, readdirSy
 import { createHash } from 'crypto'
 import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { registerPtyHandlers, cleanupTerminals } from './pty'
-import { registerAiHandlers, cleanupAiSessions } from './ai'
+import { registerPtyHandlers, cleanupTerminals, setPtyMainWindow } from './pty'
+import { registerAiHandlers, cleanupAiSessions, setAiMainWindow } from './ai'
 import { registerPlanExecuteHandlers } from './ai-plan-execute'
 import { registerAskResumeHandlers } from './ai-ask-resume'
 import { registerRevertHandlers } from './ai-revert'
@@ -125,6 +125,9 @@ function createWindow(): void {
     icon: app.isPackaged ? join(process.resourcesPath, 'icon.ico') : join(__dirname, '../../build/icon.ico')
   })
 
+  setPtyMainWindow(mainWindow)
+  setAiMainWindow(mainWindow)
+
   // Center window within the work area (excludes taskbar) on first launch
   const x = Math.round(workArea.x + (workArea.width - winWidth) / 2)
   const y = Math.round(workArea.y + (workArea.height - winHeight) / 2)
@@ -136,6 +139,8 @@ function createWindow(): void {
 
   mainWindow.on('closed', () => {
     cleanupAndExit()
+    setPtyMainWindow(null)
+    setAiMainWindow(null)
     mainWindow = null
     if (process.platform !== 'darwin') app.exit()
   })
@@ -230,8 +235,8 @@ app.whenReady().then(() => {
   }
 
   // Register PTY handlers after window is created
-  registerPtyHandlers(mainWindow)
-  registerAiHandlers(mainWindow)
+  registerPtyHandlers()
+  registerAiHandlers()
   registerPlanExecuteHandlers()
   registerAskResumeHandlers()
   registerRevertHandlers()
@@ -315,7 +320,7 @@ app.whenReady().then(() => {
 
   function resolveCssUrls(css: string, baseDir: string): string {
     return css.replace(/url\(['"]?([^'"()]+)['"]?\)/g, (match, url) => {
-      if (/^(data:|https?:|http?:|file:)/.test(url)) return match
+      if (/^(data:|https?:|file:)/.test(url)) return match
       const resolved = existsSync(url) ? url : join(baseDir, url)
       const ext = (resolved.match(/\.(\w+)$/)?.[1] || '').toLowerCase()
       const mimeMap: Record<string, string> = {
