@@ -89,6 +89,7 @@ type TarotAction =
   | { kind: 'joker' }
   | { kind: 'wheel' }
   | { kind: 'temperance' }
+  | { kind: 'create-planet' }
 
 interface TarotDef {
   id: string
@@ -234,7 +235,7 @@ function rerollCost(count: number): number {
 const ENHANCEMENTS: Enhancement[] = ['gold', 'glass', 'steel', 'lucky', 'bonus', 'mult', 'stone']
 const PACK_IDS: PackKind[] = ['standard', 'tarot', 'planet', 'joker']
 const PACKS: Record<PackKind, { name: string; cost: number; desc: string; count: number }> = {
-  standard: { name: 'Standard Pack', cost: 4, desc: '随机牌 ×3,选 1 张(35% 带增强)', count: 3 },
+  standard: { name: 'Standard Pack', cost: 4, desc: '随机牌 ×3,选 1 张(至少 1 张带增强)', count: 3 },
   tarot: { name: 'Tarot Pack', cost: 3, desc: '塔罗 ×2,选 1 张', count: 2 },
   planet: { name: 'Planet Pack', cost: 4, desc: '行星 ×2,选 1 张', count: 2 },
   joker: { name: 'Buffoon Pack', cost: 4, desc: '小丑 ×2,选 1 张', count: 2 },
@@ -243,6 +244,7 @@ const VOUCHERS: VoucherDef[] = [
   { id: 'hand-size', name: 'Voucher: 手牌上限 +1', desc: '手牌上限 +1(永久)', cost: 6, glyph: '🃏' },
   { id: 'more-hands', name: 'Voucher: 每轮出牌 +1', desc: '每轮出牌次数 +1(永久)', cost: 8, glyph: '🖐️' },
   { id: 'more-discards', name: 'Voucher: 每轮弃牌 +1', desc: '每轮弃牌次数 +1(永久)', cost: 8, glyph: '🗑️' },
+  { id: 'observatory', name: 'Voucher: 天文台', desc: '行星卡升级 +1(永久)', cost: 6, glyph: '🔭' },
 ]
 const VOUCHER_MAX_HANDS = 1
 const VOUCHER_MAX_DISCARDS = 3
@@ -253,7 +255,7 @@ const RARITY_BORDER: Record<Rarity, string> = {
   rare: 'rgba(200,120,255,0.8)',
 }
 const RARITY_WEIGHTS: [Rarity, number][] = [['common', 60], ['uncommon', 30], ['rare', 10]]
-const EDITION_CHANCE: Record<Rarity, number> = { common: 0.1, uncommon: 0.2, rare: 0.3 }
+const EDITION_CHANCE: Record<Rarity, number> = { common: 0.05, uncommon: 0.1, rare: 0.15 }
 const EDITIONS: Edition[] = ['foil', 'holographic', 'polychrome']
 const EDITION_MARK: Record<Edition, string> = { foil: 'F', holographic: 'H', polychrome: 'P' }
 const EDITION_NAME: Record<Edition, string> = { foil: '箔片', holographic: '全息', polychrome: '多彩' }
@@ -342,8 +344,9 @@ const TAROTS: TarotDef[] = [
   { id: 'bonus', name: 'Bonus Card', action: { kind: 'enhance', enh: 'bonus' }, desc: '该牌打出时 +30 Chips', glyph: '💠', face: 'linear-gradient(160deg,#ffe08a,#c0782a)' },
   { id: 'multcard', name: 'Mult Card', action: { kind: 'enhance', enh: 'mult' }, desc: '该牌打出时 +4 Mult', glyph: '✖️', face: 'linear-gradient(160deg,#ffc0b8,#b03028)' },
   { id: 'tower', name: 'The Tower', action: { kind: 'enhance', enh: 'stone' }, desc: '选 1 张手牌变成石头牌(无花色/点数,+50 Chips)', glyph: '🌍', face: 'linear-gradient(160deg,#c8c8c8,#707070)' },
-  { id: 'wheel', name: 'The Wheel of Fortune', action: { kind: 'wheel' }, desc: '25% 概率随机 1 张小丑获得修饰', glyph: '🎡', face: 'linear-gradient(160deg,#f0dcc0,#a08040)' },
+  { id: 'wheel', name: 'The Wheel of Fortune', action: { kind: 'wheel' }, desc: '随机 1 个无修饰小丑获得修饰', glyph: '🎡', face: 'linear-gradient(160deg,#f0dcc0,#a08040)' },
   { id: 'temperance', name: 'Temperance', action: { kind: 'temperance' }, desc: '获得卖出所有小丑的总价', glyph: '⚗️', face: 'linear-gradient(160deg,#b8c8e8,#4a6aa0)' },
+  { id: 'highpriestess', name: 'The High Priestess', action: { kind: 'create-planet' }, desc: '获得 2 张随机行星,立即升级', glyph: '☪️', face: 'linear-gradient(160deg,#e0d0f8,#6a4a9a)' },
 ]
 
 const PLANETS: { id: string; name: string; hand: string }[] = [
@@ -591,6 +594,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
   const [vouchers, setVouchers] = useState(0)
   const [voucherHands, setVoucherHands] = useState(0)
   const [voucherDiscards, setVoucherDiscards] = useState(0)
+  const [voucherObservatory, setVoucherObservatory] = useState(false)
   const [gameState, setGameState] = useState<'playing' | 'shop' | 'lost' | 'won'>('playing')
   const [shopItems, setShopItems] = useState<ShopItem[]>([])
   const [shopInfo, setShopInfo] = useState<{ reward: number; interest: number } | null>(null)
@@ -715,7 +719,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
         const suit = SUITS[Math.floor(Math.random() * SUITS.length)]
         const rank = RANKS[Math.floor(Math.random() * RANKS.length)]
         const card: Card = { suit, rank, id: `pk-${i}-${Date.now()}-${Math.random()}` }
-        if (Math.random() < 0.35) card.enh = ENHANCEMENTS[Math.floor(Math.random() * ENHANCEMENTS.length)]
+        if (i === 0 || Math.random() < 0.35) card.enh = ENHANCEMENTS[Math.floor(Math.random() * ENHANCEMENTS.length)]
         options.push(card)
       }
       return { kind, options }
@@ -848,6 +852,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     setVouchers(0)
     setVoucherHands(0)
     setVoucherDiscards(0)
+    setVoucherObservatory(false)
     setActiveTarot(null)
     setTarotUses(0)
     setPendingTarots([])
@@ -950,26 +955,17 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       setTarotsUsed(n => n + 1)
       showToast(`Judgement:获得 ${j.name}`)
     } else if (t.action.kind === 'wheel') {
-
-      if (jokers.length === 0) {
-        showToast('没有小丑牌,无法修饰')
+      const candidates = jokers.filter(j => !j.edition)
+      if (candidates.length === 0) {
+        showToast(jokers.length === 0 ? '没有小丑牌,无法修饰' : '所有小丑已有修饰')
         return
       }
-      const idx = Math.floor(Math.random() * jokers.length)
-      if (Math.random() < 0.25) {
-        const j = jokers[idx]
-        if (j.edition) {
-          showToast('该小丑已有修饰,无事发生')
-        } else {
-          const e = EDITIONS[Math.floor(Math.random() * EDITIONS.length)]
-          setJokers(js => js.map((x, i) => (i === idx ? { ...x, edition: e } : x)))
-          showToast(`Wheel of Fortune:${j.name} 获得${EDITION_NAME[e]}`)
-        }
-      } else {
-        showToast('Wheel of Fortune:无事发生...')
-      }
+      const j = candidates[Math.floor(Math.random() * candidates.length)]
+      const e = EDITIONS[Math.floor(Math.random() * EDITIONS.length)]
+      setJokers(js => js.map(x => ((x.uid || x.id) === (j.uid || j.id) ? { ...x, edition: e } : x)))
       setPendingTarots(ps => ps.filter(p => (p.uid || p.id) !== (t.uid || t.id)))
       setTarotsUsed(n => n + 1)
+      showToast(`Wheel of Fortune:${j.name} 获得${EDITION_NAME[e]}`)
     } else if (t.action.kind === 'temperance') {
       const total = jokers.reduce((s, j) => s + Math.max(1, Math.floor(j.cost / 2)) + (j.id === 'egg' ? jokerState[j.uid || j.id] || 0 : 0), 0)
       setMoney(m => {
@@ -980,11 +976,25 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       setPendingTarots(ps => ps.filter(p => (p.uid || p.id) !== (t.uid || t.id)))
       setTarotsUsed(n => n + 1)
       showToast(`Temperance:+$${total}`)
+    } else if (t.action.kind === 'create-planet') {
+      const bonus = voucherObservatory ? 1 : 0
+      const p1 = PLANETS[Math.floor(Math.random() * PLANETS.length)]
+      const p2 = PLANETS[Math.floor(Math.random() * PLANETS.length)]
+      setLevels(h => {
+        const next = { ...h }
+        next[p1.hand] = (next[p1.hand] || 1) + 1 + bonus
+        next[p2.hand] = (next[p2.hand] || 1) + 1 + bonus
+        return next
+      })
+      setJokerState(prev => triggerJokerHook('onPlanet', prev))
+      setPendingTarots(ps => ps.filter(p => (p.uid || p.id) !== (t.uid || t.id)))
+      setTarotsUsed(n => n + 1)
+      showToast(p1.hand === p2.hand ? `High Priestess:${HAND_CN[p1.hand]} 等级 +${2 + 2 * bonus}` : `High Priestess:${HAND_CN[p1.hand]} 和 ${HAND_CN[p2.hand]} 等级 +${1 + bonus}`)
     } else {
       setTarotUses(0)
       setActiveTarot(t)
     }
-  }, [showToast, jokers, jokerSlots, jokerState])
+  }, [showToast, jokers, jokerSlots, jokerState, voucherObservatory, triggerJokerHook])
 
   const playHand = useCallback(() => {
     if (lockedRef.current) return
@@ -1267,7 +1277,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     } else if (item.kind === 'planet') {
       const p = PLANETS.find(x => x.id === item.id)
       if (p) {
-        const nxt = (levels[p.hand] || 1) + 1
+        const nxt = (levels[p.hand] || 1) + 1 + (voucherObservatory ? 1 : 0)
         setLevels(h => ({ ...h, [p.hand]: nxt }))
         setJokerState(prev => triggerJokerHook('onPlanet', prev))
         showToast(`${HAND_CN[p.hand]} → Lv${nxt}`)
@@ -1282,11 +1292,14 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       setVoucherDiscards(v => v + 1)
       setDiscardsLeft(d => d + 1)
       showToast('每轮弃牌 +1')
+    } else if (item.id === 'observatory') {
+      setVoucherObservatory(true)
+      showToast('天文台:行星卡升级 +1')
     } else {
       setVouchers(v => v + 1)
     }
     setShopItems(items => items.filter(i => i.uid !== item.uid))
-  }, [gameState, money, jokers, jokerSlots, pendingTarots.length, levels, showToast, buildPack, triggerJokerHook, voucherHands, voucherDiscards])
+  }, [gameState, money, jokers, jokerSlots, pendingTarots.length, levels, showToast, buildPack, triggerJokerHook, voucherHands, voucherDiscards, voucherObservatory])
 
   const reroll = useCallback(() => {
     if (!rerollFree) {
@@ -1315,13 +1328,13 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       else setJokers(js => [...js, opt as Joker])
     } else {
       const p = opt as { hand: string }
-      const nxt = (levels[p.hand] || 1) + 1
+      const nxt = (levels[p.hand] || 1) + 1 + (voucherObservatory ? 1 : 0)
       setLevels(h => ({ ...h, [p.hand]: nxt }))
       setJokerState(prev => triggerJokerHook('onPlanet', prev))
       showToast(`${HAND_CN[p.hand]} → Lv${nxt}`)
     }
     setOpenPack(null)
-  }, [openPack, levels, showToast, triggerJokerHook, sortMode, pendingTarots.length, jokers, jokerSlots])
+  }, [openPack, levels, showToast, triggerJokerHook, sortMode, pendingTarots.length, jokers, jokerSlots, voucherObservatory])
 
   const sellJoker = useCallback((key: string) => {
     const j = jokers.find(x => (x.uid || x.id) === key)
