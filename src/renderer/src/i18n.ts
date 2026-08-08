@@ -423,6 +423,9 @@ const ZH_MAP: Record<string, string> = {
   'AI has a question': 'AI 有一个问题',
   'Submit': '提交',
   'multi-select': '可多选',
+  'Other': '其他',
+  'Enter custom answer...': '输入自定义答案…',
+  'OK': '确定',
   // AI ExitPlanMode card
   'Plan Ready': '计划已就绪',
   'Hold {key} + click to annotate': '按住 {key} 点击可批注',

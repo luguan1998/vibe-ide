@@ -26,20 +26,49 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
     for (const q of questions) init[q.question] = new Set<string>()
     return init
   })
+  const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({})
+  const [customValues, setCustomValues] = useState<Record<string, string>>({})
 
-  const allAnswered = questions.every(q => (selections[q.question]?.size ?? 0) >= 1)
+  const allAnswered = questions.every(q =>
+    (selections[q.question]?.size ?? 0) >= 1 || (customValues[q.question] || '').trim().length > 0
+  )
 
   const buildAnswers = (selOverride?: Record<string, Set<string>>): Record<string, string> => {
     const sel = selOverride ?? selections
     const answers: Record<string, string> = {}
     for (const q of questions) {
-      answers[q.question] = [...(sel[q.question] || [])].join(', ')
+      const parts = [...(sel[q.question] || [])]
+      const custom = (customValues[q.question] || '').trim()
+      if (custom) {
+        answers[q.question] = q.multiSelect && !parts.includes(custom) ? [...parts, custom].join(', ') : custom
+      } else {
+        answers[q.question] = parts.join(', ')
+      }
     }
     return answers
   }
 
   const handleSubmit = () => {
     onRespond(sessionId, perm.requestId, true, perm.tool, { ...perm.toolInput, answers: buildAnswers() })
+  }
+
+  const toggleCustom = (qText: string) => {
+    setCustomOpen(prev => ({ ...prev, [qText]: !prev[qText] }))
+  }
+
+  const commitCustom = (qText: string) => {
+    const val = (customValues[qText] || '').trim()
+    if (quickSubmit && val) {
+      onRespond(sessionId, perm.requestId, true, perm.tool, { ...perm.toolInput, answers: { [qText]: val } })
+      return
+    }
+    if (val) {
+      const isMulti = questions.find(q => q.question === qText)?.multiSelect
+      if (!isMulti) setSelections(prev => ({ ...prev, [qText]: new Set() }))
+    } else {
+      setCustomValues(prev => ({ ...prev, [qText]: '' }))
+    }
+    setCustomOpen(prev => ({ ...prev, [qText]: false }))
   }
 
   const toggle = (qText: string, label: string, multi: boolean) => {
@@ -63,7 +92,7 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
   }
 
   return (
-    <div className="ai-tab__question-card shrink-0 border-t border-ide-accent/40 bg-ide-accent/5 px-3 py-2.5 animate-fade-in">
+    <div className="ai-tab__question-card shrink-0 border-t border-ide-accent/40 bg-ide-accent/5 px-3 py-2.5 animate-fade-in w-full max-w-[992px] mx-auto">
       <div className="flex items-center gap-1.5 mb-1.5">
         <HelpCircle size={15} className="text-ide-accent shrink-0" />
         <span className="ai-tab__question-title text-[13px] font-medium text-ide-accent">{t('AI has a question')}</span>
@@ -98,7 +127,53 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
                 </button>
               )
             })}
+            {(() => {
+              const customVal = (customValues[q.question] || '').trim()
+              return (
+                <button
+                  onClick={() => toggleCustom(q.question)}
+                  title={customVal || undefined}
+                  className={`ai-tab__question-option px-3 py-1.5 text-[12px] rounded border max-w-[180px] transition-colors ${
+                    customOpen[q.question]
+                      ? 'bg-ide-accent/15 border-ide-accent/50 text-ide-text'
+                      : customVal
+                        ? 'border-ide-accent/40 bg-ide-accent/10 text-ide-text'
+                        : 'border-dashed border-ide-border hover:bg-ide-hover text-ide-text-muted'
+                  }`}
+                >
+                  <span className="block truncate">{customVal || t('Other')}</span>
+                </button>
+              )
+            })()}
           </div>
+          {customOpen[q.question] && (
+            <div className="flex items-center gap-1.5 mt-1.5 animate-fade-in">
+              <input
+                autoFocus
+                value={customValues[q.question] || ''}
+                onChange={(e) => setCustomValues(prev => ({ ...prev, [q.question]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    commitCustom(q.question)
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setCustomOpen(prev => ({ ...prev, [q.question]: false }))
+                  }
+                }}
+                placeholder={t('Enter custom answer...')}
+                className="flex-1 min-w-0 px-2 py-1.5 text-[12px] bg-ide-bg/80 border border-ide-accent/50 rounded focus:outline-none focus:border-ide-accent text-ide-text placeholder:text-ide-text-muted/50"
+              />
+              <button
+                onClick={() => commitCustom(q.question)}
+                className="px-3 py-1.5 text-[12px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+              >
+                {t('OK')}
+              </button>
+            </div>
+          )}
         </div>
       ))}
 
@@ -134,7 +209,7 @@ export const AiPermissionCard = React.memo(function AiPermissionCard({ perm, ses
 }) {
   const { t } = useI18n()
   return (
-    <div className="ai-tab__permission-card shrink-0 border-t border-ide-warning/40 bg-ide-warning/5 px-3 py-2.5 animate-fade-in">
+    <div className="ai-tab__permission-card shrink-0 border-t border-ide-warning/40 bg-ide-warning/5 px-3 py-2.5 animate-fade-in w-full max-w-[992px] mx-auto">
       <div className="flex items-start gap-2">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-ide-warning shrink-0 mt-0.5">
           <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />

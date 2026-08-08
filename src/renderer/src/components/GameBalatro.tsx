@@ -5,6 +5,7 @@ type Rank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | '
 type Enhancement = 'gold' | 'glass' | 'steel' | 'lucky' | 'bonus' | 'mult' | 'stone'
 type BossEffect = 'needle' | 'wall' | 'manacle' | 'no-discard' | 'min-hand' | 'first-hand' | 'tax' | 'mute-enh'
 type Rarity = 'common' | 'uncommon' | 'rare'
+type Edition = 'foil' | 'holographic' | 'polychrome'
 type TagId = 'money-double' | 'free-pack' | 'free-reroll' | 'instant-pack' | 'boss-nullify'
 type PackKind = 'standard' | 'tarot' | 'planet' | 'joker'
 
@@ -44,6 +45,7 @@ interface Joker {
   glyph: string
   face: string
   rarity?: Rarity
+  edition?: Edition
   chips?: (c: JokerCtx) => number
   mult?: (c: JokerCtx) => number
   xmult?: (c: JokerCtx, state: number) => number
@@ -66,6 +68,7 @@ interface ShopItem {
   desc: string
   cost: number
   packKind?: PackKind
+  edition?: Edition
 }
 
 interface Boss {
@@ -84,6 +87,8 @@ type TarotAction =
   | { kind: 'money-x2' }
   | { kind: 'tarot-x2' }
   | { kind: 'joker' }
+  | { kind: 'wheel' }
+  | { kind: 'temperance' }
 
 interface TarotDef {
   id: string
@@ -182,7 +187,7 @@ const HAND_BASE: Record<string, [number, number]> = {
   'Royal Flush': [100, 8],
 }
 // 官方盲注基准表(小盲)：dood.gg/en/balatro/guides/ante-guide/
-const ANTE_TARGETS = [200, 800, 2800, 6000, 11000, 20000, 35000, 50000]
+const ANTE_TARGETS = [200, 800, 2000, 5000, 11000, 20000, 35000, 50000]
 const ENDLESS_TARGETS = [110000, 560000, 7200000, 300000000] // Ante 9-12 官方 Boss÷2 反推，之后 ×5 近似
 const PLANET_SCALE: Record<string, [number, number]> = {
   'High Card': [10, 1],
@@ -226,7 +231,6 @@ const REROLL_STEP = 1
 function rerollCost(count: number): number {
   return REROLL_BASE + count * REROLL_STEP
 }
-const SHOP_VOUCHER_CHANCE = 0.2
 const ENHANCEMENTS: Enhancement[] = ['gold', 'glass', 'steel', 'lucky', 'bonus', 'mult', 'stone']
 const PACK_IDS: PackKind[] = ['standard', 'tarot', 'planet', 'joker']
 const PACKS: Record<PackKind, { name: string; cost: number; desc: string; count: number }> = {
@@ -249,6 +253,12 @@ const RARITY_BORDER: Record<Rarity, string> = {
   rare: 'rgba(200,120,255,0.8)',
 }
 const RARITY_WEIGHTS: [Rarity, number][] = [['common', 60], ['uncommon', 30], ['rare', 10]]
+const EDITION_CHANCE: Record<Rarity, number> = { common: 0.1, uncommon: 0.2, rare: 0.3 }
+const EDITIONS: Edition[] = ['foil', 'holographic', 'polychrome']
+const EDITION_MARK: Record<Edition, string> = { foil: 'F', holographic: 'H', polychrome: 'P' }
+const EDITION_NAME: Record<Edition, string> = { foil: '箔片', holographic: '全息', polychrome: '多彩' }
+const EDITION_BORDER: Record<Edition, string> = { foil: '#c0c8d0', holographic: '#ff9ad5', polychrome: '#ffd166' }
+const EDITION_EFFECT: Record<Edition, string> = { foil: '+50 Chips', holographic: '+10 Mult', polychrome: '×1.5 Mult' }
 const STAKES: StakeDef[] = [
   { name: '白', color: '#e8e8e8', targetGrowth: 0, handSize: 0, jokerSlots: 0, discards: 0, startMoney: 4, noSmallReward: false, rent: 0 },
   { name: '红', color: '#ff6b5e', targetGrowth: 0, handSize: 0, jokerSlots: 0, discards: 0, startMoney: 4, noSmallReward: true, rent: 0 },
@@ -262,7 +272,7 @@ const STAKES: StakeDef[] = [
 
 const BOSSES: Boss[] = [
   { name: 'The Needle', desc: '本轮只能出牌 1 次', effect: 'needle', color: '#ff6b5e' },
-  { name: 'The Wall', desc: '目标分数 ×4', effect: 'wall', color: '#ffd166' },
+  { name: 'The Wall', desc: '目标分数 ×2', effect: 'wall', color: '#ffd166' },
   { name: 'The Manacle', desc: '手牌上限 -1', effect: 'manacle', color: '#9aa6b0' },
   { name: 'The Water', desc: '本轮开始无弃牌', effect: 'no-discard', color: '#5eb0ff' },
   { name: 'The Psychic', desc: '出牌必须 ≥5 张', effect: 'min-hand', color: '#b06eff' },
@@ -332,6 +342,8 @@ const TAROTS: TarotDef[] = [
   { id: 'bonus', name: 'Bonus Card', action: { kind: 'enhance', enh: 'bonus' }, desc: '该牌打出时 +30 Chips', glyph: '💠', face: 'linear-gradient(160deg,#ffe08a,#c0782a)' },
   { id: 'multcard', name: 'Mult Card', action: { kind: 'enhance', enh: 'mult' }, desc: '该牌打出时 +4 Mult', glyph: '✖️', face: 'linear-gradient(160deg,#ffc0b8,#b03028)' },
   { id: 'tower', name: 'The Tower', action: { kind: 'enhance', enh: 'stone' }, desc: '选 1 张手牌变成石头牌(无花色/点数,+50 Chips)', glyph: '🌍', face: 'linear-gradient(160deg,#c8c8c8,#707070)' },
+  { id: 'wheel', name: 'The Wheel of Fortune', action: { kind: 'wheel' }, desc: '25% 概率随机 1 张小丑获得修饰', glyph: '🎡', face: 'linear-gradient(160deg,#f0dcc0,#a08040)' },
+  { id: 'temperance', name: 'Temperance', action: { kind: 'temperance' }, desc: '获得卖出所有小丑的总价', glyph: '⚗️', face: 'linear-gradient(160deg,#b8c8e8,#4a6aa0)' },
 ]
 
 const PLANETS: { id: string; name: string; hand: string }[] = [
@@ -430,7 +442,7 @@ function generateShop(): ShopItem[] {
   const items: ShopItem[] = []
   for (let i = 0; i < 2; i++) {
     const j = rollJoker()
-    items.push({ kind: 'joker', uid: crypto.randomUUID(), id: j.id, name: j.name, desc: j.desc, cost: j.cost })
+    items.push({ kind: 'joker', uid: crypto.randomUUID(), id: j.id, name: j.name, desc: j.desc, cost: j.cost, edition: j.edition })
   }
   const p0 = PLANETS[Math.floor(Math.random() * PLANETS.length)]
   items.push({ kind: 'planet', uid: crypto.randomUUID(), id: p0.id, name: p0.name, desc: `${HAND_CN[p0.hand]} 等级 +1`, cost: 4 })
@@ -441,14 +453,10 @@ function generateShop(): ShopItem[] {
     const p = PLANETS[Math.floor(Math.random() * PLANETS.length)]
     items.push({ kind: 'planet', uid: crypto.randomUUID(), id: p.id, name: p.name, desc: `${HAND_CN[p.hand]} 等级 +1`, cost: 4 })
   }
-  if (Math.random() < SHOP_VOUCHER_CHANCE) {
-    const v = VOUCHERS[Math.floor(Math.random() * VOUCHERS.length)]
-    items.push({ kind: 'voucher', uid: crypto.randomUUID(), id: v.id, name: v.name, desc: v.desc, cost: v.cost })
-  }
-  if (Math.random() < 0.2) {
-    const pk = PACK_IDS[Math.floor(Math.random() * PACK_IDS.length)]
-    items.push({ kind: 'pack', packKind: pk, uid: crypto.randomUUID(), id: `pack-${pk}`, name: PACKS[pk].name, desc: PACKS[pk].desc, cost: PACKS[pk].cost })
-  }
+  const v = VOUCHERS[Math.floor(Math.random() * VOUCHERS.length)]
+  items.push({ kind: 'voucher', uid: crypto.randomUUID(), id: v.id, name: v.name, desc: v.desc, cost: v.cost })
+  const pk = PACK_IDS[Math.floor(Math.random() * PACK_IDS.length)]
+  items.push({ kind: 'pack', packKind: pk, uid: crypto.randomUUID(), id: `pack-${pk}`, name: PACKS[pk].name, desc: PACKS[pk].desc, cost: PACKS[pk].cost })
   return items
 }
 
@@ -477,7 +485,9 @@ function rollJoker(rarity?: Rarity): Joker {
     return 'common'
   })()
   const pool = JOKERS.filter(j => (j.rarity || 'common') === r)
-  return pool[Math.floor(Math.random() * pool.length)]
+  const base = pool[Math.floor(Math.random() * pool.length)]
+  if (Math.random() < EDITION_CHANCE[r]) return { ...base, edition: EDITIONS[Math.floor(Math.random() * EDITIONS.length)] }
+  return base
 }
 
 function effHandSizeFor(b: Boss | null, vouchers: number): number {
@@ -626,7 +636,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     : ante - ANTE_TARGETS.length < ENDLESS_TARGETS.length
       ? ENDLESS_TARGETS[ante - ANTE_TARGETS.length]
       : Math.ceil(ENDLESS_TARGETS[ENDLESS_TARGETS.length - 1] * 5 ** (ante - ANTE_TARGETS.length - ENDLESS_TARGETS.length + 1))
-  const target = Math.ceil(baseTarget * BLIND_MULT[blindIdx] * (1 + stake.targetGrowth * ante) * (boss && boss.effect === 'wall' && !bossMuted ? 4 : 1))
+  const target = Math.ceil(baseTarget * BLIND_MULT[blindIdx] * (1 + stake.targetGrowth * ante) * (boss && boss.effect === 'wall' && !bossMuted ? 2 : 1))
   const maxAnteRecord = Number(localStorage.getItem('balatro.maxAnte') || 0)
   const preview = (() => {
     if (gameState !== 'playing' || selected.size === 0) return null
@@ -662,6 +672,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     for (const j of jokers) {
       if (j.chips) chips += j.chips(ctx)
       if (j.value) chips += j.value(ctx, jokerState[j.uid || j.id] || 0).chips || 0
+      if (j.edition === 'foil') chips += 50
     }
     if (!(boss && boss.effect === 'mute-enh' && !bossMuted)) {
       mult += hand.filter(c => c.enh === 'steel').length
@@ -672,8 +683,12 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     for (const j of jokers) {
       if (j.mult) mult += j.mult(ctx)
       if (j.value) mult += j.value(ctx, jokerState[j.uid || j.id] || 0).mult || 0
+      if (j.edition === 'holographic') mult += 10
     }
-    for (const j of jokers) if (j.xmult) mult *= j.xmult(ctx, jokerState[j.uid || j.id] || 0)
+    for (const j of jokers) {
+      if (j.xmult) mult *= j.xmult(ctx, jokerState[j.uid || j.id] || 0)
+      if (j.edition === 'polychrome') mult *= 1.5
+    }
     return { chips, mult, total: Math.floor(chips * mult), name: ht.name, lvl }
   })()
   const sbChips = anim ? anim.chips : preview ? preview.chips : (scoreBoard?.chips ?? 0)
@@ -934,11 +949,42 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       setPendingTarots(ps => ps.filter(p => (p.uid || p.id) !== (t.uid || t.id)))
       setTarotsUsed(n => n + 1)
       showToast(`Judgement:获得 ${j.name}`)
+    } else if (t.action.kind === 'wheel') {
+
+      if (jokers.length === 0) {
+        showToast('没有小丑牌,无法修饰')
+        return
+      }
+      const idx = Math.floor(Math.random() * jokers.length)
+      if (Math.random() < 0.25) {
+        const j = jokers[idx]
+        if (j.edition) {
+          showToast('该小丑已有修饰,无事发生')
+        } else {
+          const e = EDITIONS[Math.floor(Math.random() * EDITIONS.length)]
+          setJokers(js => js.map((x, i) => (i === idx ? { ...x, edition: e } : x)))
+          showToast(`Wheel of Fortune:${j.name} 获得${EDITION_NAME[e]}`)
+        }
+      } else {
+        showToast('Wheel of Fortune:无事发生...')
+      }
+      setPendingTarots(ps => ps.filter(p => (p.uid || p.id) !== (t.uid || t.id)))
+      setTarotsUsed(n => n + 1)
+    } else if (t.action.kind === 'temperance') {
+      const total = jokers.reduce((s, j) => s + Math.max(1, Math.floor(j.cost / 2)) + (j.id === 'egg' ? jokerState[j.uid || j.id] || 0 : 0), 0)
+      setMoney(m => {
+        const n = m + total
+        moneyRef.current = n
+        return n
+      })
+      setPendingTarots(ps => ps.filter(p => (p.uid || p.id) !== (t.uid || t.id)))
+      setTarotsUsed(n => n + 1)
+      showToast(`Temperance:+$${total}`)
     } else {
       setTarotUses(0)
       setActiveTarot(t)
     }
-  }, [showToast, jokers, jokerSlots])
+  }, [showToast, jokers, jokerSlots, jokerState])
 
   const playHand = useCallback(() => {
     if (lockedRef.current) return
@@ -990,6 +1036,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     for (const j of jokers) {
       if (j.chips) jChips += j.chips(ctx)
       if (j.value) jChips += j.value(ctx, jokerState[j.uid || j.id] || 0).chips || 0
+      if (j.edition === 'foil') jChips += 50
     }
     if (jChips) {
       steps.push(jChips)
@@ -1003,12 +1050,16 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     for (const j of jokers) {
       if (j.mult) mult += j.mult(ctx)
       if (j.value) mult += j.value(ctx, jokerState[j.uid || j.id] || 0).mult || 0
+      if (j.edition === 'holographic') mult += 10
     }
     if (!enhMuted) {
       const glassCount = played.filter(c => c.enh === 'glass').length
       if (glassCount) mult *= 2 ** glassCount
     }
-    for (const j of jokers) if (j.xmult) mult *= j.xmult(ctx, jokerState[j.uid || j.id] || 0)
+    for (const j of jokers) {
+      if (j.xmult) mult *= j.xmult(ctx, jokerState[j.uid || j.id] || 0)
+      if (j.edition === 'polychrome') mult *= 1.5
+    }
     let luckyMult = 0
     let luckyMoney = 0
     if (!enhMuted) {
@@ -1209,7 +1260,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     })
     if (item.kind === 'joker') {
       const j = JOKERS.find(x => x.id === item.id)
-      if (j) setJokers(js => [...js, { ...j, uid: crypto.randomUUID() }])
+      if (j) setJokers(js => [...js, { ...j, edition: item.edition, uid: crypto.randomUUID() }])
     } else if (item.kind === 'tarot') {
       const t = TAROTS.find(x => x.id === item.id)
       if (t) setPendingTarots(ps => [...ps, { ...t, uid: crypto.randomUUID() }])
@@ -1225,9 +1276,11 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       setOpenPack(buildPack(item.packKind!))
     } else if (item.id === 'more-hands') {
       setVoucherHands(v => v + 1)
+      setHandsLeft(h => h + 1)
       showToast('每轮出牌 +1')
     } else if (item.id === 'more-discards') {
       setVoucherDiscards(v => v + 1)
+      setDiscardsLeft(d => d + 1)
       showToast('每轮弃牌 +1')
     } else {
       setVouchers(v => v + 1)
@@ -1554,10 +1607,20 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             <div
               key={j.uid || j.id}
               className="relative w-10 h-12 rounded-[4px] flex items-center justify-center group shrink-0"
-              title={`${j.name} — ${j.desc}${todoTarget}${st ? ` · ${st.text}` : ''}`}
+              title={`${j.name} — ${j.desc}${j.edition ? ` · ${EDITION_NAME[j.edition]}` : ''}${todoTarget}${st ? ` · ${st.text}` : ''}`}
               style={{ background: j.face, border: `1px solid ${RARITY_BORDER[j.rarity || 'common']}`, boxShadow: `0 2px 6px ${BAL.goldSoft}` }}
             >
               <span className="text-sm leading-none">{j.glyph}</span>
+              {j.edition && (
+                <>
+                  <span className="absolute -top-1.5 -left-1.5 w-[13px] h-[13px] rounded-full flex items-center justify-center text-[8px] font-black leading-none" style={{ background: '#0d1510', color: '#fff', border: `1px solid ${EDITION_BORDER[j.edition]}`, boxShadow: `0 0 4px ${EDITION_BORDER[j.edition]}` }}>
+                    {EDITION_MARK[j.edition]}
+                  </span>
+                  <span className="absolute top-0.5 left-1/2 -translate-x-1/2 px-1 rounded-[2px] text-[8px] font-black leading-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: '#0d1510', border: `1px solid ${EDITION_BORDER[j.edition]}`, color: EDITION_BORDER[j.edition] }}>
+                    {EDITION_EFFECT[j.edition]}
+                  </span>
+                </>
+              )}
               {st && (
                 <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-1 rounded-[2px] text-[8px] font-black leading-[11px] whitespace-nowrap" style={{ background: '#0d1510', border: `1px solid ${st.color}`, color: st.color }}>
                   {st.text}
@@ -1845,12 +1908,17 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
                 <div
                   key={item.uid || `${item.kind}-${item.id}`}
                   onClick={() => buyItem(item)}
-                  title={canBuy ? `购买 ${item.name}` : item.id === 'more-hands' && voucherHands >= VOUCHER_MAX_HANDS ? '已购满（每局最多 1 次）' : item.id === 'more-discards' && voucherDiscards >= VOUCHER_MAX_DISCARDS ? '已购满（每局最多 3 次）' : item.kind === 'joker' && jokers.length >= jokerSlots ? 'Joker 槽位已满' : item.kind === 'tarot' && pendingTarots.length >= MAX_TAROTS ? '塔罗槽位已满（最多 2 张）' : '金币不足'}
+                  title={canBuy ? `购买 ${item.name}${item.edition ? `(${EDITION_NAME[item.edition]})` : ''}` : item.id === 'more-hands' && voucherHands >= VOUCHER_MAX_HANDS ? '已购满（每局最多 1 次）' : item.id === 'more-discards' && voucherDiscards >= VOUCHER_MAX_DISCARDS ? '已购满（每局最多 3 次）' : item.kind === 'joker' && jokers.length >= jokerSlots ? 'Joker 槽位已满' : item.kind === 'tarot' && pendingTarots.length >= MAX_TAROTS ? '塔罗槽位已满（最多 2 张）' : '金币不足'}
                   className={`flex items-center gap-2 px-2.5 py-2 rounded-md ${canBuy ? 'cursor-pointer' : 'cursor-not-allowed'}`}
                   style={{ background: BAL.panel, border: `1px solid ${canBuy ? itemBorder : 'rgba(43,64,51,0.4)'}`, opacity: canBuy ? 1 : 0.55 }}
                 >
-                  <span className="w-8 h-10 rounded-[3px] flex items-center justify-center text-[13px] shrink-0" style={{ background: shopIcon(item).bg, border: '1px solid rgba(0,0,0,0.3)' }}>
+                  <span className="relative w-8 h-10 rounded-[3px] flex items-center justify-center text-[13px] shrink-0" style={{ background: shopIcon(item).bg, border: '1px solid rgba(0,0,0,0.3)' }}>
                     {shopIcon(item).mark}
+                    {item.kind === 'joker' && item.edition && (
+                      <span className="absolute -top-1 -left-1 w-[12px] h-[12px] rounded-full flex items-center justify-center text-[8px] font-black leading-none" style={{ background: '#0d1510', color: '#fff', border: `1px solid ${EDITION_BORDER[item.edition]}` }}>
+                        {EDITION_MARK[item.edition]}
+                      </span>
+                    )}
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-[12px] font-bold" style={{ color: BAL.goldBright }}>{item.name}</div>
@@ -1900,7 +1968,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
                     : openPack.kind === 'tarot'
                       ? `${(opt as TarotDef).name} — ${(opt as TarotDef).desc}`
                       : openPack.kind === 'joker'
-                        ? `${(opt as Joker).name} — ${(opt as Joker).desc}`
+                        ? `${(opt as Joker).name} — ${(opt as Joker).desc}${(opt as Joker).edition ? ` · ${EDITION_NAME[(opt as Joker).edition!]}` : ''}`
                         : `${HAND_CN[(opt as { hand: string }).hand]} 等级 +1`
                 }
                 className="shrink-0 flex flex-col items-center gap-1 p-2 rounded-md transition-transform hover:-translate-y-1"
@@ -1926,8 +1994,13 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
                     {(opt as TarotDef).glyph}
                   </div>
                 ) : openPack.kind === 'joker' ? (
-                  <div className="w-12 h-[66px] rounded-[4px] flex items-center justify-center text-xl" style={{ background: (opt as Joker).face, border: `1px solid ${RARITY_BORDER[(opt as Joker).rarity || 'common']}` }}>
+                  <div className="relative w-12 h-[66px] rounded-[4px] flex items-center justify-center text-xl" style={{ background: (opt as Joker).face, border: `1px solid ${RARITY_BORDER[(opt as Joker).rarity || 'common']}` }}>
                     {(opt as Joker).glyph}
+                    {(opt as Joker).edition && (
+                      <span className="absolute -top-1 -left-1 w-[14px] h-[14px] rounded-full flex items-center justify-center text-[9px] font-black leading-none" style={{ background: '#0d1510', color: '#fff', border: `1px solid ${EDITION_BORDER[(opt as Joker).edition!]}` }}>
+                        {EDITION_MARK[(opt as Joker).edition!]}
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <div className="w-12 h-[66px] rounded-[4px] flex flex-col items-center justify-center gap-0.5" style={{ background: 'linear-gradient(160deg,#1a2b40,#0d1622)', border: '1px solid rgba(0,0,0,0.3)' }}>
