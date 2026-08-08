@@ -1,0 +1,20 @@
+/*
+  切换Session 状态 emoji：running ▶️ / warn ⏸️
+*/
+
+.session-item--running .session-item__icon,
+.session-item--warn .session-item__icon {
+  font-size: 0;
+}
+
+.session-item--running .session-item__icon::before {
+  content: '▶️';
+  font-size: 14px;
+  line-height: 1;
+}
+
+.session-item--warn .session-item__icon::before {
+  content: '⏸️';
+  font-size: 14px;
+  line-height: 1;
+}

@@ -923,7 +923,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       draggable={!!onReorderSessions && !groupSessionsByCwd}
       className={`group ${opts.outerClass} session-item${
         session.id === activeSessionId ? ' session-item--active' : ''
-      }${pipeRunning?.[session.id] ? ' session-item--pipe-running' : ''} ${
+      }${pipeRunning?.[session.id] ? ' session-item--pipe-running' : ''}${
+        agentStatus[session.id] === 'running' ? ' session-item--running' : ''
+      }${
+        agentStatus[session.id] === 'warn' ? ' session-item--warn' : ''
+      } ${
         session.id === activeSessionId
           ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
           : agentStatus[session.id] === 'running'

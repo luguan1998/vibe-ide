@@ -274,8 +274,11 @@ const AppearancePanel = function AppearancePanel({
   const [contentMinH, setContentMinH] = useState(0)
   useLayoutEffect(() => {
     const el = contentRef.current?.firstElementChild as HTMLElement | null
-    if (el) {
-      const h = el.scrollHeight
+    const box = contentRef.current
+    if (el && box) {
+      // 面板 max-h-80vh：content 区最高 = 80vh - 顶部固定部分(offsetTop)，超出则走内部滚动
+      const cap = Math.round(window.innerHeight * 0.8) - box.offsetTop
+      const h = Math.min(el.scrollHeight, cap)
       setContentMinH(prev => h > prev ? h : prev)
     }
   }, [activeCategory, snippetsList, cwdEmojiDraft, sessionEmojiDraft, systemFonts])
@@ -475,24 +478,26 @@ const AppearancePanel = function AppearancePanel({
                     </span>
                   </div>
                   <div className="border-t border-ide-border my-1" />
-                  {snippetsList.length === 0 ? (
-                    <div className="px-3 py-2 text-[12px] text-ide-text-muted">
-                      {t('No snippets found.\nPlace .css files in the snippets/ folder.')}
-                    </div>
-                  ) : (
-                    snippetsList.map(s => (
-                      <div key={s.name} title={s.desc} className="flex items-center gap-2 py-1.5 px-1 rounded cursor-pointer hover:bg-ide-hover transition-colors" onClick={() => handleSnippetToggle(s.name, !s.enabled)}>
-                        <span
-                          className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                            s.enabled ? 'bg-ide-accent border-ide-accent text-white' : 'border-ide-border'
-                          }`}
-                        >
-                          {s.order > 0 && <span className="text-[10px] font-bold leading-none">{s.order}</span>}
-                        </span>
-                        <span className={`text-sm truncate ${s.enabled ? 'text-ide-text' : 'text-ide-text-muted/60'}`}>{s.name}</span>
+                  <div className="overflow-y-auto max-h-[50vh] -mr-1 pr-1">
+                    {snippetsList.length === 0 ? (
+                      <div className="px-3 py-2 text-[12px] text-ide-text-muted">
+                        {t('No snippets found.\nPlace .css files in the snippets/ folder.')}
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      snippetsList.map(s => (
+                        <div key={s.name} title={s.desc} className="flex items-center gap-2 py-1.5 px-1 rounded cursor-pointer hover:bg-ide-hover transition-colors" onClick={() => handleSnippetToggle(s.name, !s.enabled)}>
+                          <span
+                            className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                              s.enabled ? 'bg-ide-accent border-ide-accent text-white' : 'border-ide-border'
+                            }`}
+                          >
+                            {s.order > 0 && <span className="text-[10px] font-bold leading-none">{s.order}</span>}
+                          </span>
+                          <span className={`text-sm truncate ${s.enabled ? 'text-ide-text' : 'text-ide-text-muted/60'}`}>{s.name}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                   <div className="border-t border-ide-border" />
                 </div>
                 <div className="flex-1 grid grid-cols-3 gap-2">
