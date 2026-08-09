@@ -46,6 +46,7 @@ interface RightPanelProps {
   brushActive?: boolean
   sessionWorktreeNav: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onWorktreeNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
+  onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
 }
 
 type GitSection = 'git' | 'terminal' | 'file' | 'game'
@@ -396,6 +397,7 @@ function RightPanel({
   brushActive,
   sessionWorktreeNav,
   onWorktreeNavChange,
+  onResumeClaudeHistory,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('file')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -624,7 +626,7 @@ function RightPanel({
       </div>
 
       <div ref={gameContentRef} tabIndex={-1} style={{ display: activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden">
-        <GameLauncher />
+        <GameLauncher workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} />
       </div>
 
       </div>

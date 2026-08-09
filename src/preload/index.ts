@@ -248,6 +248,14 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_DELETE_SESSION, sessionId, cwd, configDir),
     loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, resumeSessionId, cwd, configDir),
+    listAllSessions: (configDir?: string, currentCwd?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_ALL_SESSIONS, configDir, currentCwd),
+    searchSessions: (query: string, opts?: any) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_SEARCH_SESSIONS, query, opts),
+    loadSessionMessagesByDir: (resumeSessionId: string, projectDir: string, configDir?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES_BY_DIR, resumeSessionId, projectDir, configDir),
+    deleteSessionByDir: (sessionId: string, projectDir: string, configDir?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_DELETE_SESSION_BY_DIR, sessionId, projectDir, configDir),
     create: (options: any) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_CREATE, options),
     send: (sessionId: string, message: string) =>

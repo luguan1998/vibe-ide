@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useI18n } from '../i18n'
 import { FOCUS_MUJICA } from './GameMujica'
 import { useMujica } from '../mujicaStore'
 import MujicaConfig from './MujicaConfig'
@@ -8,8 +9,14 @@ import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
 import GameFruitNinja from './GameFruitNinja'
 import GameVampire, { MAGE_SVG_URL } from './GameVampire'
+import HistoryView from './HistoryView'
 
-type GameId = 'menu' | '2048' | 'sandspiel' | 'balatro' | 'mujica' | 'fruitninja' | 'vampire'
+type GameId = 'menu' | 'history' | '2048' | 'sandspiel' | 'balatro' | 'mujica' | 'fruitninja' | 'vampire'
+
+interface GameLauncherProps {
+  workspacePath: string | null
+  onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
+}
 
 interface GameCard {
   id: Exclude<GameId, 'menu'>
@@ -20,6 +27,7 @@ interface GameCard {
 }
 
 const GAMES: GameCard[] = [
+  { id: 'history', icon: <span className="text-2xl leading-none">📜</span>, name: 'Session History', desc: 'Browse & search Claude history' },
   { id: 'mujica', icon: <img src={mujicaIcon} alt="Mujica" className="w-7 h-7 object-contain rounded" />, name: 'Mujica', desc: 'Form a band of Claude agents — conduct them in parallel' },
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
@@ -28,8 +36,9 @@ const GAMES: GameCard[] = [
   { id: 'vampire', icon: <img src={MAGE_SVG_URL} alt="Vampire Survivors" className="w-6 h-6" />, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
-export default function GameLauncher() {
+export default function GameLauncher({ workspacePath, onResumeClaudeHistory }: GameLauncherProps) {
   const [currentGame, setCurrentGame] = useState<GameId>('menu')
+  const { t } = useI18n()
   const mujicaActive = useMujica().active
 
   // When mujica is the active center view, this tab becomes its config panel.
@@ -51,6 +60,7 @@ export default function GameLauncher() {
   if (currentGame !== 'menu') {
     const back = () => setCurrentGame('menu')
     switch (currentGame) {
+      case 'history': return <HistoryView onBack={back} workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} />
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />
       case '2048': return <Game2048 onBack={back} />
@@ -74,10 +84,10 @@ export default function GameLauncher() {
             <div className="shrink-0 w-7 h-7 flex items-center justify-center">{game.icon}</div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <div className="text-sm font-medium text-ide-text group-hover:text-ide-accent transition-colors">{game.name}</div>
+                <div className="text-sm font-medium text-ide-text group-hover:text-ide-accent transition-colors">{t(game.name)}</div>
                 {game.duration && <span className="text-[10px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted whitespace-nowrap">{game.duration}</span>}
               </div>
-              <div className="text-xs text-ide-text-muted truncate">{game.desc}</div>
+              <div className="text-xs text-ide-text-muted truncate">{t(game.desc)}</div>
             </div>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-text-muted/50">
               <polyline points="9 18 15 12 9 6" />

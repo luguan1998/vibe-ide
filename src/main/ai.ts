@@ -5,7 +5,7 @@ import { readFile, readdir, stat, rm } from 'fs/promises'
 import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
-import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, UserTurn, AiReply } from '../shared/types'
+import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
 
 export interface ManagedAiSession {
   process: ChildProcess
@@ -832,14 +832,49 @@ function djb2Hash(s: string): number {
   return h
 }
 
-function normalizeCwdToProjectDir(cwd: string): string {
+export function normalizeCwdToProjectDir(cwd: string): string {
   let t = cwd.replace(/[^a-zA-Z0-9]/g, '-')
   if (t.length <= CLI_PROJECT_DIR_MAX) return t
   return `${t.slice(0, CLI_PROJECT_DIR_MAX)}-${Math.abs(djb2Hash(cwd)).toString(36)}`
 }
 
+export type AiSessionMeta = Omit<AiSessionSummary, 'projectDir' | 'projectDirName' | 'inCurrentProject'>
+
+// Read metadata from a single session JSONL file (first few lines only).
+// Shared by listSessionsForCwd and the cross-project history/搜索 IPC in ai-history.ts.
+// `lines` may be passed in when the caller already read the file (search), avoiding a double read.
+export async function extractSessionMeta(filePath: string, sizeBytes: number, lines?: string[]): Promise<AiSessionMeta | null> {
+  try {
+    if (!lines) {
+      const content = await readFile(filePath, 'utf-8')
+      lines = content.split('\n').filter(Boolean)
+    }
+    const sessionId = basename(filePath).replace('.jsonl', '')
+
+    // parseUserTurns 跳过 <local-command-*> 等命令标签，优先取真实正文作 name
+    const turns = parseUserTurns(lines.slice(0, 40))
+    if (turns.length === 0) return null
+    const nameTurn = turns.find(t => !t.isInternal) ?? turns[0]
+    const name = nameTurn.content.slice(0, 60)
+
+    const firstTurnLine = JSON.parse(lines[turns[0].lineIdx])
+    const timestamp = firstTurnLine.timestamp ? new Date(firstTurnLine.timestamp).getTime() : 0
+    if (!timestamp || Number.isNaN(timestamp)) return null
+
+    let model = ''
+    for (const line of lines.slice(0, 20)) {
+      try {
+        const msg = JSON.parse(line)
+        if (msg.type === 'assistant' && msg.message?.model) { model = msg.message.model; break }
+      } catch { /* skip malformed */ }
+    }
+
+    return { session_id: sessionId, name, timestamp, model, sizeBytes }
+  } catch { return null }
+}
+
 async function listSessionsForCwd(cwd: string, configDir?: string): Promise<{ sessions: any[] }> {
-  const projectsRoot = join(resolveConfigDir(configDir), 'projects')
+  const projectsRoot = getProjectsRoot(configDir)
   let projectDirName = normalizeCwdToProjectDir(cwd).toLowerCase()
 
   // Try both lowercase and original case
@@ -851,38 +886,13 @@ async function listSessionsForCwd(cwd: string, configDir?: string): Promise<{ se
   const files = await readdir(projectDir).catch(() => [] as string[])
   const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
 
-  // Read metadata from each session file (first few lines only)
   const sessions: any[] = []
   for (const jsonlFile of jsonlFiles) {
-    const sessionId = jsonlFile.replace('.jsonl', '')
-    try {
-      const filePath = join(projectDir, jsonlFile)
-      const content = await readFile(filePath, 'utf-8')
-      const lines = content.split('\n').filter(Boolean)
-
-      const fileStat = await stat(filePath).catch(() => null)
-      const sizeBytes = fileStat?.size ?? 0
-
-      // parseUserTurns 跳过 <local-command-*> 等命令标签，优先取真实正文作 name
-      const turns = parseUserTurns(lines.slice(0, 40))
-      if (turns.length === 0) continue
-      const nameTurn = turns.find(t => !t.isInternal) ?? turns[0]
-      const name = nameTurn.content.slice(0, 60)
-
-      const firstTurnLine = JSON.parse(lines[turns[0].lineIdx])
-      const timestamp = firstTurnLine.timestamp ? new Date(firstTurnLine.timestamp).getTime() : 0
-      if (!timestamp || Number.isNaN(timestamp)) continue
-
-      let model = ''
-      for (const line of lines.slice(0, 20)) {
-        try {
-          const msg = JSON.parse(line)
-          if (msg.type === 'assistant' && msg.message?.model) { model = msg.message.model; break }
-        } catch { /* skip malformed */ }
-      }
-
-      sessions.push({ session_id: sessionId, name, timestamp, model, sizeBytes })
-    } catch { /* skip unreadable files */ }
+    const filePath = join(projectDir, jsonlFile)
+    const fileStat = await stat(filePath).catch(() => null)
+    const sizeBytes = fileStat?.size ?? 0
+    const meta = await extractSessionMeta(filePath, sizeBytes)
+    if (meta) sessions.push(meta)
   }
 
   // Sort most recent first
@@ -905,8 +915,12 @@ function resolveConfigDir(configDir?: string): string {
   return join(home, '.claude')
 }
 
+export function getProjectsRoot(configDir?: string): string {
+  return join(resolveConfigDir(configDir), 'projects')
+}
+
 export function resolveProjectDir(cwd: string, configDir?: string): string | null {
-  const projectsRoot = join(resolveConfigDir(configDir), 'projects')
+  const projectsRoot = getProjectsRoot(configDir)
   // Synchronous scan needed here — only a few dirs
   try {
     const allDirs = require('fs').readdirSync(projectsRoot)
@@ -1230,14 +1244,11 @@ async function inlineSubagents(
   }
 }
 
-async function loadSessionMessages(resumeSessionId: string, cwd: string, configDir?: string): Promise<{
+export async function loadSessionMessagesFromProject(resumeSessionId: string, projectDir: string): Promise<{
   messages: AiMessage[]
   model: string
   slashCommands: string[]
 }> {
-  const projectDir = resolveProjectDir(cwd, configDir)
-  if (!projectDir) return { messages: [], model: '', slashCommands: [] }
-
   const jsonlPath = join(projectDir, `${resumeSessionId}.jsonl`)
   let content: string
   try { content = await readFile(jsonlPath, 'utf-8') } catch { return { messages: [], model: '', slashCommands: [] } }
@@ -1250,6 +1261,16 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string, configD
   await inlineSubagents(parsed.messages, projectDir, resumeSessionId, 0)
 
   return { messages: parsed.messages, model: parsed.model, slashCommands: parsed.slashCommands }
+}
+
+async function loadSessionMessages(resumeSessionId: string, cwd: string, configDir?: string): Promise<{
+  messages: AiMessage[]
+  model: string
+  slashCommands: string[]
+}> {
+  const projectDir = resolveProjectDir(cwd, configDir)
+  if (!projectDir) return { messages: [], model: '', slashCommands: [] }
+  return loadSessionMessagesFromProject(resumeSessionId, projectDir)
 }
 
 // Attach all process event handlers (stdout/stderr/error/exit) to a spawned Claude CLI process.

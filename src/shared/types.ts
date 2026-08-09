@@ -116,6 +116,10 @@ export const IPC_CHANNELS = {
   AI_LIST_SESSIONS: 'ai:listSessions',
   AI_DELETE_SESSION: 'ai:deleteSession',
   AI_LOAD_SESSION_MESSAGES: 'ai:loadSessionMessages',
+  AI_LIST_ALL_SESSIONS: 'ai:listAllSessions',
+  AI_SEARCH_SESSIONS: 'ai:searchSessions',
+  AI_LOAD_SESSION_MESSAGES_BY_DIR: 'ai:loadSessionMessagesByDir',
+  AI_DELETE_SESSION_BY_DIR: 'ai:deleteSessionByDir',
   AI_PERMISSION_RESPONSE: 'ai:permissionResponse',
   AI_PLAN_EXECUTE: 'ai:planExecute',
   AI_SET_PERMISSION_MODE: 'ai:setPermissionMode',
@@ -491,6 +495,37 @@ export interface AiReply {
   messageId: string
   text: string
   timestamp: number
+}
+
+// Cross-project Claude history (Nga tab). projectDir is the absolute path to the
+// project directory under <configDir>/projects, used to load/delete without a cwd.
+export interface AiSessionSummary {
+  session_id: string
+  name: string
+  timestamp: number
+  model: string
+  sizeBytes: number
+  projectDir: string
+  projectDirName: string
+  inCurrentProject: boolean
+}
+
+export interface AiSearchMatch {
+  role: 'user' | 'assistant'
+  text: string
+}
+
+export interface AiSessionSearchGroup extends AiSessionSummary {
+  matches: AiSearchMatch[]
+}
+
+export interface AiSearchOptions {
+  configDir?: string
+  caseSensitive?: boolean
+  maxFileBytes?: number
+  maxMatchesPerSession?: number
+  maxSessionsPerProject?: number
+  maxTotalMatches?: number
 }
 
 export interface AiSessionState {

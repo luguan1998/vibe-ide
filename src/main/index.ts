@@ -9,6 +9,7 @@ import { registerAiHandlers, cleanupAiSessions, setAiMainWindow } from './ai'
 import { registerPlanExecuteHandlers } from './ai-plan-execute'
 import { registerAskResumeHandlers } from './ai-ask-resume'
 import { registerRevertHandlers } from './ai-revert'
+import { registerHistoryHandlers } from './ai-history'
 import { registerGitHandlers } from './git'
 import { stopWatching } from './watcher'
 import { registerFileHandlers } from './file'
@@ -240,6 +241,7 @@ app.whenReady().then(() => {
   registerPlanExecuteHandlers()
   registerAskResumeHandlers()
   registerRevertHandlers()
+  registerHistoryHandlers()
 
   // Clamp zoom to 100% — prevents Chromium's built-in page zoom from eating Ctrl+= / Ctrl+-
   if (mainWindow) {
