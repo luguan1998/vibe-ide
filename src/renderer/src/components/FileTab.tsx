@@ -386,6 +386,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                   value={inlineSearch.query}
                   onChange={(e) => inlineSearch.onQueryChange(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Escape') inlineSearch.onClose() }}
+                  onBlur={() => { if (!inlineSearch.query.trim()) inlineSearch.onClose() }}
                   placeholder={t('Search')}
                   className="w-16 bg-transparent text-xs text-ide-text outline-none focus-visible:outline-none caret-ide-accent placeholder:text-ide-text-muted/50"
                 />
