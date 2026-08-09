@@ -181,9 +181,10 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   }, [])
 
   const resume = useCallback((s: AiSessionSummary) => {
-    if (!workspacePath) return
+    const cwd = s.inCurrentProject && workspacePath ? workspacePath : s.projectDir
+    if (!cwd) return
     const name = s.name && s.name !== s.session_id ? s.name : ''
-    onResumeClaudeHistory(s.session_id, workspacePath, name, mode)
+    onResumeClaudeHistory(s.session_id, cwd, name, mode)
   }, [workspacePath, mode, onResumeClaudeHistory])
 
   const groups = useMemo(() => {
@@ -214,7 +215,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
 
   const renderSessionHead = (s: AiSessionSummary) => {
     const isExpanded = expanded.has(s.session_id)
-    const canResume = s.inCurrentProject && !!workspacePath
+    const canResume = !!workspacePath && (s.inCurrentProject || !!s.projectDir)
     return (
       <div
         className="px-2.5 py-2 flex items-center gap-2 cursor-pointer hover:bg-ide-hover transition-colors group"

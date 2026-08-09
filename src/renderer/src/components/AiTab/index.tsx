@@ -580,7 +580,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const showEmptyCenter = state.messages.length === 0 && !state.streaming
 
   const inputArea = (
-      <div className={`ai-tab__input-area shrink-0 w-full max-w-[928px] mx-auto px-2 pt-2 pb-0 ${showEmptyCenter ? 'absolute inset-x-0 top-1/2 -translate-y-1/2' : ''}`}>
+      <div className="ai-tab__input-area shrink-0 w-full max-w-[928px] mx-auto px-2 pt-2 pb-0">
         <div className="relative">
           {slashMenuOpen && (
             <div className="absolute bottom-full left-0 right-0 mb-1 z-20">
@@ -955,7 +955,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       {/* New conversation: 输入框居中,上方 icon + prompts 保持原位置 */}
       {showEmptyCenter ? (
         <>
-        <div className="ai-tab__empty flex flex-col items-center justify-center text-ide-text-muted text-xs pt-48 space-y-0.5 animate-fade-in">
+        <div className="ai-tab__empty flex-1 flex flex-col items-center justify-center min-h-0 px-2 gap-3 animate-fade-in">
             <div className="ai-tab__empty-icon animate-zap-glow text-ide-accent">
               <svg
                 fill="currentColor"
@@ -971,7 +971,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 />
               </svg>
             </div>
-            <div className="ai-tab__empty-prompts flex flex-wrap justify-center gap-1.5 pt-2 max-w-[480px]">
+            {inputArea}
+            <div className="ai-tab__empty-prompts flex flex-wrap justify-center gap-1.5 max-w-[928px]">
               {EXAMPLE_PROMPTS.map((item, i) => (
                 <button
                   key={i}
@@ -995,7 +996,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               ))}
             </div>
           </div>
-          {inputArea}
         </>
       ) : (
         <>
