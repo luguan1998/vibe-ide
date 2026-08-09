@@ -126,6 +126,9 @@ export const IPC_CHANNELS = {
   AI_REVERT: 'ai:revert',
   AI_FORK: 'ai:fork',
   AI_LIST_USER_TURNS: 'ai:listUserTurns',  // invoke: real user turns from JSONL (single source of truth for revert index)
+  AI_REPLY_WATCH: 'ai:replyWatch',        // invoke: start watching latest AI reply from JSONL (pet bubble, TUI+GUI unified)
+  AI_REPLY_STOP: 'ai:replyStop',          // invoke: stop watching
+  AI_REPLY: 'ai:reply',                   // push: new assistant reply text
   AI_MESSAGE: 'ai:message',               // push: full message (assistant text/tool_use)
   AI_STREAM_TOKEN: 'ai:streamToken',      // push: partial token for streaming display
   AI_PROGRESS: 'ai:progress',             // push: tool_progress events
@@ -481,6 +484,13 @@ export interface AiRunningTool {
 export interface AiExamplePrompt {
   label: string
   prompt: string
+}
+
+export interface AiReply {
+  sessionId: string
+  messageId: string
+  text: string
+  timestamp: number
 }
 
 export interface AiSessionState {

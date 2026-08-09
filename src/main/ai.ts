@@ -5,7 +5,7 @@ import { readFile, readdir, stat, rm } from 'fs/promises'
 import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
-import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, UserTurn } from '../shared/types'
+import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, UserTurn, AiReply } from '../shared/types'
 
 export interface ManagedAiSession {
   process: ChildProcess
@@ -917,6 +917,120 @@ export function resolveProjectDir(cwd: string, configDir?: string): string | nul
   } catch { return null }
 }
 
+// ── Pet AI-reply watcher ─────────────────────────────────────────
+// 宠物气泡的统一数据源：TUI（终端里直接跑 claude）与 AI tab 都会把会话写入
+// <configDir>/projects/<normalized-cwd>/ 下的 <uuid>.jsonl。轮询该目录下 mtime
+// 最新的 jsonl，增量解析 assistant 纯文本回复并 push AI_REPLY（与 SidecarWatcher
+// 同范式：轮询 + 行号增量 + 未闭合行退回）。
+
+interface ReplyWatcher {
+  sessionId: string
+  projectDir: string
+  activeFile: string | null
+  lastLineIdx: number
+  timer: NodeJS.Timeout
+}
+const replyWatchers = new Map<string, ReplyWatcher>()
+const REPLY_POLL_MS = 1000
+
+function extractReplyText(msg: any): { messageId: string; text: string } | null {
+  if (!msg || msg.type !== 'assistant' || !msg.message) return null
+  const content = msg.message.content
+  if (!Array.isArray(content)) return null
+  const parts: string[] = []
+  for (const block of content) {
+    if (block?.type === 'text' && typeof block.text === 'string' && block.text.trim()) parts.push(block.text)
+  }
+  if (parts.length === 0) return null
+  return { messageId: msg.message.id || '', text: cleanText(parts.join('\n')) }
+}
+
+function readJsonlLines(filePath: string): Promise<string[] | null> {
+  return readFile(filePath, 'utf-8').then((content) => {
+    const segments = content.endsWith('\n') ? content.split('\n') : content.split('\n').slice(0, -1)
+    return segments.filter(Boolean)
+  }).catch(() => null)
+}
+
+// 扫项目目录，返回 mtime 最新的 jsonl 及其行、最后一条回复（快照用）
+async function scanActiveJsonl(projectDir: string): Promise<{ filePath: string; lines: string[]; lastReply: { messageId: string; text: string } | null } | null> {
+  const files = await readdir(projectDir).catch(() => [] as string[])
+  const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
+  if (jsonlFiles.length === 0) return null
+  let best: { name: string; mtime: number } | null = null
+  for (const f of jsonlFiles) {
+    const st = await stat(join(projectDir, f)).catch(() => null)
+    if (!st) continue
+    if (!best || st.mtimeMs > best.mtime) best = { name: f, mtime: st.mtimeMs }
+  }
+  if (!best) return null
+  const filePath = join(projectDir, best.name)
+  const lines = await readJsonlLines(filePath)
+  if (lines === null) return null
+  let lastReply: { messageId: string; text: string } | null = null
+  for (let i = lines.length - 1; i >= 0; i--) {
+    let msg: any
+    try { msg = JSON.parse(lines[i]) } catch { continue }
+    const r = extractReplyText(msg)
+    if (r) { lastReply = r; break }
+  }
+  return { filePath, lines, lastReply }
+}
+
+function pollReplyWatcher(sessionId: string): void {
+  const w = replyWatchers.get(sessionId)
+  if (!w) return
+  scanActiveJsonl(w.projectDir).then((sc) => {
+    const watcher = replyWatchers.get(sessionId)
+    if (!watcher || !sc) return
+    if (sc.filePath !== watcher.activeFile) {
+      // 会话文件切换（如 TUI 里开了新会话）：从新文件头开始，只推快照
+      watcher.activeFile = sc.filePath
+      watcher.lastLineIdx = sc.lines.length
+      if (sc.lastReply) {
+        send(IPC_CHANNELS.AI_REPLY, { sessionId, messageId: sc.lastReply.messageId, text: sc.lastReply.text, timestamp: Date.now() })
+      }
+      return
+    }
+    if (sc.lines.length <= watcher.lastLineIdx) return
+    for (let i = watcher.lastLineIdx; i < sc.lines.length; i++) {
+      let msg: any
+      try { msg = JSON.parse(sc.lines[i]) } catch { continue }
+      const r = extractReplyText(msg)
+      if (r) send(IPC_CHANNELS.AI_REPLY, { sessionId, messageId: r.messageId, text: r.text, timestamp: Date.now() })
+    }
+    watcher.lastLineIdx = sc.lines.length
+  }).catch(() => { /* project dir missing → keep polling */ })
+}
+
+function stopReplyWatcher(sessionId: string): void {
+  const w = replyWatchers.get(sessionId)
+  if (!w) return
+  clearInterval(w.timer)
+  replyWatchers.delete(sessionId)
+}
+
+async function startReplyWatcher(sessionId: string, cwd: string, configDir?: string): Promise<AiReply | null> {
+  stopReplyWatcher(sessionId)
+  const projectDir = resolveProjectDir(cwd, configDir)
+  if (!projectDir) return null
+  const watcher: ReplyWatcher = {
+    sessionId,
+    projectDir,
+    activeFile: null,
+    lastLineIdx: 0,
+    timer: setInterval(() => pollReplyWatcher(sessionId), REPLY_POLL_MS),
+  }
+  replyWatchers.set(sessionId, watcher)
+  const sc = await scanActiveJsonl(projectDir)
+  if (sc) {
+    watcher.activeFile = sc.filePath
+    watcher.lastLineIdx = sc.lines.length
+    if (sc.lastReply) return { sessionId, messageId: sc.lastReply.messageId, text: sc.lastReply.text, timestamp: Date.now() }
+  }
+  return null
+}
+
 // Resolve contextWindow for a CLI session ID via the reverse map to a renderer session.
 function getContextWindowForCliSession(cliSessionId: string): number | undefined {
   const rendererId = cliSessionToRenderer.get(cliSessionId)
@@ -1346,6 +1460,15 @@ export function registerAiHandlers(): void {
   // Load full message history from .jsonl for resume display
   ipcMain.handle(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, async (_event, resumeSessionId: string, cwd: string, configDir?: string) => {
     return loadSessionMessages(resumeSessionId, cwd, configDir)
+  })
+
+  // Pet bubble: watch the latest AI reply from JSONL (TUI + AI tab unified source)
+  ipcMain.handle(IPC_CHANNELS.AI_REPLY_WATCH, async (_event, sessionId: string, cwd: string, configDir?: string) => {
+    return startReplyWatcher(sessionId, cwd, configDir)
+  })
+  ipcMain.handle(IPC_CHANNELS.AI_REPLY_STOP, (_event, sessionId: string) => {
+    stopReplyWatcher(sessionId)
+    return true
   })
 
   // Check if claude/openclaude/opencc CLI is available

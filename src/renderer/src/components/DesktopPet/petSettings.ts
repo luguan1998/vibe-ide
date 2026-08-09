@@ -129,6 +129,14 @@ export function setPetLogicalFrames(logical: string, frames: number) {
   emit()
 }
 
+const LISTEN_AI_KEY = 'vibe-ide-pet-listen-ai'
+
+export function getPetListenAi(): boolean { return readBool(LISTEN_AI_KEY, false) }
+export function setPetListenAi(v: boolean) {
+  try { localStorage.setItem(LISTEN_AI_KEY, String(v)) } catch {}
+  emit()
+}
+
 export function onPetPrefsChanged(cb: () => void): () => void {
   const h = () => cb()
   window.addEventListener(EVENT, h)

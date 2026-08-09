@@ -6,7 +6,7 @@ import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, PanelRightC
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { ModalOverlay } from './ModalOverlay'
 import { DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from './SessionPanel'
-import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, setPetLogicalState, setPetLogicalFrames, getPetFrameRate, setPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, PET_SCALE_MIN, PET_SCALE_MAX, PET_FRAME_RATE_MIN, PET_FRAME_RATE_MAX } from './DesktopPet/petSettings'
+import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, setPetLogicalState, setPetLogicalFrames, getPetFrameRate, setPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, setPetListenAi, PET_SCALE_MIN, PET_SCALE_MAX, PET_FRAME_RATE_MIN, PET_FRAME_RATE_MAX } from './DesktopPet/petSettings'
 import { resolveStateName, PET_LOGICAL_STATES, PET_LOGICAL_LABEL, DEFAULT_PET_LOGICAL_STATE } from './DesktopPet/stateMap'
 
 const FALLBACK_FONTS = [
@@ -262,6 +262,7 @@ const AppearancePanel = function AppearancePanel({
   const [petVisible, setPetVisibleState] = useState(getPetVisible())
   const [petScale, setPetScaleState] = useState(getPetScale())
   const [petFrameRate, setPetFrameRateState] = useState(getPetFrameRate())
+  const [petListenAi, setPetListenAiState] = useState(getPetListenAi)
   const [, setPetConfigTick] = useState(0)
   const [systemFonts, setSystemFonts] = useState<string[]>([])
   const fontsLoadedRef = useRef(false)
@@ -312,7 +313,7 @@ const AppearancePanel = function AppearancePanel({
     const reload = () => window.api.pet.list().then((r: PetListResult) => { setPetsList(r.pets); setActivePetId(r.activeId); setPetsDir(r.dir) }).catch(() => {})
     const h = () => reload()
     window.api.pet.onChanged(h)
-    const offPrefs = onPetPrefsChanged(() => { setPetVisibleState(getPetVisible()); setPetScaleState(getPetScale()); setPetFrameRateState(getPetFrameRate()); setPetConfigTick(v => v + 1) })
+    const offPrefs = onPetPrefsChanged(() => { setPetVisibleState(getPetVisible()); setPetScaleState(getPetScale()); setPetFrameRateState(getPetFrameRate()); setPetListenAiState(getPetListenAi()); setPetConfigTick(v => v + 1) })
     return () => { window.api.pet.removeChangedListener(h); offPrefs() }
   }, [open])
 
@@ -328,6 +329,7 @@ const AppearancePanel = function AppearancePanel({
   const handlePetVisibleToggle = (v: boolean) => setPetVisible(v)
   const handlePetScaleDelta = (d: number) => setPetScale(Math.min(PET_SCALE_MAX, Math.max(PET_SCALE_MIN, petScale + d * 0.1)))
   const handlePetFrameRateDelta = (d: number) => setPetFrameRate(Math.min(PET_FRAME_RATE_MAX, Math.max(PET_FRAME_RATE_MIN, petFrameRate + d * 0.1)))
+  const handlePetListenAiToggle = (v: boolean) => setPetListenAi(v)
 
   const activePetManifest = petsList.find(p => p.id === activePetId) ?? null
   const petStateOptions = activePetManifest ? Object.keys(activePetManifest.states).map(n => ({ value: n, label: `${n} (row ${activePetManifest.states[n].row})` })) : []
@@ -749,6 +751,7 @@ const AppearancePanel = function AppearancePanel({
                   <div className="border-t border-ide-border" />
                 </div>
                 <ToggleRow labelKey="Show Pet" descKey="Show the desktop pet." checked={petVisible} onChange={handlePetVisibleToggle} zone="global" compact />
+                <ToggleRow labelKey="Pet Listen Claude" descKey="Show the latest Claude reply as a pet bubble." checked={petListenAi} onChange={handlePetListenAiToggle} zone="global" compact />
                 <StepperRow labelKey="Pet Scale" descKey="Pet display size."
                   value={Math.round(petScale * 100)} display={`${Math.round(petScale * 100)}%`}
                   onDelta={handlePetScaleDelta} min={Math.round(PET_SCALE_MIN * 100)} max={Math.round(PET_SCALE_MAX * 100)} zone="global" compact />

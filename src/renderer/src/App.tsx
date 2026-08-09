@@ -195,6 +195,10 @@ declare global {
         removeProgressListener: (handler?: any) => void
         onError: (callback: (data: { sessionId: string; error: string }) => void) => any
         removeErrorListener: (handler?: any) => void
+        watchReplies: (sessionId: string, cwd: string, configDir?: string) => Promise<import('@shared/types').AiReply | null>
+        stopReplyWatch: (sessionId: string) => Promise<boolean>
+        onReply: (callback: (data: import('@shared/types').AiReply) => void) => any
+        removeReplyListener: (handler?: any) => void
       }
       snippets: {
         load: () => Promise<import('@shared/types').SnippetsLoadResult>
@@ -2756,7 +2760,7 @@ export default function App() {
       )}
 
       {/* Desktop pet — warn>busy>unfocused>idle，跟随活跃 session 与窗口聚焦 */}
-      <DesktopPet logicalState={petLogicalState} />
+      <DesktopPet logicalState={petLogicalState} activeSessionId={activeSessionId} activeSessionCwd={activeSessionCwd} />
     </div>
   )
 

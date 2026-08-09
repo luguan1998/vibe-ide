@@ -578,6 +578,26 @@ html, body, #root {
   white-space: nowrap;
 }
 
+.desktop-pet__ai-reply {
+  position: absolute;
+  left: -50px;
+  width: 300px;
+  max-height: 256px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgb(var(--ide-bg));
+  border: 1px solid rgb(var(--ide-border));
+  color: rgb(var(--ide-text));
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
+  z-index: 35;
+  cursor: default;
+}
+.desktop-pet__ai-reply--above { bottom: calc(100% + 8px); }
+.desktop-pet__ai-reply--below { top: calc(100% + 8px); }
+
 .desktop-pet__context {
   position: absolute;
   left: -50px;

@@ -5,13 +5,19 @@ import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
-import { Settings, Send, ClipboardPaste } from 'lucide-react'
+import { Settings, Send, ClipboardPaste, BookOpenText } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT } from '../vibeEvents'
 import { getExtraBubbleSections, onPetBubblesChanged, type PetBubbleItem, type PetBubbleSection } from './bubbleRegistry'
-import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride } from './petSettings'
+import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi } from './petSettings'
+import { readAiCliConfig } from '../../aiStore'
+import { AiReplyBubble } from './AiReplyBubble'
 
-export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) {
+export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd }: {
+  logicalState: PetLogicalState
+  activeSessionId: string | null
+  activeSessionCwd: string | null
+}) {
   const [manifest, setManifest] = useState<PetManifest | null>(null)
   const [pos, setPos] = useState(() => getPetPos())
   const [scale, setScale] = useState(() => getPetScale())
@@ -26,6 +32,9 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
   const [, setConfigTick] = useState(0)
   const [frameRate, setFrameRate] = useState(() => getPetFrameRate())
   const [transientState, setTransientState] = useState<PetLogicalState | null>(null)
+  const [listenAi, setListenAi] = useState(() => getPetListenAi())
+  const [aiBubbleOpen, setAiBubbleOpen] = useState(false)
+  const [latestReply, setLatestReply] = useState<{ messageId: string; text: string } | null>(null)
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const contextInputRef = useRef<HTMLTextAreaElement>(null)
@@ -75,6 +84,7 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     setPos(getPetPos())
     setFrameRate(getPetFrameRate())
     setConfigTick(v => v + 1)
+    setListenAi(getPetListenAi())
   }), [])
 
   // 订阅气泡拓展注册表变化
@@ -97,6 +107,36 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     transientTimerRef.current = setTimeout(() => setTransientState(null), Math.max(dur, 400))
   }, [manifest, frameRate])
 
+  // AI 回复预览：统一由主进程监听 jsonl（TUI 与 AI tab 都能监控），新回复到达即弹气泡
+  useEffect(() => {
+    if (!listenAi || !activeSessionId || !activeSessionCwd) return
+    let cancelled = false
+    const cfg = readAiCliConfig()
+    window.api.ai.watchReplies(activeSessionId, activeSessionCwd, cfg.configDir).then((r) => {
+      if (cancelled || !r?.text) return
+      setLatestReply({ messageId: r.messageId, text: r.text })
+      setPopupOpen(false)
+      setContextOpen(false)
+      setAiBubbleOpen(true)
+    }).catch(() => {})
+    return () => {
+      cancelled = true
+      window.api.ai.stopReplyWatch(activeSessionId)
+    }
+  }, [listenAi, activeSessionId, activeSessionCwd])
+
+  useEffect(() => {
+    if (!listenAi) return
+    const handler = window.api.ai.onReply((r) => {
+      if (r.sessionId !== activeSessionId) return
+      setLatestReply({ messageId: r.messageId, text: r.text })
+      setPopupOpen(false)
+      setContextOpen(false)
+      setAiBubbleOpen(true)
+    })
+    return () => window.api.ai.removeReplyListener(handler)
+  }, [listenAi, activeSessionId])
+
   // 拖拽：左键按下 → 移动改 left/top → 松开持久；未移动则视为点击开气泡
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return
@@ -114,6 +154,7 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     if (!d.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
       d.moved = true
       setPopupOpen(false)
+      setAiBubbleOpen(false)
     }
     if (!d.moved) return
     const left = Math.max(0, Math.min(window.innerWidth - 8, d.origLeft + dx))
@@ -133,6 +174,7 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
         singleClickTimerRef.current = undefined
         setPopupOpen(false)
         setContextOpen(false)
+        setAiBubbleOpen(false)
         triggerTransient('doubleTap')
         return
       }
@@ -141,6 +183,7 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
         setKeypadItems(loadKeypadItems())
         setPopupAbove(rect.top > 240)
         setContextOpen(false)
+        setAiBubbleOpen(false)
         setPopupOpen(v => !v)
       }, 300)
     } else if (d && d.moved) {
@@ -152,6 +195,7 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     setPopupOpen(false)
+    setAiBubbleOpen(false)
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     setPopupAbove(rect.top > 240)
     setDraftCmd(prev => {
@@ -172,6 +216,20 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
     setContextOpen(false)
   }, [draftCmd, triggerTransient])
 
+  // 手动查看最新一条 AI 回复（不依赖监听开关；监听未开时取完快照即停，不残留轮询）
+  const handleReadReply = useCallback(() => {
+    if (!activeSessionId || !activeSessionCwd) return
+    setContextOpen(false)
+    const cfg = readAiCliConfig()
+    window.api.ai.watchReplies(activeSessionId, activeSessionCwd, cfg.configDir).then((r) => {
+      if (r?.text) {
+        setLatestReply({ messageId: r.messageId, text: r.text })
+        setAiBubbleOpen(true)
+      }
+      if (!listenAi) window.api.ai.stopReplyWatch(activeSessionId)
+    }).catch(() => {})
+  }, [activeSessionId, activeSessionCwd, listenAi])
+
   const onContextKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
     e.preventDefault()
@@ -190,17 +248,18 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
   }, [contextOpen])
 
   useLayoutEffect(() => {
-    if (!contextOpen && !configOpen) return
+    if (!contextOpen && !configOpen && !aiBubbleOpen) return
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       e.preventDefault()
       e.stopImmediatePropagation()
       if (configOpen) setConfigOpen(false)
-      else setContextOpen(false)
+      else if (contextOpen) setContextOpen(false)
+      else setAiBubbleOpen(false)
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [contextOpen, configOpen])
+  }, [contextOpen, configOpen, aiBubbleOpen])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -242,16 +301,17 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
 
   // 气泡面板打开时：点面板外关闭；context 面板点外只隐藏不清空内容
   useEffect(() => {
-    if (!popupOpen && !contextOpen) return
+    if (!popupOpen && !contextOpen && !aiBubbleOpen) return
     const onDown = (ev: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(ev.target as Node)) {
         setPopupOpen(false)
         setContextOpen(false)
+        setAiBubbleOpen(false)
       }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [popupOpen, contextOpen])
+  }, [popupOpen, contextOpen, aiBubbleOpen])
 
   if (!manifest) return null
 
@@ -327,6 +387,9 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
           ))}
         </div>
       )}
+      {visible && activeSessionId && aiBubbleOpen && latestReply && (
+        <AiReplyBubble text={latestReply.text} above={popupAbove} />
+      )}
       {contextOpen && (
         <div className={`desktop-pet__context${popupAbove ? ' desktop-pet__context--above' : ' desktop-pet__context--below'}`}>
           <textarea
@@ -339,8 +402,8 @@ export function DesktopPet({ logicalState }: { logicalState: PetLogicalState }) 
             placeholder="输入命令，Enter 发送"
           />
           <div className="flex items-center gap-1 self-end">
-            <button className="desktop-pet__context-gear" onClick={handleSend} title="Enter发送">
-              <Send size={14} />
+            <button className="desktop-pet__context-gear" onClick={handleReadReply} title="显示最新回复">
+              <BookOpenText size={14} />
             </button>
           </div>
         </div>

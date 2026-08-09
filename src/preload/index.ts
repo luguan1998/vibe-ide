@@ -350,6 +350,19 @@ const api = {
       if (handler) ipcRenderer.removeListener(IPC_CHANNELS.AI_ERROR, handler)
       else ipcRenderer.removeAllListeners(IPC_CHANNELS.AI_ERROR)
     },
+    watchReplies: (sessionId: string, cwd: string, configDir?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_REPLY_WATCH, sessionId, cwd, configDir),
+    stopReplyWatch: (sessionId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_REPLY_STOP, sessionId),
+    onReply: (callback: (data: { sessionId: string; messageId: string; text: string; timestamp: number }) => void) => {
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.AI_REPLY, handler)
+      return handler
+    },
+    removeReplyListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.AI_REPLY, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.AI_REPLY)
+    },
   },
 
 }
