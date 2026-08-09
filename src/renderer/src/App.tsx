@@ -1241,14 +1241,19 @@ export default function App() {
       }
 
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
-      // Use visual order (grouped by cwd) instead of creation order
-      const groups = new Map<string, TerminalSession[]>()
-      for (const s of sessions) {
-        const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
-        if (!groups.has(key)) groups.set(key, [])
-        groups.get(key)!.push(s)
+      // Use visual order: grouped by cwd when grouping enabled, raw array order otherwise
+      let visualOrder: TerminalSession[]
+      if (groupSessionsByCwd) {
+        const groups = new Map<string, TerminalSession[]>()
+        for (const s of sessions) {
+          const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
+          if (!groups.has(key)) groups.set(key, [])
+          groups.get(key)!.push(s)
+        }
+        visualOrder = Array.from(groups.values()).flat()
+      } else {
+        visualOrder = sessions
       }
-      const visualOrder = Array.from(groups.values()).flat()
 
       if (eventMatchesBinding(e, bindings['terminal.next'])) {
         e.preventDefault()
@@ -1455,7 +1460,7 @@ export default function App() {
     // capture phase: intercept before xterm.js gets it
     window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [centerView, sessions, activeSessionId])
+  }, [centerView, sessions, activeSessionId, groupSessionsByCwd])
 
   // Brush keyup → deactivate feather pen
   React.useEffect(() => {
