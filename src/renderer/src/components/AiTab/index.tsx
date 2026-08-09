@@ -579,7 +579,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const showEmptyCenter = state.messages.length === 0 && !state.streaming
 
   const inputArea = (
-      <div className={`ai-tab__input-area shrink-0 w-full max-w-[800px] mx-auto px-2 pt-2 pb-0 ${showEmptyCenter ? 'absolute inset-x-0 top-1/2 -translate-y-1/2' : ''}`}>
+      <div className={`ai-tab__input-area shrink-0 w-full max-w-[928px] mx-auto px-2 pt-2 pb-0 ${showEmptyCenter ? 'absolute inset-x-0 top-1/2 -translate-y-1/2' : ''}`}>
         <div className="relative">
           {slashMenuOpen && (
             <div className="absolute bottom-full left-0 right-0 mb-1 z-20">
@@ -1013,14 +1013,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           onFork={handleFork}
         />
         {!state.ready && state.messages.length > 0 && (
-          <div className="ai-tab__resume flex items-center gap-2 w-full max-w-[768px] mx-auto px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in">
+          <div className="ai-tab__resume flex items-center gap-2 w-full max-w-[896px] mx-auto px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in">
             <span className="h-3.5 w-3.5 rounded-full border-2 border-ide-accent/30 border-t-ide-accent animate-spin shrink-0" />
             <span>{t('Resuming session...')}</span>
           </div>
         )}
         {/* Busy indicator — thinking + streaming + sparkle */}
         {state.busy && (
-          <div className="ai-tab__busy w-full max-w-[768px] mx-auto space-y-1.5 animate-fade-in">
+          <div className="ai-tab__busy w-full max-w-[896px] mx-auto space-y-1.5 animate-fade-in">
             {Object.keys(state.runningTools).length > 0 && (
               <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">
                 {Object.entries(state.runningTools).map(([id, rt]) => (
