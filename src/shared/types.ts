@@ -499,12 +499,14 @@ export interface AiReply {
 
 // Cross-project Claude history (Nga tab). projectDir is the absolute path to the
 // project directory under <configDir>/projects, used to load/delete without a cwd.
+// cwd is the real working directory recorded in the JSONL, used to resume.
 export interface AiSessionSummary {
   session_id: string
   name: string
   timestamp: number
   model: string
   sizeBytes: number
+  cwd: string
   projectDir: string
   projectDirName: string
   inCurrentProject: boolean

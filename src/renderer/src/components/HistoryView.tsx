@@ -181,7 +181,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   }, [])
 
   const resume = useCallback((s: AiSessionSummary) => {
-    const cwd = s.inCurrentProject && workspacePath ? workspacePath : s.projectDir
+    const cwd = s.cwd || (s.inCurrentProject && workspacePath ? workspacePath : s.projectDir)
     if (!cwd) return
     const name = s.name && s.name !== s.session_id ? s.name : ''
     onResumeClaudeHistory(s.session_id, cwd, name, mode)
@@ -230,6 +230,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
         <div className="flex-1 min-w-0">
           <div className="truncate text-xs text-ide-text">{s.name || s.session_id}</div>
           <div className="text-[10px] text-ide-text-muted/60 truncate">
+            {s.cwd ? `${s.cwd} · ` : ''}
             {s.timestamp ? new Date(s.timestamp).toLocaleString() : ''}
             {s.model ? ` · ${s.model}` : ''}
             {s.sizeBytes > 0 ? ` · ${formatBytes(s.sizeBytes)}` : ''}
@@ -357,7 +358,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
                   onClick={() => toggleGroup(dirName)}
                 >
                   <ChevronDown size={11} className={`text-ide-text-muted shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                  <span className="text-[10px] font-bold text-ide-text-muted uppercase tracking-wider truncate flex-1">{dirName}</span>
+                  <span className="text-[10px] font-bold text-ide-text-muted truncate flex-1">{list[0]?.cwd || dirName}</span>
                   <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted">{list.length}</span>
                   {list[0]?.inCurrentProject && (
                     <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-accent/15 text-ide-accent">{t('Current project')}</span>

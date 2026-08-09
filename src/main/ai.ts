@@ -860,6 +860,7 @@ export async function extractSessionMeta(filePath: string, sizeBytes: number, li
     const firstTurnLine = JSON.parse(lines[turns[0].lineIdx])
     const timestamp = firstTurnLine.timestamp ? new Date(firstTurnLine.timestamp).getTime() : 0
     if (!timestamp || Number.isNaN(timestamp)) return null
+    const cwd = typeof firstTurnLine.cwd === 'string' ? firstTurnLine.cwd : ''
 
     let model = ''
     for (const line of lines.slice(0, 20)) {
@@ -869,7 +870,7 @@ export async function extractSessionMeta(filePath: string, sizeBytes: number, li
       } catch { /* skip malformed */ }
     }
 
-    return { session_id: sessionId, name, timestamp, model, sizeBytes }
+    return { session_id: sessionId, name, timestamp, model, sizeBytes, cwd }
   } catch { return null }
 }
 
