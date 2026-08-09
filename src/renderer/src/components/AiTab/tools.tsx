@@ -254,7 +254,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
   const newContent = editContent?.newContent
 
   return (
-    <div className="ai-tab__tool-call block w-full max-w-[960px] mx-auto animate-fade-in">
+    <div className="ai-tab__tool-call block w-full max-w-[768px] mx-auto animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
         className={`ai-tab__tool-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${
@@ -310,7 +310,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
 export function CollapsedToolsSummary({ tools }: { tools: AiToolUse[] }) {
   const [expanded, setExpanded] = useState(false)
   return (
-    <div className="ai-tab__tools-summary w-full max-w-[960px] mx-auto animate-fade-in">
+    <div className="ai-tab__tools-summary w-full max-w-[768px] mx-auto animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
         className="ai-tab__tools-summary-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"

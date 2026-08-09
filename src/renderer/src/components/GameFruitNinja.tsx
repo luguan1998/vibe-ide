@@ -358,22 +358,23 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
       ctx.save()
       ctx.translate(f.x, f.y)
       ctx.rotate(f.rot)
-      ctx.fillStyle = f.bomb ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.45)'
-      ctx.beginPath()
-      ctx.arc(0, 0, f.r * 1.02, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.fillStyle = '#ffffff'
       ctx.font = `${f.r * 2.1}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText(f.emoji, 0, 0)
-      ctx.restore()
       if (f.bomb) {
         const sp = 0.7 + Math.sin(performance.now() / 60) * 0.3
         ctx.fillStyle = '#ffca28'
         ctx.beginPath()
-        ctx.arc(f.x, f.y - f.r * 1.15, 4 * sp, 0, Math.PI * 2)
+        ctx.arc(0, -f.r * 1.05, 4.5 * sp, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = 'rgba(255,255,255,0.85)'
+        ctx.beginPath()
+        ctx.arc(0, -f.r * 1.05, 2 * sp, 0, Math.PI * 2)
         ctx.fill()
       }
+      ctx.restore()
     }
 
     for (const c of chunksRef.current) {
@@ -381,6 +382,7 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
       ctx.globalAlpha = Math.max(0, c.alpha)
       ctx.translate(c.x, c.y)
       ctx.rotate(c.rot)
+      ctx.fillStyle = '#ffffff'
       ctx.font = `${c.size * 2.1}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'

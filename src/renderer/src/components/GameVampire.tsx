@@ -919,6 +919,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
 
     for (const d of decorationsRef.current!) {
       ctx.globalAlpha = d.alpha
+      ctx.fillStyle = '#ffffff'
       ctx.font = `${d.size}px ${EMOJI_FONT}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -985,6 +986,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
 
     for (const e of enemiesRef.current) {
       if (e.type === 'dino' && e.burrow > 0) {
+        ctx.fillStyle = '#ffffff'
         ctx.font = `${e.r * 1.9}px ${EMOJI_FONT}`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
@@ -1001,6 +1003,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       const jy = e.type === 'dino' && e.wind > 0 ? (Math.random() - 0.5) * 6 : 0
       ctx.translate(jx, jy)
       ctx.globalAlpha = e.hitFlash > 0 ? 0.45 : (e.type === 'dino' && e.wind > 0 ? 0.5 + 0.5 * Math.sin(elapsedRef.current * 22) : 1)
+      ctx.fillStyle = '#ffffff'
       ctx.font = `${e.r * 2.3}px ${EMOJI_FONT}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -1042,9 +1045,9 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     ctx.strokeStyle = 'rgba(0,0,0,0.6)'
     ctx.lineWidth = 3
     const killText = `💀 击杀 ${killsRef.current}`
-    ctx.strokeText(killText, W / 2, 15)
+    ctx.strokeText(killText, W / 2, 26)
     ctx.fillStyle = '#ffd740'
-    ctx.fillText(killText, W / 2, 15)
+    ctx.fillText(killText, W / 2, 26)
 
     for (const d of deathsRef.current) {
       const k = 1 - d.t / d.maxT
@@ -1054,6 +1057,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       ctx.arc(d.x, d.y, d.size * (0.35 + k * (d.big ? 2.4 : 1.6)), 0, Math.PI * 2)
       ctx.stroke()
       ctx.globalAlpha = (1 - k) * 0.9
+      ctx.fillStyle = '#ffffff'
       ctx.font = `${d.size * (1 + k * 0.9)}px ${EMOJI_FONT}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -1072,6 +1076,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
         const ks = PLAYER_R * 2.6
         ctx.drawImage(ki, p.x - ks / 2, p.y - ks / 2, ks, ks)
       } else {
+        ctx.fillStyle = '#ffffff'
         ctx.font = `${PLAYER_R * 2.4}px ${EMOJI_FONT}`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
@@ -1107,6 +1112,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       ctx.arc(0, 1.5, 10, 0, Math.PI * 2)
       ctx.fill()
       ctx.rotate(es.rot)
+      ctx.fillStyle = '#ffffff'
       ctx.font = '22px ' + EMOJI_FONT
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'

@@ -332,12 +332,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   }, [state.messages.length, state.streamBuffer, state.thinkingBuffer])
 
   // ── Focus input when tab becomes active ──
+  // ready 前 textarea 是 disabled 无法聚焦,克隆的新 session 需等 ready 后再聚焦
   useEffect(() => {
-    if (isActive && inputRef.current) {
+    if (isActive && state.ready && inputRef.current) {
       inputRef.current.focus({ preventScroll: true })
       autoGrow()
     }
-  }, [isActive, autoGrow])
+  }, [isActive, state.ready, autoGrow])
 
   // ── Dispatch a message to the subprocess (shared core) ──
   // Immediate send and piped auto-send both funnel through here.
@@ -575,285 +576,10 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     return { label, ref }
   }, [lastOpenedFile, workspacePath])
 
-  return (
-    <div ref={containerRef} tabIndex={-1} className="ai-tab relative flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
-      {/* Header */}
-      <div className="ai-tab__header flex items-center justify-between px-2 py-1 border-b border-ide-border shrink-0 acrylic-titlebar-clean">
-        <div className="ai-tab__header-left flex items-center gap-1.5 min-w-0">
-            <svg height="1em" style={{ flex: 'none', lineHeight: 1 }} viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z" fill="#D97757" fillRule="nonzero" />
-            </svg>
-            <span className="ai-tab__session-name text-xs font-medium text-ide-text truncate">{state.name || 'untitled'}</span>
-          </div>
-        <div className="ai-tab__header-actions flex items-center gap-1">
-          {/* Copy conversation */}
-          <button
-            onClick={handleCopyConversation}
-            disabled={state.messages.length === 0}
-            className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title={t('Copy as Markdown (content follows eye filter)')}
-          >
-            {conversationCopied ? <Check size={14} className="text-ide-accent" /> : <Copy size={14} />}
-          </button>
-          {/* Toggle tool visibility */}
-          <button
-            onClick={() => setViewMode(v => (v + 1) % 3)}
-            className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors ${viewMode === 2 ? 'ai-tab__header-btn--active bg-ide-active' : ''}`}
-            title={viewMode === 0 ? t('Show All') : viewMode === 1 ? t('Hide Tools') : t('Hide Tools & Think')}
-          >
-            {viewMode === 0 ? <Eye size={14} /> : <EyeOff size={14} />}
-          </button>
-          {/* Session history */}
-          <button
-            onClick={async () => {
-              const { configDir } = readAiCliConfig()
-              const result = await window.api.ai.listSessions(workspacePath || undefined, configDir)
-              if (result.sessions?.length > 0) {
-                setSessionHistoryList(result.sessions)
-                setSessionHistoryOpen(true)
-              }
-            }}
-            className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
-            title={t('Session History')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-            </svg>
-          </button>
-          {/* Worktree isolation toggle — hidden if already navigated from GitTab */}
-          {!worktreeNav?.worktreePath && (
-            <button
-              onClick={() => {
-                if (!activeSessionId || !workspacePath) return
-                const next = !worktreeEnabled
-                setWorktreeEnabled(next)
-                handleDestroySession(activeSessionId)
-                const { cliCommand, configDir } = readAiCliConfig()
-                aiStore.ensureCreated(activeSessionId, {
-                  cwd: workspacePath,
-                  autoApprove,
-                  permissionMode,
-                  cliCommand,
-                  configDir,
-                  ...(next ? { enableWorktree: true } : {}),
-                })
-                onViewAi()
-              }}
-              className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center transition-colors ${
-                worktreeEnabled
-                  ? 'bg-ide-accent/20 text-ide-accent'
-                  : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-              }`}
-              title={t('Isolate in worktree')}
-            >
-              <GitBranch size={14} />
-            </button>
-          )}
-          {/* New session */}
-          <button
-            onClick={() => {
-              if (!activeSessionId || !workspacePath) return
-              handleDestroySession(activeSessionId)
-              const { cliCommand, configDir } = readAiCliConfig()
-              aiStore.ensureCreated(activeSessionId, {
-                cwd: workspacePath,
-                autoApprove,
-                permissionMode,
-                cliCommand,
-                configDir,
-                ...(worktreeEnabled ? { enableWorktree: true } : {}),
-              })
-              onViewAi()
-            }}
-            className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
-            title={t('New Session')}
-          >
-            <MessageSquarePlus size={14} />
-          </button>
-        </div>
-      </div>
-      {/* Session history dropdown */}
-      {sessionHistoryOpen && sessionHistoryList.length > 0 && (
-        <div ref={historyRef} className="ai-tab__history-dropdown absolute top-8 right-2 bg-ide-sidebar border border-ide-border rounded-lg shadow-lg z-20 max-h-[28rem] overflow-y-auto w-80 animate-fade-in">
-          {sessionHistoryList.map((s: any) => {
-            const timeStr = s.timestamp ? new Date(s.timestamp).toLocaleString() : ''
-            return (
-              <button
-                key={s.session_id || s.id}
-                onClick={async () => {
-                  setSessionHistoryOpen(false)
-                  setSessionHistoryList([])
-                  if (activeSessionId) {
-                    const { cliCommand, configDir } = readAiCliConfig()
-                    const history = await window.api.ai.loadSessionMessages(s.session_id || s.id, workspacePath || '', configDir)
-                    const sessionName = s.name && s.name !== s.session_id ? s.name : ''
-                    updateSession(activeSessionId, () => ({
-                      ...EMPTY_SESSION,
-                      messages: history.messages,
-                      model: history.model || '',
-                      slashCommands: enrichSlashCommands(history.slashCommands || []),
-                      name: sessionName,
-                      cwd: workspacePath || '',
-                      ready: false,
-                    }))
-                    await window.api.ai.destroy(activeSessionId)
-                    window.api.ai.create({
-                      sessionId: activeSessionId,
-                      cwd: workspacePath || '',
-                      autoApprove,
-                      permissionMode,
-                      resumeSessionId: s.session_id || s.id,
-                      ...(cliCommand ? { cliCommand } : {}),
-                      ...(configDir ? { configDir } : {}),
-                    })
-                  }
-                }}
-                className="ai-tab__history-item w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left"
-              >
-                <div className="ai-tab__history-item-name truncate">{s.name || s.session_id || s.id}</div>
-                {timeStr && (
-                  <div className="ai-tab__history-item-meta flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-1">
-                    <span className="truncate mr-2">{timeStr}</span>
-                    {s.sizeBytes > 0 && <span className="shrink-0">{formatBytes(s.sizeBytes)}</span>}
-                  </div>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      )}
-      {/* Messages */}
-      <div ref={scrollContainerRef} className="ai-tab__messages flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-1">
-        {state.messages.length === 0 && !state.streaming && (
-          <div className="ai-tab__empty flex flex-col items-center justify-center text-ide-text-muted text-xs pt-8 space-y-3 animate-fade-in">
-            <div className="ai-tab__empty-icon animate-zap-glow text-ide-accent">
-              <svg
-                fill="currentColor"
-                fillRule="evenodd"
-                height={64}
-                width={64}
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  clipRule="evenodd"
-                  d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"
-                />
-              </svg>
-            </div>
-            <div className="ai-tab__empty-prompts flex flex-wrap justify-center gap-1.5 pt-2 max-w-[280px]">
-              {EXAMPLE_PROMPTS.map((item, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    const text = t(item.prompt)
-                    setInputValue(text)
-                    const el = inputRef.current
-                    if (el) {
-                      el.value = text
-                      el.dispatchEvent(new Event('input', { bubbles: true }))
-                      el.focus()
-                      el.selectionStart = el.selectionEnd = text.length
-                      el.scrollTop = el.scrollHeight
-                    }
-                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-                  }}
-                  className="ai-tab__example-btn px-3 py-1.5 text-xs border border-ide-border rounded-full text-ide-text-muted hover:text-ide-text hover:bg-ide-hover hover:border-ide-accent/30 transition-colors"
-                >
-                  {t(item.label)}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        <MessageList
-          messages={state.messages}
-          userTurns={state.userTurns}
-          viewMode={viewMode}
-          busy={state.busy}
-          workspacePath={workspacePath}
-          onOpenFile={onOpenFile}
-          onRevert={handleRevert}
-          onRevertAndCode={handleRevertAndCode}
-          onFork={handleFork}
-        />
-        {!state.ready && state.messages.length > 0 && (
-          <div className="ai-tab__resume flex items-center gap-2 w-full max-w-[960px] mx-auto px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in">
-            <span className="h-3.5 w-3.5 rounded-full border-2 border-ide-accent/30 border-t-ide-accent animate-spin shrink-0" />
-            <span>{t('Resuming session...')}</span>
-          </div>
-        )}
-        {/* Busy indicator — thinking + streaming + sparkle */}
-        {state.busy && (
-          <div className="ai-tab__busy w-full max-w-[960px] mx-auto space-y-1.5 animate-fade-in">
-            {Object.keys(state.runningTools).length > 0 && (
-              <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">
-                {Object.entries(state.runningTools).map(([id, rt]) => (
-                  <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-hover text-ide-text-muted border border-ide-border/50">
-                    <ToolIcon category={getToolCategory(rt.tool)} />
-                    <span className="truncate max-w-[160px]">{rt.tool}</span>
-                    <span className="text-ide-text-muted/50">{Math.round(rt.elapsed)}s</span>
-                  </span>
-                ))}
-              </div>
-            )}
-            {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll />}
-            {state.streamBuffer ? (
-              <div>
-                <StreamingMarkdown text={state.streamBuffer} workspacePath={workspacePath} onOpenFile={onOpenFile} />
-                <span className="ai-tab__busy-sparkle animate-sparkle ml-0.5 text-sm leading-none align-middle select-none">✻</span>
-                <span className="ai-tab__busy-quip ml-0.5 text-xs leading-none align-middle select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
-              </div>
-            ) : (
-              <div>
-                <span className="animate-sparkle text-sm leading-none select-none">✻</span>
-                <span className="ml-0.5 text-xs leading-none select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
-              </div>
-            )}
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+  const showEmptyCenter = state.messages.length === 0 && !state.streaming
 
-      {/* Permission popup — floats above input, not inside scroll area */}
-      {state.pendingPermission && activeSessionId && (
-        state.pendingPermission.tool === 'AskUserQuestion' ? (
-          <AiAskQuestionCard
-            perm={state.pendingPermission}
-            sessionId={activeSessionId}
-            onRespond={aiStore.handleAskResume}
-          />
-        ) : (
-          <AiPermissionCard
-            perm={state.pendingPermission}
-            sessionId={activeSessionId}
-            onRespond={aiStore.handlePermissionResponse}
-          />
-        )
-      )}
-
-      {/* Todo list — pins above input so it stays visible */}
-      {todoItems.length > 0 && <TodoListPanel items={todoItems} />}
-
-      {/* Piped prompt — queued while busy, auto-sent when idle, X to dismiss */}
-      {state.pipedPrompt && activeSessionId && (
-        <div className="ai-tab__piped mx-2 mb-1 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">
-          <Plug size={12} className="shrink-0 text-ide-accent" />
-          <span className="text-[11px] font-medium text-ide-accent/80 shrink-0">{t('Queued')}</span>
-          <span className="text-xs text-ide-text/80 truncate flex-1 min-w-0" title={state.pipedPrompt}>{state.pipedPrompt}</span>
-          <button
-            type="button"
-            onClick={() => updateSession(activeSessionId, s => ({ ...s, pipedPrompt: '' }))}
-            className="ai-tab__piped-dismiss shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
-            title={t('Remove')}
-          >
-            <X size={12} />
-          </button>
-        </div>
-      )}
-
-      {/* Input */}
-      <div className="ai-tab__input-area shrink-0 w-full max-w-[992px] mx-auto px-2 pt-2 pb-0">
+  const inputArea = (
+      <div className={`ai-tab__input-area shrink-0 w-full max-w-[800px] mx-auto px-2 pt-2 pb-0 ${showEmptyCenter ? 'absolute inset-x-0 top-1/2 -translate-y-1/2' : ''}`}>
         <div className="relative">
           {slashMenuOpen && (
             <div className="absolute bottom-full left-0 right-0 mb-1 z-20">
@@ -1077,6 +803,293 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           </div>
         </div>
       </div>
+
+  )
+
+  return (
+    <div ref={containerRef} tabIndex={-1} className="ai-tab relative flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
+      {/* Header */}
+      <div className="ai-tab__header flex items-center justify-between px-2 py-1 border-b border-ide-border shrink-0 acrylic-titlebar-clean">
+        <div className="ai-tab__header-left flex items-center gap-1.5 min-w-0">
+            <svg height="1em" style={{ flex: 'none', lineHeight: 1 }} viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z" fill="#D97757" fillRule="nonzero" />
+            </svg>
+            <span className="ai-tab__session-name text-xs font-medium text-ide-text truncate">{state.name || 'untitled'}</span>
+          </div>
+        <div className="ai-tab__header-actions flex items-center gap-1">
+          {/* Copy conversation */}
+          <button
+            onClick={handleCopyConversation}
+            disabled={state.messages.length === 0}
+            className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title={t('Copy as Markdown (content follows eye filter)')}
+          >
+            {conversationCopied ? <Check size={14} className="text-ide-accent" /> : <Copy size={14} />}
+          </button>
+          {/* Toggle tool visibility */}
+          <button
+            onClick={() => setViewMode(v => (v + 1) % 3)}
+            className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors ${viewMode === 2 ? 'ai-tab__header-btn--active bg-ide-active' : ''}`}
+            title={viewMode === 0 ? t('Show All') : viewMode === 1 ? t('Hide Tools') : t('Hide Tools & Think')}
+          >
+            {viewMode === 0 ? <Eye size={14} /> : <EyeOff size={14} />}
+          </button>
+          {/* Session history */}
+          <button
+            onClick={async () => {
+              const { configDir } = readAiCliConfig()
+              const result = await window.api.ai.listSessions(workspacePath || undefined, configDir)
+              if (result.sessions?.length > 0) {
+                setSessionHistoryList(result.sessions)
+                setSessionHistoryOpen(true)
+              }
+            }}
+            className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            title={t('Session History')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+          </button>
+          {/* Worktree isolation toggle — hidden if already navigated from GitTab */}
+          {!worktreeNav?.worktreePath && (
+            <button
+              onClick={() => {
+                if (!activeSessionId || !workspacePath) return
+                const next = !worktreeEnabled
+                setWorktreeEnabled(next)
+                handleDestroySession(activeSessionId)
+                const { cliCommand, configDir } = readAiCliConfig()
+                aiStore.ensureCreated(activeSessionId, {
+                  cwd: workspacePath,
+                  autoApprove,
+                  permissionMode,
+                  cliCommand,
+                  configDir,
+                  ...(next ? { enableWorktree: true } : {}),
+                })
+                onViewAi()
+              }}
+              className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                worktreeEnabled
+                  ? 'bg-ide-accent/20 text-ide-accent'
+                  : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
+              }`}
+              title={t('Isolate in worktree')}
+            >
+              <GitBranch size={14} />
+            </button>
+          )}
+          {/* New session */}
+          <button
+            onClick={() => {
+              if (!activeSessionId || !workspacePath) return
+              handleDestroySession(activeSessionId)
+              const { cliCommand, configDir } = readAiCliConfig()
+              aiStore.ensureCreated(activeSessionId, {
+                cwd: workspacePath,
+                autoApprove,
+                permissionMode,
+                cliCommand,
+                configDir,
+                ...(worktreeEnabled ? { enableWorktree: true } : {}),
+              })
+              onViewAi()
+            }}
+            className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            title={t('New Session')}
+          >
+            <MessageSquarePlus size={14} />
+          </button>
+        </div>
+      </div>
+      {/* Session history dropdown */}
+      {sessionHistoryOpen && sessionHistoryList.length > 0 && (
+        <div ref={historyRef} className="ai-tab__history-dropdown absolute top-8 right-2 bg-ide-sidebar border border-ide-border rounded-lg shadow-lg z-20 max-h-[28rem] overflow-y-auto w-80 animate-fade-in">
+          {sessionHistoryList.map((s: any) => {
+            const timeStr = s.timestamp ? new Date(s.timestamp).toLocaleString() : ''
+            return (
+              <button
+                key={s.session_id || s.id}
+                onClick={async () => {
+                  setSessionHistoryOpen(false)
+                  setSessionHistoryList([])
+                  if (activeSessionId) {
+                    const { cliCommand, configDir } = readAiCliConfig()
+                    const history = await window.api.ai.loadSessionMessages(s.session_id || s.id, workspacePath || '', configDir)
+                    const sessionName = s.name && s.name !== s.session_id ? s.name : ''
+                    updateSession(activeSessionId, () => ({
+                      ...EMPTY_SESSION,
+                      messages: history.messages,
+                      model: history.model || '',
+                      slashCommands: enrichSlashCommands(history.slashCommands || []),
+                      name: sessionName,
+                      cwd: workspacePath || '',
+                      ready: false,
+                    }))
+                    await window.api.ai.destroy(activeSessionId)
+                    window.api.ai.create({
+                      sessionId: activeSessionId,
+                      cwd: workspacePath || '',
+                      autoApprove,
+                      permissionMode,
+                      resumeSessionId: s.session_id || s.id,
+                      ...(cliCommand ? { cliCommand } : {}),
+                      ...(configDir ? { configDir } : {}),
+                    })
+                  }
+                }}
+                className="ai-tab__history-item w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left"
+              >
+                <div className="ai-tab__history-item-name truncate">{s.name || s.session_id || s.id}</div>
+                {timeStr && (
+                  <div className="ai-tab__history-item-meta flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-1">
+                    <span className="truncate mr-2">{timeStr}</span>
+                    {s.sizeBytes > 0 && <span className="shrink-0">{formatBytes(s.sizeBytes)}</span>}
+                  </div>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {/* New conversation: 输入框居中,上方 icon + prompts 保持原位置 */}
+      {showEmptyCenter ? (
+        <>
+        <div className="ai-tab__empty flex flex-col items-center justify-center text-ide-text-muted text-xs pt-48 space-y-0.5 animate-fade-in">
+            <div className="ai-tab__empty-icon animate-zap-glow text-ide-accent">
+              <svg
+                fill="currentColor"
+                fillRule="evenodd"
+                height={64}
+                width={64}
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  clipRule="evenodd"
+                  d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"
+                />
+              </svg>
+            </div>
+            <div className="ai-tab__empty-prompts flex flex-wrap justify-center gap-1.5 pt-2 max-w-[280px]">
+              {EXAMPLE_PROMPTS.map((item, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    const text = t(item.prompt)
+                    setInputValue(text)
+                    const el = inputRef.current
+                    if (el) {
+                      el.value = text
+                      el.dispatchEvent(new Event('input', { bubbles: true }))
+                      el.focus()
+                      el.selectionStart = el.selectionEnd = text.length
+                      el.scrollTop = el.scrollHeight
+                    }
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+                  }}
+                  className="ai-tab__example-btn px-3 py-1.5 text-xs border border-ide-border rounded-full text-ide-text-muted hover:text-ide-text hover:bg-ide-hover hover:border-ide-accent/30 transition-colors"
+                >
+                  {t(item.label)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {inputArea}
+        </>
+      ) : (
+        <>
+        <div ref={scrollContainerRef} className="ai-tab__messages flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-1">
+        <MessageList
+          messages={state.messages}
+          userTurns={state.userTurns}
+          viewMode={viewMode}
+          busy={state.busy}
+          workspacePath={workspacePath}
+          onOpenFile={onOpenFile}
+          onRevert={handleRevert}
+          onRevertAndCode={handleRevertAndCode}
+          onFork={handleFork}
+        />
+        {!state.ready && state.messages.length > 0 && (
+          <div className="ai-tab__resume flex items-center gap-2 w-full max-w-[768px] mx-auto px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in">
+            <span className="h-3.5 w-3.5 rounded-full border-2 border-ide-accent/30 border-t-ide-accent animate-spin shrink-0" />
+            <span>{t('Resuming session...')}</span>
+          </div>
+        )}
+        {/* Busy indicator — thinking + streaming + sparkle */}
+        {state.busy && (
+          <div className="ai-tab__busy w-full max-w-[768px] mx-auto space-y-1.5 animate-fade-in">
+            {Object.keys(state.runningTools).length > 0 && (
+              <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">
+                {Object.entries(state.runningTools).map(([id, rt]) => (
+                  <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-hover text-ide-text-muted border border-ide-border/50">
+                    <ToolIcon category={getToolCategory(rt.tool)} />
+                    <span className="truncate max-w-[160px]">{rt.tool}</span>
+                    <span className="text-ide-text-muted/50">{Math.round(rt.elapsed)}s</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll />}
+            {state.streamBuffer ? (
+              <div>
+                <StreamingMarkdown text={state.streamBuffer} workspacePath={workspacePath} onOpenFile={onOpenFile} />
+                <span className="ai-tab__busy-sparkle animate-sparkle ml-0.5 text-sm leading-none align-middle select-none">✻</span>
+                <span className="ai-tab__busy-quip ml-0.5 text-xs leading-none align-middle select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
+              </div>
+            ) : (
+              <div>
+                <span className="animate-sparkle text-sm leading-none select-none">✻</span>
+                <span className="ml-0.5 text-xs leading-none select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
+              </div>
+            )}
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Permission popup — floats above input, not inside scroll area */}
+      {state.pendingPermission && activeSessionId && (
+        state.pendingPermission.tool === 'AskUserQuestion' ? (
+          <AiAskQuestionCard
+            perm={state.pendingPermission}
+            sessionId={activeSessionId}
+            onRespond={aiStore.handleAskResume}
+          />
+        ) : (
+          <AiPermissionCard
+            perm={state.pendingPermission}
+            sessionId={activeSessionId}
+            onRespond={aiStore.handlePermissionResponse}
+          />
+        )
+      )}
+
+      {/* Todo list — pins above input so it stays visible */}
+      {todoItems.length > 0 && <TodoListPanel items={todoItems} />}
+
+      {/* Piped prompt — queued while busy, auto-sent when idle, X to dismiss */}
+      {state.pipedPrompt && activeSessionId && (
+        <div className="ai-tab__piped mx-2 mb-1 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">
+          <Plug size={12} className="shrink-0 text-ide-accent" />
+          <span className="text-[11px] font-medium text-ide-accent/80 shrink-0">{t('Queued')}</span>
+          <span className="text-xs text-ide-text/80 truncate flex-1 min-w-0" title={state.pipedPrompt}>{state.pipedPrompt}</span>
+          <button
+            type="button"
+            onClick={() => updateSession(activeSessionId, s => ({ ...s, pipedPrompt: '' }))}
+            className="ai-tab__piped-dismiss shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            title={t('Remove')}
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {inputArea}
+        </>
+      )}
 
       {/* Plan overlay — covers entire dialog */}
       {state.pendingPermission && activeSessionId && state.pendingPermission.tool === 'ExitPlanMode' && (
