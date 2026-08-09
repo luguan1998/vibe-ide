@@ -246,35 +246,37 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
   const [expanded, setExpanded] = useState(false)
   const toolCount = messages.reduce((acc, m) => acc + (m.toolUse ? m.toolUse.length : 0), 0)
   return (
-    <div className="ai-tab__agent-group w-full max-w-[896px] border-l-[3px] border-ide-accent/40 pl-2 ml-2 space-y-1 animate-fade-in">
-      <button
-        onClick={() => setExpanded(v => !v)}
-        className="ai-tab__agent-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
-      >
-        <span className="shrink-0"><ToolIcon category="agent" /></span>
-        <span className="shrink-0 leading-none">Agent{(toolCount > 0) && ` (${toolCount} tools)`}</span>
-        <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-      </button>
-      {expanded && (
-        <div className="space-y-1">
-          {messages.map((msg, i) => (
-            <AiMessageBubble
-              key={i}
-              message={msg}
-              msgIndex={-1}
-              allMessages={messages}
-              workspacePath={workspacePath}
-              onOpenFile={onOpenFile}
-              userMessageIndex={-1}
-              isBusy={false}
-              onRevert={() => {}}
-              onRevertAndCode={() => {}}
-              onFork={() => {}}
-              viewMode={viewMode}
-            />
-          ))}
-        </div>
-      )}
+    <div className="ai-tab__agent-group w-full max-w-[896px] mx-auto animate-fade-in">
+      <div className="ml-2 pl-2 border-l-[3px] border-ide-accent/40 space-y-1">
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="ai-tab__agent-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
+        >
+          <span className="shrink-0"><ToolIcon category="agent" /></span>
+          <span className="shrink-0 leading-none">Agent{(toolCount > 0) && ` (${toolCount} tools)`}</span>
+          <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        </button>
+        {expanded && (
+          <div className="space-y-1">
+            {messages.map((msg, i) => (
+              <AiMessageBubble
+                key={i}
+                message={msg}
+                msgIndex={-1}
+                allMessages={messages}
+                workspacePath={workspacePath}
+                onOpenFile={onOpenFile}
+                userMessageIndex={-1}
+                isBusy={false}
+                onRevert={() => {}}
+                onRevertAndCode={() => {}}
+                onFork={() => {}}
+                viewMode={viewMode}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
