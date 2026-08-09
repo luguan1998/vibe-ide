@@ -971,7 +971,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 />
               </svg>
             </div>
-            <div className="ai-tab__empty-prompts flex flex-wrap justify-center gap-1.5 pt-2 max-w-[280px]">
+            <div className="ai-tab__empty-prompts flex flex-wrap justify-center gap-1.5 pt-2 max-w-[480px]">
               {EXAMPLE_PROMPTS.map((item, i) => (
                 <button
                   key={i}

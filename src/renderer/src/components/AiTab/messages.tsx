@@ -246,7 +246,7 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
   const [expanded, setExpanded] = useState(false)
   const toolCount = messages.reduce((acc, m) => acc + (m.toolUse ? m.toolUse.length : 0), 0)
   return (
-    <div className="ai-tab__agent-group w-full max-w-[896px] mx-auto border-l-[3px] border-ide-accent/40 pl-2 ml-2 space-y-1 animate-fade-in">
+    <div className="ai-tab__agent-group w-full max-w-[896px] border-l-[3px] border-ide-accent/40 pl-2 ml-2 space-y-1 animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
         className="ai-tab__agent-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
@@ -353,7 +353,7 @@ function AiErrorMessage({ message }: { message: AiMessage }) {
   }, [message.installCmd])
 
   return (
-    <div className="ai-tab__error px-3 py-2 rounded-2xl rounded-tl-md bg-ide-danger/10 border border-ide-danger/25 text-ide-danger text-xs animate-fade-in">
+    <div className="ai-tab__error w-full max-w-[896px] mx-auto px-3 py-2 rounded-2xl rounded-tl-md bg-ide-danger/10 border border-ide-danger/25 text-ide-danger text-xs animate-fade-in">
       {message.error}
       {message.installCmd && (
         <div className="mt-1.5 flex items-center gap-1.5">
