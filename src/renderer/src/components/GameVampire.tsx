@@ -161,6 +161,8 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
   const bossBannerRef = useRef(0)
   const endlessBannerRef = useRef(0)
   const endlessRef = useRef(false)
+  const finalBossAccRef = useRef(0)
+  const finalBannerRef = useRef(0)
 
   const [phase, setPhase] = useState<Phase>('playing')
   const [hp, setHp] = useState(100)
@@ -563,9 +565,23 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       }
     }
 
+    const finalPhase = !endlessRef.current && elapsedRef.current >= DURATION - 30 && elapsedRef.current < DURATION
+    const noSpawn = !endlessRef.current && elapsedRef.current >= DURATION - 5
+    if (finalPhase && finalBannerRef.current <= 0) finalBannerRef.current = 2.2
+    if (finalBannerRef.current > 0) finalBannerRef.current -= dt
+    if (finalPhase && !noSpawn) {
+      finalBossAccRef.current += dt
+      if (finalBossAccRef.current >= 8) {
+        finalBossAccRef.current = 0
+        spawnEnemy(bossCountRef.current % 2 === 0 ? 'boss' : 'dino')
+        bossBannerRef.current = 2
+        shakeRef.current = Math.max(shakeRef.current, 5)
+      }
+    }
     spawnAccRef.current += dt
-    const interval = Math.max(0.28, 1.15 - waveRef.current.n * 0.075)
-    if (spawnAccRef.current >= interval) {
+    const baseInterval = Math.max(0.28, 1.15 - waveRef.current.n * 0.075)
+    const interval = finalPhase ? baseInterval * 0.5 : baseInterval
+    if (spawnAccRef.current >= interval && !noSpawn) {
       spawnAccRef.current = 0
       const r = Math.random()
       let type = 'bat'
@@ -582,12 +598,12 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       }
     }
     eliteAccRef.current += dt
-    if (eliteAccRef.current >= 40) {
+    if (eliteAccRef.current >= 40 && !noSpawn) {
       eliteAccRef.current = 0
       spawnEnemy('elite')
     }
     // 巨兽：wave 6 起每 60 秒一只，作为后期硬怪
-    if (waveRef.current.n >= 6) {
+    if (waveRef.current.n >= 6 && !noSpawn) {
       giantAccRef.current += dt
       if (giantAccRef.current >= 60) {
         giantAccRef.current = 0
@@ -595,7 +611,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       }
     }
     bossAccRef.current += dt
-    if (bossAccRef.current >= 90) {
+    if (bossAccRef.current >= 90 && !noSpawn) {
       bossAccRef.current = 0
       spawnEnemy(bossCountRef.current % 2 === 0 ? 'boss' : 'dino')
       bossBannerRef.current = 2.2
@@ -1191,6 +1207,20 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       ctx.globalAlpha = 1
     }
 
+    if (finalBannerRef.current > 0) {
+      const a = Math.min(1, finalBannerRef.current / 0.8)
+      ctx.globalAlpha = a
+      ctx.font = `bold 34px "Segoe UI", sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.strokeStyle = 'rgba(0,0,0,0.75)'
+      ctx.lineWidth = 5
+      ctx.strokeText('⚠ 最终决战 ⚠', W / 2, H * 0.22)
+      ctx.fillStyle = '#ff7043'
+      ctx.fillText('⚠ 最终决战 ⚠', W / 2, H * 0.22)
+      ctx.globalAlpha = 1
+    }
+
     const hpRatio = p.hp / p.maxHp
     if (hpRatio < 0.35 && phaseRef.current === 'playing') {
       const pulse = 0.22 + Math.abs(Math.sin(elapsedRef.current * 5)) * 0.2
@@ -1303,6 +1333,8 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     bossBannerRef.current = 0
     endlessBannerRef.current = 0
     endlessRef.current = false
+    finalBossAccRef.current = 0
+    finalBannerRef.current = 0
     keysRef.current.clear()
     setHpBoth(100)
     setLevel(1)
@@ -1498,7 +1530,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
           {phase === 'over' && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-ide-bg/70 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-3 bg-ide-sidebar border border-ide-border rounded-xl px-10 py-6 shadow-2xl">
-                <div className="text-base font-bold text-ide-danger">你死了</div>
+                <div className="text-base font-bold text-ide-danger">Game Over</div>
                 <div className="text-xs text-ide-text tabular-nums">存活 {fmtTime(time)} / {fmtTime(DURATION)}</div>
                 <div className="text-xs text-ide-text-muted">等级 {level} · 击杀 {kills}</div>
                 <div className="text-xs text-ide-warning">最佳 {fmtTime(Math.max(best, time))}</div>
@@ -1511,10 +1543,10 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
           {phase === 'win' && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-ide-bg/70 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-3 bg-ide-sidebar border border-ide-border rounded-xl px-10 py-6 shadow-2xl">
-                <div className="text-base font-bold text-ide-accent">黎明降临，你活下来了！</div>
+                <div className="text-base font-bold text-ide-accent">🎉 黎明降临，你活下来了！ 🎉</div>
                 <div className="text-xs text-ide-text tabular-nums">存活 {fmtTime(time)} · 等级 {level} · 击杀 {kills}</div>
                 <div className="text-xs text-ide-warning">最佳 {fmtTime(Math.max(best, time))}</div>
-                <button onClick={startEndless} className="mt-1 px-5 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-lg transition-colors">继续挑战</button>
+                <button onClick={startEndless} className="mt-1 px-5 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-lg transition-colors">无尽模式</button>
                 <button onClick={reset} className="px-5 py-1.5 text-xs bg-ide-hover hover:bg-ide-hover/70 text-ide-text rounded-lg transition-colors">再来一局</button>
                 <button onClick={() => onBackRef.current?.()} className="px-5 py-1.5 text-xs bg-ide-hover hover:bg-ide-hover/70 text-ide-text-muted rounded-lg transition-colors">返回菜单</button>
               </div>

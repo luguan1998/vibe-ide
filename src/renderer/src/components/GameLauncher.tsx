@@ -16,6 +16,7 @@ interface GameCard {
   icon: React.ReactNode
   name: string
   desc: string
+  duration?: string
 }
 
 const GAMES: GameCard[] = [
@@ -24,7 +25,7 @@ const GAMES: GameCard[] = [
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
   { id: 'fruitninja', icon: <span className="text-2xl leading-none">🍉</span>, name: 'Fruit Ninja', desc: 'Slice fruits with your swipe — dodge the bombs' },
-  { id: 'vampire', icon: <img src={MAGE_SVG_URL} alt="Vampire Survivors" className="w-6 h-6" />, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes' },
+  { id: 'vampire', icon: <img src={MAGE_SVG_URL} alt="Vampire Survivors" className="w-6 h-6" />, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
 export default function GameLauncher() {
@@ -72,7 +73,10 @@ export default function GameLauncher() {
           >
             <div className="shrink-0 w-7 h-7 flex items-center justify-center">{game.icon}</div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-ide-text group-hover:text-ide-accent transition-colors">{game.name}</div>
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-medium text-ide-text group-hover:text-ide-accent transition-colors">{game.name}</div>
+                {game.duration && <span className="text-[10px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted whitespace-nowrap">{game.duration}</span>}
+              </div>
               <div className="text-xs text-ide-text-muted truncate">{game.desc}</div>
             </div>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-text-muted/50">

@@ -202,10 +202,10 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
     }
   }, [sliceFruit])
 
-  const update = useCallback(() => {
+  const update = useCallback((dt: number) => {
     if (successPausedRef.current) return
     if (!gameOverRef.current) {
-      spawnAccRef.current++
+      spawnAccRef.current += dt
       if (spawnAccRef.current >= Math.max(70, 160 - slicedRef.current * 2)) {
         spawnAccRef.current = 0
         spawnFruit()
@@ -216,10 +216,10 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
     const fruits = fruitsRef.current
     for (let i = fruits.length - 1; i >= 0; i--) {
       const f = fruits[i]
-      f.vy += GRAVITY
-      f.x += f.vx
-      f.y += f.vy
-      f.rot += f.vr
+      f.vy += GRAVITY * dt
+      f.x += f.vx * dt
+      f.y += f.vy * dt
+      f.rot += f.vr * dt
       if (f.y > H + f.r * 2) {
         fruits.splice(i, 1)
         if (!f.bomb && !gameOverRef.current) {
@@ -241,26 +241,27 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
     const chunks = chunksRef.current
     for (let i = chunks.length - 1; i >= 0; i--) {
       const c = chunks[i]
-      c.vy += 0.3
-      c.x += c.vx
-      c.y += c.vy
-      c.rot += c.vr
-      c.alpha -= 0.035
+      c.vy += 0.3 * dt
+      c.x += c.vx * dt
+      c.y += c.vy * dt
+      c.rot += c.vr * dt
+      c.alpha -= 0.035 * dt
       if (c.alpha <= 0 || c.y > H + 60) chunks.splice(i, 1)
     }
 
     const parts = partsRef.current
     for (let i = parts.length - 1; i >= 0; i--) {
       const p = parts[i]
-      p.vy += 0.25
-      p.x += p.vx
-      p.y += p.vy
-      if (--p.life <= 0) parts.splice(i, 1)
+      p.vy += 0.25 * dt
+      p.x += p.vx * dt
+      p.y += p.vy * dt
+      p.life -= dt
+      if (p.life <= 0) parts.splice(i, 1)
     }
 
     const splats = splatsRef.current
     for (let i = splats.length - 1; i >= 0; i--) {
-      splats[i].alpha -= 0.0012
+      splats[i].alpha -= 0.0012 * dt
       if (splats[i].alpha <= 0) splats.splice(i, 1)
     }
 
@@ -271,16 +272,16 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
     const popups = popupsRef.current
     for (let i = popups.length - 1; i >= 0; i--) {
       const p = popups[i]
-      p.t -= 0.016
-      p.y -= 0.7
+      p.t -= 0.016 * dt
+      p.y -= 0.7 * dt
       if (p.t <= 0) popups.splice(i, 1)
     }
 
     if (comboTimerRef.current > 0) {
-      comboTimerRef.current -= 0.016
+      comboTimerRef.current -= 0.016 * dt
       if (comboTimerRef.current <= 0) comboRef.current = 0
     }
-    if (flashRef.current > 0) flashRef.current -= 16
+    if (flashRef.current > 0) flashRef.current -= 16 * dt
   }, [spawnFruit, best])
 
   const render = useCallback(() => {
@@ -414,9 +415,13 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
     }
   }, [])
 
+  const lastTimeRef = useRef(performance.now())
   useEffect(() => {
-    const loop = () => {
-      update()
+    const loop = (now: number) => {
+      const last = lastTimeRef.current
+      const dt = Math.min(2, Math.max(0.1, (now - last) / 16.667))
+      lastTimeRef.current = now
+      update(dt)
       render()
       animRef.current = requestAnimationFrame(loop)
     }
