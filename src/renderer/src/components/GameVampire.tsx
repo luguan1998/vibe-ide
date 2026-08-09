@@ -514,12 +514,17 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     setLevel(p.level)
     setXpNext(p.xpNext)
     if (leveled) {
-      setOptions(buildOptions())
-      selectedIndexRef.current = 0
-      setSelectedIndex(0)
-      setPhaseBoth('levelup')
+      const opts = buildOptions()
+      if (opts.length > 0) {
+        setOptions(opts)
+        selectedIndexRef.current = 0
+        setSelectedIndex(0)
+        setPhaseBoth('levelup')
+      } else {
+        addText(p.x, p.y - 28, '已达上限', '#ffd740')
+      }
     }
-  }, [buildOptions, setPhaseBoth])
+  }, [addText, buildOptions, setPhaseBoth])
 
   const update = useCallback((dt: number) => {
     if (phaseRef.current !== 'playing') return
