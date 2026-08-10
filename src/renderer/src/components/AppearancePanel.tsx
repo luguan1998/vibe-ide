@@ -726,28 +726,30 @@ const AppearancePanel = function AppearancePanel({
                   </div>
                   <p className="text-[12px] text-ide-text-muted px-1">{t('Drop a folder into pets/ to add a pet. Recommended: https://petdex.dev/')}</p>
                   <div className="border-t border-ide-border my-1" />
-                  {petsList.length === 0 ? (
-                    <div className="px-3 py-2 text-[12px] text-ide-text-muted">{t('No pets found.')}</div>
-                  ) : (
-                    petsList.map(p => (
-                      <div key={p.id} className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-ide-hover transition-colors">
-                        <button onClick={() => handlePetSelect(p.id)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
-                          <span className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${activePetId === p.id ? 'bg-ide-accent border-ide-accent' : 'border-ide-border'}`}>
-                            {activePetId === p.id && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                          </span>
-                          <span className={`text-sm truncate ${activePetId === p.id ? 'text-ide-text' : 'text-ide-text-muted'}`}>{p.displayName}</span>
-                        </button>
-                        <button
-                          onClick={() => handlePetDelete(p.id)}
-                          disabled={petsList.length <= 1}
-                          title={t('Delete Pet')}
-                          className="shrink-0 p-1 text-ide-text-muted hover:text-ide-danger disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
-                    ))
-                  )}
+                  <div className="overflow-y-auto max-h-[50vh] -mr-1 pr-1">
+                    {petsList.length === 0 ? (
+                      <div className="px-3 py-2 text-[12px] text-ide-text-muted">{t('No pets found.')}</div>
+                    ) : (
+                      petsList.map(p => (
+                        <div key={p.id} className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-ide-hover transition-colors">
+                          <button onClick={() => handlePetSelect(p.id)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                            <span className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${activePetId === p.id ? 'bg-ide-accent border-ide-accent' : 'border-ide-border'}`}>
+                              {activePetId === p.id && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                            </span>
+                            <span className={`text-sm truncate ${activePetId === p.id ? 'text-ide-text' : 'text-ide-text-muted'}`}>{p.displayName}</span>
+                          </button>
+                          <button
+                            onClick={() => handlePetDelete(p.id)}
+                            disabled={petsList.length <= 1}
+                            title={t('Delete Pet')}
+                            className="shrink-0 p-1 text-ide-text-muted hover:text-ide-danger disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
                   <div className="border-t border-ide-border" />
                 </div>
                 <ToggleRow labelKey="Show Pet" descKey="Show the desktop pet." checked={petVisible} onChange={handlePetVisibleToggle} zone="global" compact />
