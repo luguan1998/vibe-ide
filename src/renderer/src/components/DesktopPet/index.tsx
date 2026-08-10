@@ -278,6 +278,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   // 手动查看最新一条 AI 回复（不依赖监听开关；监听未开时取完快照即清理游标）
   const handleReadReply = useCallback(() => {
     if (!activeSessionId || !activeSessionCwd) return
+    setContextOpen(false)
     const cfg = readAiCliConfig()
     window.api.ai.initReplyCursor(activeSessionId, activeSessionCwd, cfg.configDir).then((r) => {
       if (r?.text) {
