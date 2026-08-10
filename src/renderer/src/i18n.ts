@@ -40,6 +40,7 @@ const ZH_MAP: Record<string, string> = {
   'Default Agent': '默认 Agent',
   'Optional. Auto-run on new session (empty = disabled)': '可选，新建会话时自动执行此命令（留空不自动执行）',
   'CLI Configuration': '会话配置',
+  'Refresh Env': '刷新环境变量',
   'Word Wrap': '自动换行',
   'Auto UTF-8': '自动切 UTF-8',
   'CodeGraph': '代码图谱',

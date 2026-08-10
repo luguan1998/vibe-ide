@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron'
-import { execSync } from 'child_process'
+import { execSync, execFileSync } from 'child_process'
 import { existsSync } from 'fs'
 import { join, dirname } from 'path'
 import * as pty from 'node-pty'
@@ -247,6 +247,36 @@ export function registerPtyHandlers(): void {
     }
 
     return shells
+  })
+
+  ipcMain.handle(IPC_CHANNELS.PTY_REFRESH_ENV, () => {
+    try {
+      let count = 0
+      const regKeys = [
+        'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment',
+        'HKCU\\Environment'
+      ]
+      for (const regKey of regKeys) {
+        let output: string
+        try {
+          output = execFileSync('reg.exe', ['query', regKey], { encoding: 'utf8', timeout: 5000 })
+        } catch { continue }
+        for (const line of output.split(/\r?\n/)) {
+          const m = line.match(/^\s{4}(.+?)\s{4,}REG\S+\s{4,}(.+)$/)
+          if (!m) continue
+          const key = m[1]
+          let value = m[2]
+          if (value === '(value not set)') continue
+          value = value.replace(/%([^%]+)%/g, (_m, varName) => process.env[varName] ?? `%${varName}%`)
+          process.env[key] = value
+          count++
+        }
+      }
+      return { success: true, count }
+    } catch (err: any) {
+      console.error('Failed to refresh env:', err)
+      return { success: false, error: err.message }
+    }
   })
 
   // Create a new terminal session

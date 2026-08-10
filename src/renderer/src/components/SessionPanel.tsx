@@ -725,6 +725,19 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setActiveGroupId(activeId)
     saveClaudeGroups({ groups, activeId })
   }
+  const handleRefreshEnv = async () => {
+    try {
+      const result = await window.api.terminal.refreshEnv()
+      if (result.success) {
+        setClaudeApplyMsg(`已刷新 ${result.count} 个环境变量`)
+        window.setTimeout(() => setClaudeApplyMsg(''), 3000)
+      } else {
+        setClaudeApplyMsg(`刷新失败：${result.error}`)
+      }
+    } catch (e: any) {
+      setClaudeApplyMsg(`刷新失败：${e?.message || e}`)
+    }
+  }
   const handleClaudeApply = async (g: ClaudeConfigGroup) => {
     try {
       await applyClaudeGroup(g)
@@ -1815,12 +1828,21 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[440px] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-9 py-3 border-b border-ide-border shrink-0">
               <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Bot className="size-3.5" />{t('CLI Configuration')}</span>
-              <button
-                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
-                onClick={() => setShowCliConfigModal(false)}
-              >
-                ×
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors mr-1"
+                  title={t('Refresh Env')}
+                  onClick={handleRefreshEnv}
+                >
+                  <RotateCcw className="size-3" />
+                </button>
+                <button
+                  className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                  onClick={() => setShowCliConfigModal(false)}
+                >
+                  ×
+                </button>
+              </div>
             </div>
             <div className="px-9 py-4 flex flex-col gap-4">
               {/* Shell Type */}

@@ -40,6 +40,7 @@ declare global {
         rename(id: string, newName: string): Promise<RenameTerminalResult>
         create: (options?: { cwd?: string; name?: string; shell?: string; autoUtf8?: boolean; initCommand?: string }) => Promise<TerminalSession>
         getShells: () => Promise<{ value: string; label: string }[]>
+        refreshEnv: () => Promise<{ success: boolean; count?: number; error?: string }>
         write: (id: string, data: string) => void
         resize: (id: string, cols: number, rows: number) => void
         close: (id: string) => Promise<boolean>

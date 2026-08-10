@@ -9,6 +9,7 @@ export const IPC_CHANNELS = {
   PTY_DATA: 'pty:data',
   PTY_EXIT: 'pty:exit',
   PTY_GET_SHELLS: 'pty:getShells',
+  PTY_REFRESH_ENV: 'pty:refreshEnv',
 
   // Git
   GIT_STATUS: 'git:status',
