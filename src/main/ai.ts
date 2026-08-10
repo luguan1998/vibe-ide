@@ -943,6 +943,7 @@ interface ReplyWatcher {
   projectDir: string
   activeFile: string | null
   lastLineIdx: number
+  lastSize: number
   timer: NodeJS.Timeout
 }
 const replyWatchers = new Map<string, ReplyWatcher>()
@@ -953,9 +954,15 @@ function extractReplyText(msg: any): { messageId: string; text: string } | null 
   const content = msg.message.content
   if (!Array.isArray(content)) return null
   const parts: string[] = []
+  let askQuestion: string | null = null
   for (const block of content) {
-    if (block?.type === 'text' && typeof block.text === 'string' && block.text.trim()) parts.push(block.text)
+    if (block?.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
+      parts.push(block.text)
+    } else if (block?.type === 'tool_use' && block.input && block.name === 'Ask' && typeof block.input.question === 'string' && block.input.question.trim()) {
+      askQuestion = block.input.question
+    }
   }
+  if (askQuestion) return { messageId: msg.message.id || '', text: cleanText(`🤔 ${askQuestion}`) }
   if (parts.length === 0) return null
   return { messageId: msg.message.id || '', text: cleanText(parts.join('\n')) }
 }
@@ -968,18 +975,22 @@ function readJsonlLines(filePath: string): Promise<string[] | null> {
 }
 
 // 扫项目目录，返回 mtime 最新的 jsonl 及其行、最后一条回复（快照用）
-async function scanActiveJsonl(projectDir: string): Promise<{ filePath: string; lines: string[]; lastReply: { messageId: string; text: string } | null } | null> {
+// prev 为上次扫描结果：最新文件同路径同大小则返回 lines=null（内容未变，跳过 readFile，jsonl 只增/截断）
+async function scanActiveJsonl(projectDir: string, prev?: { filePath: string | null; size: number }): Promise<{ filePath: string; size: number; lines: string[] | null; lastReply: { messageId: string; text: string } | null } | null> {
   const files = await readdir(projectDir).catch(() => [] as string[])
   const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
   if (jsonlFiles.length === 0) return null
-  let best: { name: string; mtime: number } | null = null
+  let best: { name: string; mtime: number; size: number } | null = null
   for (const f of jsonlFiles) {
     const st = await stat(join(projectDir, f)).catch(() => null)
     if (!st) continue
-    if (!best || st.mtimeMs > best.mtime) best = { name: f, mtime: st.mtimeMs }
+    if (!best || st.mtimeMs > best.mtime) best = { name: f, mtime: st.mtimeMs, size: st.size }
   }
   if (!best) return null
   const filePath = join(projectDir, best.name)
+  if (prev && prev.filePath === filePath && prev.size === best.size) {
+    return { filePath, size: best.size, lines: null, lastReply: null }
+  }
   const lines = await readJsonlLines(filePath)
   if (lines === null) return null
   let lastReply: { messageId: string; text: string } | null = null
@@ -989,18 +1000,20 @@ async function scanActiveJsonl(projectDir: string): Promise<{ filePath: string; 
     const r = extractReplyText(msg)
     if (r) { lastReply = r; break }
   }
-  return { filePath, lines, lastReply }
+  return { filePath, size: best.size, lines, lastReply }
 }
 
 function pollReplyWatcher(sessionId: string): void {
   const w = replyWatchers.get(sessionId)
   if (!w) return
-  scanActiveJsonl(w.projectDir).then((sc) => {
+  scanActiveJsonl(w.projectDir, { filePath: w.activeFile, size: w.lastSize }).then((sc) => {
     const watcher = replyWatchers.get(sessionId)
     if (!watcher || !sc) return
+    if (sc.lines === null) return // 文件未变化，无新行
     if (sc.filePath !== watcher.activeFile) {
       // 会话文件切换（如 TUI 里开了新会话）：从新文件头开始，只推快照
       watcher.activeFile = sc.filePath
+      watcher.lastSize = sc.size
       watcher.lastLineIdx = sc.lines.length
       if (sc.lastReply) {
         send(IPC_CHANNELS.AI_REPLY, { sessionId, messageId: sc.lastReply.messageId, text: sc.lastReply.text, timestamp: Date.now() })
@@ -1015,6 +1028,7 @@ function pollReplyWatcher(sessionId: string): void {
       if (r) send(IPC_CHANNELS.AI_REPLY, { sessionId, messageId: r.messageId, text: r.text, timestamp: Date.now() })
     }
     watcher.lastLineIdx = sc.lines.length
+    watcher.lastSize = sc.size
   }).catch(() => { /* project dir missing → keep polling */ })
 }
 
@@ -1034,12 +1048,14 @@ async function startReplyWatcher(sessionId: string, cwd: string, configDir?: str
     projectDir,
     activeFile: null,
     lastLineIdx: 0,
+    lastSize: 0,
     timer: setInterval(() => pollReplyWatcher(sessionId), REPLY_POLL_MS),
   }
   replyWatchers.set(sessionId, watcher)
   const sc = await scanActiveJsonl(projectDir)
-  if (sc) {
+  if (sc && sc.lines) {
     watcher.activeFile = sc.filePath
+    watcher.lastSize = sc.size
     watcher.lastLineIdx = sc.lines.length
     if (sc.lastReply) return { sessionId, messageId: sc.lastReply.messageId, text: sc.lastReply.text, timestamp: Date.now() }
   }

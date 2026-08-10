@@ -2430,7 +2430,7 @@ export default function App() {
           onBlur={handleCenterBlur}>
           {/* Diff */}
           {centerView === 'diff' && diffFile && (
-            <div className="flex-1 mx-1 mb-0 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
+            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
               <DiffViewer
                 key={`${diffFile.fullPath}-${diffFile.commitHash || 'working'}`}
                 filePath={diffFile.filePath}
@@ -2464,7 +2464,7 @@ export default function App() {
           )}
           {/* Markdown Preview */}
           {centerView === 'markdown' && markdownFile && (
-            <div className="flex-1 mx-1 mb-0 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay">
+            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay">
               <MarkdownPreview
                 key={markdownFile.fullPath}
                 fullPath={markdownFile.fullPath}
@@ -2480,7 +2480,7 @@ export default function App() {
           )}
           {/* Image Preview */}
           {centerView === 'image' && imageFile && (
-            <div className="flex-1 mx-1 mb-0 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay">
+            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay">
               <ImagePreview
                 key={imageFile.fullPath}
                 fullPath={imageFile.fullPath}
@@ -2492,7 +2492,7 @@ export default function App() {
           )}
           {/* Browser */}
           {centerView === 'browser' && (
-            <div className="flex-1 mx-1 mb-0 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
+            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
               <BrowserView
                 ref={browserViewRef}
                 onBack={handleBackToTerminal}
@@ -2509,7 +2509,7 @@ export default function App() {
             />
           )}
           {/* Terminal sessions / AI GUI mode */}
-          <div className="flex-1 mx-1 mb-0 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>
+          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => {
                 const isGui = sessionViewModes[session.id] === 'gui'
@@ -2564,7 +2564,7 @@ export default function App() {
             </Suspense>
           </div>
           {/* mujica canvas — display-toggle so state + running agents survive hide (ESC = collapse, restore pill shows in session list) */}
-          <div className="flex-1 mx-1 mb-0 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'mujica' ? 'flex' : 'none' }}>
+          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'mujica' ? 'flex' : 'none' }}>
             <GameMujica onCollapse={() => setCenterView('terminal')} />
           </div>
           {/* Drag-over overlay for file compare */}
@@ -2766,7 +2766,7 @@ export default function App() {
       )}
 
       {/* Desktop pet — warn>busy>unfocused>idle，跟随活跃 session 与窗口聚焦 */}
-      <DesktopPet logicalState={petLogicalState} activeSessionId={activeSessionId} activeSessionCwd={activeSessionCwd} />
+      <DesktopPet logicalState={petLogicalState} activeSessionId={activeSessionId} activeSessionCwd={activeSessionCwd} sessions={sessions} />
     </div>
   )
 

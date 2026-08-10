@@ -13,10 +13,11 @@ import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPre
 import { readAiCliConfig } from '../../aiStore'
 import { AiReplyBubble } from './AiReplyBubble'
 
-export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd }: {
+export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, sessions }: {
   logicalState: PetLogicalState
   activeSessionId: string | null
   activeSessionCwd: string | null
+  sessions: { id: string; cwd: string }[]
 }) {
   const [manifest, setManifest] = useState<PetManifest | null>(null)
   const [pos, setPos] = useState(() => getPetPos())
@@ -24,6 +25,10 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd }: 
   const [visible, setVisible] = useState(() => getPetVisible())
   const [popupOpen, setPopupOpen] = useState(false)
   const [popupAbove, setPopupAbove] = useState(true)
+  const [contextDir, setContextDir] = useState<'above' | 'below' | 'left' | 'right'>('above')
+  const [aiBubbleAlign, setAiBubbleAlign] = useState<'center' | 'left' | 'right'>('center')
+  const [bubblesAlign, setBubblesAlign] = useState<'default' | 'left' | 'right'>('default')
+  const [contextAlign, setContextAlign] = useState<'default' | 'left' | 'right'>('default')
   const [contextOpen, setContextOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [draftCmd, setDraftCmd] = useState('')
@@ -41,6 +46,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd }: 
   const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number; moved: boolean } | null>(null)
   const singleClickTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const transientTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const lastShownReplyIdRef = useRef<string | null>(null)
 
   // 加载 active manifest + 订阅 PET_CHANGED（设置里切换/删除后热重载）
   useEffect(() => {
@@ -107,35 +113,30 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd }: 
     transientTimerRef.current = setTimeout(() => setTransientState(null), Math.max(dur, 400))
   }, [manifest, frameRate])
 
-  // AI 回复预览：统一由主进程监听 jsonl（TUI 与 AI tab 都能监控），新回复到达即弹气泡
+  // AI 回复监听：为所有 session 启 watcher（主进程按 sessionId 独立轮询 jsonl），
+  // 任一会话有回复落盘（TUI claude / AI tab 均写 jsonl）即弹气泡；切换 session 不触发任何动作
   useEffect(() => {
-    if (!listenAi || !activeSessionId || !activeSessionCwd) return
-    let cancelled = false
+    if (!listenAi) return
     const cfg = readAiCliConfig()
-    window.api.ai.watchReplies(activeSessionId, activeSessionCwd, cfg.configDir).then((r) => {
-      if (cancelled || !r?.text) return
-      setLatestReply({ messageId: r.messageId, text: r.text })
-      setPopupOpen(false)
-      setContextOpen(false)
-      setAiBubbleOpen(true)
-    }).catch(() => {})
-    return () => {
-      cancelled = true
-      window.api.ai.stopReplyWatch(activeSessionId)
+    for (const s of sessions) {
+      window.api.ai.watchReplies(s.id, s.cwd, cfg.configDir).catch(() => {})
     }
-  }, [listenAi, activeSessionId, activeSessionCwd])
+    return () => {
+      for (const s of sessions) window.api.ai.stopReplyWatch(s.id)
+    }
+  }, [listenAi, sessions])
 
   useEffect(() => {
     if (!listenAi) return
     const handler = window.api.ai.onReply((r) => {
-      if (r.sessionId !== activeSessionId) return
+      if (!r?.text || r.messageId === lastShownReplyIdRef.current) return
+      lastShownReplyIdRef.current = r.messageId
       setLatestReply({ messageId: r.messageId, text: r.text })
       setPopupOpen(false)
-      setContextOpen(false)
       setAiBubbleOpen(true)
     })
     return () => window.api.ai.removeReplyListener(handler)
-  }, [listenAi, activeSessionId])
+  }, [listenAi])
 
   // 拖拽：左键按下 → 移动改 left/top → 松开持久；未移动则视为点击开气泡
   const onPointerDown = useCallback((e: React.PointerEvent) => {
@@ -194,17 +195,75 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd }: 
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
+    if (contextOpen) {
+      // 输入框已打开：再次右键只聚焦，不打断编辑
+      contextInputRef.current?.focus({ preventScroll: true })
+      return
+    }
     setPopupOpen(false)
-    setAiBubbleOpen(false)
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setPopupAbove(rect.top > 240)
+    // AI 回复气泡固定在宠物上方时，右键输入改左右弹避免重叠；否则按上下自适应
+    if (aiBubbleOpen && latestReply) {
+      setContextDir(rect.left + rect.width / 2 < window.innerWidth / 2 ? 'right' : 'left')
+    } else {
+      setContextDir(rect.top > 240 ? 'above' : 'below')
+    }
     setDraftCmd(prev => {
       if (prev.trim()) return prev
       const pfx = loadBtwPrefix()
       return pfx && !pfx.endsWith(' ') ? pfx + ' ' : pfx
     })
     setContextOpen(true)
-  }, [])
+  }, [aiBubbleOpen, latestReply, contextOpen])
+
+  // AI 回复气泡与右键输入同时打开时，输入框改左右弹（右键时可能 AI 气泡还没弹出）
+  useEffect(() => {
+    if (!aiBubbleOpen || !contextOpen) return
+    const el = wrapperRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setContextDir(rect.left + rect.width / 2 < window.innerWidth / 2 ? 'right' : 'left')
+  }, [aiBubbleOpen, contextOpen])
+
+  // 回复气泡靠屏幕边缘时贴边弹出，避免出屏（按 max-width 320 预估）
+  useEffect(() => {
+    if (!aiBubbleOpen || !latestReply) return
+    const el = wrapperRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    if (centerX - 160 < 8) setAiBubbleAlign('left')
+    else if (centerX + 160 > window.innerWidth - 8) setAiBubbleAlign('right')
+    else setAiBubbleAlign('center')
+  }, [aiBubbleOpen, latestReply])
+
+  // 速发键气泡（宽 220）靠边时贴边，避免出屏
+  useEffect(() => {
+    if (!popupOpen) return
+    const el = wrapperRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    if (centerX - 110 < 8) setBubblesAlign('left')
+    else if (centerX + 110 > window.innerWidth - 8) setBubblesAlign('right')
+    else setBubblesAlign('default')
+  }, [popupOpen])
+
+  // 右键输入框上下弹时靠边贴边；左右弹时按半区判断已安全，无需再算（须重置 align，防残留变体覆盖定位）
+  useEffect(() => {
+    if (!contextOpen) return
+    if (contextDir === 'left' || contextDir === 'right') {
+      setContextAlign('default')
+      return
+    }
+    const el = wrapperRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    if (centerX - 110 < 8) setContextAlign('left')
+    else if (centerX + 110 > window.innerWidth - 8) setContextAlign('right')
+    else setContextAlign('default')
+  }, [contextOpen, contextDir])
 
   const handleSend = useCallback(() => {
     const text = draftCmd.trim()
@@ -219,10 +278,10 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd }: 
   // 手动查看最新一条 AI 回复（不依赖监听开关；监听未开时取完快照即停，不残留轮询）
   const handleReadReply = useCallback(() => {
     if (!activeSessionId || !activeSessionCwd) return
-    setContextOpen(false)
     const cfg = readAiCliConfig()
     window.api.ai.watchReplies(activeSessionId, activeSessionCwd, cfg.configDir).then((r) => {
       if (r?.text) {
+        lastShownReplyIdRef.current = r.messageId
         setLatestReply({ messageId: r.messageId, text: r.text })
         setAiBubbleOpen(true)
       }
@@ -358,7 +417,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd }: 
         </div>
       )}
       {popupOpen && (
-        <div className={`desktop-pet__bubbles${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}`}>
+        <div className={`desktop-pet__bubbles${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}${bubblesAlign !== 'default' ? ` desktop-pet__bubbles--align-${bubblesAlign}` : ''}`}>
           {sections.map((sec, si) => (
             <div className="desktop-pet__bubble-section" key={sec.id}>
               {sec.items.map(it => (
@@ -388,10 +447,10 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd }: 
         </div>
       )}
       {visible && activeSessionId && aiBubbleOpen && latestReply && (
-        <AiReplyBubble text={latestReply.text} above={popupAbove} />
+        <AiReplyBubble text={latestReply.text} align={aiBubbleAlign} />
       )}
       {contextOpen && (
-        <div className={`desktop-pet__context${popupAbove ? ' desktop-pet__context--above' : ' desktop-pet__context--below'}`}>
+        <div className={`desktop-pet__context desktop-pet__context--${contextDir}${contextAlign !== 'default' ? ` desktop-pet__context--align-${contextAlign}` : ''}`}>
           <textarea
             ref={contextInputRef}
             className="desktop-pet__context-input"

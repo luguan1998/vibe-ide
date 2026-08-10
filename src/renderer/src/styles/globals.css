@@ -509,8 +509,10 @@ html, body, #root {
   gap: 8px;
   z-index: 35;
 }
-.desktop-pet__bubbles--above { bottom: calc(100% + 8px); }
+.desktop-pet__bubbles--above { bottom: calc(100% - 4px); }
 .desktop-pet__bubbles--below { top: calc(100% + 8px); }
+.desktop-pet__bubbles--align-left { left: 8px; }
+.desktop-pet__bubbles--align-right { left: auto; right: 8px; }
 .desktop-pet__bubble-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -580,8 +582,12 @@ html, body, #root {
 
 .desktop-pet__ai-reply {
   position: absolute;
-  left: -50px;
-  width: 300px;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: max-content;
+  min-width: 180px;
+  max-width: 320px;
   max-height: 256px;
   overflow-y: auto;
   padding: 10px 12px;
@@ -595,20 +601,28 @@ html, body, #root {
   z-index: 35;
   cursor: default;
 }
-.desktop-pet__ai-reply--above { bottom: calc(100% + 8px); }
-.desktop-pet__ai-reply--below { top: calc(100% + 8px); }
+.desktop-pet__ai-reply--left { left: 8px; transform: none; }
+.desktop-pet__ai-reply--right { left: auto; right: 8px; transform: none; }
+.desktop-pet__ai-reply .md-preview { font-size: 12px; }
+.desktop-pet__ai-reply .md-preview > :last-child { margin-bottom: 0; }
+.desktop-pet__ai-reply .md-preview pre,
+.desktop-pet__ai-reply .md-code-block pre { font-size: 11px; }
+.desktop-pet__ai-reply .md-preview table { font-size: 11px; }
 
 .desktop-pet__context {
   position: absolute;
-  left: -50px;
   width: 220px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   z-index: 35;
 }
-.desktop-pet__context--above { bottom: calc(100% + 8px); }
-.desktop-pet__context--below { top: calc(100% + 8px); }
+.desktop-pet__context--above { left: 50%; transform: translateX(-50%); bottom: calc(100% - 4px); }
+.desktop-pet__context--below { left: -50px; top: calc(100% + 8px); }
+.desktop-pet__context--left { left: auto; right: calc(100% + 8px); top: 50%; transform: translateY(-50%); }
+.desktop-pet__context--right { left: calc(100% + 8px); top: 50%; transform: translateY(-50%); }
+.desktop-pet__context--align-left { left: 8px; right: auto; transform: none; }
+.desktop-pet__context--align-right { left: auto; right: 8px; transform: none; }
 .desktop-pet__context-input {
   width: 100%;
   box-sizing: border-box;
