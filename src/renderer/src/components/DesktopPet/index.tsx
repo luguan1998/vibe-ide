@@ -113,16 +113,16 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     transientTimerRef.current = setTimeout(() => setTransientState(null), Math.max(dur, 400))
   }, [manifest, frameRate])
 
-  // AI 回复监听：为所有 session 启 watcher（主进程按 sessionId 独立轮询 jsonl），
-  // 任一会话有回复落盘（TUI claude / AI tab 均写 jsonl）即弹气泡；切换 session 不触发任何动作
+  // AI 回复监听：为所有 session 初始化回复游标（记录读到哪行，无定时器），
+  // 渲染进程检测到会话 busy→idle 转换时调 ai.readReply 增量读 jsonl 弹气泡
   useEffect(() => {
     if (!listenAi) return
     const cfg = readAiCliConfig()
     for (const s of sessions) {
-      window.api.ai.watchReplies(s.id, s.cwd, cfg.configDir).catch(() => {})
+      window.api.ai.initReplyCursor(s.id, s.cwd, cfg.configDir).catch(() => {})
     }
     return () => {
-      for (const s of sessions) window.api.ai.stopReplyWatch(s.id)
+      for (const s of sessions) window.api.ai.stopReplyCursor(s.id)
     }
   }, [listenAi, sessions])
 
@@ -275,17 +275,17 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     setContextOpen(false)
   }, [draftCmd, triggerTransient])
 
-  // 手动查看最新一条 AI 回复（不依赖监听开关；监听未开时取完快照即停，不残留轮询）
+  // 手动查看最新一条 AI 回复（不依赖监听开关；监听未开时取完快照即清理游标）
   const handleReadReply = useCallback(() => {
     if (!activeSessionId || !activeSessionCwd) return
     const cfg = readAiCliConfig()
-    window.api.ai.watchReplies(activeSessionId, activeSessionCwd, cfg.configDir).then((r) => {
+    window.api.ai.initReplyCursor(activeSessionId, activeSessionCwd, cfg.configDir).then((r) => {
       if (r?.text) {
         lastShownReplyIdRef.current = r.messageId
         setLatestReply({ messageId: r.messageId, text: r.text })
         setAiBubbleOpen(true)
       }
-      if (!listenAi) window.api.ai.stopReplyWatch(activeSessionId)
+      if (!listenAi) window.api.ai.stopReplyCursor(activeSessionId)
     }).catch(() => {})
   }, [activeSessionId, activeSessionCwd, listenAi])
 

@@ -200,8 +200,9 @@ declare global {
         removeProgressListener: (handler?: any) => void
         onError: (callback: (data: { sessionId: string; error: string }) => void) => any
         removeErrorListener: (handler?: any) => void
-        watchReplies: (sessionId: string, cwd: string, configDir?: string) => Promise<import('@shared/types').AiReply | null>
-        stopReplyWatch: (sessionId: string) => Promise<boolean>
+        initReplyCursor: (sessionId: string, cwd: string, configDir?: string) => Promise<import('@shared/types').AiReply | null>
+        stopReplyCursor: (sessionId: string) => Promise<boolean>
+        readReply: (sessionId: string) => Promise<boolean>
         onReply: (callback: (data: import('@shared/types').AiReply) => void) => any
         removeReplyListener: (handler?: any) => void
       }
@@ -953,6 +954,11 @@ export default function App() {
   }, [waitDraftIdle])
 
 
+  // 宠物监听：busy→idle 转换触发一次 jsonl 增量读（游标未注册时主进程 no-op）
+  const triggerPetReplyRead = useCallback((sessionId: string) => {
+    window.api.ai.readReply(sessionId).catch(() => {})
+  }, [])
+
   const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     const v = status === 'running'
     setTerminalBusy(prev => {
@@ -970,8 +976,9 @@ export default function App() {
         resolve()
       }
       notifyDraftIdle(sessionId)
+      triggerPetReplyRead(sessionId)
     }
-  }, [notifyDraftIdle])
+  }, [notifyDraftIdle, triggerPetReplyRead])
 
   const cancelPipe = useCallback((sessionId: string) => {
     pipeQueueRef.current.delete(sessionId)
@@ -1092,8 +1099,9 @@ export default function App() {
         resolve()
       }
       notifyDraftIdle(sessionId)
+      triggerPetReplyRead(sessionId)
     }
-  }, [notifyDraftIdle])
+  }, [notifyDraftIdle, triggerPetReplyRead])
 
   const handleResetCache = useCallback((sessionId: string) => {
     terminalRefs.current[sessionId]?.clearBuffer()

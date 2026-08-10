@@ -1022,6 +1022,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         const code = data.exitCode
         const suffix = (code === undefined || code === null) ? '' : ` with code ${code}`
         term.write(`\r\n[Process exited${suffix}]\r\n`)
+        // 进程被强杀时可能没有 idle 转换 → 补一次宠物回复增量读（游标未注册时主进程 no-op）
+        window.api.ai.readReply(sessionId).catch(() => {})
       }
     })
 

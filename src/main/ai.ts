@@ -932,22 +932,21 @@ export function resolveProjectDir(cwd: string, configDir?: string): string | nul
   } catch { return null }
 }
 
-// ── Pet AI-reply watcher ─────────────────────────────────────────
+// ── Pet AI-reply cursor ─────────────────────────────────────────
 // 宠物气泡的统一数据源：TUI（终端里直接跑 claude）与 AI tab 都会把会话写入
-// <configDir>/projects/<normalized-cwd>/ 下的 <uuid>.jsonl。轮询该目录下 mtime
-// 最新的 jsonl，增量解析 assistant 纯文本回复并 push AI_REPLY（与 SidecarWatcher
-// 同范式：轮询 + 行号增量 + 未闭合行退回）。
+// <configDir>/projects/<normalized-cwd>/ 下的 <uuid>.jsonl。渲染进程检测到会话
+// busy→idle 转换时调 readReplyIncrement，扫描该目录下 mtime 最新的 jsonl，
+// 增量解析 assistant 纯文本回复并 push AI_REPLY（行号增量 + 未闭合行退回）。
+// cursor 只是记录每个会话"读到第几行/文件多大"的游标，不监听任何东西。
 
-interface ReplyWatcher {
+interface ReplyCursor {
   sessionId: string
   projectDir: string
   activeFile: string | null
   lastLineIdx: number
   lastSize: number
-  timer: NodeJS.Timeout
 }
-const replyWatchers = new Map<string, ReplyWatcher>()
-const REPLY_POLL_MS = 1000
+const replyCursors = new Map<string, ReplyCursor>()
 
 function extractReplyText(msg: any): { messageId: string; text: string } | null {
   if (!msg || msg.type !== 'assistant' || !msg.message) return null
@@ -1003,60 +1002,58 @@ async function scanActiveJsonl(projectDir: string, prev?: { filePath: string | n
   return { filePath, size: best.size, lines, lastReply }
 }
 
-function pollReplyWatcher(sessionId: string): void {
-  const w = replyWatchers.get(sessionId)
-  if (!w) return
-  scanActiveJsonl(w.projectDir, { filePath: w.activeFile, size: w.lastSize }).then((sc) => {
-    const watcher = replyWatchers.get(sessionId)
-    if (!watcher || !sc) return
+// 事件驱动读取：渲染进程检测到会话 busy→idle 转换时调用，增量解析新行并 push AI_REPLY。
+// 游标未注册（监听未开启）时直接返回，零 IO。
+function readReplyIncrement(sessionId: string): void {
+  const cur = replyCursors.get(sessionId)
+  if (!cur) return
+  scanActiveJsonl(cur.projectDir, { filePath: cur.activeFile, size: cur.lastSize }).then((sc) => {
+    const cursor = replyCursors.get(sessionId)
+    if (!cursor || !sc) return
     if (sc.lines === null) return // 文件未变化，无新行
-    if (sc.filePath !== watcher.activeFile) {
+    if (sc.filePath !== cursor.activeFile) {
       // 会话文件切换（如 TUI 里开了新会话）：从新文件头开始，只推快照
-      watcher.activeFile = sc.filePath
-      watcher.lastSize = sc.size
-      watcher.lastLineIdx = sc.lines.length
+      cursor.activeFile = sc.filePath
+      cursor.lastSize = sc.size
+      cursor.lastLineIdx = sc.lines.length
       if (sc.lastReply) {
         send(IPC_CHANNELS.AI_REPLY, { sessionId, messageId: sc.lastReply.messageId, text: sc.lastReply.text, timestamp: Date.now() })
       }
       return
     }
-    if (sc.lines.length <= watcher.lastLineIdx) return
-    for (let i = watcher.lastLineIdx; i < sc.lines.length; i++) {
+    if (sc.lines.length <= cursor.lastLineIdx) return
+    for (let i = cursor.lastLineIdx; i < sc.lines.length; i++) {
       let msg: any
       try { msg = JSON.parse(sc.lines[i]) } catch { continue }
       const r = extractReplyText(msg)
       if (r) send(IPC_CHANNELS.AI_REPLY, { sessionId, messageId: r.messageId, text: r.text, timestamp: Date.now() })
     }
-    watcher.lastLineIdx = sc.lines.length
-    watcher.lastSize = sc.size
-  }).catch(() => { /* project dir missing → keep polling */ })
+    cursor.lastLineIdx = sc.lines.length
+    cursor.lastSize = sc.size
+  }).catch(() => { /* project dir missing → 下次 idle 再试 */ })
 }
 
-function stopReplyWatcher(sessionId: string): void {
-  const w = replyWatchers.get(sessionId)
-  if (!w) return
-  clearInterval(w.timer)
-  replyWatchers.delete(sessionId)
+function clearReplyCursor(sessionId: string): void {
+  replyCursors.delete(sessionId)
 }
 
-async function startReplyWatcher(sessionId: string, cwd: string, configDir?: string): Promise<AiReply | null> {
-  stopReplyWatcher(sessionId)
+async function initReplyCursor(sessionId: string, cwd: string, configDir?: string): Promise<AiReply | null> {
+  clearReplyCursor(sessionId)
   const projectDir = resolveProjectDir(cwd, configDir)
   if (!projectDir) return null
-  const watcher: ReplyWatcher = {
+  const cursor: ReplyCursor = {
     sessionId,
     projectDir,
     activeFile: null,
     lastLineIdx: 0,
     lastSize: 0,
-    timer: setInterval(() => pollReplyWatcher(sessionId), REPLY_POLL_MS),
   }
-  replyWatchers.set(sessionId, watcher)
+  replyCursors.set(sessionId, cursor)
   const sc = await scanActiveJsonl(projectDir)
   if (sc && sc.lines) {
-    watcher.activeFile = sc.filePath
-    watcher.lastSize = sc.size
-    watcher.lastLineIdx = sc.lines.length
+    cursor.activeFile = sc.filePath
+    cursor.lastSize = sc.size
+    cursor.lastLineIdx = sc.lines.length
     if (sc.lastReply) return { sessionId, messageId: sc.lastReply.messageId, text: sc.lastReply.text, timestamp: Date.now() }
   }
   return null
@@ -1500,12 +1497,16 @@ export function registerAiHandlers(): void {
     return loadSessionMessages(resumeSessionId, cwd, configDir)
   })
 
-  // Pet bubble: watch the latest AI reply from JSONL (TUI + AI tab unified source)
-  ipcMain.handle(IPC_CHANNELS.AI_REPLY_WATCH, async (_event, sessionId: string, cwd: string, configDir?: string) => {
-    return startReplyWatcher(sessionId, cwd, configDir)
+  // Pet bubble: reply cursor over JSONL (TUI + AI tab unified source)
+  ipcMain.handle(IPC_CHANNELS.AI_REPLY_INIT, async (_event, sessionId: string, cwd: string, configDir?: string) => {
+    return initReplyCursor(sessionId, cwd, configDir)
   })
   ipcMain.handle(IPC_CHANNELS.AI_REPLY_STOP, (_event, sessionId: string) => {
-    stopReplyWatcher(sessionId)
+    clearReplyCursor(sessionId)
+    return true
+  })
+  ipcMain.handle(IPC_CHANNELS.AI_REPLY_READ, (_event, sessionId: string) => {
+    readReplyIncrement(sessionId)
     return true
   })
 
