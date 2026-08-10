@@ -444,6 +444,8 @@ export default function App() {
       if (prevBusy && !busy && sid !== activeSessionId) {
         updates[sid] = true
         changed = true
+        // 宠物监听：后台会话 busy→idle（warn 场景）触发一次回复快照读取（游标未注册时主进程 no-op）
+        window.api.ai.readReply(sid).catch(() => {})
       }
     }
     if (activeSessionId && warnSessionsRef.current[activeSessionId]) {
@@ -954,11 +956,6 @@ export default function App() {
   }, [waitDraftIdle])
 
 
-  // 宠物监听：busy→idle 转换触发一次 jsonl 增量读（游标未注册时主进程 no-op）
-  const triggerPetReplyRead = useCallback((sessionId: string) => {
-    window.api.ai.readReply(sessionId).catch(() => {})
-  }, [])
-
   const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     const v = status === 'running'
     setTerminalBusy(prev => {
@@ -976,9 +973,8 @@ export default function App() {
         resolve()
       }
       notifyDraftIdle(sessionId)
-      triggerPetReplyRead(sessionId)
     }
-  }, [notifyDraftIdle, triggerPetReplyRead])
+  }, [notifyDraftIdle])
 
   const cancelPipe = useCallback((sessionId: string) => {
     pipeQueueRef.current.delete(sessionId)
@@ -1099,9 +1095,8 @@ export default function App() {
         resolve()
       }
       notifyDraftIdle(sessionId)
-      triggerPetReplyRead(sessionId)
     }
-  }, [notifyDraftIdle, triggerPetReplyRead])
+  }, [notifyDraftIdle])
 
   const handleResetCache = useCallback((sessionId: string) => {
     terminalRefs.current[sessionId]?.clearBuffer()

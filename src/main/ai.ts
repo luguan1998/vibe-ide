@@ -934,19 +934,13 @@ export function resolveProjectDir(cwd: string, configDir?: string): string | nul
 
 // ── Pet AI-reply cursor ─────────────────────────────────────────
 // 宠物气泡的统一数据源：TUI（终端里直接跑 claude）与 AI tab 都会把会话写入
-// <configDir>/projects/<normalized-cwd>/ 下的 <uuid>.jsonl。渲染进程检测到会话
-// busy→idle 转换时调 readReplyIncrement，扫描该目录下 mtime 最新的 jsonl，
-// 增量解析 assistant 纯文本回复并 push AI_REPLY（行号增量 + 未闭合行退回）。
-// cursor 只是记录每个会话"读到第几行/文件多大"的游标，不监听任何东西。
+// <configDir>/projects/<normalized-cwd>/ 下的 <uuid>.jsonl。渲染进程检测到后台会话
+// busy→idle（warn 场景）时调 readReplyIncrement，扫描该目录下 mtime 最新的 jsonl，
+// 取最后一条 assistant 回复 push AI_REPLY——与"显示最新回复"按钮同一取数逻辑
+// （无状态快照，renderer 按 messageId 去重），不依赖增量游标。
+// cursor 只记录会话 → projectDir 映射，不监听任何东西。
 
-interface ReplyCursor {
-  sessionId: string
-  projectDir: string
-  activeFile: string | null
-  lastLineIdx: number
-  lastSize: number
-}
-const replyCursors = new Map<string, ReplyCursor>()
+const replyCursors = new Map<string, string>() // sessionId → projectDir
 
 function extractReplyText(msg: any): { messageId: string; text: string } | null {
   if (!msg || msg.type !== 'assistant' || !msg.message) return null
@@ -967,70 +961,44 @@ function extractReplyText(msg: any): { messageId: string; text: string } | null 
 }
 
 function readJsonlLines(filePath: string): Promise<string[] | null> {
-  return readFile(filePath, 'utf-8').then((content) => {
-    const segments = content.endsWith('\n') ? content.split('\n') : content.split('\n').slice(0, -1)
-    return segments.filter(Boolean)
-  }).catch(() => null)
+  return readFile(filePath, 'utf-8').then((content) => content.split('\n').filter(Boolean)).catch(() => null)
 }
 
-// 扫项目目录，返回 mtime 最新的 jsonl 及其行、最后一条回复（快照用）
-// prev 为上次扫描结果：最新文件同路径同大小则返回 lines=null（内容未变，跳过 readFile，jsonl 只增/截断）
-async function scanActiveJsonl(projectDir: string, prev?: { filePath: string | null; size: number }): Promise<{ filePath: string; size: number; lines: string[] | null; lastReply: { messageId: string; text: string } | null } | null> {
+// 扫项目目录，返回 mtime 最新 jsonl 的最后一条 assistant 回复（快照用）。
+// 不做 size 跳过：TUI 模式的 CLI 可能整文件重写 jsonl（非 append），size 相同不等于内容未变。
+// 事件驱动触发频率低，每次全量读的成本可接受。未闭合行 JSON.parse 失败自动跳过。
+async function scanActiveJsonl(projectDir: string): Promise<{ messageId: string; text: string } | null> {
   const files = await readdir(projectDir).catch(() => [] as string[])
   const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
   if (jsonlFiles.length === 0) return null
-  let best: { name: string; mtime: number; size: number } | null = null
+  let best: { name: string; mtime: number } | null = null
   for (const f of jsonlFiles) {
     const st = await stat(join(projectDir, f)).catch(() => null)
     if (!st) continue
-    if (!best || st.mtimeMs > best.mtime) best = { name: f, mtime: st.mtimeMs, size: st.size }
+    if (!best || st.mtimeMs > best.mtime) best = { name: f, mtime: st.mtimeMs }
   }
   if (!best) return null
-  const filePath = join(projectDir, best.name)
-  if (prev && prev.filePath === filePath && prev.size === best.size) {
-    return { filePath, size: best.size, lines: null, lastReply: null }
-  }
-  const lines = await readJsonlLines(filePath)
+  const lines = await readJsonlLines(join(projectDir, best.name))
   if (lines === null) return null
-  let lastReply: { messageId: string; text: string } | null = null
   for (let i = lines.length - 1; i >= 0; i--) {
     let msg: any
     try { msg = JSON.parse(lines[i]) } catch { continue }
     const r = extractReplyText(msg)
-    if (r) { lastReply = r; break }
+    if (r) return r
   }
-  return { filePath, size: best.size, lines, lastReply }
+  return null
 }
 
-// 事件驱动读取：渲染进程检测到会话 busy→idle 转换时调用，增量解析新行并 push AI_REPLY。
+// 事件驱动读取：后台会话 busy→idle（warn 场景）时调用，取最新 jsonl 的最后一条
+// 回复 push AI_REPLY（与"显示最新回复"按钮同一取数逻辑）。
 // 游标未注册（监听未开启）时直接返回，零 IO。
 function readReplyIncrement(sessionId: string): void {
-  const cur = replyCursors.get(sessionId)
-  if (!cur) return
-  scanActiveJsonl(cur.projectDir, { filePath: cur.activeFile, size: cur.lastSize }).then((sc) => {
-    const cursor = replyCursors.get(sessionId)
-    if (!cursor || !sc) return
-    if (sc.lines === null) return // 文件未变化，无新行
-    if (sc.filePath !== cursor.activeFile) {
-      // 会话文件切换（如 TUI 里开了新会话）：从新文件头开始，只推快照
-      cursor.activeFile = sc.filePath
-      cursor.lastSize = sc.size
-      cursor.lastLineIdx = sc.lines.length
-      if (sc.lastReply) {
-        send(IPC_CHANNELS.AI_REPLY, { sessionId, messageId: sc.lastReply.messageId, text: sc.lastReply.text, timestamp: Date.now() })
-      }
-      return
-    }
-    if (sc.lines.length <= cursor.lastLineIdx) return
-    for (let i = cursor.lastLineIdx; i < sc.lines.length; i++) {
-      let msg: any
-      try { msg = JSON.parse(sc.lines[i]) } catch { continue }
-      const r = extractReplyText(msg)
-      if (r) send(IPC_CHANNELS.AI_REPLY, { sessionId, messageId: r.messageId, text: r.text, timestamp: Date.now() })
-    }
-    cursor.lastLineIdx = sc.lines.length
-    cursor.lastSize = sc.size
-  }).catch(() => { /* project dir missing → 下次 idle 再试 */ })
+  const projectDir = replyCursors.get(sessionId)
+  if (!projectDir) return
+  scanActiveJsonl(projectDir).then((reply) => {
+    if (!reply) return
+    send(IPC_CHANNELS.AI_REPLY, { sessionId, messageId: reply.messageId, text: reply.text, timestamp: Date.now() })
+  }).catch(() => { /* project dir missing → 下次触发再试 */ })
 }
 
 function clearReplyCursor(sessionId: string): void {
@@ -1041,21 +1009,9 @@ async function initReplyCursor(sessionId: string, cwd: string, configDir?: strin
   clearReplyCursor(sessionId)
   const projectDir = resolveProjectDir(cwd, configDir)
   if (!projectDir) return null
-  const cursor: ReplyCursor = {
-    sessionId,
-    projectDir,
-    activeFile: null,
-    lastLineIdx: 0,
-    lastSize: 0,
-  }
-  replyCursors.set(sessionId, cursor)
-  const sc = await scanActiveJsonl(projectDir)
-  if (sc && sc.lines) {
-    cursor.activeFile = sc.filePath
-    cursor.lastSize = sc.size
-    cursor.lastLineIdx = sc.lines.length
-    if (sc.lastReply) return { sessionId, messageId: sc.lastReply.messageId, text: sc.lastReply.text, timestamp: Date.now() }
-  }
+  replyCursors.set(sessionId, projectDir)
+  const reply = await scanActiveJsonl(projectDir)
+  if (reply) return { sessionId, messageId: reply.messageId, text: reply.text, timestamp: Date.now() }
   return null
 }
 
