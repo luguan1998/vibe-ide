@@ -622,5 +622,16 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
   background-position: center, center !important;
 }
 
+/* 预制提示词按钮 — 星光金色边框（--ide-border 在背景图上不可见） */
+.ai-tab__example-btn {
+  border: 1px solid rgb(var(--ide-accent) / 0.45) !important;
+  transition: all 0.2s !important;
+}
+.ai-tab__example-btn:hover {
+  border-color: rgb(var(--ide-accent) / 0.75) !important;
+  color: rgb(var(--ide-accent-hover)) !important;
+  box-shadow: 0 0 8px rgba(255, 195, 40, 0.15) !important;
+}
+
 
 
