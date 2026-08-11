@@ -77,6 +77,10 @@ const ZH_MAP: Record<string, string> = {
   'Switch to Terminal Mode': '切换到终端模式',
   'History': '历史',
   'No commands yet': '暂无命令',
+  'Files': '文件',
+  'No files yet': '暂无文件',
+  'Pin': '固定',
+  'Unpin': '取消固定',
   'Cut': '剪切',
   'Save to command': '记录到命令',
   'Copy': '复制',
@@ -148,7 +152,7 @@ const ZH_MAP: Record<string, string> = {
   // RightPanel Aux
   'Launch Terminal': '启动终端',
   'Please select a workspace first': '请先选择工作目录',
-  'Commands': 'Commands',
+  'Commands': '命令',
 
   // FileTab
   'New File': '新建文件',

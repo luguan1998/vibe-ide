@@ -6,7 +6,6 @@ import DiffViewer from './components/DiffViewer'
 import MarkdownPreview, { MD_SEARCH_OPEN } from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
 import BrowserView, { BrowserViewHandle } from './components/BrowserView'
-import { isCode, isMarkdown } from './components/OutlinePanel'
 import NavBar, { NavEntry } from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
@@ -376,8 +375,23 @@ export default function App() {
         if (existing.line === mergedLine && existing.endLine === mergedEndLine) return prev
         return prev.map((r, i) => i === existingIdx ? { ...r, line: mergedLine, endLine: mergedEndLine } : r)
       }
-      return [{ path: fullPath, line, endLine }, ...prev].slice(0, 7)
+      const next = [{ path: fullPath, line, endLine }, ...prev]
+      if (next.length <= 7) return next
+      // 超限时从尾部淘汰未固定的条目；全固定则保持（略超上限）
+      const result = [...next]
+      for (let i = result.length - 1; i >= 0 && result.length > 7; i--) {
+        if (!result[i].pinned) result.splice(i, 1)
+      }
+      return result
     })
+  }, [])
+
+  // 固定/取消固定最近文件（pinned 不被 max-7 淘汰，hover 预览中置顶）
+  const togglePinRecentFile = useCallback((fullPath: string) => {
+    if (!fullPath) return
+    const norm = (p: string) => p.replace(/\\/g, '/')
+    const target = norm(fullPath)
+    setRecentFiles(prev => prev.map(r => (norm(r.path) === target ? { ...r, pinned: !r.pinned } : r)))
   }, [])
 
   // 从最近文件列表移除单个文件（X 按钮）
@@ -514,9 +528,6 @@ export default function App() {
   })
   const [groupSessionsByCwd, setGroupSessionsByCwd] = useState(() => {
     try { return localStorage.getItem('vibe-ide-group-sessions-by-cwd') !== 'false' } catch { return true }
-  })
-  const [recentFilesPanelEnabled, setRecentFilesPanelEnabled] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-recent-files-panel') === 'true' } catch { return false }
   })
   const [outlineOverlayEnabled, setOutlineOverlayEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-outline-overlay') !== 'false' } catch { return true }
@@ -773,9 +784,6 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-group-sessions-by-cwd', String(groupSessionsByCwd)) } catch {}
   }, [groupSessionsByCwd])
-  React.useEffect(() => {
-    try { localStorage.setItem('vibe-ide-recent-files-panel', String(recentFilesPanelEnabled)) } catch {}
-  }, [recentFilesPanelEnabled])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-outline-overlay', String(outlineOverlayEnabled)) } catch {}
   }, [outlineOverlayEnabled])
@@ -2223,11 +2231,6 @@ export default function App() {
 
   const isWelcome = sessions.length === 0
 
-  const hideRecentFiles = !!(recentFilesPanelEnabled && (
-    (centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath))) ||
-    (centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath))
-  ))
-
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
       {/* Title Bar */}
@@ -2333,9 +2336,6 @@ export default function App() {
             onToggleCapsuleTabs={setCapsuleTabs}
             groupSessionsByCwd={groupSessionsByCwd}
             onToggleGroupSessionsByCwd={setGroupSessionsByCwd}
-            recentFilesPanelEnabled={recentFilesPanelEnabled}
-            onToggleRecentFilesPanel={setRecentFilesPanelEnabled}
-            hideRecentFiles={hideRecentFiles}
             terminalFontSize={terminalFontSize}
             editorFontSize={editorFontSize}
             onAdjustTerminalFontSize={(delta: number) => setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))}
@@ -2370,51 +2370,11 @@ export default function App() {
             recentFiles={recentFiles}
             onOpenRecentFile={handleOpenRecentFile}
             onRemoveRecentFile={removeRecentFile}
+            onTogglePinRecentFile={togglePinRecentFile}
             mujicaRestoreVisible={mujicaActive && centerView !== 'mujica'}
             onRestoreMujica={() => window.dispatchEvent(new CustomEvent(FOCUS_MUJICA))}
           />
           </div>
-          {/* Outline + floating recent files — shared flex container so outline scrolling respects recent-files height */}
-          {recentFilesPanelEnabled && recentFiles.length > 0 && ((centerView === 'diff' && diffFile && (isCode(diffFile.fullPath) || isMarkdown(diffFile.fullPath))) || (centerView === 'markdown' && markdownFile && isMarkdown(markdownFile.fullPath))) && (
-            <div className="absolute left-2 right-2 bottom-2 z-10 flex flex-col bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden">
-              {recentFilesPanelEnabled && recentFiles.length > 0 && (
-                <div className="shrink-0 border-t border-ide-border">
-                  {recentFiles.slice(0, 5).map(f => {
-                    const baseName = f.path.split(/[\\/]/).pop() || f.path
-                    const info = getFileInfo(baseName)
-                    return (
-                      <div
-                        key={f.path}
-                        className="group px-3 py-1 cursor-pointer transition-colors relative min-h-[32px] session-item text-ide-text-muted hover:bg-ide-hover hover:text-ide-text"
-                        title={f.path}
-                        onClick={() => handleOpenRecentFile(f.path, f.line)}
-                      >
-                        <div className="flex items-center justify-between min-h-[32px]">
-                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                            <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
-                              dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
-                            <span className="truncate min-w-0 text-sm session-item__name">{baseName}</span>
-                          </div>
-                          <div className="flex items-center session-item__actions">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); removeRecentFile(f.path) }}
-                              className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
-                              title={t('Remove')}
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                                <line x1="18" y1="6" x2="6" y2="18" />
-                                <line x1="6" y1="6" x2="18" y2="18" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Left Panel Resize Handle */}

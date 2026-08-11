@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2 } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2, Pin, Terminal, FileText } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { readAiCliConfig } from '../aiStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -313,9 +313,7 @@ interface SessionPanelProps {
   recentFiles?: RecentFileEntry[]
   onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
   onRemoveRecentFile?: (fullPath: string) => void
-  recentFilesPanelEnabled?: boolean
-  onToggleRecentFilesPanel?: (v: boolean) => void
-  hideRecentFiles?: boolean
+  onTogglePinRecentFile?: (fullPath: string) => void
   mujicaRestoreVisible?: boolean
   onRestoreMujica?: () => void
 }
@@ -424,9 +422,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   recentFiles = [],
   onOpenRecentFile,
   onRemoveRecentFile,
-  recentFilesPanelEnabled = false,
-  onToggleRecentFilesPanel,
-  hideRecentFiles = false,
+  onTogglePinRecentFile,
   mujicaRestoreVisible = false,
   onRestoreMujica,
 }: SessionPanelProps, ref: React.ForwardedRef<SessionPanelHandle>) {
@@ -544,7 +540,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     onPipeCommand?.(appendCmdDraft)
     setShowAppendCmdModal(false)
   }
-  const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; name: string; left: number; top: number } | null>(null)
+  const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; cwd: string; left: number; top: number } | null>(null)
+  const [hoverTab, setHoverTab] = useState<'cmds' | 'files'>('cmds')
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastMouseMoveAtRef = useRef(0)
   const cwdHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -835,7 +832,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     return { running, idle, warn }
   }, [sessions, agentStatus])
 
-  const recentTop = recentFiles.slice(0, 4)
   const mujicaCounts = useMujicaCounts()
 
   const fetchClaudeHistory = useCallback(async (cwd: string) => {
@@ -966,9 +962,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           if (lastMouseMoveAtRef.current < enterAt - 300) return
           const el = document.elementFromPoint(mx, my)
           if (el && itemEl.contains(el)) {
-            setHoverPreview({ sessionId: session.id, name: session.name, left: rect.right + 6, top: rect.top })
+            setHoverPreview({ sessionId: session.id, cwd: session.cwd, left: rect.right + 2, top: rect.top })
           }
-        }, 600)
+        }, 500)
       }}
       onMouseLeave={() => {
         clearTimer(hoverTimerRef)
@@ -1392,43 +1388,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {/* Custom Commands */}
       <CustomCommands ref={commandsRef} onExecuteCommand={onExecuteCommand} onInitCommand={onInitCommand} onPipeCommand={onPipeCommand} />
 
-      {recentFilesPanelEnabled && recentTop.length > 0 && !hideRecentFiles && (
-        <div className="shrink-0 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-panel__recent-files">
-          {recentTop.map(f => {
-            const baseName = f.path.split(/[\\/]/).pop() || f.path
-            const info = getFileInfo(baseName)
-            return (
-              <div
-                key={f.path}
-                className="group px-3 py-1 cursor-pointer transition-colors relative min-h-[32px] session-item text-ide-text-muted hover:bg-ide-hover hover:text-ide-text"
-                title={f.path}
-                onClick={() => onOpenRecentFile?.(f.path, f.line)}
-              >
-                <div className="flex items-center justify-between min-h-[32px]">
-                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                    <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
-                      dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
-                    <span className="truncate min-w-0 text-sm session-item__name">{baseName}</span>
-                  </div>
-                  <div className="flex items-center session-item__actions">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onRemoveRecentFile?.(f.path) }}
-                      className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
-                      title={t('Remove')}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
       </div>
 
       {/* Mujica restore — canvas active but center view switched away (e.g. session switch);
@@ -1655,6 +1614,16 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {hoverPreview && (() => {
         const cmds = commandHistory[hoverPreview.sessionId] || []
         const displayed = cmds.slice(-30)
+        const normPath = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
+        const cwdKey = normPath(hoverPreview.cwd)
+        const cwdAll = recentFiles.filter(f => {
+          const fp = normPath(f.path)
+          return fp === cwdKey || fp.startsWith(cwdKey + '/')
+        })
+        const cwdPinned = cwdAll.filter(f => f.pinned)
+        const cwdUnpinned = cwdAll.filter(f => !f.pinned)
+        // 固定的不占名额，其余按最近优先补足 7 个（与全局最近文件上限一致）
+        const cwdFiles = [...cwdPinned, ...cwdUnpinned].slice(0, Math.max(7, cwdPinned.length))
         return (
           <div
             className="fixed z-50 bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-80 max-h-64 flex flex-col"
@@ -1666,40 +1635,101 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             }}
           >
             <div className="flex items-center px-3 py-1 border-b border-ide-border shrink-0 bg-ide-sidebar">
-              <span className="text-xs font-semibold text-ide-text truncate">{hoverPreview.name}</span>
-            </div>
-            <div className="flex-1 overflow-y-auto py-1">
-              {cmds.length === 0 ? (
-                <div className="px-3 py-4 text-xs text-ide-text-muted text-center">
-                  {t('No commands yet')}
-                </div>
-              ) : (
-                displayed.map((cmd, i) => (
-                  <div
-                    key={`hp-${i}`}
-                    className="px-3 py-0.5 text-xs font-mono text-ide-text hover:bg-ide-hover flex items-center gap-2 group relative"
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        commandsRef.current?.openCreateModal({ command: cmd })
-                      }}
-                      className="absolute left-0.5 opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-accent shrink-0 transition-opacity p-0.5"
-                      title={t('Save to command')}
-                    >
-                      <Pencil size={12} />
-                    </button>
-                    <span className="text-ide-text-muted shrink-0 select-none w-5 text-right">
-                      {cmds.length - displayed.length + i + 1}
-                    </span>
-                    <span className="truncate flex-1" title={cmd}>
-                      {cmd.length > 60 ? cmd.slice(0, 60) + '...' : cmd}
-                    </span>
-                    <SessionCmdCopyButton cmd={cmd} />
+              <div
+                className="relative w-[7.25rem] h-6 rounded-full bg-ide-bg cursor-pointer select-none shrink-0 transition-colors"
+                onClick={() => setHoverTab(hoverTab === 'cmds' ? 'files' : 'cmds')}
+                title={t(hoverTab === 'cmds' ? 'Files' : 'Commands')}
+              >
+                <div className="absolute inset-0 flex items-center text-[11px] text-ide-text-muted/50">
+                  <div className="flex-1 flex items-center justify-center gap-1">
+                    <Terminal size={11} />
+                    {t('Commands')}
                   </div>
-                ))
-              )}
+                  <div className="flex-1 flex items-center justify-center gap-1">
+                    <FileText size={11} />
+                    {t('Files')}
+                  </div>
+                </div>
+                <div
+                  className={`absolute top-0.5 left-0.5 w-14 h-5 rounded-full bg-ide-accent flex items-center justify-center gap-1 text-[11px] text-white transition-transform duration-150 ease-out ${hoverTab === 'files' ? 'translate-x-full' : ''}`}
+                >
+                  {hoverTab === 'cmds' ? <Terminal size={11} /> : <FileText size={11} />}
+                  {hoverTab === 'cmds' ? t('Commands') : t('Files')}
+                </div>
+              </div>
             </div>
+            {hoverTab === 'cmds' ? (
+              <div className="flex-1 overflow-y-auto py-1">
+                {cmds.length === 0 ? (
+                  <div className="px-3 py-4 text-xs text-ide-text-muted text-center">
+                    {t('No commands yet')}
+                  </div>
+                ) : (
+                  displayed.map((cmd, i) => (
+                    <div
+                      key={`hp-${i}`}
+                      className="px-3 py-0.5 text-xs font-mono text-ide-text hover:bg-ide-hover flex items-center gap-2 group relative"
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          commandsRef.current?.openCreateModal({ command: cmd })
+                        }}
+                        className="absolute left-0.5 opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-accent shrink-0 transition-opacity p-0.5"
+                        title={t('Save to command')}
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      <span className="text-ide-text-muted shrink-0 select-none w-5 text-right">
+                        {cmds.length - displayed.length + i + 1}
+                      </span>
+                      <span className="truncate flex-1" title={cmd}>
+                        {cmd.length > 60 ? cmd.slice(0, 60) + '...' : cmd}
+                      </span>
+                      <SessionCmdCopyButton cmd={cmd} />
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto py-1">
+                {cwdFiles.length === 0 ? (
+                  <div className="px-3 py-4 text-xs text-ide-text-muted text-center">
+                    {t('No files yet')}
+                  </div>
+                ) : null}
+                {cwdFiles.map(f => {
+                  const baseName = f.path.split(/[\\/]/).pop() || f.path
+                  const info = getFileInfo(baseName)
+                  return (
+                    <div
+                      key={f.path}
+                      className="px-3 py-0.5 cursor-pointer transition-colors hover:bg-ide-hover flex items-center gap-2 group relative"
+                      title={f.path}
+                      onClick={() => onOpenRecentFile?.(f.path, f.line)}
+                    >
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onTogglePinRecentFile?.(f.path) }}
+                        className={`absolute left-0.5 text-ide-text-muted hover:text-ide-accent shrink-0 transition-opacity p-0.5 ${f.pinned ? 'opacity-100 text-ide-accent' : 'opacity-0 group-hover:opacity-100'}`}
+                        title={t(f.pinned ? 'Unpin' : 'Pin')}
+                      >
+                        <Pin size={12} className={f.pinned ? 'fill-current' : ''} />
+                      </button>
+                      <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ml-2 ${info.color}`}
+                        dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+                      <span className="truncate min-w-0 text-xs text-ide-text flex-1">{baseName}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onRemoveRecentFile?.(f.path) }}
+                        className="opacity-0 group-hover:opacity-100 shrink-0 text-ide-text-muted hover:text-ide-text transition-opacity p-0.5"
+                        title={t('Remove')}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )
       })()}
@@ -1786,8 +1816,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onToggleCapsuleTabs={onToggleCapsuleTabs}
         groupSessionsByCwd={groupSessionsByCwd}
         onToggleGroupSessionsByCwd={onToggleGroupSessionsByCwd}
-        recentFilesPanelEnabled={recentFilesPanelEnabled}
-        onToggleRecentFilesPanel={onToggleRecentFilesPanel}
         inlineDiff={inlineDiff}
         onToggleInlineDiff={onToggleInlineDiff}
         wordWrap={wordWrap}

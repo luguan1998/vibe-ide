@@ -337,6 +337,7 @@ export interface RecentFileEntry {
   path: string      // fullPath
   line?: number     // 1-based line number
   endLine?: number  // 1-based end line for selection range
+  pinned?: boolean  // 固定：不被淘汰，hover 预览中置顶
 }
 
 // Search types
