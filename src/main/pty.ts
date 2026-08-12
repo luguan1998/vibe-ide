@@ -136,7 +136,11 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUt
       LANG: 'en_US.UTF-8',
       LC_ALL: 'en_US.UTF-8',
       PYTHONUTF8: '1',
-      COLORTERM: 'truecolor'
+      COLORTERM: 'truecolor',
+      // 让 CC 认为运行在 Windows Terminal 中:CC 只在 isMicrosoftWindowsTerminal()
+      // (win32 + WT_SESSION)或 VS Code/mintty 环境下启用 bracketed paste,
+      // 而 CC 的图片拖入识别必须以 bracketed paste 帧送达为前提
+      WT_SESSION: process.env.WT_SESSION || 'vibe-ide'
     }) as Record<string, string>
   })
 

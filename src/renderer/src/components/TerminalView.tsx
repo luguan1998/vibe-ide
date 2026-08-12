@@ -734,8 +734,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     terminalRef.current?.addEventListener('keydown', onKeyDown, true)
 
     // OCR drag/drop handlers — capture phase to intercept before xterm.js textarea
-    // Uses dragover timer approach: dragover fires ~every 200ms while dragging over element.
-    // When the mouse leaves, dragover stops firing, timer expires, overlay hides.
+    // 隐藏逻辑:每次 dragover 重置隐藏定时器,dragover 停止(移出元素/窗口)后到期自动隐藏。
+    // 拖出 app 窗口边界时浏览器不触发 dragleave,只能靠 dragover 定时器兜底。
     const el = terminalRef.current
     let dragHideTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -748,6 +748,10 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       e.stopImmediatePropagation()
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
       if (dragHideTimer) { clearTimeout(dragHideTimer); dragHideTimer = null }
+      dragHideTimer = setTimeout(() => {
+        setOcrState('idle')
+        dragHideTimer = null
+      }, 500)
       setOcrState('dragover')
     }
 
@@ -762,11 +766,22 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       if (!files || files.length === 0) return
 
       const file = findDropImage(files)
-      if (!file || !ocrEnabledRef.current) return
+      // OCR 关闭或非图片时,按 Windows Terminal 行为把文件路径插入输入行,
+      // 让 Claude Code 等程序能按路径读取拖入的图片/文件
+      if (!file || !ocrEnabledRef.current) {
+        // 插入裸绝对路径(不带引号):CC 的图片识别正则锚定路径结尾,引号会破坏匹配;
+        // CC 在 WT_SESSION 环境下启用 bracketed paste,xterm.paste() 会自动包裹帧触发识别
+        const paths = Array.from(files).map(f => {
+          const p = window.api.file.getPathForFile(f) || ((f as any).path as string | undefined)
+          return p || f.name
+        })
+        xtermRef.current?.paste(paths.join(' '))
+        return
+      }
 
       setOcrState('processing')
       try {
-        const filePath = (file as any).path as string | undefined
+        const filePath = window.api.file.getPathForFile(file) || ((file as any).path as string | undefined)
         const text = filePath
           ? await window.api.ocr.recognize(filePath)
           : await window.api.ocr.recognize({ buffer: new Uint8Array(await file.arrayBuffer()), name: file.name })
