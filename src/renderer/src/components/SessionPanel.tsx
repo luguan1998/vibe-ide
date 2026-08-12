@@ -1570,7 +1570,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2 group"
                     >
                       <button
-                        className={`w-3.5 h-3.5 shrink-0 flex items-center justify-center transition-colors ${isFav ? 'text-ide-accent' : 'text-ide-text-muted/40 hover:text-ide-text-muted'}`}
+                        className={`w-3.5 h-3.5 shrink-0 flex items-center justify-center transition-colors ${isFav ? 'text-ide-accent' : 'text-ide-text-muted/70 hover:text-ide-text-muted'}`}
                         onClick={(e) => { e.stopPropagation(); cwdStore.toggleFav(dir) }}
                         title={t('Favorite')}
                       >
@@ -1583,9 +1583,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                           setEmptyAreaMenu(null)
                         }}
                       >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
-                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                        </svg>
                         <span className="truncate">{dir}</span>
                       </button>
                       {isFav ? (

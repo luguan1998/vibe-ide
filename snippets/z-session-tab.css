@@ -144,3 +144,8 @@
   font-weight: 600 !important;
 }
 .session-panel__flat-list { background: transparent !important; border: none !important; }
+
+/* status-badge 三态分隔线 — Monokai 下 0.4 看不清，0.6 平衡 */
+.status-badge__divider {
+  background: rgb(var(--ide-text-muted) / 0.6) !important;
+}

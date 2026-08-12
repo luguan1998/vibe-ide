@@ -166,7 +166,7 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ isOpening, onOpenFolde
                   </div>
                   <span
                     onClick={(e) => { e.stopPropagation(); cwdStore.toggleFav(dir) }}
-                    className={`shrink-0 cursor-pointer ${isFav ? 'text-ide-accent' : 'text-ide-text-muted/40 hover:text-ide-text-muted'}`}
+                    className={`shrink-0 cursor-pointer ${isFav ? 'text-ide-accent' : 'text-ide-text-muted/70 hover:text-ide-text-muted'}`}
                     title={t('Favorite')}
                   >
                     <Star className="size-4" fill={isFav ? 'currentColor' : 'none'} />

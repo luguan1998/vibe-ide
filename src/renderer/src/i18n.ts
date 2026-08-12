@@ -66,7 +66,7 @@ const ZH_MAP: Record<string, string> = {
   'Recent Directories': '最近打开的目录',
   'Open Folder': '打开文件夹',
   'Restore Selected': '恢复收藏',
-  'Restore Previous Sessions': '恢复之前会话',
+  'Restore Previous Sessions': '恢复勾选会话',
   'Favorite': '收藏',
   'Opening folder...': '正在打开文件夹…',
   'No sessions yet': '暂无会话',
