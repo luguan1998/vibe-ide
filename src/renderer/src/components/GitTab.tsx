@@ -918,6 +918,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const hasMessage = !!commitMessage.trim()
   const hasCommits = graphEntries.length > 0
   const amendDisabled = busy || !hasCommits || hasConflictInStaged || (!hasStaged && !hasMessage)
+  const commitDisabled = busy || !hasMessage || !hasStaged || hasConflictInStaged
   const amendTooltip = !hasCommits
     ? t('Nothing to amend (no commits yet)')
     : (!hasStaged && !hasMessage)
@@ -1749,7 +1750,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             }}
             className={`w-full h-20 text-xs bg-ide-bg border rounded px-2 py-1 text-ide-text resize-none focus:border-ide-accent focus:outline-none focus:outline-none focus:ring-0 placeholder:text-ide-text-muted/50 disabled:opacity-40 git-tab__commit-input ${focusedCommit ? 'border-ide-accent bg-ide-accent/5' : 'border-ide-border'}`}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && e.ctrlKey) handleCommit()
+              if (e.key === 'Enter' && e.ctrlKey && !commitDisabled) handleCommit()
               if (e.key === 'Escape') {
                 e.preventDefault()
                 e.currentTarget.blur()
@@ -1825,7 +1826,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           ) : (
             <button
               onClick={handleCommit}
-              disabled={busy || !commitMessage.trim() || !status?.files?.some(f => f.staged) || hasConflictInStaged}
+              disabled={commitDisabled}
               className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed git-tab__commit-btn"
             >
               {t('Commit (Ctrl+Enter)')}
