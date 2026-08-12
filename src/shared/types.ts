@@ -567,6 +567,7 @@ export interface AiCreateOptions {
   configDir?: string
   enableWorktree?: boolean
   persona?: string
+  computerUse?: boolean
 }
 
 export interface AiSendPayload {

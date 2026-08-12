@@ -33,6 +33,7 @@ export interface ManagedAiSession {
   worktreePath?: string
   preWorktreeSnapshot?: Set<string>
   persona?: string
+  computerUse?: boolean
 }
 
 const LOCAL_CMD_TAG_RE = /<local-command-caveat>[\s\S]*?<\/local-command-caveat>|<command-name>[\s\S]*?<\/command-name>|<command-message>[\s\S]*?<\/command-message>|<command-args>[\s\S]*?<\/command-args>|<local-command-stdout>[\s\S]*?<\/local-command-stdout>|<system-reminder>[\s\S]*?<\/system-reminder>/g
@@ -178,6 +179,7 @@ function buildClaudeArgs(opts: {
   model?: string
   enableWorktree?: boolean
   persona?: string
+  mcpConfigPath?: string
 }): string[] {
   const platformDesc = process.platform === 'win32'
     ? 'Windows (use paths like C:\\Users\\... with backslashes)'
@@ -206,6 +208,9 @@ function buildClaudeArgs(opts: {
   }
   if (opts.persona?.trim()) {
     args.push('--append-system-prompt', opts.persona.trim())
+  }
+  if (opts.mcpConfigPath) {
+    args.push('--mcp-config', opts.mcpConfigPath)
   }
   return args
 }
@@ -336,6 +341,8 @@ export function spawnClaude(opts: {
   model?: string
   enableWorktree?: boolean
   persona?: string
+  computerUse?: boolean
+  mcpConfigPath?: string
 }): ChildProcess | SpawnError {
   const resolved = findBinary(opts.cliCommand)
   if ('error' in resolved) return resolved
@@ -343,6 +350,9 @@ export function spawnClaude(opts: {
   const args = buildClaudeArgs(opts)
   const env = sanitizeEnvForCli()
   if (opts.configDir) env.CLAUDE_CONFIG_DIR = resolveConfigDir(opts.configDir)
+  if (opts.computerUse) {
+    env.ENABLE_TOOL_SEARCH = 'false'
+  }
   return spawn(resolved.binary, args, {
     cwd: opts.cwd,
     env,
@@ -1243,10 +1253,30 @@ async function loadSessionMessages(resumeSessionId: string, cwd: string, configD
   return loadSessionMessagesFromProject(resumeSessionId, projectDir)
 }
 
+// Computer-use pipe lifecycle helpers. stop 幂等（session 不存在即 no-op）;
+// start 失败返回 undefined（spawn 不带 --mcp-config，工具静默缺失但会话不崩）。
+// 所有 kill+重建路径必须 stop 旧 + start 新，否则 pipe server / temp json 泄漏。
+export function stopCuForSession(sessionId: string, enabled: boolean | undefined): void {
+  if (!enabled) return
+  try { require('./computer-use').stopForSession(sessionId) } catch { /* ignore */ }
+}
+
+export function startCuForSession(sessionId: string, enabled: boolean | undefined): string | undefined {
+  if (!enabled) return undefined
+  try {
+    const r = require('./computer-use').startForSession(sessionId)
+    console.log(`[ai:${sessionId}] computer-use started: pipe=${r.pipeName} mcpConfig=${r.mcpConfigPath}`)
+    return r.mcpConfigPath
+  } catch (e) {
+    console.error(`[ai:${sessionId}] computer-use start failed:`, e)
+    return undefined
+  }
+}
+
 // Attach all process event handlers (stdout/stderr/error/exit) to a spawned Claude CLI process.
 // Shared between initial AI_CREATE spawn and plan-execute restart — extracted so
 // the restart path reuses identical NDJSON parsing / error reporting / lifecycle logic.
-export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: string, model?: string, configDir?: string, cliCommand?: string): void {
+export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: string, model?: string, configDir?: string, cliCommand?: string, computerUse?: boolean): void {
   const session: ManagedAiSession = {
     process: proc,
     sessionId,
@@ -1256,6 +1286,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     model,
     configDir,
     cliCommand,
+    computerUse,
   }
   aiSessions.set(sessionId, session)
 
@@ -1297,6 +1328,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     // (a new process may have been spawned for the same sessionId via resume)
     const current = aiSessions.get(sessionId)
     if (current?.process.pid === proc.pid) {
+      if (current.computerUse) { try { require('./computer-use').stopForSession(sessionId) } catch {} }
       stopSidecarWatchersForSession(sessionId)
       aiSessions.delete(sessionId)
       send(IPC_CHANNELS.AI_ERROR, { sessionId, error: err.message })
@@ -1313,6 +1345,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
       if (current!.awaitingUserInput === true) {
         return
       }
+      if (current.computerUse) { try { require('./computer-use').stopForSession(sessionId) } catch {} }
       stopSidecarWatchersForSession(sessionId)
       aiSessions.delete(sessionId)
       if (code !== 0 && code !== null) {
@@ -1385,12 +1418,15 @@ export function resumeAfterAsk(sessionId: string, answers: Record<string, string
   // a dead PID; Unix kill is wrapped in try/catch inside killAiProcess). Clear the
   // flag so the new subprocess's eventual exit is not misclassified as proactive.
   killAiProcess(session.process)
+  stopCuForSession(sessionId, session.computerUse)
   session.awaitingUserInput = false
   stopSidecarWatchersForSession(sessionId)
   aiSessions.delete(sessionId)
 
-  const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, persona: session.persona })
+  const mcpConfigPath = startCuForSession(sessionId, session.computerUse)
+  const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, persona: session.persona, computerUse: session.computerUse, mcpConfigPath })
   if ('error' in result) {
+    stopCuForSession(sessionId, session.computerUse)
     send(IPC_CHANNELS.AI_ERROR, {
       sessionId,
       error: result.error,
@@ -1399,7 +1435,7 @@ export function resumeAfterAsk(sessionId: string, answers: Record<string, string
     return { success: false, error: result.error, installCmd: result.installCmd }
   }
 
-  attachAiProcess(sessionId, result, cwd, session.model, session.configDir, session.cliCommand)
+  attachAiProcess(sessionId, result, cwd, session.model, session.configDir, session.cliCommand, session.computerUse)
 
   const newSession = aiSessions.get(sessionId)
   if (newSession) {
@@ -1485,10 +1521,11 @@ export function registerAiHandlers(): void {
 
   // Spawn claude/openclaude/opencc subprocess
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
-    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, configDir, enableWorktree, persona } = options
+    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, configDir, enableWorktree, persona, computerUse } = options
 
     const existing = aiSessions.get(sessionId)
     if (existing) {
+      stopCuForSession(sessionId, existing.computerUse)
       killAiProcess(existing.process)
       aiSessions.delete(sessionId)
     }
@@ -1497,8 +1534,11 @@ export function registerAiHandlers(): void {
 
     const preSnapshot = enableWorktree ? snapshotWorktrees(cwd) : undefined
 
-    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId, cliCommand, configDir, enableWorktree, persona })
+    const mcpConfigPath = startCuForSession(sessionId, computerUse)
+
+    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId, cliCommand, configDir, enableWorktree, persona, computerUse, mcpConfigPath })
     if ('error' in result) {
+      stopCuForSession(sessionId, computerUse)
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,
         error: result.error,
@@ -1507,7 +1547,7 @@ export function registerAiHandlers(): void {
       return { success: false, error: result.error, installCmd: result.installCmd }
     }
 
-    attachAiProcess(sessionId, result, cwd, undefined, configDir, cliCommand)
+    attachAiProcess(sessionId, result, cwd, undefined, configDir, cliCommand, computerUse)
 
     const created = aiSessions.get(sessionId)
     if (created) {
@@ -1646,11 +1686,14 @@ export function registerAiHandlers(): void {
     const permissionMode = session.permissionMode || 'bypassPermissions'
     session.cancelRequested = true
     killAiProcess(session.process)
+    stopCuForSession(sessionId, session.computerUse)
     stopSidecarWatchersForSession(sessionId)
     aiSessions.delete(sessionId)
 
-    const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, persona: session.persona })
+    const mcpConfigPath = startCuForSession(sessionId, session.computerUse)
+    const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, persona: session.persona, computerUse: session.computerUse, mcpConfigPath })
     if ('error' in result) {
+      stopCuForSession(sessionId, session.computerUse)
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,
         error: result.error,
@@ -1659,7 +1702,7 @@ export function registerAiHandlers(): void {
       return { success: false, error: result.error, installCmd: result.installCmd }
     }
 
-    attachAiProcess(sessionId, result, cwd, session.model, session.configDir, session.cliCommand)
+    attachAiProcess(sessionId, result, cwd, session.model, session.configDir, session.cliCommand, session.computerUse)
 
     const newSession = aiSessions.get(sessionId)
     if (newSession) {
@@ -1681,6 +1724,7 @@ export function registerAiHandlers(): void {
     if (!session) return false
     // Deregister first so a concurrent create with the same id (mujica respawn)
     // can't be clobbered by the async worktree cleanup below.
+    stopCuForSession(sessionId, session.computerUse)
     stopSidecarWatchersForSession(sessionId)
     aiSessions.delete(sessionId)
     for (const [cliId, rendererId] of cliSessionToRenderer) {
@@ -1711,7 +1755,8 @@ export function registerAiHandlers(): void {
 }
 
 export function cleanupAiSessions(): void {
-  for (const [_, session] of aiSessions) {
+  for (const [sid, session] of aiSessions) {
+    if (session.computerUse) { try { require('./computer-use').stopForSession(sid) } catch {} }
     if (process.platform === 'win32') {
       try {
         spawn('taskkill', ['/pid', String(session.process.pid), '/f', '/t'])

@@ -229,6 +229,9 @@ const AppearancePanel = function AppearancePanel({
     try { localStorage.setItem('vibe-ide-md-font-size', String(mdFontSize)) } catch {}
   }, [mdFontSize])
   const [activeCategory, setActiveCategory] = useState<CategoryId>('theme')
+  const [computerUse, setComputerUse] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-ai-computer-use') === '1' } catch { return false }
+  })
   const [dragOffset, setDragOffset] = useState({ x: 24, y: -24 })
   const dragRef = useRef<{ startX: number; startY: number; offX: number; offY: number } | null>(null)
 
@@ -695,6 +698,10 @@ const AppearancePanel = function AppearancePanel({
                   <ToggleRow labelKey="Polling Refresh Git/File" descKey="Poll git and file tree every 6s. Recommended: off (only for network drives where file watching is unreliable)"
                     checked={pollingEnabled} onChange={onTogglePolling} zone="global" />
                 )}
+                <ToggleRow labelKey="Computer Use" descKey="Enable computer use MCP (screenshot/click/type). GUI mode only. Applies to new sessions."
+                  checked={computerUse}
+                  onChange={(v) => { setComputerUse(v); try { localStorage.setItem('vibe-ide-ai-computer-use', v ? '1' : '0') } catch {} }}
+                  zone="global" />
               </div>
             )}
 

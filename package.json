@@ -39,6 +39,10 @@
       {
         "from": "build/icon.ico",
         "to": "icon.ico"
+      },
+      {
+        "from": "resources/computer-use-mcp.js",
+        "to": "computer-use-mcp.js"
       }
     ],
     "extraFiles": [

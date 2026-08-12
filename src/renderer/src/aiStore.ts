@@ -114,13 +114,15 @@ interface EnsureCreatedOpts {
   enableWorktree?: boolean
   model?: string
   persona?: string
+  computerUse?: boolean
 }
 
-export function readAiCliConfig(): { cliCommand?: string; configDir?: string } {
+export function readAiCliConfig(): { cliCommand?: string; configDir?: string; computerUse?: boolean } {
   try {
     return {
       cliCommand: localStorage.getItem('vibe-ide-ai-cli-command') || undefined,
       configDir: localStorage.getItem('vibe-ide-ai-config-dir') || undefined,
+      computerUse: localStorage.getItem('vibe-ide-ai-computer-use') === '1' || undefined,
     }
   } catch {
     return {}
@@ -181,6 +183,7 @@ export const aiStore = {
     const fallback = readAiCliConfig()
     const cliCommand = opts.cliCommand ?? fallback.cliCommand
     const configDir = opts.configDir ?? fallback.configDir
+    const computerUse = opts.computerUse ?? fallback.computerUse
     window.api.ai.checkAvailable(cliCommand).then((result: any) => {
       if (!result.available) {
         aiStore.updateSession(sid, () => ({
@@ -207,6 +210,7 @@ export const aiStore = {
           ...(opts.enableWorktree ? { enableWorktree: true } : {}),
           ...(opts.model ? { model: opts.model } : {}),
           ...(opts.persona?.trim() ? { persona: opts.persona } : {}),
+          ...(computerUse ? { computerUse: true } : {}),
         })
         aiStore.updateSession(sid, () => ({
           ...EMPTY_SESSION,
@@ -243,10 +247,12 @@ export const aiStore = {
     name?: string
     cliCommand?: string
     configDir?: string
+    computerUse?: boolean
   }) {
     const fallback = readAiCliConfig()
     const cliCommand = opts.cliCommand ?? fallback.cliCommand
     const configDir = opts.configDir ?? fallback.configDir
+    const computerUse = opts.computerUse ?? fallback.computerUse
     let messages: any[] = []
     let model = ''
     let slashCommands: any[] = []
@@ -266,6 +272,7 @@ export const aiStore = {
       resumeSessionId: historySessionId,
       ...(cliCommand ? { cliCommand } : {}),
       ...(configDir ? { configDir } : {}),
+      ...(computerUse ? { computerUse: true } : {}),
     })
     aiStore.updateSession(sid, () => ({
       ...EMPTY_SESSION,

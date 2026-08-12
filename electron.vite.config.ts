@@ -7,7 +7,14 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        external: ['node-pty']
+        external: ['node-pty'],
+        input: {
+          index: resolve('src/main/index.ts'),
+          'computer-use': resolve('src/main/computer-use.ts')
+        },
+        output: {
+          entryFileNames: '[name].js'
+        }
       }
     }
   },
