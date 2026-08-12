@@ -456,10 +456,10 @@ export default function App() {
       const sid = s.id
       const busy = !!(terminalBusy[sid] || aiBusy[sid])
       const prevBusy = prev[sid] ?? false
-      if (prevBusy && !busy && sid !== activeSessionId) {
+      // 宠物监听：非当前会话，或当前会话 term/ai tab 未显示时，busy→idle（warn 场景）触发一次回复快照读取（游标未注册时主进程 no-op）
+      if (prevBusy && !busy && (sid !== activeSessionId || centerViewRef.current !== 'terminal')) {
         updates[sid] = true
         changed = true
-        // 宠物监听：后台会话 busy→idle（warn 场景）触发一次回复快照读取（游标未注册时主进程 no-op）
         window.api.ai.readReply(sid).catch(() => {})
       }
     }

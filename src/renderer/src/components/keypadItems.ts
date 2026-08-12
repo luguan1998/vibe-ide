@@ -8,7 +8,7 @@ const DEFAULT_KEYPAD_ITEMS: KeypadItem[] = [
   { code: 'Numpad6', key: '6', text: '还是报错', directSend: true },
   { code: 'Numpad1', key: '1', text: '先别重构,整理实际需求', directSend: true },
   { code: 'Numpad2', key: '2', text: '清理死代码', directSend: true },
-  { code: 'Numpad3', key: '3', text: '讲明白点', directSend: true },
+  { code: 'Numpad3', key: '3', text: '检视无误并提交', directSend: true },
 ]
 
 export function loadKeypadItems(): KeypadItem[] {
