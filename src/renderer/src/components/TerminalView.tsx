@@ -402,6 +402,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevStatusRef = useRef<'running' | 'idle'>('idle')
   const activationStartRef = useRef(0)
+  const userAtBottomRef = useRef(true)
 
   const mountedRef = useRef(false)
 
@@ -612,6 +613,10 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
     xtermRef.current = term
     fitAddonRef.current = fitAddon
+    const onScrollDisp = term.onScroll(() => {
+      const b = term.buffer.active
+      userAtBottomRef.current = b.viewportY >= b.baseY
+    })
     setIsReady(true)
 
     // Custom key bindings: newline (configurable), Ctrl+C → copy selection
@@ -848,6 +853,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
     return () => {
       mountedRef.current = false
+      onScrollDisp?.dispose()
       if (dragHideTimer) clearTimeout(dragHideTimer)
       if (el) {
         el.removeEventListener('keydown', onKeyDown, true)
@@ -919,6 +925,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     try { fitAddonRef.current?.fit() } catch {}
     try { term.clearTextureAtlas() } catch {}
     term.refresh(0, term.rows - 1)
+    if (userAtBottomRef.current) {
+      try { term.scrollToBottom() } catch {}
+    }
   }, [isActive, isReady])
 
   // Update font size dynamically without recreating terminal

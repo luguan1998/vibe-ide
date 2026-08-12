@@ -286,7 +286,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
                           showHeader={false}
                           fontSize={12}
                           isAux={true}
-                          isActive={tabActive}
+                          isActive={tabActive && isActive}
                         />
                       </React.Suspense>
                     </div>
