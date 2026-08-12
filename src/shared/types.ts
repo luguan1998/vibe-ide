@@ -526,6 +526,7 @@ export interface AiSessionSearchGroup extends AiSessionSummary {
 
 export interface AiSearchOptions {
   configDir?: string
+  currentCwd?: string
   caseSensitive?: boolean
   maxFileBytes?: number
   maxMatchesPerSession?: number

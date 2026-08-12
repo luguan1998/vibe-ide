@@ -74,6 +74,9 @@ async function searchSessions(query: string, opts?: AiSearchOptions): Promise<{ 
   const maxTotalMatches = opts?.maxTotalMatches ?? DEFAULT_MAX_TOTAL_MATCHES
 
   const projectsRoot = getProjectsRoot(opts?.configDir)
+  const currentCandidates = opts?.currentCwd
+    ? [normalizeCwdToProjectDir(opts.currentCwd), normalizeCwdToProjectDir(opts.currentCwd).toLowerCase()]
+    : null
   const dirs = await readdir(projectsRoot).catch(() => [] as string[])
 
   const results: AiSessionSearchGroup[] = []
@@ -83,6 +86,7 @@ async function searchSessions(query: string, opts?: AiSearchOptions): Promise<{ 
   outer:
   for (const dirName of dirs) {
     const projectDir = join(projectsRoot, dirName)
+    const inCurrent = currentCandidates ? currentCandidates.includes(dirName) : false
     let files: string[]
     try { files = await readdir(projectDir) } catch { continue }
     let projectCount = 0
@@ -100,7 +104,7 @@ async function searchSessions(query: string, opts?: AiSearchOptions): Promise<{ 
       if (!meta) continue
       const sessionMatches = collectMatches(lines, match, maxMatchesPerSession)
       if (sessionMatches.length === 0) continue
-      results.push({ ...meta, projectDir, projectDirName: dirName, inCurrentProject: false, matches: sessionMatches })
+      results.push({ ...meta, projectDir, projectDirName: dirName, inCurrentProject: inCurrent, matches: sessionMatches })
       projectCount++
       totalMatches += sessionMatches.length
     }

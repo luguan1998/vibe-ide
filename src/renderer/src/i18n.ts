@@ -421,6 +421,7 @@ const ZH_MAP: Record<string, string> = {
   'Searching...': '搜索中…',
   'No matching sessions': '无匹配会话',
   'Current project': '当前项目',
+  'Current project only': '仅当前项目',
   'Results truncated': '结果过多，仅显示部分',
   'User': '问',
   'Assistant': '答',
