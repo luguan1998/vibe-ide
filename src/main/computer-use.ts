@@ -5,7 +5,13 @@ import { writeFileSync, unlinkSync } from 'fs'
 import { randomBytes } from 'crypto'
 import { execFile } from 'child_process'
 
-const ADD_TYPE_PS = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class VibeU{[DllImport("user32.dll")]public static extern bool SetCursorPos(int x,int y);[DllImport("user32.dll")]public static extern void mouse_event(uint f,uint dx,uint dy,int d,IntPtr e);[DllImport("user32.dll")]public static extern void keybd_event(byte b,byte s,uint f,IntPtr e);[DllImport("user32.dll")]public static extern bool GetCursorPos(ref POINT p);public struct POINT{public int X;public int Y;}}' -Language CSharp`
+const ADD_TYPE_PS = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class VibeU{[DllImport("user32.dll")]public static extern bool SetCursorPos(int x,int y);[DllImport("user32.dll")]public static extern void mouse_event(uint f,uint dx,uint dy,int d,IntPtr e);[DllImport("user32.dll")]public static extern void keybd_event(byte b,byte s,uint f,IntPtr e);[DllImport("user32.dll")]public static extern bool GetCursorPos(ref POINT p);[DllImport("user32.dll")]public static extern bool SetProcessDpiAwarenessContext(IntPtr value);public struct POINT{public int X;public int Y;}}' -Language CSharp`
+
+// powershell 5.1 默认 DPI-unaware，SetCursorPos/GetCursorPos 会使用虚拟化坐标；
+// 前置 per-monitor v2 让坐标直接使用原始物理像素，与截图像素空间 1:1
+function dpiPreamble(): string {
+  return `[VibeU]::SetProcessDpiAwarenessContext(([IntPtr](-4)))\n`
+}
 
 const VK_MAP: Record<string, number> = {
   'control_l': 0xA2, 'control': 0xA2, 'ctrl': 0xA2, 'ctrl_l': 0xA2, 'control_r': 0xA3, 'ctrl_r': 0xA3,
@@ -40,6 +46,9 @@ interface SessionState {
   server: Server | null
   mcpConfigPath: string
   snapshotId: number
+  snapshotDisplayId: number | null
+  snapshotScaleX: number
+  snapshotScaleY: number
   client: Socket | null
   clientBuf: string
 }
@@ -84,14 +93,72 @@ function snapshotIdOf(session: SessionState): string {
   return `snap_${session.snapshotId}`
 }
 
+function displayIdOf(d: Electron.Display): string {
+  return String(d.id)
+}
+
+function physicalOriginOf(d: Electron.Display): { x: number; y: number } {
+  return { x: Math.round(d.bounds.x * d.scaleFactor), y: Math.round(d.bounds.y * d.scaleFactor) }
+}
+
+function displayPhysicalRect(d: Electron.Display): { x: number; y: number; w: number; h: number } {
+  const o = physicalOriginOf(d)
+  return { x: o.x, y: o.y, w: Math.round(d.size.width * d.scaleFactor), h: Math.round(d.size.height * d.scaleFactor) }
+}
+
+function displaySummary(d: Electron.Display): string {
+  const o = physicalOriginOf(d)
+  const r = displayPhysicalRect(d)
+  const isPrimary = d.id === screen.getPrimaryDisplay().id
+  return `display_id=${displayIdOf(d)}; is_primary=${isPrimary}; scale_factor=${d.scaleFactor}; pixels=${r.w}x${r.h}; dip=${d.size.width}x${d.size.height}; origin=${o.x},${o.y}; rotation=${d.rotation}`
+}
+
+function resolveDisplay(displayArg: string | undefined): Electron.Display {
+  if (!displayArg || displayArg === 'primary') return screen.getPrimaryDisplay()
+  const all = screen.getAllDisplays()
+  const d = all.find(dd => displayIdOf(dd) === String(displayArg))
+  if (!d) throw new Error(`unknown display: ${displayArg}; available: ${all.map(displayIdOf).join(', ')}`)
+  return d
+}
+
+function displayAt(x: number, y: number): Electron.Display | null {
+  const all = screen.getAllDisplays()
+  const hit = all.find(d => {
+    const r = displayPhysicalRect(d)
+    return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h
+  })
+  if (hit) return hit
+  let best: Electron.Display | null = null
+  let bestDist = Infinity
+  for (const d of all) {
+    const r = displayPhysicalRect(d)
+    const cx = r.x + r.w / 2
+    const cy = r.y + r.h / 2
+    const dist = (x - cx) ** 2 + (y - cy) ** 2
+    if (dist < bestDist) { bestDist = dist; best = d }
+  }
+  return best
+}
+
+function displayForSnapshot(session: SessionState): Electron.Display {
+  const d = screen.getAllDisplays().find(dd => dd.id === session.snapshotDisplayId)
+  if (!d) throw new Error('display no longer available; take a new screenshot')
+  return d
+}
+
+function mapToGlobal(session: SessionState, display: Electron.Display, x: number, y: number): { x: number; y: number } {
+  const o = physicalOriginOf(display)
+  return { x: o.x + Math.round(x * session.snapshotScaleX), y: o.y + Math.round(y * session.snapshotScaleY) }
+}
+
 function assertSnapshot(session: SessionState, id: string): void {
   if (session.snapshotId === 0) throw new Error('no screenshot taken yet; call screenshot() first')
   const current = snapshotIdOf(session)
   if (id !== current) throw new Error(`stale snapshot_id: got ${id}, expected ${current}; call screenshot() first`)
+  if (session.snapshotDisplayId === null) throw new Error('snapshot is reconnaissance-only (all displays); call screenshot(display: <id>) for the target display first')
 }
 
-async function takeScreenshot(session: SessionState): Promise<ToolResult> {
-  const display = screen.getPrimaryDisplay()
+async function captureDisplay(display: Electron.Display): Promise<{ image: any; info: string; scaleX: number; scaleY: number } | null> {
   const sf = display.scaleFactor
   const physW = Math.round(display.size.width * sf)
   const physH = Math.round(display.size.height * sf)
@@ -99,19 +166,61 @@ async function takeScreenshot(session: SessionState): Promise<ToolResult> {
     types: ['screen'],
     thumbnailSize: { width: physW, height: physH },
   })
-  const source = sources[0]
-  if (!source || source.thumbnail.isEmpty()) {
+  let source = sources.find(s => s.display_id === displayIdOf(display))
+  if (!source) {
+    source = sources.find(s => {
+      const sz = s.thumbnail.getSize()
+      return sz.width === physW && sz.height === physH
+    })
+  }
+  if (!source || source.thumbnail.isEmpty()) return null
+  const img = source.thumbnail
+  const size = img.getSize()
+  const o = physicalOriginOf(display)
+  const info = `display_id=${displayIdOf(display)}; name=${source.name}; is_primary=${display.id === screen.getPrimaryDisplay().id}; scale_factor=${display.scaleFactor}; pixels=${size.width}x${size.height}; dip=${display.size.width}x${display.size.height}; origin=${o.x},${o.y}; rotation=${display.rotation}`
+  return {
+    image: { type: 'image', data: img.toPNG().toString('base64'), mimeType: 'image/png' },
+    info,
+    scaleX: physW > 0 ? size.width / physW : 1,
+    scaleY: physH > 0 ? size.height / physH : 1,
+  }
+}
+
+async function takeScreenshot(session: SessionState, args: any): Promise<ToolResult> {
+  if (args?.display === 'all') {
+    const displays = screen.getAllDisplays()
+    const contents: any[] = []
+    const infos: string[] = []
+    for (const d of displays) {
+      const shot = await captureDisplay(d)
+      if (shot) { contents.push(shot.image); infos.push(shot.info) }
+      else infos.push(`display_id=${displayIdOf(d)}: capture failed (empty thumbnail)`)
+    }
+    session.snapshotId++
+    session.snapshotDisplayId = null
+    const sid = snapshotIdOf(session)
+    contents.push({
+      type: 'text',
+      text: `snapshot_id=${sid} (reconnaissance-only, NOT usable for actions; call screenshot(display: <id>) for the target display first)\n` + infos.join('\n'),
+    })
+    return { content: contents, isError: false }
+  }
+
+  const display = resolveDisplay(args?.display)
+  const shot = await captureDisplay(display)
+  if (!shot) {
     return { content: [{ type: 'text', text: 'screen capture returned empty thumbnail (window minimized or locked?)' }], isError: true }
   }
-  const img = source.thumbnail
-  const b64 = img.toPNG().toString('base64')
-  const size = img.getSize()
   session.snapshotId++
+  session.snapshotDisplayId = display.id
+  session.snapshotScaleX = shot.scaleX
+  session.snapshotScaleY = shot.scaleY
   const sid = snapshotIdOf(session)
+  const all = screen.getAllDisplays()
   return {
     content: [
-      { type: 'image', data: b64, mimeType: 'image/png' },
-      { type: 'text', text: `snapshot_id=${sid}; width=${size.width}; height=${size.height}; display=${display.size.width}x${display.size.height}@${sf}x` },
+      shot.image,
+      { type: 'text', text: `snapshot_id=${sid}; ${shot.info}\n\nall displays:\n` + all.map(displaySummary).join('\n') },
     ],
     isError: false,
   }
@@ -119,34 +228,34 @@ async function takeScreenshot(session: SessionState): Promise<ToolResult> {
 
 async function sendClick(x: number, y: number, button: string, count: number): Promise<void> {
   const flags = button === 'right' ? 0x08 | 0x10 : button === 'middle' ? 0x20 | 0x40 : 0x02 | 0x04
-  let ps = `${ADD_TYPE_PS}\n[VibeU]::SetCursorPos(${x},${y})\n`
+  let ps = `${ADD_TYPE_PS}\n${dpiPreamble()}[VibeU]::SetCursorPos(${x},${y})\n`
   for (let i = 0; i < count; i++) ps += `[VibeU]::mouse_event(${flags},0,0,0,0)\n`
   await runPowershell(ps)
 }
 
 async function sendTypeText(text: string): Promise<void> {
   clipboard.writeText(text)
-  const ps = `${ADD_TYPE_PS}\n[VibeU]::keybd_event(0xA2,0,0,0)\n[VibeU]::keybd_event(0x56,0,0,0)\n[VibeU]::keybd_event(0x56,0,2,0)\n[VibeU]::keybd_event(0xA2,0,2,0)\n`
+  const ps = `${ADD_TYPE_PS}\n${dpiPreamble()}[VibeU]::keybd_event(0xA2,0,0,0)\n[VibeU]::keybd_event(0x56,0,0,0)\n[VibeU]::keybd_event(0x56,0,2,0)\n[VibeU]::keybd_event(0xA2,0,2,0)\n`
   await runPowershell(ps)
 }
 
 async function sendKeys(keys: string): Promise<void> {
   const vks = keys.split('+').map(k => keyToVk(k.trim()))
-  let ps = `${ADD_TYPE_PS}\n`
+  let ps = `${ADD_TYPE_PS}\n${dpiPreamble()}`
   for (const v of vks) ps += `[VibeU]::keybd_event(${v},0,0,0)\n`
   for (let i = vks.length - 1; i >= 0; i--) ps += `[VibeU]::keybd_event(${vks[i]},0,2,0)\n`
   await runPowershell(ps)
 }
 
 async function sendScroll(x: number, y: number, dx: number, dy: number): Promise<void> {
-  let ps = `${ADD_TYPE_PS}\n[VibeU]::SetCursorPos(${x},${y})\n`
+  let ps = `${ADD_TYPE_PS}\n${dpiPreamble()}[VibeU]::SetCursorPos(${x},${y})\n`
   if (dy !== 0) ps += `[VibeU]::mouse_event(0x0800,0,0,${dy * 120},0)\n`
   if (dx !== 0) ps += `[VibeU]::mouse_event(0x1000,0,0,${dx * 120},0)\n`
   await runPowershell(ps)
 }
 
 async function cursorPosition(): Promise<{ x: number; y: number }> {
-  const ps = `${ADD_TYPE_PS}\n$p = New-Object VibeU+POINT; [VibeU]::GetCursorPos([ref]$p) | Out-Null; "$($p.X),$($p.Y)"`
+  const ps = `${ADD_TYPE_PS}\n${dpiPreamble()}$p = New-Object VibeU+POINT; [VibeU]::GetCursorPos([ref]$p) | Out-Null; "$($p.X),$($p.Y)"`
   const out = (await runPowershell(ps)).trim()
   const parts = out.split(',')
   return { x: Number(parts[0]) || 0, y: Number(parts[1]) || 0 }
@@ -155,15 +264,18 @@ async function cursorPosition(): Promise<{ x: number; y: number }> {
 async function handleClientCall(session: SessionState, name: string, args: any): Promise<ToolResult> {
   switch (name) {
     case 'screenshot':
-      return takeScreenshot(session)
+      return takeScreenshot(session, args)
     case 'cursor_position': {
       const { x, y } = await cursorPosition()
-      return { content: [{ type: 'text', text: JSON.stringify({ x, y, snapshot_id: snapshotIdOf(session) }) }], isError: false }
+      const display = displayAt(x, y)
+      const rel = display ? { x: x - physicalOriginOf(display).x, y: y - physicalOriginOf(display).y } : null
+      return { content: [{ type: 'text', text: JSON.stringify({ x, y, display_id: display ? displayIdOf(display) : null, is_primary: display ? display.id === screen.getPrimaryDisplay().id : null, scale_factor: display?.scaleFactor ?? null, relative: rel, snapshot_id: snapshotIdOf(session) }) }], isError: false }
     }
     case 'click':
       assertSnapshot(session, args?.snapshot_id)
-      await sendClick(args.x, args.y, args.button || 'left', args.count || 1)
-      return { content: [{ type: 'text', text: `clicked ${args.button || 'left'} at (${args.x},${args.y})` }], isError: false }
+      { const g = mapToGlobal(session, displayForSnapshot(session), args.x, args.y)
+        await sendClick(g.x, g.y, args.button || 'left', args.count || 1)
+        return { content: [{ type: 'text', text: `clicked ${args.button || 'left'} at (${args.x},${args.y})` }], isError: false } }
     case 'type_text':
       assertSnapshot(session, args?.snapshot_id)
       await sendTypeText(args.text)
@@ -174,8 +286,9 @@ async function handleClientCall(session: SessionState, name: string, args: any):
       return { content: [{ type: 'text', text: `pressed ${args.keys}` }], isError: false }
     case 'scroll':
       assertSnapshot(session, args?.snapshot_id)
-      await sendScroll(args.x, args.y, args.dx, args.dy)
-      return { content: [{ type: 'text', text: `scrolled dx=${args.dx} dy=${args.dy}` }], isError: false }
+      { const g = mapToGlobal(session, displayForSnapshot(session), args.x, args.y)
+        await sendScroll(g.x, g.y, args.dx, args.dy)
+        return { content: [{ type: 'text', text: `scrolled dx=${args.dx} dy=${args.dy}` }], isError: false } }
     default:
       return { content: [{ type: 'text', text: `unknown tool: ${name}` }], isError: true }
   }
@@ -208,6 +321,9 @@ export function startForSession(sessionId: string): { pipeName: string; token: s
     server: null,
     mcpConfigPath,
     snapshotId: 0,
+    snapshotDisplayId: null,
+    snapshotScaleX: 1,
+    snapshotScaleY: 1,
     client: null,
     clientBuf: '',
   }

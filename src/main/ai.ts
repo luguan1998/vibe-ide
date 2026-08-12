@@ -1327,7 +1327,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     // Only handle if this is still the active process for this session
     // (a new process may have been spawned for the same sessionId via resume)
     const current = aiSessions.get(sessionId)
-    if (current?.process.pid === proc.pid) {
+    if (current && current.process.pid === proc.pid) {
       if (current.computerUse) { try { require('./computer-use').stopForSession(sessionId) } catch {} }
       stopSidecarWatchersForSession(sessionId)
       aiSessions.delete(sessionId)
@@ -1339,7 +1339,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     clearTimeout(startupTimer)
     // Only handle if this is still the active process for this session
     const current = aiSessions.get(sessionId)
-    if (current?.process.pid === proc.pid) {
+    if (current && current.process.pid === proc.pid) {
       // AskUserQuestion proactive kill: keep session (ask-resume needs claudeSessionId),
       // skip AI_ERROR — this exit is intentional, not a crash.
       if (current!.awaitingUserInput === true) {
