@@ -62,6 +62,11 @@ const ZH_MAP: Record<string, string> = {
   'Scroll Right': '向右滚动',
   'Split Down': '向下分屏',
   'Recent Directories': '最近打开的目录',
+  'Open Folder': '打开文件夹',
+  'Restore Selected': '恢复收藏',
+  'Restore Previous Sessions': '恢复之前会话',
+  'Favorite': '收藏',
+  'Opening folder...': '正在打开文件夹…',
   'No sessions yet': '暂无会话',
   'Right-click blank area to open a new session': '右键空白处打开新会话',
   'Close Session': '关闭会话',
@@ -477,10 +482,12 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => {
     try {
       const v = localStorage.getItem('vibe-ide-lang')
-      return v === 'en' ? 'en' : 'zh'
-    } catch {
-      return 'zh'
-    }
+      if (v === 'en') return 'en'
+      if (v === 'zh') return 'zh'
+    } catch {}
+    // 首次启动无偏好：按系统语言（zh-CN/zh-TW/zh-HK → zh，其余 → en）
+    const sys = (typeof navigator !== 'undefined' && navigator.language) || ''
+    return sys.toLowerCase().startsWith('zh') ? 'zh' : 'en'
   })
 
   const setLang = useCallback((l: Lang) => {

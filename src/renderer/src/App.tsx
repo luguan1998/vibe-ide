@@ -26,6 +26,7 @@ import { ADD_ANNOTATION_EVENT, toRelPath } from './components/vibeEvents'
 import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
+import { cwdStore } from './cwdStore'
 import type { TerminalViewHandle } from './components/TerminalView'
 import { getMainShellType, getAuxShellType } from './utils/shellPrefs'
 
@@ -599,6 +600,13 @@ export default function App() {
   React.useEffect(() => {
     mujicaStore.setDefaultCwd(sessions.find(s => s.id === activeSessionId)?.cwd ?? null)
   }, [sessions, activeSessionId])
+
+  // 关闭 app 时记录当前打开的 cwd 快照；sessions 清空时不写以保留上次关闭时的列表
+  React.useEffect(() => {
+    if (sessions.length === 0) return
+    const cwds = Array.from(new Set(sessions.map(s => s.cwd.replace(/\\/g, '/').replace(/\/$/, ''))))
+    cwdStore.setLastOpenCwds(cwds)
+  }, [sessions])
 
   React.useEffect(() => {
     aiStore.setActiveSession(activeSessionId)

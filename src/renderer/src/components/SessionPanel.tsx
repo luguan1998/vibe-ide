@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2, Pin, Terminal, FileText } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2, Pin, Terminal, FileText, Star } from 'lucide-react'
 import { useI18n } from '../i18n'
+import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
 import { readAiCliConfig } from '../aiStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import { getMainShellType, setMainShellType, getAuxShellType, setAuxShellType } from '@renderer/utils/shellPrefs'
@@ -110,8 +111,6 @@ export const DEFAULT_CWD_EMOJIS = ['🧩', '📌', '📁', '🚀', '🏷️', '�
 // Session 图标：按会话分配（列表行）
 export const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '👻', '🤣', '👾', '⚡', '🌟', '🐉', '🤗', '🙏']
 
-const MAX_RECENT_DIRS = 10
-
 function midTruncatePath(path: string, maxLen: number = 28): string {
   if (path.length <= maxLen) return path
   const sep = path.includes('\\') ? '\\' : '/'
@@ -150,28 +149,6 @@ function buildHistoryTurns(messages: any[]): { role: 'user' | 'assistant'; text:
     else turns.push({ role, text })
   }
   return turns
-}
-
-function loadRecentDirs(): string[] {
-  try {
-    const raw = localStorage.getItem('vibe-ide-recent-dirs')
-    if (raw) {
-      const arr = JSON.parse(raw)
-      if (Array.isArray(arr)) return arr.filter((d: unknown) => typeof d === 'string' && d.length > 0).slice(0, MAX_RECENT_DIRS)
-    }
-  } catch {}
-  return []
-}
-
-function saveRecentDirs(dirs: string[]): void {
-  try { localStorage.setItem('vibe-ide-recent-dirs', JSON.stringify(dirs)) } catch {}
-}
-
-function addRecentDir(dir: string, existing: string[]): string[] {
-  const normalized = dir.replace(/\\/g, '/')
-  const next = [normalized, ...existing.filter(d => d !== normalized)].slice(0, MAX_RECENT_DIRS)
-  saveRecentDirs(next)
-  return next
 }
 
 // 旧版「一个合并数组按 1/3 split」迁移到两个独立池
@@ -511,7 +488,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [emptyAreaMenu, setEmptyAreaMenu] = useState<{ x: number; y: number } | null>(null)
   const ctxMenuPos = useAdaptiveMenuPos(!!contextMenu, contextMenu?.x ?? 0, contextMenu?.y ?? 0)
   const emptyMenuPos = useAdaptiveMenuPos(!!emptyAreaMenu, emptyAreaMenu?.x ?? 0, emptyAreaMenu?.y ?? 0)
-  const [recentDirs, setRecentDirs] = useState<string[]>(() => loadRecentDirs())
+  const recentDirs = useRecentDirs()
+  const favCwds = useFavCwds()
   const prevSessionIdsRef = useRef<Set<string>>(new Set())
   const [renaming, setRenaming] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
@@ -587,7 +565,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   useEffect(() => {
     for (const s of sessions) {
       if (!prevSessionIdsRef.current.has(s.id)) {
-        setRecentDirs(prev => addRecentDir(s.cwd, prev))
+        cwdStore.addRecentDir(s.cwd)
       }
     }
     prevSessionIdsRef.current = new Set(sessions.map(s => s.id))
@@ -1568,43 +1546,65 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           {recentDirs.length > 0 && (
             <>
               <div className="border-t border-ide-border my-1" />
-              <div className="px-3 py-1 text-[10px] text-ide-text-muted uppercase tracking-wider">{t('Recent Directories')}</div>
-              {recentDirs.map((dir, i) => (
-                <div
-                  key={`${dir}-${i}`}
-                  className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2 group"
+              <div className="flex items-center justify-between px-3 py-1">
+                <span className="text-[10px] text-ide-text-muted uppercase tracking-wider">{t('Recent Directories')}</span>
+                <button
+                  onClick={() => {
+                    for (const d of favCwds) onCloneSession(null, d, termType)
+                    setEmptyAreaMenu(null)
+                  }}
+                  disabled={favCwds.length === 0}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded text-[10px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <button
-                    className="flex items-center gap-2 truncate flex-1 cursor-pointer bg-transparent border-none text-inherit text-sm p-0"
-                    onClick={() => {
-                      onCloneSession(null, dir, termType)
-                      setEmptyAreaMenu(null)
-                    }}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
-                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                    </svg>
-                    <span className="truncate">{dir}</span>
-                  </button>
-                  <button
-                    className="opacity-0 group-hover:opacity-100 w-4 h-4 rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center shrink-0 transition-all -mr-1"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setRecentDirs(prev => {
-                        const next = prev.filter((_, idx) => idx !== i)
-                        saveRecentDirs(next)
-                        return next
-                      })
-                    }}
-                    title={t('Remove')}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
+                  <RotateCcw className="size-2.5" />
+                  {t('Restore Selected')}
+                </button>
+              </div>
+              {[...recentDirs]
+                .sort((a, b) => Number(cwdStore.isFav(b)) - Number(cwdStore.isFav(a)))
+                .map(dir => {
+                  const isFav = cwdStore.isFav(dir)
+                  return (
+                    <div
+                      key={dir}
+                      className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2 group"
+                    >
+                      <button
+                        className={`w-3.5 h-3.5 shrink-0 flex items-center justify-center transition-colors ${isFav ? 'text-ide-accent' : 'text-ide-text-muted/40 hover:text-ide-text-muted'}`}
+                        onClick={(e) => { e.stopPropagation(); cwdStore.toggleFav(dir) }}
+                        title={t('Favorite')}
+                      >
+                        <Star className="w-3.5 h-3.5" fill={isFav ? 'currentColor' : 'none'} />
+                      </button>
+                      <button
+                        className="flex items-center gap-2 truncate flex-1 cursor-pointer bg-transparent border-none text-inherit text-sm p-0"
+                        onClick={() => {
+                          onCloneSession(null, dir, termType)
+                          setEmptyAreaMenu(null)
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                        </svg>
+                        <span className="truncate">{dir}</span>
+                      </button>
+                      {isFav ? (
+                        <span className="w-4 h-4 shrink-0 -mr-1" aria-hidden="true" />
+                      ) : (
+                        <button
+                          className="opacity-0 group-hover:opacity-100 w-4 h-4 rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center shrink-0 transition-all -mr-1"
+                          onClick={(e) => { e.stopPropagation(); cwdStore.removeRecentDir(dir) }}
+                          title={t('Remove')}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
             </>
           )}
         </div>
