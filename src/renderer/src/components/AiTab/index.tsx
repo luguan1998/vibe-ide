@@ -1074,7 +1074,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
       {/* Piped prompt — queued while busy, auto-sent when idle, X to dismiss */}
       {state.pipedPrompt && activeSessionId && (
-        <div className="ai-tab__piped mx-2 mb-1 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">
+        <div className="ai-tab__piped w-full max-w-[896px] mx-auto mb-1 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">
           <Plug size={12} className="shrink-0 text-ide-accent" />
           <span className="text-[11px] font-medium text-ide-accent/80 shrink-0">{t('Queued')}</span>
           <span className="text-xs text-ide-text/80 truncate flex-1 min-w-0" title={state.pipedPrompt}>{state.pipedPrompt}</span>
