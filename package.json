@@ -74,6 +74,7 @@
     ],
     "icon": "build/icon.ico",
     "win": {
+      "artifactName": "${productName}-${arch}.${ext}",
       "target": [
         "nsis",
         "7z"
