@@ -309,6 +309,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   }, [activeSessionId, workspacePath, state.worktreePath, onWorktreeNavChange])
 
   // ── Smart auto-scroll: passive listener + threshold ──
+  // scrollContainer 在空会话(showEmptyCenter)时不渲染,挂载时机由
+  // messages/streaming 决定;依赖这两个值让容器出现时重新注册监听,
+  // 否则 userScrolledUpRef 恒为初值 false → 流式刷新永远把用户拉回底部。
   useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
@@ -318,7 +321,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     }
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
-  }, [])
+  }, [state.messages.length, state.streaming])
 
   const scrollRafRef = useRef<number | null>(null)
   useEffect(() => {
