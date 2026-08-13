@@ -6,6 +6,7 @@ import { useI18n } from '../i18n'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import OutlineTrigger from './OutlineTrigger'
 import { ADD_ANNOTATION_EVENT } from './vibeEvents'
+import { resolveAbsPath } from '../utils/filePathUtils'
 
 let _monacoConfigured = false
 function configureMonacoBase(monaco: any) {
@@ -84,6 +85,8 @@ interface DiffViewerProps {
   visibleLineRef?: React.MutableRefObject<{ fullPath: string; line: number } | null>  // 视口中间可见行（居中还原用），供最近文件回写行号
   onOpenCallGraph?: (word: string) => void     // 右键菜单 → 打开 call graph
   onViewLineHistory?: (filePath: string, lineNumber: number) => void  // 右键菜单 → 查看这行修改记录
+  jumpCwd?: string                              // Ctrl+Click 跳转：工作区根目录（grep 兜底 + 相对路径解析）
+  onJumpToFile?: (fullPath: string, line: number) => void  // Ctrl+Click 跳转：打开文件并定位
   compareOriginalContent?: string  // 左侧对比文件内容（文件对比模式）
   compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
   onAnnotationTrigger?: (start: number, end: number) => void
@@ -193,6 +196,24 @@ function computeRevertBtnLeft(editorDom: HTMLElement | null, containerDom: HTMLE
   return editorDom.getBoundingClientRect().left - containerDom.getBoundingClientRect().left
 }
 
+// Ctrl+Click 跳转：D 兜底定义正则（行首强定义模式，避开调用点）
+// 三分支：关键字定义（function/class/def/fn/const…）/ 裸赋值定义（foo = / foo:）/ 类型前置定义（int foo( / pub fn foo(）
+// 否定前瞻排除控制流（return foo( 是调用不是定义）
+function buildDefRegex(word: string): string {
+  const w = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return `^(?!\\s*(?:return|throw|await|yield|new|sizeof)\\b)(?:\\s*(?:export\\s+)?(?:async\\s+)?(?:function|class|interface|type|enum|def|fn|func|struct|trait|const|let|var)\\s+${w}\\b|\\s*${w}\\s*(?:[=:]|\\s*=>)|\\s*[\\w<>:,*&]+(?:\\s+[\\w<>:,*&]+){0,3}\\s+${w}\\s*\\()`
+}
+
+// Ctrl+Click 跳转：定义类 kind 优先排序
+const DEF_KINDS = new Set(['function', 'method', 'constructor', 'class', 'interface', 'type', 'enum', 'struct', 'variable', 'constant', 'field', 'property'])
+
+interface JumpItem {
+  fullPath: string
+  line: number
+  label: string
+  detail?: string
+}
+
 function FilePathDisplay({ filePath }: { filePath: string }) {
   const lastSep = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
   const dirPart = lastSep >= 0 ? filePath.substring(0, lastSep + 1) : ''
@@ -208,7 +229,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, outlineEnabled = false, onToggleOutline, onOutlineNavigate = () => {} }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, outlineEnabled = false, onToggleOutline, onOutlineNavigate = () => {} }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -509,6 +530,84 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const onViewLineHistoryRef = useRef(onViewLineHistory)
   onViewLineHistoryRef.current = onViewLineHistory
 
+  // Ctrl+Click 跳转：C=codegraph 索引 → D=grep 定义正则兜底
+  const jumpCwdRef = useRef(jumpCwd); jumpCwdRef.current = jumpCwd
+  const onJumpToFileRef = useRef(onJumpToFile); onJumpToFileRef.current = onJumpToFile
+  const [jumpCandidates, setJumpCandidates] = useState<{ word: string; items: JumpItem[]; x: number; y: number } | null>(null)
+  const jumpCandidatesRef = useRef(jumpCandidates); jumpCandidatesRef.current = jumpCandidates
+  const [jumpSel, setJumpSel] = useState(0)
+  const jumpSelRef = useRef(jumpSel); jumpSelRef.current = jumpSel
+  const jumpInflightRef = useRef<{ word: string; ts: number } | null>(null)
+
+  const closeJump = useCallback(() => {
+    setJumpCandidates(null)
+    setJumpSel(0)
+  }, [])
+
+  const jumpToItem = useCallback((item: JumpItem) => {
+    closeJump()
+    onJumpToFileRef.current?.(item.fullPath, item.line)
+  }, [closeJump])
+
+  const performJumpQuery = useCallback(async (word: string, x: number, y: number) => {
+    const now = Date.now()
+    const inflight = jumpInflightRef.current
+    if (inflight && inflight.word === word && now - inflight.ts < 300) return
+    jumpInflightRef.current = { word, ts: now }
+    const cwd = jumpCwdRef.current
+    const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase()
+    const curFile = norm(filePath)
+    let items: JumpItem[] = []
+    try {
+      const r = await window.api.code.searchNodes(word, { limit: 50 })
+      if (r && !r.error && r.nodes?.length) {
+        const exact = r.nodes.filter((n: any) => n.name === word)
+        exact.sort((a: any, b: any) => {
+          const af = norm(a.filePath || '') === curFile ? 0 : 1
+          const bf = norm(b.filePath || '') === curFile ? 0 : 1
+          if (af !== bf) return af - bf
+          const ak = DEF_KINDS.has(a.kind) ? 0 : 1
+          const bk = DEF_KINDS.has(b.kind) ? 0 : 1
+          if (ak !== bk) return ak - bk
+          return (a.line || 0) - (b.line || 0)
+        })
+        items = exact.slice(0, 8).map((n: any) => ({
+          fullPath: resolveAbsPath(n.filePath, cwd),
+          line: n.line || 1,
+          label: n.filePath || '',
+          detail: n.signature || n.kind || ''
+        }))
+      }
+    } catch {}
+    if (!items.length && cwd) {
+      try {
+        const g = await window.api.search.grep({ query: buildDefRegex(word), cwd, regex: true, caseSensitive: true })
+        if (g && !g.error && g.matches?.length) {
+          items = g.matches.slice(0, 8).map((m: any) => ({
+            fullPath: m.fullPath,
+            line: m.line,
+            label: m.file,
+            detail: String(m.content || '').trim()
+          }))
+        }
+      } catch {}
+    }
+    jumpInflightRef.current = null
+    if (!items.length) return
+    setJumpCandidates({ word, items, x, y })
+    setJumpSel(0)
+  }, [filePath])
+
+  const handleJumpMouseDown = useCallback((editor: any, e: any) => {
+    const be = e.event
+    if (!be || !(be.ctrlKey || be.metaKey) || be.button !== 0) return
+    const pos = e.target?.position
+    if (!pos) return
+    const word = editor.getModel()?.getWordAtPosition(pos)?.word
+    if (!word || word.length > 120) return
+    performJumpQuery(word, be.clientX, be.clientY)
+  }, [performJumpQuery])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle keys when visible (not display:none)
@@ -528,13 +627,44 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || !onBack) return
       if (!containerRef.current?.offsetParent) return
+      if (jumpCandidatesRef.current) {
+        closeJump()
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        return
+      }
       e.preventDefault()
       e.stopImmediatePropagation()
       onBack()
     }
     window.addEventListener('keydown', handleEsc, true)
     return () => window.removeEventListener('keydown', handleEsc, true)
-  }, [onBack])
+  }, [onBack, closeJump])
+
+  // 跳转候选浮层：↑↓ 选择 + Enter 跳转（浮层开着时拦截）
+  useEffect(() => {
+    const handleJumpKeys = (e: KeyboardEvent) => {
+      const c = jumpCandidatesRef.current
+      if (!c) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setJumpSel(i => Math.min(i + 1, c.items.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setJumpSel(i => Math.max(i - 1, 0))
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const item = c.items[jumpSelRef.current]
+        if (item) jumpToItem(item)
+      }
+    }
+    window.addEventListener('keydown', handleJumpKeys, true)
+    return () => window.removeEventListener('keydown', handleJumpKeys, true)
+  }, [jumpToItem])
 
   // PageDown/PageUp 双击 / Ctrl+PageDown/PageUp 跳 diff 区块（对齐 VS Code）
   useEffect(() => {
@@ -815,17 +945,25 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               monacoRef.current = monaco
               const modifiedEditor = editor.getModifiedEditor()
               modifiedEditor.onMouseDown((e: any) => {
-                if (brushActiveRef.current) {
+                const ctrlClick = !!(e.event?.ctrlKey || e.event?.metaKey)
+                const pos = e.target?.position
+                const ch = pos ? (modifiedEditor.getModel()?.getLineContent(pos.lineNumber) ?? '')[pos.column - 1] ?? '' : ''
+                const onWord = ctrlClick && !!pos && /[\w$_]/.test(ch)
+                if (brushActiveRef.current || ctrlClick) {
                   e.event?.preventDefault()
                   e.event?.stopPropagation()
                   const sel = modifiedEditor.getSelection()
-                  const clicked = e.target?.position?.lineNumber
+                  const clicked = pos?.lineNumber
                   if (sel && sel.startLineNumber !== sel.endLineNumber) {
                     handleAnnotationClickRef.current?.(sel.startLineNumber, sel.endLineNumber)
+                  } else if (onWord) {
+                    handleJumpMouseDown(modifiedEditor, e)
                   } else if (clicked) {
                     handleAnnotationClickRef.current?.(clicked, clicked)
                   }
+                  return
                 }
+                if (ctrlClick) handleJumpMouseDown(modifiedEditor, e)
               })
               modifiedEditor.onDidChangeCursorPosition((e: any) => {
                 if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
@@ -997,17 +1135,25 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
               editEditorRef.current = editor
               monacoRef.current = monaco
               editor.onMouseDown((e: any) => {
-                if (brushActiveRef.current) {
+                const ctrlClick = !!(e.event?.ctrlKey || e.event?.metaKey)
+                const pos = e.target?.position
+                const ch = pos ? (editor.getModel()?.getLineContent(pos.lineNumber) ?? '')[pos.column - 1] ?? '' : ''
+                const onWord = ctrlClick && !!pos && /[\w$_]/.test(ch)
+                if (brushActiveRef.current || ctrlClick) {
                   e.event?.preventDefault()
                   e.event?.stopPropagation()
                   const sel = editor.getSelection()
-                  const clicked = e.target?.position?.lineNumber
+                  const clicked = pos?.lineNumber
                   if (sel && sel.startLineNumber !== sel.endLineNumber) {
                     handleAnnotationClickRef.current?.(sel.startLineNumber, sel.endLineNumber)
+                  } else if (onWord) {
+                    handleJumpMouseDown(editor, e)
                   } else if (clicked) {
                     handleAnnotationClickRef.current?.(clicked, clicked)
                   }
+                  return
                 }
+                if (ctrlClick) handleJumpMouseDown(editor, e)
               })
               editor.onDidChangeCursorPosition((e: any) => {
                 if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
@@ -1080,6 +1226,31 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
           </div>
         )}
       </div>
+
+      {/* Ctrl+Click 跳转候选浮层 */}
+      {jumpCandidates && (
+        <div
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[280px] max-w-[520px] max-h-72 overflow-y-auto"
+          style={{ left: Math.max(8, Math.min(jumpCandidates.x - 40, window.innerWidth - 540)), top: Math.min(jumpCandidates.y + 16, window.innerHeight - 300) }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1 text-[10px] text-ide-text-muted font-semibold uppercase tracking-wider truncate">{jumpCandidates.word} →</div>
+          {jumpCandidates.items.map((item, i) => (
+            <button
+              key={`${item.fullPath}:${item.line}:${i}`}
+              onClick={() => jumpToItem(item)}
+              onMouseEnter={() => setJumpSel(i)}
+              className={`w-full px-3 py-1 text-left flex items-center gap-2 transition-colors ${i === jumpSel ? 'bg-ide-accent/15' : ''}`}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-xs text-ide-text truncate">{item.label}</div>
+                {item.detail && <div className="text-[10px] text-ide-text-muted truncate">{item.detail}</div>}
+              </div>
+              <span className="text-[10px] text-ide-text-muted shrink-0 font-mono">{item.line}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Encoding Context Menu */}
       {encodingContextMenu && (

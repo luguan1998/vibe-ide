@@ -87,3 +87,14 @@ export function parseFilePath(pathText: string, cwd: string): { fullPath: string
 export function isBareFilename(text: string): boolean {
   return !/[\\\/]/.test(text) && !/^[A-Za-z]:/.test(text)
 }
+
+/**
+ * 相对路径 → 绝对路径（codegraph/grep 返回的相对路径统一转换）
+ * 已是绝对路径（盘符或 / 开头）则原样返回
+ */
+export function resolveAbsPath(rel: string, cwd?: string): string {
+  if (!cwd) return rel
+  if (rel.startsWith('/') || /^[A-Za-z]:[\\\/]/.test(rel)) return rel
+  const sep = cwd.includes('\\') ? '\\' : '/'
+  return cwd + sep + rel.replace(/\//g, sep)
+}

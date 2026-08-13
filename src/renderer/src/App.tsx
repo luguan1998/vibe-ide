@@ -29,6 +29,7 @@ import { useI18n } from './i18n'
 import { cwdStore } from './cwdStore'
 import type { TerminalViewHandle } from './components/TerminalView'
 import { getMainShellType, getAuxShellType } from './utils/shellPrefs'
+import { resolveAbsPath } from './utils/filePathUtils'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
 
@@ -2429,6 +2430,8 @@ export default function App() {
                 visibleLineRef={visibleLineRef}
                 onOpenCallGraph={handleOpenCallGraphFromEditor}
                 onViewLineHistory={handleViewLineHistory}
+                jumpCwd={activeSessionCwd}
+                onJumpToFile={handleOpenFileFromSearch}
                 compareOriginalContent={diffFile.compareOriginalContent}
                 compareOriginalPath={diffFile.compareOriginalPath}
                 onAnnotationTrigger={handleAnnotationTrigger}
@@ -2702,13 +2705,7 @@ export default function App() {
           focalNode={callGraphFocalNode}
           onClose={() => setCallGraphFocalNode(null)}
           onJumpToFile={(filePath, line) => {
-            const cwd = activeSessionCwd
-            if (!cwd) return
-            const sep = cwd.includes('\\') ? '\\' : '/'
-            const absPath = filePath.startsWith('/') || filePath.includes(':')
-              ? filePath
-              : cwd + sep + filePath.replace(/\//g, sep)
-            handleOpenFileFromSearch(absPath, line)
+            handleOpenFileFromSearch(resolveAbsPath(filePath, activeSessionCwd), line)
           }}
         />
       )}
@@ -2720,14 +2717,7 @@ export default function App() {
           onClose={closeCodeSearch}
           onSelectNode={(node) => setCallGraphFocalNode(node)}
           onJumpTo={(node) => {
-            const cwd = activeSessionCwd
-            if (!cwd) return
-            const sep = cwd.includes('\\') ? '\\' : '/'
-            const filePath = node.filePath
-            const absPath = filePath.startsWith('/') || filePath.includes(':')
-              ? filePath
-              : cwd + sep + filePath.replace(/\//g, sep)
-            handleOpenFileFromSearch(absPath, node.line)
+            handleOpenFileFromSearch(resolveAbsPath(node.filePath, activeSessionCwd), node.line)
           }}
           onExploreResult={(result) => { setExploreResult(result); closeCodeSearch() }}
           focusTrigger={codeSearchFocusTrigger}
