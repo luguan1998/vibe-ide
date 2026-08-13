@@ -1070,6 +1070,16 @@ export default function App() {
     }
   }, [activeSessionId, processPipeQueue])
 
+  // 定时任务：向指定 session 入管道，不切换当前会话
+  const handlePipeToSession = useCallback((sessionId: string, command: string) => {
+    if (!pipeQueueRef.current.has(sessionId)) pipeQueueRef.current.set(sessionId, [])
+    pipeQueueRef.current.get(sessionId)!.push(command)
+    if (!pipeProcessingRef.current.get(sessionId)) {
+      pipeProcessingRef.current.set(sessionId, true)
+      processPipeQueue(sessionId)
+    }
+  }, [processPipeQueue])
+
   const cancelPipeRef = useRef(cancelPipe)
   cancelPipeRef.current = cancelPipe
   const activeSessionIdRef = useRef(activeSessionId)
@@ -2376,6 +2386,7 @@ export default function App() {
             onExecuteCommand={handleExecuteCommand}
             onInitCommand={handleInitCommand}
             onPipeCommand={handlePipeCommand}
+            onPipeToSession={handlePipeToSession}
             pipeRunning={pipeRunning}
             pipeProgress={pipeProgress}
             onCancelPipe={cancelPipe}
@@ -2430,7 +2441,7 @@ export default function App() {
                 visibleLineRef={visibleLineRef}
                 onOpenCallGraph={handleOpenCallGraphFromEditor}
                 onViewLineHistory={handleViewLineHistory}
-                jumpCwd={activeSessionCwd}
+                jumpCwd={activeSessionCwd ?? undefined}
                 onJumpToFile={handleOpenFileFromSearch}
                 compareOriginalContent={diffFile.compareOriginalContent}
                 compareOriginalPath={diffFile.compareOriginalPath}
@@ -2705,7 +2716,7 @@ export default function App() {
           focalNode={callGraphFocalNode}
           onClose={() => setCallGraphFocalNode(null)}
           onJumpToFile={(filePath, line) => {
-            handleOpenFileFromSearch(resolveAbsPath(filePath, activeSessionCwd), line)
+            handleOpenFileFromSearch(resolveAbsPath(filePath, activeSessionCwd ?? undefined), line)
           }}
         />
       )}
@@ -2717,7 +2728,7 @@ export default function App() {
           onClose={closeCodeSearch}
           onSelectNode={(node) => setCallGraphFocalNode(node)}
           onJumpTo={(node) => {
-            handleOpenFileFromSearch(resolveAbsPath(node.filePath, activeSessionCwd), node.line)
+            handleOpenFileFromSearch(resolveAbsPath(node.filePath, activeSessionCwd ?? undefined), node.line)
           }}
           onExploreResult={(result) => { setExploreResult(result); closeCodeSearch() }}
           focusTrigger={codeSearchFocusTrigger}

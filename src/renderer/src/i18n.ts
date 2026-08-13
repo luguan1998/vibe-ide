@@ -144,6 +144,7 @@ const ZH_MAP: Record<string, string> = {
   'One per line': '每行一个',
   'No emojis': '无表情',
   'Click to cycle emoji': '点击切换图标',
+  'Scheduled Task': '定时任务',
   'File Filter Rules': '文件夹过滤',
   'Skip directories matching these names. One per line.': '跳过匹配这些名称的目录。每行一个。',
   'Expand All': '全部展开',

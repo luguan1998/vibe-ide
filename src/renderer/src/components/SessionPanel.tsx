@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2, Pin, Terminal, File, Star } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2, Pin, Terminal, File, Star, Clock } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
 import { readAiCliConfig } from '../aiStore'
@@ -269,6 +269,7 @@ interface SessionPanelProps {
   onExecuteCommand?: (command: string) => void
   onInitCommand?: (command: string) => void
   onPipeCommand?: (command: string) => void
+  onPipeToSession?: (sessionId: string, command: string) => void
   pipeRunning?: Record<string, boolean>
   pipeProgress?: Record<string, { current: number; total: number }>
   onCancelPipe?: (sessionId: string) => void
@@ -302,6 +303,67 @@ export interface SessionPanelHandle {
 // hover 预览 timer 清理：清掉并置 null，统一入口避免各处重复 clearTimeout 判断
 function clearTimer(ref: { current: ReturnType<typeof setTimeout> | null }) {
   if (ref.current) { clearTimeout(ref.current); ref.current = null }
+}
+
+// ── 定时任务：5 段 cron（分 时 日 月 周）最小解析 ──
+interface SchedTask {
+  cron: string
+  command: string
+  lastFired: string
+}
+
+function cronFieldMatch(field: string, value: number, min: number, max: number): boolean {
+  for (const raw of field.split(',')) {
+    const part = raw.trim()
+    if (!part) continue
+    let step = 1
+    let range = part
+    const slashIdx = part.indexOf('/')
+    if (slashIdx >= 0) {
+      step = parseInt(part.slice(slashIdx + 1), 10)
+      if (!(step >= 1)) continue
+      range = part.slice(0, slashIdx)
+    }
+    let start: number, end: number
+    if (range === '*') { start = min; end = max }
+    else if (range.includes('-')) {
+      const [a, b] = range.split('-').map(s => parseInt(s.trim(), 10))
+      if (!(a >= min && b <= max)) continue
+      start = a; end = b
+    } else {
+      const v = parseInt(range, 10)
+      if (!(v >= min && v <= max)) continue
+      start = v; end = v
+    }
+    if (value >= start && value <= end && (value - start) % step === 0) return true
+  }
+  return false
+}
+
+function cronMatches(cron: string, d: Date): boolean {
+  const parts = cron.trim().split(/\s+/)
+  if (parts.length !== 5) return false
+  return (
+    cronFieldMatch(parts[0], d.getMinutes(), 0, 59) &&
+    cronFieldMatch(parts[1], d.getHours(), 0, 23) &&
+    cronFieldMatch(parts[2], d.getDate(), 1, 31) &&
+    cronFieldMatch(parts[3], d.getMonth() + 1, 1, 12) &&
+    cronFieldMatch(parts[4], d.getDay(), 0, 6)
+  )
+}
+
+function cronFieldValid(field: string, min: number, max: number): boolean {
+  for (let v = min; v <= max; v++) {
+    if (cronFieldMatch(field, v, min, max)) return true
+  }
+  return false
+}
+
+function cronValid(cron: string): boolean {
+  const parts = cron.trim().split(/\s+/)
+  if (parts.length !== 5) return false
+  return cronFieldValid(parts[0], 0, 59) && cronFieldValid(parts[1], 0, 23) &&
+    cronFieldValid(parts[2], 1, 31) && cronFieldValid(parts[3], 1, 12) && cronFieldValid(parts[4], 0, 6)
 }
 
 function SessionCmdCopyButton({ cmd }: { cmd: string }) {
@@ -378,6 +440,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onExecuteCommand,
   onInitCommand,
   onPipeCommand,
+  onPipeToSession,
   pipeRunning = {},
   pipeProgress = {},
   onCancelPipe,
@@ -497,6 +560,14 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [appendCmdSessionId, setAppendCmdSessionId] = useState<string | null>(null)
   const [appendCmdDraft, setAppendCmdDraft] = useState('')
   const appendCmdAnchorYRef = useRef(0)
+  const [schedTasks, setSchedTasks] = useState<Record<string, SchedTask>>({})
+  const schedTasksRef = useRef(schedTasks)
+  schedTasksRef.current = schedTasks
+  const [showSchedModal, setShowSchedModal] = useState(false)
+  const [schedSessionId, setSchedSessionId] = useState<string | null>(null)
+  const [schedCronDraft, setSchedCronDraft] = useState('')
+  const [schedCmdDraft, setSchedCmdDraft] = useState('')
+  const [schedCronError, setSchedCronError] = useState('')
 
   const [claudeHistorySession, setClaudeHistorySession] = useState<TerminalSession | null>(null)
   const [claudeHistoryList, setClaudeHistoryList] = useState<any[]>([])
@@ -518,6 +589,72 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     onPipeCommand?.(appendCmdDraft)
     setShowAppendCmdModal(false)
   }
+  const openSchedModal = (sessionId: string) => {
+    const existing = schedTasks[sessionId]
+    setSchedSessionId(sessionId)
+    setSchedCronDraft(existing?.cron ?? '')
+    setSchedCmdDraft(existing?.command ?? '')
+    setSchedCronError('')
+    setShowSchedModal(true)
+  }
+  const handleSaveSched = () => {
+    if (!schedSessionId || !schedCmdDraft.trim()) return
+    const cron = schedCronDraft.trim()
+    if (!cronValid(cron)) {
+      setSchedCronError('cron 格式无效，需 5 段：分 时 日 月 周')
+      return
+    }
+    setSchedTasks(prev => ({ ...prev, [schedSessionId]: { cron, command: schedCmdDraft, lastFired: '' } }))
+    setShowSchedModal(false)
+  }
+  const handleDeleteSched = () => {
+    if (!schedSessionId) return
+    setSchedTasks(prev => { const n = { ...prev }; delete n[schedSessionId!]; return n })
+    setShowSchedModal(false)
+  }
+  // 定时轮询：秒级检查 cron 命中，同一分钟只触发一次，向指定 session 发命令
+  const onPipeToSessionRef = useRef(onPipeToSession)
+  onPipeToSessionRef.current = onPipeToSession
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date()
+      const stamp = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()} ${now.getHours()}:${now.getMinutes()}`
+      for (const [sid, task] of Object.entries(schedTasksRef.current)) {
+        if (task.lastFired === stamp) continue
+        if (cronMatches(task.cron, now)) {
+          setSchedTasks(prev => prev[sid] && prev[sid].lastFired !== stamp ? { ...prev, [sid]: { ...prev[sid], lastFired: stamp } } : prev)
+          onPipeToSessionRef.current?.(sid, task.command)
+        }
+      }
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
+  // session 关闭后清理其定时任务
+  useEffect(() => {
+    const ids = new Set(sessions.map(s => s.id))
+    setSchedTasks(prev => {
+      let changed = false
+      const next: Record<string, SchedTask> = {}
+      for (const [sid, task] of Object.entries(prev)) {
+        if (ids.has(sid)) next[sid] = task
+        else changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [sessions])
+  // 定时弹窗 ESC（window capture 优先于 App 层）
+  useEffect(() => {
+    if (!showSchedModal) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setShowSchedModal(false)
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [showSchedModal])
   const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; cwd: string; left: number; top: number } | null>(null)
   const [hoverTab, setHoverTab] = useState<'cmds' | 'files'>('cmds')
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1003,15 +1140,20 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           ) : (
             <>
               {(() => {
-                const sessionEmoji = sessionEmojiOverrides[session.id] || stableEmojiForSession(session.id, sessionEmojis)
+                const scheduled = !!schedTasks[session.id]
+                const sessionEmoji = scheduled ? '⏰' : (sessionEmojiOverrides[session.id] || stableEmojiForSession(session.id, sessionEmojis))
                 return (
                   <span
                     className="text-sm shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors session-item__icon"
-                    title={t('Click to cycle emoji')}
+                    title={scheduled ? t('Scheduled Task') : t('Click to cycle emoji')}
                     draggable={false}
                     onClick={(e) => {
                       e.stopPropagation()
                       e.preventDefault()
+                      if (scheduled) {
+                        openSchedModal(session.id)
+                        return
+                      }
                       if (sessionEmojis.length === 0) return
                       const idx = sessionEmojis.indexOf(sessionEmoji)
                       const next = sessionEmojis[(idx + 1) % sessionEmojis.length]
@@ -1486,19 +1628,33 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               </button>
             )
           })()}
-          <button
-            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-            onClick={() => {
-              setAppendCmdSessionId(contextMenu.sessionId)
-              setAppendCmdDraft('')
-              appendCmdAnchorYRef.current = contextMenu.y
-              setShowAppendCmdModal(true)
-              setContextMenu(null)
-            }}
-          >
-            {hourglassSvg}
-            <span>追加命令</span>
-          </button>
+          <div className="flex items-stretch">
+            <button
+              className={`flex-1 px-3 py-1.5 text-left text-sm flex items-center gap-2 ${schedTasks[contextMenu.sessionId] ? 'text-ide-accent bg-ide-accent/15 hover:bg-ide-accent/25' : 'text-ide-text hover:bg-ide-hover'}`}
+              onClick={() => {
+                const session = sessions.find(s => s.id === contextMenu.sessionId)
+                if (session) openSchedModal(session.id)
+                setContextMenu(null)
+              }}
+            >
+              <Clock size={14} className={schedTasks[contextMenu.sessionId] ? 'text-ide-accent' : 'text-ide-text-muted'} />
+              <span>定时</span>
+            </button>
+            <div className="w-px bg-ide-border shrink-0 my-1.5" />
+            <button
+              className="flex-1 px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+              onClick={() => {
+                setAppendCmdSessionId(contextMenu.sessionId)
+                setAppendCmdDraft('')
+                appendCmdAnchorYRef.current = contextMenu.y
+                setShowAppendCmdModal(true)
+                setContextMenu(null)
+              }}
+            >
+              {hourglassSvg}
+              <span>追加</span>
+            </button>
+          </div>
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover flex items-center gap-2"
             onClick={() => {
@@ -2110,6 +2266,63 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           </div>
         </ModalOverlay>
       )}
+
+      {/* 定时命令 Modal */}
+      {showSchedModal && createPortal(
+        <ModalOverlay onClose={() => setShowSchedModal(false)} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[380px] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+              <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5">⏰ {t('Scheduled Task')}</span>
+              <button
+                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                onClick={() => setShowSchedModal(false)}
+              >×</button>
+            </div>
+            <div className="p-4 flex flex-col gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">Cron 表达式</span>
+                <input
+                  type="text"
+                  value={schedCronDraft}
+                  onChange={e => { setSchedCronDraft(e.target.value); setSchedCronError('') }}
+                  placeholder="分 时 日 月 周 · 如 */5 * * * *"
+                  className="w-full px-3 py-1.5 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                />
+                {schedCronError && <span className="text-[10px] text-ide-danger">{schedCronError}</span>}
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">命令</span>
+                <textarea
+                  rows={3}
+                  value={schedCmdDraft}
+                  onChange={e => setSchedCmdDraft(e.target.value)}
+                  placeholder="输入定时执行的命令"
+                  className="w-full resize-none px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                />
+              </label>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-ide-border shrink-0">
+              {schedSessionId && schedTasks[schedSessionId] && (
+                <button
+                  className="px-3 py-1.5 text-xs text-ide-danger hover:bg-ide-danger/10 rounded transition-colors"
+                  onClick={handleDeleteSched}
+                >删除</button>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <button
+                  className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
+                  onClick={() => setShowSchedModal(false)}
+                >{t('Cancel')}</button>
+                <button
+                  className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={!schedCmdDraft.trim()}
+                  onClick={handleSaveSched}
+                >{t('Save')}</button>
+              </div>
+            </div>
+          </div>
+        </ModalOverlay>
+      , document.body)}
 
       {claudeHistorySession && (
         <ModalOverlay onClose={closeClaudeHistory} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
