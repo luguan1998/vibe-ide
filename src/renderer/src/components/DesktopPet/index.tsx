@@ -5,7 +5,7 @@ import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
-import { Settings, Send, ClipboardPaste, BookOpenText } from 'lucide-react'
+import { Edit, Send, ClipboardPaste, BookOpenText } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT } from '../vibeEvents'
 import { getExtraBubbleSections, onPetBubblesChanged, type PetBubbleItem, type PetBubbleSection } from './bubbleRegistry'
@@ -387,12 +387,17 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   // 组装气泡 section：速发键 → 拓展注册表（宠物选择/删除/打开文件夹已移至设置→外观）
   const keypadSection: PetBubbleSection = {
     id: 'keypad',
-    items: keypadItems.map(k => ({
+    items: keypadItems.map((k, i) => ({
       id: k.code,
       label: k.text,
-      badge: k.directSend
-        ? <Send size={10} className="-scale-x-100" />
-        : <ClipboardPaste size={10} className="text-ide-text-muted/60" />,
+      badge: (
+        <span className="desktop-pet__bubble-key">
+          <span className="desktop-pet__bubble-key-num">{i + 1}</span>
+          <span className="desktop-pet__bubble-key-action">
+            {k.directSend ? <Send size={10} className="-scale-x-100" /> : <ClipboardPaste size={10} />}
+          </span>
+        </span>
+      ),
       onAction: () => k.directSend ? sendLine(k.text) : appendInput(k.text),
     }))
   }
@@ -429,7 +434,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                   title={it.label}
                   onClick={() => onItemClick(it)}
                 >
-                  {it.badge && <span className="desktop-pet__bubble-num">{it.badge}</span>}
+                  {it.badge}
                   <span className="desktop-pet__bubble-text">{it.label}</span>
                 </button>
               ))}
@@ -440,7 +445,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                   onClick={() => setConfigOpen(true)}
                   title="配置速发键"
                 >
-                  <Settings size={14} />
+                  <Edit size={14} />
                 </button>
               )}
             </div>

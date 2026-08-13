@@ -573,6 +573,36 @@ html, body, #root {
   font-weight: 700;
   line-height: 1;
 }
+.desktop-pet__bubble-key {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+.desktop-pet__bubble-key-num,
+.desktop-pet__bubble-key-action {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgb(var(--ide-accent) / 0.18);
+  color: rgb(var(--ide-accent));
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  transition: opacity 120ms;
+}
+.desktop-pet__bubble-key-action {
+  opacity: 0;
+}
+.desktop-pet__bubble:hover .desktop-pet__bubble-key-num {
+  opacity: 0;
+}
+.desktop-pet__bubble:hover .desktop-pet__bubble-key-action {
+  opacity: 1;
+}
 .desktop-pet__bubble-text {
   min-width: 0;
   overflow: hidden;
