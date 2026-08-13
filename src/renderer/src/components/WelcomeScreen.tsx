@@ -1,8 +1,8 @@
 import React, { useCallback, useState } from 'react'
-import { FolderOpen, FolderGit2, ChevronRight, Clock, Check, RotateCcw, Star } from 'lucide-react'
+import { FolderOpen, FolderGit2, ChevronRight, Clock, Check, RotateCcw } from 'lucide-react'
 import iconImg from '@renderer/assets/icon.png?inline'
 import { useI18n } from '../i18n'
-import { cwdStore, useRecentDirs, useFavCwds, useLastOpenCwds } from '../cwdStore'
+import { useRecentDirs, useLastOpenCwds } from '../cwdStore'
 
 function getFolderName(path: string): string {
   const normalized = path.replace(/\\/g, '/').replace(/\/$/, '')
@@ -49,7 +49,6 @@ function OpeningOverlay() {
 const WelcomeScreen = React.memo(function WelcomeScreen({ isOpening, onOpenFolder, onOpenPath }: WelcomeScreenProps) {
   const { t } = useI18n()
   const recentDirs = useRecentDirs()
-  const favCwds = useFavCwds()
   const lastOpenCwds = useLastOpenCwds()
   const [checked, setChecked] = useState<Set<string>>(() => {
     const lastSet = new Set(lastOpenCwds)
@@ -66,12 +65,9 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ isOpening, onOpenFolde
   }, [])
 
   const handleBatchRestore = useCallback(async () => {
-    const paths = Array.from(new Set([
-      ...recentDirs.filter(d => checked.has(d)),
-      ...favCwds,
-    ]))
+    const paths = recentDirs.filter(d => checked.has(d))
     for (const p of paths) await onOpenPath(p)
-  }, [recentDirs, checked, favCwds, onOpenPath])
+  }, [recentDirs, checked, onOpenPath])
 
   if (recentDirs.length === 0) {
     return (
@@ -130,7 +126,7 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ isOpening, onOpenFolde
             </div>
             <button
               onClick={handleBatchRestore}
-              disabled={checked.size === 0 && favCwds.length === 0}
+              disabled={checked.size === 0}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-ide-accent hover:bg-ide-accent-hover text-white rounded-md text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <RotateCcw className="size-3.5" />
@@ -142,7 +138,6 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ isOpening, onOpenFolde
               const name = getFolderName(dir)
               const parent = getParentPath(dir)
               const isChecked = checked.has(dir)
-              const isFav = cwdStore.isFav(dir)
               return (
                 <button
                   key={dir}
@@ -164,13 +159,6 @@ const WelcomeScreen = React.memo(function WelcomeScreen({ isOpening, onOpenFolde
                       </div>
                     )}
                   </div>
-                  <span
-                    onClick={(e) => { e.stopPropagation(); cwdStore.toggleFav(dir) }}
-                    className={`shrink-0 cursor-pointer ${isFav ? 'text-ide-accent' : 'text-ide-text-muted/70 hover:text-ide-text-muted'}`}
-                    title={t('Favorite')}
-                  >
-                    <Star className="size-4" fill={isFav ? 'currentColor' : 'none'} />
-                  </span>
                   <ChevronRight className="size-4 text-ide-text-muted/30 group-hover:text-ide-text-muted transition-colors shrink-0" />
                 </button>
               )

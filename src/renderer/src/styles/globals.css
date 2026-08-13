@@ -42,8 +42,8 @@ html, body, #root {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
 }
 
 /* track transparent: gutter 透出容器自身底色，避免双色主题（如 Monkey King 黄底绿栏）在无滚动条时残留竖线 */

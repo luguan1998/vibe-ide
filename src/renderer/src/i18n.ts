@@ -160,6 +160,8 @@ const ZH_MAP: Record<string, string> = {
   'Launch Terminal': '启动终端',
   'Please select a workspace first': '请先选择工作目录',
   'Commands': '命令',
+  'Cmd': '命令',
+  'File': '文件',
 
   // FileTab
   'New File': '新建文件',

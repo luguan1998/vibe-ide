@@ -178,7 +178,7 @@ function AiInlineDiff({ oldContent, newContent, filePath }: {
             lineNumbersMinChars: 2,
             automaticLayout: true,
             padding: { top: 4, bottom: 4 },
-            scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
+            scrollbar: { verticalScrollbarSize: 14, horizontalScrollbarSize: 6 },
             renderLineHighlight: 'none',
             overviewRulerLanes: 0,
             hideCursorInOverviewRuler: true,
@@ -210,7 +210,7 @@ function AiInlineDiff({ oldContent, newContent, filePath }: {
           renderIndicators: true,
           originalEditable: false,
           ignoreTrimWhitespace: false,
-          scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
+          scrollbar: { verticalScrollbarSize: 0, horizontalScrollbarSize: 6 },
         }}
         onMount={handleDiffMount}
       />

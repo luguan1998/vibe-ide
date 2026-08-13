@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2, Pin, Terminal, FileText, Star } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2, Pin, Terminal, File, Star } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
 import { readAiCliConfig } from '../aiStore'
@@ -1635,23 +1635,23 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               <div
                 className="relative w-[7.25rem] h-6 rounded-full bg-ide-bg cursor-pointer select-none shrink-0 transition-colors"
                 onClick={() => setHoverTab(hoverTab === 'cmds' ? 'files' : 'cmds')}
-                title={t(hoverTab === 'cmds' ? 'Files' : 'Commands')}
+                title={t(hoverTab === 'cmds' ? 'File' : 'Cmd')}
               >
                 <div className="absolute inset-0 flex items-center text-[11px] text-ide-text-muted/50">
                   <div className="flex-1 flex items-center justify-center gap-1">
                     <Terminal size={11} />
-                    {t('Commands')}
+                    {t('Cmd')}
                   </div>
                   <div className="flex-1 flex items-center justify-center gap-1">
-                    <FileText size={11} />
-                    {t('Files')}
+                    <File size={11} />
+                    {t('File')}
                   </div>
                 </div>
                 <div
                   className={`absolute top-0.5 left-0.5 w-14 h-5 rounded-full bg-ide-accent flex items-center justify-center gap-1 text-[11px] text-white transition-transform duration-150 ease-out ${hoverTab === 'files' ? 'translate-x-full' : ''}`}
                 >
-                  {hoverTab === 'cmds' ? <Terminal size={11} /> : <FileText size={11} />}
-                  {hoverTab === 'cmds' ? t('Commands') : t('Files')}
+                  {hoverTab === 'cmds' ? <Terminal size={11} /> : <File size={11} />}
+                  {hoverTab === 'cmds' ? t('Cmd') : t('File')}
                 </div>
               </div>
             </div>
