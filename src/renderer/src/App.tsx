@@ -2091,9 +2091,15 @@ export default function App() {
 
   const handleOpenFileFromSearch = useCallback((fullPath: string, lineNumber?: number) => {
     recordRecentFile(fullPath, lineNumber)
+    const name = fullPath.split(/[\\/]/).pop() || fullPath
     if (isMarkdownFile(fullPath)) {
-      setMarkdownFile({ fullPath, fileName: fullPath.split(/[\\/]/).pop() || fullPath })
+      setMarkdownFile({ fullPath, fileName: name })
       setCenterView('markdown')
+      return
+    }
+    if (getFileInfo(name).kind === 'image') {
+      setImageFile({ fullPath, fileName: name })
+      setCenterView('image')
       return
     }
     let filePath = fullPath
