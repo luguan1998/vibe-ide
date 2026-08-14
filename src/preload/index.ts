@@ -376,6 +376,25 @@ const api = {
     },
   },
 
+  // DSH (deepseek harness agent service)
+  dsh: {
+    start: (cwd?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.DSH_START, cwd),
+    stop: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.DSH_STOP),
+    getPort: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.DSH_GET_PORT),
+    onReady: (callback: (data: { port: number }) => void) => {
+      const handler = (_event: any, data: any) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.DSH_READY, handler)
+      return handler
+    },
+    removeReadyListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.DSH_READY, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.DSH_READY)
+    },
+  },
+
 }
 
 contextBridge.exposeInMainWorld('api', api)

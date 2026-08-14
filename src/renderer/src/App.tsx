@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
+import DshView from './components/DshView'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
@@ -39,7 +40,7 @@ declare global {
     api: {
       terminal: {
         rename(id: string, newName: string): Promise<RenameTerminalResult>
-        create: (options?: { cwd?: string; name?: string; shell?: string; autoUtf8?: boolean; initCommand?: string }) => Promise<TerminalSession>
+        create: (options?: { id?: string; cwd?: string; name?: string; shell?: string; autoUtf8?: boolean; initCommand?: string }) => Promise<TerminalSession>
         getShells: () => Promise<{ value: string; label: string }[]>
         refreshEnv: () => Promise<{ success: boolean; count?: number; error?: string }>
         write: (id: string, data: string) => void
@@ -218,6 +219,13 @@ declare global {
         onChanged: (callback: () => void) => any
         removeChangedListener: (handler?: any) => void
       }
+      dsh: {
+        start: (cwd?: string) => Promise<{ ok: boolean; port?: number; error?: string }>
+        stop: () => Promise<{ ok: boolean }>
+        getPort: () => Promise<number | null>
+        onReady: (callback: (data: { port: number }) => void) => any
+        removeReadyListener: (handler?: any) => void
+      }
     }
   }
 }
@@ -326,7 +334,7 @@ export default function App() {
   }, [pollingEnabled])
 
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
-  const [sessionViewModes, setSessionViewModes] = useState<Record<string, 'term' | 'gui'>>({})
+  const [sessionViewModes, setSessionViewModes] = useState<Record<string, 'term' | 'gui' | 'dsh'>>({})
   const sessionViewModesRef = useRef(sessionViewModes); sessionViewModesRef.current = sessionViewModes
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
   const callGraphFocalNodeRef = useRef<any>(null); callGraphFocalNodeRef.current = callGraphFocalNode
@@ -1717,6 +1725,41 @@ export default function App() {
     }
   }, [sessions, autoUtf8])
 
+  // dsh 会话内 fork（「在新对话中分支」）：dsh 侧已生成子会话（历史=分叉前缀），
+  // 这里为它建 Vibe session（id=childId 收养 dsh 子会话），插到源会话下方并切换。
+  React.useEffect(() => {
+    const onDshFork = async (e: Event): Promise<void> => {
+      const d = (e as CustomEvent).detail as { sourceId: string; childId: string; cwd?: string; title?: string } | undefined
+      if (!d?.childId || !d.cwd) return
+      try {
+        const src = sessionsRef.current.find(s => s.id === d.sourceId)
+        const session = await window.api.terminal.create({
+          id: d.childId,
+          cwd: d.cwd,
+          shell: src?.shell ?? getMainShellType(),
+          autoUtf8,
+          name: d.title,
+        })
+        setSessions(prev => {
+          if (prev.some(s => s.id === session.id)) return prev
+          const idx = prev.findIndex(s => s.id === d.sourceId)
+          if (idx === -1) return [...prev, session]
+          const next = [...prev]
+          next.splice(idx + 1, 0, session)
+          return next
+        })
+        setSessionViewModes(prev => ({ ...prev, [session.id]: 'dsh' }))
+        setActiveSessionId(session.id)
+        setCenterView('terminal')
+        setDiffFile(null)
+      } catch (err) {
+        console.error('Failed to fork dsh session into Vibe:', err)
+      }
+    }
+    window.addEventListener('vibe:dsh-fork', onDshFork)
+    return () => window.removeEventListener('vibe:dsh-fork', onDshFork)
+  }, [autoUtf8])
+
   // Switch active session
   const handleSwitchSession = useCallback((id: string) => {
     setActiveSessionId(id)
@@ -2190,7 +2233,7 @@ export default function App() {
     } : null)
   }, [diffFile])
 
-  const handleSwitchViewMode = useCallback((sessionId: string, mode: 'term' | 'gui') => {
+  const handleSwitchViewMode = useCallback((sessionId: string, mode: 'term' | 'gui' | 'dsh') => {
     setSessionViewModes(prev => ({ ...prev, [sessionId]: mode }))
     if (activeSessionId !== sessionId) {
       handleSwitchSession(sessionId)
@@ -2504,6 +2547,7 @@ export default function App() {
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => {
                 const isGui = sessionViewModes[session.id] === 'gui'
+                const isDsh = sessionViewModes[session.id] === 'dsh'
                 return (
                   <div
                     key={session.id}
@@ -2546,6 +2590,8 @@ export default function App() {
                         onWorktreeNavChange={setSessionWorktreeNav}
                         onCommand={onCommandForSession(session.id)}
                       />
+                    ) : isDsh ? (
+                      <DshView sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} />
                     ) : (
                       <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
                     )}

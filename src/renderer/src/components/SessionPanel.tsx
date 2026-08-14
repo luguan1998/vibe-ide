@@ -16,6 +16,7 @@ import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import mujicaIcon from '@renderer/assets/mujica.png?inline'
 import { useMujicaCounts } from '../mujicaStore'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
+import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 
 // ── Claude 配置组（model/provider 多组切换）──
 interface ClaudeConfigGroup {
@@ -273,8 +274,8 @@ interface SessionPanelProps {
   pipeRunning?: Record<string, boolean>
   pipeProgress?: Record<string, { current: number; total: number }>
   onCancelPipe?: (sessionId: string) => void
-  sessionViewModes?: Record<string, 'term' | 'gui'>
-  onSwitchViewMode?: (sessionId: string, mode: 'term' | 'gui') => void
+  sessionViewModes?: Record<string, 'term' | 'gui' | 'dsh'>
+  onSwitchViewMode?: (sessionId: string, mode: 'term' | 'gui' | 'dsh') => void
   groupSessionsByCwd?: boolean
   onToggleGroupSessionsByCwd?: (v: boolean) => void
   terminalFontSize?: number
@@ -601,7 +602,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     if (!schedSessionId || !schedCmdDraft.trim()) return
     const cron = schedCronDraft.trim()
     if (!cronValid(cron)) {
-      setSchedCronError('cron 格式无效，需 5 段：分 时 日 月 周')
+      setSchedCronError(t('Invalid cron format. Need 5 fields: minute hour day month weekday'))
       return
     }
     setSchedTasks(prev => ({ ...prev, [schedSessionId]: { cron, command: schedCmdDraft, lastFired: '' } }))
@@ -1614,18 +1615,51 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </button>
           )}
           {onSwitchViewMode && (() => {
-            const isGui = sessionViewModes[contextMenu.sessionId] === 'gui'
+            const mode = sessionViewModes[contextMenu.sessionId] ?? 'term'
+            const isGui = mode === 'gui'
+            const isDsh = mode === 'dsh'
             return (
-              <button
-                className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                onClick={() => {
-                  onSwitchViewMode(contextMenu.sessionId, isGui ? 'term' : 'gui')
-                  setContextMenu(null)
-                }}
-              >
-                <Zap size={14} className={isGui ? 'text-ide-text-muted' : 'text-ide-accent'} />
-                <span>{t(isGui ? 'Switch to Terminal Mode' : 'Switch to GUI Mode')}</span>
-              </button>
+              <div className="flex items-stretch">
+                <button
+                  className="flex-1 px-3 py-1.5 text-left text-sm flex items-center gap-2 text-ide-text hover:bg-ide-hover"
+                  onClick={() => {
+                    onSwitchViewMode(contextMenu.sessionId, isGui ? 'term' : 'gui')
+                    setContextMenu(null)
+                  }}
+                >
+                  {isGui ? (
+                    <>
+                      <Zap size={14} className="text-ide-accent" />
+                      <span>{t('Terminal')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <ClaudeLogoIcon size={14} />
+                      <span>{t('UI')}</span>
+                    </>
+                  )}
+                </button>
+                <div className="w-px bg-ide-border shrink-0 my-1.5" />
+                <button
+                  className="flex-1 px-3 py-1.5 text-left text-sm flex items-center gap-2 text-ide-text hover:bg-ide-hover"
+                  onClick={() => {
+                    onSwitchViewMode(contextMenu.sessionId, isDsh ? 'term' : 'dsh')
+                    setContextMenu(null)
+                  }}
+                >
+                  {isDsh ? (
+                    <>
+                      <Zap size={14} className="text-ide-accent" />
+                      <span>{t('Terminal')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <DeepSeekLogoIcon size={14} />
+                      <span>{t('UI')}</span>
+                    </>
+                  )}
+                </button>
+              </div>
             )
           })()}
           <div className="flex items-stretch">
@@ -1638,7 +1672,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               }}
             >
               <Clock size={14} className={schedTasks[contextMenu.sessionId] ? 'text-ide-accent' : 'text-ide-text-muted'} />
-              <span>定时</span>
+              <span>{t('Scheduled')}</span>
             </button>
             <div className="w-px bg-ide-border shrink-0 my-1.5" />
             <button
@@ -1652,7 +1686,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               }}
             >
               {hourglassSvg}
-              <span>追加</span>
+              <span>{t('Append')}</span>
             </button>
           </div>
           <button
@@ -2249,7 +2283,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               className="w-full box-border resize-none max-h-[40vh] px-2 py-1.5 rounded-xl bg-ide-bg border border-ide-border text-ide-text text-[11px] leading-[1.3] outline-none transition-colors duration-[120ms] focus:border-ide-accent/60 placeholder:text-ide-text-muted/60 shadow-[0_2px_6px_rgb(0_0_0_/_0.25)]"
               value={appendCmdDraft}
               onChange={e => setAppendCmdDraft(e.target.value)}
-              placeholder="输入命令，Enter 发送..."
+              placeholder={t('Type a command, Enter to send...')}
               rows={3}
               autoFocus
               onKeyDown={e => {
@@ -2280,23 +2314,23 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </div>
             <div className="p-4 flex flex-col gap-3">
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-ide-text-muted">Cron 表达式</span>
+                <span className="text-xs text-ide-text-muted">{t('Cron expression')}</span>
                 <input
                   type="text"
                   value={schedCronDraft}
                   onChange={e => { setSchedCronDraft(e.target.value); setSchedCronError('') }}
-                  placeholder="分 时 日 月 周 · 如 */5 * * * *"
+                  placeholder={t('minute hour day month weekday · e.g. */5 * * * *')}
                   className="w-full px-3 py-1.5 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
                 {schedCronError && <span className="text-[10px] text-ide-danger">{schedCronError}</span>}
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-ide-text-muted">命令</span>
+                <span className="text-xs text-ide-text-muted">{t('Command')}</span>
                 <textarea
                   rows={3}
                   value={schedCmdDraft}
                   onChange={e => setSchedCmdDraft(e.target.value)}
-                  placeholder="输入定时执行的命令"
+                  placeholder={t('Command to run on schedule')}
                   className="w-full resize-none px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
               </label>
@@ -2306,7 +2340,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 <button
                   className="px-3 py-1.5 text-xs text-ide-danger hover:bg-ide-danger/10 rounded transition-colors"
                   onClick={handleDeleteSched}
-                >删除</button>
+                >{t('Delete')}</button>
               )}
               <div className="flex gap-2 ml-auto">
                 <button

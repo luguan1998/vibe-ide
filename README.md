@@ -104,33 +104,69 @@
 
 - Node.js >= 18
 - npm
+- pnpm (for the dsh backend workspace)
 - Windows (primary target)
 
-### Install & Run
+### Repository Layout
+
+The **dsh agent mode** (session right-click menu → DeepSeek logo) spawns a local
+[deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) server as a subprocess.
+Vibe IDE's `package.json` depends on it via `file:../deepseek-harness/...`, so the two
+repositories **must sit side by side**:
+
+```
+E:\ai\
+├── claudeui\           # this repo
+└── deepseek-harness\   # dsh runtime
+```
+
+### Install & Run (fresh machine)
 
 ```bash
-# Clone the repo
+# 1. Clone both repos side by side
 git clone https://github.com/luguan/vibe-ide.git
-cd vibe-ide
+git clone <your-fork-of-deepseek-harness>.git
 
-# Install dependencies
+# 2. Build the harness first — its lib/ artifacts are git-ignored,
+#    so a fresh clone has no compiled output
+cd deepseek-harness
+pnpm install
+npm run build:lib:host && npm run build:lib:client   # ~1 min; `npm run build` for everything
+
+# 3. Install & run Vibe IDE
+cd ../claudeui
 npm install
-
-# Start dev mode with hot reload
 npm run dev
 ```
 
-> **Note:** `node-pty` is a native module requiring C++ build tools on Windows. Make sure `node-gyp` prerequisites are installed (Visual Studio Build Tools with C++ workload).
+> **Notes:**
+> - `node-pty` is a native module requiring C++ build tools on Windows. Make sure `node-gyp` prerequisites are installed (Visual Studio Build Tools with C++ workload).
+> - The `file:` dependencies are copied into `claudeui/node_modules` at install time — re-run `npm install` in `claudeui` after updating harness source.
+> - Dev mode auto-discovers the harness at `../deepseek-harness/apps/cli/lib/bin.js`.
 
-### Build
+### Privacy: telemetry removed
+
+The harness's only outbound channel — the `session-telemetry-otel` package (OTLP/HTTP logs
+to `harness-telemetry.deepseeksvc.com`) — has been **deleted** from the harness source and
+rebuilt. There is no analytics SDK, crash reporting, or default outbound traffic besides the
+LLM API endpoints you configure. If you ever merge upstream harness changes, re-check for
+telemetry regressions; `DSH_TELEMETRY_DISABLED=1` is also kept in `src/main/dsh.ts` as a
+defense-in-depth switch (any non-empty value hard-disables the telemetry row).
+
+### Build & Package
 
 ```bash
 # Compile the project
 npm run build
 
-# Package Windows installer
+# Package Windows installer (NSIS + 7z)
 npm run build:win
 ```
+
+**dsh runtime in packaged builds:** `electron-builder` does not bundle the harness yet. In a
+packaged app, point the dsh runtime at an existing build either via the `DSH_CLI_BIN`
+environment variable, or by copying the built harness into `<install>/resources/dsh/`
+(`resources/dsh/apps/cli/lib/bin.js`).
 
 ### Preview Built App
 

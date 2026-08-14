@@ -215,6 +215,29 @@ html, body, #root {
   outline-offset: -2px;
 }
 
+/* dsh 视图的 textarea/select 自带 outline:none（原版聚焦无环），
+   全局 focus ring 因级联顺序在后会覆盖它，这里恢复 dsh 自己的样式 */
+.dsh-view textarea:focus-visible,
+.dsh-view select:focus-visible {
+  outline: none;
+}
+
+/* Tailwind preflight 把 svg 设为 display:block，会破坏 dsh 非 flex 上下文中
+   图标+文字的行内布局（原版 svg 是行内元素）；flex 容器内不受影响 */
+.dsh-view svg {
+  display: revert;
+}
+
+/* hero 的「选择工作区」chip：Vibe 中 session 已绑定工作区，禁止下拉交互；
+   隐藏 chevron 去掉下拉观感（同行的 Agent 预设选择器保持可选） */
+.dsh-view div:has(> [data-slot="conversation.hero.workspace"]) > button {
+  pointer-events: none;
+  cursor: default;
+}
+.dsh-view div:has(> [data-slot="conversation.hero.workspace"]) > button > svg:last-child {
+  display: none;
+}
+
 /* Animation utilities */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }

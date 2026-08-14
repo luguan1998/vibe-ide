@@ -144,6 +144,12 @@ export const IPC_CHANNELS = {
   AI_ERROR: 'ai:error',                   // push: process error or crash
   AI_FILE_CHANGE: 'ai:fileChange',        // push: tool_use with file edit detected
 
+  // DSH (deepseek harness agent service)
+  DSH_START: 'dsh:start',
+  DSH_STOP: 'dsh:stop',
+  DSH_GET_PORT: 'dsh:getPort',
+  DSH_READY: 'dsh:ready',                    // push: server port ready
+
   // App
   APP_VERSION: 'app:version',
   SNIPPETS_LOAD: 'app:snippetsLoad',
@@ -220,6 +226,7 @@ export interface RenameTerminalResult {
 }
 
 export interface CreateTerminalOptions {
+  id?: string
   cwd?: string
   name?: string
   shell?: string

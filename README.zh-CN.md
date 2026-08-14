@@ -104,33 +104,65 @@
 
 - Node.js >= 18
 - npm
+- pnpm（dsh 后端 workspace 需要）
 - Windows 系统（目前主要支持）
 
-### 安装 & 运行
+### 仓库布局
+
+**dsh Agent 模式**（session 右键菜单 → DeepSeek 图标）会以子进程方式拉起本地
+[deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) 服务。Vibe IDE 的
+`package.json` 通过 `file:../deepseek-harness/...` 依赖它，因此**两个仓库必须同级存放**：
+
+```
+E:\ai\
+├── claudeui\           # 本仓库
+└── deepseek-harness\   # dsh 运行时
+```
+
+### 安装 & 运行（新电脑完整流程）
 
 ```bash
-# 克隆仓库
+# 1. 同级克隆两个仓库
 git clone https://github.com/luguan/vibe-ide.git
-cd vibe-ide
+git clone <你的 deepseek-harness fork>.git
 
-# 安装依赖
+# 2. 先构建 harness —— 其 lib/ 产物被 git 忽略，新克隆没有编译输出
+cd deepseek-harness
+pnpm install
+npm run build:lib:host && npm run build:lib:client   # 约 1 分钟；全量构建用 npm run build
+
+# 3. 安装并启动 Vibe IDE
+cd ../claudeui
 npm install
-
-# 启动开发模式（含热重载）
 npm run dev
 ```
 
-> **注意：** `node-pty` 是原生模块，Windows 下需要 Visual Studio Build Tools（C++ 工作负载）。确保 `node-gyp` 环境已配置。
+> **注意：**
+> - `node-pty` 是原生模块，Windows 下需要 Visual Studio Build Tools（C++ 工作负载）。确保 `node-gyp` 环境已配置。
+> - `file:` 依赖在 `npm install` 时拷贝进 `claudeui/node_modules`——harness 源码更新后，需在 `claudeui` 重新 `npm install` 同步。
+> - 开发模式自动从 `../deepseek-harness/apps/cli/lib/bin.js` 发现 dsh 运行时。
 
-### 构建
+### 隐私说明：遥测已删除
+
+harness 唯一的数据外传通道——`session-telemetry-otel` 包（OTLP/HTTP 日志上报到
+`harness-telemetry.deepseeksvc.com`）——已从 harness 源码中**彻底删除并重新构建**。
+除你自己配置的 LLM API 端点外，无任何分析 SDK、崩溃上报或默认外联。若以后合并上游
+harness 改动，请复查是否有遥测回归；`src/main/dsh.ts` 中保留的 `DSH_TELEMETRY_DISABLED=1`
+（任意非空值即强制禁用遥测行）作为纵深防御。
+
+### 构建 & 打包
 
 ```bash
 # 编译项目
 npm run build
 
-# 打包 Windows 安装包
+# 打包 Windows 安装包（NSIS + 7z）
 npm run build:win
 ```
+
+**打包后的 dsh 运行时：** electron-builder 目前未自动打包 harness。打包版应用可通过
+`DSH_CLI_BIN` 环境变量指向已有构建，或将构建好的 harness 复制到
+`<安装目录>/resources/dsh/`（`resources/dsh/apps/cli/lib/bin.js`）。
 
 ### 预览构建产物
 

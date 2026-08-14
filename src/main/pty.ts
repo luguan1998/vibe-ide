@@ -286,7 +286,9 @@ export function registerPtyHandlers(): void {
   // Create a new terminal session
   ipcMain.handle(IPC_CHANNELS.PTY_CREATE, (_event, options: CreateTerminalOptions) => {
     try {
-      const id = `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      // dsh fork 传固定 id：Vibe session id 必须等于 dsh child session id，
+      // DshView 才能用 sessions.create 收养已分叉的对话
+      const id = options.id || `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
       const cwd = options.cwd || process.cwd()
       const name = options.name || `Terminal ${terminals.size + 1}`
       const autoUtf8 = options.autoUtf8 !== false

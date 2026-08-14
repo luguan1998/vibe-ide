@@ -6,6 +6,7 @@ import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers, cleanupTerminals, setPtyMainWindow } from './pty'
 import { registerAiHandlers, cleanupAiSessions, setAiMainWindow } from './ai'
+import { registerDshHandlers, cleanupDsh, setDshMainWindow } from './dsh'
 import { registerPlanExecuteHandlers } from './ai-plan-execute'
 import { registerAskResumeHandlers } from './ai-ask-resume'
 import { registerRevertHandlers } from './ai-revert'
@@ -128,6 +129,7 @@ function createWindow(): void {
 
   setPtyMainWindow(mainWindow)
   setAiMainWindow(mainWindow)
+  setDshMainWindow(mainWindow)
 
   // Center window within the work area (excludes taskbar) on first launch
   const x = Math.round(workArea.x + (workArea.width - winWidth) / 2)
@@ -142,6 +144,7 @@ function createWindow(): void {
     cleanupAndExit()
     setPtyMainWindow(null)
     setAiMainWindow(null)
+    setDshMainWindow(null)
     mainWindow = null
     if (process.platform !== 'darwin') app.exit()
   })
@@ -238,6 +241,7 @@ app.whenReady().then(() => {
   // Register PTY handlers after window is created
   registerPtyHandlers()
   registerAiHandlers()
+  registerDshHandlers()
   registerPlanExecuteHandlers()
   registerAskResumeHandlers()
   registerRevertHandlers()
@@ -649,6 +653,7 @@ app.whenReady().then(() => {
 function cleanupAndExit(): void {
   cleanupTerminals()
   cleanupAiSessions()
+  cleanupDsh()
   stopWatching()
   closeCodeGraph()
   terminateOcrWorker()
