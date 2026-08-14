@@ -442,7 +442,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                 <button
                   className="desktop-pet__context-gear justify-self-end"
                   style={{ gridColumn: 2 }}
-                  onClick={() => setConfigOpen(true)}
+                  onClick={() => { setConfigOpen(true); setPopupOpen(false) }}
                   title="配置速发键"
                 >
                   <Edit size={14} />
