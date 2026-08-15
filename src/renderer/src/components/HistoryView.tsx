@@ -50,6 +50,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [sessions, setSessions] = useState<AiSessionSummary[]>([])
   const [listLoading, setListLoading] = useState(false)
   const [listError, setListError] = useState('')
+  const [sourceAvailable, setSourceAvailable] = useState(true)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [turnsById, setTurnsById] = useState<Record<string, { turns: HistoryTurn[]; loading: boolean }>>({})
   const [mode, setMode] = useState<'tui' | 'gui'>('tui')
@@ -72,15 +73,19 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     try {
       const { configDir } = readAiCliConfig()
       const list: any[] = []
+      let available = true
       if (source !== 'claude') {
         const r = await window.api.ai.listSessions('', configDir, source, force)
         if (fetchReqIdRef.current !== reqId) return
+        available = r.available !== false
         list.push(...(r.sessions || []))
       } else {
         const r = await window.api.ai.listAllSessions(configDir, workspacePath || undefined)
         if (fetchReqIdRef.current !== reqId) return
+        available = r.available !== false
         list.push(...(r.sessions || []))
       }
+      setSourceAvailable(available)
       setSessions(list)
       // 默认折叠非当前工作区，展开当前工作区
       setCollapsedProjects(() => {
@@ -428,6 +433,10 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           </div>
         ) : listError ? (
           <div className="py-8 text-center text-xs text-ide-danger px-4">{listError}</div>
+        ) : !sourceAvailable ? (
+          <div className="py-8 text-center text-xs text-ide-text-muted px-4">
+            {historySource === 'claude' ? t('Claude Code not installed') : historySource === 'codex' ? t('Codex not installed') : t('DSH not installed')}
+          </div>
         ) : visibleGroups.length === 0 ? (
           <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
         ) : (

@@ -2,6 +2,7 @@ import { ipcMain, BrowserWindow, app } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
 import { readFile, readdir, stat, rm, open } from 'fs/promises'
+import { existsSync } from 'fs'
 import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
@@ -1508,9 +1509,9 @@ export function registerAiHandlers(): void {
 
   // List available sessions for resume
   ipcMain.handle(IPC_CHANNELS.AI_LIST_SESSIONS, async (_event, cwd?: string, configDir?: string, source?: HistorySource, force?: boolean) => {
-    if (source === 'codex') return { sessions: await listCodexSessions(cwd || '', !!force) }
-    if (source === 'dsh') return { sessions: await listDshSessions(cwd || '', !!force) }
-    return listSessionsForCwd(cwd || '', configDir, !!force)
+    if (source === 'codex') return { sessions: await listCodexSessions(cwd || '', !!force), available: existsSync(join(homedir(), '.codex')) }
+    if (source === 'dsh') return { sessions: await listDshSessions(cwd || '', !!force), available: existsSync(join(homedir(), '.dsh')) }
+    return { ...(await listSessionsForCwd(cwd || '', configDir, !!force)), available: existsSync(getProjectsRoot(configDir)) }
   })
 
   // 后台预热某 cwd 的 Claude 历史（当前项目，打开历史时秒开）

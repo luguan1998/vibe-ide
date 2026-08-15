@@ -179,11 +179,11 @@ declare global {
         removeModelChangedListener: (handler?: any) => void
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
         resolveConfigDir: (configDir?: string) => Promise<string>
-        listSessions: (cwd?: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh', force?: boolean) => Promise<{ sessions: any[]; error?: string }>
+        listSessions: (cwd?: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh', force?: boolean) => Promise<{ sessions: any[]; available?: boolean; error?: string }>
         prewarm: (cwd: string) => Promise<boolean>
         deleteSession: (sessionId: string, cwd: string, configDir?: string) => Promise<{ success: boolean; error?: string }>
         loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh') => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
-        listAllSessions: (configDir?: string, currentCwd?: string) => Promise<{ sessions: import('@shared/types').AiSessionSummary[]; total?: number }>
+        listAllSessions: (configDir?: string, currentCwd?: string) => Promise<{ sessions: import('@shared/types').AiSessionSummary[]; total?: number; available?: boolean }>
         searchSessions: (query: string, opts?: import('@shared/types').AiSearchOptions) => Promise<{ sessions: import('@shared/types').AiSessionSearchGroup[]; truncated?: boolean }>
         loadSessionMessagesByDir: (resumeSessionId: string, projectDir: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
         deleteSessionByDir: (sessionId: string, projectDir: string, configDir?: string) => Promise<{ success: boolean; error?: string }>

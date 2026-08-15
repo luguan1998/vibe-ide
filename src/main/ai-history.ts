@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { readFile, readdir, stat, rm } from 'fs/promises'
+import { existsSync } from 'fs'
 import { join, resolve, sep } from 'path'
 import { IPC_CHANNELS } from '../shared/types'
 import type { AiSearchOptions, AiSessionSummary, AiSessionSearchGroup, AiSearchMatch } from '../shared/types'
@@ -114,7 +115,7 @@ async function searchSessions(query: string, opts?: AiSearchOptions): Promise<{ 
   return { sessions: results, truncated }
 }
 
-async function listAllSessions(configDir?: string, currentCwd?: string): Promise<{ sessions: AiSessionSummary[]; total: number }> {
+async function listAllSessions(configDir?: string, currentCwd?: string): Promise<{ sessions: AiSessionSummary[]; total: number; available: boolean }> {
   const projectsRoot = getProjectsRoot(configDir)
   const currentCandidates = currentCwd
     ? [normalizeCwdToProjectDir(currentCwd), normalizeCwdToProjectDir(currentCwd).toLowerCase()]
@@ -143,7 +144,7 @@ async function listAllSessions(configDir?: string, currentCwd?: string): Promise
   }
 
   all.sort((a, b) => b.timestamp - a.timestamp)
-  return { sessions: all, total: all.length }
+  return { sessions: all, total: all.length, available: existsSync(getProjectsRoot(configDir)) }
 }
 
 export function registerHistoryHandlers(): void {

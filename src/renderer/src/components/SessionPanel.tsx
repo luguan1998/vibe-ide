@@ -575,6 +575,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [claudeHistoryList, setClaudeHistoryList] = useState<any[]>([])
   const [claudeHistoryLoading, setClaudeHistoryLoading] = useState(false)
   const [claudeHistoryError, setClaudeHistoryError] = useState('')
+  const [claudeHistoryAvailable, setClaudeHistoryAvailable] = useState(true)
   const claudeHistoryReqIdRef = useRef(0)
   const [claudeHistoryMode, setClaudeHistoryMode] = useState<'tui' | 'gui'>('tui')
   const [historySource, setHistorySource] = useState<'claude' | 'codex' | 'dsh'>('claude')
@@ -961,6 +962,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       const { configDir } = readAiCliConfig()
       const r = await window.api.ai.listSessions(cwd || undefined, configDir, source, force)
       if (claudeHistoryReqIdRef.current !== reqId) return
+      setClaudeHistoryAvailable(r.available !== false)
       setClaudeHistoryList(r.sessions || [])
     } catch (e: any) {
       if (claudeHistoryReqIdRef.current !== reqId) return
@@ -2394,6 +2396,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 </div>
               ) : claudeHistoryError ? (
                 <div className="py-8 text-center text-xs text-ide-danger px-4">{claudeHistoryError}</div>
+              ) : !claudeHistoryAvailable ? (
+                <div className="py-8 text-center text-xs text-ide-text-muted px-4">
+                  {historySource === 'claude' ? t('Claude Code not installed') : historySource === 'codex' ? t('Codex not installed') : t('DSH not installed')}
+                </div>
               ) : claudeHistoryList.length === 0 ? (
                 <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
               ) : (
