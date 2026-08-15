@@ -1,5 +1,5 @@
 /*
-  dsh 风格会话面板：dsh 布局（去卡片、32px 单行）+ z-session-tab 配色（accent 选中块、running 淡底）
+  dsh 风格session风格：dsh 布局（去卡片、32px 单行）
 */
 
 /* 0. 面板底色：侧栏 vibrancy 模拟（z-session-tab 配色） */
@@ -32,10 +32,19 @@
   backdrop-filter: none !important;
 }
 
-/* 4. 组头 emoji：React 预设轮换 emoji 居中显示；16px 盒（dsh slot 16x20 近似，对齐 cwd 目录名） */
+/* 4. 组头 emoji：📂 / 🗺️ 按组轮换（font-size:0 压掉 React 轮换文本，::before 显示）；16px 盒（dsh slot 16x20 近似，对齐 cwd 目录名） */
 .session-group__header > div:first-child > span:first-child {
+  font-size: 0 !important;
   width: 16px !important;
   height: 16px !important;
+}
+.session-group__header > div:first-child > span:first-child::before {
+  content: '📂' !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+.session-group:nth-child(even) .session-group__header > div:first-child > span:first-child::before {
+  content: '🗺️' !important;
 }
 
 /* 组头目录名：12px → 14px/20px（dsh .title）；亮色 + 600（z-session-tab 配色） */

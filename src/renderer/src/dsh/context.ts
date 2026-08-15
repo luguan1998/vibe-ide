@@ -31,6 +31,7 @@ import { apply as applyCommands, inject as injectCommands } from '@deepseek-ai/d
 import { apply as applyInputTrigger, inject as injectInputTrigger } from '@deepseek-ai/dsh-client-ui-input-trigger/src/client/index.ts'
 import { createSlotRenderer } from '@deepseek-ai/dsh-client-web-react/src/index.ts'
 import { DshRoot } from './DshRoot'
+import DshPluginTab from '../components/DshPluginTab'
 import { applyDshTheme } from './theme-bridge'
 
 import '@deepseek-ai/dsh-client-ui-theme/src/styles/base.css'
@@ -135,6 +136,24 @@ async function buildDshContext(baseUrl: string): Promise<DshContextHandle> {
     ctx.plugin({ apply: applyInputTrigger, inject: injectInputTrigger }),
     ctx.plugin({ apply: applyCommands, inject: injectCommands }),
     ctx.plugin({ apply: applyModelSelection, inject: injectModelSelection }),
+    // Vibe 侧插件管理 tab：挂进 dsh 齿轮设置弹窗的"插件"分区（settings.plugins.tab slot）
+    ctx.plugin({
+      name: 'vibe-plugin-tab',
+      inject: ['slots', 'locale'],
+      apply: (c) => {
+        c.effect(() => (c.get('locale') as any).register('vibe-plugin-tab', {
+          zh: { tab: '安装插件' },
+          en: { tab: 'Install Plugin' },
+        }), 'vibe-plugin-tab: dictionaries')
+        const t = (c.get('locale') as any).bind('vibe-plugin-tab')
+        c.slots.inject('settings.plugins.tab', () => c.slots.register({
+          name: 'settings.plugins.tab',
+          id: 'vibe-install',
+          order: 20,
+          label: () => t('tab'),
+        }, DshPluginTab as never))
+      },
+    }),
   ]
   await Promise.all(fibers.map((f) => f.await()))
   ;(globalThis as { __dshCtx?: unknown }).__dshCtx = ctx
@@ -217,4 +236,12 @@ export function getSharedDshContext(baseUrl: string): Promise<DshContextHandle> 
       })
   }
   return sharedPromise
+}
+
+// dsh 服务重启（端口变化）后丢弃旧 context，下次 getSharedDshContext 重建
+export async function resetSharedDshContext(): Promise<void> {
+  const p = sharedPromise
+  if (p === null) return
+  sharedPromise = null
+  try { await (await p).dispose() } catch {}
 }

@@ -225,6 +225,8 @@ declare global {
         stop: () => Promise<{ ok: boolean }>
         getPort: () => Promise<number | null>
         deleteSession: (sessionId: string, cwd?: string) => Promise<{ ok: boolean; error?: string }>
+        plugin: (args: string[]) => Promise<{ ok: boolean; code: number | null; output: string }>
+        restart: () => Promise<{ ok: boolean; port?: number; error?: string }>
         onReady: (callback: (data: { port: number }) => void) => any
         removeReadyListener: (handler?: any) => void
       }

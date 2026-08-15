@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { getSharedDshContext, type DshContextHandle } from '../dsh/context'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { getSharedDshContext, resetSharedDshContext, type DshContextHandle } from '../dsh/context'
 
 interface DshViewProps {
   sessionId: string
@@ -19,40 +19,56 @@ export default function DshView({ sessionId, cwd, isActive, dshSessionId, onAgen
   const lastUserTextRef = useRef<string | null>(null)
   const lastFetchAtRef = useRef(0)
 
+  const boot = useCallback(async (): Promise<void> => {
+    let port = await window.api.dsh.getPort()
+    if (port === null) {
+      const started = await window.api.dsh.start(cwd)
+      if (!started.ok || started.port === undefined) {
+        throw new Error(started.error ?? 'dsh server start failed')
+      }
+      port = started.port
+    }
+    const h = await getSharedDshContext(`http://127.0.0.1:${port}`)
+    setHandle(h)
+    const sessions = h.ctx.get('sessions') as any
+    const workspaces = h.ctx.get('workspaces') as any
+    const targetId = dshSessionId || sessionId
+    try {
+      // Session must belong to a workspace for the hero chip/composer to activate
+      const workspace = await workspaces.create({ path: cwd })
+      await sessions.create({ workspaceId: workspace.workspaceId, sessionId: targetId })
+    } catch (e: any) {
+      if (e?.name !== 'SessionCreateError') throw e
+    }
+    setReady(true)
+  }, [sessionId, cwd, dshSessionId])
+
   useEffect(() => {
     let cancelled = false
-    const boot = async (): Promise<void> => {
-      let port = await window.api.dsh.getPort()
-      if (port === null) {
-        const started = await window.api.dsh.start(cwd)
-        if (!started.ok || started.port === undefined) {
-          throw new Error(started.error ?? 'dsh server start failed')
-        }
-        port = started.port
-      }
-      if (cancelled) return
-      const h = await getSharedDshContext(`http://127.0.0.1:${port}`)
-      if (cancelled) return
-      setHandle(h)
-      const sessions = h.ctx.get('sessions') as any
-      const workspaces = h.ctx.get('workspaces') as any
-      const targetId = dshSessionId || sessionId
+    const run = async () => {
       try {
-        // Session must belong to a workspace for the hero chip/composer to activate
-        const workspace = await workspaces.create({ path: cwd })
-        await sessions.create({ workspaceId: workspace.workspaceId, sessionId: targetId })
+        await boot()
       } catch (e: any) {
-        if (e?.name !== 'SessionCreateError') throw e
+        if (!cancelled) setError(e?.message ?? String(e))
       }
-      if (!cancelled) setReady(true)
     }
-    boot().catch((e: any) => {
-      if (!cancelled) setError(e?.message ?? String(e))
-    })
+    void run()
     return () => {
       cancelled = true
     }
-  }, [sessionId, cwd, dshSessionId])
+  }, [boot])
+
+  // dsh 服务重启（插件安装/卸载后）：丢弃旧 context，重新连接新端口
+  useEffect(() => {
+    const onRestarted = () => {
+      setError(null)
+      setReady(false)
+      setHandle(null)
+      void resetSharedDshContext().then(() => boot()).catch((e: any) => setError(e?.message ?? String(e)))
+    }
+    window.addEventListener('vibe:dsh-restarted', onRestarted)
+    return () => window.removeEventListener('vibe:dsh-restarted', onRestarted)
+  }, [boot])
 
   // The shared context has one current session; opening on activation keeps
   // every mounted view pointed at the session the user is actually looking at.

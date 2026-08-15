@@ -45,6 +45,10 @@
       {
         "from": "resources/computer-use-mcp.js",
         "to": "computer-use-mcp.js"
+      },
+      {
+        "from": "resources/dsh-loader-hook.mjs",
+        "to": "dsh-loader-hook.mjs"
       }
     ],
     "extraFiles": [

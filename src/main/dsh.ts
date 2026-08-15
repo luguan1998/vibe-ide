@@ -3,6 +3,7 @@ import { spawn, ChildProcess } from 'child_process'
 import { existsSync, rmSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { IPC_CHANNELS } from '../shared/types'
 
 interface DshServerState {
@@ -30,6 +31,12 @@ function getDshBinPath(): string | { error: string } {
   const packaged = app.isPackaged ? join(process.resourcesPath, 'app.asar', 'vendor', 'harness', 'apps', 'cli', 'lib', 'bin.js') : ''
   if (packaged && existsSync(packaged)) return packaged
   return { error: `dsh runtime not found (env DSH_CLI_BIN, dev: ${dev}, packaged: ${packaged})` }
+}
+
+function getDshLoaderHook(): string {
+  const dev = join(app.getAppPath(), 'resources', 'dsh-loader-hook.mjs')
+  if (existsSync(dev)) return dev
+  return join(process.resourcesPath, 'dsh-loader-hook.mjs')
 }
 
 function installTrustHeaders(port: number): void {
@@ -69,7 +76,8 @@ function startDshServer(cwd?: string): Promise<{ ok: boolean; port?: number; err
   env.DSH_TELEMETRY_DISABLED = '1'
 
   // 打包后 bin 在 app.asar 内：node 读不了 asar，须用自身 exe（ELECTRON_RUN_AS_NODE 下是纯 node 且带 asar 支持）
-  const proc = spawn(app.isPackaged ? process.execPath : 'node', [bin, '--profile', 'web', '--port', '0'], {
+  // loader hook 兜底插件/宿主依赖解析（profile 目录裸导入失败时回退安装锚点 node_modules）
+  const proc = spawn(app.isPackaged ? process.execPath : 'node', ['--experimental-loader', pathToFileURL(getDshLoaderHook()).href, bin, '--profile', 'web', '--port', '0'], {
     cwd: target,
     env: { ...env, ...(app.isPackaged ? { ELECTRON_RUN_AS_NODE: '1' } : {}) },
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -124,6 +132,12 @@ function waitForPort(s: DshServerState, timeoutMs: number): Promise<{ ok: boolea
       }
     }, 200)
   })
+}
+
+function restartDshServer(): Promise<{ ok: boolean; port?: number; error?: string }> {
+  const cwd = state?.cwd
+  stopDshServer()
+  return startDshServer(cwd)
 }
 
 function stopDshServer(): { ok: boolean } {
@@ -194,9 +208,40 @@ function deleteDshSession(sessionId: string, cwd?: string): { ok: boolean; error
   return { ok: deleted }
 }
 
+const PLUGIN_ACTIONS = new Set(['add', 'remove'])
+const PLUGIN_NAME_RE = /^[A-Za-z0-9@._/-]+$/
+
+// dsh plugin 管理：复用原版 `dsh plugin --profile web <args>`（pnpm add + reconcile bundles）。
+// DSH_HOME 必须与 dsh 服务一致（userData/dsh），否则会落到默认 ~/.dsh 装错地方。
+function runDshPlugin(args: string[]): Promise<{ ok: boolean; code: number | null; output: string }> {
+  const [action, name, ...rest] = args
+  if (!PLUGIN_ACTIONS.has(action) || !name || !PLUGIN_NAME_RE.test(name) || rest.length > 0) {
+    return Promise.resolve({ ok: false, code: null, output: `invalid plugin args: ${JSON.stringify(args)}` })
+  }
+  const binRes = getDshBinPath()
+  if (typeof binRes === 'object') return Promise.resolve({ ok: false, code: null, output: binRes.error })
+  const env: NodeJS.ProcessEnv = { ...process.env }
+  env.DSH_HOME = join(app.getPath('userData'), 'dsh')
+  if (app.isPackaged) env.ELECTRON_RUN_AS_NODE = '1'
+  return new Promise((resolvePromise) => {
+    const proc = spawn(
+      app.isPackaged ? process.execPath : 'node',
+      ['--experimental-loader', pathToFileURL(getDshLoaderHook()).href, binRes, 'plugin', '--profile', 'web', ...args],
+      { cwd: app.getPath('userData'), env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }
+    )
+    let output = ''
+    proc.stdout?.on('data', (buf: Buffer) => { output += buf.toString('utf-8') })
+    proc.stderr?.on('data', (buf: Buffer) => { output += buf.toString('utf-8') })
+    proc.on('error', (err) => resolvePromise({ ok: false, code: null, output: err.message }))
+    proc.on('exit', (code) => resolvePromise({ ok: code === 0, code, output }))
+  })
+}
+
 export function registerDshHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.DSH_START, (_e, cwd?: string) => startDshServer(cwd))
   ipcMain.handle(IPC_CHANNELS.DSH_STOP, () => stopDshServer())
   ipcMain.handle(IPC_CHANNELS.DSH_GET_PORT, () => getDshPort())
   ipcMain.handle(IPC_CHANNELS.DSH_DELETE_SESSION, (_e, sessionId: string, cwd?: string) => deleteDshSession(sessionId, cwd))
+  ipcMain.handle(IPC_CHANNELS.DSH_PLUGIN, (_e, args: string[]) => runDshPlugin(args))
+  ipcMain.handle(IPC_CHANNELS.DSH_RESTART, () => restartDshServer())
 }
