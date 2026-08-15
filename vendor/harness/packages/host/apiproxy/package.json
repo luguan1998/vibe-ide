@@ -1,0 +1,93 @@
+{
+  "name": "@deepseek-ai/dsh-host-apiproxy",
+  "description": "API gateway: the ApiProxy contract (api/), the fetch carrier pair (fetch/), and the host-side gateway plugin providing ctx.apiProxy",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/host/apiproxy"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./api": {
+      "types": "./lib/types/api/index.d.ts",
+      "default": "./lib/types/api/index.js"
+    },
+    "./api/*": {
+      "types": "./lib/types/api/*.d.ts",
+      "default": "./lib/types/api/*.js"
+    },
+    "./client": {
+      "types": "./lib/types/fetch/client.d.ts",
+      "default": "./lib/types/fetch/client.js"
+    }
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-attachment": "file:../attachment/attachment",
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-agent-default-model": "file:../core/agent-default-model",
+    "@deepseek-ai/dsh-api-remotes": "file:../api/remotes",
+    "@deepseek-ai/dsh-brand": "file:../util/brand",
+    "@deepseek-ai/dsh-commands": "file:../interaction/commands",
+    "@deepseek-ai/dsh-credentials": "file:../credentials/credentials",
+    "@deepseek-ai/dsh-goal": "file:../goal/goal",
+    "@deepseek-ai/dsh-host-directory-picker": "file:directory-picker",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-native-command": "file:../util/native-command",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-session-persistence": "file:../session/session-persistence",
+    "@deepseek-ai/dsh-session-projection": "file:../session/session-projection",
+    "@deepseek-ai/dsh-session-projection-cache": "file:../session/session-projection-cache",
+    "@deepseek-ai/dsh-session-query": "file:../session-query/session-query",
+    "@deepseek-ai/dsh-session-title": "file:../session/session-title",
+    "@deepseek-ai/dsh-settings": "file:../settings/settings",
+    "@deepseek-ai/dsh-skill": "file:../skill/skill",
+    "@deepseek-ai/dsh-subagent": "file:../subagent/subagent",
+    "@deepseek-ai/dsh-jobs": "file:../jobs/jobs",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/dsh-user-approval": "file:../interaction/user-approval",
+    "@deepseek-ai/dsh-user-questions": "file:../interaction/user-questions",
+    "@deepseek-ai/dsh-workspace": "file:../workspace/workspace",
+    "@deepseek-ai/schemastery": "file:../../vendor/schemastery",
+    "fflate": "^0.8.2",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/dsh-agent-presets": "file:../preset/agent-presets",
+    "@deepseek-ai/dsh-cordis-host-runner": "file:../extensions/cordis-host-runner",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/dsh-agent-presets": "file:../preset/agent-presets",
+    "@deepseek-ai/dsh-cordis-host-runner": "file:../extensions/cordis-host-runner",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-storage": "file:../storage/storage",
+    "@deepseek-ai/dsh-storage-domain": "file:../storage/storage-domain",
+    "@deepseek-ai/dsh-typert-protocol": "file:../typert/protocol",
+    "@deepseek-ai/dsh-typert-registry": "file:../typert/registry"
+  }
+}

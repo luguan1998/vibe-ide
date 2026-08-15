@@ -1,0 +1,114 @@
+{
+  "name": "@deepseek-ai/dsh-client-ui-conversation",
+  "description": "Conversation domain: skeleton, ordered chat flow, composer with the Host-backed busy-Enter preference, and details host",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/client/ui-conversation"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-layout"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-settings": "file:../settings/settings",
+    "clsx": "^2.0.0",
+    "@deepseek-ai/schemastery": "file:../../vendor/schemastery"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-api-remotes": "file:../api/remotes",
+    "@deepseek-ai/dsh-attachment": "file:../attachment/attachment",
+    "@deepseek-ai/dsh-brand": "file:../util/brand",
+    "@deepseek-ai/dsh-client-connection": "file:connection",
+    "@deepseek-ai/dsh-client-locale": "file:locale",
+    "@deepseek-ai/dsh-client-runtime": "file:runtime",
+    "@deepseek-ai/dsh-client-ui-attachment": "file:ui-attachment",
+    "@deepseek-ai/dsh-client-ui-primitives": "file:ui-primitives",
+    "@deepseek-ai/dsh-client-ui-settings": "file:ui-settings",
+    "@deepseek-ai/dsh-client-ui-input-trigger": "file:ui-input-trigger",
+    "@deepseek-ai/dsh-client-ui-slots": "file:ui-slots",
+    "@deepseek-ai/dsh-commands": "file:../interaction/commands",
+    "@deepseek-ai/dsh-compaction": "file:../compaction/compaction",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm-retry": "file:../llm/llm-retry",
+    "@deepseek-ai/dsh-session-stats": "file:../session/session-stats",
+    "@deepseek-ai/dsh-token-meter": "file:../llm/token-meter",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-api-remotes": "file:../api/remotes",
+    "@deepseek-ai/dsh-attachment": "file:../attachment/attachment",
+    "@deepseek-ai/dsh-brand": "file:../util/brand",
+    "@deepseek-ai/dsh-client-connection": "file:connection",
+    "@deepseek-ai/dsh-client-locale": "file:locale",
+    "@deepseek-ai/dsh-client-runtime": "file:runtime",
+    "@deepseek-ai/dsh-client-ui-layout": "file:ui-layout",
+    "@deepseek-ai/dsh-client-ui-attachment": "file:ui-attachment",
+    "@deepseek-ai/dsh-client-ui-primitives": "file:ui-primitives",
+    "@deepseek-ai/dsh-client-ui-settings": "file:ui-settings",
+    "@deepseek-ai/dsh-client-ui-input-trigger": "file:ui-input-trigger",
+    "@deepseek-ai/dsh-client-ui-slots": "file:ui-slots",
+    "@deepseek-ai/dsh-commands": "file:../interaction/commands",
+    "@deepseek-ai/dsh-compaction": "file:../compaction/compaction",
+    "@deepseek-ai/dsh-goal": "file:../goal/goal",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm-retry": "file:../llm/llm-retry",
+    "@deepseek-ai/dsh-permission-presets": "file:../interaction/permission-presets",
+    "@deepseek-ai/dsh-plan-mode": "file:../plan/plan-mode",
+    "@deepseek-ai/dsh-session-projection": "file:../session/session-projection",
+    "@deepseek-ai/dsh-session-stats": "file:../session/session-stats",
+    "@deepseek-ai/dsh-token-meter": "file:../llm/token-meter",
+    "@deepseek-ai/dsh-tool-todo": "file:../todo/tool-todo",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@types/react": "~18.3.1",
+    "react": "^18.2.0"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ]
+}

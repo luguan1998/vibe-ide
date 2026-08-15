@@ -1,0 +1,1 @@
+{"version":3,"file":"duration-store.js","sourceRoot":"","sources":["../../../src/client/duration-store.ts"],"names":[],"mappings":"AAAA,OAAO,EACL,mBAAmB,GACpB,MAAM,wCAAwC,CAAA;AAE/C;;;GAGG;AACH,MAAM,UAAU,6BAA6B;IAC3C,OAAO,mBAAmB,CAAC,KAAK,EAAE;QAChC,OAAO,EAAE,EAAE,IAAI,EAAE,yBAAyB,EAAE;KAC7C,CAAC,CAAA;AACJ,CAAC"}

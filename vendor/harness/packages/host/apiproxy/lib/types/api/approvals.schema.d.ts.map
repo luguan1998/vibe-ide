@@ -1,0 +1,1 @@
+{"version":3,"file":"approvals.schema.d.ts","sourceRoot":"","sources":["../../../src/api/approvals.schema.ts"],"names":[],"mappings":"AAAA;;;;GAIG;AAEH,OAAO,EAAE,CAAC,EAAE,MAAM,KAAK,CAAA;AACvB,OAAO,KAAK,EAAE,iBAAiB,EAAE,MAAM,sCAAsC,CAAA;AAK7E,sGAAsG;AACtG,eAAO,MAAM,uBAAuB,EAAmC,CAAC,CAAC,OAAO,CAAC,iBAAiB,CAAC,CAAA;AAEnG,4EAA4E;AAC5E,eAAO,MAAM,6BAA6B;;;;iBAIW,CAAA"}

@@ -1,0 +1,78 @@
+{
+  "name": "@deepseek-ai/dsh-cordis-host-runner",
+  "description": "Dynamic package definition registry, host-half sandbox lifecycle, and invoke handler table for model-mounted dual-half packages",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/extensions/cordis-host-runner"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types/types.js"
+    },
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
+    },
+    "./remote": {
+      "types": "./lib/typert.remote-client.d.ts",
+      "default": "./lib/typert.remote-client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/schemastery": "file:../../vendor/schemastery",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-brand": "file:../util/brand",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-scope": "file:../core/scope",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/dsh-typert-protocol": "file:../typert/protocol"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/cordis-plugin-timer": "file:../../vendor/timer",
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-brand": "file:../util/brand",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-scope": "file:../core/scope",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/dsh-typert-protocol": "file:../typert/protocol"
+  }
+}

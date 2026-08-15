@@ -1,0 +1,1 @@
+{"version":3,"file":"store.js","sourceRoot":"","sources":["../../../../src/client/queue/store.ts"],"names":[],"mappings":"AAUA;;;;;;;GAOG;AACH,MAAM,UAAU,eAAe,CAAC,OAAoB;IAClD,OAAO;QACL,WAAW,EAAE,GAAG,EAAE,CAAC,OAAO,CAAC,WAAW,EAAE,CAAC,KAAK;QAC9C,SAAS,EAAE,EAAE,CAAC,EAAE,CAAC,OAAO,CAAC,SAAS,CAAC,EAAE,CAAC;KACvC,CAAA;AACH,CAAC"}

@@ -1,0 +1,56 @@
+{
+  "name": "@deepseek-ai/dsh-tool-skill",
+  "description": "Model-facing skill loading tool for the DeepSeek Harness",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/skill/tool-skill"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-skill": "file:skill",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "file:../../vendor/schemastery"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-scope": "file:../core/scope",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-skill": "file:skill",
+    "@deepseek-ai/dsh-skill-filesystem": "file:skill-filesystem",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  }
+}

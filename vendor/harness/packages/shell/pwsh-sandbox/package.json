@@ -1,0 +1,52 @@
+{
+  "name": "@deepseek-ai/dsh-pwsh-sandbox",
+  "description": "Sandbox-consuming implementation of the DeepSeek Harness PowerShell executor seam (confines every command via ctx.sandbox, reports denial/enforcement result facts)",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/shell/pwsh-sandbox"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-shell": "file:shell",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-pwsh-local": "file:pwsh-local",
+    "@deepseek-ai/dsh-sandbox": "file:../sandbox/sandbox",
+    "@deepseek-ai/dsh-sandbox-policy": "file:../sandbox/sandbox-policy",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-shell": "file:shell",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-pwsh-local": "file:pwsh-local",
+    "@deepseek-ai/dsh-sandbox": "file:../sandbox/sandbox",
+    "@deepseek-ai/dsh-sandbox-local": "file:../sandbox/sandbox-local",
+    "@deepseek-ai/dsh-sandbox-policy": "file:../sandbox/sandbox-policy",
+    "@deepseek-ai/dsh-subprocess-local": "file:../subprocess/subprocess-local",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  }
+}

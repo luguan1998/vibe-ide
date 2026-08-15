@@ -1,0 +1,82 @@
+{
+  "name": "@deepseek-ai/dsh-session-log-export",
+  "description": "Web Session-log export command and shared download dialog",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/session-query/session-log-export"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/dsh-client-locale": "file:../client/locale",
+    "@deepseek-ai/dsh-client-runtime": "file:../client/runtime",
+    "@deepseek-ai/dsh-client-ui-commands": "file:../client/ui-commands",
+    "@deepseek-ai/dsh-client-ui-conversation": "file:../client/ui-conversation",
+    "@deepseek-ai/dsh-client-ui-primitives": "file:../client/ui-primitives",
+    "@deepseek-ai/dsh-client-ui-slots": "file:../client/ui-slots",
+    "@deepseek-ai/dsh-commands": "file:../interaction/commands",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/cordis-plugin-loader": "file:../../vendor/loader",
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-client-locale": "file:../client/locale",
+    "@deepseek-ai/dsh-client-runtime": "file:../client/runtime",
+    "@deepseek-ai/dsh-client-ui-commands": "file:../client/ui-commands",
+    "@deepseek-ai/dsh-client-ui-conversation": "file:../client/ui-conversation",
+    "@deepseek-ai/dsh-client-ui-primitives": "file:../client/ui-primitives",
+    "@deepseek-ai/dsh-client-ui-slots": "file:../client/ui-slots",
+    "@deepseek-ai/dsh-commands": "file:../interaction/commands",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@types/react": "~18.3.1",
+    "react": "^18.2.0"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-commands",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  }
+}

@@ -1,0 +1,1 @@
+{"version":3,"file":"OnboardingModal.d.ts","sourceRoot":"","sources":["../../../src/client/OnboardingModal.tsx"],"names":[],"mappings":"AAAA,+EAA+E;AAG/E,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,OAAO,CAAA;AAMtC;;;;;;GAMG;AACH,wBAAgB,eAAe,CAAC,EAC9B,KAAK,EAAE,UAAkB,EAAE,QAAQ,GACpC,EAAE;IACD,KAAK,EAAE,MAAM,CAAA;IACb,UAAU,CAAC,EAAE,OAAO,CAAA;IACpB,QAAQ,EAAE,SAAS,CAAA;CACpB,GAAG,SAAS,CA6BZ"}

@@ -1,0 +1,154 @@
+/**
+ * Shared timeout arithmetic, signal fusion, and classification. The library
+ * only notifies through abort signals; each capability still owns the mechanism
+ * that stops its work and translates timeout reasons into public outcomes.
+ * @module @deepseek-ai/dsh-timeout
+ */
+/**
+ * Internal abort reason carrying a capability-owned code and elapsed deadline.
+ * Providers translate it through {@link timeoutOf} before returning to callers.
+ */
+export class TimeoutReason extends Error {
+    code;
+    timeoutMs;
+    name = 'TimeoutReason';
+    /**
+     * @param code Capability-owned timeout code (e.g. `BASH_TIMEOUT`).
+     * @param timeoutMs The deadline that elapsed, in milliseconds.
+     */
+    constructor(code, timeoutMs) {
+        super(`${code} after ${timeoutMs}ms`);
+        this.code = code;
+        this.timeoutMs = timeoutMs;
+    }
+}
+/** Largest delay Node schedules without clamping it to one millisecond. */
+export const MAX_TIMER_DELAY_MS = 2_147_483_647;
+function assertTimerDelay(timeoutMs, name) {
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMER_DELAY_MS) {
+        throw new Error(`${name} must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`);
+    }
+}
+/**
+ * Validate a caller's optional timeout hint, use the backend default, then cap
+ * it. Supplied values must be positive and finite; zero is not a public
+ * disable-timeout sentinel.
+ *
+ * @param requested The caller's optional hint; validated when present.
+ * @param def The backend default applied when `requested` is absent.
+ * @param max The backend upper bound the result is capped to.
+ * @param name Field name used in the thrown message (so the caller sees which input was
+ *   bad).
+ * @returns The effective timeout in milliseconds: `min(requested ?? def, max)`.
+ */
+export function clampTimeout(requested, def, max, name = 'timeoutMs') {
+    if (requested !== undefined && (!Number.isFinite(requested) || requested <= 0)) {
+        throw new Error(`${name} must be a positive finite number`);
+    }
+    return Math.min(requested ?? def, max);
+}
+/**
+ * Fuse upstream cancellation with an identifiable timeout. `timeoutMs <= 0` is
+ * the internal no-timer sentinel; the returned disposer clears an armed timer.
+ * The signal only notifies, so callers must stop their own work.
+ *
+ * @param upstream The caller's cancellation signal, if any, fused into the result.
+ * @param timeoutMs Deadline in milliseconds; `<= 0` means "no timeout" (arm no timer).
+ * @param code Capability-owned code stamped onto the timeout's {@link TimeoutReason}.
+ * @returns The fused {@link Deadline} (signal + timer cleanup).
+ */
+export function deadline(upstream, timeoutMs, code) {
+    if (timeoutMs <= 0) {
+        // No timeout (background work): forward only the upstream signal, or a never-aborting one
+        // when there is no upstream.
+        return { signal: upstream ?? new AbortController().signal, [Symbol.dispose]() { } };
+    }
+    assertTimerDelay(timeoutMs, 'deadline timeoutMs');
+    const timer = new AbortController();
+    const id = setTimeout(() => { timer.abort(new TimeoutReason(code, timeoutMs)); }, timeoutMs);
+    return {
+        // AbortSignal.any adopts the reason of whichever source aborts FIRST, so a
+        // race resolves to a single cause: timeoutOf() reads TimeoutReason only
+        // when the timeout won, and upstream-wins leaves an ordinary abort reason.
+        signal: upstream !== undefined ? AbortSignal.any([upstream, timer.signal]) : timer.signal,
+        [Symbol.dispose]() { clearTimeout(id); },
+    };
+}
+/**
+ * Create a rearmable idle watchdog for an async iterator. The timer exists only
+ * while {@link IdleWatchdog.next} is outstanding, so consumer think time does
+ * not count as provider idle time. The returned signal is stable for the whole
+ * call and only notifies; the iterator must observe it to terminate its work.
+ *
+ * @param upstream - caller cancellation fused into the stable signal.
+ * @param timeoutMs - positive finite idle interval in milliseconds.
+ * @param code - capability-owned code carried by the timeout reason.
+ * @returns a stable signal, guarded next operation, and timer disposer.
+ */
+export function idleWatchdog(upstream, timeoutMs, code) {
+    assertTimerDelay(timeoutMs, 'idleWatchdog timeoutMs');
+    const timeout = new AbortController();
+    const signal = upstream === undefined
+        ? timeout.signal
+        : AbortSignal.any([upstream, timeout.signal]);
+    let timer;
+    let outstanding = false;
+    let disposed = false;
+    const arm = () => {
+        if (timer !== undefined)
+            clearTimeout(timer);
+        timer = setTimeout(() => {
+            timeout.abort(new TimeoutReason(code, timeoutMs));
+        }, timeoutMs);
+    };
+    return {
+        signal,
+        async next(iterator) {
+            if (disposed)
+                throw new Error('idleWatchdog is disposed');
+            if (outstanding)
+                throw new Error('idleWatchdog next is already outstanding');
+            outstanding = true;
+            arm();
+            try {
+                return await iterator.next();
+            }
+            finally {
+                clearTimeout(timer);
+                timer = undefined;
+                outstanding = false;
+            }
+        },
+        pulse() {
+            if (disposed || !outstanding)
+                return;
+            arm();
+        },
+        [Symbol.dispose]() {
+            if (disposed)
+                return;
+            disposed = true;
+            if (timer !== undefined)
+                clearTimeout(timer);
+            timer = undefined;
+        },
+    };
+}
+/**
+ * Recover a timeout reason from a reason-bearing object. Supplying `code`
+ * distinguishes this deadline from a nested upstream deadline; a foreign code
+ * follows the ordinary cancellation path.
+ *
+ * @param x An {@link AbortSignal} or any `{ reason }` carrier (e.g. a caught abort error).
+ * @param code When provided, only a {@link TimeoutReason} with this exact `code` matches.
+ * @returns The matching {@link TimeoutReason}, else `undefined`.
+ */
+export function timeoutOf(x, code) {
+    // AbortSignal.reason is typed `any`; pin it to `unknown` so no `any` leaks and
+    // the instanceof narrows cleanly for both a signal and a bare reason carrier.
+    const reason = x.reason;
+    if (!(reason instanceof TimeoutReason))
+        return undefined;
+    return code === undefined || reason.code === code ? reason : undefined;
+}
+//# sourceMappingURL=index.js.map

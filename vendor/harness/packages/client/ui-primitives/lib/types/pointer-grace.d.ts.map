@@ -1,0 +1,1 @@
+{"version":3,"file":"pointer-grace.d.ts","sourceRoot":"","sources":["../../src/pointer-grace.ts"],"names":[],"mappings":"AAQA;;;;GAIG;AACH,eAAO,MAAM,gBAAgB,MAAM,CAAA;AAEnC,8DAA8D;AAC9D,MAAM,WAAW,YAAY;IAC3B,uFAAuF;IACvF,GAAG,EAAE,MAAM,IAAI,CAAA;IACf,qDAAqD;IACrD,MAAM,EAAE,MAAM,IAAI,CAAA;CACnB;AAED;;;;;;GAMG;AACH,wBAAgB,eAAe,CAAC,KAAK,EAAE,MAAM,IAAI,GAAG,YAAY,CAsB/D"}

@@ -3,7 +3,7 @@
 import { readFileSync, readdirSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
 
-const DSH_ROOT = 'E:/ai/deepseek-harness'
+const DSH_ROOT = 'E:/ai/claudeui/vendor/harness'
 const packageJson = (dir) => JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8'))
 
 // Seed packages: the ones Vibe's renderer imports directly (value imports).

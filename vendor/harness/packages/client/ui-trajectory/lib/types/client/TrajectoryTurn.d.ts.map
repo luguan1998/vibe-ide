@@ -1,0 +1,1 @@
+{"version":3,"file":"TrajectoryTurn.d.ts","sourceRoot":"","sources":["../../../src/client/TrajectoryTurn.tsx"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,OAAO,CAAA;AAItC,MAAM,WAAW,mBAAmB;IAClC,gDAAgD;IAChD,IAAI,EAAE,MAAM,CAAA;IACZ,sDAAsD;IACtD,QAAQ,CAAC,EAAE,SAAS,CAAA;CACrB;AAED;;;;GAIG;AACH,wBAAgB,cAAc,CAAC,EAAE,IAAI,EAAE,QAAQ,EAAE,EAAE,mBAAmB,+BAOrE"}

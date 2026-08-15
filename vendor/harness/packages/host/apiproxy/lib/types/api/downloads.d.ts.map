@@ -1,0 +1,1 @@
+{"version":3,"file":"downloads.d.ts","sourceRoot":"","sources":["../../../src/api/downloads.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAEH,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,gCAAgC,CAAA;AAE/D,8EAA8E;AAC9E,MAAM,WAAW,YAAY;IAC3B;;;;;;;;OAQG;IACH,UAAU,CACR,OAAO,EAAE;QAAE,SAAS,EAAE,SAAS,CAAC;QAAC,kBAAkB,CAAC,EAAE,OAAO,CAAA;KAAE,EAC/D,MAAM,EAAE,WAAW,GAClB,OAAO,CAAC,QAAQ,CAAC,CAAA;CACrB"}

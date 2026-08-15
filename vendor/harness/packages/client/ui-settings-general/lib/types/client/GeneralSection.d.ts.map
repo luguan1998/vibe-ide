@@ -1,0 +1,1 @@
+{"version":3,"file":"GeneralSection.d.ts","sourceRoot":"","sources":["../../../src/client/GeneralSection.tsx"],"names":[],"mappings":"AAAA,kFAAkF;AAClF,OAAO,KAAK,EAAE,gBAAgB,EAAE,YAAY,EAAE,MAAM,kCAAkC,CAAA;AAGtF,wEAAwE;AACxE,MAAM,MAAM,4BAA4B,GACtC,YAAY,CAAC,kBAAkB,CAAC,GAAG,gBAAgB,CAAC,uBAAuB,CAAC,CAAA;AAE9E;;;;GAIG;AACH,wBAAgB,cAAc,CAAC,EAAE,UAAU,EAAE,EAAE,4BAA4B,+BAM1E"}

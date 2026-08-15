@@ -1,0 +1,59 @@
+{
+  "name": "@deepseek-ai/dsh-tool-str-replace-editor",
+  "description": "Model-facing view, create, literal replace, and line insert tool over the Harness filesystem service",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/fs/tool-str-replace-editor"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-fs": "file:fs",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-sandbox": "file:../sandbox/sandbox",
+    "@deepseek-ai/dsh-sandbox-policy": "file:../sandbox/sandbox-policy",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "file:../../vendor/schemastery"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-fs": "file:fs",
+    "@deepseek-ai/dsh-fs-local": "file:fs-local",
+    "@deepseek-ai/dsh-fs-observation-policy": "file:fs-observation-policy",
+    "@deepseek-ai/dsh-fs-sandbox": "file:fs-sandbox",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-sandbox": "file:../sandbox/sandbox",
+    "@deepseek-ai/dsh-sandbox-policy": "file:../sandbox/sandbox-policy",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-system-prompt": "file:../core/system-prompt",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  }
+}

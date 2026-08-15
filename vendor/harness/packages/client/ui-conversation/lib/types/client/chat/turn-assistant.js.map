@@ -1,0 +1,1 @@
+{"version":3,"file":"turn-assistant.js","sourceRoot":"","sources":["../../../../src/client/chat/turn-assistant.ts"],"names":[],"mappings":"AAEA;;;;GAIG;AACH,MAAM,UAAU,aAAa,CAAC,MAAiC;IAC7D,OAAO,MAAM,CAAC,OAAO,CAAC,KAAK,CAAC,EAAE,CAAC,KAAK,CAAC,IAAI,KAAK,MAAM,CAAC,CAAC,CAAC,CAAC,KAAK,CAAC,IAAI,CAAC,CAAC,CAAC,CAAC,EAAE,CAAC,CAAC,IAAI,CAAC,EAAE,CAAC,CAAA;AACpF,CAAC"}

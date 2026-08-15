@@ -1,0 +1,61 @@
+{
+  "name": "@deepseek-ai/dsh-tool-bash-persistent",
+  "description": "Model-facing owner-scoped persistent Bash tool backed by the Harness PTY service",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/shell/tool-bash-persistent"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-terminal": "file:../terminal/terminal",
+    "@deepseek-ai/dsh-timeout": "file:../util/timeout",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "file:../../vendor/schemastery"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis-plugin-include": "file:../../vendor/include",
+    "@deepseek-ai/cordis-plugin-loader": "file:../../vendor/loader",
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-terminal": "file:../terminal/terminal",
+    "@deepseek-ai/dsh-terminal-bash": "file:../terminal/terminal-bash",
+    "@deepseek-ai/dsh-sandbox": "file:../sandbox/sandbox",
+    "@deepseek-ai/dsh-sandbox-policy": "file:../sandbox/sandbox-policy",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-subprocess-local": "file:../subprocess/subprocess-local",
+    "@deepseek-ai/dsh-system-prompt": "file:../core/system-prompt",
+    "@deepseek-ai/dsh-timeout": "file:../util/timeout",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  }
+}

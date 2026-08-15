@@ -1,0 +1,66 @@
+{
+  "name": "@deepseek-ai/dsh-app-boot",
+  "description": "Shared boot glue for the app bins: .env loading, fail-loud Loader guards, snapshot-aware config resolution, and the Loader boot sequence",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/boot/app-boot"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "js-yaml": "^4.2.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis-plugin-group": "file:../../vendor/group",
+    "@deepseek-ai/cordis-plugin-hmr": "file:../../vendor/hmr",
+    "@deepseek-ai/cordis-plugin-include": "file:../../vendor/include",
+    "@deepseek-ai/cordis-plugin-loader": "file:../../vendor/loader",
+    "@deepseek-ai/dsh-launch-environment": "file:../util/launch-environment",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-home-paths": "file:../util/home-paths",
+    "@deepseek-ai/dsh-system-prompt": "file:../core/system-prompt",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis-plugin-hmr": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis-plugin-group": "file:../../vendor/group",
+    "@deepseek-ai/cordis-plugin-hmr": "file:../../vendor/hmr",
+    "@deepseek-ai/cordis-plugin-include": "file:../../vendor/include",
+    "@deepseek-ai/cordis-plugin-loader": "file:../../vendor/loader",
+    "@deepseek-ai/cordis-plugin-timer": "file:../../vendor/timer",
+    "@deepseek-ai/dsh-launch-environment": "file:../util/launch-environment",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-home-paths": "file:../util/home-paths",
+    "@deepseek-ai/dsh-system-prompt": "file:../core/system-prompt",
+    "@types/js-yaml": "^4.0.9",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  }
+}

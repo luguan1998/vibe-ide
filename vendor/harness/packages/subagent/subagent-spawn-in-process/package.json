@@ -1,0 +1,59 @@
+{
+  "name": "@deepseek-ai/dsh-subagent-spawn-in-process",
+  "description": "In-process spawn subagent backend: runs a fresh child agent on ctx.agents",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/subagent/subagent-spawn-in-process"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-subagent": "file:subagent",
+    "@deepseek-ai/dsh-subagent-in-process-driver": "file:subagent-in-process-driver",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "file:../../vendor/schemastery"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis-plugin-loader": "file:../../vendor/loader",
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-agent-loop": "file:../core/agent-loop",
+    "@deepseek-ai/dsh-bash-local": "file:../shell/bash-local",
+    "@deepseek-ai/dsh-subprocess-local": "file:../subprocess/subprocess-local",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-llm-deepseek": "file:../llm/llm-deepseek",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-subagent": "file:subagent",
+    "@deepseek-ai/dsh-subagent-in-process-driver": "file:subagent-in-process-driver",
+    "@deepseek-ai/dsh-tool-bash": "file:../shell/tool-bash",
+    "@deepseek-ai/dsh-tool-subagent": "file:tool-subagent",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  }
+}

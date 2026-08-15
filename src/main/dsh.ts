@@ -22,7 +22,7 @@ const DSH_URL_RE = /dsh web: http:\/\/127\.0\.0\.1:(\d+)/
 function getDshBinPath(): string | { error: string } {
   const env = process.env.DSH_CLI_BIN
   if (env && existsSync(env)) return env
-  const dev = !app.isPackaged ? join(app.getAppPath(), '..', 'deepseek-harness', 'apps', 'cli', 'lib', 'bin.js') : ''
+  const dev = !app.isPackaged ? join(app.getAppPath(), 'vendor', 'harness', 'apps', 'cli', 'lib', 'bin.js') : ''
   if (dev && existsSync(dev)) return dev
   const packaged = app.isPackaged ? join(process.resourcesPath, 'dsh', 'apps', 'cli', 'lib', 'bin.js') : ''
   if (packaged && existsSync(packaged)) return packaged

@@ -1,0 +1,1 @@
+{"version":3,"file":"QuestionComposer.d.ts","sourceRoot":"","sources":["../../../src/client/QuestionComposer.tsx"],"names":[],"mappings":"AAMA,OAAO,EAEgB,KAAK,qBAAqB,EAChD,MAAM,qBAAqB,CAAA;AAkB5B;;;;GAIG;AACH,wBAAgB,qBAAqB,CAAC,KAAK,EAAE,MAAM,GAAG;IAAE,KAAK,EAAE,MAAM,CAAC;IAAC,WAAW,EAAE,OAAO,CAAA;CAAE,CAK5F;AASD;;;;;;;;;;;;GAYG;AACH,wBAAgB,gBAAgB,CAAC,KAAK,EAAE,qBAAqB,+BAQ5D"}

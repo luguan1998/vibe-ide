@@ -1,0 +1,66 @@
+{
+  "name": "@deepseek-ai/dsh-llm-retry",
+  "description": "Provider-routed LLM request retry policy for the DeepSeek Harness",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/llm/llm-retry"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types/types.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-brand": "file:../util/brand",
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:llm",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-timeout": "file:../util/timeout",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "file:../../vendor/schemastery"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-brand": "file:../util/brand",
+    "@deepseek-ai/cordis-plugin-include": "file:../../vendor/include",
+    "@deepseek-ai/cordis-plugin-loader": "file:../../vendor/loader",
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-agent-loop": "file:../core/agent-loop",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:llm",
+    "@deepseek-ai/dsh-llm-deepseek": "file:llm-deepseek",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "file:../session/session-persistence-jsonl",
+    "@deepseek-ai/dsh-system-prompt": "file:../core/system-prompt",
+    "@deepseek-ai/dsh-timeout": "file:../util/timeout",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  }
+}

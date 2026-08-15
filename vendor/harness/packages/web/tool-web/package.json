@@ -1,0 +1,61 @@
+{
+  "name": "@deepseek-ai/dsh-tool-web",
+  "description": "Model-facing web tools (web_search, web_fetch) over the DeepSeek Harness web capability seam (ctx.web)",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/web/tool-web"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-system-prompt": "file:../core/system-prompt",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/dsh-web": "file:web",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  },
+  "dependencies": {
+    "@joplin/turndown-plugin-gfm": "^1.0.67",
+    "@deepseek-ai/schemastery": "file:../../vendor/schemastery",
+    "turndown": "^7.2.4"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@types/turndown": "^5.0.6",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-spill-local": "file:../spill/spill-local",
+    "@deepseek-ai/dsh-spill-policy": "file:../spill/spill-policy",
+    "@deepseek-ai/dsh-system-prompt": "file:../core/system-prompt",
+    "@deepseek-ai/dsh-tool-call-timeout-policy": "file:../guard/timeout-policy",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/dsh-web": "file:web",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  }
+}

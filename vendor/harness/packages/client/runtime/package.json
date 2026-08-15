@@ -1,0 +1,83 @@
+{
+  "name": "@deepseek-ai/dsh-client-runtime",
+  "description": "Client core services: SlotRegistry, SessionRuntime (scope tree + object layer)",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/client/runtime"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-typert-registry",
+        "@deepseek-ai/dsh-api-remotes"
+      ],
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-attachment": "file:../attachment/attachment",
+    "@deepseek-ai/dsh-client-connection": "file:connection",
+    "@deepseek-ai/dsh-commands": "file:../interaction/commands",
+    "@deepseek-ai/dsh-client-ui-slots": "file:ui-slots",
+    "@deepseek-ai/dsh-host-apiproxy": "file:../host/apiproxy",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-llm-retry": "file:../llm/llm-retry",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-session-projection": "file:../session/session-projection",
+    "@deepseek-ai/dsh-session-title": "file:../session/session-title",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "immer": "^10.1.1",
+    "react": "^18.2.0",
+    "zustand": "~4.4.7"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/dsh-api-remotes": "file:../api/remotes",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-typert-protocol": "file:../typert/protocol",
+    "@deepseek-ai/dsh-typert-registry": "file:../typert/registry"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/dsh-api-remotes": "file:../api/remotes",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-timeout": "file:../util/timeout",
+    "@deepseek-ai/dsh-typert-protocol": "file:../typert/protocol",
+    "@deepseek-ai/dsh-typert-registry": "file:../typert/registry",
+    "@types/react": "~18.3.1"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ]
+}

@@ -1,0 +1,106 @@
+{
+  "name": "@deepseek-ai/dsh-subagent",
+  "description": "Abstract subagent seam (ctx.subagents): named-provider registry for delegating to child agents",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/subagent/subagent"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/types/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-agent-presets": "file:../preset/agent-presets",
+    "@deepseek-ai/dsh-brand": "file:../util/brand",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-sandbox": "file:../sandbox/sandbox",
+    "@deepseek-ai/dsh-sandbox-policy": "file:../sandbox/sandbox-policy",
+    "@deepseek-ai/dsh-scope": "file:../core/scope",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-session-persistence": "file:../session/session-persistence",
+    "@deepseek-ai/dsh-session-projection": "file:../session/session-projection",
+    "@deepseek-ai/dsh-session-projection-cache": "file:../session/session-projection-cache",
+    "@deepseek-ai/dsh-jobs": "file:../jobs/jobs",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/dsh-user-approval": "file:../interaction/user-approval",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-agent-presets": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-sandbox": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-sandbox-policy": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session-persistence": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session-projection": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session-projection-cache": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-jobs": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-user-approval": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-agent": "file:../core/agent",
+    "@deepseek-ai/dsh-agent-presets": "file:../preset/agent-presets",
+    "@deepseek-ai/dsh-brand": "file:../util/brand",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-llm": "file:../llm/llm",
+    "@deepseek-ai/dsh-sandbox": "file:../sandbox/sandbox",
+    "@deepseek-ai/dsh-sandbox-policy": "file:../sandbox/sandbox-policy",
+    "@deepseek-ai/dsh-scope": "file:../core/scope",
+    "@deepseek-ai/dsh-session": "file:../core/session",
+    "@deepseek-ai/dsh-session-persistence": "file:../session/session-persistence",
+    "@deepseek-ai/dsh-session-projection": "file:../session/session-projection",
+    "@deepseek-ai/dsh-session-projection-cache": "file:../session/session-projection-cache",
+    "@deepseek-ai/dsh-storage": "file:../storage/storage",
+    "@deepseek-ai/dsh-storage-domain": "file:../storage/storage-domain",
+    "@deepseek-ai/dsh-jobs": "file:../jobs/jobs",
+    "@deepseek-ai/dsh-tools": "file:../core/tools",
+    "@deepseek-ai/dsh-user-approval": "file:../interaction/user-approval",
+    "@deepseek-ai/cordis": "file:../../vendor/cordis"
+  }
+}

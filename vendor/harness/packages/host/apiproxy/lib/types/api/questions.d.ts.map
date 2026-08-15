@@ -1,0 +1,1 @@
+{"version":3,"file":"questions.d.ts","sourceRoot":"","sources":["../../../src/api/questions.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAEH,OAAO,KAAK,EAAE,qBAAqB,EAAE,MAAM,uCAAuC,CAAA;AAClF,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,gCAAgC,CAAA;AAE/D;;;;GAIG;AACH,MAAM,WAAW,uBAAuB;IACtC,SAAS,EAAE,SAAS,CAAA;IACpB,MAAM,EAAE,qBAAqB,CAAA;CAC9B"}

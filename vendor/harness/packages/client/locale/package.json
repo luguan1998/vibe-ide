@@ -1,0 +1,81 @@
+{
+  "name": "@deepseek-ai/dsh-client-locale",
+  "description": "Locale plugin: Host-backed zh/en preference, browser-derived fallback, locale snapshots, and typed namespace dictionaries",
+  "version": "0.1.0-rc.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/client/locale"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-remotes"
+      ],
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/dsh-api-remotes": "file:../api/remotes",
+    "@deepseek-ai/dsh-client-connection": "file:connection",
+    "@deepseek-ai/dsh-client-runtime": "file:runtime",
+    "@deepseek-ai/dsh-client-ui-primitives": "file:ui-primitives",
+    "@deepseek-ai/dsh-client-ui-settings": "file:ui-settings",
+    "@deepseek-ai/dsh-client-ui-slots": "file:ui-slots",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "file:../../vendor/cordis",
+    "@deepseek-ai/dsh-api-remotes": "file:../api/remotes",
+    "@deepseek-ai/dsh-client-runtime": "file:runtime",
+    "@deepseek-ai/dsh-client-ui-primitives": "file:ui-primitives",
+    "@deepseek-ai/dsh-client-ui-settings": "file:ui-settings",
+    "@deepseek-ai/dsh-client-ui-slots": "file:ui-slots",
+    "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
+    "@types/react": "~18.3.1",
+    "react": "^18.2.0"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-settings": "file:../settings/settings",
+    "@deepseek-ai/schemastery": "file:../../vendor/schemastery"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  }
+}

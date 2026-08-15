@@ -1,0 +1,506 @@
+import { Fragment, jsx, jsxs } from "react/jsx-runtime";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import clsx from "clsx";
+import { IconChevronLeftOutline14, IconChevronRightOutline14, IconCloseFill14, IconCloseOutline16 } from "@deepseek-ai/dsh-client-ui-primitives";
+import { createPortal } from "react-dom";
+//#region \0dsh-css-stub:./AttachmentRail.module.css.mjs
+var AttachmentRail_module_css_default = {};
+//#endregion
+//#region lib/types/AttachmentRail.js
+/** Draft-attachment thumbnail rail: scrollbar-less horizontal overflow paged
+* by edge arrows, hover-revealed per-item remove, single-click open. */
+/** Approximate pixels per wheel step for `deltaMode` LINE deltas (Firefox
+* notch wheels report lines, not pixels). */
+const WHEEL_LINE_PX = 16;
+/** Smooth paging unless the user asked for reduced motion. */
+function pageBehavior() {
+	return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+/**
+* Horizontal thumbnail rail over the caller's draft attachments.
+*
+* The rail scrolls with its scrollbar hidden; overflow is announced by edge
+* arrows recomputed from scroll geometry on scroll, item-count changes, and
+* rail size changes (a ResizeObserver on the rail element, so sidebar or
+* panel resizes count, not only window resizes). A vertical wheel pans the
+* rail horizontally and is consumed exclusively (non-passive listener), a
+* newly added item is revealed at the rail's end while a rail that mounts
+* over an existing draft keeps its start position, and each thumbnail opens
+* on a single click while its remove control sits inside the card and
+* reveals on hover or focus. The owner decides mounting; it renders the rail
+* only while items exist.
+*
+* @param props.items - resolved thumbnails in draft order.
+* @param props.labels - rail-level strings (group name, open tooltip, arrows).
+* @param props.onOpen - single-click open of one item's original image.
+* @param props.onRemove - remove one item from the draft.
+* @returns the rail group with its paging arrows.
+*/
+function AttachmentRail({ items, labels, onOpen, onRemove }) {
+	const railRef = useRef(null);
+	const countRef = useRef(null);
+	const [edges, setEdges] = useState({
+		left: false,
+		right: false
+	});
+	const updateEdges = useCallback(() => {
+		const el = railRef.current;
+		/* v8 ignore next -- defensive: every caller runs while the rail element is mounted. */
+		if (el === null) return;
+		const left = el.scrollLeft > 1;
+		const right = el.scrollLeft < el.scrollWidth - el.clientWidth - 1;
+		setEdges((prev) => prev.left === left && prev.right === right ? prev : {
+			left,
+			right
+		});
+	}, []);
+	useLayoutEffect(() => {
+		const grew = countRef.current !== null && items.length > countRef.current;
+		countRef.current = items.length;
+		const el = railRef.current;
+		/* v8 ignore next -- defensive: the rail div renders unconditionally, so the layout effect always finds it. */
+		if (el === null) return;
+		if (grew) el.scrollLeft = el.scrollWidth - el.clientWidth;
+		updateEdges();
+	}, [items.length, updateEdges]);
+	useEffect(() => {
+		const el = railRef.current;
+		/* v8 ignore next -- defensive: the rail div renders unconditionally, so the mount effect always finds it. */
+		if (el === null) return;
+		let disconnect = () => {};
+		if (typeof ResizeObserver !== "undefined") {
+			const observer = new ResizeObserver(updateEdges);
+			observer.observe(el);
+			disconnect = () => {
+				observer.disconnect();
+			};
+		}
+		const onWheel = (event) => {
+			if (event.deltaY === 0) return;
+			const scale = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? WHEEL_LINE_PX : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? el.clientWidth : 1;
+			event.preventDefault();
+			el.scrollBy({
+				left: event.deltaX !== 0 ? event.deltaX * scale : Math.sign(event.deltaY) * Math.min(Math.abs(event.deltaY) * scale, 60),
+				behavior: "auto"
+			});
+		};
+		el.addEventListener("wheel", onWheel, { passive: false });
+		return () => {
+			disconnect();
+			el.removeEventListener("wheel", onWheel);
+		};
+	}, [updateEdges]);
+	const page = (direction) => {
+		const el = railRef.current;
+		/* v8 ignore next -- defensive: the arrows render only while the rail is mounted, so a click cannot find a null ref. */
+		if (el === null) return;
+		el.scrollBy({
+			left: direction * Math.max(el.clientWidth - 64, 200),
+			behavior: pageBehavior()
+		});
+	};
+	return jsxs("div", {
+		className: AttachmentRail_module_css_default.root,
+		children: [
+			edges.left && jsx("button", {
+				type: "button",
+				className: clsx(AttachmentRail_module_css_default.arrow, AttachmentRail_module_css_default.arrowLeft),
+				"aria-label": labels.scrollLeft,
+				onClick: () => {
+					page(-1);
+				},
+				children: jsx(IconChevronLeftOutline14, {})
+			}),
+			jsx("div", {
+				ref: railRef,
+				className: AttachmentRail_module_css_default.rail,
+				role: "group",
+				"aria-label": labels.group,
+				onScroll: updateEdges,
+				children: items.map((item) => jsxs("div", {
+					className: AttachmentRail_module_css_default.item,
+					children: [jsx("button", {
+						type: "button",
+						className: AttachmentRail_module_css_default.thumbnail,
+						title: labels.open,
+						onClick: () => {
+							onOpen(item);
+						},
+						children: jsx("img", {
+							src: item.previewUrl,
+							alt: item.alt
+						})
+					}), jsx("button", {
+						type: "button",
+						className: AttachmentRail_module_css_default.remove,
+						"aria-label": item.removeLabel,
+						onClick: () => {
+							onRemove(item);
+						},
+						children: jsx(IconCloseFill14, { size: 12 })
+					})]
+				}, item.id))
+			}),
+			edges.right && jsx("button", {
+				type: "button",
+				className: clsx(AttachmentRail_module_css_default.arrow, AttachmentRail_module_css_default.arrowRight),
+				"aria-label": labels.scrollRight,
+				onClick: () => {
+					page(1);
+				},
+				children: jsx(IconChevronRightOutline14, {})
+			})
+		]
+	});
+}
+//#endregion
+//#region \0dsh-css-stub:./DropOverlay.module.css.mjs
+var DropOverlay_module_css_default = {};
+//#endregion
+//#region lib/types/DropOverlay.js
+/**
+* Full-viewport invitation shown while a file drag is over the page
+* (DeepSeek Chat's DragMask). Decoration only: `pointer-events: none` keeps
+* drag targeting on the page below, so the owner's document-level listeners
+* keep an accurate enter/leave count and own accept/reject. Rendered through
+* a body portal for the same transformed-ancestor reason as the lightbox.
+*
+* @param props.disabled - drops are currently refused; renders the blocked
+* illustration and drops the desc line.
+* @param props.labels - resolved title and limits strings.
+* @returns the overlay layer.
+*/
+function DropOverlay({ disabled, labels }) {
+	return createPortal(jsx("div", {
+		className: DropOverlay_module_css_default.mask,
+		role: "status",
+		children: jsxs("div", {
+			className: DropOverlay_module_css_default.wrap,
+			children: [
+				jsx("div", {
+					className: DropOverlay_module_css_default.illustration,
+					"aria-hidden": "true",
+					children: disabled ? jsx(UploadDisabledIllustration, {}) : jsx(UploadIllustration, {})
+				}),
+				jsx("div", {
+					className: DropOverlay_module_css_default.title,
+					children: labels.title
+				}),
+				!disabled && labels.desc !== void 0 && jsx("div", {
+					className: DropOverlay_module_css_default.desc,
+					children: labels.desc
+				})
+			]
+		})
+	}), document.body);
+}
+/** Tilted photo-and-note cards (DeepSeek Chat upload illustration). */
+const UploadIllustration = () => jsxs("svg", {
+	width: "115",
+	height: "84",
+	viewBox: "0 0 115 84",
+	fill: "none",
+	xmlns: "http://www.w3.org/2000/svg",
+	children: [jsxs("g", {
+		clipPath: "url(#dshDropOverlayClip)",
+		children: [
+			jsx("rect", {
+				y: "17.0742",
+				width: "44.1832",
+				height: "43.6431",
+				rx: "12",
+				transform: "rotate(-22.7338 0 17.0742)",
+				fill: "#9CE5ED"
+			}),
+			jsx("rect", {
+				x: "73.4043",
+				y: "8.54297",
+				width: "43.7267",
+				height: "50.5284",
+				rx: "8",
+				transform: "rotate(17.403 73.4043 8.54297)",
+				fill: "#679EFE"
+			}),
+			jsx("path", {
+				d: "M30.4917 28.1369L40.8865 33.4564L37.2232 34.9524L29.5302 31.0159L26.7919 39.2122L23.1285 40.7082L26.8287 29.6338L16.8967 24.5516L20.5601 23.0556L27.7902 26.7549L30.3639 19.052L34.0273 17.556L30.4917 28.1369Z",
+				fill: "white"
+			}),
+			jsx("path", {
+				d: "M77.5088 26.3047L101.057 33.7966",
+				stroke: "white",
+				strokeWidth: "3"
+			}),
+			jsx("path", {
+				d: "M72.2646 42.7871L86.3938 47.2823",
+				stroke: "white",
+				strokeWidth: "3"
+			}),
+			jsx("path", {
+				d: "M74.8867 34.5469L98.4353 42.0388",
+				stroke: "white",
+				strokeWidth: "3"
+			}),
+			jsx("rect", {
+				x: "31.583",
+				y: "38.6641",
+				width: "44.9157",
+				height: "44.3666",
+				rx: "12",
+				transform: "rotate(-0.134233 31.583 38.6641)",
+				fill: "#3964FE"
+			}),
+			jsx("path", {
+				d: "M38.9521 73.0337C39.6129 71.7086 41.7113 66.0937 43.5113 61.1663C44.1607 59.3885 46.7484 59.3923 47.4591 61.1465C48.9728 64.8828 50.7969 68.6922 51.9988 69.1925C54.2946 70.1482 57.9854 59.3573 68.0064 70.1801",
+				stroke: "white",
+				strokeWidth: "3"
+			}),
+			jsx("circle", {
+				cx: "60.6157",
+				cy: "52.247",
+				r: "4.38794",
+				transform: "rotate(22.5996 60.6157 52.247)",
+				fill: "white"
+			})
+		]
+	}), jsx("defs", { children: jsx("clipPath", {
+		id: "dshDropOverlayClip",
+		children: jsx("rect", {
+			width: "115",
+			height: "84",
+			fill: "white"
+		})
+	}) })]
+});
+/** Greyed cards with a blocked badge (DeepSeek Chat disabled illustration). */
+const UploadDisabledIllustration = () => jsxs("svg", {
+	width: "115",
+	height: "84",
+	viewBox: "0 0 115 84",
+	fill: "none",
+	xmlns: "http://www.w3.org/2000/svg",
+	children: [
+		jsx("path", {
+			d: "M29.6829 4.63701L11.0677 12.4368C4.95519 14.998 2.07624 22.0294 4.6374 28.1419L12.2285 46.259C14.7896 52.3715 21.8211 55.2505 27.9336 52.6893L46.5488 44.8895C52.6613 42.3283 55.5403 35.2969 52.9791 29.1844L45.388 11.0673C42.8269 4.9548 35.7954 2.07585 29.6829 4.63701Z",
+			fill: "#979DA6"
+		}),
+		jsx("path", {
+			d: "M30.4915 28.1375L40.8863 33.4569L37.223 34.9529L29.53 31.0165L26.7917 39.2128L23.1283 40.7088L26.8285 29.6344L16.8965 24.5522L20.5599 23.0562L27.79 26.7555L30.3637 19.0526L34.0271 17.5566L30.4915 28.1375Z",
+			fill: "white"
+		}),
+		jsx("path", {
+			d: "M107.496 19.2285L81.0381 10.9357C76.8221 9.61423 72.333 11.9607 71.0116 16.1768L60.6844 49.1246C59.363 53.3406 61.7095 57.8297 65.9255 59.1511L92.383 67.4439C96.599 68.7654 101.088 66.4189 102.41 62.2029L112.737 29.255C114.058 25.039 111.712 20.55 107.496 19.2285Z",
+			fill: "#979DA6"
+		}),
+		jsx("path", {
+			d: "M77.5088 26.3047L101.057 33.7967",
+			stroke: "white",
+			strokeWidth: "3"
+		}),
+		jsx("path", {
+			d: "M72.2646 42.7871L86.3938 47.2823",
+			stroke: "white",
+			strokeWidth: "3"
+		}),
+		jsx("path", {
+			d: "M74.8867 34.5469L98.4353 42.0388",
+			stroke: "white",
+			strokeWidth: "3"
+		}),
+		jsx("path", {
+			d: "M66.5798 30.1418L41.481 30.2006C33.5281 30.2193 27.0962 36.6815 27.1148 44.6343L27.172 69.0742C27.1907 77.0271 33.6529 83.459 41.6057 83.4404L66.7045 83.3816C74.6574 83.363 81.0894 76.9008 81.0707 68.9479L81.0135 44.5081C80.9949 36.5552 74.5327 30.1232 66.5798 30.1418Z",
+			fill: "#F59E0B"
+		}),
+		jsx("path", {
+			d: "M54 70.7969C61.732 70.7969 68 64.5289 68 56.7969C68 49.0649 61.732 42.7969 54 42.7969C46.268 42.7969 40 49.0649 40 56.7969C40 64.5289 46.268 70.7969 54 70.7969Z",
+			stroke: "white",
+			strokeWidth: "3.5"
+		}),
+		jsx("path", {
+			d: "M44 46.7969L64 66.7969",
+			stroke: "white",
+			strokeWidth: "3.5",
+			strokeLinecap: "round"
+		})
+	]
+});
+//#endregion
+//#region \0dsh-css-stub:./ImageLightbox.module.css.mjs
+var ImageLightbox_module_css_default = {};
+//#endregion
+//#region lib/types/ImageLightbox.js
+/**
+* Document-level original-image preview opened by clicking a thumbnail.
+* Closes on Escape, backdrop press, or the close control, and restores focus
+* to the opener on unmount. Rendered through a body portal: an opener inside
+* a transformed or filtered ancestor would otherwise trap the fixed backdrop
+* in that ancestor's box instead of covering the viewport.
+*
+* @param props.src - the original image URL.
+* @param props.alt - the image's alt text.
+* @param props.labels - dialog and close-control strings.
+* @param props.onClose - dismiss callback owned by the opener.
+* @returns the modal preview dialog.
+*/
+function ImageLightbox({ src, alt, labels, onClose }) {
+	const closeRef = useRef(null);
+	const restoreRef = useRef(null);
+	useEffect(() => {
+		restoreRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+		closeRef.current?.focus();
+		const onKeyDown = (event) => {
+			if (event.key === "Escape") onClose();
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => {
+			window.removeEventListener("keydown", onKeyDown);
+			restoreRef.current?.focus();
+		};
+	}, [onClose]);
+	return createPortal(jsxs("div", {
+		className: ImageLightbox_module_css_default.backdrop,
+		role: "dialog",
+		"aria-modal": "true",
+		"aria-label": labels.dialog,
+		children: [
+			jsx("div", {
+				className: ImageLightbox_module_css_default.mask,
+				"aria-hidden": "true",
+				onMouseDown: onClose
+			}),
+			jsx("img", {
+				className: ImageLightbox_module_css_default.image,
+				src,
+				alt
+			}),
+			jsx("button", {
+				ref: closeRef,
+				type: "button",
+				className: ImageLightbox_module_css_default.close,
+				"aria-label": labels.close,
+				onClick: onClose,
+				children: jsx(IconCloseOutline16, { size: 16 })
+			})
+		]
+	}), document.body);
+}
+//#endregion
+//#region \0dsh-css-stub:./MessageImage.module.css.mjs
+var MessageImage_module_css_default = {};
+//#endregion
+//#region lib/types/MessageImage.js
+/** Display box for a lone image (DeepSeek Chat rule): long edge 240px with
+* the rendered aspect ratio clamped to [0.25, 4] — the overflow is cropped by
+* `object-fit: cover` — and never upscaled past the image's natural size. The
+* crop anchor keeps the top of very tall images and the left of very wide
+* ones, where the informative content usually starts. */
+function singleFit(attachment) {
+	const natural = attachment.width / attachment.height;
+	const ratio = Math.min(4, Math.max(.25, natural));
+	const box = ratio >= 1 ? {
+		width: 240,
+		height: 240 / ratio
+	} : {
+		width: 240 * ratio,
+		height: 240
+	};
+	const scale = Math.min(1, attachment.width / box.width, attachment.height / box.height);
+	return {
+		width: Math.max(1, Math.round(box.width * scale)),
+		height: Math.max(1, Math.round(box.height * scale)),
+		objectPosition: natural < .25 ? "center top" : natural > 4 ? "left center" : "center"
+	};
+}
+/**
+* Compact history renderer with retryable loading and click-to-open original
+* preview. A lone image renders at its `singleFit` size; an image among
+* several renders as a fixed 64px square tile.
+*
+* @param props.attachment - the durable image reference to load and bound.
+* @param props.load - session-authorized URL loader.
+* @param props.variant - `single` for a message's lone image, `tile` otherwise.
+* @param props.labels - resolved strings (tooltip, loading, retry, lightbox).
+* @returns the bounded thumbnail button, or the retry control on failure.
+*/
+function MessageImage({ attachment, load, variant, labels }) {
+	const [src, setSrc] = useState(null);
+	const [error, setError] = useState(false);
+	const [open, setOpen] = useState(false);
+	const [attempt, setAttempt] = useState(0);
+	const request = useCallback(() => {
+		setAttempt((a) => a + 1);
+	}, []);
+	const close = useCallback(() => {
+		setOpen(false);
+	}, []);
+	const fit = useMemo(() => variant === "single" ? singleFit(attachment) : void 0, [attachment, variant]);
+	useEffect(() => {
+		let live = true;
+		setError(false);
+		setSrc(null);
+		load(attachment).then((url) => {
+			if (live) setSrc(url);
+		}).catch(() => {
+			if (live) setError(true);
+		});
+		return () => {
+			live = false;
+		};
+	}, [
+		attachment,
+		load,
+		attempt
+	]);
+	const label = attachment.name ?? labels.image;
+	if (error) return jsx("button", {
+		type: "button",
+		className: MessageImage_module_css_default.error,
+		"data-variant": variant,
+		onClick: request,
+		children: labels.loadFailed
+	});
+	return jsxs(Fragment, { children: [jsx("button", {
+		type: "button",
+		className: MessageImage_module_css_default.frame,
+		"data-variant": variant,
+		style: fit === void 0 ? void 0 : {
+			width: fit.width,
+			height: fit.height
+		},
+		title: labels.open,
+		"aria-label": labels.openNamed(label),
+		onClick: () => {
+			if (src !== null) setOpen(true);
+		},
+		children: src === null ? jsx("span", {
+			className: MessageImage_module_css_default.loading,
+			children: labels.loading
+		}) : jsx("img", {
+			src,
+			alt: label,
+			style: fit === void 0 ? void 0 : { objectPosition: fit.objectPosition }
+		})
+	}), open && src !== null && jsx(ImageLightbox, {
+		src,
+		alt: label,
+		labels: labels.lightbox,
+		onClose: close
+	})] });
+}
+/** Wrapping image group shared by user and assistant history: a lone image
+* renders large, several render as 64px square tiles (DeepSeek Chat rule). */
+function ImageGallery({ images, load, align, labels }) {
+	if (images.length === 0) return null;
+	const variant = images.length === 1 ? "single" : "tile";
+	return jsx("div", {
+		className: MessageImage_module_css_default.gallery,
+		"data-align": align,
+		children: images.map((image, index) => jsx(MessageImage, {
+			...image,
+			load,
+			variant,
+			labels
+		}, `${image.attachment.attachmentId}:${index}`))
+	});
+}
+//#endregion
+export { AttachmentRail, DropOverlay, ImageGallery, ImageLightbox, MessageImage };

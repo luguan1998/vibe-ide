@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 
-const ROOT = 'E:/ai/deepseek-harness'
+const ROOT = 'E:/ai/claudeui/vendor/harness'
 const found = []
 const scan = (dir) => {
   let ents
