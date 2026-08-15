@@ -421,7 +421,7 @@ const ZH_MAP: Record<string, string> = {
   // AI Permission Modes
   'Session History': '会话历史',
   'No history sessions': '暂无历史会话',
-  'Browse & search Claude history': '跨项目浏览与 Claude/Codex/dsh 会话',
+  'Browse & search Claude history': '跨项目浏览Claude/Codex/dsh 会话',
   'Search Claude sessions...': '搜索会话内容…',
   'Searching...': '搜索中…',
   'No matching sessions': '无匹配会话',
