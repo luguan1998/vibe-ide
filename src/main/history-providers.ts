@@ -11,6 +11,7 @@ export type HistorySource = 'claude' | 'codex' | 'dsh'
 
 export interface HistorySessionMeta {
   session_id: string
+  threadId?: string
   name: string
   timestamp: number
   model?: string
@@ -31,6 +32,7 @@ const LIST_CACHE_TTL = 60 * 1000
 const listCache = new Map<string, { at: number; sessions: HistorySessionMeta[] }>()
 
 // ── 持久化索引：codex 扫描结果落盘（userData），之后只增量扫新文件 ──
+const INDEX_VERSION = 2
 let indexPath = ''
 let indexLoaded = false
 let codexIndex: Record<string, CodexLightMeta> = {}
@@ -45,7 +47,7 @@ function loadIndex(): void {
   if (!indexPath) return
   try {
     const data = JSON.parse(readFileSync(indexPath, 'utf8'))
-    codexIndex = data.codex || {}
+    codexIndex = data.version === INDEX_VERSION ? (data.codex || {}) : {}
   } catch {
     codexIndex = {}
   }
@@ -55,7 +57,7 @@ function saveIndex(): void {
   if (!indexPath) return
   try {
     mkdirSync(dirname(indexPath), { recursive: true })
-    writeFileSync(indexPath, JSON.stringify({ codex: codexIndex }))
+    writeFileSync(indexPath, JSON.stringify({ version: INDEX_VERSION, codex: codexIndex }))
   } catch {}
 }
 
@@ -143,6 +145,7 @@ function isScratchCwd(cwd: string): boolean {
 interface CodexLightMeta {
   filePath: string
   id: string
+  threadId: string
   name: string
   nameChecked?: boolean
   cwd: string
@@ -172,6 +175,7 @@ async function readCodexMetaLight(filePath: string): Promise<CodexLightMeta | nu
     return {
       filePath,
       id: p.id,
+      threadId: p.session_id || '',
       name,
       nameChecked: name !== '',
       cwd: p.cwd || '',
@@ -195,6 +199,50 @@ async function deepCodexName(filePath: string): Promise<string> {
     } catch {}
   }
   return ''
+}
+
+interface CodexProjectInfo {
+  name: string
+  path: string
+}
+
+// Codex 的“项目”注册表：~/.codex/.codex-global-state.json
+//   local-projects: projectId -> { name, rootPaths }；thread-project-assignments: threadId -> { projectId, cwd }
+// 会话按 threadId（session_meta 里的 session_id）归属项目；无归属时按 cwd 匹配根路径（最长前缀）。
+function readCodexProjectMaps(): { byThread: Map<string, CodexProjectInfo>; list: CodexProjectInfo[] } {
+  const byThread = new Map<string, CodexProjectInfo>()
+  const byId = new Map<string, CodexProjectInfo>()
+  const list: CodexProjectInfo[] = []
+  try {
+    const raw = readFileSync(join(homedir(), '.codex', '.codex-global-state.json'), 'utf8')
+    const data = JSON.parse(raw)
+    const projects = data['local-projects'] || {}
+    for (const [pid, p] of Object.entries(projects)) {
+      const name = String((p as any)?.name || '')
+      const roots = ((p as any)?.rootPaths || []) as string[]
+      if (!name || roots.length === 0) continue
+      const info: CodexProjectInfo = { name, path: roots[0] }
+      byId.set(pid, info)
+      list.push(info)
+    }
+    const assignments = data['thread-project-assignments'] || {}
+    for (const [tid, a] of Object.entries(assignments)) {
+      const info = byId.get(String((a as any)?.projectId || ''))
+      if (info) byThread.set(tid, info)
+    }
+  } catch {}
+  list.sort((a, b) => b.path.length - a.path.length)
+  return { byThread, list }
+}
+
+function resolveCodexProject(maps: { byThread: Map<string, CodexProjectInfo>; list: CodexProjectInfo[] }, threadId: string, cwd: string): CodexProjectInfo | null {
+  if (threadId && maps.byThread.has(threadId)) return maps.byThread.get(threadId)!
+  const c = (cwd || '').replace(/\/+$/, '')
+  if (!c) return null
+  for (const p of maps.list) {
+    if (c === p.path || c.startsWith(p.path + '/')) return p
+  }
+  return null
 }
 
 export async function listCodexSessions(cwd: string, force = false): Promise<HistorySessionMeta[]> {
@@ -237,10 +285,14 @@ export async function listCodexSessions(cwd: string, force = false): Promise<His
   }
   // 有真实用户消息才算有效会话（过滤 resume 测试等纯系统注入会话）
   matched = matched.filter(m => m.nameChecked && m.name)
-  const result = matched.slice(0, 30).map(m => ({
-    session_id: m.id, name: m.name, timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd,
-    workspace: basename(m.cwd) || m.cwd, workspacePath: m.cwd,
-  }))
+  const projMaps = readCodexProjectMaps()
+  const result = matched.slice(0, 30).map(m => {
+    const proj = resolveCodexProject(projMaps, m.threadId, m.cwd)
+    return {
+      session_id: m.id, threadId: m.threadId || '', name: m.name, timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd,
+      workspace: proj?.name || basename(m.cwd) || m.cwd, workspacePath: proj?.path || m.cwd,
+    }
+  })
   listCache.set(key, { at: Date.now(), sessions: result })
   return result
 }

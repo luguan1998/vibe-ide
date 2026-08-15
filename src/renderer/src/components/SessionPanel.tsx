@@ -1017,7 +1017,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     const name = s.name && s.name !== historySessionId ? s.name : ''
     if (historySource === 'codex') {
       closeClaudeHistory()
-      onResumeCodexHistory?.(historySessionId, cwd, name)
+      onResumeCodexHistory?.(s.threadId || historySessionId, cwd, name)
       return
     }
     if (historySource === 'dsh') {

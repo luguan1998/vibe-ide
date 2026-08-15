@@ -217,7 +217,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
 
   const resume = useCallback((s: AiSessionSummary) => {
     if (historySource === 'codex') {
-      onResumeCodexHistory?.(s.session_id, s.cwd || '', s.name && s.name !== s.session_id ? s.name : '')
+      onResumeCodexHistory?.(s.threadId || s.session_id, s.cwd || '', s.name && s.name !== s.session_id ? s.name : '')
       return
     }
     if (historySource === 'dsh') return

@@ -516,6 +516,7 @@ export interface AiSessionSummary {
   inCurrentProject: boolean
   workspace?: string
   workspacePath?: string
+  threadId?: string
 }
 
 export interface AiSearchMatch {
