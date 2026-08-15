@@ -181,7 +181,7 @@ async function readCodexMetaLight(filePath: string): Promise<CodexLightMeta | nu
 }
 
 async function deepCodexName(filePath: string): Promise<string> {
-  const prefix = await readPrefix(filePath, 512 * 1024)
+  const prefix = await readPrefix(filePath, 256 * 1024)
   for (const line of prefix.split('\n').slice(1)) {
     try {
       const ev = JSON.parse(line)
@@ -216,21 +216,28 @@ export async function listCodexSessions(cwd: string, force = false): Promise<His
     for (const m of metas) if (m) { codexIndex[m.filePath] = m; changed = true }
   }
   if (changed) saveIndex()
-  const matched = Object.values(codexIndex)
+  let matched = Object.values(codexIndex)
     .filter(m => (!cwd || m.cwd === cwd) && (cwd ? true : !isScratchCwd(m.cwd)))
     .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 30)
-  let saved = false
-  const result = await mapLimit(matched, 8, async (m) => {
-    let name = m.name
-    if (!m.nameChecked) {
-      name = await deepCodexName(m.filePath)
-      codexIndex[m.filePath] = { ...m, name, nameChecked: true }
-      saved = true
+  // 深检名字（未查过的），缓存回索引
+  const needName = matched.filter(m => !m.nameChecked)
+  if (needName.length > 0) {
+    const names = await mapLimit(needName, 8, async (m) => ({ file: m.filePath, name: await deepCodexName(m.filePath) }))
+    for (const n of names) {
+      const entry = codexIndex[n.file]
+      if (entry) { codexIndex[n.file] = { ...entry, name: n.name, nameChecked: true }; changed = true }
     }
-    return { session_id: m.id, name, timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd }
-  })
-  if (saved) saveIndex()
+    if (changed) saveIndex()
+    // 深检更新了索引（新对象），需重新从索引派生 matched
+    matched = Object.values(codexIndex)
+      .filter(m => (!cwd || m.cwd === cwd) && (cwd ? true : !isScratchCwd(m.cwd)))
+      .sort((a, b) => b.timestamp - a.timestamp)
+  }
+  // 有真实用户消息才算有效会话（过滤 resume 测试等纯系统注入会话）
+  matched = matched.filter(m => m.nameChecked && m.name)
+  const result = matched.slice(0, 30).map(m => ({
+    session_id: m.id, name: m.name, timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd,
+  }))
   listCache.set(key, { at: Date.now(), sessions: result })
   return result
 }
@@ -255,6 +262,7 @@ export async function loadCodexMessages(sessionId: string): Promise<HistoryMessa
       if (pl.role !== 'user' && pl.role !== 'assistant') continue
       const content = extractTextBlocks(pl.content, ['text', 'input_text', 'output_text'])
       if (!content) continue
+      if (pl.role === 'user' && !isRealUserText(content)) continue
       out.push({ type: pl.role, role: pl.role, content })
     } catch {}
   }

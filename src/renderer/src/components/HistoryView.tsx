@@ -280,7 +280,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           <ChevronDown size={12} />
         </button>
         <div className="flex-1 min-w-0">
-          <div className="truncate text-xs text-ide-text">{s.name || (s.cwd ? (s.cwd.split('/').pop() || s.cwd) : s.session_id)}</div>
+          <div className="truncate text-xs text-ide-text">{s.name || (s.timestamp ? new Date(s.timestamp).toLocaleString() : s.session_id)}</div>
           <div className="text-[10px] text-ide-text-muted/60 truncate">
             {s.cwd ? <span className="text-ide-text/70">{s.cwd}</span> : null}
             {s.cwd ? ' · ' : ''}
