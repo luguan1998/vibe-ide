@@ -28,11 +28,10 @@ const PREFIX_BYTES = 64 * 1024
 const LIST_CACHE_TTL = 60 * 1000
 const listCache = new Map<string, { at: number; sessions: HistorySessionMeta[] }>()
 
-// ── 持久化索引：扫描结果落盘（userData），之后只增量扫新文件 ──
+// ── 持久化索引：codex 扫描结果落盘（userData），之后只增量扫新文件 ──
 let indexPath = ''
 let indexLoaded = false
 let codexIndex: Record<string, CodexLightMeta> = {}
-let dshIndex: Record<string, DshLightMeta> = {}
 
 export function setHistoryIndexPath(p: string): void {
   indexPath = p
@@ -45,10 +44,8 @@ function loadIndex(): void {
   try {
     const data = JSON.parse(readFileSync(indexPath, 'utf8'))
     codexIndex = data.codex || {}
-    dshIndex = data.dsh || {}
   } catch {
     codexIndex = {}
-    dshIndex = {}
   }
 }
 
@@ -56,7 +53,7 @@ function saveIndex(): void {
   if (!indexPath) return
   try {
     mkdirSync(dirname(indexPath), { recursive: true })
-    writeFileSync(indexPath, JSON.stringify({ codex: codexIndex, dsh: dshIndex }))
+    writeFileSync(indexPath, JSON.stringify({ codex: codexIndex }))
   } catch {}
 }
 
@@ -264,34 +261,42 @@ export async function loadCodexMessages(sessionId: string): Promise<HistoryMessa
   return out
 }
 
-// ── DSH: ~/.dsh/sessions/<cwd>/session-<uuid>/session.jsonl.zstd ──
-interface DshLightMeta {
-  dir: string
+// ── DSH: 会话列表用 harness 自己的索引 ~/.dsh/storages/session_projcache.json ──
+// 与 DSH Web UI 同一数据源（id/cwd/createdAt/title/goal/turns），无需解压 zstd；
+// 消息仍按需解压 session.jsonl.zstd。
+interface DshProjSession {
   id: string
-  name: string
   cwd: string
-  timestamp: number
-  sizeBytes: number
+  createdAt: number
+  title: string
+  goal: string
 }
 
-async function readDshMeta(sessionDir: string): Promise<DshLightMeta | null> {
-  const file = join(sessionDir, 'session.jsonl.zstd')
-  if (!existsSync(file)) return null
+function readDshProjCache(): DshProjSession[] {
   try {
-    const prefix = await decompressZstdPrefix(file, PREFIX_BYTES)
-    const lines = prefix.split('\n')
-    const first = JSON.parse(lines[0] || '')
-    if (first.type !== 'session') return null
-    let name = ''
-    for (const line of lines.slice(1)) {
-      try {
-        const ev = JSON.parse(line)
-        if (ev.type === 'session/title' && ev.data?.title) { name = String(ev.data.title).slice(0, 60); break }
-      } catch {}
-    }
-    const size = (await stat(file).catch(() => null))?.size ?? 0
-    return { dir: sessionDir, id: first.id || basename(sessionDir), name, cwd: first.cwd || '', timestamp: first.createdAt || 0, sizeBytes: size }
-  } catch { return null }
+    const raw = readFileSync(join(homedir(), '.dsh', 'storages', 'session_projcache.json'), 'utf8')
+    const data = JSON.parse(raw)
+    const sessions = data.tables?.sessions || {}
+    return Object.entries(sessions).map(([id, v]: [string, any]) => ({
+      id,
+      cwd: v.identity?.cwd || '',
+      createdAt: v.identity?.createdAt || 0,
+      title: String(v.rows?.title?.val || ''),
+      goal: String(v.rows?.goal?.val?.goal?.objective || ''),
+    }))
+  } catch { return [] }
+}
+
+function findDshSessionDir(cwd: string, sessionId: string): string | null {
+  const root = join(homedir(), '.dsh', 'sessions')
+  const target = join(root, normalizeDshCwdDir(cwd))
+  if (!existsSync(target)) return null
+  const prefixed = sessionId.startsWith('session-') ? sessionId : 'session-' + sessionId
+  for (const candidate of [prefixed, sessionId]) {
+    const p = join(target, candidate)
+    if (existsSync(p) && existsSync(join(p, 'session.jsonl.zstd'))) return p
+  }
+  return null
 }
 
 export async function listDshSessions(cwd: string, force = false): Promise<HistorySessionMeta[]> {
@@ -300,47 +305,26 @@ export async function listDshSessions(cwd: string, force = false): Promise<Histo
     const cached = getCached(key)
     if (cached) return cached
   }
-  const root = join(homedir(), '.dsh', 'sessions')
-  if (!existsSync(root)) return []
-  loadIndex()
-  const dirs: string[] = []
-  if (cwd) {
-    // DSH 按 cwd 目录存储：-<normalized-cwd>--/session-*
-    const target = join(root, normalizeDshCwdDir(cwd))
-    if (!existsSync(target)) return []
-    let entries: { name: string; isDirectory(): boolean }[]
-    try { entries = readdirSync(target, { withFileTypes: true }) } catch { return [] }
-    for (const e of entries) if (e.isDirectory() && e.name.startsWith('session-')) dirs.push(join(target, e.name))
-  } else {
-    walkDirsOnly(root, (p, name) => { if (name.startsWith('session-')) dirs.push(p) })
-    // 全量视图才清理已删除会话
-    const diskSet = new Set(dirs)
-    for (const k of Object.keys(dshIndex)) if (!diskSet.has(k)) delete dshIndex[k]
-  }
-  const newDirs = dirs.filter(d => !dshIndex[d])
-  if (newDirs.length > 0) {
-    const metas = await mapLimit(newDirs, 8, readDshMeta)
-    let changed = false
-    for (const m of metas) if (m) { dshIndex[m.dir] = m; changed = true }
-    if (changed) saveIndex()
-  }
-  const result = Object.values(dshIndex)
-    .filter(m => (!cwd || m.cwd === cwd) && (cwd ? true : !isScratchCwd(m.cwd)))
-    .sort((a, b) => b.timestamp - a.timestamp)
+  const result = readDshProjCache()
+    .filter(s => (!cwd || s.cwd === cwd) && (cwd ? true : !isScratchCwd(s.cwd)))
+    .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 30)
-    .map(m => ({ session_id: m.id, name: m.name, timestamp: m.timestamp, model: '', sizeBytes: m.sizeBytes, cwd: m.cwd }))
+    .map(s => ({
+      session_id: s.id,
+      name: (s.title || s.goal || '').slice(0, 60),
+      timestamp: s.createdAt,
+      model: '',
+      sizeBytes: 0,
+      cwd: s.cwd,
+    }))
   listCache.set(key, { at: Date.now(), sessions: result })
   return result
 }
 
 export async function loadDshMessages(sessionId: string): Promise<HistoryMessage[]> {
-  const root = join(homedir(), '.dsh', 'sessions')
-  if (!existsSync(root)) return []
-  let sessionDir: string | null = null
-  walkDirsOnly(root, (p, name) => {
-    if (sessionDir) return
-    if (name.startsWith('session-') && (name === sessionId || name.includes(sessionId))) sessionDir = p
-  })
+  const proj = readDshProjCache().find(s => s.id === sessionId)
+  if (!proj) return []
+  const sessionDir = findDshSessionDir(proj.cwd, sessionId)
   if (!sessionDir) return []
   const { stdout } = await execFileP('zstd', ['-d', '-c', join(sessionDir, 'session.jsonl.zstd')], { maxBuffer: 128 * 1024 * 1024 }).catch(() => ({ stdout: '' }))
   const out: HistoryMessage[] = []
