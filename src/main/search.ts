@@ -139,7 +139,7 @@ function rgSearch(query: string, cwd: string, opts: {
  * Convert a simple glob include pattern to a RegExp for filename matching.
  * Supports: *.ts, *.{ts,tsx}, src/**\/*.ts
  */
-export function globToRegex(glob: string): RegExp {
+function globToRegex(glob: string): RegExp {
   let pattern = glob
     .replace(/[.+^${}()|[\]\\*]/g, '\\$&') // Escape regex specials
     .replace(/\\\*\\\*/g, '<<<GLOBSTAR>>>')  // Temporarily replace **
@@ -152,7 +152,7 @@ export function globToRegex(glob: string): RegExp {
   return new RegExp(`^${pattern}$`)
 }
 
-export function matchInclude(filePath: string, includeGlob: string): boolean {
+function matchInclude(filePath: string, includeGlob: string): boolean {
   // Simple extension pattern: *.ext
   if (/^\*\.[a-zA-Z0-9]+$/.test(includeGlob)) {
     const ext = includeGlob.slice(1) // e.g. ".ts"

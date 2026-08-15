@@ -66,23 +66,12 @@ const CODE_TO_LABEL: Record<string, string> = {
   KeyA: 'A',
 }
 
-const LABEL_TO_CODE: Record<string, string> = Object.fromEntries(
-  Object.entries(CODE_TO_LABEL).map(([k, v]) => [v, k]),
-)
-
 /** KeyboardEvent.code → human label (falls back to stripping "Key" / "Digit" prefix) */
-export function codeToLabel(code: string): string {
+function codeToLabel(code: string): string {
   if (CODE_TO_LABEL[code]) return CODE_TO_LABEL[code]
   if (code.startsWith('Key')) return code.slice(3)
   if (code.startsWith('Digit')) return code.slice(5)
   return code
-}
-
-/** Human label → KeyboardEvent.code (reverse of above) */
-export function labelToCode(label: string): string {
-  if (LABEL_TO_CODE[label]) return LABEL_TO_CODE[label]
-  if (label.length === 1) return `Key${label.toUpperCase()}`
-  return label
 }
 
 // ── parse / serialise ──────────────────────────────────────────────
@@ -146,7 +135,7 @@ export function eventIsModifierPress(e: KeyboardEvent, raw: string): boolean {
 
 // ── default shortcuts ──────────────────────────────────────────────
 
-export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
+const DEFAULT_SHORTCUTS: ShortcutDef[] = [
   {
     id: 'search.focus',
     label: 'Focus Search',

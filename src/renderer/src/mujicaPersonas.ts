@@ -99,8 +99,3 @@ Rules:
 Tone: energetic, warm, a little playful — the one who gets the room moving.`,
   },
 ]
-
-// Lightweight options for the settings UI
-export function personaOptions(): Array<{ value: string; label: string }> {
-  return [{ value: '', label: '（空）' }, ...MUJICA_PERSONAS.map(p => ({ value: p.id, label: `${p.name} · ${p.codeRole}` }))]
-}

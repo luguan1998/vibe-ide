@@ -70,7 +70,7 @@ export function deriveTodoList(messages: AiMessage[]): TodoItem[] {
 }
 // 真实用户输入：tool_result 回填消息也是 type:'user' 的 AiMessage（CLI 把工具结果写进
 // user 行），但它们紧跟含 tool_use 的 assistant 之后，不得计入 userTurns/revert/fork 索引
-export function isRealUserInput(messages: AiMessage[], i: number): boolean {
+function isRealUserInput(messages: AiMessage[], i: number): boolean {
   const m = messages[i]
   if (!m || m.role !== 'user' || m.type !== 'user' || !m.content) return false
   return !(i > 0 && messages[i - 1].type === 'assistant')

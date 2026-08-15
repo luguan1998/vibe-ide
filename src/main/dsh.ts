@@ -49,7 +49,7 @@ function installTrustHeaders(port: number): void {
   }
 }
 
-export function startDshServer(cwd?: string): Promise<{ ok: boolean; port?: number; error?: string }> {
+function startDshServer(cwd?: string): Promise<{ ok: boolean; port?: number; error?: string }> {
   const target = cwd || process.cwd()
   if (state) {
     if (state.port !== null) return Promise.resolve({ ok: true, port: state.port })
@@ -123,7 +123,7 @@ function waitForPort(s: DshServerState, timeoutMs: number): Promise<{ ok: boolea
   })
 }
 
-export function stopDshServer(): { ok: boolean } {
+function stopDshServer(): { ok: boolean } {
   if (!state) return { ok: true }
   const proc = state.proc
   state = null
@@ -131,7 +131,7 @@ export function stopDshServer(): { ok: boolean } {
   return { ok: true }
 }
 
-export function getDshPort(): number | null {
+function getDshPort(): number | null {
   return state?.port ?? null
 }
 

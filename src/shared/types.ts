@@ -178,7 +178,7 @@ export interface SnippetsLoadResult {
 }
 
 // Pet types (codex-style webp sprite sheet)
-export interface PetState {
+interface PetState {
   row: number
   frames: number
   frameDurationMs?: number
@@ -295,7 +295,7 @@ export interface GitDiffResult {
   hunks: GitDiffHunk[]
 }
 
-export interface GitDiffHunk {
+interface GitDiffHunk {
   oldStart: number
   oldLines: number
   newStart: number
@@ -349,7 +349,7 @@ export interface RecentFileEntry {
 }
 
 // Search types
-export interface GrepSearchOptions {
+interface GrepSearchOptions {
   query: string
   cwd: string
   regex?: boolean
@@ -372,17 +372,6 @@ export interface GrepSearchResult {
   truncated: boolean
 }
 
-export interface ReplaceOptions {
-  query: string
-  replacement: string
-  cwd: string
-  regex?: boolean
-  caseSensitive?: boolean
-  wholeWord?: boolean
-  include?: string
-  excludeFiles?: string[]
-}
-
 export interface ReplaceResult {
   filesModified: number
   totalReplacements: number
@@ -401,7 +390,7 @@ export interface CodeSymbol {
 }
 
 // AI (Claude CLI) types
-export type AiMessageType =
+type AiMessageType =
   | 'system'
   | 'assistant'
   | 'user'
@@ -455,7 +444,7 @@ export interface AiToolResult {
   isError: boolean
 }
 
-export interface AiFileChange {
+interface AiFileChange {
   toolUseId: string
   sessionId: string
   filePath: string
@@ -490,7 +479,7 @@ export interface AiSlashCommand {
   argumentHint?: string
 }
 
-export interface AiRunningTool {
+interface AiRunningTool {
   tool: string
   elapsed: number
   updatedAt: number

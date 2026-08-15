@@ -9,7 +9,7 @@ const KIND_VARS: Record<string, string> = {
 }
 const FALLBACK_VAR = 'var(--ide-text-muted)'
 
-export function getKindVar(kind: string): string { return KIND_VARS[kind] || FALLBACK_VAR }
+function getKindVar(kind: string): string { return KIND_VARS[kind] || FALLBACK_VAR }
 
 // For inline styles: color = rgb(var) text, backgroundColor = rgb(var / 0.12) bg
 export function getKindStyle(kind: string): { color: string; backgroundColor: string } {
@@ -21,7 +21,7 @@ export function getKindStyle(kind: string): { color: string; backgroundColor: st
 }
 
 // Legacy hex fallback for SVG/Canvas (CallGraphOverlay uses this)
-export const KIND_COLORS_HEX: Record<string, string> = {
+const KIND_COLORS_HEX: Record<string, string> = {
   function: '#facc15', method: '#facc15',
   class: '#60a5fa', interface: '#4ade80',
   variable: '#c084fc', constant: '#fb923c',

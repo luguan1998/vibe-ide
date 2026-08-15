@@ -2,7 +2,7 @@
 // AiTab markdown click handler to avoid duplicating detection logic.
 
 // 支持的文件扩展名（可编辑）
-export const EDITABLE_EXTENSIONS = new Set([
+const EDITABLE_EXTENSIONS = new Set([
   'txt', 'c', 'py', 'ts', 'tsx', 'js', 'jsx', 'md', 'json', 'html', 'htm',
   'css', 'yaml', 'yml', 'sh', 'bash', 'bat', 'cmd', 'sql', 'log', 'xml',
   'toml', 'ini', 'env', 'rs', 'go', 'java', 'cpp', 'h', 'hpp', 'cs', 'rb',

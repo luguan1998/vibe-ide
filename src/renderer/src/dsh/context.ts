@@ -44,7 +44,7 @@ export interface DshContextHandle {
   dispose: () => Promise<void>
 }
 
-export async function buildDshContext(baseUrl: string): Promise<DshContextHandle> {
+async function buildDshContext(baseUrl: string): Promise<DshContextHandle> {
   ;(globalThis as { __DSH_BASE__?: string }).__DSH_BASE__ = baseUrl
 
   const ctx = new Context()

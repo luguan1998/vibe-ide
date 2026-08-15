@@ -1,4 +1,4 @@
-export interface ThemeCSSVariables {
+interface ThemeCSSVariables {
   'ide-bg': string
   'ide-sidebar': string
   'ide-panel': string
@@ -20,7 +20,7 @@ export interface ThemeCSSVariables {
   'monaco-margin-bg': string
 }
 
-export interface TerminalTheme {
+interface TerminalTheme {
   background: string
   foreground: string
   cursor: string
@@ -46,7 +46,7 @@ export interface TerminalTheme {
   brightWhite: string
 }
 
-export interface TitleBarTheme {
+interface TitleBarTheme {
   color: string
   symbolColor: string
   backgroundColor: string

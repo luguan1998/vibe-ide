@@ -1,4 +1,4 @@
-export interface EncodingEntry {
+interface EncodingEntry {
   label: string
   value: string
 }
@@ -47,8 +47,6 @@ export const ENCODING_GROUPS: EncodingGroup[] = [
     ],
   },
 ]
-
-export const ALL_ENCODINGS: EncodingEntry[] = ENCODING_GROUPS.flatMap(g => g.encodings)
 
 const ENCODING_ALIASES: Record<string, string> = {
   'utf8': 'utf-8',

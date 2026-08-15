@@ -5,10 +5,10 @@ const VISIBLE_KEY = 'vibe-ide-pet-visible'
 const POS_KEY = 'vibe-ide-pet-pos'
 const EVENT = 'vibe-ide-pet-prefs-changed'
 
-export const PET_SCALE_DEFAULT = 0.5
+const PET_SCALE_DEFAULT = 0.5
 export const PET_SCALE_MIN = 0.25
 export const PET_SCALE_MAX = 1.5
-export const PET_FRAME_RATE_DEFAULT = 1
+const PET_FRAME_RATE_DEFAULT = 1
 export const PET_FRAME_RATE_MIN = 0.25
 export const PET_FRAME_RATE_MAX = 3
 

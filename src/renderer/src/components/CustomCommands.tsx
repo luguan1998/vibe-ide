@@ -10,7 +10,7 @@ export interface CustomCommand {
   type: 'simple' | 'init' | 'pipe'
 }
 
-export interface CustomCommandPrefill {
+interface CustomCommandPrefill {
   name?: string
   command?: string
   type?: 'simple' | 'init' | 'pipe'

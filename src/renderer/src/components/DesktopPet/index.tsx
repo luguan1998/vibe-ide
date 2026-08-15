@@ -8,7 +8,7 @@ import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
 import { Edit, Send, ClipboardPaste, BookOpenText } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT } from '../vibeEvents'
-import { getExtraBubbleSections, onPetBubblesChanged, type PetBubbleItem, type PetBubbleSection } from './bubbleRegistry'
+import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
 import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, getPetListenDsh } from './petSettings'
 import { readAiCliConfig } from '../../aiStore'
 import { fetchDshLatestReply } from '../../dsh/history'
@@ -36,7 +36,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [configOpen, setConfigOpen] = useState(false)
   const [draftCmd, setDraftCmd] = useState('')
   const [keypadItems, setKeypadItems] = useState<ReturnType<typeof loadKeypadItems>>([])
-  const [, setExtraTick] = useState(0)
   const [, setConfigTick] = useState(0)
   const [frameRate, setFrameRate] = useState(() => getPetFrameRate())
   const [transientState, setTransientState] = useState<PetLogicalState | null>(null)
@@ -97,9 +96,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     setListenAi(getPetListenAi())
     setListenDsh(getPetListenDsh())
   }), [])
-
-  // 订阅气泡拓展注册表变化
-  useEffect(() => onPetBubblesChanged(() => setExtraTick(v => v + 1)), [])
 
   const sendLine = useCallback((text: string) => {
     ;(window as any).__vibeSendLine?.(text)
@@ -432,7 +428,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       onAction: () => k.directSend ? sendLine(k.text) : appendInput(k.text),
     }))
   }
-  const sections: PetBubbleSection[] = [keypadSection, ...getExtraBubbleSections()]
+  const sections: PetBubbleSection[] = [keypadSection]
 
   const onItemClick = (it: PetBubbleItem) => {
     if (it.disabled) return

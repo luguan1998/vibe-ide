@@ -139,7 +139,7 @@ const AI_INSTALL_CMD = 'npm install -g @anthropic-ai/claude-code@latest'
 type BinaryResult = { binary: string } | { error: string; installCmd: string }
 type SpawnError = { error: string; installCmd: string }
 
-export function findBinary(customCommand?: string): BinaryResult {
+function findBinary(customCommand?: string): BinaryResult {
   const names = customCommand ? [customCommand] : ['claude', 'openclaude', 'opencc']
   for (const name of names) {
     try {

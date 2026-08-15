@@ -26,18 +26,6 @@ export const PET_LOGICAL_LABEL: Record<PetLogicalState, string> = {
   sendMessage: 'Pet Send Message',
 }
 
-export const PET_LOGICAL_DESC: Record<PetLogicalState, string> = {
-  idle: 'Shown when nothing is busy.',
-  busy: 'Shown when the active session terminal or AI tab is busy.',
-  warn: 'Shown when any session has a pending warning. Overrides busy.',
-  unfocused: 'Shown when the app window is not focused.',
-  doubleTap: 'Triggered once on double-clicking the pet. Default: wave.',
-  sendMessage: 'Triggered once when the pet sends a message. Default: jumping.',
-}
-
-// 持久状态（参与优先级链）
-export const PERSISTENT_LOGICAL_STATES: PetLogicalState[] = ['idle', 'busy', 'warn', 'unfocused']
-
 // 单次触发状态
 export const TRANSIENT_LOGICAL_STATES: PetLogicalState[] = ['doubleTap', 'sendMessage']
 

@@ -345,4 +345,3 @@ export function useStableCodeOverrides(onColorized?: () => void) {
   return useMemo(() => getMarkdownCodeOverrides(onColorized), [onColorized])
 }
 
-export { CodeBlock, MermaidBlock, getMarkdownCodeOverrides }
