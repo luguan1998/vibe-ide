@@ -216,6 +216,8 @@ const ZH_MAP: Record<string, string> = {
   'Pet animation speed.': '宠物动画播放速度。',
   'Pet Listen Claude': '监听 Claude 回复',
   'Show the latest Claude reply as a pet bubble.': '在宠物旁边显示最新一条 Claude 回复。',
+  'Pet Listen DSH': '监听 DSH 回复',
+  'Show the latest dsh reply as a pet bubble.': '在宠物旁边显示最新一条 dsh 回复。',
   'Pet Frames': '宠物帧数，只播放前n帧',
   'Reset Position': '重置位置',
   'Open Pet Folder': '打开宠物文件夹',

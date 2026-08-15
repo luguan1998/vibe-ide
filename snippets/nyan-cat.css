@@ -280,6 +280,15 @@
   background-position: right center !important;
 }
 
+/* 彩虹猫在文字之下：文字与操作按钮提升层级，避免遮挡 */
+.session-item--active:has(.animate-text-wave) .session-item__name {
+  position: relative !important;
+  z-index: 1 !important;
+}
+.session-item--active:has(.animate-text-wave) .session-item__actions {
+  z-index: 1 !important;
+}
+
 /* ════════════════════════════════════════════════════
    会话分组
    ════════════════════════════════════════════════════ */
