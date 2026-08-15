@@ -1,16 +1,20 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { getSharedDshContext, type DshContextHandle } from '../dsh/context'
 
 interface DshViewProps {
   sessionId: string
   cwd: string
   isActive: boolean
+  dshSessionId?: string
+  onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
+  onTitleChange?: (sessionId: string, title: string) => void
 }
 
-export default function DshView({ sessionId, cwd, isActive }: DshViewProps) {
+export default function DshView({ sessionId, cwd, isActive, dshSessionId, onAgentStatusChange, onTitleChange }: DshViewProps) {
   const [handle, setHandle] = useState<DshContextHandle | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  const lastTitleRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     let cancelled = false
@@ -29,10 +33,11 @@ export default function DshView({ sessionId, cwd, isActive }: DshViewProps) {
       setHandle(h)
       const sessions = h.ctx.get('sessions') as any
       const workspaces = h.ctx.get('workspaces') as any
+      const targetId = dshSessionId || sessionId
       try {
         // Session must belong to a workspace for the hero chip/composer to activate
         const workspace = await workspaces.create({ path: cwd })
-        await sessions.create({ workspaceId: workspace.workspaceId, sessionId })
+        await sessions.create({ workspaceId: workspace.workspaceId, sessionId: targetId })
       } catch (e: any) {
         if (e?.name !== 'SessionCreateError') throw e
       }
@@ -44,14 +49,43 @@ export default function DshView({ sessionId, cwd, isActive }: DshViewProps) {
     return () => {
       cancelled = true
     }
-  }, [sessionId, cwd])
+  }, [sessionId, cwd, dshSessionId])
 
   // The shared context has one current session; opening on activation keeps
   // every mounted view pointed at the session the user is actually looking at.
   useEffect(() => {
     if (!handle || !ready || !isActive) return
-    ;(handle.ctx.get('sessions') as any).open(sessionId)
-  }, [handle, ready, isActive, sessionId])
+    ;(handle.ctx.get('sessions') as any).open(dshSessionId || sessionId)
+  }, [handle, ready, isActive, sessionId, dshSessionId])
+
+  // 把 dsh 会话 running/idle 状态与标题变化上报给 App（sessions.list 快照订阅）
+  useEffect(() => {
+    if (!handle || !ready || (!onAgentStatusChange && !onTitleChange)) return
+    const sessions = handle.ctx.get('sessions') as any
+    const targetId = dshSessionId || sessionId
+    const report = () => {
+      const snap = sessions.list.getSnapshot()
+      const cur = snap.byId?.[targetId]
+      if (onAgentStatusChange) {
+        const running = !!cur?.running
+        onAgentStatusChange(sessionId, running ? 'running' : 'idle')
+      }
+      if (onTitleChange) {
+        // 持久化 title 优先，无则用派生的 displayTitle（目录名/id）
+        const title = cur?.title ?? cur?.displayTitle
+        if (typeof title === 'string' && title !== lastTitleRef.current) {
+          lastTitleRef.current = title
+          onTitleChange(sessionId, title)
+        }
+      }
+    }
+    report()
+    const off = sessions.list.subscribe(report)
+    return () => {
+      off()
+      onAgentStatusChange?.(sessionId, 'idle')
+    }
+  }, [handle, ready, sessionId, dshSessionId, onAgentStatusChange, onTitleChange])
 
   if (error) {
     return (

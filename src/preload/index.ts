@@ -384,6 +384,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.DSH_STOP),
     getPort: () =>
       ipcRenderer.invoke(IPC_CHANNELS.DSH_GET_PORT),
+    deleteSession: (sessionId: string, cwd?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.DSH_DELETE_SESSION, sessionId, cwd),
     onReady: (callback: (data: { port: number }) => void) => {
       const handler = (_event: any, data: any) => callback(data)
       ipcRenderer.on(IPC_CHANNELS.DSH_READY, handler)

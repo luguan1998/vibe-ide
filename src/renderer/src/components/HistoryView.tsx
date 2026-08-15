@@ -5,12 +5,18 @@ import { buildHistoryTurns, formatBytes } from '../historyUtils'
 import type { HistoryTurn } from '../historyUtils'
 import type { AiSessionSummary, AiSessionSearchGroup } from '@shared/types'
 import { ArrowLeft, ChevronDown, Filter, FolderOpen, Loader2, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { fetchDshSessions, type DshHistorySession } from '../dsh/history'
+import { ClaudeLogoIcon } from './ClaudeLogoIcon'
+import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 
 interface HistoryViewProps {
   onBack: () => void
   workspacePath: string | null
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
+  onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
 }
+
+type HistoryMode = 'tui' | 'gui' | 'dsh'
 
 function highlightParts(text: string, query: string, caseSensitive: boolean): React.ReactNode[] {
   if (!query) return [text]
@@ -44,14 +50,17 @@ function TurnRow({ turn }: { turn: HistoryTurn }) {
   )
 }
 
-export default function HistoryView({ onBack, workspacePath, onResumeClaudeHistory }: HistoryViewProps) {
+export default function HistoryView({ onBack, workspacePath, onResumeClaudeHistory, onResumeDshHistory }: HistoryViewProps) {
   const { t } = useI18n()
   const [sessions, setSessions] = useState<AiSessionSummary[]>([])
   const [listLoading, setListLoading] = useState(false)
   const [listError, setListError] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [turnsById, setTurnsById] = useState<Record<string, { turns: HistoryTurn[]; loading: boolean }>>({})
-  const [mode, setMode] = useState<'tui' | 'gui'>('tui')
+  const [mode, setMode] = useState<HistoryMode>('tui')
+  const [dshSessions, setDshSessions] = useState<DshHistorySession[]>([])
+  const [dshLoading, setDshLoading] = useState(false)
+  const [dshError, setDshError] = useState('')
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [searching, setSearching] = useState(false)
@@ -90,6 +99,23 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   useEffect(() => {
     fetchSessions()
   }, [fetchSessions])
+
+  const fetchDshList = useCallback(async () => {
+    setDshLoading(true)
+    setDshError('')
+    try {
+      const list = await fetchDshSessions(workspacePath || undefined)
+      setDshSessions(list)
+    } catch (e: any) {
+      setDshError(e?.message || '加载失败')
+    } finally {
+      setDshLoading(false)
+    }
+  }, [workspacePath])
+
+  useEffect(() => {
+    if (mode === 'dsh') void fetchDshList()
+  }, [mode, fetchDshList])
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), 300)
@@ -195,8 +221,27 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     const cwd = s.cwd || (s.inCurrentProject && workspacePath ? workspacePath : s.projectDir)
     if (!cwd) return
     const name = s.name && s.name !== s.session_id ? s.name : ''
-    onResumeClaudeHistory(s.session_id, cwd, name, mode)
+    // dsh 模式下 claude 列表不可见，mode 此时只能是 'tui' | 'gui'
+    onResumeClaudeHistory(s.session_id, cwd, name, mode as 'tui' | 'gui')
   }, [workspacePath, mode, onResumeClaudeHistory])
+
+  const resumeDsh = useCallback((s: DshHistorySession) => {
+    const cwd = s.cwd || workspacePath || ''
+    onResumeDshHistory?.(s.id, cwd, s.title && s.title !== s.id ? s.title : '')
+  }, [workspacePath, onResumeDshHistory])
+
+  const deleteDsh = useCallback(async (s: DshHistorySession) => {
+    try {
+      const r = await window.api.dsh.deleteSession(s.id, s.cwd)
+      if (r?.ok) {
+        setDshSessions(prev => prev.filter(x => x.id !== s.id))
+      } else {
+        setDshError(r?.error || '删除失败')
+      }
+    } catch (e: any) {
+      setDshError(e?.message || '删除失败')
+    }
+  }, [])
 
   const groups = useMemo(() => {
     const map = new Map<string, AiSessionSummary[]>()
@@ -291,17 +336,33 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           >
             <ArrowLeft size={13} />
           </button>
-          <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider flex-1 truncate">{t('Session History')}</span>
+          <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider truncate">{t('Session History')}</span>
           <div className="flex items-center rounded bg-ide-sidebar border border-ide-border p-0.5">
             <button
               onClick={() => setMode('tui')}
-              className={`px-2 py-0.5 text-[11px] rounded transition-colors ${mode === 'tui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
-            >TUI</button>
+              className={`w-6 h-5 rounded flex items-center justify-center transition-colors ${mode === 'tui' ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-accent hover:bg-ide-accent/20'}`}
+              title="cc tui"
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
+              </svg>
+            </button>
             <button
               onClick={() => setMode('gui')}
-              className={`px-2 py-0.5 text-[11px] rounded transition-colors ${mode === 'gui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
-            >GUI</button>
+              className={`w-6 h-5 rounded flex items-center justify-center transition-colors ${mode === 'gui' ? 'bg-ide-accent/15' : 'text-ide-text-muted hover:text-ide-text'}`}
+              title="cc gui"
+            >
+              <ClaudeLogoIcon size={13} />
+            </button>
+            <button
+              onClick={() => setMode('dsh')}
+              className={`w-6 h-5 rounded flex items-center justify-center transition-colors ${mode === 'dsh' ? 'bg-ide-accent/15' : 'text-ide-text-muted hover:text-ide-text'}`}
+              title="dsh"
+            >
+              <DeepSeekLogoIcon size={13} />
+            </button>
           </div>
+          <div className="flex-1" />
           <button
             onClick={fetchSessions}
             disabled={listLoading}
@@ -319,7 +380,17 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
             <span>{t('Current project only')}</span>
           </button>
         </div>
-        <div className="relative">
+        {mode === 'dsh' && (
+          <button
+            onClick={fetchDshList}
+            disabled={dshLoading}
+            className="flex items-center gap-1 h-5 px-2 rounded text-[11px] text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <RotateCcw size={11} className={dshLoading ? 'animate-spin' : ''} />
+            <span>{t('Refresh')}</span>
+          </button>
+        )}
+        <div className="relative" style={{ display: mode === 'dsh' ? 'none' : undefined }}>
           <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-ide-text-muted/50" />
           <input
             value={query}
@@ -339,7 +410,50 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
-        {debouncedQuery || !!query ? (
+        {mode === 'dsh' ? (
+          dshLoading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-xs text-ide-text-muted">
+              <Loader2 size={14} className="animate-spin" /><span>{t('Loading...')}</span>
+            </div>
+          ) : dshError ? (
+            <div className="py-8 text-center text-xs text-ide-danger px-4">{dshError}</div>
+          ) : dshSessions.length === 0 ? (
+            <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
+          ) : (
+            dshSessions.map((s) => (
+              <div key={s.id} className="rounded-lg bg-ide-sidebar border border-ide-border overflow-hidden group">
+                <div className="px-2.5 py-2 flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-xs text-ide-text">{s.title}</div>
+                    <div className="text-[10px] text-ide-text-muted/60 truncate">
+                      {s.cwd ? <span className="text-ide-text/70">{s.cwd}</span> : null}
+                      {s.cwd ? ' · ' : ''}
+                      {s.updatedAt ? new Date(s.updatedAt).toLocaleString() : ''}
+                    </div>
+                  </div>
+                  {!!onResumeDshHistory && (
+                    <button
+                      onClick={() => resumeDsh(s)}
+                      className="shrink-0 px-2 py-0.5 text-[10px] rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 transition-colors"
+                      title={t('Resume')}
+                    >
+                      {t('Resume')}
+                    </button>
+                  )}
+                  {!s.running && (
+                    <button
+                      onClick={() => void deleteDsh(s)}
+                      className="shrink-0 w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
+                      title={t('Delete')}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )
+        ) : debouncedQuery || !!query ? (
           searching || (!!query && !debouncedQuery) ? (
             <div className="flex items-center justify-center gap-2 py-8 text-xs text-ide-text-muted">
               <Loader2 size={14} className="animate-spin" /><span>{t('Searching...')}</span>

@@ -3,7 +3,7 @@
   // point here). NEVER add include/files to this file: it would leak into
   // every extending package project and narrow the facade's match-all scope.
   "compilerOptions": {
-    "target": "es2024",
+    "target": "es2022",
     "module": "esnext",
     "moduleResolution": "bundler",
     "declaration": true,

@@ -1,6 +1,7 @@
 import { ipcMain, BrowserWindow, app, session } from 'electron'
 import { spawn, ChildProcess } from 'child_process'
-import { existsSync } from 'fs'
+import { existsSync, rmSync } from 'fs'
+import { homedir } from 'os'
 import { join } from 'path'
 import { IPC_CHANNELS } from '../shared/types'
 
@@ -138,8 +139,61 @@ export function cleanupDsh(): void {
   stopDshServer()
 }
 
+// 与 dsh-session-persistence-jsonl 的 encodeSegment/projectKey 保持一致
+function encodeSegment(raw: string): string {
+  if (raw === '.') return '~002E'
+  if (raw === '..') return '~002E~002E'
+  let out = ''
+  for (let i = 0; i < raw.length; i++) {
+    const code = raw.charCodeAt(i)
+    const ch = String.fromCharCode(code)
+    if (ch !== '~' && /^[A-Za-z0-9._-]$/.test(ch)) out += ch
+    else out += '~' + code.toString(16).toUpperCase().padStart(4, '0')
+  }
+  return out
+}
+
+function projectKey(cwd: string): string {
+  let readable = ''
+  let separatorRun = false
+  for (let i = 0; i < cwd.length; i++) {
+    const code = cwd.charCodeAt(i)
+    const ch = String.fromCharCode(code)
+    if (ch === '/' || ch === '\\' || ch === ':') {
+      if (!separatorRun) readable += '-'
+      separatorRun = true
+    } else if (ch !== '~' && /^[A-Za-z0-9._-]$/.test(ch)) {
+      readable += ch
+      separatorRun = false
+    } else {
+      readable += '~' + code.toString(16).toUpperCase().padStart(4, '0')
+      separatorRun = false
+    }
+  }
+  return `--${(readable.replace(/^-+/, '') || 'root').slice(0, 251)}--`
+}
+
+function deleteDshSession(sessionId: string, cwd?: string): { ok: boolean; error?: string } {
+  // dsh server 可能用 vibe 的 userData/dsh（新构建）或 ~/.dsh（默认），两个根都尝试
+  const roots = [join(app.getPath('userData'), 'dsh'), join(homedir(), '.dsh')]
+  let deleted = false
+  for (const root of roots) {
+    const dir = join(root, 'sessions', cwd ? projectKey(cwd) : '_no-cwd', encodeSegment(sessionId))
+    if (existsSync(dir)) {
+      try {
+        rmSync(dir, { recursive: true, force: true })
+        deleted = true
+      } catch (e: any) {
+        return { ok: false, error: e?.message ?? String(e) }
+      }
+    }
+  }
+  return { ok: deleted }
+}
+
 export function registerDshHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.DSH_START, (_e, cwd?: string) => startDshServer(cwd))
   ipcMain.handle(IPC_CHANNELS.DSH_STOP, () => stopDshServer())
   ipcMain.handle(IPC_CHANNELS.DSH_GET_PORT, () => getDshPort())
+  ipcMain.handle(IPC_CHANNELS.DSH_DELETE_SESSION, (_e, sessionId: string, cwd?: string) => deleteDshSession(sessionId, cwd))
 }

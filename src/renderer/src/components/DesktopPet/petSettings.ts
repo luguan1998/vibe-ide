@@ -130,10 +130,17 @@ export function setPetLogicalFrames(logical: string, frames: number) {
 }
 
 const LISTEN_AI_KEY = 'vibe-ide-pet-listen-ai'
+const LISTEN_DSH_KEY = 'vibe-ide-pet-listen-dsh'
 
 export function getPetListenAi(): boolean { return readBool(LISTEN_AI_KEY, false) }
 export function setPetListenAi(v: boolean) {
   try { localStorage.setItem(LISTEN_AI_KEY, String(v)) } catch {}
+  emit()
+}
+
+export function getPetListenDsh(): boolean { return readBool(LISTEN_DSH_KEY, false) }
+export function setPetListenDsh(v: boolean) {
+  try { localStorage.setItem(LISTEN_DSH_KEY, String(v)) } catch {}
   emit()
 }
 

@@ -57,3 +57,14 @@ for (const [name, rel] of nameToDir) {
   }
 }
 console.log(`[patch-workspace-refs] 改写 ${patched} 个包的 workspace: 引用`)
+
+// vite 5 的 esbuild (0.21) 不识别 es2024 target，降为 es2022 消除 warning
+const baseTsconfig = path.join(VENDOR, 'tsconfig.base.json')
+if (existsSync(baseTsconfig)) {
+  const t = JSON.parse(readFileSync(baseTsconfig, 'utf-8'))
+  if (t.compilerOptions?.target === 'es2024') {
+    t.compilerOptions.target = 'es2022'
+    writeFileSync(baseTsconfig, JSON.stringify(t, null, 2) + '\n')
+    console.log('[patch-workspace-refs] tsconfig.base.json target es2024 -> es2022')
+  }
+}

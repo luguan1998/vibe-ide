@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
 import DshView from './components/DshView'
+import { getDshApi } from './dsh/history'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
@@ -223,6 +224,7 @@ declare global {
         start: (cwd?: string) => Promise<{ ok: boolean; port?: number; error?: string }>
         stop: () => Promise<{ ok: boolean }>
         getPort: () => Promise<number | null>
+        deleteSession: (sessionId: string, cwd?: string) => Promise<{ ok: boolean; error?: string }>
         onReady: (callback: (data: { port: number }) => void) => any
         removeReadyListener: (handler?: any) => void
       }
@@ -336,6 +338,8 @@ export default function App() {
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [sessionViewModes, setSessionViewModes] = useState<Record<string, 'term' | 'gui' | 'dsh'>>({})
   const sessionViewModesRef = useRef(sessionViewModes); sessionViewModesRef.current = sessionViewModes
+  const [dshResumeIds, setDshResumeIds] = useState<Record<string, string>>({})
+  const dshResumeIdsRef = useRef(dshResumeIds); dshResumeIdsRef.current = dshResumeIds
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
   const callGraphFocalNodeRef = useRef<any>(null); callGraphFocalNodeRef.current = callGraphFocalNode
   const handleOpenCallGraphFromEditor = useCallback(async (word: string) => {
@@ -432,6 +436,7 @@ export default function App() {
   const sessionsRef = useRef(sessions)
   sessionsRef.current = sessions
   const manuallyRenamedRef = useRef<Set<string>>(new Set())
+  const dshAutoTitledRef = useRef<Set<string>>(new Set())
   const commandHistoryRef = useRef(commandHistory)
   const historyListRef = useRef<HTMLDivElement>(null)
   const [terminalBusy, setTerminalBusy] = useState<Record<string, boolean>>({})
@@ -963,10 +968,33 @@ export default function App() {
 
   const sendDraftLine = useCallback(async (sessionId: string | null | undefined, text: string) => {
     if (!sessionId) return
-    const isGui = sessionViewModesRef.current[sessionId] === 'gui'
-    if (isGui) {
+    const mode = sessionViewModesRef.current[sessionId]
+    if (mode === 'gui') {
       aiTabRefs.current[sessionId]?.sendText(text)
       aiTabRefs.current[sessionId]?.focus()
+      return
+    }
+    if (mode === 'dsh') {
+      try {
+        const api = await getDshApi(sessionsRef.current.find(s => s.id === sessionId)?.cwd)
+        const dshId = dshResumeIdsRef.current[sessionId] || sessionId
+        // 自动命名：仅新会话（恢复的历史会话保留原标题），用户未手动改名且未自动命名过
+        if (!dshResumeIdsRef.current[sessionId] && !manuallyRenamedRef.current.has(sessionId) && !dshAutoTitledRef.current.has(sessionId)) {
+          const title = text.replace(/\s+/g, ' ').trim().slice(0, 30)
+          if (title) {
+            dshAutoTitledRef.current.add(sessionId)
+            try {
+              await api.sessions.rename({ sessionId: dshId, title })
+            } catch (e) {
+              dshAutoTitledRef.current.delete(sessionId)
+              console.error('Failed to auto-rename dsh session:', e)
+            }
+          }
+        }
+        await api.sessions.prompt({ sessionId: dshId, mode: 'queue', content: [{ type: 'text', text }] })
+      } catch (e) {
+        console.error('Failed to send to dsh session:', e)
+      }
       return
     }
     window.api.terminal.write(sessionId, text + '\r')
@@ -980,6 +1008,16 @@ export default function App() {
     await waitDraftIdle(sessionId)
   }, [waitDraftIdle])
 
+
+  const handleDshTitleChange = useCallback(async (sessionId: string, title: string) => {
+    if (manuallyRenamedRef.current.has(sessionId)) return
+    const cur = sessionsRef.current.find(s => s.id === sessionId)
+    if (!cur || cur.name === title) return
+    const result = await window.api.terminal.rename(sessionId, title)
+    if (result.success && result.session) {
+      setSessions(prev => prev.map(s => s.id === sessionId ? result.session! : s))
+    }
+  }, [])
 
   const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     const v = status === 'running'
@@ -1661,8 +1699,10 @@ export default function App() {
   // Clone a terminal session (same cwd), insert below parent
   const handleCloneSession = useCallback(async (parentId: string | null, cwd: string, shell?: string, name?: string) => {
     try {
-      const fromGui = !!(parentId && sessionViewModes[parentId] === 'gui')
-      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name, initCommand: fromGui ? undefined : readDefaultAgent() })
+      const parentMode = parentId ? sessionViewModes[parentId] : undefined
+      const fromGui = parentMode === 'gui'
+      const fromDsh = parentMode === 'dsh'
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name, initCommand: fromGui || fromDsh ? undefined : readDefaultAgent() })
       setSessions(prev => {
         if (parentId == null) return [...prev, session]
         const parentIndex = prev.findIndex(s => s.id === parentId)
@@ -1672,8 +1712,8 @@ export default function App() {
         return next
       })
       setActiveSessionId(session.id)
-      if (parentId && sessionViewModes[parentId] === 'gui') {
-        setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))
+      if (parentId && (parentMode === 'gui' || parentMode === 'dsh')) {
+        setSessionViewModes(prev => ({ ...prev, [session.id]: parentMode }))
       }
       setCenterView('terminal')
       setDiffFile(null)
@@ -1894,6 +1934,14 @@ export default function App() {
     const result = await window.api.terminal.rename(id, newName)
     if (result.success && result.session) {
       setSessions(prev => prev.map(s => s.id === id ? result.session! : s))
+    }
+    if (sessionViewModesRef.current[id] === 'dsh') {
+      try {
+        const api = await getDshApi(oldSession?.cwd)
+        await api.sessions.rename({ sessionId: dshResumeIdsRef.current[id] || id, title: newName })
+      } catch (e) {
+        console.error('Failed to rename dsh session:', e)
+      }
     }
   }, [])
 
@@ -2240,6 +2288,24 @@ export default function App() {
     }
   }, [activeSessionId, handleSwitchSession])
 
+  const handleResumeDshHistory = useCallback(async (dshSessionId: string, cwd: string, name: string) => {
+    try {
+      setIsOpening(true)
+      const shell = getMainShellType()
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name: name || undefined })
+      setSessions(prev => [...prev, session])
+      setDshResumeIds(prev => ({ ...prev, [session.id]: dshSessionId }))
+      setActiveSessionId(session.id)
+      setCenterView('terminal')
+      setDiffFile(null)
+      setSessionViewModes(prev => ({ ...prev, [session.id]: 'dsh' }))
+    } catch (err) {
+      console.error('Failed to resume dsh history:', err)
+    } finally {
+      setIsOpening(false)
+    }
+  }, [autoUtf8])
+
   const handleResumeClaudeHistory = useCallback(async (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => {
     try {
       setIsOpening(true)
@@ -2383,6 +2449,7 @@ export default function App() {
             commandHistory={commandHistory}
             agentStatus={agentStatus}
             onResumeClaudeHistory={handleResumeClaudeHistory}
+            onResumeDshHistory={handleResumeDshHistory}
             onResetCache={handleResetCache}
             pollingEnabled={pollingEnabled}
             onTogglePolling={(v) => { setPollingEnabled(v); try { localStorage.setItem('vibe-ide-polling', v ? '1' : '0') } catch {} }}
@@ -2591,7 +2658,7 @@ export default function App() {
                         onCommand={onCommandForSession(session.id)}
                       />
                     ) : isDsh ? (
-                      <DshView sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} />
+                      <DshView sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} dshSessionId={dshResumeIds[session.id]} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} />
                     ) : (
                       <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
                     )}
@@ -2669,6 +2736,7 @@ export default function App() {
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
             brushActive={brushActive}
             onResumeClaudeHistory={handleResumeClaudeHistory}
+            onResumeDshHistory={handleResumeDshHistory}
           />
         </div>
         )}
@@ -2790,7 +2858,14 @@ export default function App() {
       )}
 
       {/* Desktop pet — warn>busy>unfocused>idle，跟随活跃 session 与窗口聚焦 */}
-      <DesktopPet logicalState={petLogicalState} activeSessionId={activeSessionId} activeSessionCwd={activeSessionCwd} sessions={sessions} />
+      <DesktopPet
+        logicalState={petLogicalState}
+        activeSessionId={activeSessionId}
+        activeSessionCwd={activeSessionCwd}
+        sessions={sessions}
+        dshActive={!!activeSessionId && sessionViewModes[activeSessionId] === 'dsh'}
+        dshSessionId={activeSessionId ? (dshResumeIds[activeSessionId] || activeSessionId) : undefined}
+      />
     </div>
   )
 

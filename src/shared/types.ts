@@ -148,6 +148,7 @@ export const IPC_CHANNELS = {
   DSH_START: 'dsh:start',
   DSH_STOP: 'dsh:stop',
   DSH_GET_PORT: 'dsh:getPort',
+  DSH_DELETE_SESSION: 'dsh:deleteSession',
   DSH_READY: 'dsh:ready',                    // push: server port ready
 
   // App
