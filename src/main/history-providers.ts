@@ -1,6 +1,6 @@
 import { homedir } from 'os'
-import { join, basename } from 'path'
-import { readdirSync, existsSync } from 'fs'
+import { join, basename, dirname } from 'path'
+import { readdirSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { open, stat } from 'fs/promises'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -27,6 +27,38 @@ export interface HistoryMessage {
 const PREFIX_BYTES = 64 * 1024
 const LIST_CACHE_TTL = 60 * 1000
 const listCache = new Map<string, { at: number; sessions: HistorySessionMeta[] }>()
+
+// ── 持久化索引：扫描结果落盘（userData），之后只增量扫新文件 ──
+let indexPath = ''
+let indexLoaded = false
+let codexIndex: Record<string, CodexLightMeta> = {}
+let dshIndex: Record<string, DshLightMeta> = {}
+
+export function setHistoryIndexPath(p: string): void {
+  indexPath = p
+}
+
+function loadIndex(): void {
+  if (indexLoaded) return
+  indexLoaded = true
+  if (!indexPath) return
+  try {
+    const data = JSON.parse(readFileSync(indexPath, 'utf8'))
+    codexIndex = data.codex || {}
+    dshIndex = data.dsh || {}
+  } catch {
+    codexIndex = {}
+    dshIndex = {}
+  }
+}
+
+function saveIndex(): void {
+  if (!indexPath) return
+  try {
+    mkdirSync(dirname(indexPath), { recursive: true })
+    writeFileSync(indexPath, JSON.stringify({ codex: codexIndex, dsh: dshIndex }))
+  } catch {}
+}
 
 function getCached(key: string): HistorySessionMeta[] | null {
   const hit = listCache.get(key)
@@ -113,6 +145,7 @@ interface CodexLightMeta {
   filePath: string
   id: string
   name: string
+  nameChecked?: boolean
   cwd: string
   timestamp: number
   model: string
@@ -141,6 +174,7 @@ async function readCodexMetaLight(filePath: string): Promise<CodexLightMeta | nu
       filePath,
       id: p.id,
       name,
+      nameChecked: name !== '',
       cwd: p.cwd || '',
       timestamp: new Date(p.timestamp).getTime(),
       model: p.model || p.model_provider || '',
@@ -172,17 +206,34 @@ export async function listCodexSessions(cwd: string, force = false): Promise<His
   }
   const root = join(homedir(), '.codex', 'sessions')
   if (!existsSync(root)) return []
+  loadIndex()
   const files: string[] = []
   walkDirs(root, (p, name) => { if (name.startsWith('rollout-') && name.endsWith('.jsonl')) files.push(p) })
-  const lights = await mapLimit(files, 32, readCodexMetaLight)
-  let matched = lights.filter((m): m is CodexLightMeta => !!m && (!cwd || m.cwd === cwd) && (cwd ? true : !isScratchCwd(m.cwd)))
-  matched.sort((a, b) => b.timestamp - a.timestamp)
-  const top = matched.slice(0, 30)
-  const result = await mapLimit(top, 8, async (m) => ({
-    session_id: m.id,
-    name: m.name || await deepCodexName(m.filePath),
-    timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd,
-  }))
+  // 清理已删除 + 只增量扫新文件
+  const diskSet = new Set(files)
+  let changed = false
+  for (const k of Object.keys(codexIndex)) if (!diskSet.has(k)) { delete codexIndex[k]; changed = true }
+  const newFiles = files.filter(f => !codexIndex[f])
+  if (newFiles.length > 0) {
+    const metas = await mapLimit(newFiles, 32, readCodexMetaLight)
+    for (const m of metas) if (m) { codexIndex[m.filePath] = m; changed = true }
+  }
+  if (changed) saveIndex()
+  const matched = Object.values(codexIndex)
+    .filter(m => (!cwd || m.cwd === cwd) && (cwd ? true : !isScratchCwd(m.cwd)))
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 30)
+  let saved = false
+  const result = await mapLimit(matched, 8, async (m) => {
+    let name = m.name
+    if (!m.nameChecked) {
+      name = await deepCodexName(m.filePath)
+      codexIndex[m.filePath] = { ...m, name, nameChecked: true }
+      saved = true
+    }
+    return { session_id: m.id, name, timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd }
+  })
+  if (saved) saveIndex()
   listCache.set(key, { at: Date.now(), sessions: result })
   return result
 }
@@ -214,7 +265,16 @@ export async function loadCodexMessages(sessionId: string): Promise<HistoryMessa
 }
 
 // ── DSH: ~/.dsh/sessions/<cwd>/session-<uuid>/session.jsonl.zstd ──
-async function readDshMeta(sessionDir: string): Promise<HistorySessionMeta | null> {
+interface DshLightMeta {
+  dir: string
+  id: string
+  name: string
+  cwd: string
+  timestamp: number
+  sizeBytes: number
+}
+
+async function readDshMeta(sessionDir: string): Promise<DshLightMeta | null> {
   const file = join(sessionDir, 'session.jsonl.zstd')
   if (!existsSync(file)) return null
   try {
@@ -230,14 +290,7 @@ async function readDshMeta(sessionDir: string): Promise<HistorySessionMeta | nul
       } catch {}
     }
     const size = (await stat(file).catch(() => null))?.size ?? 0
-    return {
-      session_id: first.id || basename(sessionDir),
-      name,
-      timestamp: first.createdAt || 0,
-      model: '',
-      sizeBytes: size,
-      cwd: first.cwd || '',
-    }
+    return { dir: sessionDir, id: first.id || basename(sessionDir), name, cwd: first.cwd || '', timestamp: first.createdAt || 0, sizeBytes: size }
   } catch { return null }
 }
 
@@ -249,9 +302,10 @@ export async function listDshSessions(cwd: string, force = false): Promise<Histo
   }
   const root = join(homedir(), '.dsh', 'sessions')
   if (!existsSync(root)) return []
+  loadIndex()
   const dirs: string[] = []
   if (cwd) {
-    // DSH 按 cwd 目录存储：--<normalized-cwd>--/session-*
+    // DSH 按 cwd 目录存储：-<normalized-cwd>--/session-*
     const target = join(root, normalizeDshCwdDir(cwd))
     if (!existsSync(target)) return []
     let entries: { name: string; isDirectory(): boolean }[]
@@ -259,11 +313,22 @@ export async function listDshSessions(cwd: string, force = false): Promise<Histo
     for (const e of entries) if (e.isDirectory() && e.name.startsWith('session-')) dirs.push(join(target, e.name))
   } else {
     walkDirsOnly(root, (p, name) => { if (name.startsWith('session-')) dirs.push(p) })
+    // 全量视图才清理已删除会话
+    const diskSet = new Set(dirs)
+    for (const k of Object.keys(dshIndex)) if (!diskSet.has(k)) delete dshIndex[k]
   }
-  const metas = await mapLimit(dirs, 8, readDshMeta)
-  const out = metas.filter((m): m is HistorySessionMeta => !!m && (cwd ? true : !isScratchCwd(m.cwd)))
-  out.sort((a, b) => b.timestamp - a.timestamp)
-  const result = out.slice(0, 30)
+  const newDirs = dirs.filter(d => !dshIndex[d])
+  if (newDirs.length > 0) {
+    const metas = await mapLimit(newDirs, 8, readDshMeta)
+    let changed = false
+    for (const m of metas) if (m) { dshIndex[m.dir] = m; changed = true }
+    if (changed) saveIndex()
+  }
+  const result = Object.values(dshIndex)
+    .filter(m => (!cwd || m.cwd === cwd) && (cwd ? true : !isScratchCwd(m.cwd)))
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 30)
+    .map(m => ({ session_id: m.id, name: m.name, timestamp: m.timestamp, model: '', sizeBytes: m.sizeBytes, cwd: m.cwd }))
   listCache.set(key, { at: Date.now(), sessions: result })
   return result
 }

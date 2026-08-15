@@ -1,11 +1,11 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
 import { readFile, readdir, stat, rm, open } from 'fs/promises'
 import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
-import { HistorySource, listCodexSessions, loadCodexMessages, listDshSessions, loadDshMessages } from './history-providers'
+import { HistorySource, listCodexSessions, loadCodexMessages, listDshSessions, loadDshMessages, setHistoryIndexPath } from './history-providers'
 import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
 
 export interface ManagedAiSession {
@@ -1482,6 +1482,7 @@ export function resumeAfterAsk(sessionId: string, answers: Record<string, string
 }
 
 export function registerAiHandlers(): void {
+  setHistoryIndexPath(join(app.getPath('userData'), 'history-index.json'))
 
   ipcMain.handle(IPC_CHANNELS.AI_SET_VISIBLE, (_event, visible: boolean) => {
     rendererVisible = !!visible
