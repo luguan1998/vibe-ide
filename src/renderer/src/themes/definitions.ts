@@ -719,39 +719,39 @@ const macos: IDETheme = {
   id: 'macos',
   label: 'macos',
   css: {
-    'ide-bg': t('#f2f2f7'),
-    'ide-sidebar': t('#e5e5ea'),
-    'ide-panel': t('#f2f2f7'),
-    'ide-border': t('#d1d1d6'),
-    'ide-text': t('#1d1d1f'),
-    'ide-text-muted': t('#6e6e73'),
+    'ide-bg': t('#ffffff'),
+    'ide-sidebar': t('#f2f2f2'),
+    'ide-panel': t('#ffffff'),
+    'ide-border': t('#e0e0e0'),
+    'ide-text': t('#1c1c1c'),
+    'ide-text-muted': t('#737373'),
     'ide-accent': t('#007aff'),
     'ide-accent-hover': t('#3399ff'),
     'ide-success': t('#34c759'),
     'ide-danger': t('#ff3b30'),
     'ide-warning': t('#ff9500'),
-    'ide-hover': t('#e5e5ea'),
-    'ide-active': t('#d1d1d6'),
-    'scrollbar-thumb': t('#aeaeb2'),
-    'scrollbar-thumb-hover': t('#8e8e93'),
+    'ide-hover': t('#f2f2f2'),
+    'ide-active': t('#e5e5e5'),
+    'scrollbar-thumb': t('#b8b8b8'),
+    'scrollbar-thumb-hover': t('#9a9a9a'),
     'selection-bg': t('#007aff'),
     'selection-opacity': '0.2',
     'focus-outline': t('#007aff'),
-    'monaco-margin-bg': t('#f2f2f7')
+    'monaco-margin-bg': t('#ffffff')
   },
   terminal: {
-    background: '#ffffff', foreground: '#1d1d1f', cursor: '#007aff', cursorAccent: '#ffffff',
+    background: '#ffffff', foreground: '#1c1c1c', cursor: '#007aff', cursorAccent: '#ffffff',
     selectionBackground: hexToRgba('#007aff', 0.2),
-    black: '#1d1d1f', red: '#d70015', green: '#1e8a3a', yellow: '#8a5a00',
-    blue: '#007aff', magenta: '#af52de', cyan: '#007d8a', white: '#e5e5ea',
-    brightBlack: '#6e6e73', brightRed: '#ff3b30', brightGreen: '#34c759',
+    black: '#1c1c1c', red: '#d70015', green: '#1e8a3a', yellow: '#8a5a00',
+    blue: '#007aff', magenta: '#af52de', cyan: '#007d8a', white: '#e8e8e8',
+    brightBlack: '#6f6f6f', brightRed: '#ff3b30', brightGreen: '#34c759',
     brightYellow: '#ff9500', brightBlue: '#409cff', brightMagenta: '#bf5af2',
     brightCyan: '#64d2ff', brightWhite: '#ffffff',
     fontWeight: '500',
     allowTransparency: false
   },
   monacoTheme: 'vibe-ide-macos',
-  titleBar: { color: '#e5e5ea', symbolColor: '#6e6e73', backgroundColor: '#e5e5ea' }
+  titleBar: { color: '#f2f2f2', symbolColor: '#737373', backgroundColor: '#f2f2f2' }
 }
 
 const macosDark: IDETheme = {

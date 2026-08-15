@@ -7,25 +7,25 @@
 */
 
 :root {
-  --ide-bg: 242 242 247 !important;
-  --ide-sidebar: 229 229 234 !important;
-  --ide-panel: 242 242 247 !important;
-  --ide-border: 209 209 214 !important;
-  --ide-text: 29 29 31 !important;
-  --ide-text-muted: 110 110 115 !important;
+  --ide-bg: 255 255 255 !important;
+  --ide-sidebar: 242 242 242 !important;
+  --ide-panel: 255 255 255 !important;
+  --ide-border: 224 224 224 !important;
+  --ide-text: 28 28 28 !important;
+  --ide-text-muted: 115 115 115 !important;
   --ide-accent: 0 122 255 !important;
   --ide-accent-hover: 51 153 255 !important;
   --ide-success: 52 199 89 !important;
   --ide-danger: 255 59 48 !important;
   --ide-warning: 255 149 0 !important;
-  --ide-hover: 229 229 234 !important;
-  --ide-active: 209 209 214 !important;
-  --scrollbar-track: 242 242 247 !important;
-  --scrollbar-thumb: 174 174 178 !important;
-  --scrollbar-thumb-hover: 142 142 147 !important;
+  --ide-hover: 242 242 242 !important;
+  --ide-active: 229 229 229 !important;
+  --scrollbar-track: 255 255 255 !important;
+  --scrollbar-thumb: 184 184 184 !important;
+  --scrollbar-thumb-hover: 154 154 154 !important;
   --selection-bg: 0 122 255 !important;
   --selection-opacity: 0.2 !important;
-  --monaco-margin-bg: 242 242 247 !important;
+  --monaco-margin-bg: 255 255 255 !important;
 }
 
 /* 标题栏 — 统一工具栏，底部发丝线 */
