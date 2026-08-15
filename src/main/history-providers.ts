@@ -96,6 +96,16 @@ function extractTextBlocks(content: any, kinds: string[]): string {
     .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
 }
 
+function isRealUserText(text: string): boolean {
+  return !!text && !text.startsWith('<') && !text.startsWith('# AGENTS.md') && !text.startsWith('The following is the Codex')
+}
+
+function isScratchCwd(cwd: string): boolean {
+  if (!cwd) return false
+  const c = cwd.replace(/\\/g, '/')
+  return /\/var\/folders\/[^/]+\/[^/]+\/T\//.test(c) || c.startsWith('/tmp/') || c.includes('/Temp/')
+}
+
 // ── Codex: ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl ──
 // 存储按日期分目录，cwd 只在每个文件首行 session_meta 里——扫描时只读首行做 cwd 匹配，
 // 命中当前目录的会话才进一步读前缀提取名字。
@@ -123,7 +133,7 @@ async function readCodexMetaLight(filePath: string): Promise<CodexLightMeta | nu
         const pl = ev.payload
         if (ev.type === 'response_item' && pl?.type === 'message' && pl.role === 'user') {
           const text = extractTextBlocks(pl.content, ['text', 'input_text'])
-          if (text && !text.startsWith('<') && !text.startsWith('# AGENTS.md')) { name = text.slice(0, 60); break }
+          if (isRealUserText(text)) { name = text.slice(0, 60); break }
         }
       } catch {}
     }
@@ -139,6 +149,21 @@ async function readCodexMetaLight(filePath: string): Promise<CodexLightMeta | nu
   } catch { return null }
 }
 
+async function deepCodexName(filePath: string): Promise<string> {
+  const prefix = await readPrefix(filePath, 512 * 1024)
+  for (const line of prefix.split('\n').slice(1)) {
+    try {
+      const ev = JSON.parse(line)
+      const pl = ev.payload
+      if (ev.type === 'response_item' && pl?.type === 'message' && pl.role === 'user') {
+        const text = extractTextBlocks(pl.content, ['text', 'input_text'])
+        if (isRealUserText(text)) return text.slice(0, 60)
+      }
+    } catch {}
+  }
+  return ''
+}
+
 export async function listCodexSessions(cwd: string, force = false): Promise<HistorySessionMeta[]> {
   const key = 'codex:' + cwd
   if (!force) {
@@ -150,10 +175,13 @@ export async function listCodexSessions(cwd: string, force = false): Promise<His
   const files: string[] = []
   walkDirs(root, (p, name) => { if (name.startsWith('rollout-') && name.endsWith('.jsonl')) files.push(p) })
   const lights = await mapLimit(files, 32, readCodexMetaLight)
-  let matched = lights.filter((m): m is CodexLightMeta => !!m && (!cwd || m.cwd === cwd))
+  let matched = lights.filter((m): m is CodexLightMeta => !!m && (!cwd || m.cwd === cwd) && (cwd ? true : !isScratchCwd(m.cwd)))
   matched.sort((a, b) => b.timestamp - a.timestamp)
-  const result = matched.slice(0, 30).map(m => ({
-    session_id: m.id, name: m.name, timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd,
+  const top = matched.slice(0, 30)
+  const result = await mapLimit(top, 8, async (m) => ({
+    session_id: m.id,
+    name: m.name || await deepCodexName(m.filePath),
+    timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd,
   }))
   listCache.set(key, { at: Date.now(), sessions: result })
   return result
@@ -233,7 +261,7 @@ export async function listDshSessions(cwd: string, force = false): Promise<Histo
     walkDirsOnly(root, (p, name) => { if (name.startsWith('session-')) dirs.push(p) })
   }
   const metas = await mapLimit(dirs, 8, readDshMeta)
-  const out = metas.filter((m): m is HistorySessionMeta => !!m)
+  const out = metas.filter((m): m is HistorySessionMeta => !!m && (cwd ? true : !isScratchCwd(m.cwd)))
   out.sort((a, b) => b.timestamp - a.timestamp)
   const result = out.slice(0, 30)
   listCache.set(key, { at: Date.now(), sessions: result })
