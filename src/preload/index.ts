@@ -243,12 +243,12 @@ const api = {
   ai: {
     checkAvailable: (cliCommand?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_CHECK_AVAILABLE, cliCommand),
-    listSessions: (cwd?: string, configDir?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_SESSIONS, cwd, configDir),
+    listSessions: (cwd?: string, configDir?: string, source?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_SESSIONS, cwd, configDir, source),
     deleteSession: (sessionId: string, cwd: string, configDir?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_DELETE_SESSION, sessionId, cwd, configDir),
-    loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, resumeSessionId, cwd, configDir),
+    loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string, source?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, resumeSessionId, cwd, configDir, source),
     listAllSessions: (configDir?: string, currentCwd?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_ALL_SESSIONS, configDir, currentCwd),
     searchSessions: (query: string, opts?: any) =>

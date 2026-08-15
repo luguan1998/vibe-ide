@@ -179,9 +179,9 @@ declare global {
         removeModelChangedListener: (handler?: any) => void
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
         resolveConfigDir: (configDir?: string) => Promise<string>
-        listSessions: (cwd?: string, configDir?: string) => Promise<{ sessions: any[]; error?: string }>
+        listSessions: (cwd?: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh') => Promise<{ sessions: any[]; error?: string }>
         deleteSession: (sessionId: string, cwd: string, configDir?: string) => Promise<{ success: boolean; error?: string }>
-        loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
+        loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh') => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
         listAllSessions: (configDir?: string, currentCwd?: string) => Promise<{ sessions: import('@shared/types').AiSessionSummary[]; total?: number }>
         searchSessions: (query: string, opts?: import('@shared/types').AiSearchOptions) => Promise<{ sessions: import('@shared/types').AiSessionSearchGroup[]; truncated?: boolean }>
         loadSessionMessagesByDir: (resumeSessionId: string, projectDir: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
@@ -2233,6 +2233,23 @@ export default function App() {
     }
   }, [autoUtf8])
 
+  const handleResumeCodexHistory = useCallback(async (historySessionId: string, cwd: string, name: string) => {
+    try {
+      setIsOpening(true)
+      const shell = getMainShellType()
+      const initCommand = `codex resume ${historySessionId}`
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name: name || undefined, initCommand })
+      setSessions(prev => [...prev, session])
+      setActiveSessionId(session.id)
+      setCenterView('terminal')
+      setDiffFile(null)
+    } catch (err) {
+      console.error('Failed to resume codex history:', err)
+    } finally {
+      setIsOpening(false)
+    }
+  }, [autoUtf8])
+
   const handlePreviewMarkdown = useCallback((fullPath: string, fileName: string) => {
     recordRecentFile(fullPath)
     setMarkdownFile({ fullPath, fileName })
@@ -2341,6 +2358,7 @@ export default function App() {
             commandHistory={commandHistory}
             agentStatus={agentStatus}
             onResumeClaudeHistory={handleResumeClaudeHistory}
+            onResumeCodexHistory={handleResumeCodexHistory}
             onResetCache={handleResetCache}
             pollingEnabled={pollingEnabled}
             onTogglePolling={(v) => { setPollingEnabled(v); try { localStorage.setItem('vibe-ide-polling', v ? '1' : '0') } catch {} }}
