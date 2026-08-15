@@ -278,6 +278,7 @@ interface DshProjSession {
   createdAt: number
   title: string
   goal: string
+  turns: number
 }
 
 function readDshProjCache(): DshProjSession[] {
@@ -291,6 +292,7 @@ function readDshProjCache(): DshProjSession[] {
       createdAt: v.identity?.createdAt || 0,
       title: String(v.rows?.title?.val || ''),
       goal: String(v.rows?.goal?.val?.goal?.objective || ''),
+      turns: Number(v.rows?.sessionStats?.val?.turns || 0),
     }))
   } catch { return [] }
 }
@@ -314,7 +316,7 @@ export async function listDshSessions(cwd: string, force = false): Promise<Histo
     if (cached) return cached
   }
   const result = readDshProjCache()
-    .filter(s => (!cwd || s.cwd === cwd) && (cwd ? true : !isScratchCwd(s.cwd)))
+    .filter(s => s.turns > 0 && (!cwd || s.cwd === cwd) && (cwd ? true : !isScratchCwd(s.cwd)))
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 30)
     .map(s => ({

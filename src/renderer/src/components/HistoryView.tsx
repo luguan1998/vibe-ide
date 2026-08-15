@@ -71,21 +71,23 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     setListError('')
     try {
       const { configDir } = readAiCliConfig()
+      const list: any[] = []
       if (source !== 'claude') {
         const r = await window.api.ai.listSessions('', configDir, source, force)
         if (fetchReqIdRef.current !== reqId) return
-        setSessions(r.sessions || [])
-        setCollapsedProjects(new Set())
-        return
+        list.push(...(r.sessions || []))
+      } else {
+        const r = await window.api.ai.listAllSessions(configDir, workspacePath || undefined)
+        if (fetchReqIdRef.current !== reqId) return
+        list.push(...(r.sessions || []))
       }
-      const r = await window.api.ai.listAllSessions(configDir, workspacePath || undefined)
-      if (fetchReqIdRef.current !== reqId) return
-      setSessions(r.sessions || [])
-      // 非当前项目默认收缩
-      setCollapsedProjects(prev => {
-        const next = new Set(prev)
-        for (const s of r.sessions || []) {
-          if (!s.inCurrentProject) next.add(s.projectDirName)
+      setSessions(list)
+      // 默认折叠非当前文件夹，展开当前文件夹
+      setCollapsedProjects(() => {
+        const next = new Set<string>()
+        for (const s of list) {
+          const isCurrent = s.inCurrentProject || s.cwd === workspacePath
+          if (!isCurrent) next.add(s.projectDirName || s.cwd || '')
         }
         return next
       })
@@ -228,16 +230,17 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const groups = useMemo(() => {
     const map = new Map<string, AiSessionSummary[]>()
     for (const s of sessions) {
-      const arr = map.get(s.projectDirName) ?? []
+      const key = s.projectDirName || s.cwd || ''
+      const arr = map.get(key) ?? []
       arr.push(s)
-      map.set(s.projectDirName, arr)
+      map.set(key, arr)
     }
     return [...map.entries()]
   }, [sessions])
 
   const visibleGroups = useMemo(() => {
-    return onlyCurrent ? groups.filter(([, list]) => list[0]?.inCurrentProject) : groups
-  }, [groups, onlyCurrent])
+    return onlyCurrent ? groups.filter(([, list]) => list[0]?.inCurrentProject || list[0]?.cwd === workspacePath) : groups
+  }, [groups, onlyCurrent, workspacePath])
 
   const visibleSearchResults = useMemo(() => {
     if (!searchResults) return null
@@ -425,19 +428,6 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           </div>
         ) : listError ? (
           <div className="py-8 text-center text-xs text-ide-danger px-4">{listError}</div>
-        ) : historySource !== 'claude' ? (
-          sessions.length === 0 ? (
-            <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
-          ) : (
-            <div className="space-y-1">
-              {sessions.map((s) => (
-                <div key={s.session_id} className="rounded-lg bg-ide-sidebar border border-ide-border overflow-hidden">
-                  {renderSessionHead(s)}
-                  {expanded.has(s.session_id) && renderTurns(s)}
-                </div>
-              ))}
-            </div>
-          )
         ) : visibleGroups.length === 0 ? (
           <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
         ) : (
@@ -455,9 +445,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
                     <span className="truncate font-mono text-ide-text/80">{list[0]?.cwd || dirName}</span>
                   </span>
                   <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted">{list.length}</span>
-                  {list[0]?.inCurrentProject && (
+                  {list[0]?.inCurrentProject || list[0]?.cwd === workspacePath ? (
                     <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-accent/15 text-ide-accent">{t('Current project')}</span>
-                  )}
+                  ) : null}
                 </div>
                 {!isCollapsed && (
                   <div className="space-y-1">
