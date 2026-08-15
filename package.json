@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "postinstall": "node scripts/patch-dsh-base.mjs",
+    "postinstall": "node scripts/patch-dsh-base.mjs && node scripts/patch-dsh-hmr.mjs",
     "typecheck": "tsc -b",
     "preview": "electron-vite preview",
     "test": "node --test --test-reporter=spec test/**/*.test.mjs",
@@ -25,6 +25,7 @@
     },
     "files": [
       "out/**/*",
+      "vendor/harness/apps/cli/**",
       "!node_modules/monaco-editor/**",
       "!node_modules/@monaco-editor/**",
       "!node_modules/@xterm/**",
@@ -44,14 +45,6 @@
       {
         "from": "resources/computer-use-mcp.js",
         "to": "computer-use-mcp.js"
-      },
-      {
-        "from": "vendor/harness/apps/cli",
-        "to": "dsh/apps/cli",
-        "filter": [
-          "**/*",
-          "!**/node_modules/**"
-        ]
       }
     ],
     "extraFiles": [

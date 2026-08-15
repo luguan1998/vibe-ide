@@ -25,7 +25,9 @@ function getDshBinPath(): string | { error: string } {
   if (env && existsSync(env)) return env
   const dev = !app.isPackaged ? join(app.getAppPath(), 'vendor', 'harness', 'apps', 'cli', 'lib', 'bin.js') : ''
   if (dev && existsSync(dev)) return dev
-  const packaged = app.isPackaged ? join(process.resourcesPath, 'dsh', 'apps', 'cli', 'lib', 'bin.js') : ''
+  // 打包后 cli 打进 app.asar，依赖（node_modules）也都在 asar 内；
+  // 用 RUN_AS_NODE 模式启动自身 exe 以取得 asar 文件系统支持
+  const packaged = app.isPackaged ? join(process.resourcesPath, 'app.asar', 'vendor', 'harness', 'apps', 'cli', 'lib', 'bin.js') : ''
   if (packaged && existsSync(packaged)) return packaged
   return { error: `dsh runtime not found (env DSH_CLI_BIN, dev: ${dev}, packaged: ${packaged})` }
 }
@@ -66,9 +68,10 @@ function startDshServer(cwd?: string): Promise<{ ok: boolean; port?: number; err
   // 旧写法 DSH_NO_TELEMETRY 全仓零读取，是无效变量
   env.DSH_TELEMETRY_DISABLED = '1'
 
-  const proc = spawn('node', [bin, '--profile', 'web', '--port', '0'], {
+  // 打包后 bin 在 app.asar 内：node 读不了 asar，须用自身 exe（ELECTRON_RUN_AS_NODE 下是纯 node 且带 asar 支持）
+  const proc = spawn(app.isPackaged ? process.execPath : 'node', [bin, '--profile', 'web', '--port', '0'], {
     cwd: target,
-    env,
+    env: { ...env, ...(app.isPackaged ? { ELECTRON_RUN_AS_NODE: '1' } : {}) },
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   })

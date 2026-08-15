@@ -104,7 +104,11 @@ var Hmr = class extends Service {
 	constructor(ctx, config) {
 		super(ctx, "hmr");
 		this.config = config;
-		if (!this.ctx.loader.internal) throw new Error("--expose-internals is required for HMR service");
+		if (!this.ctx.loader.internal) {
+		this.internal = void 0;
+		this.baseDir = fileURLToPath(new URL(config.base || ".", ctx.baseUrl));
+		return;
+	}
 		this.internal = this.ctx.loader.internal;
 		this.baseDir = fileURLToPath(new URL(config.base || ".", ctx.baseUrl));
 	}
@@ -116,7 +120,7 @@ var Hmr = class extends Service {
 	* @throws when HMR is inactive, the path is already registered, or watcher startup fails.
 	*/
 	async registerConfig(filename, refresh) {
-		if (!this.watcher) throw new Error("HMR is not active");
+		if (!this.watcher) throw Object.assign(new Error("HMR is not active"), { code: "INACTIVE_EFFECT" });
 		filename = resolve(this.baseDir, filename);
 		const target = await findWatchRoot(filename);
 		const watchFilename = target.filename;
@@ -177,6 +181,7 @@ var Hmr = class extends Service {
 		}
 	}
 	async *[Service.init]() {
+		if (!this.internal) return;
 		yield async () => {
 			await this.watcher?.close();
 			await Promise.allSettled([...this.configs.values()].map((registration) => registration.watcher.close()));
