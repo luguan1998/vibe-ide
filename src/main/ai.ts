@@ -6,6 +6,10 @@ import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
 import { HistorySource, listCodexSessions, loadCodexMessages, listDshSessions, loadDshMessages, setHistoryIndexPath } from './history-providers'
+
+async function prewarmHistoryIndex(): Promise<void> {
+  await Promise.all([listCodexSessions(''), listDshSessions('')])
+}
 import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
 
 export interface ManagedAiSession {
@@ -1483,6 +1487,10 @@ export function resumeAfterAsk(sessionId: string, answers: Record<string, string
 
 export function registerAiHandlers(): void {
   setHistoryIndexPath(join(app.getPath('userData'), 'history-index.json'))
+  // 后台预热 codex/dsh 索引：延迟 3s 启动，不抢窗口启动资源；打开历史时索引已就绪
+  setTimeout(() => {
+    prewarmHistoryIndex().catch(() => {})
+  }, 3000)
 
   ipcMain.handle(IPC_CHANNELS.AI_SET_VISIBLE, (_event, visible: boolean) => {
     rendererVisible = !!visible
