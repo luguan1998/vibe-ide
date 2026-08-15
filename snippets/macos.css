@@ -1,31 +1,31 @@
 /*
   macOS — Apple 亮色风格
-  设计语言：白底浅灰侧栏 · 毛玻璃 vibrancy · 系统蓝强调色 · 圆角 · 柔和投影 · overlay 滚动条
-  参考 macOS Sonoma 亮色侧栏源列表 / 分段控件 / 菜单 / 表单 / 模态 sheet
+  设计语言：systemGray 亮色侧栏 · 毛玻璃 vibrancy · 系统蓝强调色 · 圆角 · 柔和投影 · overlay 滚动条
+  参考 Safari / macOS 亮色源列表 / 分段控件 / 菜单 / 表单 / 模态 sheet
   不覆盖全局 UI 字体（保留 Consolas 偏好），仅做配色与构件
-  终端画布保持深色（xterm 浅色文字可读），亮 chrome + 深终端 = 真 Mac 观感
+  终端画布保持亮色（xterm 深色文字可读），亮 chrome + 亮终端 = Safari 观感
 */
 
 :root {
-  --ide-bg: 246 246 248 !important;
-  --ide-sidebar: 236 236 240 !important;
-  --ide-panel: 246 246 248 !important;
+  --ide-bg: 242 242 247 !important;
+  --ide-sidebar: 229 229 234 !important;
+  --ide-panel: 242 242 247 !important;
   --ide-border: 209 209 214 !important;
-  --ide-text: 26 26 30 !important;
-  --ide-text-muted: 108 108 118 !important;
+  --ide-text: 29 29 31 !important;
+  --ide-text-muted: 110 110 115 !important;
   --ide-accent: 0 122 255 !important;
   --ide-accent-hover: 51 153 255 !important;
   --ide-success: 52 199 89 !important;
   --ide-danger: 255 59 48 !important;
   --ide-warning: 255 149 0 !important;
-  --ide-hover: 240 240 246 !important;
-  --ide-active: 232 232 236 !important;
-  --scrollbar-track: 246 246 248 !important;
-  --scrollbar-thumb: 130 130 138 !important;
-  --scrollbar-thumb-hover: 90 90 98 !important;
+  --ide-hover: 229 229 234 !important;
+  --ide-active: 209 209 214 !important;
+  --scrollbar-track: 242 242 247 !important;
+  --scrollbar-thumb: 174 174 178 !important;
+  --scrollbar-thumb-hover: 142 142 147 !important;
   --selection-bg: 0 122 255 !important;
   --selection-opacity: 0.2 !important;
-  --monaco-margin-bg: 242 242 246 !important;
+  --monaco-margin-bg: 242 242 247 !important;
 }
 
 /* 标题栏 — 统一工具栏，底部发丝线 */
@@ -168,9 +168,9 @@
 }
 .session-panel__flat-list { background: transparent !important; border: none !important; }
 
-/* 终端 — 深底圆角 + 发丝边 + 柔影（深终端嵌亮 chrome） */
+/* 终端 — 亮底圆角 + 发丝边 + 柔影（亮终端嵌亮 chrome） */
 .term-view__canvas {
-  background: rgb(28 28 30) !important;
+  background: rgb(255 255 255) !important;
   border: 1px solid rgba(0 0 0 / 0.12) !important;
   border-radius: 8px !important;
   box-shadow: 0 1px 3px rgba(0 0 0 / 0.12) !important;

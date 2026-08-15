@@ -7,9 +7,9 @@
 */
 
 :root {
-  --ide-bg: 30 30 30 !important;
-  --ide-sidebar: 40 40 40 !important;
-  --ide-panel: 30 30 30 !important;
+  --ide-bg: 28 28 30 !important;
+  --ide-sidebar: 44 44 46 !important;
+  --ide-panel: 28 28 30 !important;
   --ide-border: 58 58 60 !important;
   --ide-text: 245 245 247 !important;
   --ide-text-muted: 152 152 157 !important;
@@ -18,14 +18,14 @@
   --ide-success: 48 209 88 !important;
   --ide-danger: 255 69 58 !important;
   --ide-warning: 255 159 10 !important;
-  --ide-hover: 58 58 60 !important;
-  --ide-active: 72 72 74 !important;
-  --scrollbar-track: 30 30 30 !important;
+  --ide-hover: 44 44 46 !important;
+  --ide-active: 58 58 60 !important;
+  --scrollbar-track: 28 28 30 !important;
   --scrollbar-thumb: 72 72 74 !important;
-  --scrollbar-thumb-hover: 110 110 115 !important;
+  --scrollbar-thumb-hover: 99 99 102 !important;
   --selection-bg: 10 132 255 !important;
   --selection-opacity: 0.3 !important;
-  --monaco-margin-bg: 30 30 30 !important;
+  --monaco-margin-bg: 28 28 30 !important;
 }
 
 /* 标题栏 — 统一工具栏，底部发丝线 */

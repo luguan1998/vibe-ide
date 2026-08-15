@@ -719,48 +719,48 @@ const macos: IDETheme = {
   id: 'macos',
   label: 'macos',
   css: {
-    'ide-bg': t('#f6f6f8'),
-    'ide-sidebar': t('#ececf0'),
-    'ide-panel': t('#f6f6f8'),
+    'ide-bg': t('#f2f2f7'),
+    'ide-sidebar': t('#e5e5ea'),
+    'ide-panel': t('#f2f2f7'),
     'ide-border': t('#d1d1d6'),
-    'ide-text': t('#1a1a1e'),
-    'ide-text-muted': t('#6c6c76'),
+    'ide-text': t('#1d1d1f'),
+    'ide-text-muted': t('#6e6e73'),
     'ide-accent': t('#007aff'),
     'ide-accent-hover': t('#3399ff'),
     'ide-success': t('#34c759'),
     'ide-danger': t('#ff3b30'),
     'ide-warning': t('#ff9500'),
-    'ide-hover': t('#f0f0f6'),
-    'ide-active': t('#e8e8ec'),
-    'scrollbar-thumb': t('#82828a'),
-    'scrollbar-thumb-hover': t('#5a5a62'),
+    'ide-hover': t('#e5e5ea'),
+    'ide-active': t('#d1d1d6'),
+    'scrollbar-thumb': t('#aeaeb2'),
+    'scrollbar-thumb-hover': t('#8e8e93'),
     'selection-bg': t('#007aff'),
     'selection-opacity': '0.2',
     'focus-outline': t('#007aff'),
-    'monaco-margin-bg': t('#f2f2f6')
+    'monaco-margin-bg': t('#f2f2f7')
   },
   terminal: {
     background: '#ffffff', foreground: '#1d1d1f', cursor: '#007aff', cursorAccent: '#ffffff',
     selectionBackground: hexToRgba('#007aff', 0.2),
-    black: '#1d1d1f', red: '#d70015', green: '#1c7c3d', yellow: '#8a5a00',
-    blue: '#007aff', magenta: '#a550df', cyan: '#007d8a', white: '#e5e5ea',
+    black: '#1d1d1f', red: '#d70015', green: '#1e8a3a', yellow: '#8a5a00',
+    blue: '#007aff', magenta: '#af52de', cyan: '#007d8a', white: '#e5e5ea',
     brightBlack: '#6e6e73', brightRed: '#ff3b30', brightGreen: '#34c759',
-    brightYellow: '#ff9500', brightBlue: '#409cff', brightMagenta: '#c86edf',
-    brightCyan: '#40c4d0', brightWhite: '#ffffff',
+    brightYellow: '#ff9500', brightBlue: '#409cff', brightMagenta: '#bf5af2',
+    brightCyan: '#64d2ff', brightWhite: '#ffffff',
     fontWeight: '500',
     allowTransparency: false
   },
   monacoTheme: 'vibe-ide-macos',
-  titleBar: { color: '#ececf0', symbolColor: '#6c6c76', backgroundColor: '#ececf0' }
+  titleBar: { color: '#e5e5ea', symbolColor: '#6e6e73', backgroundColor: '#e5e5ea' }
 }
 
 const macosDark: IDETheme = {
   id: 'macos-dark',
   label: 'macos-dark',
   css: {
-    'ide-bg': t('#1e1e1e'),
-    'ide-sidebar': t('#282828'),
-    'ide-panel': t('#1e1e1e'),
+    'ide-bg': t('#1c1c1e'),
+    'ide-sidebar': t('#2c2c2e'),
+    'ide-panel': t('#1c1c1e'),
     'ide-border': t('#3a3a3c'),
     'ide-text': t('#f5f5f7'),
     'ide-text-muted': t('#98989d'),
@@ -769,17 +769,17 @@ const macosDark: IDETheme = {
     'ide-success': t('#30d158'),
     'ide-danger': t('#ff453a'),
     'ide-warning': t('#ff9f0a'),
-    'ide-hover': t('#3a3a3c'),
-    'ide-active': t('#48484a'),
+    'ide-hover': t('#2c2c2e'),
+    'ide-active': t('#3a3a3c'),
     'scrollbar-thumb': t('#48484a'),
-    'scrollbar-thumb-hover': t('#6e6e73'),
+    'scrollbar-thumb-hover': t('#636366'),
     'selection-bg': t('#0a84ff'),
     'selection-opacity': '0.3',
     'focus-outline': t('#0a84ff'),
-    'monaco-margin-bg': t('#1e1e1e')
+    'monaco-margin-bg': t('#1c1c1e')
   },
   terminal: {
-    background: '#1e1e1e', foreground: '#f5f5f7', cursor: '#0a84ff', cursorAccent: '#1e1e1e',
+    background: '#1c1c1e', foreground: '#f5f5f7', cursor: '#0a84ff', cursorAccent: '#1c1c1e',
     selectionBackground: hexToRgba('#0a84ff', 0.3),
     black: '#000000', red: '#ff453a', green: '#30d158', yellow: '#ffd60a',
     blue: '#0a84ff', magenta: '#bf5af2', cyan: '#64d2ff', white: '#f5f5f7',
@@ -790,7 +790,7 @@ const macosDark: IDETheme = {
     allowTransparency: false
   },
   monacoTheme: 'vibe-ide-macos-dark',
-  titleBar: { color: '#282828', symbolColor: '#98989d', backgroundColor: '#282828' }
+  titleBar: { color: '#2c2c2e', symbolColor: '#98989d', backgroundColor: '#2c2c2e' }
 }
 
 export const THEMES: IDETheme[] = [
