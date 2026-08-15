@@ -715,6 +715,84 @@ const retroChinese: IDETheme = {
   titleBar: { color: '#eff1ee', symbolColor: '#7c847d', backgroundColor: '#eff1ee' }
 }
 
+const macos: IDETheme = {
+  id: 'macos',
+  label: 'macOS Tahoe',
+  css: {
+    'ide-bg': t('#f6f6f8'),
+    'ide-sidebar': t('#ececf0'),
+    'ide-panel': t('#f6f6f8'),
+    'ide-border': t('#d1d1d6'),
+    'ide-text': t('#1a1a1e'),
+    'ide-text-muted': t('#6c6c76'),
+    'ide-accent': t('#007aff'),
+    'ide-accent-hover': t('#3399ff'),
+    'ide-success': t('#34c759'),
+    'ide-danger': t('#ff3b30'),
+    'ide-warning': t('#ff9500'),
+    'ide-hover': t('#f0f0f6'),
+    'ide-active': t('#e8e8ec'),
+    'scrollbar-thumb': t('#82828a'),
+    'scrollbar-thumb-hover': t('#5a5a62'),
+    'selection-bg': t('#007aff'),
+    'selection-opacity': '0.2',
+    'focus-outline': t('#007aff'),
+    'monaco-margin-bg': t('#f2f2f6')
+  },
+  terminal: {
+    background: '#ffffff', foreground: '#1d1d1f', cursor: '#007aff', cursorAccent: '#ffffff',
+    selectionBackground: hexToRgba('#007aff', 0.2),
+    black: '#1d1d1f', red: '#d70015', green: '#1c7c3d', yellow: '#8a5a00',
+    blue: '#007aff', magenta: '#a550df', cyan: '#007d8a', white: '#e5e5ea',
+    brightBlack: '#6e6e73', brightRed: '#ff3b30', brightGreen: '#34c759',
+    brightYellow: '#ff9500', brightBlue: '#409cff', brightMagenta: '#c86edf',
+    brightCyan: '#40c4d0', brightWhite: '#ffffff',
+    fontWeight: '500',
+    allowTransparency: false
+  },
+  monacoTheme: 'vibe-ide-macos',
+  titleBar: { color: '#ececf0', symbolColor: '#6c6c76', backgroundColor: '#ececf0' }
+}
+
+const macosDark: IDETheme = {
+  id: 'macos-dark',
+  label: 'macOS Tahoe Dark',
+  css: {
+    'ide-bg': t('#1e1e1e'),
+    'ide-sidebar': t('#282828'),
+    'ide-panel': t('#1e1e1e'),
+    'ide-border': t('#3a3a3c'),
+    'ide-text': t('#f5f5f7'),
+    'ide-text-muted': t('#98989d'),
+    'ide-accent': t('#0a84ff'),
+    'ide-accent-hover': t('#409cff'),
+    'ide-success': t('#30d158'),
+    'ide-danger': t('#ff453a'),
+    'ide-warning': t('#ff9f0a'),
+    'ide-hover': t('#3a3a3c'),
+    'ide-active': t('#48484a'),
+    'scrollbar-thumb': t('#48484a'),
+    'scrollbar-thumb-hover': t('#6e6e73'),
+    'selection-bg': t('#0a84ff'),
+    'selection-opacity': '0.3',
+    'focus-outline': t('#0a84ff'),
+    'monaco-margin-bg': t('#1e1e1e')
+  },
+  terminal: {
+    background: '#1e1e1e', foreground: '#f5f5f7', cursor: '#0a84ff', cursorAccent: '#1e1e1e',
+    selectionBackground: hexToRgba('#0a84ff', 0.3),
+    black: '#000000', red: '#ff453a', green: '#30d158', yellow: '#ffd60a',
+    blue: '#0a84ff', magenta: '#bf5af2', cyan: '#64d2ff', white: '#f5f5f7',
+    brightBlack: '#48484a', brightRed: '#ff6961', brightGreen: '#30d158',
+    brightYellow: '#ffd60a', brightBlue: '#409cff', brightMagenta: '#da8fff',
+    brightCyan: '#64d2ff', brightWhite: '#ffffff',
+    fontWeight: '500',
+    allowTransparency: false
+  },
+  monacoTheme: 'vibe-ide-macos-dark',
+  titleBar: { color: '#282828', symbolColor: '#98989d', backgroundColor: '#282828' }
+}
+
 export const THEMES: IDETheme[] = [
   vscodeDark,
   githubLight,
@@ -729,7 +807,9 @@ export const THEMES: IDETheme[] = [
   monkeyKing,
   retroChinese,
   miku,
-  mikuLight
+  mikuLight,
+  macos,
+  macosDark
 ]
 
 export const DEFAULT_THEME_ID = 'vscode-dark'
