@@ -72,8 +72,8 @@ export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onR
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none">
-      <div className="px-4 py-1.5 bg-ide-hover/50 border-b border-ide-border shrink-0 select-none">
-        <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider">NGA</span>
+      <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean">
+        <span className="text-sm text-ide-text font-medium truncate">NGA</span>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {GAMES.map(game => (

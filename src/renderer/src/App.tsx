@@ -979,6 +979,13 @@ export default function App() {
     })
   }, [])
 
+  // dsh 会话发送（宠物发送 / 右键追加 / 定时共用）：dshId 优先恢复的历史会话 id
+  const sendToDshSession = useCallback(async (sessionId: string, text: string) => {
+    const api = await getDshApi(sessionsRef.current.find(s => s.id === sessionId)?.cwd)
+    const dshId = dshResumeIdsRef.current[sessionId] || sessionId
+    await api.sessions.prompt({ sessionId: dshId, mode: 'queue', content: [{ type: 'text', text }] })
+  }, [])
+
   const sendDraftLine = useCallback(async (sessionId: string | null | undefined, text: string) => {
     if (!sessionId) return
     const mode = sessionViewModesRef.current[sessionId]
@@ -1004,7 +1011,7 @@ export default function App() {
             }
           }
         }
-        await api.sessions.prompt({ sessionId: dshId, mode: 'queue', content: [{ type: 'text', text }] })
+        await sendToDshSession(sessionId, text)
       } catch (e) {
         console.error('Failed to send to dsh session:', e)
       }
@@ -1019,7 +1026,7 @@ export default function App() {
       draftSleepRef.current.set(sessionId, { timer, resolve })
     })
     await waitDraftIdle(sessionId)
-  }, [waitDraftIdle])
+  }, [waitDraftIdle, sendToDshSession])
 
 
   const handleDshTitleChange = useCallback(async (sessionId: string, title: string) => {
@@ -1074,6 +1081,7 @@ export default function App() {
     }
     const command = queue.shift()!
     const isGui = sessionViewModesRef.current[sessionId] === 'gui'
+    const isDsh = sessionViewModesRef.current[sessionId] === 'dsh'
     const PIPE_DETECT_DELAY = 2000
     const lines = command.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean)
     const runner = { cancelled: false, resolveIdle: null as (() => void) | null, sleepTimer: null as ReturnType<typeof setTimeout> | null, sleepResolve: null as (() => void) | null }
@@ -1103,6 +1111,12 @@ export default function App() {
       }
       if (isGui) {
         aiTabRefs.current[sessionId]?.sendText(lines[i])
+      } else if (isDsh) {
+        try {
+          await sendToDshSession(sessionId, lines[i])
+        } catch (e) {
+          console.error('Failed to pipe to dsh session:', e)
+        }
       } else {
         window.api.terminal.write(sessionId, lines[i] + '\r')
       }
@@ -1116,7 +1130,7 @@ export default function App() {
       if (runner.cancelled) break
     }
     processPipeQueue(sessionId)
-  }, [])
+  }, [sendToDshSession])
 
   const handlePipeCommand = useCallback(async (command: string) => {
     const sessionId = activeSessionId
