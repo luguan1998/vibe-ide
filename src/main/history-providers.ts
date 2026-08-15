@@ -32,7 +32,7 @@ const LIST_CACHE_TTL = 60 * 1000
 const listCache = new Map<string, { at: number; sessions: HistorySessionMeta[] }>()
 
 // ── 持久化索引：codex 扫描结果落盘（userData），之后只增量扫新文件 ──
-const INDEX_VERSION = 2
+const INDEX_VERSION = 3
 let indexPath = ''
 let indexLoaded = false
 let codexIndex: Record<string, CodexLightMeta> = {}
@@ -148,6 +148,7 @@ interface CodexLightMeta {
   threadId: string
   name: string
   nameChecked?: boolean
+  isSubagent?: boolean
   cwd: string
   timestamp: number
   model: string
@@ -172,12 +173,14 @@ async function readCodexMetaLight(filePath: string): Promise<CodexLightMeta | nu
         }
       } catch {}
     }
+    const src = p.source
     return {
       filePath,
       id: p.id,
       threadId: p.session_id || '',
       name,
       nameChecked: name !== '',
+      isSubagent: !!src && typeof src === 'object' && !!src.subagent,
       cwd: p.cwd || '',
       timestamp: new Date(p.timestamp).getTime(),
       model: p.model || p.model_provider || '',
@@ -267,7 +270,7 @@ export async function listCodexSessions(cwd: string, force = false): Promise<His
   }
   if (changed) saveIndex()
   let matched = Object.values(codexIndex)
-    .filter(m => (!cwd || m.cwd === cwd) && (cwd ? true : !isScratchCwd(m.cwd)))
+    .filter(m => !m.isSubagent && (!cwd || m.cwd === cwd) && (cwd ? true : !isScratchCwd(m.cwd)))
     .sort((a, b) => b.timestamp - a.timestamp)
   // 深检名字（未查过的），缓存回索引
   const needName = matched.filter(m => !m.nameChecked)
@@ -280,7 +283,7 @@ export async function listCodexSessions(cwd: string, force = false): Promise<His
     if (changed) saveIndex()
     // 深检更新了索引（新对象），需重新从索引派生 matched
     matched = Object.values(codexIndex)
-      .filter(m => (!cwd || m.cwd === cwd) && (cwd ? true : !isScratchCwd(m.cwd)))
+      .filter(m => !m.isSubagent && (!cwd || m.cwd === cwd) && (cwd ? true : !isScratchCwd(m.cwd)))
       .sort((a, b) => b.timestamp - a.timestamp)
   }
   // 有真实用户消息才算有效会话（过滤 resume 测试等纯系统注入会话）
