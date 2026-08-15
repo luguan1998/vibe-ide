@@ -339,10 +339,6 @@ html, body, #root {
   border-radius: 0 !important;
   clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
 }
-.git-tab__commit-input:focus {
-  border-color: rgb(var(--ide-accent)) !important;
-}
-
 /* Commit 按钮 — 凸起 + 蓝色 + 像素缺角 */
 .git-tab__commit-btn {
   border: 2px solid rgb(var(--ide-border)) !important;
@@ -532,21 +528,6 @@ html, body, #root {
 .fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
   border: 2px solid rgb(var(--ide-border)) !important;
   box-shadow: 2px 2px 0 rgba(33, 37, 41, 0.4) !important;
-}
-
-
-/* ════════════════════════════════════════════════════
-   输入框 / 文本域 — 全局 4px 粗边框
-   ════════════════════════════════════════════════════ */
-input, select, textarea {
-  border: 2px solid rgb(var(--ide-border)) !important;
-  background: #fff !important;
-  padding: 4px 8px !important;
-}
-
-input:focus, select:focus, textarea:focus {
-  border-color: rgb(var(--ide-accent)) !important;
-  outline: none !important;
 }
 
 

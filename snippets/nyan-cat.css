@@ -414,11 +414,6 @@
   color: rgb(220 220 230) !important;
 }
 
-.git-tab__commit-input:focus {
-  border-color: rgb(242 140 245) !important;
-  box-shadow: 0 0 8px rgba(242,140,245,0.2) !important;
-}
-
 .git-tab__commit-btn {
   border: 1px solid rgb(242 140 245) !important;
   background: rgb(242 140 245) !important;
@@ -454,22 +449,7 @@
   box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
 }
 
-input, select, textarea {
-  border: 1px solid rgb(40 58 90) !important;
-  background: rgb(12 18 38) !important;
-  color: rgb(220 220 230) !important;
-}
-
-input:focus, select:focus, textarea:focus {
-  border-color: rgb(242 140 245) !important;
-  box-shadow: 0 0 8px rgba(242,140,245,0.15) !important;
-  outline: none !important;
-}
-
 input[type="checkbox"] { accent-color: rgb(242 140 245) !important; }
-
-/* Monaco 内部表单不污染 */
-
 
 .text-ide-success { color: rgb(86 252 1) !important; }
 .text-ide-danger { color: rgb(217 26 18) !important; }

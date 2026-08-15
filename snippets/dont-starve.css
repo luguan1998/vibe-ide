@@ -319,11 +319,6 @@ html, body, #root {
   background: rgb(25 60 75) !important;
   color: rgb(228 204 159) !important;
 }
-.git-tab__commit-input:focus {
-  border-color: rgb(38 223 162) !important;
-  box-shadow: 0 0 6px rgb(38 223 162 / 0.2) !important;
-}
-
 /* ════════════════════════════════════════════════════
    右側面板 — 沙灘金底 + 炭黑沉影
    ════════════════════════════════════════════════════ */
@@ -427,27 +422,7 @@ html, body, #root {
   border: 1px solid rgb(32 27 24) !important;
   box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
 }
-input, select, textarea {
-  border: 1px solid rgb(32 27 24 / 0.6) !important;
-  background: rgb(25 60 75) !important;
-  color: rgb(228 204 159) !important;
-}
-input:focus, select:focus, textarea:focus {
-  border-color: rgb(38 223 162) !important;
-  box-shadow: 0 0 6px rgb(38 223 162 / 0.2) !important;
-  outline: none !important;
-}
 input[type="checkbox"] { accent-color: rgb(38 223 162); }
-
-.monaco-editor input, .monaco-editor select, .monaco-editor textarea { border: revert !important; background: revert !important; border-radius: revert !important; }
-.monaco-editor input:focus, .monaco-editor select:focus, .monaco-editor textarea:focus { border-color: revert !important; box-shadow: revert !important; outline: revert !important; }
-.monaco-editor input[type="checkbox"] { accent-color: revert; }
-
-*:focus-visible {
-  outline: 1px solid rgb(38 223 162 / 0.5) !important;
-  outline-offset: 0 !important;
-}
-.monaco-editor *:focus-visible { outline: revert !important; }
 
 .text-ide-success { color: rgb(var(--ide-success)) !important; }
 .text-ide-danger { color: rgb(var(--ide-danger)) !important; }

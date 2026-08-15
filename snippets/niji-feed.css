@@ -304,11 +304,6 @@
   border-radius: 9999px !important;
   color: rgb(var(--ide-text)) !important;
 }
-.git-tab__commit-input:focus {
-  border-color: rgb(var(--ide-accent)) !important;
-  box-shadow: 0 0 0 3px rgb(255 64 129 / 0.2) !important;
-  outline: none !important;
-}
 .git-tab__commit-btn {
   border: none !important;
   background: linear-gradient(135deg, rgb(255 64 129), rgb(255 110 150)) !important;
@@ -423,39 +418,7 @@
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.1) !important;
 }
 
-/* 表单 — 白底发丝边 + 粉色聚焦光晕；单行胶囊化，多行 textarea 小圆角避免文字被圆角切 */
-input, select {
-  background: rgb(255 255 255) !important;
-  border: 1px solid rgb(0 0 0 / 0.1) !important;
-  border-radius: 9999px !important;
-  color: rgb(var(--ide-text)) !important;
-}
-textarea {
-  background: rgb(255 255 255) !important;
-  border: 1px solid rgb(0 0 0 / 0.1) !important;
-  border-radius: 12px !important;
-  color: rgb(var(--ide-text)) !important;
-}
-input:focus, select:focus, textarea:focus {
-  border-color: rgb(var(--ide-accent)) !important;
-  box-shadow: 0 0 0 3px rgb(255 64 129 / 0.2) !important;
-  outline: none !important;
-}
 input[type="checkbox"] { accent-color: rgb(var(--ide-accent)) !important; }
-.monaco-editor input, .monaco-editor select, .monaco-editor textarea {
-  border: revert !important; background: revert !important; border-radius: revert !important;
-}
-.monaco-editor input:focus, .monaco-editor select:focus, .monaco-editor textarea:focus {
-  border-color: revert !important; box-shadow: revert !important; outline: revert !important;
-}
-
-/* focus ring — 粉色光晕（键盘导航），表单用各自 box-shadow 故豁免 */
-*:focus-visible {
-  outline: 2px solid rgb(255 64 129 / 0.5) !important;
-  outline-offset: 1px !important;
-}
-input:focus-visible, select:focus-visible, textarea:focus-visible,
-.monaco-editor *:focus-visible { outline: none !important; outline-offset: 0 !important; }
 
 ::selection { background: rgb(255 64 129 / 0.18) !important; }
 

@@ -224,10 +224,6 @@ html, body, #root { font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code',
   font-size: 11px !important;
   box-shadow: inset 2px 2px 4px rgba(0,0,0,0.5) !important;
 }
-.git-tab__commit-input:focus {
-  border-style: ridge !important;
-  border-color: rgb(var(--ide-accent)) !important;
-}
 .git-tab__commit-btn {
   border: 3px outset rgb(156 39 176) !important;
   font-weight: 700 !important; text-transform: uppercase; letter-spacing: 2px;
@@ -289,10 +285,7 @@ html, body, #root { font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code',
   border: 3px ridge rgb(var(--ide-border)) !important;
   box-shadow: -2px -2px 0 rgb(34 34 38), 2px 2px 0 rgb(8 8 10) !important;
 }
-input, select, textarea { border: 2px inset rgb(var(--ide-border)) !important; }
-input:focus, select:focus, textarea:focus { border-style: ridge !important; border-color: rgb(156 39 176) !important; }
 input[type="checkbox"] { accent-color: rgb(156 39 176); }
 .border-t.border-ide-border { border-top: 2px groove rgb(var(--ide-border)) !important; }
 .border-b.border-ide-border { border-bottom: 2px groove rgb(var(--ide-border)) !important; }
-*:focus-visible { outline: 2px solid rgb(156 39 176) !important; outline-offset: 0 !important; }
 ::selection { background: rgb(180 120 200 / 0.3) !important; }

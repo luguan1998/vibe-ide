@@ -324,10 +324,6 @@ textarea {
   background: rgb(12 14 34) !important;
   color: rgb(var(--ide-text)) !important;
 }
-.git-tab__commit-input:focus {
-  border-color: rgb(var(--ide-accent)) !important;
-  box-shadow: 0 0 8px rgba(255,195,40,0.2) !important;
-}
 .git-tab__commit-btn {
   border: 1px solid rgb(var(--ide-accent)) !important;
   background: rgb(var(--ide-accent)) !important;
@@ -376,29 +372,7 @@ textarea {
   border: 1px solid rgb(var(--ide-border)) !important;
   box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
 }
-input, select, textarea {
-  border: 1px solid rgb(var(--ide-border)) !important;
-  background: rgb(12 14 34) !important;
-  color: rgb(var(--ide-text)) !important;
-}
-input:focus, select:focus, textarea:focus {
-  border-color: rgb(var(--ide-accent)) !important;
-  box-shadow: 0 0 8px rgba(255,195,40,0.15) !important;
-  outline: none !important;
-}
 input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
-
-/* Monaco 内部表单不污染 */
-.monaco-editor input, .monaco-editor select, .monaco-editor textarea { border: revert !important; background: revert !important; border-radius: revert !important; }
-.monaco-editor input:focus, .monaco-editor select:focus, .monaco-editor textarea:focus { border-color: revert !important; box-shadow: revert !important; outline: revert !important; }
-.monaco-editor input[type="checkbox"] { accent-color: revert; }
-
-/* focus ring — 金黄光晕，对应星光 halo */
-*:focus-visible {
-  outline: 1px solid rgb(var(--ide-accent) / 0.6) !important;
-  outline-offset: 0 !important;
-}
-.monaco-editor *:focus-visible { outline: revert !important; }
 
 .text-ide-success { color: rgb(var(--ide-success)) !important; }
 .text-ide-danger { color: rgb(var(--ide-danger)) !important; }
