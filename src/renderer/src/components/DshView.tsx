@@ -8,13 +8,16 @@ interface DshViewProps {
   dshSessionId?: string
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   onTitleChange?: (sessionId: string, title: string) => void
+  onCommand?: (command: string) => void
 }
 
-export default function DshView({ sessionId, cwd, isActive, dshSessionId, onAgentStatusChange, onTitleChange }: DshViewProps) {
+export default function DshView({ sessionId, cwd, isActive, dshSessionId, onAgentStatusChange, onTitleChange, onCommand }: DshViewProps) {
   const [handle, setHandle] = useState<DshContextHandle | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   const lastTitleRef = useRef<string | undefined>(undefined)
+  const lastUserTextRef = useRef<string | null>(null)
+  const lastFetchAtRef = useRef(0)
 
   useEffect(() => {
     let cancelled = false
@@ -60,9 +63,35 @@ export default function DshView({ sessionId, cwd, isActive, dshSessionId, onAgen
 
   // 把 dsh 会话 running/idle 状态与标题变化上报给 App（sessions.list 快照订阅）
   useEffect(() => {
-    if (!handle || !ready || (!onAgentStatusChange && !onTitleChange)) return
+    if (!handle || !ready || (!onAgentStatusChange && !onTitleChange && !onCommand)) return
     const sessions = handle.ctx.get('sessions') as any
     const targetId = dshSessionId || sessionId
+    // dsh 无本地输入记录：快照变化时拉取会话最新 user 消息，新文本上报 App 命令历史（Ctrl+R 复用）
+    const reportLatestUserMessage = async () => {
+      if (!onCommand) return
+      if (Date.now() - lastFetchAtRef.current < 1000) return
+      lastFetchAtRef.current = Date.now()
+      try {
+        const api = (handle.ctx.get('connection') as any).api
+        const res = await api.sessions.history({ sessionId: targetId, maxMessages: 5 })
+        if (!res.result?.ok) return
+        const events = ((res.result.value?.events ?? []) as any[]).map((e: any) => e.event)
+        for (let i = events.length - 1; i >= 0; i--) {
+          const ev = events[i]
+          // 只取用户真实输入：dsh 会把系统上下文投影/工具结果也落成 user/message（source.kind 区分）
+          if (ev?.type !== 'user/message' || ev.data?.source?.kind !== 'user') continue
+          const text = (ev.data?.content ?? [])
+            .filter((b: any) => b.type === 'text')
+            .map((b: any) => b.text)
+            .join('')
+          if (text && text !== lastUserTextRef.current) {
+            lastUserTextRef.current = text
+            onCommand(text)
+          }
+          break
+        }
+      } catch {}
+    }
     const report = () => {
       const snap = sessions.list.getSnapshot()
       const cur = snap.byId?.[targetId]
@@ -78,6 +107,7 @@ export default function DshView({ sessionId, cwd, isActive, dshSessionId, onAgen
           onTitleChange(sessionId, title)
         }
       }
+      void reportLatestUserMessage()
     }
     report()
     const off = sessions.list.subscribe(report)
@@ -85,7 +115,7 @@ export default function DshView({ sessionId, cwd, isActive, dshSessionId, onAgen
       off()
       onAgentStatusChange?.(sessionId, 'idle')
     }
-  }, [handle, ready, sessionId, dshSessionId, onAgentStatusChange, onTitleChange])
+  }, [handle, ready, sessionId, dshSessionId, onAgentStatusChange, onTitleChange, onCommand])
 
   if (error) {
     return (

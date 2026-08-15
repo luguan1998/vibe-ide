@@ -63,7 +63,9 @@ export async function fetchDshHistoryTurns(
   const turns: HistoryTurn[] = []
   for (const ev of events) {
     if (ev?.type !== 'user/message' && ev?.type !== 'assistant/message') continue
-    // user/message 的 data 直接是 message，assistant/message 的 data 包一层 message
+    // user/message 的 data 直接是 message，assistant/message 的 data 包一层 message；
+    // 只取用户真实输入（source.kind === 'user'），跳过系统上下文投影/工具结果注入的 user 消息
+    if (ev.type === 'user/message' && ev.data?.source?.kind !== 'user') continue
     const msg = ev.type === 'user/message' ? ev.data : ev.data?.message
     const text = (msg?.content ?? [])
       .filter((b: any) => b.type === 'text')

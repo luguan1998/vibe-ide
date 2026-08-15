@@ -979,12 +979,25 @@ export default function App() {
     })
   }, [])
 
+  // Track terminal commands per session
+  const handleCommandEntered = useCallback((sessionId: string, command: string) => {
+    setCommandHistory(prev => {
+      const existing = prev[sessionId] || []
+      // dedup: skip if same as last command
+      if (existing.length > 0 && existing[existing.length - 1] === command) return prev
+      const next = [...existing, command]
+      if (next.length > 500) return { ...prev, [sessionId]: next.slice(-500) }
+      return { ...prev, [sessionId]: next }
+    })
+  }, [])
+
   // dsh 会话发送（宠物发送 / 右键追加 / 定时共用）：dshId 优先恢复的历史会话 id
   const sendToDshSession = useCallback(async (sessionId: string, text: string) => {
+    handleCommandEntered(sessionId, text)
     const api = await getDshApi(sessionsRef.current.find(s => s.id === sessionId)?.cwd)
     const dshId = dshResumeIdsRef.current[sessionId] || sessionId
     await api.sessions.prompt({ sessionId: dshId, mode: 'queue', content: [{ type: 'text', text }] })
-  }, [])
+  }, [handleCommandEntered])
 
   const sendDraftLine = useCallback(async (sessionId: string | null | undefined, text: string) => {
     if (!sessionId) return
@@ -1226,18 +1239,6 @@ export default function App() {
     if (result.success && result.session) {
       setSessions(prev => prev.map(s => s.id === sessionId ? result.session! : s))
     }
-  }, [])
-
-  // Track terminal commands per session
-  const handleCommandEntered = useCallback((sessionId: string, command: string) => {
-    setCommandHistory(prev => {
-      const existing = prev[sessionId] || []
-      // dedup: skip if same as last command
-      if (existing.length > 0 && existing[existing.length - 1] === command) return prev
-      const next = [...existing, command]
-      if (next.length > 500) return { ...prev, [sessionId]: next.slice(-500) }
-      return { ...prev, [sessionId]: next }
-    })
   }, [])
 
   // per-session onCommand 缓存：避免内联箭头击穿 TerminalView 的 React.memo（handleCommandEntered 已 useCallback 稳定）
@@ -1484,7 +1485,11 @@ export default function App() {
           e.stopImmediatePropagation()
           const idx = historySelectedIndexRef.current
           if (cmds[idx]) {
-            window.api.terminal.write(activeSessionId, cmds[idx].replace(/\n/g, '\x1b\r') + '\r')
+            if (sessionViewModesRef.current[activeSessionId] === 'dsh') {
+              void sendToDshSession(activeSessionId, cmds[idx])
+            } else {
+              window.api.terminal.write(activeSessionId, cmds[idx].replace(/\n/g, '\x1b\r') + '\r')
+            }
           }
           setShowHistory(false)
           return
@@ -2685,7 +2690,7 @@ export default function App() {
                         onCommand={onCommandForSession(session.id)}
                       />
                     ) : isDsh ? (
-                      <DshView sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} dshSessionId={dshResumeIds[session.id]} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} />
+                      <DshView sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} dshSessionId={dshResumeIds[session.id]} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} onCommand={onCommandForSession(session.id)} />
                     ) : (
                       <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
                     )}
@@ -2791,7 +2796,11 @@ export default function App() {
                         i === historySelectedIndex ? 'bg-ide-accent/20 text-ide-text' : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
                       }`}
                       onClick={() => {
-                        window.api.terminal.write(activeSessionId, cmd.replace(/\n/g, '\x1b\r'))
+                        if (sessionViewModesRef.current[activeSessionId] === 'dsh') {
+                          void sendToDshSession(activeSessionId, cmd)
+                        } else {
+                          window.api.terminal.write(activeSessionId, cmd.replace(/\n/g, '\x1b\r'))
+                        }
                         setShowHistory(false)
                       }}
                       onMouseEnter={() => setHistorySelectedIndex(i)}
