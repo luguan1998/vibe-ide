@@ -137,11 +137,11 @@ async function findFileTabButton(cdp) {
       const buttons = document.querySelectorAll('button');
       for (const btn of buttons) {
         const span = btn.querySelector('span');
-        if (span && span.textContent === 'File') {
+        if (span && span.textContent === 'Dir') {
           const r = btn.getBoundingClientRect();
           return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
         }
-        if (btn.title === 'File') {
+        if (btn.title === 'Dir') {
           const r = btn.getBoundingClientRect();
           return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
         }
