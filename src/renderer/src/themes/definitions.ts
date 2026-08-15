@@ -717,7 +717,7 @@ const retroChinese: IDETheme = {
 
 const macos: IDETheme = {
   id: 'macos',
-  label: 'macOS Tahoe',
+  label: 'macos',
   css: {
     'ide-bg': t('#f6f6f8'),
     'ide-sidebar': t('#ececf0'),
@@ -756,7 +756,7 @@ const macos: IDETheme = {
 
 const macosDark: IDETheme = {
   id: 'macos-dark',
-  label: 'macOS Tahoe Dark',
+  label: 'macos-dark',
   css: {
     'ide-bg': t('#1e1e1e'),
     'ide-sidebar': t('#282828'),
