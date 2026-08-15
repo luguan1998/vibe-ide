@@ -358,10 +358,12 @@ interface DshWorkspaceInfo {
 }
 
 // DSH 的“工作区”注册表 ~/.dsh/storages/workspace.json：每个 workspace 记录 title/path 及其 sessionIds。
-// 会话按工作区分组（而非原始 cwd），与 DSH Web UI 的会话列表保持一致。
-function readDshWorkspaceMaps(): { bySession: Map<string, DshWorkspaceInfo>; byPath: Map<string, DshWorkspaceInfo> } {
+// 会话只按 sessionIds 归属工作区；不在任何工作区里的会话归入“未分组”，与 DSH Web UI 一致。
+const DSH_UNGROUPED_KEY = '__dsh_ungrouped__'
+const DSH_UNGROUPED_LABEL = '未分组'
+
+function readDshWorkspaceBySession(): Map<string, DshWorkspaceInfo> {
   const bySession = new Map<string, DshWorkspaceInfo>()
-  const byPath = new Map<string, DshWorkspaceInfo>()
   try {
     const raw = readFileSync(join(homedir(), '.dsh', 'storages', 'workspace.json'), 'utf8')
     const workspaces = (JSON.parse(raw) as any).tables?.workspaces || {}
@@ -370,11 +372,10 @@ function readDshWorkspaceMaps(): { bySession: Map<string, DshWorkspaceInfo>; byP
       const path = String(ws?.path || '')
       if (!path) continue
       const info: DshWorkspaceInfo = { title: title || basename(path), path }
-      byPath.set(path, info)
       for (const sid of (ws?.sessionIds || [])) bySession.set(String(sid), info)
     }
   } catch {}
-  return { bySession, byPath }
+  return bySession
 }
 
 function findDshSessionDir(cwd: string, sessionId: string): string | null {
@@ -395,13 +396,18 @@ export async function listDshSessions(cwd: string, force = false): Promise<Histo
     const cached = getCached(key)
     if (cached) return cached
   }
-  const wsMaps = readDshWorkspaceMaps()
+  const bySession = readDshWorkspaceBySession()
   const result = readDshProjCache()
     .filter(s => s.turns > 0 && (!cwd || s.cwd === cwd) && (cwd ? true : !isScratchCwd(s.cwd)))
-    .sort((a, b) => b.createdAt - a.createdAt)
+    .sort((a, b) => {
+      const aU = bySession.has(a.id) ? 0 : 1
+      const bU = bySession.has(b.id) ? 0 : 1
+      if (aU !== bU) return aU - bU
+      return b.createdAt - a.createdAt
+    })
     .slice(0, 30)
     .map(s => {
-      const ws = wsMaps.bySession.get(s.id) || wsMaps.bySession.get('session-' + s.id) || wsMaps.byPath.get(s.cwd)
+      const ws = bySession.get(s.id)
       return {
         session_id: s.id,
         name: (s.title || s.goal || '').slice(0, 60),
@@ -409,8 +415,8 @@ export async function listDshSessions(cwd: string, force = false): Promise<Histo
         model: '',
         sizeBytes: 0,
         cwd: s.cwd,
-        workspace: ws?.title || basename(s.cwd) || s.cwd,
-        workspacePath: ws?.path || s.cwd,
+        workspace: ws?.title || DSH_UNGROUPED_LABEL,
+        workspacePath: ws?.path || DSH_UNGROUPED_KEY,
       }
     })
   listCache.set(key, { at: Date.now(), sessions: result })
