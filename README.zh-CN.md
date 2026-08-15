@@ -104,7 +104,7 @@
 
 - Node.js >= 18
 - npm
-- Windows 系统（目前主要支持）
+- Windows 系统（主要支持）；macOS 已支持（终端、文件树、Git、搜索）
 
 ### 安装 & 运行
 

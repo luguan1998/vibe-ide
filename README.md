@@ -104,7 +104,7 @@
 
 - Node.js >= 18
 - npm
-- Windows (primary target)
+- Windows (primary target); macOS supported (terminal, file tree, git, search)
 
 ### Install & Run
 

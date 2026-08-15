@@ -41,11 +41,13 @@ if (process.argv.includes('--enable-precise-memory-info')) {
 // 软件 WebGL (SwiftShader/llvmpipe) 会导致每次 gl.bufferData 全走 CPU，
 // 终端流式输出时 CPU 直接拉满。若硬件 GPU 确实不可用，WebGL 上下文
 // 创建会直接失败，TerminalView 中 try/catch 会回退到 DOM 渲染器。
-app.commandLine.appendSwitch('use-gl', 'angle')
-app.commandLine.appendSwitch('use-angle', 'd3d11')
-// 这两行删去会导致异常回退,win10下实测 claude code图形变形
-app.commandLine.appendSwitch('ignore-gpu-blocklist')
-app.commandLine.appendSwitch('disable-software-rasterizer')
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('use-gl', 'angle')
+  app.commandLine.appendSwitch('use-angle', 'd3d11')
+  // 这两行删去会导致异常回退,win10下实测 claude code图形变形
+  app.commandLine.appendSwitch('ignore-gpu-blocklist')
+  app.commandLine.appendSwitch('disable-software-rasterizer')
+}
 
 // Single instance lock — only blocks the same exe path
 const gotTheLock = app.requestSingleInstanceLock()
