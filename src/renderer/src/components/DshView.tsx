@@ -1,5 +1,9 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react'
 import { getSharedDshContext, resetSharedDshContext, type DshContextHandle } from '../dsh/context'
+
+export interface DshViewHandle {
+  focus: () => void
+}
 
 interface DshViewProps {
   sessionId: string
@@ -11,13 +15,21 @@ interface DshViewProps {
   onCommand?: (command: string) => void
 }
 
-export default function DshView({ sessionId, cwd, isActive, dshSessionId, onAgentStatusChange, onTitleChange, onCommand }: DshViewProps) {
+const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessionId, cwd, isActive, dshSessionId, onAgentStatusChange, onTitleChange, onCommand }, ref) {
   const [handle, setHandle] = useState<DshContextHandle | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   const lastTitleRef = useRef<string | undefined>(undefined)
   const lastUserTextRef = useRef<string | null>(null)
   const lastFetchAtRef = useRef(0)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  // ESC 回退 / 切换 session 时聚焦 composer 输入框（data-composer-card 内唯一 textarea）
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      wrapperRef.current?.querySelector<HTMLTextAreaElement>('[data-composer-card] textarea')?.focus()
+    },
+  }), [])
 
   const boot = useCallback(async (): Promise<void> => {
     let port = await window.api.dsh.getPort()
@@ -148,7 +160,7 @@ export default function DshView({ sessionId, cwd, isActive, dshSessionId, onAgen
   }
 
   return (
-    <div className="dsh-view flex-1 flex flex-col overflow-hidden">
+    <div ref={wrapperRef} className="dsh-view flex-1 flex flex-col overflow-hidden">
       {!ready && (
         <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">dsh connecting...</div>
       )}
@@ -157,7 +169,9 @@ export default function DshView({ sessionId, cwd, isActive, dshSessionId, onAgen
       </div>
     </div>
   )
-}
+})
+
+export default DshView
 
 function DshSlot({ handle }: { handle: DshContextHandle }) {
   const [node, setNode] = useState<React.ReactNode>(null)

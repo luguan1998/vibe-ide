@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
 import { getDshApi } from './dsh/history'
 const DshView = lazy(() => import('./components/DshView'))
+import type { DshViewHandle } from './components/DshView'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
@@ -644,6 +645,7 @@ export default function App() {
   // Terminal refs for focus management (keyed by sessionId)
   const terminalRefs = useRef<Record<string, TerminalViewHandle>>({})
   const aiTabRefs = useRef<Record<string, AiTabHandle>>({})
+  const dshRefs = useRef<Record<string, DshViewHandle>>({})
   const browserViewRef = useRef<BrowserViewHandle | null>(null)
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const centerPanelRef = useRef<HTMLDivElement>(null)
@@ -760,6 +762,8 @@ export default function App() {
       const timer = setTimeout(() => {
         if (mode === 'gui') {
           aiTabRefs.current[activeSessionId]?.focus()
+        } else if (mode === 'dsh') {
+          dshRefs.current[activeSessionId]?.focus()
         } else {
           terminalRefs.current[activeSessionId]?.focus()
         }
@@ -2692,7 +2696,7 @@ export default function App() {
                         onCommand={onCommandForSession(session.id)}
                       />
                     ) : isDsh ? (
-                      <DshView sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} dshSessionId={dshResumeIds[session.id]} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} onCommand={onCommandForSession(session.id)} />
+                      <DshView ref={(node) => { if (node) dshRefs.current[session.id] = node }} sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} dshSessionId={dshResumeIds[session.id]} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} onCommand={onCommandForSession(session.id)} />
                     ) : (
                       <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
                     )}
