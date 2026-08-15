@@ -909,7 +909,15 @@ async function readFilePrefix(filePath: string, maxBytes: number): Promise<strin
   } catch { return '' }
 }
 
-async function listSessionsForCwd(cwd: string, configDir?: string): Promise<{ sessions: any[] }> {
+const claudeListCache = new Map<string, { at: number; sessions: any[] }>()
+const CLAUDE_CACHE_TTL = 60 * 1000
+
+async function listSessionsForCwd(cwd: string, configDir?: string, force = false): Promise<{ sessions: any[] }> {
+  const key = cwd || ''
+  if (!force) {
+    const hit = claudeListCache.get(key)
+    if (hit && Date.now() - hit.at < CLAUDE_CACHE_TTL) return { sessions: hit.sessions }
+  }
   const projectsRoot = getProjectsRoot(configDir)
   let projectDirName = normalizeCwdToProjectDir(cwd).toLowerCase()
 
@@ -933,7 +941,9 @@ async function listSessionsForCwd(cwd: string, configDir?: string): Promise<{ se
 
   // Sort most recent first
   sessions.sort((a, b) => b.timestamp - a.timestamp)
-  return { sessions: sessions.slice(0, 30) }
+  const result = sessions.slice(0, 30)
+  claudeListCache.set(key, { at: Date.now(), sessions: result })
+  return { sessions: result }
 }
 
 // ── Load full session history from .jsonl for resume display ──
@@ -1500,7 +1510,15 @@ export function registerAiHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.AI_LIST_SESSIONS, async (_event, cwd?: string, configDir?: string, source?: HistorySource, force?: boolean) => {
     if (source === 'codex') return { sessions: await listCodexSessions(cwd || '', !!force) }
     if (source === 'dsh') return { sessions: await listDshSessions(cwd || '', !!force) }
-    return listSessionsForCwd(cwd || '', configDir)
+    return listSessionsForCwd(cwd || '', configDir, !!force)
+  })
+
+  // 后台预热某 cwd 的 Claude 历史（当前项目，打开历史时秒开）
+  ipcMain.handle(IPC_CHANNELS.AI_PREWARM, (_event, cwd?: string) => {
+    if (typeof cwd === 'string' && cwd) {
+      listSessionsForCwd(cwd).catch(() => {})
+    }
+    return true
   })
 
   ipcMain.handle(IPC_CHANNELS.AI_DELETE_SESSION, async (_event, sessionId: string, cwd: string, configDir?: string) => {

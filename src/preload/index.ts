@@ -245,6 +245,7 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_CHECK_AVAILABLE, cliCommand),
     listSessions: (cwd?: string, configDir?: string, source?: string, force?: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_SESSIONS, cwd, configDir, source, force),
+    prewarm: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.AI_PREWARM, cwd),
     deleteSession: (sessionId: string, cwd: string, configDir?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_DELETE_SESSION, sessionId, cwd, configDir),
     loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string, source?: string) =>

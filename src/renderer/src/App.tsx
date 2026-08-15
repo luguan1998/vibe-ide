@@ -180,6 +180,7 @@ declare global {
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
         resolveConfigDir: (configDir?: string) => Promise<string>
         listSessions: (cwd?: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh', force?: boolean) => Promise<{ sessions: any[]; error?: string }>
+        prewarm: (cwd: string) => Promise<boolean>
         deleteSession: (sessionId: string, cwd: string, configDir?: string) => Promise<{ success: boolean; error?: string }>
         loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh') => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
         listAllSessions: (configDir?: string, currentCwd?: string) => Promise<{ sessions: import('@shared/types').AiSessionSummary[]; total?: number }>
@@ -1582,6 +1583,13 @@ export default function App() {
 
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
+
+  // 后台预热当前项目的 Claude 历史（打开历史时秒开）
+  React.useEffect(() => {
+    if (!activeSessionCwd) return
+    const t = setTimeout(() => { window.api.ai.prewarm(activeSessionCwd).catch(() => {}) }, 800)
+    return () => clearTimeout(t)
+  }, [activeSessionCwd])
 
   // Create a new terminal session — ask user to pick a directory first
   const [isOpening, setIsOpening] = useState(false)
