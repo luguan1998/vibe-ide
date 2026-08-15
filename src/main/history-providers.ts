@@ -97,34 +97,47 @@ function extractTextBlocks(content: any, kinds: string[]): string {
 }
 
 // ── Codex: ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl ──
-async function readCodexMeta(filePath: string): Promise<HistorySessionMeta | null> {
+// 存储按日期分目录，cwd 只在每个文件首行 session_meta 里——扫描时只读首行做 cwd 匹配，
+// 命中当前目录的会话才进一步读前缀提取名字。
+interface CodexLightMeta {
+  filePath: string
+  id: string
+  cwd: string
+  timestamp: number
+  model: string
+  sizeBytes: number
+}
+
+async function readCodexMetaLight(filePath: string): Promise<CodexLightMeta | null> {
   try {
     const prefix = await readPrefix(filePath, PREFIX_BYTES)
-    const lines = prefix.split('\n')
-    const first = JSON.parse(lines[0] || '')
+    const first = JSON.parse(prefix.split('\n')[0] || '')
     if (first.type !== 'session_meta' || !first.payload?.id) return null
     const p = first.payload
-    let name = ''
-    for (const line of lines.slice(1)) {
-      try {
-        const ev = JSON.parse(line)
-        const pl = ev.payload
-        if (ev.type === 'response_item' && pl?.type === 'message' && pl.role === 'user') {
-          const text = extractTextBlocks(pl.content, ['text', 'input_text'])
-          if (text && !text.startsWith('<')) { name = text.slice(0, 60); break }
-        }
-      } catch {}
-    }
-    const size = (await stat(filePath).catch(() => null))?.size ?? 0
     return {
-      session_id: p.id,
-      name,
+      filePath,
+      id: p.id,
+      cwd: p.cwd || '',
       timestamp: new Date(p.timestamp).getTime(),
       model: p.model || p.model_provider || '',
-      sizeBytes: size,
-      cwd: p.cwd || '',
+      sizeBytes: (await stat(filePath).catch(() => null))?.size ?? 0,
     }
   } catch { return null }
+}
+
+async function readCodexName(filePath: string): Promise<string> {
+  const prefix = await readPrefix(filePath, PREFIX_BYTES)
+  for (const line of prefix.split('\n').slice(1)) {
+    try {
+      const ev = JSON.parse(line)
+      const pl = ev.payload
+      if (ev.type === 'response_item' && pl?.type === 'message' && pl.role === 'user') {
+        const text = extractTextBlocks(pl.content, ['text', 'input_text'])
+        if (text && !text.startsWith('<')) return text.slice(0, 60)
+      }
+    } catch {}
+  }
+  return ''
 }
 
 export async function listCodexSessions(cwd: string): Promise<HistorySessionMeta[]> {
@@ -135,12 +148,16 @@ export async function listCodexSessions(cwd: string): Promise<HistorySessionMeta
   if (!existsSync(root)) return []
   const files: string[] = []
   walkDirs(root, (p, name) => { if (name.startsWith('rollout-') && name.endsWith('.jsonl')) files.push(p) })
-  const metas = await mapLimit(files, 24, readCodexMeta)
-  const out = metas.filter((m): m is HistorySessionMeta => !!m && (!cwd || m.cwd === cwd))
-  out.sort((a, b) => b.timestamp - a.timestamp)
-  const result = out.slice(0, 30)
-  listCache.set(key, { at: Date.now(), sessions: result })
-  return result
+  const lights = await mapLimit(files, 32, readCodexMetaLight)
+  let matched = lights.filter((m): m is CodexLightMeta => !!m && (!cwd || m.cwd === cwd))
+  matched.sort((a, b) => b.timestamp - a.timestamp)
+  matched = matched.slice(0, 30)
+  const withNames = await mapLimit(matched, 8, async (m) => {
+    const name = await readCodexName(m.filePath)
+    return { session_id: m.id, name, timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd }
+  })
+  listCache.set(key, { at: Date.now(), sessions: withNames })
+  return withNames
 }
 
 export async function loadCodexMessages(sessionId: string): Promise<HistoryMessage[]> {
