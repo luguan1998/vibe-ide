@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
-import { readFile, readdir, stat, rm } from 'fs/promises'
+import { readFile, readdir, stat, rm, open } from 'fs/promises'
 import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
@@ -855,34 +855,54 @@ export type AiSessionMeta = Omit<AiSessionSummary, 'projectDir' | 'projectDirNam
 // Shared by listSessionsForCwd and the cross-project history/搜索 IPC in ai-history.ts.
 // `lines` may be passed in when the caller already read the file (search), avoiding a double read.
 export async function extractSessionMeta(filePath: string, sizeBytes: number, lines?: string[]): Promise<AiSessionMeta | null> {
+  const parse = (lns: string[]): AiSessionMeta | null => {
+    try {
+      const sessionId = basename(filePath).replace('.jsonl', '')
+
+      // parseUserTurns 跳过 <local-command-*> 等命令标签，优先取真实正文作 name
+      const turns = parseUserTurns(lns.slice(0, 40))
+      if (turns.length === 0) return null
+      const nameTurn = turns.find(t => !t.isInternal) ?? turns[0]
+      const name = nameTurn.content.slice(0, 60)
+
+      const firstTurnLine = JSON.parse(lns[turns[0].lineIdx])
+      const timestamp = firstTurnLine.timestamp ? new Date(firstTurnLine.timestamp).getTime() : 0
+      if (!timestamp || Number.isNaN(timestamp)) return null
+      const cwd = typeof firstTurnLine.cwd === 'string' ? firstTurnLine.cwd : ''
+
+      let model = ''
+      for (const line of lns.slice(0, 20)) {
+        try {
+          const msg = JSON.parse(line)
+          if (msg.type === 'assistant' && msg.message?.model) { model = msg.message.model; break }
+        } catch { /* skip malformed */ }
+      }
+
+      return { session_id: sessionId, name, timestamp, model, sizeBytes, cwd }
+    } catch { return null }
+  }
+
   try {
-    if (!lines) {
-      const content = await readFile(filePath, 'utf-8')
-      lines = content.split('\n').filter(Boolean)
-    }
-    const sessionId = basename(filePath).replace('.jsonl', '')
-
-    // parseUserTurns 跳过 <local-command-*> 等命令标签，优先取真实正文作 name
-    const turns = parseUserTurns(lines.slice(0, 40))
-    if (turns.length === 0) return null
-    const nameTurn = turns.find(t => !t.isInternal) ?? turns[0]
-    const name = nameTurn.content.slice(0, 60)
-
-    const firstTurnLine = JSON.parse(lines[turns[0].lineIdx])
-    const timestamp = firstTurnLine.timestamp ? new Date(firstTurnLine.timestamp).getTime() : 0
-    if (!timestamp || Number.isNaN(timestamp)) return null
-    const cwd = typeof firstTurnLine.cwd === 'string' ? firstTurnLine.cwd : ''
-
-    let model = ''
-    for (const line of lines.slice(0, 20)) {
-      try {
-        const msg = JSON.parse(line)
-        if (msg.type === 'assistant' && msg.message?.model) { model = msg.message.model; break }
-      } catch { /* skip malformed */ }
-    }
-
-    return { session_id: sessionId, name, timestamp, model, sizeBytes, cwd }
+    if (lines) return parse(lines)
+    // 前缀读：只取前 256KB，避免全量读大文件；前缀被截断取不到 meta 时回退全量读
+    const prefix = await readFilePrefix(filePath, 256 * 1024)
+    const meta = parse(prefix.split('\n').filter(Boolean))
+    if (meta || sizeBytes <= 256 * 1024) return meta
+    const content = await readFile(filePath, 'utf-8')
+    return parse(content.split('\n').filter(Boolean))
   } catch { return null }
+}
+
+async function readFilePrefix(filePath: string, maxBytes: number): Promise<string> {
+  try {
+    const fh = await open(filePath, 'r')
+    try {
+      const size = (await fh.stat()).size
+      const buf = Buffer.alloc(Math.min(maxBytes, size))
+      if (buf.length > 0) await fh.read(buf, 0, buf.length, 0)
+      return buf.toString('utf8')
+    } finally { await fh.close() }
+  } catch { return '' }
 }
 
 async function listSessionsForCwd(cwd: string, configDir?: string): Promise<{ sessions: any[] }> {

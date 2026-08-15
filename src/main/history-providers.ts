@@ -26,6 +26,16 @@ export interface HistoryMessage {
 
 const PREFIX_BYTES = 64 * 1024
 const LIST_CACHE_TTL = 3000
+const listCache = new Map<string, { at: number; sessions: HistorySessionMeta[] }>()
+
+function getCached(key: string): HistorySessionMeta[] | null {
+  const hit = listCache.get(key)
+  return hit && Date.now() - hit.at < LIST_CACHE_TTL ? hit.sessions : null
+}
+
+function normalizeDshCwdDir(cwd: string): string {
+  return '-' + cwd.replace(/[^a-zA-Z0-9_]/g, '-') + '--'
+}
 
 function walkDirs(root: string, visitFile: (path: string, name: string) => void): void {
   let entries: { name: string; isDirectory(): boolean }[]
@@ -86,17 +96,6 @@ function extractTextBlocks(content: any, kinds: string[]): string {
     .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
 }
 
-function cacheList(key: string): { get(): HistorySessionMeta[] | null; set(v: HistorySessionMeta[]): void } {
-  let hit: { at: number; sessions: HistorySessionMeta[] } | null = null
-  return {
-    get() { return hit && Date.now() - hit.at < LIST_CACHE_TTL ? hit.sessions : null },
-    set(sessions) { hit = { at: Date.now(), sessions } },
-  }
-}
-
-const codexListCache = cacheList('codex')
-const dshListCache = cacheList('dsh')
-
 // ── Codex: ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl ──
 async function readCodexMeta(filePath: string): Promise<HistorySessionMeta | null> {
   try {
@@ -129,7 +128,8 @@ async function readCodexMeta(filePath: string): Promise<HistorySessionMeta | nul
 }
 
 export async function listCodexSessions(cwd: string): Promise<HistorySessionMeta[]> {
-  const cached = codexListCache.get()
+  const key = 'codex:' + cwd
+  const cached = getCached(key)
   if (cached) return cached
   const root = join(homedir(), '.codex', 'sessions')
   if (!existsSync(root)) return []
@@ -139,7 +139,7 @@ export async function listCodexSessions(cwd: string): Promise<HistorySessionMeta
   const out = metas.filter((m): m is HistorySessionMeta => !!m && (!cwd || m.cwd === cwd))
   out.sort((a, b) => b.timestamp - a.timestamp)
   const result = out.slice(0, 30)
-  codexListCache.set(result)
+  listCache.set(key, { at: Date.now(), sessions: result })
   return result
 }
 
@@ -198,17 +198,27 @@ async function readDshMeta(sessionDir: string): Promise<HistorySessionMeta | nul
 }
 
 export async function listDshSessions(cwd: string): Promise<HistorySessionMeta[]> {
-  const cached = dshListCache.get()
+  const key = 'dsh:' + cwd
+  const cached = getCached(key)
   if (cached) return cached
   const root = join(homedir(), '.dsh', 'sessions')
   if (!existsSync(root)) return []
   const dirs: string[] = []
-  walkDirsOnly(root, (p, name) => { if (name.startsWith('session-')) dirs.push(p) })
+  if (cwd) {
+    // DSH 按 cwd 目录存储：--<normalized-cwd>--/session-*
+    const target = join(root, normalizeDshCwdDir(cwd))
+    if (!existsSync(target)) return []
+    let entries: { name: string; isDirectory(): boolean }[]
+    try { entries = readdirSync(target, { withFileTypes: true }) } catch { return [] }
+    for (const e of entries) if (e.isDirectory() && e.name.startsWith('session-')) dirs.push(join(target, e.name))
+  } else {
+    walkDirsOnly(root, (p, name) => { if (name.startsWith('session-')) dirs.push(p) })
+  }
   const metas = await mapLimit(dirs, 8, readDshMeta)
-  const out = metas.filter((m): m is HistorySessionMeta => !!m && (!cwd || m.cwd === cwd))
+  const out = metas.filter((m): m is HistorySessionMeta => !!m)
   out.sort((a, b) => b.timestamp - a.timestamp)
   const result = out.slice(0, 30)
-  dshListCache.set(result)
+  listCache.set(key, { at: Date.now(), sessions: result })
   return result
 }
 
