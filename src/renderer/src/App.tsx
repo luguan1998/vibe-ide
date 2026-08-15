@@ -2642,6 +2642,7 @@ export default function App() {
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
             brushActive={brushActive}
             onResumeClaudeHistory={handleResumeClaudeHistory}
+            onResumeCodexHistory={handleResumeCodexHistory}
           />
         </div>
         )}
