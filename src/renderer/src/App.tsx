@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
+import { DEFAULT_MONO_FONT, resolveStoredFont } from './utils/platform'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
@@ -559,18 +560,18 @@ export default function App() {
   })
   const [sessionFontFamily, setSessionFontFamily] = useState(() => {
     try {
-      return localStorage.getItem('vibe-ide-session-font') || 'Consolas'
-    } catch { return 'Consolas' }
+      return resolveStoredFont(localStorage.getItem('vibe-ide-session-font'))
+    } catch { return DEFAULT_MONO_FONT }
   })
   const [fontFamily, setFontFamily] = useState(() => {
     try {
-      return localStorage.getItem('vibe-ide-font-family') || 'Consolas'
-    } catch { return 'Consolas' }
+      return resolveStoredFont(localStorage.getItem('vibe-ide-font-family'))
+    } catch { return DEFAULT_MONO_FONT }
   })
   const [termFontFamily, setTermFontFamily] = useState(() => {
     try {
-      return localStorage.getItem('vibe-ide-term-font') || 'Consolas'
-    } catch { return 'Consolas' }
+      return resolveStoredFont(localStorage.getItem('vibe-ide-term-font'))
+    } catch { return DEFAULT_MONO_FONT }
   })
   const centerViewRef = React.useRef<CenterView>('terminal')
 
@@ -2378,9 +2379,9 @@ export default function App() {
               setGroupSessionsByCwd(true)
               setInlineDiff(false)
               setDiffSplitRatio(0.3)
-              setSessionFontFamily('Consolas')
-              setFontFamily('Consolas')
-              setTermFontFamily('Consolas')
+              setSessionFontFamily(DEFAULT_MONO_FONT)
+              setFontFamily(DEFAULT_MONO_FONT)
+              setTermFontFamily(DEFAULT_MONO_FONT)
             }}
             focusSettingsTrigger={focusSettingsTrigger}
             onExecuteCommand={handleExecuteCommand}

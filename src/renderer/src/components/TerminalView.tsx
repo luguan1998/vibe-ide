@@ -11,6 +11,7 @@ import { SearchAddon } from '@xterm/addon-search'
 import { useTheme } from '../themes'
 import { loadFilterRules } from './FileTab'
 import { FILE_PATH_REGEX, parseFilePath, isBareFilename } from '../utils/filePathUtils'
+import { DEFAULT_MONO_FONT } from '../utils/platform'
 import '@xterm/xterm/css/xterm.css'
 
 function readTerminalBgImage(): string {
@@ -358,7 +359,7 @@ function findNextPrompt(buf: IBuffer, fromY: number): number {
   return -1
 }
 
-const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, fontFamily = 'Consolas', isAux = false, isActive = true, ocrEnabled = true, onAgentStatusChange, onOscTitle, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
+const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, fontFamily = DEFAULT_MONO_FONT, isAux = false, isActive = true, ocrEnabled = true, onAgentStatusChange, onOscTitle, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)

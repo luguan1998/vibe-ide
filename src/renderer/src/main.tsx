@@ -7,6 +7,7 @@ import { ThemeProvider } from './themes'
 import { I18nProvider } from './i18n'
 import ErrorBoundary from './components/ErrorBoundary'
 import { getMonaco } from './utils/monacoSingleton'
+import { isMac } from './utils/platform'
 import './styles/globals.css'
 
 // Workers for Monaco Editor (electron-vite handles ?worker imports)
@@ -54,6 +55,8 @@ async function bootstrap() {
       document.head.appendChild(style)
     }
   } catch { /* 加载失败不阻断启动 */ }
+
+  document.documentElement.classList.toggle('platform-darwin', isMac)
 
   try {
     const root = document.documentElement

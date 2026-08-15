@@ -200,6 +200,10 @@ html, body, #root {
 .titlebar-drag {
   -webkit-app-region: drag;
 }
+/* Reserve space for macOS traffic lights (close/minimize/zoom) */
+.platform-darwin .titlebar-drag {
+  padding-left: 78px;
+}
 .no-drag {
   -webkit-app-region: no-drag;
 }
