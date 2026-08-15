@@ -171,6 +171,16 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingPathRef = useRef<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  // 无遮罩浮层：点击面板外任意处关闭（mousedown 在面板内不关，拖选文字也不会误关）
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
 
   const filters = useMemo(() => excludedFolders.map(f => `**/${f}/**`), [excludedFolders])
   const selectableItems = query.trim() ? results : recentNodes.map(e => e.node)
@@ -367,7 +377,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
     <>
       {initOverlay}
       {panelWrapper(
-        <div className="w-full bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl overflow-hidden"
+        <div ref={panelRef} className="w-full bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl overflow-hidden"
           onClick={activate} style={{ opacity: 0.7 }}>
           <div className="flex items-center gap-2 px-3 h-10">
             <input readOnly placeholder={t('Hold Alt to peek, click or Alt+K to search')}
@@ -396,7 +406,7 @@ function CodeGraphSearch({ workspacePath, onClose, onSelectNode, onJumpTo, onAct
     <>
       {initOverlay}
       {panelWrapper(
-        <div className="w-full bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl overflow-hidden">
+        <div ref={panelRef} className="w-full bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl overflow-hidden">
           {/* Search row */}
           <div className="flex items-center gap-2 px-3 h-10">
             <input ref={inputRef} type="text" value={query} onChange={e => handleChange(e.target.value)}
