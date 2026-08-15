@@ -217,7 +217,7 @@ const AppearancePanel = function AppearancePanel({
     try { return localStorage.getItem('vibe-ide-md-font') || '' } catch { return '' }
   })
   const [mdFontSize, setMdFontSize] = useState(() => {
-    try { return parseInt(localStorage.getItem('vibe-ide-md-font-size') || '14', 10) } catch { return 14 }
+    try { return parseInt(localStorage.getItem('vibe-ide-md-font-size') || '15', 10) } catch { return 15 }
   })
   useEffect(() => {
     if (mdFontFamily) document.documentElement.style.setProperty('--md-font-family', mdFontFamily)
@@ -403,7 +403,7 @@ const AppearancePanel = function AppearancePanel({
               <button
                 className="px-2.5 py-1 text-xs text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover rounded transition-colors flex items-center gap-1"
                 onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => { onResetUiStyle?.(); setMdFontFamily(''); setMdFontSize(14) }}
+                onClick={() => { onResetUiStyle?.(); setMdFontFamily(''); setMdFontSize(15) }}
               ><RotateCcw className="size-3" />{t('Reset Defaults')}</button>
             )}
             <button
