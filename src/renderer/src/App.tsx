@@ -179,7 +179,7 @@ declare global {
         removeModelChangedListener: (handler?: any) => void
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
         resolveConfigDir: (configDir?: string) => Promise<string>
-        listSessions: (cwd?: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh') => Promise<{ sessions: any[]; error?: string }>
+        listSessions: (cwd?: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh', force?: boolean) => Promise<{ sessions: any[]; error?: string }>
         deleteSession: (sessionId: string, cwd: string, configDir?: string) => Promise<{ success: boolean; error?: string }>
         loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh') => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
         listAllSessions: (configDir?: string, currentCwd?: string) => Promise<{ sessions: import('@shared/types').AiSessionSummary[]; total?: number }>

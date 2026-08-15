@@ -25,7 +25,7 @@ export interface HistoryMessage {
 }
 
 const PREFIX_BYTES = 64 * 1024
-const LIST_CACHE_TTL = 3000
+const LIST_CACHE_TTL = 60 * 1000
 const listCache = new Map<string, { at: number; sessions: HistorySessionMeta[] }>()
 
 function getCached(key: string): HistorySessionMeta[] | null {
@@ -102,6 +102,7 @@ function extractTextBlocks(content: any, kinds: string[]): string {
 interface CodexLightMeta {
   filePath: string
   id: string
+  name: string
   cwd: string
   timestamp: number
   model: string
@@ -111,12 +112,25 @@ interface CodexLightMeta {
 async function readCodexMetaLight(filePath: string): Promise<CodexLightMeta | null> {
   try {
     const prefix = await readPrefix(filePath, PREFIX_BYTES)
-    const first = JSON.parse(prefix.split('\n')[0] || '')
+    const lines = prefix.split('\n')
+    const first = JSON.parse(lines[0] || '')
     if (first.type !== 'session_meta' || !first.payload?.id) return null
     const p = first.payload
+    let name = ''
+    for (const line of lines.slice(1)) {
+      try {
+        const ev = JSON.parse(line)
+        const pl = ev.payload
+        if (ev.type === 'response_item' && pl?.type === 'message' && pl.role === 'user') {
+          const text = extractTextBlocks(pl.content, ['text', 'input_text'])
+          if (text && !text.startsWith('<') && !text.startsWith('# AGENTS.md')) { name = text.slice(0, 60); break }
+        }
+      } catch {}
+    }
     return {
       filePath,
       id: p.id,
+      name,
       cwd: p.cwd || '',
       timestamp: new Date(p.timestamp).getTime(),
       model: p.model || p.model_provider || '',
@@ -125,25 +139,12 @@ async function readCodexMetaLight(filePath: string): Promise<CodexLightMeta | nu
   } catch { return null }
 }
 
-async function readCodexName(filePath: string): Promise<string> {
-  const prefix = await readPrefix(filePath, PREFIX_BYTES)
-  for (const line of prefix.split('\n').slice(1)) {
-    try {
-      const ev = JSON.parse(line)
-      const pl = ev.payload
-      if (ev.type === 'response_item' && pl?.type === 'message' && pl.role === 'user') {
-        const text = extractTextBlocks(pl.content, ['text', 'input_text'])
-        if (text && !text.startsWith('<')) return text.slice(0, 60)
-      }
-    } catch {}
-  }
-  return ''
-}
-
-export async function listCodexSessions(cwd: string): Promise<HistorySessionMeta[]> {
+export async function listCodexSessions(cwd: string, force = false): Promise<HistorySessionMeta[]> {
   const key = 'codex:' + cwd
-  const cached = getCached(key)
-  if (cached) return cached
+  if (!force) {
+    const cached = getCached(key)
+    if (cached) return cached
+  }
   const root = join(homedir(), '.codex', 'sessions')
   if (!existsSync(root)) return []
   const files: string[] = []
@@ -151,13 +152,11 @@ export async function listCodexSessions(cwd: string): Promise<HistorySessionMeta
   const lights = await mapLimit(files, 32, readCodexMetaLight)
   let matched = lights.filter((m): m is CodexLightMeta => !!m && (!cwd || m.cwd === cwd))
   matched.sort((a, b) => b.timestamp - a.timestamp)
-  matched = matched.slice(0, 30)
-  const withNames = await mapLimit(matched, 8, async (m) => {
-    const name = await readCodexName(m.filePath)
-    return { session_id: m.id, name, timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd }
-  })
-  listCache.set(key, { at: Date.now(), sessions: withNames })
-  return withNames
+  const result = matched.slice(0, 30).map(m => ({
+    session_id: m.id, name: m.name, timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd,
+  }))
+  listCache.set(key, { at: Date.now(), sessions: result })
+  return result
 }
 
 export async function loadCodexMessages(sessionId: string): Promise<HistoryMessage[]> {
@@ -214,10 +213,12 @@ async function readDshMeta(sessionDir: string): Promise<HistorySessionMeta | nul
   } catch { return null }
 }
 
-export async function listDshSessions(cwd: string): Promise<HistorySessionMeta[]> {
+export async function listDshSessions(cwd: string, force = false): Promise<HistorySessionMeta[]> {
   const key = 'dsh:' + cwd
-  const cached = getCached(key)
-  if (cached) return cached
+  if (!force) {
+    const cached = getCached(key)
+    if (cached) return cached
+  }
   const root = join(homedir(), '.dsh', 'sessions')
   if (!existsSync(root)) return []
   const dirs: string[] = []

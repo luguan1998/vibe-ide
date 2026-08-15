@@ -952,14 +952,14 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   const mujicaCounts = useMujicaCounts()
 
-  const fetchClaudeHistory = useCallback(async (cwd: string, src?: 'claude' | 'codex' | 'dsh') => {
+  const fetchClaudeHistory = useCallback(async (cwd: string, src?: 'claude' | 'codex' | 'dsh', force?: boolean) => {
     const source = src || historySource
     const reqId = ++claudeHistoryReqIdRef.current
     setClaudeHistoryLoading(true)
     setClaudeHistoryError('')
     try {
       const { configDir } = readAiCliConfig()
-      const r = await window.api.ai.listSessions(cwd || undefined, configDir, source)
+      const r = await window.api.ai.listSessions(cwd || undefined, configDir, source, force)
       if (claudeHistoryReqIdRef.current !== reqId) return
       setClaudeHistoryList(r.sessions || [])
     } catch (e: any) {
@@ -2365,7 +2365,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               <div className="flex items-center gap-1">
                 <button
                   className="w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  onClick={() => fetchClaudeHistory(claudeHistorySession.cwd)}
+                  onClick={() => fetchClaudeHistory(claudeHistorySession.cwd, undefined, true)}
                   disabled={claudeHistoryLoading}
                   title={t('Refresh')}
                 ><RotateCcw size={13} /></button>
@@ -2406,7 +2406,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       onClick={() => selectClaudeHistory(s)}
                       className="group w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left relative cursor-pointer"
                     >
-                      <div className="truncate pr-12">{s.name || s.session_id || s.id}</div>
+                      <div className="truncate pr-12">{s.name || (s.cwd ? (s.cwd.split('/').pop() || s.cwd) : (s.session_id || s.id))}</div>
                       {timeStr && (
                         <div className="flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-1">
                           <span className="truncate mr-2">{timeStr}</span>

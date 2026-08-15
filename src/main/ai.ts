@@ -1488,9 +1488,9 @@ export function registerAiHandlers(): void {
   })
 
   // List available sessions for resume
-  ipcMain.handle(IPC_CHANNELS.AI_LIST_SESSIONS, async (_event, cwd?: string, configDir?: string, source?: HistorySource) => {
-    if (source === 'codex') return { sessions: await listCodexSessions(cwd || '') }
-    if (source === 'dsh') return { sessions: await listDshSessions(cwd || '') }
+  ipcMain.handle(IPC_CHANNELS.AI_LIST_SESSIONS, async (_event, cwd?: string, configDir?: string, source?: HistorySource, force?: boolean) => {
+    if (source === 'codex') return { sessions: await listCodexSessions(cwd || '', !!force) }
+    if (source === 'dsh') return { sessions: await listDshSessions(cwd || '', !!force) }
     return listSessionsForCwd(cwd || '', configDir)
   })
 

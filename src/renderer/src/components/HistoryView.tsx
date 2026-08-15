@@ -64,7 +64,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [historySource, setHistorySource] = useState<'claude' | 'codex' | 'dsh'>('claude')
   const fetchReqIdRef = useRef(0)
 
-  const fetchSessions = useCallback(async (src?: 'claude' | 'codex' | 'dsh') => {
+  const fetchSessions = useCallback(async (src?: 'claude' | 'codex' | 'dsh', force?: boolean) => {
     const source = src || historySource
     const reqId = ++fetchReqIdRef.current
     setListLoading(true)
@@ -72,7 +72,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     try {
       const { configDir } = readAiCliConfig()
       if (source !== 'claude') {
-        const r = await window.api.ai.listSessions('', configDir, source)
+        const r = await window.api.ai.listSessions('', configDir, source, force)
         if (fetchReqIdRef.current !== reqId) return
         setSessions(r.sessions || [])
         setCollapsedProjects(new Set())
@@ -280,7 +280,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           <ChevronDown size={12} />
         </button>
         <div className="flex-1 min-w-0">
-          <div className="truncate text-xs text-ide-text">{s.name || s.session_id}</div>
+          <div className="truncate text-xs text-ide-text">{s.name || (s.cwd ? (s.cwd.split('/').pop() || s.cwd) : s.session_id)}</div>
           <div className="text-[10px] text-ide-text-muted/60 truncate">
             {s.cwd ? <span className="text-ide-text/70">{s.cwd}</span> : null}
             {s.cwd ? ' · ' : ''}
@@ -346,7 +346,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
             </>
           )}
           <button
-            onClick={() => fetchSessions()}
+            onClick={() => fetchSessions(undefined, true)}
             disabled={listLoading}
             className="w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title={t('Refresh')}
