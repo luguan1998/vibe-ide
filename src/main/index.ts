@@ -292,7 +292,7 @@ app.whenReady().then(() => {
 
   // Title bar theme update
   ipcMain.on(IPC_CHANNELS.TITLE_BAR_UPDATE, (_, options) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    if (process.platform !== 'darwin' && mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.setTitleBarOverlay(options)
     }
   })
