@@ -16,6 +16,8 @@ export interface HistorySessionMeta {
   model?: string
   sizeBytes: number
   cwd: string
+  workspace?: string
+  workspacePath?: string
 }
 
 export interface HistoryMessage {
@@ -237,6 +239,7 @@ export async function listCodexSessions(cwd: string, force = false): Promise<His
   matched = matched.filter(m => m.nameChecked && m.name)
   const result = matched.slice(0, 30).map(m => ({
     session_id: m.id, name: m.name, timestamp: m.timestamp, model: m.model, sizeBytes: m.sizeBytes, cwd: m.cwd,
+    workspace: basename(m.cwd) || m.cwd, workspacePath: m.cwd,
   }))
   listCache.set(key, { at: Date.now(), sessions: result })
   return result
@@ -297,6 +300,31 @@ function readDshProjCache(): DshProjSession[] {
   } catch { return [] }
 }
 
+interface DshWorkspaceInfo {
+  title: string
+  path: string
+}
+
+// DSH 的“工作区”注册表 ~/.dsh/storages/workspace.json：每个 workspace 记录 title/path 及其 sessionIds。
+// 会话按工作区分组（而非原始 cwd），与 DSH Web UI 的会话列表保持一致。
+function readDshWorkspaceMaps(): { bySession: Map<string, DshWorkspaceInfo>; byPath: Map<string, DshWorkspaceInfo> } {
+  const bySession = new Map<string, DshWorkspaceInfo>()
+  const byPath = new Map<string, DshWorkspaceInfo>()
+  try {
+    const raw = readFileSync(join(homedir(), '.dsh', 'storages', 'workspace.json'), 'utf8')
+    const workspaces = (JSON.parse(raw) as any).tables?.workspaces || {}
+    for (const ws of Object.values(workspaces) as any[]) {
+      const title = String(ws?.title || '')
+      const path = String(ws?.path || '')
+      if (!path) continue
+      const info: DshWorkspaceInfo = { title: title || basename(path), path }
+      byPath.set(path, info)
+      for (const sid of (ws?.sessionIds || [])) bySession.set(String(sid), info)
+    }
+  } catch {}
+  return { bySession, byPath }
+}
+
 function findDshSessionDir(cwd: string, sessionId: string): string | null {
   const root = join(homedir(), '.dsh', 'sessions')
   const target = join(root, normalizeDshCwdDir(cwd))
@@ -315,18 +343,24 @@ export async function listDshSessions(cwd: string, force = false): Promise<Histo
     const cached = getCached(key)
     if (cached) return cached
   }
+  const wsMaps = readDshWorkspaceMaps()
   const result = readDshProjCache()
     .filter(s => s.turns > 0 && (!cwd || s.cwd === cwd) && (cwd ? true : !isScratchCwd(s.cwd)))
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 30)
-    .map(s => ({
-      session_id: s.id,
-      name: (s.title || s.goal || '').slice(0, 60),
-      timestamp: s.createdAt,
-      model: '',
-      sizeBytes: 0,
-      cwd: s.cwd,
-    }))
+    .map(s => {
+      const ws = wsMaps.bySession.get(s.id) || wsMaps.bySession.get('session-' + s.id) || wsMaps.byPath.get(s.cwd)
+      return {
+        session_id: s.id,
+        name: (s.title || s.goal || '').slice(0, 60),
+        timestamp: s.createdAt,
+        model: '',
+        sizeBytes: 0,
+        cwd: s.cwd,
+        workspace: ws?.title || basename(s.cwd) || s.cwd,
+        workspacePath: ws?.path || s.cwd,
+      }
+    })
   listCache.set(key, { at: Date.now(), sessions: result })
   return result
 }

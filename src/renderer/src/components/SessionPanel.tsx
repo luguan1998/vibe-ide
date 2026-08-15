@@ -2406,9 +2406,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       onClick={() => selectClaudeHistory(s)}
                       className="group w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left relative cursor-pointer"
                     >
-                      <div className="truncate pr-12">{s.timestamp ? new Date(s.timestamp).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) + '  ' : ''}{s.name || (s.session_id || s.id)}</div>
+                      <div className="truncate pr-12">{s.name || (s.session_id || s.id)}</div>
+                      {s.cwd ? <div className="truncate pr-12 text-[10px] text-ide-text/70 mt-0.5">{s.cwd}</div> : null}
                       {timeStr && (
-                        <div className="flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-1">
+                        <div className="flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-0.5">
                           <span className="truncate mr-2">{timeStr}</span>
                           {s.sizeBytes > 0 && <span className="shrink-0">{formatBytes(s.sizeBytes)}</span>}
                         </div>

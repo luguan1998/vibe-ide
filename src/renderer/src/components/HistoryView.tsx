@@ -82,12 +82,12 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
         list.push(...(r.sessions || []))
       }
       setSessions(list)
-      // 默认折叠非当前文件夹，展开当前文件夹
+      // 默认折叠非当前工作区，展开当前工作区
       setCollapsedProjects(() => {
         const next = new Set<string>()
         for (const s of list) {
-          const isCurrent = s.inCurrentProject || s.cwd === workspacePath
-          if (!isCurrent) next.add(s.projectDirName || s.cwd || '')
+          const isCurrent = s.inCurrentProject || s.cwd === workspacePath || s.workspacePath === workspacePath
+          if (!isCurrent) next.add(s.workspacePath || s.projectDirName || s.cwd || '')
         }
         return next
       })
@@ -228,18 +228,19 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   }, [workspacePath, mode, onResumeClaudeHistory, onResumeCodexHistory, historySource])
 
   const groups = useMemo(() => {
-    const map = new Map<string, AiSessionSummary[]>()
+    const map = new Map<string, { label: string; list: AiSessionSummary[] }>()
     for (const s of sessions) {
-      const key = s.projectDirName || s.cwd || ''
-      const arr = map.get(key) ?? []
-      arr.push(s)
-      map.set(key, arr)
+      const key = s.workspacePath || s.projectDirName || s.cwd || ''
+      const label = s.workspace || s.projectDirName || s.cwd || ''
+      const entry = map.get(key) ?? { label, list: [] }
+      entry.list.push(s)
+      map.set(key, entry)
     }
     return [...map.entries()]
   }, [sessions])
 
   const visibleGroups = useMemo(() => {
-    return onlyCurrent ? groups.filter(([, list]) => list[0]?.inCurrentProject || list[0]?.cwd === workspacePath) : groups
+    return onlyCurrent ? groups.filter(([, g]) => g.list[0]?.inCurrentProject || g.list[0]?.cwd === workspacePath || g.list[0]?.workspacePath === workspacePath) : groups
   }, [groups, onlyCurrent, workspacePath])
 
   const visibleSearchResults = useMemo(() => {
@@ -283,10 +284,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           <ChevronDown size={12} />
         </button>
         <div className="flex-1 min-w-0">
-          <div className="truncate text-xs text-ide-text">{s.timestamp ? new Date(s.timestamp).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) + '  ' : ''}{s.name || s.session_id}</div>
-          <div className="text-[10px] text-ide-text-muted/60 truncate">
-            {s.cwd ? <span className="text-ide-text/70">{s.cwd}</span> : null}
-            {s.cwd ? ' · ' : ''}
+          <div className="truncate text-xs text-ide-text">{s.name || s.session_id}</div>
+          {s.cwd ? <div className="truncate text-[10px] text-ide-text/70">{s.cwd}</div> : null}
+          <div className="text-[10px] text-ide-text-muted/50">
             {s.timestamp ? new Date(s.timestamp).toLocaleString() : ''}
             {s.model ? ` · ${s.model}` : ''}
             {s.sizeBytes > 0 ? ` · ${formatBytes(s.sizeBytes)}` : ''}
@@ -431,21 +431,22 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
         ) : visibleGroups.length === 0 ? (
           <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
         ) : (
-          visibleGroups.map(([dirName, list]) => {
-            const isCollapsed = collapsedProjects.has(dirName)
+          visibleGroups.map(([key, group]) => {
+            const isCollapsed = collapsedProjects.has(key)
+            const list = group.list
             return (
-              <div key={dirName}>
+              <div key={key}>
                 <div
                   className={`flex items-center gap-1 px-1 pt-1 pb-1.5 cursor-pointer select-none rounded hover:bg-ide-hover/50 transition-colors ${isCollapsed ? 'bg-ide-hover/40' : ''}`}
-                  onClick={() => toggleGroup(dirName)}
+                  onClick={() => toggleGroup(key)}
                 >
                   <ChevronDown size={11} className={`text-ide-text-muted shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
                   <span className="text-[10px] font-bold flex-1 min-w-0 flex items-center gap-1">
                     <FolderOpen size={11} className="text-ide-accent/70 shrink-0" />
-                    <span className="truncate font-mono text-ide-text/80">{list[0]?.cwd || dirName}</span>
+                    <span className="truncate font-mono text-ide-text/80">{group.label}</span>
                   </span>
                   <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted">{list.length}</span>
-                  {list[0]?.inCurrentProject || list[0]?.cwd === workspacePath ? (
+                  {list[0]?.inCurrentProject || list[0]?.cwd === workspacePath || list[0]?.workspacePath === workspacePath ? (
                     <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-accent/15 text-ide-accent">{t('Current project')}</span>
                   ) : null}
                 </div>

@@ -514,6 +514,8 @@ export interface AiSessionSummary {
   projectDir: string
   projectDirName: string
   inCurrentProject: boolean
+  workspace?: string
+  workspacePath?: string
 }
 
 export interface AiSearchMatch {
