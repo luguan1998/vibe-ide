@@ -82,6 +82,16 @@
       ],
       "signAndEditExecutable": false
     },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon2.png",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "identity": null
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -98,7 +108,8 @@
     "asarUnpack": [
       "node_modules/tesseract.js/**",
       "node_modules/tesseract.js-core/**",
-      "node_modules/@tesseract.js-data/**"
+      "node_modules/@tesseract.js-data/**",
+      "node_modules/node-pty/**"
     ]
   },
   "dependencies": {

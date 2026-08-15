@@ -54,14 +54,16 @@ function patchExeDir(exeDir) {
 exports.default = async function (context) {
   const appDir = context.appOutDir
 
-  // Embed icon + fix PE metadata
-  patchExeDir(appDir)
+  // Windows-only: embed icon + PE metadata, copy context-menu bats
+  if (process.platform === 'win32') {
+    patchExeDir(appDir)
 
-  // Copy context-menu register/unregister bats next to the exe so the
-  // portable 7z build can run them (they locate the exe via %~dp0).
-  for (const name of ['register-context-menu.bat', 'unregister-context-menu.bat']) {
-    const src = path.join(__dirname, '..', 'build', name)
-    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(appDir, name))
+    // Copy context-menu register/unregister bats next to the exe so the
+    // portable 7z build can run them (they locate the exe via %~dp0).
+    for (const name of ['register-context-menu.bat', 'unregister-context-menu.bat']) {
+      const src = path.join(__dirname, '..', 'build', name)
+      if (fs.existsSync(src)) fs.copyFileSync(src, path.join(appDir, name))
+    }
   }
 
   // Keep only en-US.pak + zh-CN.pak
