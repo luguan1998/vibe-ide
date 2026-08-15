@@ -387,7 +387,9 @@ async function main() {
     console.log(`启动 Electron（工作区: ${workspace}）...`)
     const electronExe = process.platform === 'win32'
       ? join(projectRoot, 'node_modules', 'electron', 'dist', 'electron.exe')
-      : join(projectRoot, 'node_modules', 'electron', 'dist', 'electron')
+      : process.platform === 'darwin'
+        ? join(projectRoot, 'node_modules', 'electron', 'dist', 'Electron.app', 'Contents', 'MacOS', 'Electron')
+        : join(projectRoot, 'node_modules', 'electron', 'dist', 'electron')
     // app 路径必须是 projectRoot（含 package.json）；workspace 作为启动参数
     // 交由 main 进程 parseStartupPath 解析（取最后一个存在的位置参数）
     proc = spawn(electronExe, [
