@@ -63,8 +63,8 @@ function parseStartupPath(argv: string[]): string | null {
   // Check from the end — the user path is typically the last positional arg
   for (let i = positional.length - 1; i >= 0; i--) {
     const arg = positional[i]
-    // Skip the electron/executable binary and common non-path entries
-    if (arg.endsWith('.exe') || arg === '.') continue
+    // Skip the current executable and common non-path entries
+    if (arg === process.execPath || arg.endsWith('.exe') || arg === '.') continue
     // Resolve to absolute path
     const resolved = resolve(arg)
     if (existsSync(resolved)) return resolved
