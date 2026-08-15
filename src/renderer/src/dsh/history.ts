@@ -1,4 +1,7 @@
-import { getSharedDshContext } from './context'
+// context 动态导入：dsh client 栈（cordis + 20 插件包 + CSS）整体拆进异步 chunk，
+// 避免打进主 bundle 拖慢启动；DshView 自身 lazy 后其依赖图也随异步 chunk 加载。
+
+import type { HistoryTurn } from '../historyUtils'
 
 export interface DshHistorySession {
   id: string
@@ -8,31 +11,87 @@ export interface DshHistorySession {
   running?: boolean
 }
 
-export async function getDshApi(cwd?: string): Promise<any> {
+async function getDshHandle(cwd?: string): Promise<any> {
   let port = await window.api.dsh.getPort()
   if (port === null) {
     const started = await window.api.dsh.start(cwd)
     if (!started.ok || started.port === undefined) throw new Error(started.error ?? 'dsh server start failed')
     port = started.port
   }
-  const h = await getSharedDshContext(`http://127.0.0.1:${port}`)
+  const { getSharedDshContext } = await import('./context')
+  return getSharedDshContext(`http://127.0.0.1:${port}`)
+}
+
+export async function getDshApi(cwd?: string): Promise<any> {
+  const h = await getDshHandle(cwd)
   return (h.ctx.get('connection') as any).api
 }
 
 export async function fetchDshSessions(cwd?: string): Promise<DshHistorySession[]> {
-  const api = await getDshApi(cwd)
-  const res = await api.sessions.list({})
-  if (!res.result?.ok) throw new Error(res.result?.error?.message ?? 'dsh session list failed')
-  const items = (res.result.value?.items ?? []) as any[]
-  return items
+  const h = await getDshHandle(cwd)
+  const sessions = h.ctx.get('sessions') as any
+  // wire 层 sessions.list 不带 title 字段，用 client runtime 快照：
+  // displayTitle 派生规则为 title → cwd 目录名 → id（避免历史列表全是数字 id）
+  const deadline = Date.now() + 1500
+  let byId: Record<string, any> = {}
+  for (;;) {
+    const snap = sessions.list.getSnapshot()
+    byId = snap?.byId ?? {}
+    if (Object.keys(byId).length > 0 || Date.now() >= deadline) break
+    await new Promise((r) => setTimeout(r, 100))
+  }
+  return (Object.values(byId) as any[])
     .filter((s: any) => !s.blank)
     .map((s: any) => ({
-      id: s.sessionId ?? s.id,
-      title: s.title || s.displayTitle || s.sessionId || s.id,
+      id: s.id,
+      title: s.title || s.displayTitle || s.id,
       cwd: s.cwd,
-      updatedAt: s.updatedAt ?? s.createdAt,
+      updatedAt: s.updatedAt,
       running: !!s.running,
     }))
+    .sort((a: any, b: any) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+}
+
+export async function fetchDshHistoryTurns(
+  sessionId: string,
+  cwd?: string,
+): Promise<HistoryTurn[]> {
+  const api = await getDshApi(cwd)
+  const res = await api.sessions.history({ sessionId, maxMessages: 200 })
+  if (!res.result?.ok) return []
+  const events = ((res.result.value?.events ?? []) as any[]).map((e: any) => e.event)
+  const turns: HistoryTurn[] = []
+  for (const ev of events) {
+    if (ev?.type !== 'user/message' && ev?.type !== 'assistant/message') continue
+    // user/message 的 data 直接是 message，assistant/message 的 data 包一层 message
+    const msg = ev.type === 'user/message' ? ev.data : ev.data?.message
+    const text = (msg?.content ?? [])
+      .filter((b: any) => b.type === 'text')
+      .map((b: any) => b.text)
+      .join('')
+    if (!text.trim()) continue
+    turns.push({ role: ev.type === 'user/message' ? 'user' : 'assistant', text })
+  }
+  return turns
+}
+
+export interface DshSearchResultItem {
+  sessionId: string
+  snippet: string
+}
+
+export async function searchDshSessions(
+  query: string,
+  cwd?: string,
+): Promise<{ items: DshSearchResultItem[]; hasMore: boolean }> {
+  const api = await getDshApi(cwd)
+  const res = await api.sessions.search({ query })
+  if (!res.result?.ok) return { items: [], hasMore: false }
+  const items = ((res.result.value?.items ?? []) as any[]).map((s: any) => ({
+    sessionId: String(s.sessionId),
+    snippet: String(s.snippet ?? ''),
+  }))
+  return { items, hasMore: !!res.result.value?.hasMore }
 }
 
 async function extractLatestReply(api: any, sessionId: string): Promise<{ messageId: string; text: string } | null> {

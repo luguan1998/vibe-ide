@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
-import DshView from './components/DshView'
 import { getDshApi } from './dsh/history'
+const DshView = lazy(() => import('./components/DshView'))
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
@@ -334,6 +334,19 @@ export default function App() {
     }, 6000)
     return () => clearInterval(id)
   }, [pollingEnabled])
+
+  // 空闲时预热 dsh chunk（lazy 拆分后首次进入 dsh 要现场加载 2.5MB，会卡交互）
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const idle = (window as any).requestIdleCallback
+      if (typeof idle === 'function') {
+        idle(() => { void import('./components/DshView') }, { timeout: 2000 })
+      } else {
+        void import('./components/DshView')
+      }
+    }, 3000)
+    return () => clearTimeout(t)
+  }, [])
 
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   const [sessionViewModes, setSessionViewModes] = useState<Record<string, 'term' | 'gui' | 'dsh'>>({})
