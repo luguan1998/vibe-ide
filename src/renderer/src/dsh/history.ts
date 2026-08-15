@@ -75,25 +75,6 @@ export async function fetchDshHistoryTurns(
   return turns
 }
 
-export interface DshSearchResultItem {
-  sessionId: string
-  snippet: string
-}
-
-export async function searchDshSessions(
-  query: string,
-  cwd?: string,
-): Promise<{ items: DshSearchResultItem[]; hasMore: boolean }> {
-  const api = await getDshApi(cwd)
-  const res = await api.sessions.search({ query })
-  if (!res.result?.ok) return { items: [], hasMore: false }
-  const items = ((res.result.value?.items ?? []) as any[]).map((s: any) => ({
-    sessionId: String(s.sessionId),
-    snippet: String(s.snippet ?? ''),
-  }))
-  return { items, hasMore: !!res.result.value?.hasMore }
-}
-
 async function extractLatestReply(api: any, sessionId: string): Promise<{ messageId: string; text: string } | null> {
   const res = await api.sessions.history({ sessionId, maxMessages: 3 })
   if (!res.result?.ok) return null

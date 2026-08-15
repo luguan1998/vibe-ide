@@ -5,7 +5,7 @@ import { buildHistoryTurns, formatBytes } from '../historyUtils'
 import type { HistoryTurn } from '../historyUtils'
 import type { AiSessionSummary, AiSessionSearchGroup } from '@shared/types'
 import { ArrowLeft, ChevronDown, Filter, FolderOpen, Loader2, RotateCcw, Search, Trash2, X } from 'lucide-react'
-import { fetchDshSessions, fetchDshHistoryTurns, searchDshSessions, type DshHistorySession } from '../dsh/history'
+import { fetchDshSessions, fetchDshHistoryTurns, type DshHistorySession } from '../dsh/history'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 
@@ -17,16 +17,8 @@ interface HistoryViewProps {
 }
 
 type HistoryMode = 'tui' | 'gui' | 'dsh'
-// dsh 会话归一化为 AiSessionSummary 形状后复用同一套列表/搜索渲染；dshRunning 标记运行中会话（不可删除）
+// dsh 会话归一化为 AiSessionSummary 形状后复用同一套列表渲染；dshRunning 标记运行中会话（不可删除）
 type Summary = AiSessionSummary & { dshRunning?: boolean }
-type SearchGroup = AiSessionSearchGroup & { dshRunning?: boolean }
-
-// dsh 会话 cwd 与 workspacePath 的分隔符/大小写可能不一致，比较前规范化
-function samePath(a?: string, b?: string): boolean {
-  if (!a || !b) return false
-  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
-  return norm(a) === norm(b)
-}
 
 function highlightParts(text: string, query: string, caseSensitive: boolean): React.ReactNode[] {
   if (!query) return [text]
@@ -72,7 +64,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [searching, setSearching] = useState(false)
-  const [searchResults, setSearchResults] = useState<SearchGroup[] | null>(null)
+  const [searchResults, setSearchResults] = useState<AiSessionSearchGroup[] | null>(null)
   const [searchTruncated, setSearchTruncated] = useState(false)
   const [searchError, setSearchError] = useState('')
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
@@ -88,9 +80,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     cwd: s.cwd ?? '',
     projectDir: s.cwd ?? '',
     projectDirName: s.cwd ?? 'dsh',
-    inCurrentProject: samePath(s.cwd, workspacePath ?? undefined),
+    inCurrentProject: false,
     dshRunning: s.running,
-  }), [workspacePath])
+  }), [])
 
   const fetchSessions = useCallback(async () => {
     const reqId = ++fetchReqIdRef.current
@@ -150,39 +142,6 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
       return
     }
     const reqId = ++fetchReqIdRef.current
-    if (mode === 'dsh') {
-      setSearching(true)
-      setSearchError('')
-      searchDshSessions(debouncedQuery, workspacePath || undefined)
-        .then((r) => {
-          if (fetchReqIdRef.current !== reqId) return
-          setSearchResults(r.items.map((item) => {
-            const meta = dshSessions.find(x => x.id === item.sessionId)
-            return {
-              session_id: item.sessionId,
-              name: meta?.title || item.sessionId,
-              timestamp: meta?.updatedAt ?? 0,
-              model: '',
-              sizeBytes: 0,
-              cwd: meta?.cwd ?? '',
-              projectDir: meta?.cwd ?? '',
-              projectDirName: meta?.cwd ?? 'dsh',
-              inCurrentProject: samePath(meta?.cwd, workspacePath ?? undefined),
-              dshRunning: meta?.running,
-              matches: [{ role: 'assistant', text: item.snippet }],
-            }
-          }))
-          setSearchTruncated(r.hasMore)
-        })
-        .catch((e: any) => {
-          if (fetchReqIdRef.current !== reqId) return
-          setSearchError(e?.message || '搜索失败')
-        })
-        .finally(() => {
-          if (fetchReqIdRef.current === reqId) setSearching(false)
-        })
-      return
-    }
     setSearching(true)
     setSearchError('')
     const { configDir } = readAiCliConfig()
@@ -199,7 +158,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
       .finally(() => {
         if (fetchReqIdRef.current === reqId) setSearching(false)
       })
-  }, [debouncedQuery, mode, dshSessions, workspacePath])
+  }, [debouncedQuery])
 
   const toggleExpand = useCallback(async (s: Summary) => {
     const id = s.session_id
@@ -418,16 +377,18 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           >
             <RotateCcw size={13} className={listLoading ? 'animate-spin' : ''} />
           </button>
-          <button
-            onClick={() => setOnlyCurrent(v => !v)}
-            className={`flex items-center gap-1 h-5 px-2 rounded text-[11px] transition-colors ${onlyCurrent ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-            title={t('Current project only')}
-          >
-            <Filter size={11} />
-            <span>{t('Current project only')}</span>
-          </button>
+          {mode !== 'dsh' && (
+            <button
+              onClick={() => setOnlyCurrent(v => !v)}
+              className={`flex items-center gap-1 h-5 px-2 rounded text-[11px] transition-colors ${onlyCurrent ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+              title={t('Current project only')}
+            >
+              <Filter size={11} />
+              <span>{t('Current only')}</span>
+            </button>
+          )}
         </div>
-        <div className="relative">
+        <div className="relative" style={{ display: mode === 'dsh' ? 'none' : undefined }}>
           <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-ide-text-muted/50" />
           <input
             value={query}
@@ -502,7 +463,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
                   </span>
                   <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted">{list.length}</span>
                   {list[0]?.inCurrentProject && (
-                    <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-accent/15 text-ide-accent">{t('Current project')}</span>
+                    <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-accent/15 text-ide-accent">{t('Current')}</span>
                   )}
                 </div>
                 {!isCollapsed && (

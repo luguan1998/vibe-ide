@@ -17,7 +17,7 @@ import mujicaIcon from '@renderer/assets/mujica.png?inline'
 import { useMujicaCounts } from '../mujicaStore'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
-import { fetchDshSessions, type DshHistorySession } from '../dsh/history'
+import { fetchDshSessions, fetchDshHistoryTurns, type DshHistorySession } from '../dsh/history'
 
 // ── Claude 配置组（model/provider 多组切换）──
 interface ClaudeConfigGroup {
@@ -575,13 +575,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   const [claudeHistorySession, setClaudeHistorySession] = useState<TerminalSession | null>(null)
   const [claudeHistoryList, setClaudeHistoryList] = useState<any[]>([])
-  const [claudeHistoryLoading, setClaudeHistoryLoading] = useState(false)
-  const [claudeHistoryError, setClaudeHistoryError] = useState('')
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
   const claudeHistoryReqIdRef = useRef(0)
   const [claudeHistoryMode, setClaudeHistoryMode] = useState<'tui' | 'gui' | 'dsh'>('tui')
   const [dshHistoryList, setDshHistoryList] = useState<DshHistorySession[]>([])
-  const [dshHistoryLoading, setDshHistoryLoading] = useState(false)
-  const [dshHistoryError, setDshHistoryError] = useState('')
   const dshHistoryReqIdRef = useRef(0)
   const [expandedHistory, setExpandedHistory] = useState<{ id: string; turns: { role: 'user' | 'assistant'; text: string }[]; loading: boolean } | null>(null)
 
@@ -959,8 +957,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   const fetchClaudeHistory = useCallback(async (cwd: string) => {
     const reqId = ++claudeHistoryReqIdRef.current
-    setClaudeHistoryLoading(true)
-    setClaudeHistoryError('')
+    setHistoryLoading(true)
+    setHistoryError('')
     try {
       const { configDir } = readAiCliConfig()
       const r = await window.api.ai.listSessions(cwd || undefined, configDir)
@@ -968,9 +966,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       setClaudeHistoryList(r.sessions || [])
     } catch (e: any) {
       if (claudeHistoryReqIdRef.current !== reqId) return
-      setClaudeHistoryError(e?.message || '加载失败')
+      setHistoryError(e?.message || '加载失败')
     } finally {
-      if (claudeHistoryReqIdRef.current === reqId) setClaudeHistoryLoading(false)
+      if (claudeHistoryReqIdRef.current === reqId) setHistoryLoading(false)
     }
   }, [])
 
@@ -978,8 +976,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     claudeHistoryReqIdRef.current++
     setClaudeHistorySession(null)
     setClaudeHistoryList([])
-    setClaudeHistoryError('')
-    setClaudeHistoryLoading(false)
+    setHistoryError('')
+    setHistoryLoading(false)
     setExpandedHistory(null)
   }, [])
 
@@ -991,36 +989,36 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       return
     }
     setExpandedHistory({ id, turns: [], loading: true })
-    const { configDir } = readAiCliConfig()
     try {
-      const r = await window.api.ai.loadSessionMessages(id, claudeHistorySession.cwd, configDir)
-      if (r?.error) throw new Error(r.error)
-      setExpandedHistory(prev => prev?.id === id ? { id, turns: buildHistoryTurns(r.messages), loading: false } : prev)
+      const turns = claudeHistoryMode === 'dsh'
+        ? await fetchDshHistoryTurns(id, claudeHistorySession.cwd)
+        : buildHistoryTurns((await window.api.ai.loadSessionMessages(id, claudeHistorySession.cwd, readAiCliConfig().configDir))?.messages)
+      setExpandedHistory(prev => prev?.id === id ? { id, turns, loading: false } : prev)
     } catch (e: any) {
       setExpandedHistory(prev => prev?.id === id ? { id, turns: [{ role: 'assistant', text: e?.message || '加载失败' }], loading: false } : prev)
     }
-  }, [claudeHistorySession, expandedHistory])
+  }, [claudeHistorySession, expandedHistory, claudeHistoryMode])
 
   const openClaudeHistory = useCallback((session: TerminalSession) => {
     setClaudeHistorySession(session)
     setClaudeHistoryList([])
-    setClaudeHistoryError('')
+    setHistoryError('')
     fetchClaudeHistory(session.cwd)
   }, [fetchClaudeHistory])
 
   const fetchDshHistory = useCallback(async (cwd: string) => {
     const reqId = ++dshHistoryReqIdRef.current
-    setDshHistoryLoading(true)
-    setDshHistoryError('')
+    setHistoryLoading(true)
+    setHistoryError('')
     try {
       const list = await fetchDshSessions(cwd)
       if (dshHistoryReqIdRef.current !== reqId) return
       setDshHistoryList(list)
     } catch (e: any) {
       if (dshHistoryReqIdRef.current !== reqId) return
-      setDshHistoryError(e?.message || '加载失败')
+      setHistoryError(e?.message || '加载失败')
     } finally {
-      if (dshHistoryReqIdRef.current === reqId) setDshHistoryLoading(false)
+      if (dshHistoryReqIdRef.current === reqId) setHistoryLoading(false)
     }
   }, [])
 
@@ -1046,10 +1044,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       if (r?.ok) {
         setDshHistoryList(prev => prev.filter(x => x.id !== s.id))
       } else {
-        setDshHistoryError(r?.error || '删除失败')
+        setHistoryError(r?.error || '删除失败')
       }
     } catch (e: any) {
-      setDshHistoryError(e?.message || '删除失败')
+      setHistoryError(e?.message || '删除失败')
     }
   }, [])
 
@@ -1062,10 +1060,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       if (r?.success) {
         setClaudeHistoryList(prev => prev.filter(x => (x.session_id || x.id) !== historySessionId))
       } else {
-        setClaudeHistoryError(r?.error || '删除失败')
+        setHistoryError(r?.error || '删除失败')
       }
     } catch (e: any) {
-      setClaudeHistoryError(e?.message || '删除失败')
+      setHistoryError(e?.message || '删除失败')
     }
   }, [claudeHistorySession])
 
@@ -1708,6 +1706,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <div className="flex items-stretch">
             <button
               className={`flex-1 px-3 py-1.5 text-left text-sm flex items-center gap-2 ${schedTasks[contextMenu.sessionId] ? 'text-ide-accent bg-ide-accent/15 hover:bg-ide-accent/25' : 'text-ide-text hover:bg-ide-hover'}`}
+              title={t('Scheduled')}
               onClick={() => {
                 const session = sessions.find(s => s.id === contextMenu.sessionId)
                 if (session) openSchedModal(session.id)
@@ -1715,7 +1714,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               }}
             >
               <Clock size={14} className={schedTasks[contextMenu.sessionId] ? 'text-ide-accent' : 'text-ide-text-muted'} />
-              <span>{t('Scheduled')}</span>
+              <span>{t('Sched')}</span>
             </button>
             <div className="w-px bg-ide-border shrink-0 my-1.5" />
             <button
@@ -2441,7 +2440,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     if (claudeHistoryMode === 'dsh') fetchDshHistory(claudeHistorySession.cwd)
                     else fetchClaudeHistory(claudeHistorySession.cwd)
                   }}
-                  disabled={claudeHistoryMode === 'dsh' ? dshHistoryLoading : claudeHistoryLoading}
+                  disabled={historyLoading}
                   title={t('Refresh')}
                 ><RotateCcw size={13} /></button>
                 <button
@@ -2451,97 +2450,71 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
-              {claudeHistoryLoading ? (
+              {historyLoading ? (
                 <div className="flex items-center justify-center gap-2 py-8 text-xs text-ide-text-muted">
                   <Loader2 size={14} className="animate-spin" /><span>{t('Loading...')}</span>
                 </div>
-              ) : claudeHistoryError ? (
-                <div className="py-8 text-center text-xs text-ide-danger px-4">{claudeHistoryError}</div>
-              ) : claudeHistoryMode === 'dsh' ? (
-                dshHistoryLoading ? (
-                  <div className="flex items-center justify-center gap-2 py-8 text-xs text-ide-text-muted">
-                    <Loader2 size={14} className="animate-spin" /><span>{t('Loading...')}</span>
-                  </div>
-                ) : dshHistoryError ? (
-                  <div className="py-8 text-center text-xs text-ide-danger px-4">{dshHistoryError}</div>
-                ) : dshHistoryList.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
-                ) : (
-                  dshHistoryList.map((s) => (
+              ) : historyError ? (
+                <div className="py-8 text-center text-xs text-ide-danger px-4">{historyError}</div>
+              ) : (claudeHistoryMode === 'dsh' ? dshHistoryList : claudeHistoryList).length === 0 ? (
+                <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
+              ) : (
+                (claudeHistoryMode === 'dsh' ? dshHistoryList : claudeHistoryList).map((s: any) => {
+                  const id = s.session_id || s.id
+                  const title = s.title || s.name || id
+                  const timeStr = s.updatedAt ? new Date(s.updatedAt).toLocaleString() : (s.timestamp ? new Date(s.timestamp).toLocaleString() : '')
+                  const hist = expandedHistory?.id === id ? expandedHistory : null
+                  return (
                     <div
-                      key={s.id}
-                      onClick={() => selectClaudeHistory(s)}
-                      className="group w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left relative cursor-pointer"
+                      key={id}
+                      onClick={() => void toggleHistoryExpand(s)}
+                      className="group w-full px-2.5 py-2 flex items-start gap-2 text-xs text-ide-text hover:bg-ide-hover transition-colors text-left cursor-pointer"
                     >
-                      <div className="truncate pr-12">{s.title}</div>
-                      <div className="flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-1">
-                        <span className="truncate mr-2">{s.cwd}</span>
-                        {s.updatedAt ? <span className="shrink-0">{new Date(s.updatedAt).toLocaleString()}</span> : null}
+                      <ChevronDown size={12} className={`mt-0.5 shrink-0 text-ide-text-muted transition-transform ${hist ? '' : '-rotate-90'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="truncate">{title}</div>
+                        <div className="text-[10px] text-ide-text-muted/60 truncate mt-0.5">
+                          {s.cwd ? <span className="text-ide-text/70">{s.cwd}</span> : null}
+                          {s.cwd && timeStr ? ' · ' : ''}
+                          {timeStr}
+                          {s.sizeBytes > 0 ? ` · ${formatBytes(s.sizeBytes)}` : ''}
+                        </div>
+                        {hist && (
+                          <div className="mt-1.5 pt-1.5 border-t border-ide-border/50 max-h-40 overflow-y-auto space-y-0.5">
+                            {hist.loading ? (
+                              <div className="flex items-center gap-1.5 text-[11px] text-ide-text-muted py-0.5">
+                                <Loader2 size={11} className="animate-spin" /><span>{t('Loading...')}</span>
+                              </div>
+                            ) : (
+                              hist.turns.map((tr, ti) => (
+                                <div key={ti} className="flex items-start gap-1 text-[11px] leading-snug" title={tr.text}>
+                                  <span className={`shrink-0 w-4 text-center select-none rounded ${tr.role === 'user' ? 'text-ide-accent' : 'text-ide-success'}`}>
+                                    {tr.role === 'user' ? t('User') : t('Assistant')}
+                                  </span>
+                                  <span className="min-w-0 flex-1 truncate text-ide-text-muted/80">
+                                    {tr.text.length > 60 ? tr.text.slice(0, 60) + '…' : tr.text}
+                                  </span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
                       </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); selectClaudeHistory(s) }}
+                        className="shrink-0 px-2 py-0.5 text-[10px] rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 transition-colors"
+                        title={t('Resume')}
+                      >
+                        {t('Resume')}
+                      </button>
                       {!s.running && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); void deleteDshHistorySession(s) }}
-                          className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
+                          onClick={(e) => { e.stopPropagation(); claudeHistoryMode === 'dsh' ? void deleteDshHistorySession(s) : void deleteClaudeHistory(s) }}
+                          className="shrink-0 w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
                           title={t('Delete')}
                         >
                           <Trash2 size={12} />
                         </button>
-                      )}
-                    </div>
-                  ))
-                )
-              ) : claudeHistoryList.length === 0 ? (
-                <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
-              ) : (
-                claudeHistoryList.map((s: any) => {
-                  const timeStr = s.timestamp ? new Date(s.timestamp).toLocaleString() : ''
-                  const hist = expandedHistory?.id === (s.session_id || s.id) ? expandedHistory : null
-                  return (
-                    <div
-                      key={s.session_id || s.id}
-                      onClick={() => selectClaudeHistory(s)}
-                      className="group w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left relative cursor-pointer"
-                    >
-                      <div className="truncate pr-12">{s.name || s.session_id || s.id}</div>
-                      {timeStr && (
-                        <div className="flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-1">
-                          <span className="truncate mr-2">{timeStr}</span>
-                          {s.sizeBytes > 0 && <span className="shrink-0">{formatBytes(s.sizeBytes)}</span>}
-                        </div>
-                      )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleHistoryExpand(s) }}
-                        className={`absolute right-7 top-1.5 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-all ${hist ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                        title={t('Expand')}
-                      >
-                        <ChevronDown size={12} className={`transition-transform ${hist ? 'rotate-180' : ''}`} />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteClaudeHistory(s) }}
-                        className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
-                        title={t('Delete')}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                      {hist && (
-                        <div className="mt-1.5 pt-1.5 border-t border-ide-border/50 max-h-40 overflow-y-auto space-y-0.5">
-                          {hist.loading ? (
-                            <div className="flex items-center gap-1.5 text-[11px] text-ide-text-muted py-0.5">
-                              <Loader2 size={11} className="animate-spin" /><span>{t('Loading...')}</span>
-                            </div>
-                          ) : (
-                            hist.turns.map((tr, ti) => (
-                              <div key={ti} className="flex items-start gap-1 text-[11px] leading-snug" title={tr.text}>
-                                <span className={`shrink-0 w-4 text-center select-none rounded ${tr.role === 'user' ? 'text-ide-accent' : 'text-ide-success'}`}>
-                                  {tr.role === 'user' ? '问' : '答'}
-                                </span>
-                                <span className="min-w-0 flex-1 truncate text-ide-text-muted/80">
-                                  {tr.text.length > 60 ? tr.text.slice(0, 60) + '…' : tr.text}
-                                </span>
-                              </div>
-                            ))
-                          )}
-                        </div>
                       )}
                     </div>
                   )

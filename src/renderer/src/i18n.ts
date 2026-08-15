@@ -23,6 +23,13 @@ const EN_MAP: Record<string, string> = {
   'Affects: Panel': 'Panel',
   'Affects: Terminal': 'Terminal',
   'Show remote': 'Show remote',
+  // 会话行角色标签，w-4 宽度容纳不下完整词
+  'User': 'U',
+  'Assistant': 'A',
+  // 窄侧栏按钮，完整词过长
+  'Open CSS Config': 'Open CSS',
+  // 会话列表空态提示
+  'Right-click blank area to open a new session': 'Right-click for new session',
 }
 
 const ZH_MAP: Record<string, string> = {
@@ -347,6 +354,7 @@ const ZH_MAP: Record<string, string> = {
   'Command Name': '命令名称',
   'Command': '命令',
   'Scheduled': '定时',
+  'Sched': '定时',
   'Append': '追加',
   'UI': '视窗',
   'Type a command, Enter to send...': '输入命令，Enter 发送...',
@@ -433,6 +441,8 @@ const ZH_MAP: Record<string, string> = {
   'No matching sessions': '无匹配会话',
   'Current project': '当前项目',
   'Current project only': '仅当前项目',
+  'Current only': '仅当前',
+  'Current': '当前',
   'Results truncated': '结果过多，仅显示部分',
   'User': '问',
   'Assistant': '答',

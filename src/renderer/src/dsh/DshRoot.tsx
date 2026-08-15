@@ -7,7 +7,7 @@ interface DshRootProps {
 export function DshRoot({ renderSlot }: DshRootProps) {
   return (
     <div className="relative w-full h-full flex flex-col overflow-hidden">
-      <div className="absolute top-2 right-3 z-10">
+      <div className="absolute top-1 right-3.5 z-10">
         {renderSlot('sidebar.settings', { wide: false })}
       </div>
       {renderSlot('conversation', {})}
