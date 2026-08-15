@@ -1,7 +1,11 @@
 import { homedir } from 'os'
 import { join, basename } from 'path'
-import { readdirSync, readFileSync, statSync, existsSync } from 'fs'
-import { execFileSync } from 'child_process'
+import { readdirSync, existsSync } from 'fs'
+import { open, stat } from 'fs/promises'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+
+const execFileP = promisify(execFile)
 
 export type HistorySource = 'claude' | 'codex' | 'dsh'
 
@@ -19,6 +23,9 @@ export interface HistoryMessage {
   role: 'user' | 'assistant'
   content: string
 }
+
+const PREFIX_BYTES = 64 * 1024
+const LIST_CACHE_TTL = 3000
 
 function walkDirs(root: string, visitFile: (path: string, name: string) => void): void {
   let entries: { name: string; isDirectory(): boolean }[]
@@ -41,21 +48,65 @@ function walkDirsOnly(root: string, visitDir: (path: string, name: string) => vo
   }
 }
 
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length)
+  let idx = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (idx < items.length) {
+      const i = idx++
+      out[i] = await fn(items[i])
+    }
+  })
+  await Promise.all(workers)
+  return out
+}
+
+async function readPrefix(file: string, maxBytes: number): Promise<string> {
+  try {
+    const fh = await open(file, 'r')
+    try {
+      const size = (await fh.stat()).size
+      const buf = Buffer.alloc(Math.min(maxBytes, size))
+      if (buf.length > 0) await fh.read(buf, 0, buf.length, 0)
+      return buf.toString('utf8')
+    } finally { await fh.close() }
+  } catch { return '' }
+}
+
+async function decompressZstdPrefix(file: string, maxBytes: number): Promise<string> {
+  try {
+    const { stdout } = await execFileP('sh', ['-c', `zstd -d -c '${file}' 2>/dev/null | head -c ${maxBytes}`], { maxBuffer: maxBytes + 4096 })
+    return stdout
+  } catch { return '' }
+}
+
 function extractTextBlocks(content: any, kinds: string[]): string {
   return (Array.isArray(content) ? content : [])
     .map((b: any) => kinds.includes(b?.type) ? (b.text || '') : '')
     .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
 }
 
+function cacheList(key: string): { get(): HistorySessionMeta[] | null; set(v: HistorySessionMeta[]): void } {
+  let hit: { at: number; sessions: HistorySessionMeta[] } | null = null
+  return {
+    get() { return hit && Date.now() - hit.at < LIST_CACHE_TTL ? hit.sessions : null },
+    set(sessions) { hit = { at: Date.now(), sessions } },
+  }
+}
+
+const codexListCache = cacheList('codex')
+const dshListCache = cacheList('dsh')
+
 // ── Codex: ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl ──
-function readCodexMeta(filePath: string): HistorySessionMeta | null {
+async function readCodexMeta(filePath: string): Promise<HistorySessionMeta | null> {
   try {
-    const lines = readFileSync(filePath, 'utf8').split('\n')
+    const prefix = await readPrefix(filePath, PREFIX_BYTES)
+    const lines = prefix.split('\n')
     const first = JSON.parse(lines[0] || '')
     if (first.type !== 'session_meta' || !first.payload?.id) return null
     const p = first.payload
     let name = ''
-    for (const line of lines.slice(1, 300)) {
+    for (const line of lines.slice(1)) {
       try {
         const ev = JSON.parse(line)
         const pl = ev.payload
@@ -65,31 +116,34 @@ function readCodexMeta(filePath: string): HistorySessionMeta | null {
         }
       } catch {}
     }
+    const size = (await stat(filePath).catch(() => null))?.size ?? 0
     return {
       session_id: p.id,
       name,
       timestamp: new Date(p.timestamp).getTime(),
       model: p.model || p.model_provider || '',
-      sizeBytes: statSync(filePath).size,
+      sizeBytes: size,
       cwd: p.cwd || '',
     }
   } catch { return null }
 }
 
-export function listCodexSessions(cwd: string): HistorySessionMeta[] {
+export async function listCodexSessions(cwd: string): Promise<HistorySessionMeta[]> {
+  const cached = codexListCache.get()
+  if (cached) return cached
   const root = join(homedir(), '.codex', 'sessions')
   if (!existsSync(root)) return []
-  const out: HistorySessionMeta[] = []
-  walkDirs(root, (p, name) => {
-    if (!name.startsWith('rollout-') || !name.endsWith('.jsonl')) return
-    const meta = readCodexMeta(p)
-    if (meta && (!cwd || meta.cwd === cwd)) out.push(meta)
-  })
+  const files: string[] = []
+  walkDirs(root, (p, name) => { if (name.startsWith('rollout-') && name.endsWith('.jsonl')) files.push(p) })
+  const metas = await mapLimit(files, 24, readCodexMeta)
+  const out = metas.filter((m): m is HistorySessionMeta => !!m && (!cwd || m.cwd === cwd))
   out.sort((a, b) => b.timestamp - a.timestamp)
-  return out.slice(0, 30)
+  const result = out.slice(0, 30)
+  codexListCache.set(result)
+  return result
 }
 
-export function loadCodexMessages(sessionId: string): HistoryMessage[] {
+export async function loadCodexMessages(sessionId: string): Promise<HistoryMessage[]> {
   const root = join(homedir(), '.codex', 'sessions')
   if (!existsSync(root)) return []
   let file: string | null = null
@@ -99,68 +153,66 @@ export function loadCodexMessages(sessionId: string): HistoryMessage[] {
   })
   if (!file) return []
   const out: HistoryMessage[] = []
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
+  const text = await import('fs/promises').then(m => m.readFile(file as string, 'utf8')).catch(() => '')
+  for (const line of text.split('\n')) {
     if (!line.trim()) continue
     try {
       const ev = JSON.parse(line)
       const pl = ev.payload
       if (ev.type !== 'response_item' || !pl || pl.type !== 'message') continue
       if (pl.role !== 'user' && pl.role !== 'assistant') continue
-      const text = extractTextBlocks(pl.content, ['text', 'input_text', 'output_text'])
-      if (!text) continue
-      out.push({ type: pl.role, role: pl.role, content: text })
+      const content = extractTextBlocks(pl.content, ['text', 'input_text', 'output_text'])
+      if (!content) continue
+      out.push({ type: pl.role, role: pl.role, content })
     } catch {}
   }
   return out
 }
 
 // ── DSH: ~/.dsh/sessions/<cwd>/session-<uuid>/session.jsonl.zstd ──
-function decompressZstd(file: string): string[] {
-  try {
-    const buf = execFileSync('zstd', ['-d', '-c', file], { maxBuffer: 128 * 1024 * 1024 })
-    return buf.toString('utf8').split('\n')
-  } catch { return [] }
-}
-
-function readDshMeta(sessionDir: string): HistorySessionMeta | null {
+async function readDshMeta(sessionDir: string): Promise<HistorySessionMeta | null> {
   const file = join(sessionDir, 'session.jsonl.zstd')
   if (!existsSync(file)) return null
   try {
-    const lines = decompressZstd(file)
+    const prefix = await decompressZstdPrefix(file, PREFIX_BYTES)
+    const lines = prefix.split('\n')
     const first = JSON.parse(lines[0] || '')
     if (first.type !== 'session') return null
     let name = ''
-    for (const line of lines.slice(1, 200)) {
+    for (const line of lines.slice(1)) {
       try {
         const ev = JSON.parse(line)
         if (ev.type === 'session/title' && ev.data?.title) { name = String(ev.data.title).slice(0, 60); break }
       } catch {}
     }
+    const size = (await stat(file).catch(() => null))?.size ?? 0
     return {
       session_id: first.id || basename(sessionDir),
       name,
       timestamp: first.createdAt || 0,
       model: '',
-      sizeBytes: statSync(file).size,
+      sizeBytes: size,
       cwd: first.cwd || '',
     }
   } catch { return null }
 }
 
-export function listDshSessions(cwd: string): HistorySessionMeta[] {
+export async function listDshSessions(cwd: string): Promise<HistorySessionMeta[]> {
+  const cached = dshListCache.get()
+  if (cached) return cached
   const root = join(homedir(), '.dsh', 'sessions')
   if (!existsSync(root)) return []
-  const out: HistorySessionMeta[] = []
-  walkDirsOnly(root, (p, name) => {
-    if (!name.startsWith('session-')) return
-    const meta = readDshMeta(p)
-    if (meta && (!cwd || meta.cwd === cwd)) out.push(meta)
-  })
+  const dirs: string[] = []
+  walkDirsOnly(root, (p, name) => { if (name.startsWith('session-')) dirs.push(p) })
+  const metas = await mapLimit(dirs, 8, readDshMeta)
+  const out = metas.filter((m): m is HistorySessionMeta => !!m && (!cwd || m.cwd === cwd))
   out.sort((a, b) => b.timestamp - a.timestamp)
-  return out.slice(0, 30)
+  const result = out.slice(0, 30)
+  dshListCache.set(result)
+  return result
 }
 
-export function loadDshMessages(sessionId: string): HistoryMessage[] {
+export async function loadDshMessages(sessionId: string): Promise<HistoryMessage[]> {
   const root = join(homedir(), '.dsh', 'sessions')
   if (!existsSync(root)) return []
   let sessionDir: string | null = null
@@ -169,10 +221,10 @@ export function loadDshMessages(sessionId: string): HistoryMessage[] {
     if (name.startsWith('session-') && (name === sessionId || name.includes(sessionId))) sessionDir = p
   })
   if (!sessionDir) return []
-  const lines = decompressZstd(join(sessionDir, 'session.jsonl.zstd'))
+  const { stdout } = await execFileP('zstd', ['-d', '-c', join(sessionDir, 'session.jsonl.zstd')], { maxBuffer: 128 * 1024 * 1024 }).catch(() => ({ stdout: '' }))
   const out: HistoryMessage[] = []
   const seen = new Set<string>()
-  for (const line of lines) {
+  for (const line of stdout.split('\n')) {
     if (!line.trim()) continue
     try {
       const ev = JSON.parse(line)

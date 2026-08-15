@@ -1469,8 +1469,8 @@ export function registerAiHandlers(): void {
 
   // List available sessions for resume
   ipcMain.handle(IPC_CHANNELS.AI_LIST_SESSIONS, async (_event, cwd?: string, configDir?: string, source?: HistorySource) => {
-    if (source === 'codex') return { sessions: listCodexSessions(cwd || '') }
-    if (source === 'dsh') return { sessions: listDshSessions(cwd || '') }
+    if (source === 'codex') return { sessions: await listCodexSessions(cwd || '') }
+    if (source === 'dsh') return { sessions: await listDshSessions(cwd || '') }
     return listSessionsForCwd(cwd || '', configDir)
   })
 
@@ -1489,8 +1489,8 @@ export function registerAiHandlers(): void {
 
   // Load full message history from .jsonl for resume display
   ipcMain.handle(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, async (_event, resumeSessionId: string, cwd: string, configDir?: string, source?: HistorySource) => {
-    if (source === 'codex') return { messages: loadCodexMessages(resumeSessionId) }
-    if (source === 'dsh') return { messages: loadDshMessages(resumeSessionId) }
+    if (source === 'codex') return { messages: await loadCodexMessages(resumeSessionId) }
+    if (source === 'dsh') return { messages: await loadDshMessages(resumeSessionId) }
     return loadSessionMessages(resumeSessionId, cwd, configDir)
   })
 
