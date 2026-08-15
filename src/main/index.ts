@@ -309,12 +309,18 @@ app.whenReady().then(() => {
         ? join(dirname(dirname(exePath)), 'snippets')
         : join(dirname(exePath), 'snippets'))
     : join(app.getAppPath(), 'snippets')
-  const snippetsJsonPath = join(snippetsDir, 'snippets.json')
+  const snippetsJsonPath = app.isPackaged
+    ? join(app.getPath('userData'), 'snippets.json')
+    : join(snippetsDir, 'snippets.json')
 
   function loadSnippetsJson(): Record<string, unknown> {
     try {
       if (existsSync(snippetsJsonPath)) {
         return JSON.parse(readFileSync(snippetsJsonPath, 'utf8'))
+      }
+      // 迁移：旧打包版把启停状态写在 bundle 里，读它作为初始状态
+      if (app.isPackaged && existsSync(join(snippetsDir, 'snippets.json'))) {
+        return JSON.parse(readFileSync(join(snippetsDir, 'snippets.json'), 'utf8'))
       }
     } catch {}
     return {}
@@ -427,12 +433,18 @@ app.whenReady().then(() => {
         ? join(dirname(dirname(exePath)), 'pets')
         : join(dirname(exePath), 'pets'))
     : join(app.getAppPath(), 'pets')
-  const petsJsonPath = join(petsDir, 'pets.json')
+  const petsJsonPath = app.isPackaged
+    ? join(app.getPath('userData'), 'pets.json')
+    : join(petsDir, 'pets.json')
 
   function loadPetsJson(): Record<string, unknown> {
     try {
       if (existsSync(petsJsonPath)) {
         return JSON.parse(readFileSync(petsJsonPath, 'utf8'))
+      }
+      // 迁移：旧打包版把状态写在 bundle 里，读它作为初始状态
+      if (app.isPackaged && existsSync(join(petsDir, 'pets.json'))) {
+        return JSON.parse(readFileSync(join(petsDir, 'pets.json'), 'utf8'))
       }
     } catch {}
     return {}
