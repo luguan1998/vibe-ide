@@ -305,7 +305,9 @@ app.whenReady().then(() => {
 
   // CSS snippets — dev 用项目根目录，打包后用 exe 同目录
   const snippetsDir = app.isPackaged
-    ? join(dirname(exePath), 'snippets')
+    ? (process.platform === 'darwin'
+        ? join(dirname(dirname(exePath)), 'snippets')
+        : join(dirname(exePath), 'snippets'))
     : join(app.getAppPath(), 'snippets')
   const snippetsJsonPath = join(snippetsDir, 'snippets.json')
 
@@ -421,7 +423,9 @@ app.whenReady().then(() => {
   // 导入方式：把 .webp/.png 扔进 pets/（平铺）即成宠物（按图像尺寸推导网格）；
   // 需自定义网格/帧率则建 pets/<slug>/ 子文件夹放 spritesheet.webp + pet.json 覆盖。
   const petsDir = app.isPackaged
-    ? join(dirname(exePath), 'pets')
+    ? (process.platform === 'darwin'
+        ? join(dirname(dirname(exePath)), 'pets')
+        : join(dirname(exePath), 'pets'))
     : join(app.getAppPath(), 'pets')
   const petsJsonPath = join(petsDir, 'pets.json')
 
