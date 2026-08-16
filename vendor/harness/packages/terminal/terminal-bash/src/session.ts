@@ -178,6 +178,8 @@ export class LocalPtySession implements TerminalBackendSession {
   private promptSeen = false
   private promptTextSeen = false
   private promptTail = ''
+  /** win32 就绪判定用：marker 后的原始提示符尾文本（跨 chunk 累积，新 marker 重置） */
+  private promptTailClean = ''
   private shellPgid: number | undefined
   private initializing = false
   private lastOutputAt = Date.now()
@@ -312,6 +314,7 @@ export class LocalPtySession implements TerminalBackendSession {
     this.promptSeen = false
     this.promptTextSeen = false
     this.promptTail = ''
+    this.promptTailClean = ''
   }
 
   read(request: TerminalReadRequest): TerminalReadResult {
@@ -388,9 +391,13 @@ export class LocalPtySession implements TerminalBackendSession {
       // the authority that accepts it only after bash owns the foreground.
       this.promptSeen = true
       this.promptTail = ''
+      this.promptTailClean = sanitized.promptTail ?? ''
       this.lastOutputAt = Date.now()
     }
     if (this.promptSeen && sanitized.promptTail !== undefined) {
+      if (!sanitized.prompt && this.promptTailClean.length < 64) {
+        this.promptTailClean += sanitized.promptTail
+      }
       const remaining = Math.max(0, CONTROLLED_PROMPT.length + 1 - this.promptTail.length)
       this.promptTail += sanitized.promptTail.slice(0, remaining)
       if (sanitized.promptTail.length > remaining) this.promptTail = `${CONTROLLED_PROMPT}\0`
@@ -453,6 +460,16 @@ export class LocalPtySession implements TerminalBackendSession {
       const acceptsStdinWait = startupHasOutput && foreground !== undefined
         && operation.acceptsStdinWait(foreground.processGroupId, foreground.inputWaiting)
       if (elapsed >= this.config.exactProbeAfterMs && acceptsStdinWait) {
+        this.settleActive('stdin_read')
+        return
+      }
+      // win32 无 stdin-wait 探测且持久化 bash 工具会覆盖 PS1，promptTextSeen 永不成立；
+      // 标记后累积到干净提示符尾文本（非空、无换行）即视为就绪（反复修改问题）
+      if (process.platform === 'win32' && this.promptSeen && foreground !== undefined
+        && foreground.processGroupId === this.shellPgid
+        && elapsed >= this.config.exactProbeAfterMs && idleFor >= this.config.pollIntervalMs
+        && this.promptTailClean.length > 0 && this.promptTailClean.length < 64
+        && !this.promptTailClean.includes('\r') && !this.promptTailClean.includes('\n')) {
         this.settleActive('stdin_read')
         return
       }

@@ -457,6 +457,8 @@ var LocalPtySession = class {
 		this.promptSeen = false;
 		this.promptTextSeen = false;
 		this.promptTail = "";
+		/** win32 ready check: raw prompt tail after marker (accumulated across chunks, reset on new marker) */
+		this.promptTailClean = "";
 	}
 	read(request) {
 		const snapshot = this.scrollback.snapshot();
@@ -525,9 +527,11 @@ var LocalPtySession = class {
 		if (sanitized.prompt) {
 			this.promptSeen = true;
 			this.promptTail = "";
+			this.promptTailClean = sanitized.promptTail ?? "";
 			this.lastOutputAt = Date.now();
 		}
 		if (this.promptSeen && sanitized.promptTail !== void 0) {
+			if (!sanitized.prompt && this.promptTailClean.length < 64) this.promptTailClean += sanitized.promptTail;
 			const remaining = Math.max(0, 6 - this.promptTail.length);
 			this.promptTail += sanitized.promptTail.slice(0, remaining);
 			if (sanitized.promptTail.length > remaining) this.promptTail = `${CONTROLLED_PROMPT}\0`;
@@ -589,6 +593,12 @@ var LocalPtySession = class {
 			const startupHasOutput = !this.initializing || this.scrollback.snapshot().text.length > 0;
 			const acceptsStdinWait = startupHasOutput && foreground !== void 0 && operation.acceptsStdinWait(foreground.processGroupId, foreground.inputWaiting);
 			if (elapsed >= this.config.exactProbeAfterMs && acceptsStdinWait) {
+				this.settleActive("stdin_read");
+				return;
+			}
+			// win32 无 stdin-wait 探测且持久化 bash 工具会覆盖 PS1，promptTextSeen 永不成立；
+			// 标记后累积到干净提示符尾文本（非空、无换行）即视为就绪（反复修改问题）
+			if (process.platform === "win32" && this.promptSeen && foreground !== void 0 && foreground.processGroupId === this.shellPgid && elapsed >= this.config.exactProbeAfterMs && idleFor >= this.config.pollIntervalMs && this.promptTailClean.length > 0 && this.promptTailClean.length < 64 && !this.promptTailClean.includes("\r") && !this.promptTailClean.includes("\n")) {
 				this.settleActive("stdin_read");
 				return;
 			}
