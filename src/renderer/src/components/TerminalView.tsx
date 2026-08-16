@@ -590,6 +590,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         if (fitAddonRef.current && xtermRef.current) {
           fitAddonRef.current.fit()
           xtermRef.current.refresh(0, xtermRef.current.rows - 1)
+          // The PTY spawns at the default 80×24; sync the real pane size so
+          // TUI apps render at the visible width from their first frame.
+          window.api.terminal.resize(sessionId, xtermRef.current.cols, xtermRef.current.rows)
         }
       })
     })
@@ -846,7 +849,10 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       }
     })
 
-    // Handle resize — double rAF ensures layout is settled before measuring
+    // Handle resize — double rAF ensures layout is settled before measuring.
+    // Observing the container catches pane resizes (sidebar toggles, panel
+    // drags) that never fire a window resize; the window listener stays as a
+    // fallback for display changes.
     let resizeTimer: ReturnType<typeof setTimeout> | null = null
     const onResize = () => {
       if (resizeTimer) clearTimeout(resizeTimer)
@@ -866,8 +872,11 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     }
 
     window.addEventListener('resize', onResize)
+    const resizeObserver = new ResizeObserver(onResize)
+    if (terminalRef.current) resizeObserver.observe(terminalRef.current)
 
     return () => {
+      resizeObserver.disconnect()
       mountedRef.current = false
       onScrollDisp?.dispose()
       if (dragHideTimer) clearTimeout(dragHideTimer)
