@@ -3,8 +3,10 @@ import {
   createProcessInspector,
   linuxProcessGroupHasLiveMembers,
   parseProcStat,
+  WindowsProcessInspector,
 } from '@deepseek-ai/dsh-subprocess-local/src/process-inspector.ts'
 import type { ProcessInspectorInternals } from '@deepseek-ai/dsh-subprocess-local/src/process-inspector.ts'
+import type { IPty } from 'node-pty'
 
 function stat(pid: number, pgrp: number, session: number, tpgid: number, started: string, parentPid = 1, state = 'S'): string {
   const rest = [state, String(parentPid), String(pgrp), String(session), '99', String(tpgid)]
@@ -25,6 +27,7 @@ function fakeInternals() {
   const memories = new Map<string, Buffer>()
   const fds = new Map<number, string>()
   const kills: Array<[number, NodeJS.Signals]> = []
+  const execCalls: string[] = []
   let nextFd = 10
   let ps = ''
   let tpgid = '0'
@@ -53,14 +56,15 @@ function fakeInternals() {
       return source.copy(buffer, 0, position, Math.min(source.length, position + length))
     },
     close(fd) { fds.delete(fd) },
-    exec(_file, args) {
+    exec(file, args) {
+      execCalls.push(file)
       if (args.includes('tpgid=')) return tpgid
       return ps
     },
     kill(pid, signal) { kills.push([pid, signal]) },
   }
   return {
-    internals, files, dirs, memories, kills,
+    internals, files, dirs, memories, kills, execCalls,
     setPs(value: string) { ps = value },
     setTpgid(value: string) { tpgid = value },
   }
@@ -243,6 +247,101 @@ describe('macOS process inspector', () => {
     expect(createProcessInspector('darwin', 'arm64', fake.internals).foregroundPgid(1)).toBeUndefined()
     fake.internals.exec = () => { throw new Error('gone') }
     expect(createProcessInspector('darwin', 'arm64', fake.internals).foregroundPgid(1)).toBeUndefined()
-    expect(() => createProcessInspector('win32', 'x64', fake.internals)).toThrow('unsupported on platform win32')
+    expect(() => createProcessInspector('freebsd', 'x64', fake.internals)).toThrow('unsupported on platform freebsd')
+  })
+})
+
+describe('Windows process inspector', () => {
+  it('reads the CIM process table, resolves the shell-led group, and identity-fences signals', () => {
+    const fake = fakeInternals()
+    fake.setPs(JSON.stringify([
+      { pid: 10, ppid: 1, started: '2026-08-16T04:00:01.1234567Z' },
+      { pid: 11, ppid: 10, started: '2026-08-16T04:00:02.1234567Z' },
+      { pid: 12, ppid: 11, started: '2026-08-16T04:00:03.1234567Z' },
+      { pid: 13, ppid: 99, started: '2026-08-16T04:00:04.1234567Z' },
+    ]))
+    const inspector = createProcessInspector('win32', 'x64', fake.internals)
+    expect(inspector.foregroundPgid(10)).toBe(10)
+    expect(inspector.foregroundPgid(99)).toBeUndefined()
+    expect(inspector.isStdinWaiting(10)).toBe(false)
+    expect(inspector.processTree(10)).toEqual([
+      { pid: 12, started: '2026-08-16T04:00:03.1234567Z' },
+      { pid: 11, started: '2026-08-16T04:00:02.1234567Z' },
+      { pid: 10, started: '2026-08-16T04:00:01.1234567Z' },
+    ])
+    expect(inspector.processTree(99)).toEqual([])
+    expect(inspector.processSession(10)).toEqual([])
+    expect(inspector.isAlive({ pid: 11, started: '2026-08-16T04:00:02.1234567Z' })).toBe(true)
+    expect(inspector.isAlive({ pid: 11, started: 'old' })).toBe(false)
+    expect(inspector.isAlive({ pid: 99, started: 'x' })).toBe(false)
+  })
+
+  it('fails closed on malformed tables and unavailable PowerShell', () => {
+    const fake = fakeInternals()
+    fake.setPs('not json')
+    const inspector = createProcessInspector('win32', 'x64', fake.internals)
+    expect(inspector.foregroundPgid(1)).toBeUndefined()
+    expect(inspector.processTree(1)).toEqual([])
+    expect(inspector.isAlive({ pid: 1, started: 'x' })).toBe(false)
+
+    fake.internals.exec = () => { throw new Error('gone') }
+    expect(createProcessInspector('win32', 'x64', fake.internals).foregroundPgid(1)).toBeUndefined()
+  })
+
+  it('delivers Ctrl-C through the attached PTY and degrades to tree kills', () => {
+    const fake = fakeInternals()
+    fake.setPs(JSON.stringify([
+      { pid: 10, ppid: 1, started: 'a' },
+      { pid: 11, ppid: 10, started: 'b' },
+      { pid: 12, ppid: 10, started: 'c' },
+    ]))
+    const tasks: number[] = []
+    const inspector = new WindowsProcessInspector(fake.internals, pid => tasks.push(pid), 0)
+
+    const writes: string[] = []
+    inspector.attach({ write: (data: string) => { writes.push(data) } } as unknown as IPty)
+    inspector.signalGroup(10, 'SIGINT')
+    expect(writes).toEqual(['\x03'])
+    expect(tasks).toEqual([])
+
+    inspector.attach({ write: () => { throw new Error('closed') } } as unknown as IPty)
+    inspector.signalGroup(10, 'SIGINT')
+    expect(tasks).toEqual([11, 12])
+  })
+
+  it('maps remaining signals to taskkill and ignores SIGTSTP', () => {
+    const fake = fakeInternals()
+    fake.setPs(JSON.stringify([
+      { pid: 10, ppid: 1, started: 'a' },
+      { pid: 11, ppid: 10, started: 'b' },
+    ]))
+    const tasks: number[] = []
+    const inspector = new WindowsProcessInspector(fake.internals, pid => tasks.push(pid), 0)
+
+    inspector.signalGroup(10, 'SIGTSTP')
+    expect(tasks).toEqual([])
+
+    inspector.signalGroup(10, 'SIGTERM')
+    inspector.signalGroup(10, 'SIGHUP')
+    expect(tasks).toEqual([10, 10])
+
+    inspector.signalProcess({ pid: 11, started: 'b' }, 'SIGKILL')
+    inspector.signalProcess({ pid: 11, started: 'old' }, 'SIGTERM')
+    expect(tasks).toEqual([10, 10, 11])
+  })
+
+  it('caches the process table for the configured TTL', () => {
+    const fake = fakeInternals()
+    fake.setPs(JSON.stringify([{ pid: 10, ppid: 1, started: 'a' }]))
+    const inspector = new WindowsProcessInspector(fake.internals, () => {}, 300)
+    inspector.foregroundPgid(10)
+    inspector.foregroundPgid(10)
+    inspector.foregroundPgid(10)
+    expect(fake.execCalls.filter(file => file === 'powershell.exe')).toHaveLength(1)
+
+    const uncached = new WindowsProcessInspector(fake.internals, () => {}, 0)
+    uncached.foregroundPgid(10)
+    uncached.foregroundPgid(10)
+    expect(fake.execCalls.filter(file => file === 'powershell.exe')).toHaveLength(3)
   })
 })

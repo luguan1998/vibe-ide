@@ -285,6 +285,113 @@ var MacProcessInspector = class extends PosixProcessInspector {
 		return macProcessTable(this.internals).some((entry) => entry.pid === identity.pid && entry.started === identity.started);
 	}
 };
+var WINDOWS_PROCESS_TABLE_SCRIPT = [
+	"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+	"$rows = @(Get-CimInstance Win32_Process | ForEach-Object {",
+	"  [pscustomobject]@{",
+	'    pid = $_.ProcessId; ppid = $_.ParentProcessId; started = if ($null -eq $_.CreationDate) { \'\' } else { $_.CreationDate.ToUniversalTime().ToString(\'o\') }',
+	"  }",
+	"})",
+	"ConvertTo-Json -InputObject $rows -Compress"
+].join("\n");
+function windowsTaskkillProcessTree(pid) {
+	spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
+}
+function windowsEntryValue(entry, key) {
+	if (entry[key] !== void 0) return entry[key];
+	return Object.entries(entry).find(([name]) => name.toLowerCase() === key.toLowerCase())?.[1];
+}
+function parseWindowsProcessTable(text) {
+	if (text === "") return [];
+	let parsed;
+	try {
+		parsed = JSON.parse(text.replace(/^\uFEFF/, ""));
+	} catch (_malformedTable) {
+		return [];
+	}
+	const rows = Array.isArray(parsed) ? parsed : parsed === null || parsed === void 0 ? [] : [parsed];
+	const entries = [];
+	for (const row of rows) {
+		if (typeof row !== "object" || row === null) continue;
+		const record = row;
+		const pid = Number(windowsEntryValue(record, "pid"));
+		const parentPid = Number(windowsEntryValue(record, "ppid"));
+		const started = windowsEntryValue(record, "started");
+		if (!Number.isSafeInteger(pid) || pid <= 0 || !Number.isSafeInteger(parentPid)) continue;
+		entries.push({ pid, parentPid, started: typeof started === "string" ? started : "" });
+	}
+	return entries;
+}
+var WindowsProcessInspector = class {
+	constructor(internals = DEFAULT_INTERNALS, taskkill = windowsTaskkillProcessTree, tableTtlMs = 300) {
+		this.internals = internals;
+		this.taskkill = taskkill;
+		this.tableTtlMs = tableTtlMs;
+		this.table = [];
+		this.tableAt = Number.NEGATIVE_INFINITY;
+		this.terminal = void 0;
+	}
+	attach(terminal) {
+		this.terminal = terminal;
+	}
+	loadTable() {
+		try {
+			return parseWindowsProcessTable(this.internals.exec("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", WINDOWS_PROCESS_TABLE_SCRIPT]));
+		} catch (_powerShellUnavailable) {
+			return [];
+		}
+	}
+	processTable() {
+		const now = Date.now();
+		if (now - this.tableAt >= this.tableTtlMs) {
+			this.table = this.loadTable();
+			this.tableAt = now;
+		}
+		return this.table;
+	}
+	entry(pid) {
+		return this.processTable().find((entry2) => entry2.pid === pid);
+	}
+	foregroundPgid(shellPid) {
+		return this.entry(shellPid) === void 0 ? void 0 : shellPid;
+	}
+	isStdinWaiting(_pgid) {
+		return false;
+	}
+	processTree(rootPid) {
+		return processTree(this.processTable().map((entry2) => ({
+			pid: entry2.pid,
+			parentPid: entry2.parentPid,
+			started: entry2.started
+		})), rootPid);
+	}
+	processSession(_sessionId) {
+		return [];
+	}
+	isAlive(identity) {
+		return this.entry(identity.pid)?.started === identity.started;
+	}
+	signalGroup(pgid, signal) {
+		if (signal === "SIGTSTP") return;
+		if (signal !== "SIGINT") {
+			this.taskkill(pgid);
+			return;
+		}
+		if (this.terminal !== void 0) {
+			try {
+				this.terminal.write("\x03");
+				return;
+			} catch (_conptyWriteFailed) {}
+		}
+		for (const member of this.processTree(pgid)) {
+			if (member.pid !== pgid) this.signalProcess(member, "SIGKILL");
+		}
+	}
+	signalProcess(identity, _signal) {
+		if (!this.isAlive(identity)) return;
+		this.taskkill(identity.pid);
+	}
+};
 /**
 * Create the supported platform inspector or fail at plugin load.
 * @param platform - target Node platform.
@@ -295,6 +402,7 @@ var MacProcessInspector = class extends PosixProcessInspector {
 function createProcessInspector(platform = process.platform, arch = process.arch, internals = DEFAULT_INTERNALS) {
 	if (platform === "linux") return new LinuxProcessInspector(arch, internals);
 	if (platform === "darwin") return new MacProcessInspector(internals);
+	if (platform === "win32") return new WindowsProcessInspector(internals);
 	throw new Error(`subprocess-local: terminal inspection is unsupported on platform ${platform}`);
 }
 //#endregion
@@ -798,6 +906,15 @@ var LocalTerminalHandle = class {
 		this.forceStopShell();
 		this.forceStopDescendants();
 	}
+	killTerminal(signal) {
+		try {
+			this.terminal.kill(signal);
+		} catch (_signalUnsupported) {
+			try {
+				this.terminal.kill();
+			} catch (_alreadyExited) {}
+		}
+	}
 	forceStopShell() {
 		if (this.exited) return;
 		if (this.rootIdentity !== void 0) {
@@ -807,7 +924,7 @@ var LocalTerminalHandle = class {
 			return;
 		}
 		try {
-			this.terminal.kill("SIGKILL");
+			this.killTerminal("SIGKILL");
 		} catch (_unidentifiedShellExitedDuringHostExit) {}
 	}
 	survivors(members) {
@@ -864,13 +981,13 @@ var LocalTerminalHandle = class {
 	async stopShell() {
 		if (!this.exited) {
 			try {
-				this.terminal.kill("SIGTERM");
+				this.killTerminal("SIGTERM");
 			} catch (_topLevelAlreadyExitedDuringTerm) {}
 			await Promise.race([this.done.then(() => void 0), delay(this.graceMs)]);
 		}
 		if (!this.exited) {
 			try {
-				this.terminal.kill("SIGKILL");
+				this.killTerminal("SIGKILL");
 			} catch (_topLevelAlreadyExitedDuringKill) {}
 			await Promise.race([this.done.then(() => void 0), delay(this.graceMs)]);
 		}
@@ -996,7 +1113,9 @@ var LocalSubprocessRuntime = class extends SubprocessRuntime {
 			env: childEnv(spec.env)
 		};
 		const inspector = this.terminalInspector ?? createProcessInspector();
-		const handle = new LocalTerminalHandle(nodePty.spawn(file, [...spec.argv.slice(1)], options), inspector, spec.graceMs);
+		const terminal = nodePty.spawn(file, [...spec.argv.slice(1)], options);
+		inspector.attach?.(terminal);
+		const handle = new LocalTerminalHandle(terminal, inspector, spec.graceMs);
 		this.terminals.add(handle);
 		const release = async () => {
 			await handle.terminate();

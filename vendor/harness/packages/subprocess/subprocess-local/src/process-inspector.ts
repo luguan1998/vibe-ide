@@ -1,7 +1,8 @@
 /** Platform process-table inspection for terminal readiness, signals, and teardown. */
 
 import { closeSync, openSync, readFileSync, readdirSync, readSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
+import type { IPty } from 'node-pty'
 import type { SubprocessTerminalSignal } from '@deepseek-ai/dsh-subprocess'
 
 /** PID plus start identity, preventing teardown escalation after PID reuse. */
@@ -22,6 +23,8 @@ export interface ProcessInspector {
   isAlive(identity: ProcessIdentity): boolean
   signalGroup(pgid: number, signal: SubprocessTerminalSignal): void
   signalProcess(identity: ProcessIdentity, signal: 'SIGTERM' | 'SIGKILL'): void
+  /** Bind the PTY for ConPTY Ctrl-C delivery; only win32 needs it. */
+  attach?(terminal: IPty): void
 }
 
 /** Testable boundary around filesystem, process-table, and signal syscalls. */
@@ -356,6 +359,155 @@ class MacProcessInspector extends PosixProcessInspector {
 
 }
 
+interface WindowsProcessEntry {
+  pid: number
+  parentPid: number
+  started: string
+}
+
+/**
+ * One CIM process-table snapshot per query, emitted as compact JSON. The
+ * `started` field is a full-precision UTC ISO-8601 creation time, kept as an
+ * opaque string so identity comparison never loses fidelity to PID reuse.
+ * `[Console]::OutputEncoding` pins UTF-8 because PowerShell 5.1 redirects
+ * stdout as UTF-16LE otherwise.
+ */
+const WINDOWS_PROCESS_TABLE_SCRIPT = [
+  '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+  '$rows = @(Get-CimInstance Win32_Process | ForEach-Object {',
+  '  [pscustomobject]@{',
+  "    pid = $_.ProcessId; ppid = $_.ParentProcessId; started = if ($null -eq $_.CreationDate) { '' } else { $_.CreationDate.ToUniversalTime().ToString('o') }",
+  '  }',
+  '})',
+  'ConvertTo-Json -InputObject $rows -Compress',
+].join('\n')
+
+/** Force-kill a process and its descendants; idempotent on already-dead pids. */
+export function windowsTaskkillProcessTree(pid: number): void {
+  spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+}
+
+function windowsEntryValue(entry: Record<string, unknown>, key: string): unknown {
+  if (entry[key] !== undefined) return entry[key]
+  return Object.entries(entry).find(([name]) => name.toLowerCase() === key.toLowerCase())?.[1]
+}
+
+function parseWindowsProcessTable(text: string): WindowsProcessEntry[] {
+  if (text === '') return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text.replace(/^\uFEFF/, ''))
+  } catch (_malformedTable) {
+    return []
+  }
+  const rows = Array.isArray(parsed) ? parsed : parsed === null || parsed === undefined ? [] : [parsed]
+  const entries: WindowsProcessEntry[] = []
+  for (const row of rows) {
+    if (typeof row !== 'object' || row === null) continue
+    const record = row as Record<string, unknown>
+    const pid = Number(windowsEntryValue(record, 'pid'))
+    const parentPid = Number(windowsEntryValue(record, 'ppid'))
+    const started = windowsEntryValue(record, 'started')
+    if (!Number.isSafeInteger(pid) || pid <= 0 || !Number.isSafeInteger(parentPid)) continue
+    entries.push({ pid, parentPid, started: typeof started === 'string' ? started : '' })
+  }
+  return entries
+}
+
+/**
+ * Windows process/session inspection for ConPTY terminals. The whole console
+ * tree is one group rooted at the shell; Windows has no POSIX sessions or
+ * zombie states, and no signal-bearing kill, so liveness is creation-time
+ * identity and termination is taskkill.
+ */
+export class WindowsProcessInspector implements ProcessInspector {
+  private table: WindowsProcessEntry[] = []
+  private tableAt = Number.NEGATIVE_INFINITY
+  private terminal: IPty | undefined
+
+  constructor(
+    private readonly internals: ProcessInspectorInternals = DEFAULT_INTERNALS,
+    private readonly taskkill: (pid: number) => void = windowsTaskkillProcessTree,
+    private readonly tableTtlMs = 300,
+  ) {}
+
+  attach(terminal: IPty): void {
+    this.terminal = terminal
+  }
+
+  private loadTable(): WindowsProcessEntry[] {
+    try {
+      return parseWindowsProcessTable(
+        this.internals.exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', WINDOWS_PROCESS_TABLE_SCRIPT]),
+      )
+    } catch (_powerShellUnavailable) {
+      return []
+    }
+  }
+
+  private processTable(): WindowsProcessEntry[] {
+    const now = Date.now()
+    if (now - this.tableAt >= this.tableTtlMs) {
+      this.table = this.loadTable()
+      this.tableAt = now
+    }
+    return this.table
+  }
+
+  private entry(pid: number): WindowsProcessEntry | undefined {
+    return this.processTable().find(entry => entry.pid === pid)
+  }
+
+  foregroundPgid(shellPid: number): number | undefined {
+    return this.entry(shellPid) === undefined ? undefined : shellPid
+  }
+
+  isStdinWaiting(_pgid: number): boolean {
+    return false
+  }
+
+  processTree(rootPid: number): ProcessIdentity[] {
+    const entries: ProcessTreeEntry[] = this.processTable().map(entry => ({
+      pid: entry.pid,
+      parentPid: entry.parentPid,
+      started: entry.started,
+    }))
+    return processTree(entries, rootPid)
+  }
+
+  processSession(_sessionId: number): ProcessIdentity[] {
+    return []
+  }
+
+  isAlive(identity: ProcessIdentity): boolean {
+    return this.entry(identity.pid)?.started === identity.started
+  }
+
+  signalGroup(pgid: number, signal: SubprocessTerminalSignal): void {
+    if (signal === 'SIGTSTP') return
+    if (signal !== 'SIGINT') {
+      this.taskkill(pgid)
+      return
+    }
+    if (this.terminal !== undefined) {
+      try {
+        this.terminal.write('\x03')
+        return
+      } catch (_conptyWriteFailed) {
+        // degrade: kill tree members but keep the shell alive
+      }
+    }
+    for (const member of this.processTree(pgid)) {
+      if (member.pid !== pgid) this.signalProcess(member, 'SIGKILL')
+    }
+  }
+
+  signalProcess(identity: ProcessIdentity, _signal: 'SIGTERM' | 'SIGKILL'): void {
+    if (!this.isAlive(identity)) return
+    this.taskkill(identity.pid)
+  }
+}
+
 /**
  * Create the supported platform inspector or fail at plugin load.
  * @param platform - target Node platform.
@@ -370,5 +522,6 @@ export function createProcessInspector(
 ): ProcessInspector {
   if (platform === 'linux') return new LinuxProcessInspector(arch, internals)
   if (platform === 'darwin') return new MacProcessInspector(internals)
+  if (platform === 'win32') return new WindowsProcessInspector(internals)
   throw new Error(`subprocess-local: terminal inspection is unsupported on platform ${platform}`)
 }

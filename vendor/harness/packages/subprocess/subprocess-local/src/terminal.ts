@@ -120,6 +120,18 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     this.forceStopDescendants()
   }
 
+  private killTerminal(signal: 'SIGTERM' | 'SIGKILL'): void {
+    try {
+      this.terminal.kill(signal)
+    } catch (_signalUnsupported) {
+      // node-pty rejects signal-bearing kill on win32; degrade to signal-less termination
+      try {
+        this.terminal.kill()
+      } catch (_alreadyExited) {
+      }
+    }
+  }
+
   private forceStopShell(): void {
     if (this.exited) return
     if (this.rootIdentity !== undefined) {
@@ -131,7 +143,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
       return
     }
     try {
-      this.terminal.kill('SIGKILL')
+      this.killTerminal('SIGKILL')
     } catch (_unidentifiedShellExitedDuringHostExit) {
       // Without a captured identity, node-pty is the only root kill primitive.
     }
@@ -216,7 +228,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
   private async stopShell(): Promise<void> {
     if (!this.exited) {
       try {
-        this.terminal.kill('SIGTERM')
+        this.killTerminal('SIGTERM')
       } catch (_topLevelAlreadyExitedDuringTerm) {
         // The exit callback is authoritative.
       }
@@ -224,7 +236,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     }
     if (!this.exited) {
       try {
-        this.terminal.kill('SIGKILL')
+        this.killTerminal('SIGKILL')
       } catch (_topLevelAlreadyExitedDuringKill) {
         // The exit callback is authoritative.
       }

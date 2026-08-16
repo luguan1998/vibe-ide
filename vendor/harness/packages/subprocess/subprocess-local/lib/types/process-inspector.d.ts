@@ -1,4 +1,5 @@
 /** Platform process-table inspection for terminal readiness, signals, and teardown. */
+import type { IPty } from 'node-pty';
 import type { SubprocessTerminalSignal } from '@deepseek-ai/dsh-subprocess';
 /** PID plus start identity, preventing teardown escalation after PID reuse. */
 export interface ProcessIdentity {
@@ -17,6 +18,8 @@ export interface ProcessInspector {
     isAlive(identity: ProcessIdentity): boolean;
     signalGroup(pgid: number, signal: SubprocessTerminalSignal): void;
     signalProcess(identity: ProcessIdentity, signal: 'SIGTERM' | 'SIGKILL'): void;
+    /** Bind the PTY for ConPTY Ctrl-C delivery; only win32 needs it. */
+    attach?(terminal: IPty): void;
 }
 /** Testable boundary around filesystem, process-table, and signal syscalls. */
 export interface ProcessInspectorInternals {
@@ -60,5 +63,25 @@ export declare function linuxProcessGroupHasLiveMembers(processGroupId: number, 
  * @returns Platform process inspector.
  */
 export declare function createProcessInspector(platform?: NodeJS.Platform, arch?: NodeJS.Architecture, internals?: ProcessInspectorInternals): ProcessInspector;
+/** Force-kill a process and its descendants; idempotent on already-dead pids. */
+export declare function windowsTaskkillProcessTree(pid: number): void;
+/** Windows process/session inspection for ConPTY terminals. */
+export declare class WindowsProcessInspector implements ProcessInspector {
+    private readonly internals;
+    private readonly taskkill;
+    private readonly tableTtlMs;
+    private table;
+    private tableAt;
+    private terminal;
+    constructor(internals?: ProcessInspectorInternals, taskkill?: (pid: number) => void, tableTtlMs?: number);
+    attach(terminal: IPty): void;
+    foregroundPgid(shellPid: number): number | undefined;
+    isStdinWaiting(pgid: number): boolean;
+    processTree(rootPid: number): ProcessIdentity[];
+    processSession(sessionId: number): ProcessIdentity[];
+    isAlive(identity: ProcessIdentity): boolean;
+    signalGroup(pgid: number, signal: SubprocessTerminalSignal): void;
+    signalProcess(identity: ProcessIdentity, signal: 'SIGTERM' | 'SIGKILL'): void;
+}
 export {};
 //# sourceMappingURL=process-inspector.d.ts.map
