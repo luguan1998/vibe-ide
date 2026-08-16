@@ -1,6 +1,6 @@
 import { ipcMain, shell } from 'electron'
 import { readFile, writeFile, readdir, rename, mkdir, rm, cp, stat } from 'fs/promises'
-import { statSync } from 'fs'
+import { existsSync, statSync } from 'fs'
 import { join, dirname, extname, relative } from 'path'
 import { IPC_CHANNELS, FileNode } from '../shared/types'
 import * as iconv from 'iconv-lite'
@@ -150,6 +150,18 @@ export function registerFileHandlers(): void {
     } catch (err: any) {
       return { error: err.message }
     }
+  })
+
+  // Enumerate available drive letters
+  ipcMain.handle(IPC_CHANNELS.FILE_GET_DRIVES, () => {
+    const drives: string[] = []
+    for (let i = 65; i <= 90; i++) {
+      const letter = String.fromCharCode(i)
+      try {
+        if (existsSync(`${letter}:\\`)) drives.push(`${letter}:\\`)
+      } catch {}
+    }
+    return drives
   })
 
   // List files in directory

@@ -29,6 +29,8 @@ const EN_MAP: Record<string, string> = {
   'Plugin Bar Hint': 'dsh plugin only manages dependencies: a package declaring dsh.bundle becomes a profile layer after restart; plain packages need a manual insert row in ~/.dsh/profiles/web/cordis.patch.yml to take effect.',
   // 窄侧栏按钮，完整词过长
   'Open CSS Config': 'Open CSS',
+  // 右键菜单双列按钮，完整词过长
+  'Clear Screen': 'Clear',
   // 会话列表空态提示
   'Right-click blank area to open a new session': 'Right-click for new session',
 }
@@ -359,7 +361,6 @@ const ZH_MAP: Record<string, string> = {
   'Scheduled': '定时',
   'Sched': '定时',
   'Append': '追加',
-  'UI': '视窗',
   'Type a command, Enter to send...': '输入命令，Enter 发送...',
   'Cron expression': 'Cron 表达式',
   'minute hour day month weekday · e.g. */5 * * * *': '分 时 日 月 周 · 如 */5 * * * *',
@@ -457,6 +458,7 @@ const ZH_MAP: Record<string, string> = {
   'User': '问',
   'Assistant': '答',
   'Resume': '恢复',
+  'New': '新建',
   'New Session': '新建会话',
   'Copy Conversation': '拷贝对话',
   'Copy as Markdown (content follows eye filter)': '复制为 Markdown（内容随 eye 按钮筛选）',

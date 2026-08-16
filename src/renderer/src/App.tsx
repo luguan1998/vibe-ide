@@ -15,6 +15,7 @@ import CallGraphOverlay from './components/CallGraphOverlay'
 import { DesktopPet, type PetLogicalState } from './components/DesktopPet'
 import SearchPanel from './components/SearchPanel'
 import { ModalOverlay } from './components/ModalOverlay'
+import { DirectoryPicker } from './components/DirectoryPicker'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import GameMujica, { FOCUS_MUJICA, MUJICA_CLOSE } from './components/GameMujica'
@@ -90,6 +91,7 @@ declare global {
         readWithEncoding: (filePath: string, encoding?: string, forceOpen?: boolean) => Promise<{ content: string; encoding: string; bom: boolean; confidence: number; error?: string }>
         writeWithEncoding: (filePath: string, content: string, encoding?: string) => Promise<{ success: boolean; error?: string }>
         list: (dirPath: string) => Promise<any>
+        getDrives: () => Promise<string[]>
         getPathForFile: (file: File) => string
         tree: (dirPath: string, depth?: number, skipPatterns?: string[]) => Promise<any>
         delete: (filePath: string) => Promise<any>
@@ -1048,15 +1050,19 @@ export default function App() {
   }, [waitDraftIdle, sendToDshSession])
 
 
+  // gui/dsh session 无 PTY：terminal.rename 失败时本地改名
+  const applyRename = useCallback(async (id: string, name: string) => {
+    const r = await window.api.terminal.rename(id, name)
+    if (r.success && r.session) setSessions(prev => prev.map(s => s.id === id ? r.session! : s))
+    else setSessions(prev => prev.map(s => s.id === id ? { ...s, name } : s))
+  }, [])
+
   const handleDshTitleChange = useCallback(async (sessionId: string, title: string) => {
     if (manuallyRenamedRef.current.has(sessionId)) return
     const cur = sessionsRef.current.find(s => s.id === sessionId)
     if (!cur || cur.name === title) return
-    const result = await window.api.terminal.rename(sessionId, title)
-    if (result.success && result.session) {
-      setSessions(prev => prev.map(s => s.id === sessionId ? result.session! : s))
-    }
-  }, [])
+    await applyRename(sessionId, title)
+  }, [applyRename])
 
   const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     const v = status === 'running'
@@ -1536,8 +1542,13 @@ export default function App() {
         }
       }
 
-      // Escape priority: call graph → code search → explore result → search dropdown → focus return
+      // Escape priority: directory picker → call graph → code search → explore result → search dropdown → focus return
       if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        if (dirPickerRef.current) {
+          e.preventDefault(); e.stopImmediatePropagation()
+          setDirPicker(null)
+          return
+        }
         if (callGraphFocalNodeRef.current) {
           e.preventDefault(); e.stopImmediatePropagation()
           setCallGraphFocalNode(null)
@@ -1666,42 +1677,105 @@ export default function App() {
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
 
-  // Create a new terminal session — ask user to pick a directory first
+  // 本地构造 gui/dsh session 记录（不建 PTY，三者互斥省内存）
+  function makeLocalSession(cwd: string, opts?: { name?: string; id?: string }): TerminalSession {
+    return {
+      id: opts?.id || `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: opts?.name || `Terminal ${sessionsRef.current.length + 1}`,
+      cwd,
+      active: true,
+      createdAt: Date.now(),
+    }
+  }
+
+  const addSessionRecord = useCallback((session: TerminalSession, parentId?: string | null) => {
+    setSessions(prev => {
+      if (prev.some(s => s.id === session.id)) return prev
+      if (parentId == null) return [...prev, session]
+      const parentIndex = prev.findIndex(s => s.id === parentId)
+      if (parentIndex === -1) return [...prev, session]
+      const next = [...prev]
+      next.splice(parentIndex + 1, 0, session)
+      return next
+    })
+    setActiveSessionId(session.id)
+    setCenterView('terminal')
+    setDiffFile(null)
+  }, [])
+
+  const createTermSession = useCallback(async (cwd: string, shell: string = getMainShellType()) => {
+    const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: readDefaultAgent() })
+    addSessionRecord(session)
+    return session
+  }, [autoUtf8, addSessionRecord])
+
+  // Create a new session — 打开自建目录选择弹窗（选目录 + 类型）
   const [isOpening, setIsOpening] = useState(false)
-  const handleCreateSession = useCallback(async (shell: string = getMainShellType()) => {
+  const [dirPicker, setDirPicker] = useState<{ initialDir: string; shell?: string } | null>(null)
+  const dirPickerRef = useRef(dirPicker); dirPickerRef.current = dirPicker
+  const handleCreateSession = useCallback((shell: string = getMainShellType()) => {
+    let initialDir = 'C:\\'
+    try {
+      const last = localStorage.getItem('vibe-ide-dirpicker-last-dir')
+      if (last) initialDir = last
+      else if (activeSessionCwd) initialDir = activeSessionCwd
+      else {
+        const recent = cwdStore.getRecentDirs()
+        if (recent.length > 0) initialDir = recent[0]
+      }
+    } catch {}
+    setDirPicker({ initialDir, shell })
+  }, [activeSessionCwd])
+
+  // 右键「新建」：在当前 cwd 直接创建对应类型，不弹目录选择
+  const handleNewSessionHere = useCallback(async (cwd: string, mode: 'term' | 'gui' | 'dsh') => {
     try {
       setIsOpening(true)
-      const dirResult = await window.api.workspace.pickDir()
-      if (dirResult.canceled) return
-      const session = await window.api.terminal.create({ cwd: dirResult.path, shell, autoUtf8, initCommand: readDefaultAgent() })
-      setSessions(prev => [...prev, session])
-      setActiveSessionId(session.id)
-      setCenterView('terminal')
-      setDiffFile(null)
+      if (mode === 'term') {
+        await createTermSession(cwd)
+      } else {
+        const session = makeLocalSession(cwd)
+        addSessionRecord(session)
+        setSessionViewModes(prev => ({ ...prev, [session.id]: mode }))
+      }
     } catch (err) {
-      console.error('Failed to create terminal session:', err)
+      console.error('Failed to create session here:', err)
     } finally {
       setIsOpening(false)
     }
-  }, [autoUtf8])
+  }, [createTermSession, addSessionRecord])
+
+  const handleDirPickerConfirm = useCallback(async (cwd: string, mode: 'term' | 'gui' | 'dsh') => {
+    setDirPicker(null)
+    try { localStorage.setItem('vibe-ide-dirpicker-last-dir', cwd) } catch {}
+    try {
+      setIsOpening(true)
+      if (mode === 'term') {
+        await createTermSession(cwd, dirPicker?.shell)
+      } else {
+        const session = makeLocalSession(cwd)
+        addSessionRecord(session)
+        setSessionViewModes(prev => ({ ...prev, [session.id]: mode }))
+      }
+    } catch (err) {
+      console.error('Failed to create session:', err)
+    } finally {
+      setIsOpening(false)
+    }
+  }, [createTermSession, addSessionRecord, dirPicker])
 
   // Create a terminal session at a specific path (no directory picker)
   const handleCreateSessionAt = useCallback(async (cwd: string, shell: string = getMainShellType()) => {
     try {
       setIsOpening(true)
-      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: readDefaultAgent() })
-      setSessions(prev => [...prev, session])
-      setActiveSessionId(session.id)
-      setCenterView('terminal')
-      setDiffFile(null)
-      return session
+      return await createTermSession(cwd, shell)
     } catch (err) {
       console.error('Failed to create terminal session at path:', err)
       return null
     } finally {
       setIsOpening(false)
     }
-  }, [autoUtf8])
+  }, [createTermSession])
 
   // Listen for startup:openPath IPC from main process (CLI argument or second instance)
   React.useEffect(() => {
@@ -1736,29 +1810,20 @@ export default function App() {
 
   // Clone a terminal session (same cwd), insert below parent
   const handleCloneSession = useCallback(async (parentId: string | null, cwd: string, shell?: string, name?: string) => {
+    const parentMode = parentId ? sessionViewModes[parentId] : undefined
+    if (parentMode === 'gui' || parentMode === 'dsh') {
+      const session = makeLocalSession(cwd, { name })
+      addSessionRecord(session, parentId)
+      setSessionViewModes(prev => ({ ...prev, [session.id]: parentMode }))
+      return
+    }
     try {
-      const parentMode = parentId ? sessionViewModes[parentId] : undefined
-      const fromGui = parentMode === 'gui'
-      const fromDsh = parentMode === 'dsh'
-      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name, initCommand: fromGui || fromDsh ? undefined : readDefaultAgent() })
-      setSessions(prev => {
-        if (parentId == null) return [...prev, session]
-        const parentIndex = prev.findIndex(s => s.id === parentId)
-        if (parentIndex === -1) return [...prev, session]
-        const next = [...prev]
-        next.splice(parentIndex + 1, 0, session)
-        return next
-      })
-      setActiveSessionId(session.id)
-      if (parentId && (parentMode === 'gui' || parentMode === 'dsh')) {
-        setSessionViewModes(prev => ({ ...prev, [session.id]: parentMode }))
-      }
-      setCenterView('terminal')
-      setDiffFile(null)
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name, initCommand: readDefaultAgent() })
+      addSessionRecord(session, parentId)
     } catch (err) {
       console.error('Failed to clone terminal session:', err)
     }
-  }, [autoUtf8, sessionViewModes])
+  }, [autoUtf8, sessionViewModes, addSessionRecord])
 
   // Fork AI conversation at a specific user message
   const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number, content?: string, occurrence?: number) => {
@@ -1778,26 +1843,17 @@ export default function App() {
         return
       }
 
-      // 2. Create new terminal session (same cwd)
-      const session = await window.api.terminal.create({ cwd: current.cwd, shell: getMainShellType(), autoUtf8 })
+      // 2. Local session record (gui mode, no PTY) — AiTab's auto-create will use resumeSessionId
+      const session = makeLocalSession(current.cwd)
 
       // 3. Store fork resume ID for the new session
       setForkSessions(prev => ({ ...prev, [session.id]: result.newClaudeSessionId! }))
 
       // 4. Insert session right after the current one
-      setSessions(prev => {
-        const parentIndex = prev.findIndex(s => s.id === currentSessionId)
-        if (parentIndex === -1) return [...prev, session]
-        const next = [...prev]
-        next.splice(parentIndex + 1, 0, session)
-        return next
-      })
+      addSessionRecord(session, currentSessionId)
 
-      // 5. Switch to new session in gui mode — AiTab's auto-create will use resumeSessionId
-      setActiveSessionId(session.id)
+      // 5. Switch to new session in gui mode
       setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))
-      setCenterView('terminal')
-      setDiffFile(null)
     } catch (err) {
       console.error('Failed to fork session:', err)
     }
@@ -1810,33 +1866,17 @@ export default function App() {
       const d = (e as CustomEvent).detail as { sourceId: string; childId: string; cwd?: string; title?: string } | undefined
       if (!d?.childId || !d.cwd) return
       try {
-        const src = sessionsRef.current.find(s => s.id === d.sourceId)
-        const session = await window.api.terminal.create({
-          id: d.childId,
-          cwd: d.cwd,
-          shell: src?.shell ?? getMainShellType(),
-          autoUtf8,
-          name: d.title,
-        })
-        setSessions(prev => {
-          if (prev.some(s => s.id === session.id)) return prev
-          const idx = prev.findIndex(s => s.id === d.sourceId)
-          if (idx === -1) return [...prev, session]
-          const next = [...prev]
-          next.splice(idx + 1, 0, session)
-          return next
-        })
+        // 固定 id=childId 收养 dsh 子会话（dsh 模式无 PTY）
+        const session = makeLocalSession(d.cwd, { id: d.childId, name: d.title })
+        addSessionRecord(session, d.sourceId)
         setSessionViewModes(prev => ({ ...prev, [session.id]: 'dsh' }))
-        setActiveSessionId(session.id)
-        setCenterView('terminal')
-        setDiffFile(null)
       } catch (err) {
         console.error('Failed to fork dsh session into Vibe:', err)
       }
     }
     window.addEventListener('vibe:dsh-fork', onDshFork)
     return () => window.removeEventListener('vibe:dsh-fork', onDshFork)
-  }, [autoUtf8])
+  }, [addSessionRecord])
 
   // Switch active session
   const handleSwitchSession = useCallback((id: string) => {
@@ -1969,10 +2009,7 @@ export default function App() {
     if (oldSession && oldSession.name !== newName) {
       manuallyRenamedRef.current.add(id)
     }
-    const result = await window.api.terminal.rename(id, newName)
-    if (result.success && result.session) {
-      setSessions(prev => prev.map(s => s.id === id ? result.session! : s))
-    }
+    await applyRename(id, newName)
     if (sessionViewModesRef.current[id] === 'dsh') {
       try {
         const api = await getDshApi(oldSession?.cwd)
@@ -1981,7 +2018,7 @@ export default function App() {
         console.error('Failed to rename dsh session:', e)
       }
     }
-  }, [])
+  }, [applyRename])
 
   // Handle panel resizing
   const handleRightResizeStart = useCallback((e: React.MouseEvent) => {
@@ -2319,37 +2356,26 @@ export default function App() {
     } : null)
   }, [diffFile])
 
-  const handleSwitchViewMode = useCallback((sessionId: string, mode: 'term' | 'gui' | 'dsh') => {
-    setSessionViewModes(prev => ({ ...prev, [sessionId]: mode }))
-    if (activeSessionId !== sessionId) {
-      handleSwitchSession(sessionId)
-    }
-  }, [activeSessionId, handleSwitchSession])
-
   const handleResumeDshHistory = useCallback(async (dshSessionId: string, cwd: string, name: string) => {
     try {
       setIsOpening(true)
-      const shell = getMainShellType()
-      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name: name || undefined })
-      setSessions(prev => [...prev, session])
+      const session = makeLocalSession(cwd, { name: name || undefined })
+      addSessionRecord(session)
       setDshResumeIds(prev => ({ ...prev, [session.id]: dshSessionId }))
-      setActiveSessionId(session.id)
-      setCenterView('terminal')
-      setDiffFile(null)
       setSessionViewModes(prev => ({ ...prev, [session.id]: 'dsh' }))
     } catch (err) {
       console.error('Failed to resume dsh history:', err)
     } finally {
       setIsOpening(false)
     }
-  }, [autoUtf8])
+  }, [addSessionRecord])
 
   const handleResumeClaudeHistory = useCallback(async (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => {
     try {
       setIsOpening(true)
-      const shell = getMainShellType()
-      let initCommand: string | undefined
       if (mode === 'tui') {
+        const shell = getMainShellType()
+        let initCommand: string | undefined
         const { cliCommand, configDir } = readAiCliConfig()
         const bin = cliCommand || 'claude'
         const isPosix = shell === 'bash' || shell === 'sh' || shell === 'zsh' || shell === 'gitbash'
@@ -2362,13 +2388,11 @@ export default function App() {
           : shell === 'cmd' ? `set "CLAUDE_CONFIG_DIR=${resolvedConfigDir}" && ${base}`
           : isPosix ? `CLAUDE_CONFIG_DIR='${resolvedConfigDir}' ${base}`
           : `$env:CLAUDE_CONFIG_DIR='${resolvedConfigDir}'; ${base}`
-      }
-      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name: name || undefined, initCommand })
-      setSessions(prev => [...prev, session])
-      setActiveSessionId(session.id)
-      setCenterView('terminal')
-      setDiffFile(null)
-      if (mode === 'gui') {
+        const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name: name || undefined, initCommand })
+        addSessionRecord(session)
+      } else {
+        const session = makeLocalSession(cwd, { name: name || undefined })
+        addSessionRecord(session)
         await aiStore.resumeSession(session.id, historySessionId, cwd, { autoApprove: false, permissionMode: 'bypassPermissions', name })
         setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))
       }
@@ -2377,7 +2401,7 @@ export default function App() {
     } finally {
       setIsOpening(false)
     }
-  }, [autoUtf8])
+  }, [autoUtf8, addSessionRecord])
 
   const handlePreviewMarkdown = useCallback((fullPath: string, fileName: string) => {
     recordRecentFile(fullPath)
@@ -2539,8 +2563,7 @@ export default function App() {
             pipeProgress={pipeProgress}
             onCancelPipe={cancelPipe}
             onCloneWithInit={handleCloneWithInit}
-            sessionViewModes={sessionViewModes}
-            onSwitchViewMode={handleSwitchViewMode}
+            onNewSessionHere={handleNewSessionHere}
             recentFiles={recentFiles}
             onOpenRecentFile={handleOpenRecentFile}
             onRemoveRecentFile={removeRecentFile}
@@ -2679,10 +2702,7 @@ export default function App() {
                         onOpenFile={handleOpenFileFromSearch}
                         onRenameSession={async (name: string) => {
                           if (manuallyRenamedRef.current.has(session.id)) return
-                          const result = await window.api.terminal.rename(session.id, name)
-                          if (result.success && result.session) {
-                            setSessions(prev => prev.map(s => s.id === session.id ? result.session! : s))
-                          }
+                          await applyRename(session.id, name)
                         }}
                         resumeSessionId={forkSessions[session.id]}
                         onForkSession={(userMessageIndex: number, content?: string, occurrence?: number) => {
@@ -2896,6 +2916,15 @@ export default function App() {
           query={exploreResult.query}
           content={exploreResult.content}
           onClose={() => setExploreResult(null)}
+        />
+      )}
+
+      {/* Directory Picker — 自建目录浏览弹窗（新建 session 选目录 + 类型） */}
+      {dirPicker && (
+        <DirectoryPicker
+          initialDir={dirPicker.initialDir}
+          onConfirm={handleDirPickerConfirm}
+          onCancel={() => setDirPicker(null)}
         />
       )}
 

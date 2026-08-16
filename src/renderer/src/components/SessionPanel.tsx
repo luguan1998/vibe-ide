@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Copy, Pencil, X, ChevronRight, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2, Pin, Terminal, File, Star, Clock, History } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Trash2, Pin, Terminal, File, Star, Clock, History } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
 import { readAiCliConfig } from '../aiStore'
@@ -276,8 +276,7 @@ interface SessionPanelProps {
   pipeRunning?: Record<string, boolean>
   pipeProgress?: Record<string, { current: number; total: number }>
   onCancelPipe?: (sessionId: string) => void
-  sessionViewModes?: Record<string, 'term' | 'gui' | 'dsh'>
-  onSwitchViewMode?: (sessionId: string, mode: 'term' | 'gui' | 'dsh') => void
+  onNewSessionHere?: (cwd: string, mode: 'term' | 'gui' | 'dsh') => void
   groupSessionsByCwd?: boolean
   onToggleGroupSessionsByCwd?: (v: boolean) => void
   terminalFontSize?: number
@@ -448,8 +447,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   pipeRunning = {},
   pipeProgress = {},
   onCancelPipe,
-  sessionViewModes = {},
-  onSwitchViewMode,
+  onNewSessionHere,
   groupSessionsByCwd = true,
   onToggleGroupSessionsByCwd,
   terminalFontSize = 14,
@@ -550,6 +548,18 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
+  const [newMode, setNewMode] = useState<'term' | 'gui' | 'dsh'>('term')
+  const [newSubmenu, setNewSubmenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
+  const newSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 新建：按模式在当前会话 cwd 创建并关菜单（勾选模式为当次启动内的用户偏好）
+  const handleNewFromSubmenu = (mode: 'term' | 'gui' | 'dsh') => {
+    setNewMode(mode)
+    const session = sessions.find(s => s.id === contextMenu?.sessionId)
+    if (session && onNewSessionHere) onNewSessionHere(session.cwd, mode)
+    setContextMenu(null)
+    setNewSubmenu(null)
+  }
   const [cloneSubmenu, setCloneSubmenu] = useState<{ x: number; y: number; sessionId: string; cwd: string; shell?: string; initCommands: CustomCommand[] } | null>(null)
   const cloneSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [emptyAreaMenu, setEmptyAreaMenu] = useState<{ x: number; y: number } | null>(null)
@@ -913,7 +923,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     e.stopPropagation()
     setEmptyAreaMenu(null)
     setCloneSubmenu(null)
+    setNewSubmenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
+    if (newSubmenuTimerRef.current) { clearTimeout(newSubmenuTimerRef.current); newSubmenuTimerRef.current = null }
     setContextMenu({ x: e.clientX, y: e.clientY, sessionId })
   }
 
@@ -921,7 +933,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     e.preventDefault()
     setContextMenu(null)
     setCloneSubmenu(null)
+    setNewSubmenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
+    if (newSubmenuTimerRef.current) { clearTimeout(newSubmenuTimerRef.current); newSubmenuTimerRef.current = null }
     setEmptyAreaMenu({ x: e.clientX, y: e.clientY })
   }
 
@@ -1578,7 +1592,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {contextMenu && (
         <div
           ref={ctxMenuPos.ref}
-          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[160px] overflow-y-auto"
+          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px] overflow-y-auto"
           style={ctxMenuPos.style}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1590,7 +1604,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               const session = sessions.find(s => s.id === contextMenu.sessionId)
               if (!session) return
               if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
-              setCloneSubmenu({ x: contextMenu.x + 168, y: contextMenu.y + 4, sessionId: session.id, cwd: session.cwd, shell: session.shell, initCommands: cmds })
+              setCloneSubmenu({ x: contextMenu.x + 148, y: contextMenu.y + 4, sessionId: session.id, cwd: session.cwd, shell: session.shell, initCommands: cmds })
             }}
             onMouseLeave={() => {
               cloneSubmenuTimerRef.current = setTimeout(() => setCloneSubmenu(null), 150)
@@ -1643,6 +1657,66 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               </div>
             )}
           </div>
+          {onNewSessionHere && (
+            <>
+              <div
+                className="relative"
+                onMouseEnter={() => {
+                  setNewSubmenu({ x: contextMenu.x + 148, y: contextMenu.y + 4, sessionId: contextMenu.sessionId })
+                }}
+                onMouseLeave={() => {
+                  newSubmenuTimerRef.current = setTimeout(() => setNewSubmenu(null), 150)
+                }}
+              >
+                <button
+                  className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                  onClick={() => handleNewFromSubmenu(newMode)}
+                >
+                  <MessageSquarePlus size={14} className="text-ide-text-muted" />
+                  <span>{t('New')}</span>
+                  <ChevronRight size={14} className="ml-auto text-ide-text-muted" />
+                </button>
+                {newSubmenu && newSubmenu.sessionId === contextMenu.sessionId && (
+                  <div
+                    className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px]"
+                    style={{ left: newSubmenu.x, top: newSubmenu.y }}
+                    onMouseEnter={() => {
+                      if (newSubmenuTimerRef.current) { clearTimeout(newSubmenuTimerRef.current); newSubmenuTimerRef.current = null }
+                    }}
+                    onMouseLeave={() => setNewSubmenu(null)}
+                  >
+                    <button
+                      className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                      onClick={() => handleNewFromSubmenu('term')}
+                    >
+                      {newMode === 'term' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent">
+                        <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
+                      </svg>
+                      <span>{t('Terminal')}</span>
+                    </button>
+                    <button
+                      className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                      onClick={() => handleNewFromSubmenu('gui')}
+                    >
+                      {newMode === 'gui' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
+                      <ClaudeLogoIcon size={14} />
+                      <span>Claude</span>
+                    </button>
+                    <button
+                      className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                      onClick={() => handleNewFromSubmenu('dsh')}
+                    >
+                      {newMode === 'dsh' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
+                      <DeepSeekLogoIcon size={14} />
+                      <span>dsh</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-ide-border my-1" />
+            </>
+          )}
           {onResetCache && (
             <button
               className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
@@ -1655,82 +1729,31 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               <span>{t('Clear Screen')}</span>
             </button>
           )}
-          {onSwitchViewMode && (() => {
-            const mode = sessionViewModes[contextMenu.sessionId] ?? 'term'
-            const isGui = mode === 'gui'
-            const isDsh = mode === 'dsh'
-            return (
-              <div className="flex items-stretch">
-                <button
-                  className="flex-1 px-3 py-1.5 text-left text-sm flex items-center gap-2 text-ide-text hover:bg-ide-hover"
-                  onClick={() => {
-                    onSwitchViewMode(contextMenu.sessionId, isGui ? 'term' : 'gui')
-                    setContextMenu(null)
-                  }}
-                >
-                  {isGui ? (
-                    <>
-                      <Zap size={14} className="text-ide-accent" />
-                      <span>{t('Terminal')}</span>
-                    </>
-                  ) : (
-                    <>
-                      <ClaudeLogoIcon size={14} />
-                      <span>{t('UI')}</span>
-                    </>
-                  )}
-                </button>
-                <div className="w-px bg-ide-border shrink-0 my-1.5" />
-                <button
-                  className="flex-1 px-3 py-1.5 text-left text-sm flex items-center gap-2 text-ide-text hover:bg-ide-hover"
-                  onClick={() => {
-                    onSwitchViewMode(contextMenu.sessionId, isDsh ? 'term' : 'dsh')
-                    setContextMenu(null)
-                  }}
-                >
-                  {isDsh ? (
-                    <>
-                      <Zap size={14} className="text-ide-accent" />
-                      <span>{t('Terminal')}</span>
-                    </>
-                  ) : (
-                    <>
-                      <DeepSeekLogoIcon size={14} />
-                      <span>{t('UI')}</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )
-          })()}
-          <div className="flex items-stretch">
-            <button
-              className={`flex-1 px-3 py-1.5 text-left text-sm flex items-center gap-2 ${schedTasks[contextMenu.sessionId] ? 'text-ide-accent bg-ide-accent/15 hover:bg-ide-accent/25' : 'text-ide-text hover:bg-ide-hover'}`}
-              title={t('Scheduled')}
-              onClick={() => {
-                const session = sessions.find(s => s.id === contextMenu.sessionId)
-                if (session) openSchedModal(session.id)
-                setContextMenu(null)
-              }}
-            >
-              <Clock size={14} className={schedTasks[contextMenu.sessionId] ? 'text-ide-accent' : 'text-ide-text-muted'} />
-              <span>{t('Sched')}</span>
-            </button>
-            <div className="w-px bg-ide-border shrink-0 my-1.5" />
-            <button
-              className="flex-1 px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-              onClick={() => {
-                setAppendCmdSessionId(contextMenu.sessionId)
-                setAppendCmdDraft('')
-                appendCmdAnchorYRef.current = contextMenu.y
-                setShowAppendCmdModal(true)
-                setContextMenu(null)
-              }}
-            >
-              {hourglassSvg}
-              <span>{t('Append')}</span>
-            </button>
-          </div>
+          <button
+            className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${schedTasks[contextMenu.sessionId] ? 'text-ide-accent bg-ide-accent/15 hover:bg-ide-accent/25' : 'text-ide-text hover:bg-ide-hover'}`}
+            title={t('Scheduled')}
+            onClick={() => {
+              const session = sessions.find(s => s.id === contextMenu.sessionId)
+              if (session) openSchedModal(session.id)
+              setContextMenu(null)
+            }}
+          >
+            <Clock size={14} className={schedTasks[contextMenu.sessionId] ? 'text-ide-accent' : 'text-ide-text-muted'} />
+            <span>{t('Sched')}</span>
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+            onClick={() => {
+              setAppendCmdSessionId(contextMenu.sessionId)
+              setAppendCmdDraft('')
+              appendCmdAnchorYRef.current = contextMenu.y
+              setShowAppendCmdModal(true)
+              setContextMenu(null)
+            }}
+          >
+            {hourglassSvg}
+            <span>{t('Append')}</span>
+          </button>
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover flex items-center gap-2"
             onClick={() => {

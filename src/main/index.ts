@@ -193,17 +193,6 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
-
-  // Warm up Windows COM file dialog — first call to IFileOpenDialog loads
-  // shell extensions (OneDrive, Dropbox, etc.) and can take 1-5s cold.
-  // Pre-instantiating the WinForms dialog class forces this init in the
-  // background so the real showOpenDialog call is instant.
-  if (process.platform === 'win32') {
-    exec(
-      'powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms"',
-      () => {} // fire-and-forget
-    )
-  }
 }
 
 // Set app user model id BEFORE ready — Electron docs require this,
