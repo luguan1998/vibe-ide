@@ -1019,16 +1019,27 @@ export default function App() {
       try {
         const api = await getDshApi(sessionsRef.current.find(s => s.id === sessionId)?.cwd)
         const dshId = dshResumeIdsRef.current[sessionId] || sessionId
-        // 自动命名：仅新会话（恢复的历史会话保留原标题），用户未手动改名且未自动命名过
+        // 自动命名：仅当 DSH 会话还没有任何用户问题时才用当前文本命名，
+        // 避免覆盖 DSH 自己按“最早问题”生成的标题（恢复的历史会话也保留原标题）。
         if (!dshResumeIdsRef.current[sessionId] && !manuallyRenamedRef.current.has(sessionId) && !dshAutoTitledRef.current.has(sessionId)) {
-          const title = text.replace(/\s+/g, ' ').trim().slice(0, 30)
-          if (title) {
+          const historyRes = await api.sessions.history({ sessionId: dshId, maxMessages: 200 }).catch(() => null)
+          const hasExistingUserMessage = !!historyRes?.result?.ok
+            && ((historyRes.result.value?.events ?? []) as any[]).some(
+              (e: any) => e.event?.type === 'user/message' && e.event?.data?.source?.kind === 'user'
+            )
+          if (hasExistingUserMessage) {
+            // 已有历史问题：不再自动命名，避免把标题改成最后一个问题
             dshAutoTitledRef.current.add(sessionId)
-            try {
-              await api.sessions.rename({ sessionId: dshId, title })
-            } catch (e) {
-              dshAutoTitledRef.current.delete(sessionId)
-              console.error('Failed to auto-rename dsh session:', e)
+          } else {
+            const title = text.replace(/\s+/g, ' ').trim().slice(0, 30)
+            if (title) {
+              dshAutoTitledRef.current.add(sessionId)
+              try {
+                await api.sessions.rename({ sessionId: dshId, title })
+              } catch (e) {
+                dshAutoTitledRef.current.delete(sessionId)
+                console.error('Failed to auto-rename dsh session:', e)
+              }
             }
           }
         }
