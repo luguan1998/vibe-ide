@@ -467,43 +467,43 @@ input[type="checkbox"] { accent-color: rgb(242 140 245) !important; }
 /* ════════════════════════════════════════════════════
    Markdown 渲染 — 星空彩虹调色
    ════════════════════════════════════════════════════ */
-.md-preview h1 {
+.md-preview h1, .dsh-view h1 {
   background: linear-gradient(90deg, rgb(242 140 245), rgb(130 200 255), rgb(242 140 245)) !important;
   background-clip: text !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   border-bottom: 2px solid rgb(242 140 245 / 0.4) !important;
 }
-.md-preview h2 {
+.md-preview h2, .dsh-view h2 {
   color: rgb(130 200 255) !important;
   border-bottom: 1px solid rgb(130 200 255 / 0.3) !important;
 }
-.md-preview h3 { color: rgb(200 180 255) !important; }
-.md-preview h4 { color: rgb(255 200 130) !important; }
-.md-preview h5 { color: rgb(160 210 180) !important; }
-.md-preview h6 { color: rgb(255 150 150) !important; }
+.md-preview h3, .dsh-view h3 { color: rgb(200 180 255) !important; }
+.md-preview h4, .dsh-view h4 { color: rgb(255 200 130) !important; }
+.md-preview h5, .dsh-view h5 { color: rgb(160 210 180) !important; }
+.md-preview h6, .dsh-view h6 { color: rgb(255 150 150) !important; }
 
-.md-preview strong { color: rgb(255 180 100) !important; }
-.md-preview em { color: rgb(150 230 180) !important; }
-.md-preview del { color: rgb(255 100 120) !important; text-decoration-color: rgb(255 100 120 / 0.6) !important; }
+.md-preview strong, .dsh-view strong { color: rgb(255 180 100) !important; }
+.md-preview em, .dsh-view em { color: rgb(150 230 180) !important; }
+.md-preview del, .dsh-view del { color: rgb(255 100 120) !important; text-decoration-color: rgb(255 100 120 / 0.6) !important; }
 
-.md-preview a { color: rgb(130 200 255) !important; }
-.md-preview a:hover { color: rgb(252 180 255) !important; text-shadow: 0 0 6px rgb(242 140 245 / 0.4) !important; }
+.md-preview a, .dsh-view a { color: rgb(130 200 255) !important; }
+.md-preview a:hover, .dsh-view a:hover { color: rgb(252 180 255) !important; text-shadow: 0 0 6px rgb(242 140 245 / 0.4) !important; }
 
-.md-preview blockquote {
+.md-preview blockquote, .dsh-view blockquote {
   border-left: 3px solid rgb(242 140 245 / 0.6) !important;
   background: rgb(242 140 245 / 0.06) !important;
   color: rgb(200 180 220) !important;
 }
-.md-preview blockquote strong { color: rgb(255 200 255) !important; }
+.md-preview blockquote strong, .dsh-view blockquote strong { color: rgb(255 200 255) !important; }
 
-.md-preview li::marker { color: rgb(242 140 245) !important; }
+.md-preview li::marker, .dsh-view li::marker { color: rgb(242 140 245) !important; }
 
-.md-preview th { color: rgb(200 180 255) !important; }
-.md-preview thead { background: rgb(30 20 55) !important; }
-.md-preview tbody tr:hover { background: rgb(242 140 245 / 0.06) !important; }
+.md-preview th, .dsh-view th { color: rgb(200 180 255) !important; }
+.md-preview thead, .dsh-view thead { background: rgb(30 20 55) !important; }
+.md-preview tbody tr:hover, .dsh-view tbody tr:hover { background: rgb(242 140 245 / 0.06) !important; }
 
-.md-preview hr {
+.md-preview hr, .dsh-view hr {
   border-top: 1px solid rgb(242 140 245 / 0.4) !important;
   box-shadow: 0 0 6px rgb(242 140 245 / 0.15) !important;
 }

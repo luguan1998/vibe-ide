@@ -49,6 +49,8 @@ const TOKEN_MAP: ReadonlyArray<[string, string]> = [
   ['--dsw-alias-interactive-bg-hover-solid', '--ide-hover'],
   ['--dsw-alias-interactive-bg-hover-danger', '--ide-hover'],
   ['--dsw-alias-markdown-code-block', '--ide-hover'],
+  ['--dsw-alias-markdown-code-block-banner', '--ide-hover'],
+  ['--dsw-alias-markdown-citation', '--ide-hover'],
   ['--dsw-alias-scrollbar-bg-l2', '--ide-active'],
   ['--dsw-alias-scrollbar-hover-l2', '--ide-text-muted'],
   ['--dsw-specific-bubble', '--ide-panel'],
@@ -65,6 +67,13 @@ function toCssColor(value: string): string {
     return `rgb(${parts.join(', ')})`
   }
   return value.trim()
+}
+
+// font shorthand 里含空格的单字体名必须加引号，多字体栈（逗号分隔）原样透传
+function quoteFamily(family: string): string {
+  const t = family.trim()
+  if (t.includes(',') || /^['"]/.test(t)) return t
+  return t.includes(' ') ? `'${t}'` : t
 }
 
 function isDark(value: string): boolean {
@@ -104,6 +113,10 @@ export function applyDshTheme(ctx: Context): () => void {
     if (dark) body.setAttribute('data-ds-dark-theme', '')
     else body.removeAttribute('data-ds-dark-theme')
     document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+    // dsh 全局 UI 字体跟随 Vibe 设置（--dsw-font-family 定义在 :root，body 内联才能覆盖）。
+    // markdown 内部字体由 globals.css 的 .dsh-view [class*="markdown"] 对齐规则负责，无需在此注入
+    const ideFont = cs.getPropertyValue('--ide-font-family').trim()
+    if (ideFont) body.style.setProperty('--dsw-font-family', quoteFamily(ideFont))
     // 同步 emit theme/change → present() 立即把 token 写到 body
     theme.overrideTokens('vibe-ide', tokens)
   }
