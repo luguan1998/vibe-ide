@@ -29,6 +29,12 @@ function readForceDomRenderer(): boolean {
   }
 }
 
+function isElementVisible(el: Element | null | undefined): boolean {
+  if (!el) return false
+  const rect = el.getBoundingClientRect()
+  return rect.width > 0 && rect.height > 0
+}
+
 interface TerminalViewProps {
   sessionId: string
   sessionName?: string
@@ -582,11 +588,13 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     }
 
     term.open(terminalRef.current)
-    fitAddon.fit()
+    if (isElementVisible(terminalRef.current)) {
+      fitAddon.fit()
+    }
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (fitAddonRef.current && xtermRef.current) {
+        if (fitAddonRef.current && xtermRef.current && isElementVisible(terminalRef.current)) {
           fitAddonRef.current.fit()
           xtermRef.current.refresh(0, xtermRef.current.rows - 1)
         }
@@ -921,7 +929,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
   // 切回 session 时 display:none→flex，需恢复尺寸 + 重建可能丢失的 WebGL context
   useEffect(() => {
-    if (!isActive || !xtermRef.current || !isReady) return
+    if (!isActive || !xtermRef.current || !isReady || !isElementVisible(terminalRef.current)) return
     const term = xtermRef.current
 
     if (!forceDomRenderer && !webglAddonRef.current) {
@@ -938,6 +946,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     }
 
     try { fitAddonRef.current?.fit() } catch {}
+    if (fitAddonRef.current && xtermRef.current) {
+      window.api.terminal.resize(sessionId, xtermRef.current.cols, xtermRef.current.rows)
+    }
     try { term.clearTextureAtlas() } catch {}
     term.refresh(0, term.rows - 1)
     if (userAtBottomRef.current) {
@@ -949,13 +960,17 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   useEffect(() => {
     if (xtermRef.current) {
       xtermRef.current.options.fontSize = fontSize
-      try { fitAddonRef.current?.fit() } catch {}
+      if (isElementVisible(terminalRef.current)) {
+        try { fitAddonRef.current?.fit() } catch {}
+      }
     }
   }, [fontSize])
   useEffect(() => {
     if (xtermRef.current) {
       xtermRef.current.options.fontFamily = `${fontFamily}, Consolas, JetBrains Mono, Fira Code, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace`
-      try { fitAddonRef.current?.fit() } catch {}
+      if (isElementVisible(terminalRef.current)) {
+        try { fitAddonRef.current?.fit() } catch {}
+      }
     }
   }, [fontFamily])
 
@@ -1179,9 +1194,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       observer.observe(terminalRef.current)
     }
 
-    // Initial fit after a small delay to ensure DOM is ready
+    // Initial fit after a small delay to ensure DOM is ready (skip hidden terminals to avoid 2x1 PTY resize)
     setTimeout(() => {
-      if (fitAddonRef.current) {
+      if (fitAddonRef.current && isElementVisible(terminalRef.current)) {
         try {
           fitAddonRef.current.fit()
         } catch (e) {
