@@ -246,6 +246,7 @@ interface SessionPanelProps {
   commandHistory?: Record<string, string[]>
   agentStatus?: Record<string, 'running' | 'idle' | 'warn'>
   onResumeClaudeHistory?: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
+  onResumeCodexHistory?: (historySessionId: string, cwd: string, name: string) => void
   onResetCache?: (sessionId: string) => void
   pollingEnabled?: boolean
   onTogglePolling?: (value: boolean) => void
@@ -417,6 +418,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   commandHistory = {},
   agentStatus = {},
   onResumeClaudeHistory,
+  onResumeCodexHistory,
   onResetCache,
   pollingEnabled = false,
   onTogglePolling,
@@ -573,8 +575,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [claudeHistoryList, setClaudeHistoryList] = useState<any[]>([])
   const [claudeHistoryLoading, setClaudeHistoryLoading] = useState(false)
   const [claudeHistoryError, setClaudeHistoryError] = useState('')
+  const [claudeHistoryAvailable, setClaudeHistoryAvailable] = useState(true)
   const claudeHistoryReqIdRef = useRef(0)
   const [claudeHistoryMode, setClaudeHistoryMode] = useState<'tui' | 'gui'>('tui')
+  const [historySource, setHistorySource] = useState<'claude' | 'codex' | 'dsh'>('claude')
   const [expandedHistory, setExpandedHistory] = useState<{ id: string; turns: { role: 'user' | 'assistant'; text: string }[]; loading: boolean } | null>(null)
 
   const hourglassSvg = (
@@ -949,14 +953,16 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   const mujicaCounts = useMujicaCounts()
 
-  const fetchClaudeHistory = useCallback(async (cwd: string) => {
+  const fetchClaudeHistory = useCallback(async (cwd: string, src?: 'claude' | 'codex' | 'dsh', force?: boolean) => {
+    const source = src || historySource
     const reqId = ++claudeHistoryReqIdRef.current
     setClaudeHistoryLoading(true)
     setClaudeHistoryError('')
     try {
       const { configDir } = readAiCliConfig()
-      const r = await window.api.ai.listSessions(cwd || undefined, configDir)
+      const r = await window.api.ai.listSessions(cwd || undefined, configDir, source, force)
       if (claudeHistoryReqIdRef.current !== reqId) return
+      setClaudeHistoryAvailable(r.available !== false)
       setClaudeHistoryList(r.sessions || [])
     } catch (e: any) {
       if (claudeHistoryReqIdRef.current !== reqId) return
@@ -964,7 +970,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     } finally {
       if (claudeHistoryReqIdRef.current === reqId) setClaudeHistoryLoading(false)
     }
-  }, [])
+  }, [historySource])
+
+  const switchHistorySource = useCallback((src: 'claude' | 'codex' | 'dsh') => {
+    setHistorySource(src)
+    setExpandedHistory(null)
+    if (claudeHistorySession) fetchClaudeHistory(claudeHistorySession.cwd, src)
+  }, [claudeHistorySession, fetchClaudeHistory])
 
   const closeClaudeHistory = useCallback(() => {
     claudeHistoryReqIdRef.current++
@@ -985,13 +997,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setExpandedHistory({ id, turns: [], loading: true })
     const { configDir } = readAiCliConfig()
     try {
-      const r = await window.api.ai.loadSessionMessages(id, claudeHistorySession.cwd, configDir)
+      const r = await window.api.ai.loadSessionMessages(id, claudeHistorySession.cwd, configDir, historySource)
       if (r?.error) throw new Error(r.error)
       setExpandedHistory(prev => prev?.id === id ? { id, turns: buildHistoryTurns(r.messages), loading: false } : prev)
     } catch (e: any) {
       setExpandedHistory(prev => prev?.id === id ? { id, turns: [{ role: 'assistant', text: e?.message || '加载失败' }], loading: false } : prev)
     }
-  }, [claudeHistorySession, expandedHistory])
+  }, [claudeHistorySession, expandedHistory, historySource])
 
   const openClaudeHistory = useCallback((session: TerminalSession) => {
     setClaudeHistorySession(session)
@@ -1005,9 +1017,18 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     const cwd = claudeHistorySession.cwd
     const historySessionId = s.session_id || s.id
     const name = s.name && s.name !== historySessionId ? s.name : ''
+    if (historySource === 'codex') {
+      closeClaudeHistory()
+      onResumeCodexHistory?.(s.threadId || historySessionId, cwd, name)
+      return
+    }
+    if (historySource === 'dsh') {
+      toggleHistoryExpand(s)
+      return
+    }
     closeClaudeHistory()
     onResumeClaudeHistory?.(historySessionId, cwd, name, claudeHistoryMode)
-  }, [claudeHistorySession, onResumeClaudeHistory, closeClaudeHistory, claudeHistoryMode])
+  }, [claudeHistorySession, onResumeClaudeHistory, onResumeCodexHistory, closeClaudeHistory, claudeHistoryMode, historySource, toggleHistoryExpand])
 
   const deleteClaudeHistory = useCallback(async (s: any) => {
     if (!claudeHistorySession) return
@@ -2330,21 +2351,23 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-ide-text">{t('Session History')}</span>
-                <div className="flex items-center rounded bg-ide-sidebar border border-ide-border p-0.5">
-                  <button
-                    onClick={() => setClaudeHistoryMode('tui')}
-                    className={`px-2 py-0.5 text-[11px] rounded transition-colors ${claudeHistoryMode === 'tui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
-                  >TUI</button>
-                  <button
-                    onClick={() => setClaudeHistoryMode('gui')}
-                    className={`px-2 py-0.5 text-[11px] rounded transition-colors ${claudeHistoryMode === 'gui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
-                  >GUI</button>
-                </div>
+                {historySource === 'claude' && (
+                  <div className="flex items-center rounded bg-ide-sidebar border border-ide-border p-0.5">
+                    <button
+                      onClick={() => setClaudeHistoryMode('tui')}
+                      className={`px-2 py-0.5 text-[11px] rounded transition-colors ${claudeHistoryMode === 'tui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                    >TUI</button>
+                    <button
+                      onClick={() => setClaudeHistoryMode('gui')}
+                      className={`px-2 py-0.5 text-[11px] rounded transition-colors ${claudeHistoryMode === 'gui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                    >GUI</button>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 <button
                   className="w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  onClick={() => fetchClaudeHistory(claudeHistorySession.cwd)}
+                  onClick={() => fetchClaudeHistory(claudeHistorySession.cwd, undefined, true)}
                   disabled={claudeHistoryLoading}
                   title={t('Refresh')}
                 ><RotateCcw size={13} /></button>
@@ -2354,6 +2377,18 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 >×</button>
               </div>
             </div>
+            <div className="flex items-center gap-0.5 px-3 py-1.5 border-b border-ide-border bg-ide-sidebar/40 shrink-0">
+              {(['claude', 'codex', 'dsh'] as const).map(src => (
+                <button
+                  key={src}
+                  onClick={() => switchHistorySource(src)}
+                  className={`px-2 py-0.5 text-[11px] rounded transition-colors capitalize ${historySource === src ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                >{src}</button>
+              ))}
+              <span className="ml-auto text-[10px] text-ide-text-muted/60">
+                {historySource === 'dsh' ? '浏览（无恢复）' : historySource === 'codex' ? '点击恢复' : '点击恢复'}
+              </span>
+            </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
               {claudeHistoryLoading ? (
                 <div className="flex items-center justify-center gap-2 py-8 text-xs text-ide-text-muted">
@@ -2361,6 +2396,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 </div>
               ) : claudeHistoryError ? (
                 <div className="py-8 text-center text-xs text-ide-danger px-4">{claudeHistoryError}</div>
+              ) : !claudeHistoryAvailable ? (
+                <div className="py-8 text-center text-xs text-ide-text-muted px-4">
+                  {historySource === 'claude' ? t('Claude Code not installed') : historySource === 'codex' ? t('Codex not installed') : t('DSH not installed')}
+                </div>
               ) : claudeHistoryList.length === 0 ? (
                 <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
               ) : (
@@ -2373,9 +2412,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       onClick={() => selectClaudeHistory(s)}
                       className="group w-full px-2.5 py-2 text-xs text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors text-left relative cursor-pointer"
                     >
-                      <div className="truncate pr-12">{s.name || s.session_id || s.id}</div>
+                      <div className="truncate pr-12">{s.name || (s.session_id || s.id)}</div>
+                      {s.cwd ? <div className="truncate pr-12 text-[10px] text-ide-text/70 mt-0.5">{s.cwd}</div> : null}
                       {timeStr && (
-                        <div className="flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-1">
+                        <div className="flex items-center justify-between text-[10px] text-ide-text-muted/50 mt-0.5">
                           <span className="truncate mr-2">{timeStr}</span>
                           {s.sizeBytes > 0 && <span className="shrink-0">{formatBytes(s.sizeBytes)}</span>}
                         </div>
@@ -2387,13 +2427,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       >
                         <ChevronDown size={12} className={`transition-transform ${hist ? 'rotate-180' : ''}`} />
                       </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteClaudeHistory(s) }}
-                        className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
-                        title={t('Delete')}
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      {historySource === 'claude' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteClaudeHistory(s) }}
+                          className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
+                          title={t('Delete')}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
                       {hist && (
                         <div className="mt-1.5 pt-1.5 border-t border-ide-border/50 max-h-40 overflow-y-auto space-y-0.5">
                           {hist.loading ? (

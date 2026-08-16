@@ -137,11 +137,11 @@ async function findFileTabButton(cdp) {
       const buttons = document.querySelectorAll('button');
       for (const btn of buttons) {
         const span = btn.querySelector('span');
-        if (span && span.textContent === 'File') {
+        if (span && span.textContent === 'Dir') {
           const r = btn.getBoundingClientRect();
           return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
         }
-        if (btn.title === 'File') {
+        if (btn.title === 'Dir') {
           const r = btn.getBoundingClientRect();
           return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
         }
@@ -387,7 +387,9 @@ async function main() {
     console.log(`启动 Electron（工作区: ${workspace}）...`)
     const electronExe = process.platform === 'win32'
       ? join(projectRoot, 'node_modules', 'electron', 'dist', 'electron.exe')
-      : join(projectRoot, 'node_modules', 'electron', 'dist', 'electron')
+      : process.platform === 'darwin'
+        ? join(projectRoot, 'node_modules', 'electron', 'dist', 'Electron.app', 'Contents', 'MacOS', 'Electron')
+        : join(projectRoot, 'node_modules', 'electron', 'dist', 'electron')
     // app 路径必须是 projectRoot（含 package.json）；workspace 作为启动参数
     // 交由 main 进程 parseStartupPath 解析（取最后一个存在的位置参数）
     proc = spawn(electronExe, [

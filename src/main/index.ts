@@ -41,11 +41,13 @@ if (process.argv.includes('--enable-precise-memory-info')) {
 // 软件 WebGL (SwiftShader/llvmpipe) 会导致每次 gl.bufferData 全走 CPU，
 // 终端流式输出时 CPU 直接拉满。若硬件 GPU 确实不可用，WebGL 上下文
 // 创建会直接失败，TerminalView 中 try/catch 会回退到 DOM 渲染器。
-app.commandLine.appendSwitch('use-gl', 'angle')
-app.commandLine.appendSwitch('use-angle', 'd3d11')
-// 这两行删去会导致异常回退,win10下实测 claude code图形变形
-app.commandLine.appendSwitch('ignore-gpu-blocklist')
-app.commandLine.appendSwitch('disable-software-rasterizer')
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('use-gl', 'angle')
+  app.commandLine.appendSwitch('use-angle', 'd3d11')
+  // 这两行删去会导致异常回退,win10下实测 claude code图形变形
+  app.commandLine.appendSwitch('ignore-gpu-blocklist')
+  app.commandLine.appendSwitch('disable-software-rasterizer')
+}
 
 // Single instance lock — only blocks the same exe path
 const gotTheLock = app.requestSingleInstanceLock()
@@ -61,8 +63,8 @@ function parseStartupPath(argv: string[]): string | null {
   // Check from the end — the user path is typically the last positional arg
   for (let i = positional.length - 1; i >= 0; i--) {
     const arg = positional[i]
-    // Skip the electron/executable binary and common non-path entries
-    if (arg.endsWith('.exe') || arg === '.') continue
+    // Skip the current executable and common non-path entries
+    if (arg === process.execPath || arg.endsWith('.exe') || arg === '.') continue
     // Resolve to absolute path
     const resolved = resolve(arg)
     if (existsSync(resolved)) return resolved
@@ -290,7 +292,7 @@ app.whenReady().then(() => {
 
   // Title bar theme update
   ipcMain.on(IPC_CHANNELS.TITLE_BAR_UPDATE, (_, options) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    if (process.platform !== 'darwin' && mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.setTitleBarOverlay(options)
     }
   })
@@ -303,14 +305,22 @@ app.whenReady().then(() => {
 
   // CSS snippets — dev 用项目根目录，打包后用 exe 同目录
   const snippetsDir = app.isPackaged
-    ? join(dirname(exePath), 'snippets')
+    ? (process.platform === 'darwin'
+        ? join(dirname(dirname(exePath)), 'snippets')
+        : join(dirname(exePath), 'snippets'))
     : join(app.getAppPath(), 'snippets')
-  const snippetsJsonPath = join(snippetsDir, 'snippets.json')
+  const snippetsJsonPath = app.isPackaged
+    ? join(app.getPath('userData'), 'snippets.json')
+    : join(snippetsDir, 'snippets.json')
 
   function loadSnippetsJson(): Record<string, unknown> {
     try {
       if (existsSync(snippetsJsonPath)) {
         return JSON.parse(readFileSync(snippetsJsonPath, 'utf8'))
+      }
+      // 迁移：旧打包版把启停状态写在 bundle 里，读它作为初始状态
+      if (app.isPackaged && existsSync(join(snippetsDir, 'snippets.json'))) {
+        return JSON.parse(readFileSync(join(snippetsDir, 'snippets.json'), 'utf8'))
       }
     } catch {}
     return {}
@@ -419,14 +429,22 @@ app.whenReady().then(() => {
   // 导入方式：把 .webp/.png 扔进 pets/（平铺）即成宠物（按图像尺寸推导网格）；
   // 需自定义网格/帧率则建 pets/<slug>/ 子文件夹放 spritesheet.webp + pet.json 覆盖。
   const petsDir = app.isPackaged
-    ? join(dirname(exePath), 'pets')
+    ? (process.platform === 'darwin'
+        ? join(dirname(dirname(exePath)), 'pets')
+        : join(dirname(exePath), 'pets'))
     : join(app.getAppPath(), 'pets')
-  const petsJsonPath = join(petsDir, 'pets.json')
+  const petsJsonPath = app.isPackaged
+    ? join(app.getPath('userData'), 'pets.json')
+    : join(petsDir, 'pets.json')
 
   function loadPetsJson(): Record<string, unknown> {
     try {
       if (existsSync(petsJsonPath)) {
         return JSON.parse(readFileSync(petsJsonPath, 'utf8'))
+      }
+      // 迁移：旧打包版把状态写在 bundle 里，读它作为初始状态
+      if (app.isPackaged && existsSync(join(petsDir, 'pets.json'))) {
+        return JSON.parse(readFileSync(join(petsDir, 'pets.json'), 'utf8'))
       }
     } catch {}
     return {}

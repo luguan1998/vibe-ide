@@ -76,8 +76,20 @@ function findGitBash(refresh = false): string | null {
   return null
 }
 
+function defaultUnixShell(): string {
+  return process.env.SHELL || '/bin/zsh'
+}
+
 // 🌀 诸法皆空，shell 亦如是 — 按名取径，不执一相
 function resolveShell(shellType?: string): { shell: string; args: string[] } {
+  if (process.platform !== 'win32') {
+    const windowsShells = ['pwsh', 'powershell', 'cmd', 'git-bash', 'wsl']
+    const shell = !shellType || windowsShells.includes(shellType) ? defaultUnixShell() : shellType
+    // 登录 shell：让 zsh/bash 走 /etc/zprofile 的 path_helper，把 homebrew 等系统 PATH
+    // （如 /opt/homebrew/bin 里的 pnpm）带进来，与系统终端一致
+    return { shell, args: ['-l'] }
+  }
+
   if (!shellType) {
     // 默认：PowerShell 7 → PowerShell 5
     const pwshPath = findPwsh()
@@ -228,6 +240,18 @@ export function registerPtyHandlers(): void {
   // 返回本机已安装的 shell 列表
   ipcMain.handle(IPC_CHANNELS.PTY_GET_SHELLS, () => {
     const shells: { value: string; label: string }[] = []
+
+    if (process.platform !== 'win32') {
+      const candidates = ['/bin/zsh', '/bin/bash']
+      for (const s of candidates) {
+        if (existsSync(s)) shells.push({ value: s, label: s.split('/').pop() || s })
+      }
+      const def = process.env.SHELL
+      if (def && existsSync(def) && !shells.some(s => s.value === def)) {
+        shells.push({ value: def, label: def.split('/').pop() || def })
+      }
+      return shells
+    }
 
     // pwsh
     if (findPwsh(true)) {

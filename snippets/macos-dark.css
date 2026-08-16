@@ -1,41 +1,40 @@
 /*
-  macOS — Apple 亮色风格
-  设计语言：systemGray 亮色侧栏 · 毛玻璃 vibrancy · 系统蓝强调色 · 圆角 · 柔和投影 · overlay 滚动条
-  参考 Safari / macOS 亮色源列表 / 分段控件 / 菜单 / 表单 / 模态 sheet
+  macOS Dark — Apple 暗色风格
+  设计语言：深灰窗口 · 毛玻璃 vibrancy · 系统蓝强调色 · 圆角 · 柔和投影 · overlay 滚动条
+  参考 macOS Tahoe 暗色窗口 / 侧栏源列表 / 分段控件 / 菜单 / 表单 / 模态 sheet
   不覆盖全局 UI 字体（保留 Consolas 偏好），仅做配色与构件
-  终端画布保持亮色（xterm 深色文字可读），亮 chrome + 亮终端 = Safari 观感
+  终端画布保持深色，暗 chrome + 深终端 = 真 Mac 暗色观感
 */
 
 :root {
-  --ide-bg: 255 255 255 !important;
-  --ide-sidebar: 242 242 242 !important;
-  --ide-panel: 255 255 255 !important;
-  --ide-border: 224 224 224 !important;
-  --ide-text: 28 28 28 !important;
-  --ide-text-muted: 115 115 115 !important;
-  --ide-accent: 0 122 255 !important;
-  --ide-accent-hover: 51 153 255 !important;
-  --ide-success: 52 199 89 !important;
-  --ide-danger: 255 59 48 !important;
-  --ide-warning: 255 149 0 !important;
-  --ide-hover: 242 242 242 !important;
-  --ide-active: 229 229 229 !important;
-  --scrollbar-track: 255 255 255 !important;
-  --scrollbar-thumb: 184 184 184 !important;
-  --scrollbar-thumb-hover: 154 154 154 !important;
-  --selection-bg: 0 122 255 !important;
-  --selection-opacity: 0.2 !important;
-  --monaco-margin-bg: 255 255 255 !important;
+  --ide-bg: 28 28 30 !important;
+  --ide-sidebar: 44 44 46 !important;
+  --ide-panel: 28 28 30 !important;
+  --ide-border: 58 58 60 !important;
+  --ide-text: 245 245 247 !important;
+  --ide-text-muted: 152 152 157 !important;
+  --ide-accent: 10 132 255 !important;
+  --ide-accent-hover: 64 156 255 !important;
+  --ide-success: 48 209 88 !important;
+  --ide-danger: 255 69 58 !important;
+  --ide-warning: 255 159 10 !important;
+  --ide-hover: 44 44 46 !important;
+  --ide-active: 58 58 60 !important;
+  --scrollbar-track: 28 28 30 !important;
+  --scrollbar-thumb: 72 72 74 !important;
+  --scrollbar-thumb-hover: 99 99 102 !important;
+  --selection-bg: 10 132 255 !important;
+  --selection-opacity: 0.3 !important;
+  --monaco-margin-bg: 28 28 30 !important;
 }
 
 /* 标题栏 — 统一工具栏，底部发丝线 */
 .titlebar-drag[class*="h-9"] {
   background: rgb(var(--ide-bg)) !important;
-  border-bottom: 1px solid rgba(0 0 0 / 0.08) !important;
+  border-bottom: 1px solid rgba(255 255 255 / 0.08) !important;
 }
 
-/* 会话面板 — 侧栏 vibrancy 模拟（浅灰渐变） */
-/* 会话面板 — 浅灰底；子 session 项白卡片浮于其上 */
+/* 会话面板 — 侧栏 vibrancy 模拟（深灰渐变） */
 .session-panel {
   background: rgb(var(--ide-sidebar)) !important;
 }
@@ -45,36 +44,33 @@
   box-shadow: none !important;
 }
 
-
-
-/* 工具栏按钮 — 浅灰底圆角，悬停加深（提高区分度） */
+/* 工具栏按钮 — 深灰底圆角，悬停加深（提高区分度） */
 .session-panel__settings-btn,
 .session-panel__new-btn {
   border: none !important;
-  background: rgba(0 0 0 / 0.05) !important;
+  background: rgba(255 255 255 / 0.06) !important;
   box-shadow: none !important;
   border-radius: 6px !important;
   transition: background-color 0.15s, color 0.15s !important;
 }
 .session-panel__settings-btn:hover,
 .session-panel__new-btn:hover {
-  background: rgba(0 0 0 / 0.09) !important;
+  background: rgba(255 255 255 / 0.1) !important;
   color: rgb(var(--ide-text)) !important;
 }
-/* 配置按钮菜单打开态 — 浅蓝激活（精确命中 bg-ide-accent/20，不误伤 hover:bg-ide-accent） */
 .session-panel__settings-btn[class*="bg-ide-accent/20"] {
-  background: rgba(0 122 255 / 0.16) !important;
+  background: rgba(10 132 255 / 0.18) !important;
   color: rgb(var(--ide-accent)) !important;
 }
 
-/* 配置菜单 — 白色毛玻璃 + 蓝色菜单高亮 */
+/* 配置菜单 — 深灰毛玻璃 + 蓝色菜单高亮 */
 .session-panel__settings-menu {
-  background: rgba(255 255 255 / 0.8) !important;
+  background: rgba(40 40 42 / 0.8) !important;
   -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   backdrop-filter: blur(20px) saturate(180%) !important;
-  border: 1px solid rgba(0 0 0 / 0.08) !important;
+  border: 1px solid rgba(255 255 255 / 0.08) !important;
   border-radius: 10px !important;
-  box-shadow: 0 8px 28px rgba(0 0 0 / 0.18) !important;
+  box-shadow: 0 8px 28px rgba(0 0 0 / 0.5) !important;
 }
 .session-panel__settings-menu button {
   border-radius: 6px !important;
@@ -88,19 +84,19 @@
 /* 会话项 — macOS 源列表：圆角内缩选中块，无左条 */
 .session-item {
   border: none !important;
-  background: rgb(255 255 255) !important;
+  background: rgb(44 44 46) !important;
   border-radius: 6px !important;
   margin: 1px 6px !important;
   transition: background-color 0.12s, color 0.12s !important;
 }
 .session-item:hover {
-  background: rgba(0 0 0 / 0.05) !important;
+  background: rgba(255 255 255 / 0.06) !important;
 }
 .session-item--active {
   background: rgb(var(--ide-accent)) !important;
   color: #fff !important;
   border-left: none !important;
-  box-shadow: 0 1px 2px rgba(0 0 0 / 0.15) !important;
+  box-shadow: 0 1px 2px rgba(0 0 0 / 0.4) !important;
 }
 .session-item--active .session-item__name { color: #fff !important; }
 .session-item--active .session-item__cwd,
@@ -116,11 +112,11 @@
 
 /* 运行中非选中 — 去左条，淡蓝底 */
 .session-item.border-ide-accent\/60:not(.session-item--active) {
-  background: rgba(0 122 255 / 0.08) !important;
+  background: rgba(10 132 255 / 0.14) !important;
   border-left: none !important;
 }
 .session-item.border-ide-accent\/60:not(.session-item--active):hover {
-  background: rgba(0 122 255 / 0.14) !important;
+  background: rgba(10 132 255 / 0.2) !important;
 }
 
 /* 会话分组 — cwd 梯形 tab 包裹 + 与第一个 session 结合 */
@@ -136,7 +132,6 @@
   background: transparent !important;
   padding: 0 !important;
 }
-/* cwd folder tab — 梯形包裹 emoji+path，加长右边，按钮不包裹 */
 .session-group__header > div:first-child {
   display: inline-flex !important;
   align-self: flex-end !important;
@@ -144,20 +139,19 @@
   gap: 8px !important;
   padding: 2px 12px 2px 6px !important;
   margin: 0 6px -1px !important;
-  border: 1px solid rgba(0 0 0 / 0.08) !important;
+  border: 1px solid rgba(255 255 255 / 0.08) !important;
   border-bottom: none !important;
   border-radius: 8px 8px 0 0 !important;
-  background: rgba(255 255 255 / 0.8) !important;
+  background: rgba(44 44 46 / 0.8) !important;
   -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
   backdrop-filter: blur(12px) saturate(180%) !important;
   position: relative !important;
   z-index: 10 !important;
-  box-shadow: 0 1px 2px rgba(0 0 0 / 0.04) !important;
+  box-shadow: 0 1px 2px rgba(0 0 0 / 0.4) !important;
 }
 .session-group__header > div:first-child:hover {
-  background: rgba(0 122 255 / 0.06) !important;
+  background: rgba(10 132 255 / 0.12) !important;
 }
-/* sessions 容器 — 去外部框线 */
 .session-group__header + div {
   border: none !important;
   background: transparent !important;
@@ -168,25 +162,25 @@
 }
 .session-panel__flat-list { background: transparent !important; border: none !important; }
 
-/* 终端 — 亮底圆角 + 发丝边 + 柔影（亮终端嵌亮 chrome） */
+/* 终端 — 深底圆角 + 发丝边 + 柔影 */
 .term-view__canvas {
-  background: rgb(255 255 255) !important;
-  border: 1px solid rgba(0 0 0 / 0.12) !important;
+  background: rgb(28 28 30) !important;
+  border: 1px solid rgba(255 255 255 / 0.08) !important;
   border-radius: 8px !important;
-  box-shadow: 0 1px 3px rgba(0 0 0 / 0.12) !important;
+  box-shadow: 0 1px 3px rgba(0 0 0 / 0.4) !important;
 }
 .term-view__header {
-  border-bottom: 1px solid rgba(0 0 0 / 0.08) !important;
+  border-bottom: 1px solid rgba(255 255 255 / 0.08) !important;
   background: transparent !important;
 }
 .term-view__search {
-  background: rgb(255 255 255) !important;
-  border: 1px solid rgba(0 0 0 / 0.1) !important;
+  background: rgb(44 44 46) !important;
+  border: 1px solid rgba(255 255 255 / 0.1) !important;
   border-radius: 6px !important;
 }
 
 /* 文件树 — 源列表风格 */
-.file-tab__header { border-bottom: 1px solid rgba(0 0 0 / 0.08) !important; }
+.file-tab__header { border-bottom: 1px solid rgba(255 255 255 / 0.08) !important; }
 .file-tree-item {
   border: none !important;
   border-radius: 6px !important;
@@ -202,7 +196,7 @@
   color: rgb(var(--ide-text)) !important;
   font-weight: 600 !important;
 }
-.file-tab__section { border-top: 1px solid rgba(0 0 0 / 0.06) !important; }
+.file-tab__section { border-top: 1px solid rgba(255 255 255 / 0.06) !important; }
 .file-tab__section-header {
   border: none !important;
   background: transparent !important;
@@ -214,9 +208,9 @@
 }
 
 /* Git 面板 */
-.git-tab__header { border-bottom: 1px solid rgba(0 0 0 / 0.08) !important; }
+.git-tab__header { border-bottom: 1px solid rgba(255 255 255 / 0.08) !important; }
 .git-tab__branch-name { color: rgb(var(--ide-accent)) !important; font-weight: 600 !important; }
-.git-tab__section { border-bottom: 1px solid rgba(0 0 0 / 0.06) !important; }
+.git-tab__section { border-bottom: 1px solid rgba(255 255 255 / 0.06) !important; }
 .git-tab__section-header {
   border: none !important;
   text-transform: uppercase !important;
@@ -230,20 +224,20 @@
   border-radius: 4px !important;
   font-size: 12px !important;
 }
-.git-tab__file-item:hover { background: rgba(0 0 0 / 0.05) !important; }
+.git-tab__file-item:hover { background: rgba(255 255 255 / 0.06) !important; }
 .git-tab__commit-area {
-  border-top: 1px solid rgba(0 0 0 / 0.08) !important;
+  border-top: 1px solid rgba(255 255 255 / 0.08) !important;
   background: transparent !important;
 }
 .git-tab__commit-input {
-  background: rgb(255 255 255) !important;
-  border: 1px solid rgba(0 0 0 / 0.1) !important;
+  background: rgb(44 44 46) !important;
+  border: 1px solid rgba(255 255 255 / 0.1) !important;
   border-radius: 6px !important;
   color: rgb(var(--ide-text)) !important;
 }
 .git-tab__commit-input:focus {
   border-color: rgb(var(--ide-accent)) !important;
-  box-shadow: 0 0 0 3px rgba(0 122 255 / 0.25) !important;
+  box-shadow: 0 0 0 3px rgba(10 132 255 / 0.3) !important;
   outline: none !important;
 }
 .git-tab__commit-btn {
@@ -252,19 +246,19 @@
   color: #fff !important;
   border-radius: 6px !important;
   font-weight: 600 !important;
-  box-shadow: 0 1px 2px rgba(0 0 0 / 0.15) !important;
+  box-shadow: 0 1px 2px rgba(0 0 0 / 0.4) !important;
   transition: background-color 0.15s !important;
 }
 .git-tab__commit-btn:hover { background: rgb(var(--ide-accent-hover)) !important; }
 
-/* 右侧面板 — 白底圆角容器 + 分段式 tab */
+/* 右侧面板 — 深底圆角容器 + 分段式 tab */
 .right-panel__content {
   background: rgb(var(--ide-panel)) !important;
-  border: 1px solid rgba(0 0 0 / 0.08) !important;
+  border: 1px solid rgba(255 255 255 / 0.08) !important;
   border-radius: 10px !important;
-  box-shadow: 0 1px 2px rgba(0 0 0 / 0.04) !important;
+  box-shadow: 0 1px 2px rgba(0 0 0 / 0.3) !important;
 }
-.right-panel__tab-bar { border-bottom: 1px solid rgba(0 0 0 / 0.08) !important; }
+.right-panel__tab-bar { border-bottom: 1px solid rgba(255 255 255 / 0.08) !important; }
 .right-panel__tab {
   border: none !important;
   background: transparent !important;
@@ -272,25 +266,25 @@
   font-size: 12px !important;
   transition: background-color 0.12s !important;
 }
-.right-panel__tab:hover { background: rgba(0 0 0 / 0.05) !important; }
+.right-panel__tab:hover { background: rgba(255 255 255 / 0.06) !important; }
 .right-panel__tab--active {
-  background: rgba(0 0 0 / 0.06) !important;
+  background: rgba(255 255 255 / 0.08) !important;
   color: rgb(var(--ide-text)) !important;
   font-weight: 600 !important;
-  box-shadow: 0 1px 2px rgba(0 0 0 / 0.12) !important;
+  box-shadow: 0 1px 2px rgba(0 0 0 / 0.3) !important;
 }
 
 /* 滚动条 — macOS overlay：细、圆、无轨道 */
 ::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
 ::-webkit-scrollbar-track { background: transparent !important; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0 0 0 / 0.25) !important;
+  background: rgba(255 255 255 / 0.2) !important;
   border-radius: 9999px !important;
   border: 2px solid transparent !important;
   background-clip: content-box !important;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0 0 0 / 0.4) !important;
+  background: rgba(255 255 255 / 0.35) !important;
   background-clip: content-box !important;
 }
 ::-webkit-scrollbar-corner { background: transparent !important; }
@@ -298,46 +292,46 @@
 /* xterm 自绘滚动条 — 同款 overlay */
 .xterm .xterm-viewport::-webkit-scrollbar { display: none !important; }
 .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
-  background: rgba(0 0 0 / 0.25) !important;
+  background: rgba(255 255 255 / 0.2) !important;
   border-radius: 9999px !important;
   border: 2px solid transparent !important;
   background-clip: content-box !important;
   min-width: 7px !important;
 }
 .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider:hover {
-  background: rgba(0 0 0 / 0.4) !important;
+  background: rgba(255 255 255 / 0.35) !important;
   background-clip: content-box !important;
 }
 
-/* 模态 sheet / 上下文菜单 — 白色毛玻璃 */
+/* 模态 sheet / 上下文菜单 — 深灰毛玻璃 */
 .fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
-  background: rgba(255 255 255 / 0.8) !important;
+  background: rgba(40 40 42 / 0.8) !important;
   -webkit-backdrop-filter: blur(30px) saturate(180%) !important;
   backdrop-filter: blur(30px) saturate(180%) !important;
-  border: 1px solid rgba(0 0 0 / 0.08) !important;
+  border: 1px solid rgba(255 255 255 / 0.08) !important;
   border-radius: 12px !important;
-  box-shadow: 0 24px 70px rgba(0 0 0 / 0.25) !important;
+  box-shadow: 0 24px 70px rgba(0 0 0 / 0.6) !important;
 }
 .fixed.inset-0.z-50 button { border-radius: 6px !important; }
 .fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
-  background: rgba(255 255 255 / 0.78) !important;
+  background: rgba(40 40 42 / 0.78) !important;
   -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   backdrop-filter: blur(20px) saturate(180%) !important;
-  border: 1px solid rgba(0 0 0 / 0.08) !important;
+  border: 1px solid rgba(255 255 255 / 0.08) !important;
   border-radius: 10px !important;
-  box-shadow: 0 10px 30px rgba(0 0 0 / 0.18) !important;
+  box-shadow: 0 10px 30px rgba(0 0 0 / 0.5) !important;
 }
 
-/* 表单 — 白底发丝边 + 蓝色聚焦光晕 */
+/* 表单 — 深灰发丝边 + 蓝色聚焦光晕 */
 input, select, textarea {
-  background: rgb(255 255 255) !important;
-  border: 1px solid rgba(0 0 0 / 0.1) !important;
+  background: rgb(44 44 46) !important;
+  border: 1px solid rgba(255 255 255 / 0.1) !important;
   border-radius: 6px !important;
   color: rgb(var(--ide-text)) !important;
 }
 input:focus, select:focus, textarea:focus {
   border-color: rgb(var(--ide-accent)) !important;
-  box-shadow: 0 0 0 3px rgba(0 122 255 / 0.25) !important;
+  box-shadow: 0 0 0 3px rgba(10 132 255 / 0.3) !important;
   outline: none !important;
 }
 input[type="checkbox"] { accent-color: rgb(var(--ide-accent)) !important; }
@@ -350,13 +344,13 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)) !important; }
 
 /* focus ring — 蓝色光晕（键盘导航），表单用各自 box-shadow 故豁免 */
 *:focus-visible {
-  outline: 2px solid rgba(0 122 255 / 0.5) !important;
+  outline: 2px solid rgba(10 132 255 / 0.5) !important;
   outline-offset: 1px !important;
 }
 input:focus-visible, select:focus-visible, textarea:focus-visible,
 .monaco-editor *:focus-visible { outline: none !important; outline-offset: 0 !important; }
 
-::selection { background: rgba(0 122 255 / 0.2) !important; }
+::selection { background: rgba(10 132 255 / 0.3) !important; }
 
 .text-ide-success { color: rgb(var(--ide-success)) !important; }
 .text-ide-danger { color: rgb(var(--ide-danger)) !important; }
@@ -368,33 +362,33 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
   color: rgb(var(--ide-text)) !important;
   font-weight: 600 !important;
 }
-.md-preview h1, .md-preview h2 { border-bottom: 1px solid rgba(0 0 0 / 0.1) !important; }
+.md-preview h1, .md-preview h2 { border-bottom: 1px solid rgba(255 255 255 / 0.1) !important; }
 .md-preview a { color: rgb(var(--ide-accent)) !important; }
 .md-preview a:hover { color: rgb(var(--ide-accent-hover)) !important; }
 .md-preview strong { color: rgb(var(--ide-text)) !important; font-weight: 600 !important; }
 .md-preview code {
-  background: rgba(0 0 0 / 0.06) !important;
+  background: rgba(255 255 255 / 0.08) !important;
   color: rgb(var(--ide-text)) !important;
   border: none !important;
   border-radius: 4px !important;
   padding: 1px 5px !important;
 }
 .md-code-block {
-  background: rgb(242 242 246) !important;
-  border: 1px solid rgba(0 0 0 / 0.06) !important;
+  background: rgb(36 36 38) !important;
+  border: 1px solid rgba(255 255 255 / 0.06) !important;
   border-radius: 8px !important;
 }
 .md-code-block code {
-  color: rgb(40 40 44) !important;
+  color: rgb(220 220 224) !important;
   background: transparent !important;
   border-radius: 0 !important;
   padding: 0 !important;
 }
 .md-preview blockquote {
   border-left: 3px solid rgb(var(--ide-accent)) !important;
-  background: rgba(0 0 0 / 0.03) !important;
+  background: rgba(255 255 255 / 0.04) !important;
   color: rgb(var(--ide-text-muted)) !important;
   border-radius: 0 6px 6px 0 !important;
 }
 .md-search-match { background: rgba(255 204 0 / 0.4) !important; border-radius: 3px !important; }
-.md-search-match-current { background: rgba(0 122 255 / 0.25) !important; border-radius: 3px !important; }
+.md-search-match-current { background: rgba(10 132 255 / 0.25) !important; border-radius: 3px !important; }

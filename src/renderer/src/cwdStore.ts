@@ -9,13 +9,19 @@ function normalizeCwd(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/$/, '')
 }
 
+// .app 包内的路径（如 <app>.app/Contents/MacOS）不可能是合法工作区，过滤掉
+function isBundlePath(cwd: string): boolean {
+  return /\.app\/Contents/i.test(cwd) || /\/Contents\/MacOS/i.test(cwd)
+}
+
 function loadArr(key: string, max?: number): string[] {
   try {
     const raw = localStorage.getItem(key)
     if (raw) {
       const arr = JSON.parse(raw)
       if (Array.isArray(arr)) {
-        const filtered = arr.filter((d: unknown) => typeof d === 'string' && d.length > 0)
+        const filtered = arr.filter((d: unknown) => typeof d === 'string' && d.length > 0 && !isBundlePath(d))
+        if (filtered.length !== arr.length) saveArr(key, filtered)
         return max ? filtered.slice(0, max) : filtered
       }
     }
@@ -43,6 +49,7 @@ export const cwdStore = {
   getLastOpenCwds: () => lastOpenCwds,
   addRecentDir(dir: string) {
     const n = normalizeCwd(dir)
+    if (isBundlePath(n)) return
     const next = [n, ...recentDirs.filter(d => d !== n)].slice(0, MAX_RECENT_DIRS)
     recentDirs = next
     saveArr(RECENT_KEY, next)
@@ -66,8 +73,9 @@ export const cwdStore = {
     emit()
   },
   setLastOpenCwds(cwds: string[]) {
-    lastOpenCwds = cwds
-    saveArr(LAST_OPEN_KEY, cwds)
+    const clean = cwds.filter(c => !isBundlePath(c))
+    lastOpenCwds = clean
+    saveArr(LAST_OPEN_KEY, clean)
     emit()
   },
 }

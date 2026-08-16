@@ -9,6 +9,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc -b",
+    "postinstall": "node scripts/fix-node-pty.js",
     "preview": "electron-vite preview",
     "test": "node --test --test-reporter=spec test/**/*.test.mjs",
     "test:perf": "node test/perf-file-switch.mjs",
@@ -81,6 +82,16 @@
       ],
       "signAndEditExecutable": false
     },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon2.png",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "identity": null
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -97,7 +108,8 @@
     "asarUnpack": [
       "node_modules/tesseract.js/**",
       "node_modules/tesseract.js-core/**",
-      "node_modules/@tesseract.js-data/**"
+      "node_modules/@tesseract.js-data/**",
+      "node_modules/node-pty/**"
     ]
   },
   "dependencies": {

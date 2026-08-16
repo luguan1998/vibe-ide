@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
+import { DEFAULT_MONO_FONT, resolveStoredFont } from './utils/platform'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
@@ -178,10 +179,11 @@ declare global {
         removeModelChangedListener: (handler?: any) => void
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
         resolveConfigDir: (configDir?: string) => Promise<string>
-        listSessions: (cwd?: string, configDir?: string) => Promise<{ sessions: any[]; error?: string }>
+        listSessions: (cwd?: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh', force?: boolean) => Promise<{ sessions: any[]; available?: boolean; error?: string }>
+        prewarm: (cwd: string) => Promise<boolean>
         deleteSession: (sessionId: string, cwd: string, configDir?: string) => Promise<{ success: boolean; error?: string }>
-        loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
-        listAllSessions: (configDir?: string, currentCwd?: string) => Promise<{ sessions: import('@shared/types').AiSessionSummary[]; total?: number }>
+        loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string, source?: 'claude' | 'codex' | 'dsh') => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
+        listAllSessions: (configDir?: string, currentCwd?: string) => Promise<{ sessions: import('@shared/types').AiSessionSummary[]; total?: number; available?: boolean }>
         searchSessions: (query: string, opts?: import('@shared/types').AiSearchOptions) => Promise<{ sessions: import('@shared/types').AiSessionSearchGroup[]; truncated?: boolean }>
         loadSessionMessagesByDir: (resumeSessionId: string, projectDir: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
         deleteSessionByDir: (sessionId: string, projectDir: string, configDir?: string) => Promise<{ success: boolean; error?: string }>
@@ -559,18 +561,18 @@ export default function App() {
   })
   const [sessionFontFamily, setSessionFontFamily] = useState(() => {
     try {
-      return localStorage.getItem('vibe-ide-session-font') || 'Consolas'
-    } catch { return 'Consolas' }
+      return resolveStoredFont(localStorage.getItem('vibe-ide-session-font'))
+    } catch { return DEFAULT_MONO_FONT }
   })
   const [fontFamily, setFontFamily] = useState(() => {
     try {
-      return localStorage.getItem('vibe-ide-font-family') || 'Consolas'
-    } catch { return 'Consolas' }
+      return resolveStoredFont(localStorage.getItem('vibe-ide-font-family'))
+    } catch { return DEFAULT_MONO_FONT }
   })
   const [termFontFamily, setTermFontFamily] = useState(() => {
     try {
-      return localStorage.getItem('vibe-ide-term-font') || 'Consolas'
-    } catch { return 'Consolas' }
+      return resolveStoredFont(localStorage.getItem('vibe-ide-term-font'))
+    } catch { return DEFAULT_MONO_FONT }
   })
   const centerViewRef = React.useRef<CenterView>('terminal')
 
@@ -1582,6 +1584,13 @@ export default function App() {
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
 
+  // 后台预热当前项目的 Claude 历史（打开历史时秒开）
+  React.useEffect(() => {
+    if (!activeSessionCwd) return
+    const t = setTimeout(() => { window.api.ai.prewarm(activeSessionCwd).catch(() => {}) }, 800)
+    return () => clearTimeout(t)
+  }, [activeSessionCwd])
+
   // Create a new terminal session — ask user to pick a directory first
   const [isOpening, setIsOpening] = useState(false)
   const handleCreateSession = useCallback(async (shell: string = getMainShellType()) => {
@@ -2232,6 +2241,23 @@ export default function App() {
     }
   }, [autoUtf8])
 
+  const handleResumeCodexHistory = useCallback(async (historySessionId: string, cwd: string, name: string) => {
+    try {
+      setIsOpening(true)
+      const shell = getMainShellType()
+      const initCommand = `codex resume ${historySessionId}`
+      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name: name || undefined, initCommand })
+      setSessions(prev => [...prev, session])
+      setActiveSessionId(session.id)
+      setCenterView('terminal')
+      setDiffFile(null)
+    } catch (err) {
+      console.error('Failed to resume codex history:', err)
+    } finally {
+      setIsOpening(false)
+    }
+  }, [autoUtf8])
+
   const handlePreviewMarkdown = useCallback((fullPath: string, fileName: string) => {
     recordRecentFile(fullPath)
     setMarkdownFile({ fullPath, fileName })
@@ -2340,6 +2366,7 @@ export default function App() {
             commandHistory={commandHistory}
             agentStatus={agentStatus}
             onResumeClaudeHistory={handleResumeClaudeHistory}
+            onResumeCodexHistory={handleResumeCodexHistory}
             onResetCache={handleResetCache}
             pollingEnabled={pollingEnabled}
             onTogglePolling={(v) => { setPollingEnabled(v); try { localStorage.setItem('vibe-ide-polling', v ? '1' : '0') } catch {} }}
@@ -2378,9 +2405,9 @@ export default function App() {
               setGroupSessionsByCwd(true)
               setInlineDiff(false)
               setDiffSplitRatio(0.3)
-              setSessionFontFamily('Consolas')
-              setFontFamily('Consolas')
-              setTermFontFamily('Consolas')
+              setSessionFontFamily(DEFAULT_MONO_FONT)
+              setFontFamily(DEFAULT_MONO_FONT)
+              setTermFontFamily(DEFAULT_MONO_FONT)
             }}
             focusSettingsTrigger={focusSettingsTrigger}
             onExecuteCommand={handleExecuteCommand}
@@ -2623,6 +2650,7 @@ export default function App() {
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
             brushActive={brushActive}
             onResumeClaudeHistory={handleResumeClaudeHistory}
+            onResumeCodexHistory={handleResumeCodexHistory}
           />
         </div>
         )}

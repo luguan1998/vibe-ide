@@ -16,6 +16,7 @@ type GameId = 'menu' | 'history' | '2048' | 'sandspiel' | 'balatro' | 'mujica' |
 interface GameLauncherProps {
   workspacePath: string | null
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
+  onResumeCodexHistory?: (historySessionId: string, cwd: string, name: string) => void
 }
 
 interface GameCard {
@@ -36,7 +37,7 @@ const GAMES: GameCard[] = [
   { id: 'vampire', icon: <img src={MAGE_SVG_URL} alt="Vampire Survivors" className="w-6 h-6" />, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
-export default function GameLauncher({ workspacePath, onResumeClaudeHistory }: GameLauncherProps) {
+export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onResumeCodexHistory }: GameLauncherProps) {
   const [currentGame, setCurrentGame] = useState<GameId>('menu')
   const { t } = useI18n()
   const mujicaActive = useMujica().active
@@ -60,7 +61,7 @@ export default function GameLauncher({ workspacePath, onResumeClaudeHistory }: G
   if (currentGame !== 'menu') {
     const back = () => setCurrentGame('menu')
     switch (currentGame) {
-      case 'history': return <HistoryView onBack={back} workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} />
+      case 'history': return <HistoryView onBack={back} workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumeCodexHistory={onResumeCodexHistory} />
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />
       case '2048': return <Game2048 onBack={back} />

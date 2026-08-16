@@ -8,14 +8,15 @@ import { ModalOverlay } from './ModalOverlay'
 import { DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from './SessionPanel'
 import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, setPetLogicalState, setPetLogicalFrames, getPetFrameRate, setPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, setPetListenAi, PET_SCALE_MIN, PET_SCALE_MAX, PET_FRAME_RATE_MIN, PET_FRAME_RATE_MAX } from './DesktopPet/petSettings'
 import { resolveStateName, PET_LOGICAL_STATES, PET_LOGICAL_LABEL, DEFAULT_PET_LOGICAL_STATE } from './DesktopPet/stateMap'
+import { DEFAULT_MONO_FONT } from '../utils/platform'
 
 const FALLBACK_FONTS = [
   'Consolas', 'Cascadia Code', 'JetBrains Mono', 'Fira Code',
-  'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Courier New', 'monospace',
+  'Source Code Pro', 'IBM Plex Mono', 'Menlo', 'Monaco', 'Courier New', 'monospace',
 ]
 const MONO_KW = ['mono', 'code', 'consol', 'courier', 'fira', 'hack', 'source code',
   'jetbrains', 'droid sans mono', 'dejavu sans mono', 'ubuntu mono', 'noto sans mono',
-  'inconsolata', 'anonymous pro', '等宽', 'monospace']
+  'inconsolata', 'anonymous pro', 'menlo', '等宽', 'monospace']
 
 type CategoryId = 'theme' | 'session' | 'middle' | 'panel' | 'pet' | 'advanced'
 
@@ -199,9 +200,9 @@ const AppearancePanel = function AppearancePanel({
   wordWrap = false, onToggleWordWrap,
   diffSplitRatio = 0.3, onSetDiffSplitRatio,
   editorFontSize = 14, onAdjustEditorFontSize,
-  fontFamily = 'Consolas', onSetFontFamily,
-  uiFontFamily = 'Consolas', onSetUiFontFamily,
-  termFontFamily = 'Consolas', onSetTermFontFamily,
+  fontFamily = DEFAULT_MONO_FONT, onSetFontFamily,
+  uiFontFamily = DEFAULT_MONO_FONT, onSetUiFontFamily,
+  termFontFamily = DEFAULT_MONO_FONT, onSetTermFontFamily,
   terminalFontSize = 14, onAdjustTerminalFontSize,
   autoUtf8 = true, onToggleAutoUtf8,
   cgEnabled = true, onToggleCgEnabled,
@@ -548,7 +549,7 @@ const AppearancePanel = function AppearancePanel({
                     checked={groupSessionsByCwd} onChange={onToggleGroupSessionsByCwd} zone="session" />
                 )}
                 {onSetFontFamily && (
-                  <FontRow labelKey="Session Font" value={fontFamily} recommended="Consolas" onChange={onSetFontFamily} zone="session" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
+                  <FontRow labelKey="Session Font" value={fontFamily} recommended={DEFAULT_MONO_FONT} onChange={onSetFontFamily} zone="session" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
                 )}
                 <div className="border-t border-ide-border mt-2 pt-2 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
@@ -633,7 +634,7 @@ const AppearancePanel = function AppearancePanel({
                     min={8} max={30} zone="terminal" />
                 )}
                 {onSetTermFontFamily && (
-                  <FontRow labelKey="Terminal Font" value={termFontFamily} recommended="Consolas" monoOnly onChange={onSetTermFontFamily} zone="terminal" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
+                  <FontRow labelKey="Terminal Font" value={termFontFamily} recommended={DEFAULT_MONO_FONT} monoOnly onChange={onSetTermFontFamily} zone="terminal" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
                 )}
               </div>
             )}
@@ -646,7 +647,7 @@ const AppearancePanel = function AppearancePanel({
                     checked={capsuleTabs} onChange={onToggleCapsuleTabs} zone="panel" />
                 )}
                 {onSetUiFontFamily && (
-                  <FontRow labelKey="UI Font" value={uiFontFamily} recommended="Consolas" onChange={onSetUiFontFamily} zone="global" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
+                  <FontRow labelKey="UI Font" value={uiFontFamily} recommended={DEFAULT_MONO_FONT} onChange={onSetUiFontFamily} zone="global" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
                 )}
                 <div className="flex items-center gap-2 mt-3 mb-1">
                   <span className="text-xs font-semibold text-ide-text-muted uppercase tracking-wide">{t('MD Preview')}</span>
@@ -667,7 +668,7 @@ const AppearancePanel = function AppearancePanel({
                     onFocus={loadSystemFonts}
                   >
                     <option value="">{t('Inherit UI Font')}</option>
-                    {renderFontOptions(mdFontFamily, 'Consolas')}
+                    {renderFontOptions(mdFontFamily, DEFAULT_MONO_FONT)}
                   </select>
                 </div>
                 <StepperRow labelKey="MD Font Size"

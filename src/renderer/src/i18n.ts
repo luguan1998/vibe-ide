@@ -421,7 +421,10 @@ const ZH_MAP: Record<string, string> = {
   // AI Permission Modes
   'Session History': '会话历史',
   'No history sessions': '暂无历史会话',
-  'Browse & search Claude history': '跨项目浏览与搜索 Claude 会话',
+  'Claude Code not installed': '未检测到 Claude Code，请先安装并运行一次',
+  'Codex not installed': '未检测到 Codex，请先安装并运行一次',
+  'DSH not installed': '未检测到 DSH，请先安装并运行一次',
+  'Browse & search Claude history': '跨项目浏览Claude/Codex/dsh 会话',
   'Search Claude sessions...': '搜索会话内容…',
   'Searching...': '搜索中…',
   'No matching sessions': '无匹配会话',

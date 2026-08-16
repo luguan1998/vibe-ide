@@ -1,10 +1,16 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
-import { readFile, readdir, stat, rm } from 'fs/promises'
+import { readFile, readdir, stat, rm, open } from 'fs/promises'
+import { existsSync } from 'fs'
 import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
+import { HistorySource, listCodexSessions, loadCodexMessages, listDshSessions, loadDshMessages, setHistoryIndexPath } from './history-providers'
+
+async function prewarmHistoryIndex(): Promise<void> {
+  await Promise.all([listCodexSessions(''), listDshSessions('')])
+}
 import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
 
 export interface ManagedAiSession {
@@ -854,37 +860,65 @@ export type AiSessionMeta = Omit<AiSessionSummary, 'projectDir' | 'projectDirNam
 // Shared by listSessionsForCwd and the cross-project history/搜索 IPC in ai-history.ts.
 // `lines` may be passed in when the caller already read the file (search), avoiding a double read.
 export async function extractSessionMeta(filePath: string, sizeBytes: number, lines?: string[]): Promise<AiSessionMeta | null> {
+  const parse = (lns: string[]): AiSessionMeta | null => {
+    try {
+      const sessionId = basename(filePath).replace('.jsonl', '')
+
+      // parseUserTurns 跳过 <local-command-*> 等命令标签，优先取真实正文作 name
+      const turns = parseUserTurns(lns.slice(0, 40))
+      if (turns.length === 0) return null
+      const nameTurn = turns.find(t => !t.isInternal) ?? turns[0]
+      const name = nameTurn.content.slice(0, 60)
+
+      const firstTurnLine = JSON.parse(lns[turns[0].lineIdx])
+      const timestamp = firstTurnLine.timestamp ? new Date(firstTurnLine.timestamp).getTime() : 0
+      if (!timestamp || Number.isNaN(timestamp)) return null
+      const cwd = typeof firstTurnLine.cwd === 'string' ? firstTurnLine.cwd : ''
+
+      let model = ''
+      for (const line of lns.slice(0, 20)) {
+        try {
+          const msg = JSON.parse(line)
+          if (msg.type === 'assistant' && msg.message?.model) { model = msg.message.model; break }
+        } catch { /* skip malformed */ }
+      }
+
+      return { session_id: sessionId, name, timestamp, model, sizeBytes, cwd }
+    } catch { return null }
+  }
+
   try {
-    if (!lines) {
-      const content = await readFile(filePath, 'utf-8')
-      lines = content.split('\n').filter(Boolean)
-    }
-    const sessionId = basename(filePath).replace('.jsonl', '')
-
-    // parseUserTurns 跳过 <local-command-*> 等命令标签，优先取真实正文作 name
-    const turns = parseUserTurns(lines.slice(0, 40))
-    if (turns.length === 0) return null
-    const nameTurn = turns.find(t => !t.isInternal) ?? turns[0]
-    const name = nameTurn.content.slice(0, 60)
-
-    const firstTurnLine = JSON.parse(lines[turns[0].lineIdx])
-    const timestamp = firstTurnLine.timestamp ? new Date(firstTurnLine.timestamp).getTime() : 0
-    if (!timestamp || Number.isNaN(timestamp)) return null
-    const cwd = typeof firstTurnLine.cwd === 'string' ? firstTurnLine.cwd : ''
-
-    let model = ''
-    for (const line of lines.slice(0, 20)) {
-      try {
-        const msg = JSON.parse(line)
-        if (msg.type === 'assistant' && msg.message?.model) { model = msg.message.model; break }
-      } catch { /* skip malformed */ }
-    }
-
-    return { session_id: sessionId, name, timestamp, model, sizeBytes, cwd }
+    if (lines) return parse(lines)
+    // 前缀读：只取前 256KB，避免全量读大文件；前缀被截断取不到 meta 时回退全量读
+    const prefix = await readFilePrefix(filePath, 256 * 1024)
+    const meta = parse(prefix.split('\n').filter(Boolean))
+    if (meta || sizeBytes <= 256 * 1024) return meta
+    const content = await readFile(filePath, 'utf-8')
+    return parse(content.split('\n').filter(Boolean))
   } catch { return null }
 }
 
-async function listSessionsForCwd(cwd: string, configDir?: string): Promise<{ sessions: any[] }> {
+async function readFilePrefix(filePath: string, maxBytes: number): Promise<string> {
+  try {
+    const fh = await open(filePath, 'r')
+    try {
+      const size = (await fh.stat()).size
+      const buf = Buffer.alloc(Math.min(maxBytes, size))
+      if (buf.length > 0) await fh.read(buf, 0, buf.length, 0)
+      return buf.toString('utf8')
+    } finally { await fh.close() }
+  } catch { return '' }
+}
+
+const claudeListCache = new Map<string, { at: number; sessions: any[] }>()
+const CLAUDE_CACHE_TTL = 60 * 1000
+
+async function listSessionsForCwd(cwd: string, configDir?: string, force = false): Promise<{ sessions: any[] }> {
+  const key = cwd || ''
+  if (!force) {
+    const hit = claudeListCache.get(key)
+    if (hit && Date.now() - hit.at < CLAUDE_CACHE_TTL) return { sessions: hit.sessions }
+  }
   const projectsRoot = getProjectsRoot(configDir)
   let projectDirName = normalizeCwdToProjectDir(cwd).toLowerCase()
 
@@ -908,7 +942,9 @@ async function listSessionsForCwd(cwd: string, configDir?: string): Promise<{ se
 
   // Sort most recent first
   sessions.sort((a, b) => b.timestamp - a.timestamp)
-  return { sessions: sessions.slice(0, 30) }
+  const result = sessions.slice(0, 30)
+  claudeListCache.set(key, { at: Date.now(), sessions: result })
+  return { sessions: result }
 }
 
 // ── Load full session history from .jsonl for resume display ──
@@ -1461,14 +1497,29 @@ export function resumeAfterAsk(sessionId: string, answers: Record<string, string
 }
 
 export function registerAiHandlers(): void {
+  setHistoryIndexPath(join(app.getPath('userData'), 'history-index.json'))
+  // 后台预热 codex/dsh 索引：延迟 3s 启动，不抢窗口启动资源；打开历史时索引已就绪
+  setTimeout(() => {
+    prewarmHistoryIndex().catch(() => {})
+  }, 3000)
 
   ipcMain.handle(IPC_CHANNELS.AI_SET_VISIBLE, (_event, visible: boolean) => {
     rendererVisible = !!visible
   })
 
   // List available sessions for resume
-  ipcMain.handle(IPC_CHANNELS.AI_LIST_SESSIONS, async (_event, cwd?: string, configDir?: string) => {
-    return listSessionsForCwd(cwd || '', configDir)
+  ipcMain.handle(IPC_CHANNELS.AI_LIST_SESSIONS, async (_event, cwd?: string, configDir?: string, source?: HistorySource, force?: boolean) => {
+    if (source === 'codex') return { sessions: await listCodexSessions(cwd || '', !!force), available: existsSync(join(homedir(), '.codex')) }
+    if (source === 'dsh') return { sessions: await listDshSessions(cwd || '', !!force), available: existsSync(join(homedir(), '.dsh')) }
+    return { ...(await listSessionsForCwd(cwd || '', configDir, !!force)), available: existsSync(getProjectsRoot(configDir)) }
+  })
+
+  // 后台预热某 cwd 的 Claude 历史（当前项目，打开历史时秒开）
+  ipcMain.handle(IPC_CHANNELS.AI_PREWARM, (_event, cwd?: string) => {
+    if (typeof cwd === 'string' && cwd) {
+      listSessionsForCwd(cwd).catch(() => {})
+    }
+    return true
   })
 
   ipcMain.handle(IPC_CHANNELS.AI_DELETE_SESSION, async (_event, sessionId: string, cwd: string, configDir?: string) => {
@@ -1485,7 +1536,9 @@ export function registerAiHandlers(): void {
   })
 
   // Load full message history from .jsonl for resume display
-  ipcMain.handle(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, async (_event, resumeSessionId: string, cwd: string, configDir?: string) => {
+  ipcMain.handle(IPC_CHANNELS.AI_LOAD_SESSION_MESSAGES, async (_event, resumeSessionId: string, cwd: string, configDir?: string, source?: HistorySource) => {
+    if (source === 'codex') return { messages: await loadCodexMessages(resumeSessionId) }
+    if (source === 'dsh') return { messages: await loadDshMessages(resumeSessionId) }
     return loadSessionMessages(resumeSessionId, cwd, configDir)
   })
 

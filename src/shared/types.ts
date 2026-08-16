@@ -115,6 +115,7 @@ export const IPC_CHANNELS = {
   AI_DESTROY: 'ai:destroy',
   AI_CHECK_AVAILABLE: 'ai:checkAvailable',
   AI_LIST_SESSIONS: 'ai:listSessions',
+  AI_PREWARM: 'ai:prewarm',
   AI_DELETE_SESSION: 'ai:deleteSession',
   AI_LOAD_SESSION_MESSAGES: 'ai:loadSessionMessages',
   AI_LIST_ALL_SESSIONS: 'ai:listAllSessions',
@@ -513,6 +514,9 @@ export interface AiSessionSummary {
   projectDir: string
   projectDirName: string
   inCurrentProject: boolean
+  workspace?: string
+  workspacePath?: string
+  threadId?: string
 }
 
 export interface AiSearchMatch {

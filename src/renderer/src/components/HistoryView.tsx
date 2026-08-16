@@ -10,6 +10,7 @@ interface HistoryViewProps {
   onBack: () => void
   workspacePath: string | null
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
+  onResumeCodexHistory?: (historySessionId: string, cwd: string, name: string) => void
 }
 
 function highlightParts(text: string, query: string, caseSensitive: boolean): React.ReactNode[] {
@@ -44,11 +45,12 @@ function TurnRow({ turn }: { turn: HistoryTurn }) {
   )
 }
 
-export default function HistoryView({ onBack, workspacePath, onResumeClaudeHistory }: HistoryViewProps) {
+export default function HistoryView({ onBack, workspacePath, onResumeClaudeHistory, onResumeCodexHistory }: HistoryViewProps) {
   const { t } = useI18n()
   const [sessions, setSessions] = useState<AiSessionSummary[]>([])
   const [listLoading, setListLoading] = useState(false)
   const [listError, setListError] = useState('')
+  const [sourceAvailable, setSourceAvailable] = useState(true)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [turnsById, setTurnsById] = useState<Record<string, { turns: HistoryTurn[]; loading: boolean }>>({})
   const [mode, setMode] = useState<'tui' | 'gui'>('tui')
@@ -60,22 +62,37 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [searchError, setSearchError] = useState('')
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
   const [onlyCurrent, setOnlyCurrent] = useState(false)
+  const [historySource, setHistorySource] = useState<'claude' | 'codex' | 'dsh'>('claude')
   const fetchReqIdRef = useRef(0)
 
-  const fetchSessions = useCallback(async () => {
+  const fetchSessions = useCallback(async (src?: 'claude' | 'codex' | 'dsh', force?: boolean) => {
+    const source = src || historySource
     const reqId = ++fetchReqIdRef.current
     setListLoading(true)
     setListError('')
     try {
       const { configDir } = readAiCliConfig()
-      const r = await window.api.ai.listAllSessions(configDir, workspacePath || undefined)
-      if (fetchReqIdRef.current !== reqId) return
-      setSessions(r.sessions || [])
-      // 非当前项目默认收缩
-      setCollapsedProjects(prev => {
-        const next = new Set(prev)
-        for (const s of r.sessions || []) {
-          if (!s.inCurrentProject) next.add(s.projectDirName)
+      const list: any[] = []
+      let available = true
+      if (source !== 'claude') {
+        const r = await window.api.ai.listSessions('', configDir, source, force)
+        if (fetchReqIdRef.current !== reqId) return
+        available = r.available !== false
+        list.push(...(r.sessions || []))
+      } else {
+        const r = await window.api.ai.listAllSessions(configDir, workspacePath || undefined)
+        if (fetchReqIdRef.current !== reqId) return
+        available = r.available !== false
+        list.push(...(r.sessions || []))
+      }
+      setSourceAvailable(available)
+      setSessions(list)
+      // 默认折叠非当前工作区，展开当前工作区
+      setCollapsedProjects(() => {
+        const next = new Set<string>()
+        for (const s of list) {
+          const isCurrent = s.inCurrentProject || s.cwd === workspacePath || s.workspacePath === workspacePath
+          if (!isCurrent) next.add(s.workspacePath || s.projectDirName || s.cwd || '')
         }
         return next
       })
@@ -85,7 +102,17 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     } finally {
       if (fetchReqIdRef.current === reqId) setListLoading(false)
     }
-  }, [workspacePath, t])
+  }, [workspacePath, t, historySource])
+
+  const switchHistorySource = useCallback((src: 'claude' | 'codex' | 'dsh') => {
+    setHistorySource(src)
+    setQuery('')
+    setSearchResults(null)
+    setExpanded(new Set())
+    setTurnsById({})
+    setListError('')
+    fetchSessions(src)
+  }, [fetchSessions])
 
   useEffect(() => {
     fetchSessions()
@@ -97,7 +124,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   }, [query])
 
   useEffect(() => {
-    if (!debouncedQuery) {
+    if (historySource !== 'claude' || !debouncedQuery) {
       setSearchResults(null)
       setSearchTruncated(false)
       setSearching(false)
@@ -121,7 +148,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
       .finally(() => {
         if (fetchReqIdRef.current === reqId) setSearching(false)
       })
-  }, [debouncedQuery])
+  }, [debouncedQuery, historySource])
 
   const toggleExpand = useCallback(async (s: AiSessionSummary) => {
     const id = s.session_id
@@ -138,13 +165,15 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     setTurnsById(prev => ({ ...prev, [id]: { turns: [], loading: true } }))
     try {
       const { configDir } = readAiCliConfig()
-      const r = await window.api.ai.loadSessionMessagesByDir(id, s.projectDir, configDir)
+      const r = historySource === 'claude'
+        ? await window.api.ai.loadSessionMessagesByDir(id, s.projectDir, configDir)
+        : await window.api.ai.loadSessionMessages(id, '', configDir, historySource)
       const turns = buildHistoryTurns(r?.messages)
       setTurnsById(prev => prev[id]?.loading ? { ...prev, [id]: { turns, loading: false } } : prev)
     } catch (e: any) {
       setTurnsById(prev => prev[id]?.loading ? { ...prev, [id]: { turns: [{ role: 'assistant', text: e?.message || '加载失败' }], loading: false } } : prev)
     }
-  }, [expanded, turnsById])
+  }, [expanded, turnsById, historySource])
 
   const toggleSearchCollapse = useCallback((s: AiSessionSummary) => {
     const id = s.session_id
@@ -192,25 +221,32 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   }, [])
 
   const resume = useCallback((s: AiSessionSummary) => {
+    if (historySource === 'codex') {
+      onResumeCodexHistory?.(s.threadId || s.session_id, s.cwd || '', s.name && s.name !== s.session_id ? s.name : '')
+      return
+    }
+    if (historySource === 'dsh') return
     const cwd = s.cwd || (s.inCurrentProject && workspacePath ? workspacePath : s.projectDir)
     if (!cwd) return
     const name = s.name && s.name !== s.session_id ? s.name : ''
     onResumeClaudeHistory(s.session_id, cwd, name, mode)
-  }, [workspacePath, mode, onResumeClaudeHistory])
+  }, [workspacePath, mode, onResumeClaudeHistory, onResumeCodexHistory, historySource])
 
   const groups = useMemo(() => {
-    const map = new Map<string, AiSessionSummary[]>()
+    const map = new Map<string, { label: string; list: AiSessionSummary[] }>()
     for (const s of sessions) {
-      const arr = map.get(s.projectDirName) ?? []
-      arr.push(s)
-      map.set(s.projectDirName, arr)
+      const key = s.workspacePath || s.projectDirName || s.cwd || ''
+      const label = s.workspace || s.projectDirName || s.cwd || ''
+      const entry = map.get(key) ?? { label, list: [] }
+      entry.list.push(s)
+      map.set(key, entry)
     }
     return [...map.entries()]
   }, [sessions])
 
   const visibleGroups = useMemo(() => {
-    return onlyCurrent ? groups.filter(([, list]) => list[0]?.inCurrentProject) : groups
-  }, [groups, onlyCurrent])
+    return onlyCurrent ? groups.filter(([, g]) => g.list[0]?.inCurrentProject || g.list[0]?.cwd === workspacePath || g.list[0]?.workspacePath === workspacePath) : groups
+  }, [groups, onlyCurrent, workspacePath])
 
   const visibleSearchResults = useMemo(() => {
     if (!searchResults) return null
@@ -238,7 +274,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     const searchMode = opts?.searchMode
     // 搜索模式语义反转：默认展开显示 matches，点击收起
     const arrowDown = searchMode ? !isExpanded : isExpanded
-    const canResume = !!workspacePath && (s.inCurrentProject || !!s.projectDir)
+    const canResume = historySource === 'claude'
+      ? (!!workspacePath && (s.inCurrentProject || !!s.projectDir))
+      : historySource === 'codex' ? !!s.cwd : false
     return (
       <div
         className="px-2.5 py-2 flex items-center gap-2 cursor-pointer hover:bg-ide-hover transition-colors group"
@@ -252,9 +290,8 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
         </button>
         <div className="flex-1 min-w-0">
           <div className="truncate text-xs text-ide-text">{s.name || s.session_id}</div>
-          <div className="text-[10px] text-ide-text-muted/60 truncate">
-            {s.cwd ? <span className="text-ide-text/70">{s.cwd}</span> : null}
-            {s.cwd ? ' · ' : ''}
+          {s.cwd ? <div className="truncate text-[10px] text-ide-text/70">{s.cwd}</div> : null}
+          <div className="text-[10px] text-ide-text-muted/50">
             {s.timestamp ? new Date(s.timestamp).toLocaleString() : ''}
             {s.model ? ` · ${s.model}` : ''}
             {s.sizeBytes > 0 ? ` · ${formatBytes(s.sizeBytes)}` : ''}
@@ -269,13 +306,15 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
             {t('Resume')}
           </button>
         )}
-        <button
-          onClick={(e) => { e.stopPropagation(); deleteSession(s) }}
-          className="shrink-0 w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
-          title={t('Delete')}
-        >
-          <Trash2 size={12} />
-        </button>
+        {historySource === 'claude' && (
+          <button
+            onClick={(e) => { e.stopPropagation(); deleteSession(s) }}
+            className="shrink-0 w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
+            title={t('Delete')}
+          >
+            <Trash2 size={12} />
+          </button>
+        )}
       </div>
     )
   }
@@ -292,50 +331,68 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
             <ArrowLeft size={13} />
           </button>
           <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider flex-1 truncate">{t('Session History')}</span>
-          <div className="flex items-center rounded bg-ide-sidebar border border-ide-border p-0.5">
-            <button
-              onClick={() => setMode('tui')}
-              className={`px-2 py-0.5 text-[11px] rounded transition-colors ${mode === 'tui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
-            >TUI</button>
-            <button
-              onClick={() => setMode('gui')}
-              className={`px-2 py-0.5 text-[11px] rounded transition-colors ${mode === 'gui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
-            >GUI</button>
-          </div>
+          {historySource === 'claude' && (
+            <>
+              <div className="flex items-center rounded bg-ide-sidebar border border-ide-border p-0.5">
+                <button
+                  onClick={() => setMode('tui')}
+                  className={`px-2 py-0.5 text-[11px] rounded transition-colors ${mode === 'tui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                >TUI</button>
+                <button
+                  onClick={() => setMode('gui')}
+                  className={`px-2 py-0.5 text-[11px] rounded transition-colors ${mode === 'gui' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                >GUI</button>
+              </div>
+              <button
+                onClick={() => setOnlyCurrent(v => !v)}
+                className={`flex items-center gap-1 h-5 px-2 rounded text-[11px] transition-colors ${onlyCurrent ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+                title={t('Current project only')}
+              >
+                <Filter size={11} />
+                <span>{t('Current project only')}</span>
+              </button>
+            </>
+          )}
           <button
-            onClick={fetchSessions}
+            onClick={() => fetchSessions(undefined, true)}
             disabled={listLoading}
             className="w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title={t('Refresh')}
           >
             <RotateCcw size={13} className={listLoading ? 'animate-spin' : ''} />
           </button>
-          <button
-            onClick={() => setOnlyCurrent(v => !v)}
-            className={`flex items-center gap-1 h-5 px-2 rounded text-[11px] transition-colors ${onlyCurrent ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-            title={t('Current project only')}
-          >
-            <Filter size={11} />
-            <span>{t('Current project only')}</span>
-          </button>
         </div>
-        <div className="relative">
-          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-ide-text-muted/50" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('Search Claude sessions...')}
-            className="w-full bg-ide-sidebar border border-ide-border rounded pl-7 pr-6 py-1.5 text-xs text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/50"
-          />
-          {query && (
+        <div className="flex items-center gap-0.5">
+          {(['claude', 'codex', 'dsh'] as const).map(src => (
             <button
-              onClick={() => setQuery('')}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded text-ide-text-muted hover:text-ide-text flex items-center justify-center transition-colors"
-            >
-              <X size={11} />
-            </button>
-          )}
+              key={src}
+              onClick={() => switchHistorySource(src)}
+              className={`px-2 py-0.5 text-[11px] rounded transition-colors capitalize ${historySource === src ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+            >{src}</button>
+          ))}
+          <span className="ml-auto text-[10px] text-ide-text-muted/60">
+            {historySource === 'dsh' ? '浏览（无恢复）' : historySource === 'codex' ? '点击恢复' : '点击恢复'}
+          </span>
         </div>
+        {historySource === 'claude' && (
+          <div className="relative">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-ide-text-muted/50" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('Search Claude sessions...')}
+              className="w-full bg-ide-sidebar border border-ide-border rounded pl-7 pr-6 py-1.5 text-xs text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/50"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded text-ide-text-muted hover:text-ide-text flex items-center justify-center transition-colors"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
@@ -376,26 +433,31 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           </div>
         ) : listError ? (
           <div className="py-8 text-center text-xs text-ide-danger px-4">{listError}</div>
+        ) : !sourceAvailable ? (
+          <div className="py-8 text-center text-xs text-ide-text-muted px-4">
+            {historySource === 'claude' ? t('Claude Code not installed') : historySource === 'codex' ? t('Codex not installed') : t('DSH not installed')}
+          </div>
         ) : visibleGroups.length === 0 ? (
           <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
         ) : (
-          visibleGroups.map(([dirName, list]) => {
-            const isCollapsed = collapsedProjects.has(dirName)
+          visibleGroups.map(([key, group]) => {
+            const isCollapsed = collapsedProjects.has(key)
+            const list = group.list
             return (
-              <div key={dirName}>
+              <div key={key}>
                 <div
                   className={`flex items-center gap-1 px-1 pt-1 pb-1.5 cursor-pointer select-none rounded hover:bg-ide-hover/50 transition-colors ${isCollapsed ? 'bg-ide-hover/40' : ''}`}
-                  onClick={() => toggleGroup(dirName)}
+                  onClick={() => toggleGroup(key)}
                 >
                   <ChevronDown size={11} className={`text-ide-text-muted shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
                   <span className="text-[10px] font-bold flex-1 min-w-0 flex items-center gap-1">
                     <FolderOpen size={11} className="text-ide-accent/70 shrink-0" />
-                    <span className="truncate font-mono text-ide-text/80">{list[0]?.cwd || dirName}</span>
+                    <span className="truncate font-mono text-ide-text/80">{group.label}</span>
                   </span>
                   <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted">{list.length}</span>
-                  {list[0]?.inCurrentProject && (
+                  {list[0]?.inCurrentProject || list[0]?.cwd === workspacePath || list[0]?.workspacePath === workspacePath ? (
                     <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-accent/15 text-ide-accent">{t('Current project')}</span>
-                  )}
+                  ) : null}
                 </div>
                 {!isCollapsed && (
                   <div className="space-y-1">
