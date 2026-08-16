@@ -52,10 +52,10 @@ function ensureSandboxModeFence(ctx: Context, owner: Agent): void {
   }, { global: true })
 }
 
-function childEnvironment(spec: TerminalBackendSpawnSpec): Record<string, string> {
+function childEnvironment(spec: TerminalBackendSpawnSpec, config: ResolvedConfig): Record<string, string> {
   // The subprocess provider supplies its own scrubbed ambient base; these are
   // deliberate terminal-specific overrides layered after it.
-  return {
+  const env: Record<string, string> = {
     TERM: 'dumb',
     PAGER: 'cat',
     GIT_PAGER: 'cat',
@@ -66,11 +66,23 @@ function childEnvironment(spec: TerminalBackendSpawnSpec): Record<string, string
     DSH_SESSION_ID: spec.owner.id,
     DSH_PTY_SESSION_ID: spec.sessionId,
   }
+  if (isUnconfinedWindowsBash(config.shellPath)) env.SHELL = config.shellPath
+  return env
+}
+
+function isUnconfinedWindowsBash(shellPath: string): boolean {
+  if (process.platform !== 'win32') return false
+  const shellName = shellPath.split(/[\\/]/).pop()?.toLowerCase()
+  return shellName === 'bash.exe'
 }
 
 function spawnArgv(ctx: Context, config: ResolvedConfig, policy: SandboxExecutionPolicy): string[] {
   const argv = [config.shellPath, ...config.shellArgs]
-  if (policy.mode === 'danger-full-access') return argv
+  // MSYS bash cannot start under the ACL restricted-token runner on win32;
+  // leave it unconfined (tool approval still gates each invocation).
+  if (policy.mode === 'danger-full-access' || isUnconfinedWindowsBash(config.shellPath)) {
+    return argv
+  }
   const sandbox = ctx.get('sandbox')
   if (sandbox === undefined) {
     throw new Error(`terminal-bash: sandbox mode "${policy.mode}" requires a ctx.sandbox provider in the execution world`)
@@ -125,7 +137,7 @@ export class BashTerminalBackend implements TerminalBackend {
     const terminal = await this.spawnTerminal({
       argv,
       cwd: spec.cwd ?? policy.workspaceRoot,
-      env: childEnvironment(spec),
+      env: childEnvironment(spec, this.config),
       rows: this.config.rows,
       cols: this.config.cols,
       graceMs: this.config.disposeGraceMs,

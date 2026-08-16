@@ -3,7 +3,7 @@ import { access, stat } from "node:fs/promises";
 import { delimiter, extname, isAbsolute, join, resolve } from "node:path";
 import * as nodePty from "node-pty";
 import { SubprocessRuntime, scrubbedParentEnv } from "@deepseek-ai/dsh-subprocess";
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { execFile, execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { constants as constants$1, tmpdir } from "node:os";
 import { setTimeout as setTimeout$1 } from "node:timers/promises";
@@ -322,13 +322,23 @@ function parseWindowsProcessTable(text) {
 	}
 	return entries;
 }
+function defaultWindowsExecAsync(file, args) {
+	return new Promise((resolve, reject) => {
+		execFile(file, args, { encoding: "utf8" }, (error, stdout) => {
+			if (error !== null && error !== void 0) reject(error);
+			else resolve(stdout);
+		});
+	});
+}
 var WindowsProcessInspector = class {
-	constructor(internals = DEFAULT_INTERNALS, taskkill = windowsTaskkillProcessTree, tableTtlMs = 300) {
+	constructor(internals = DEFAULT_INTERNALS, taskkill = windowsTaskkillProcessTree, tableTtlMs = 2000, execAsync = defaultWindowsExecAsync) {
 		this.internals = internals;
 		this.taskkill = taskkill;
 		this.tableTtlMs = tableTtlMs;
+		this.execAsync = execAsync;
 		this.table = [];
 		this.tableAt = Number.NEGATIVE_INFINITY;
+		this.refreshing = void 0;
 		this.terminal = void 0;
 	}
 	attach(terminal) {
@@ -341,19 +351,46 @@ var WindowsProcessInspector = class {
 			return [];
 		}
 	}
+	refreshAsync() {
+		const refresh = this.execAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", WINDOWS_PROCESS_TABLE_SCRIPT]).then((stdout) => {
+			const parsed = parseWindowsProcessTable(stdout);
+			if (parsed.length > 0) {
+				this.table = parsed;
+				this.tableAt = Date.now();
+			}
+		}).catch(() => {}).finally(() => {
+			this.refreshing = void 0;
+		});
+		this.refreshing = refresh;
+		return refresh;
+	}
 	processTable() {
 		const now = Date.now();
-		if (now - this.tableAt >= this.tableTtlMs) {
+		if (this.tableAt === Number.NEGATIVE_INFINITY) {
 			this.table = this.loadTable();
 			this.tableAt = now;
+			return this.table;
+		}
+		if (now - this.tableAt >= this.tableTtlMs && this.refreshing === void 0) {
+			this.refreshAsync();
 		}
 		return this.table;
 	}
 	entry(pid) {
+		try {
+			this.internals.kill(pid, 0);
+		} catch (_missingProcess) {
+			return void 0;
+		}
 		return this.processTable().find((entry2) => entry2.pid === pid);
 	}
 	foregroundPgid(shellPid) {
-		return this.entry(shellPid) === void 0 ? void 0 : shellPid;
+		try {
+			this.internals.kill(shellPid, 0);
+			return shellPid;
+		} catch (_missingShell) {
+			return void 0;
+		}
 	}
 	isStdinWaiting(_pgid) {
 		return false;

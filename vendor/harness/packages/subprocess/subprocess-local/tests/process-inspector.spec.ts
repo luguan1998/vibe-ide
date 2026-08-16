@@ -28,6 +28,7 @@ function fakeInternals() {
   const fds = new Map<number, string>()
   const kills: Array<[number, NodeJS.Signals]> = []
   const execCalls: string[] = []
+  const alive = new Set<number>()
   let nextFd = 10
   let ps = ''
   let tpgid = '0'
@@ -61,11 +62,32 @@ function fakeInternals() {
       if (args.includes('tpgid=')) return tpgid
       return ps
     },
-    kill(pid, signal) { kills.push([pid, signal]) },
+    kill(pid, signal) {
+      if (signal === 0) {
+        if (!alive.has(pid)) throw new Error(`missing process ${pid}`)
+        return
+      }
+      kills.push([pid, signal])
+    },
   }
   return {
     internals, files, dirs, memories, kills, execCalls,
-    setPs(value: string) { ps = value },
+    getPs: () => ps,
+    setPs(value: string) {
+      ps = value
+      alive.clear()
+      try {
+        const parsed = JSON.parse(value)
+        const rows = Array.isArray(parsed) ? parsed : [parsed]
+        for (const row of rows) {
+          if (row === null || typeof row !== 'object') continue
+          const pid = Number((row as Record<string, unknown>).pid)
+          if (Number.isSafeInteger(pid)) alive.add(pid)
+        }
+      } catch {
+        // malformed table: no known-live processes
+      }
+    },
     setTpgid(value: string) { tpgid = value },
   }
 }
@@ -296,7 +318,12 @@ describe('Windows process inspector', () => {
       { pid: 12, ppid: 10, started: 'c' },
     ]))
     const tasks: number[] = []
-    const inspector = new WindowsProcessInspector(fake.internals, pid => tasks.push(pid), 0)
+    const inspector = new WindowsProcessInspector(
+      fake.internals,
+      pid => tasks.push(pid),
+      0,
+      async () => fake.getPs(),
+    )
 
     const writes: string[] = []
     inspector.attach({ write: (data: string) => { writes.push(data) } } as unknown as IPty)
@@ -316,7 +343,12 @@ describe('Windows process inspector', () => {
       { pid: 11, ppid: 10, started: 'b' },
     ]))
     const tasks: number[] = []
-    const inspector = new WindowsProcessInspector(fake.internals, pid => tasks.push(pid), 0)
+    const inspector = new WindowsProcessInspector(
+      fake.internals,
+      pid => tasks.push(pid),
+      0,
+      async () => fake.getPs(),
+    )
 
     inspector.signalGroup(10, 'SIGTSTP')
     expect(tasks).toEqual([])
@@ -330,18 +362,49 @@ describe('Windows process inspector', () => {
     expect(tasks).toEqual([10, 10, 11])
   })
 
-  it('caches the process table for the configured TTL', () => {
+  it('serves the synchronous snapshot within the TTL and refreshes asynchronously after it', async () => {
     const fake = fakeInternals()
     fake.setPs(JSON.stringify([{ pid: 10, ppid: 1, started: 'a' }]))
-    const inspector = new WindowsProcessInspector(fake.internals, () => {}, 300)
-    inspector.foregroundPgid(10)
-    inspector.foregroundPgid(10)
-    inspector.foregroundPgid(10)
+    const execAsyncCalls: string[] = []
+    const execAsync = async (file: string) => {
+      execAsyncCalls.push(file)
+      await new Promise(resolve => setTimeout(resolve, 0))
+      return fake.getPs()
+    }
+    const inspector = new WindowsProcessInspector(fake.internals, () => {}, 300, execAsync)
+    expect(inspector.processTree(10)).toEqual([{ pid: 10, started: 'a' }])
+    expect(inspector.processTree(10)).toEqual([{ pid: 10, started: 'a' }])
+    expect(inspector.processTree(10)).toEqual([{ pid: 10, started: 'a' }])
     expect(fake.execCalls.filter(file => file === 'powershell.exe')).toHaveLength(1)
+    expect(execAsyncCalls).toHaveLength(0)
 
-    const uncached = new WindowsProcessInspector(fake.internals, () => {}, 0)
-    uncached.foregroundPgid(10)
-    uncached.foregroundPgid(10)
-    expect(fake.execCalls.filter(file => file === 'powershell.exe')).toHaveLength(3)
+    const uncached = new WindowsProcessInspector(fake.internals, () => {}, 0, execAsync)
+    expect(uncached.processTree(10)).toEqual([{ pid: 10, started: 'a' }])
+    uncached.processTree(10)
+    expect(execAsyncCalls).toHaveLength(1)
+    uncached.processTree(10)
+    expect(execAsyncCalls).toHaveLength(1)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    uncached.processTree(10)
+    expect(execAsyncCalls).toHaveLength(2)
+  })
+
+  it('serves the stale table while a refresh is in flight, then adopts fresh data', async () => {
+    const fake = fakeInternals()
+    fake.setPs(JSON.stringify([{ pid: 10, ppid: 1, started: 'a' }]))
+    const inspector = new WindowsProcessInspector(
+      fake.internals,
+      () => {},
+      0,
+      async () => fake.getPs(),
+    )
+    expect(inspector.processTree(10)).toEqual([{ pid: 10, started: 'a' }])
+
+    fake.setPs(JSON.stringify([{ pid: 11, ppid: 1, started: 'b' }]))
+    expect(inspector.processTree(10)).toEqual([{ pid: 10, started: 'a' }])
+    expect(inspector.processTree(10)).toEqual([{ pid: 10, started: 'a' }])
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(inspector.processTree(10)).toEqual([])
+    expect(inspector.processTree(11)).toEqual([{ pid: 11, started: 'b' }])
   })
 })

@@ -1,7 +1,7 @@
 /** Platform process-table inspection for terminal readiness, signals, and teardown. */
 
 import { closeSync, openSync, readFileSync, readdirSync, readSync } from 'node:fs'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { execFile, execFileSync, spawnSync } from 'node:child_process'
 import type { IPty } from 'node-pty'
 import type { SubprocessTerminalSignal } from '@deepseek-ai/dsh-subprocess'
 
@@ -414,21 +414,36 @@ function parseWindowsProcessTable(text: string): WindowsProcessEntry[] {
   return entries
 }
 
+function defaultWindowsExecAsync(file: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { encoding: 'utf8' }, (error, stdout) => {
+      if (error !== null && error !== undefined) reject(error)
+      else resolve(stdout)
+    })
+  })
+}
+
 /**
  * Windows process/session inspection for ConPTY terminals. The whole console
  * tree is one group rooted at the shell; Windows has no POSIX sessions or
  * zombie states, and no signal-bearing kill, so liveness is creation-time
  * identity and termination is taskkill.
+ *
+ * Process-table refreshes run asynchronously after the first synchronous
+ * snapshot: readiness polling calls inspectForeground every few ms, and a
+ * synchronous PowerShell query would freeze the event loop on every poll.
  */
 export class WindowsProcessInspector implements ProcessInspector {
   private table: WindowsProcessEntry[] = []
   private tableAt = Number.NEGATIVE_INFINITY
+  private refreshing: Promise<void> | undefined
   private terminal: IPty | undefined
 
   constructor(
     private readonly internals: ProcessInspectorInternals = DEFAULT_INTERNALS,
     private readonly taskkill: (pid: number) => void = windowsTaskkillProcessTree,
-    private readonly tableTtlMs = 300,
+    private readonly tableTtlMs = 2000,
+    private readonly execAsync: (file: string, args: string[]) => Promise<string> = defaultWindowsExecAsync,
   ) {}
 
   attach(terminal: IPty): void {
@@ -445,21 +460,57 @@ export class WindowsProcessInspector implements ProcessInspector {
     }
   }
 
+  private refreshAsync(): Promise<void> {
+    const refresh = this.execAsync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', WINDOWS_PROCESS_TABLE_SCRIPT],
+    )
+      .then(stdout => {
+        const parsed = parseWindowsProcessTable(stdout)
+        if (parsed.length > 0) {
+          this.table = parsed
+          this.tableAt = Date.now()
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        this.refreshing = undefined
+      })
+    this.refreshing = refresh
+    return refresh
+  }
+
   private processTable(): WindowsProcessEntry[] {
     const now = Date.now()
-    if (now - this.tableAt >= this.tableTtlMs) {
+    if (this.tableAt === Number.NEGATIVE_INFINITY) {
+      // The first snapshot is synchronous: construction reads the root
+      // identity, so a stale empty table would break tree adoption.
       this.table = this.loadTable()
       this.tableAt = now
+      return this.table
+    }
+    if (now - this.tableAt >= this.tableTtlMs && this.refreshing === undefined) {
+      void this.refreshAsync()
     }
     return this.table
   }
 
   private entry(pid: number): WindowsProcessEntry | undefined {
+    try {
+      this.internals.kill(pid, 0)
+    } catch (_missingProcess) {
+      return undefined
+    }
     return this.processTable().find(entry => entry.pid === pid)
   }
 
   foregroundPgid(shellPid: number): number | undefined {
-    return this.entry(shellPid) === undefined ? undefined : shellPid
+    try {
+      this.internals.kill(shellPid, 0)
+      return shellPid
+    } catch (_missingShell) {
+      return undefined
+    }
   }
 
   isStdinWaiting(_pgid: number): boolean {

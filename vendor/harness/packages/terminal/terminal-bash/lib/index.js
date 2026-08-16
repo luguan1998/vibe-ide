@@ -713,8 +713,8 @@ function ensureSandboxModeFence(ctx, owner) {
 		throw new Error(`cannot change sandbox mode from "${currentMode}" to "${event.data.mode}" while persistent terminal sessions are open or being created; wait for creation to settle and close them first`);
 	}, { global: true });
 }
-function childEnvironment(spec) {
-	return {
+function childEnvironment(spec, config) {
+	const env = {
 		TERM: "dumb",
 		PAGER: "cat",
 		GIT_PAGER: "cat",
@@ -725,10 +725,17 @@ function childEnvironment(spec) {
 		DSH_SESSION_ID: spec.owner.id,
 		DSH_PTY_SESSION_ID: spec.sessionId
 	};
+	if (isUnconfinedWindowsBash(config.shellPath)) env.SHELL = config.shellPath;
+	return env;
+}
+function isUnconfinedWindowsBash(shellPath) {
+	if (process.platform !== "win32") return false;
+	const shellName = shellPath.split(/[\\/]/).pop()?.toLowerCase();
+	return shellName === "bash.exe";
 }
 function spawnArgv(ctx, config, policy) {
 	const argv = [config.shellPath, ...config.shellArgs];
-	if (policy.mode === "danger-full-access") return argv;
+	if (policy.mode === "danger-full-access" || isUnconfinedWindowsBash(config.shellPath)) return argv;
 	const sandbox = ctx.get("sandbox");
 	if (sandbox === void 0) throw new Error(`terminal-bash: sandbox mode "${policy.mode}" requires a ctx.sandbox provider in the execution world`);
 	return sandbox.confine(argv, {
@@ -776,7 +783,7 @@ var BashTerminalBackend = class {
 		const terminal = await this.spawnTerminal({
 			argv,
 			cwd: spec.cwd ?? policy.workspaceRoot,
-			env: childEnvironment(spec),
+			env: childEnvironment(spec, this.config),
 			rows: this.config.rows,
 			cols: this.config.cols,
 			graceMs: this.config.disposeGraceMs,
