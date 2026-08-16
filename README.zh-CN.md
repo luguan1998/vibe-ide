@@ -2,7 +2,7 @@
 
 [English](README.md) | **中文**
 
-> 一款面向"氛围编码"（Vibe Coding）的桌面 IDE —— 三栏布局：左侧会话管理、中间原生终端、右侧 Git/Aux/搜索/文件工具，并内置 Claude AI 助手、实时代码图、嵌入式浏览器与桌面宠物，让开发流保持顺畅不中断。
+> 一款面向"氛围编码"（Vibe Coding）的桌面 IDE —— 三栏布局：左侧会话管理、中间原生终端、右侧 Git/Aux/搜索/文件工具，并内置 Claude AI 助手、DeepSeek Harness（dsh）Agent 模式、实时代码图、嵌入式浏览器与桌面宠物，让开发流保持顺畅不中断。
 
 ---
 
@@ -43,13 +43,21 @@
 - **外观** — 主题选择、会话 emoji、面板布局、宠物配置、字体/透明度/Snippets 开关
 - **设置** — 完整快捷键编辑器（录制 / 自定义 / 重置）
 
-### 🤖 AI Tab — 内置 Claude 助手
-- 流式渲染 Claude Code（CLI 子进程）token，实时 Markdown 渲染
+### 🤖 AI Tab — Claude Code Desktop GUI（内置 Claude 助手）
+- 本质就是 Claude Code 的桌面 GUI 版：以 CLI 子进程为后端，流式渲染 token，实时 Markdown 显示
 - **思维块（Thinking blocks）** 含耗时，流式期间保持展开
 - **工具调用可视化** — 文件编辑（含 Diff）、命令、搜索、网络、计划、技能、Agent、提问、任务
 - **权限提示** — plan / acceptEdits / bypassPermissions 模式
 - 斜杠命令、会话列表/加载、模型切换、回退/Fork、Worktree 导航、示例提示
 - Plan→Execute 流水线；AskUserQuestion 恢复
+
+### 🧠 dsh Agent 模式 — DeepSeek Harness
+- 与终端、Claude 并列的第三种中间视图：可从新建会话选择器创建 `dsh` 会话，或在会话右键菜单切换到 dsh 模式
+- 在进程内渲染真实 dsh 对话界面（cordis 插件栈），支持思维链 / 工具调用 / 流式输出 / 轨迹
+- 会话仍由 Vibe 左侧面板管理；dsh 工作区挂载、Fork、历史恢复/删除均同步回 Vibe
+- 通过 dsh 主题桥自动跟随 Vibe 主题与字体
+- 桌面宠物可监听最新 dsh 回复并以气泡展示
+- **dsh 插件管理** — 设置 → dsh → 插件 → *安装插件*：支持添加/卸载 dsh 包并原地重启 dsh；与原生 dsh CLI 共用 `~/.dsh`
 
 ### 🐾 桌面宠物
 - 基于 webp 精灵图的动画宠物，在桌面上溜达
@@ -70,8 +78,9 @@
   - 随包附带 11 款片段：starry-night、dont-starve、macos、nes-8bit、nyan-cat、Bloodborne 等
 
 ### 🎮 更多
+- **会话历史（Session History）** — 统一浏览/搜索 Claude Code（TUI/GUI）与 dsh 历史会话，支持恢复和删除
 - **Mujica** — 多 Agent Claude 编队指挥（并行会话可视化为乐队）
-- 小游戏：2048、Sandspiel（落沙模拟）、Balatro（扑克 Roguelike）
+- 小游戏：2048、Sandspiel（落沙模拟）、Balatro（扑克 Roguelike）、Fruit Ninja、Vampire Survivors
 - **OCR** — Tesseract.js（chi_sim + eng），识别图片/截图
 - **i18n** — 中文 / 英文
 - **文件系统监听** — cwd 变更实时刷新
@@ -87,6 +96,7 @@
 | **终端** | xterm.js（WebGL / 剪贴板 / 链接 / unicode-graphemes）+ node-pty |
 | **编辑器** | Monaco Editor (`@monaco-editor/react`) |
 | **AI** | Claude Code CLI 子进程（stream-json） |
+| **dsh Agent** | DeepSeek Harness 子进程 + 内置 cordis 客户端栈 |
 | **Git** | simple-git |
 | **搜索** | ripgrep (rg) + Node.js 回退 |
 | **代码图** | `@colbymchenry/codegraph` CLI（符号索引/调用分析）+ dagre（图布局） |
@@ -104,43 +114,48 @@
 
 - Node.js >= 18
 - npm
-- pnpm（dsh 后端 workspace 需要）
+- pnpm（可选——仅在需要重新构建内置 dsh harness 时需要）
 - Windows 系统（目前主要支持）
 
 ### 仓库布局
 
-**dsh Agent 模式**（session 右键菜单 → DeepSeek 图标）会以子进程方式拉起本地
-[deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) 服务。Vibe IDE 的
-`package.json` 通过 `file:../deepseek-harness/...` 依赖它，因此**两个仓库必须同级存放**：
+**dsh Agent 模式**会以子进程方式拉起本地
+[deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) 服务。运行时已内置在
+`vendor/harness/` 中，并通过 `file:./vendor/harness/...` 引用，因此**新克隆即可直接使用 dsh 模式**，
+无需再额外 clone 一个同级 deepseek-harness 仓库。
 
 ```
-E:\ai\
-├── claudeui\           # 本仓库
-└── deepseek-harness\   # dsh 运行时
+claudeui/
+├── src/             # Vibe IDE 源码
+└── vendor/harness/  # 内置 DeepSeek Harness 运行时 + CLI
+```
+
+如果你从上游重新替换 `vendor/harness`，需要先重新构建 lib 产物：
+
+```bash
+cd vendor/harness
+pnpm install
+npm run build:lib:host && npm run build:lib:client
+cd ..
+npm install
 ```
 
 ### 安装 & 运行（新电脑完整流程）
 
 ```bash
-# 1. 同级克隆两个仓库
+# 1. 克隆本仓库
 git clone https://github.com/luguan/vibe-ide.git
-git clone <你的 deepseek-harness fork>.git
+cd vibe-ide
 
-# 2. 先构建 harness —— 其 lib/ 产物被 git 忽略，新克隆没有编译输出
-cd deepseek-harness
-pnpm install
-npm run build:lib:host && npm run build:lib:client   # 约 1 分钟；全量构建用 npm run build
-
-# 3. 安装并启动 Vibe IDE
-cd ../claudeui
+# 2. 安装并启动 Vibe IDE
 npm install
 npm run dev
 ```
 
 > **注意：**
 > - `node-pty` 是原生模块，Windows 下需要 Visual Studio Build Tools（C++ 工作负载）。确保 `node-gyp` 环境已配置。
-> - `file:` 依赖在 `npm install` 时拷贝进 `claudeui/node_modules`——harness 源码更新后，需在 `claudeui` 重新 `npm install` 同步。
-> - 开发模式自动从 `../deepseek-harness/apps/cli/lib/bin.js` 发现 dsh 运行时。
+> - 内置 `file:` 依赖会在 `npm install` 时安装进 `node_modules`——替换 `vendor/harness` 后需重新 `npm install` 同步。
+> - 开发模式自动从 `vendor/harness/apps/cli/lib/bin.js` 发现 dsh 运行时。
 
 ### 隐私说明：遥测已删除
 
@@ -160,9 +175,9 @@ npm run build
 npm run build:win
 ```
 
-**打包后的 dsh 运行时：** electron-builder 目前未自动打包 harness。打包版应用可通过
-`DSH_CLI_BIN` 环境变量指向已有构建，或将构建好的 harness 复制到
-`<安装目录>/resources/dsh/`（`resources/dsh/apps/cli/lib/bin.js`）。
+**打包后的 dsh 运行时：** harness CLI 已随安装包内置在 `resources/app.asar/vendor/harness/apps/cli`。
+安装器还会在安装根目录放置 `dsh.cmd` / `dsh.ps1` / `dsh.sh` 包装脚本，并可选加入 `PATH`，
+因此安装后也可以在 IDE 外直接使用 `dsh`（包括插件管理）。如需指定其他运行时，仍可通过 `DSH_CLI_BIN` 覆盖。
 
 ### 预览构建产物
 
@@ -187,6 +202,7 @@ src/
 │   ├── file.ts                    # 文件系统读/写/树/重命名/复制/移动
 │   ├── search.ts                  # ripgrep 内容搜索/替换
 │   ├── codegraph.ts               # 符号索引 + 调用图
+│   ├── dsh.ts                     # dsh 子进程服务 + 插件管理
 │   ├── ocr.ts                     # Tesseract.js OCR
 │   └── watcher.ts                 # 文件系统监听
 ├── preload/
@@ -199,6 +215,7 @@ src/
         ├── App.tsx                # 布局、中栏视图切换、全局快捷键
         ├── aiStore.ts             # AI 会话状态 store
         ├── mujicaStore.ts         # Mujica 多 Agent 状态 store
+        ├── dsh/                   # dsh cordis 装配 + 主题桥 + 历史辅助
         ├── i18n.ts                # 中英文 i18n
         ├── shortcuts.ts           # 快捷键定义 + 持久化
         ├── themes/                # 14 套主题 + Monaco 主题 + ThemeProvider
@@ -215,6 +232,9 @@ src/
             ├── FileTab.tsx        # 文件浏览器
             ├── SearchPanel.tsx    # ripgrep 搜索
             ├── AiTab.tsx          # Claude AI 聊天面板
+            ├── DshView.tsx        # dsh Agent 视图（Vibe 中栏内嵌对话界面）
+            ├── DshPluginTab.tsx   # dsh 插件安装/卸载 UI
+            ├── HistoryView.tsx    # 会话历史浏览（Claude + dsh）
             ├── BrowserView.tsx    # 嵌入式浏览器 + 元素拾取
             ├── MarkdownPreview.tsx# Markdown + mermaid 预览
             ├── ImagePreview.tsx   # 图片查看器
@@ -225,7 +245,7 @@ src/
             ├── AppearancePanel.tsx# 主题 / 宠物 / 布局配置
             ├── DesktopPet/        # 动画宠物（精灵图、状态图、气泡菜单）
             ├── CodeGraph*.tsx     # 调用图 + 符号搜索
-            └── Game*.tsx          # Mujica、2048、Sandspiel、Balatro
+            └── Game*.tsx          # 启动器：会话历史、Mujica、2048、Sandspiel、Balatro、Fruit Ninja、Vampire Survivors
 
 pets/                              # 宠物精灵图（5 个角色）
 snippets/                          # CSS 片段（在 设置 → Snippets 中切换）
@@ -239,12 +259,16 @@ snippets/                          # CSS 片段（在 设置 → Snippets 中切
 |--------|------|
 | `Ctrl+P` | 快速打开文件 |
 | `Ctrl+F` | 聚焦搜索面板 |
+| `Ctrl+H` | 命令历史（终端 / dsh） |
 | `Ctrl+S` | 保存文件编辑 |
 | `Ctrl+Enter` | 提交 Git 提交 |
 | `Ctrl+↑` / `Ctrl+↓` | 切换终端会话 |
 | `Ctrl+←` / `Ctrl+→` | 切换右侧面板标签页 |
 | `Ctrl+=` / `Ctrl+-` | 增大 / 减小终端字号 |
 | `Shift+Enter` | 终端内换行（不发送执行） |
+| `Alt+K` | 打开 CodeGraph 搜索 |
+| `Alt+F` | 搜索终端 |
+| `Alt+←` / `Alt+→` | 后退 / 前进 |
 | `长按 Alt` | 显示 NavBar（最近文件） |
 | `右键点击` | 终端复制 / 粘贴 |
 | `Esc` | 关闭 Diff / 预览 / 返回 |
