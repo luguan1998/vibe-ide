@@ -8,7 +8,7 @@
 
 ## 快速上手：三种基本用法
 
-Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**、**Claude GUI** 和 **dsh**，覆盖从纯命令行到 AI 结对编程的各种工作流。三者共用左侧会话列表和右侧 Git / 搜索 / 文件工具，切换时不会丢失当前工作目录。
+Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**、**Claude GUI** 和 **dsh**，覆盖从纯命令行到 AI 结对编程的各种工作流。三者共用左侧会话列表和右侧 Git / 搜索 / 文件工具；Claude Code 和 dsh 的历史会话都可以在“会话历史”中恢复。
 
 ### 1. Terminal —— 原生终端
 
@@ -18,13 +18,13 @@ Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**
 
 ### 2. Claude GUI —— Claude Code 桌面 GUI
 
-- 新建会话时选择 **Claude**（或右键已有会话切换到 GUI 模式），即可打开内置的 Claude Code 桌面图形界面。
+- 新建会话时选择 **Claude**，即可打开内置的 Claude Code 桌面图形界面。
 - 本质是 Claude Code CLI 的桌面 GUI 前端：在聊天框里直接提需求，实时流式查看回答、思维块、工具调用和权限提示。
 - 支持会话历史、模型切换、Plan→Execute、回退/Fork、Worktree 导航等，适合把编码任务交给 Claude 去执行。
 
 ### 3. dsh —— DeepSeek Harness Agent
 
-- 新建会话时选择 **dsh**（或右键已有会话切换到 dsh），即可进入 DeepSeek Harness Agent 模式。
+- 新建会话时选择 **dsh**，即可进入 DeepSeek Harness Agent 模式。
 - 在 Vibe 内嵌渲染真实 dsh 对话界面，支持思维链、工具调用、流式输出和轨迹回放。
 - 会话仍由左侧面板统一管理，支持 dsh 插件管理，并与原生 dsh CLI 共用 `~/.dsh`，方便在 IDE 内外无缝衔接。
 
@@ -76,7 +76,7 @@ Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**
 - Plan→Execute 流水线；AskUserQuestion 恢复
 
 ### 🧠 dsh Agent 模式 — DeepSeek Harness
-- 与终端、Claude 并列的第三种中间视图：可从新建会话选择器创建 `dsh` 会话，或在会话右键菜单切换到 dsh 模式
+- 与终端、Claude 并列的第三种中间视图：可从新建会话选择器创建 `dsh` 会话；历史会话可从会话历史中恢复
 - 在进程内渲染真实 dsh 对话界面（cordis 插件栈），支持思维链 / 工具调用 / 流式输出 / 轨迹
 - 会话仍由 Vibe 左侧面板管理；dsh 工作区挂载、Fork、历史恢复/删除均同步回 Vibe
 - 通过 dsh 主题桥自动跟随 Vibe 主题与字体
