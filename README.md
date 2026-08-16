@@ -140,6 +140,34 @@ cd ..
 npm install
 ```
 
+### dsh Presets
+
+`presets/` holds ready-to-use dsh agent presets. Each preset directory is copied into the user
+preset root to activate it — no code changes needed:
+
+```bash
+cp -r presets/minimal-gitbash "$USERPROFILE/.dsh/.agent-presets/"
+```
+
+`presets/minimal-gitbash` is a **Windows-only** variant of the official `minimal` preset: a
+two-tool agent (persistent `bash` + `str_replace_editor`) that runs Git Bash explicitly. On
+macOS/Linux the shipped `minimal` preset already works out of the box (its default
+`/bin/bash` resolves to the system bash), so this preset is not needed there.
+
+Before copying, edit `agent.cordis.yml` and point `shellPath` at the Git Bash installed on that
+machine:
+
+```yaml
+- id: terminal-bash
+  name: '@deepseek-ai/dsh-terminal-bash'
+  config:
+    timeoutMs: 300000
+    shellPath: 'C:\Program Files\Git\bin\bash.exe'   # <- replace with your Git bash.exe path
+```
+
+After copying, the preset shows up in the dsh preset picker; set it as the default preset there
+(or via `~/.dsh/settings.yaml` → `agent-presets.default`).
+
 ### Install & Run (fresh machine)
 
 ```bash

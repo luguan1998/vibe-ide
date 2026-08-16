@@ -140,6 +140,31 @@ cd ..
 npm install
 ```
 
+### dsh 预设
+
+`presets/` 存放可直接使用的 dsh agent 预设。把预设目录复制到用户预设根目录即可生效，无需改任何代码：
+
+```bash
+cp -r presets/minimal-gitbash "$USERPROFILE/.dsh/.agent-presets/"
+```
+
+`presets/minimal-gitbash` 是官方 `minimal` 预设的 **Windows 专属**变体：双工具 Agent（持久
+`bash` + `str_replace_editor`），显式使用 Git Bash。macOS/Linux 上自带的 `minimal` 预设开箱即用
+（默认 `/bin/bash` 就是系统 bash），无需本预设。
+
+复制前先编辑 `agent.cordis.yml`，把 `shellPath` 改为该机器上 Git Bash 的实际路径：
+
+```yaml
+- id: terminal-bash
+  name: '@deepseek-ai/dsh-terminal-bash'
+  config:
+    timeoutMs: 300000
+    shellPath: 'C:\Program Files\Git\bin\bash.exe'   # <- 换成你机器的 Git bash.exe 路径
+```
+
+复制后即可在 dsh 预设列表中选择；要作为默认，在设置里选为默认（或改
+`~/.dsh/settings.yaml` 的 `agent-presets.default`）。
+
 ### 安装 & 运行（新电脑完整流程）
 
 ```bash
