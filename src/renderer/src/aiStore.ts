@@ -248,28 +248,46 @@ export const aiStore = {
     cliCommand?: string
     configDir?: string
     computerUse?: boolean
-  }) {
+  }): Promise<{ resumed: boolean; cwd?: string }> {
     const fallback = readAiCliConfig()
     const cliCommand = opts.cliCommand ?? fallback.cliCommand
     const configDir = opts.configDir ?? fallback.configDir
     const computerUse = opts.computerUse ?? fallback.computerUse
+    createdSessions.add(sid)
     let messages: any[] = []
     let model = ''
     let slashCommands: any[] = []
+    let resumeCwd = cwd
     try {
-      const history = await window.api.ai.loadSessionMessages(historySessionId, cwd, configDir)
+      const history = await window.api.ai.loadSessionMessages(historySessionId, resumeCwd, configDir)
       messages = history.messages || []
       model = history.model || ''
       slashCommands = history.slashCommands || []
     } catch {}
+    // 如果传入的 cwd 找不到 JSONL，可能持久化里存的是 UI 目录而不是会话实际目录
+    // （例如 worktree / 子目录启动）。尝试从全量历史里按 session_id 找到真实 cwd 再试一次。
+    if (messages.length === 0) {
+      try {
+        const all = await window.api.ai.listAllSessions(configDir)
+        const found = (all?.sessions || []).find((s: any) => s.session_id === historySessionId)
+        if (found && typeof found.cwd === 'string' && found.cwd) {
+          resumeCwd = found.cwd
+          const history = await window.api.ai.loadSessionMessages(historySessionId, resumeCwd, configDir)
+          messages = history.messages || []
+          model = history.model || ''
+          slashCommands = history.slashCommands || []
+        }
+      } catch {}
+    }
+    // 如果确实找不到 JSONL，才降级为新建空白 GUI，避免 CLI 报 “No conversation found”。
+    const resumed = messages.length > 0
     try { await window.api.ai.destroy(sid) } catch {}
-    createdSessions.add(sid)
     window.api.ai.create({
       sessionId: sid,
-      cwd,
+      cwd: resumeCwd,
       autoApprove: opts.autoApprove,
       permissionMode: opts.permissionMode,
-      resumeSessionId: historySessionId,
+      ...(resumed ? { resumeSessionId: historySessionId } : {}),
       ...(cliCommand ? { cliCommand } : {}),
       ...(configDir ? { configDir } : {}),
       ...(computerUse ? { computerUse: true } : {}),
@@ -280,9 +298,10 @@ export const aiStore = {
       model,
       slashCommands: enrichSlashCommands(slashCommands),
       name: opts.name || '',
-      cwd,
+      cwd: resumeCwd,
       ready: false,
     }))
+    return { resumed, cwd: resumeCwd }
   },
   handlePermissionResponse(
     sessionId: string, requestId: string, approved: boolean,

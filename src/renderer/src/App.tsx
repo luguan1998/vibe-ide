@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
 import { getDshApi } from './dsh/history'
+import { loadSessionWorkspace, saveSessionWorkspace, type Session, type SessionTab } from './sessionRestore'
 const DshView = lazy(() => import('./components/DshView'))
 import type { DshViewHandle } from './components/DshView'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
@@ -198,7 +199,7 @@ declare global {
         removeStreamTokenListener: (handler?: any) => void
         onPermission: (callback: (data: any) => void) => any
         removePermissionListener: (handler?: any) => void
-        onReady: (callback: (data: { sessionId: string }) => void) => any
+        onReady: (callback: (data: { sessionId: string; session_id?: string; cwd?: string }) => void) => any
         removeReadyListener: (handler?: any) => void
         onFileChange: (callback: (data: any) => void) => any
         removeFileChangeListener: (handler?: any) => void
@@ -287,8 +288,10 @@ function HistoryCopyButton({ cmd }: { cmd: string }) {
 
 export default function App() {
   const { t } = useI18n()
-  const [sessions, setSessions] = useState<TerminalSession[]>([])
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [initialWorkspace] = useState(loadSessionWorkspace)
+  const initialTabs = useMemo(() => initialWorkspace?.sessions.flatMap(s => s.tabs) ?? [], [initialWorkspace])
+  const [sessions, setSessions] = useState<SessionTab[]>(initialTabs)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(initialWorkspace?.activeTabId ?? null)
   const [rightTerminalSessions, setRightTerminalSessions] = useState<Record<string, AuxTerminalTab[]>>({})  // 每个 session 独立的 aux terminal tabs（每 tab 含 1-3 个 terminal）
   const [activeAuxIndex, setActiveAuxIndex] = useState<Record<string, number>>({})  // 每个 session 当前 active 的 aux terminal 下标
   const [rightPanelWidth, setRightPanelWidth] = useState(380)
@@ -353,11 +356,17 @@ export default function App() {
     return () => clearTimeout(t)
   }, [])
 
+  // 有需要恢复的 DSH 会话时，后台先把 DSH server 拉起来；具体会话仍点击后再加载
+  useEffect(() => {
+    const hasDsh = initialWorkspace?.sessions.some(s => s.tabs.some(t => t.kind === 'dsh')) ?? false
+    if (!hasDsh) return
+    const t = window.setTimeout(() => {
+      window.api.dsh.start().catch(() => {})
+    }, 1000)
+    return () => clearTimeout(t)
+  }, [initialWorkspace])
+
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
-  const [sessionViewModes, setSessionViewModes] = useState<Record<string, 'term' | 'gui' | 'dsh'>>({})
-  const sessionViewModesRef = useRef(sessionViewModes); sessionViewModesRef.current = sessionViewModes
-  const [dshResumeIds, setDshResumeIds] = useState<Record<string, string>>({})
-  const dshResumeIdsRef = useRef(dshResumeIds); dshResumeIdsRef.current = dshResumeIds
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
   const callGraphFocalNodeRef = useRef<any>(null); callGraphFocalNodeRef.current = callGraphFocalNode
   const handleOpenCallGraphFromEditor = useCallback(async (word: string) => {
@@ -540,7 +549,6 @@ export default function App() {
 
   const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
   const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
-  const [forkSessions, setForkSessions] = useState<Record<string, string>>({})
   const [focusedPanel, setFocusedPanel] = useState<'term' | 'right' | null>(null)
   const [wordWrap, setWordWrap] = useState(() => {
     try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
@@ -639,6 +647,87 @@ export default function App() {
     const cwds = Array.from(new Set(sessions.map(s => s.cwd.replace(/\\/g, '/').replace(/\/$/, ''))))
     cwdStore.setLastOpenCwds(cwds)
   }, [sessions])
+
+  // 持久化当前打开的所有 tab，按 cwd 聚合为 Session 容器
+  React.useEffect(() => {
+    const byCwd = new Map<string, { cwd: string; tabs: SessionTab[] }>()
+    for (const s of sessions) {
+      const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
+      const group = byCwd.get(key) || { cwd: s.cwd, tabs: [] }
+      group.tabs.push(s)
+      byCwd.set(key, group)
+    }
+    const sessionContainers: Session[] = []
+    for (const group of byCwd.values()) {
+      const activeTabId = group.tabs.some(t => t.id === activeSessionId) ? activeSessionId! : group.tabs[0].id
+      sessionContainers.push({
+        id: group.cwd.replace(/\\/g, '/').replace(/\/+$/, ''),
+        cwd: group.cwd,
+        name: group.tabs[0].name,
+        activeTabId,
+        tabs: group.tabs,
+      })
+    }
+    saveSessionWorkspace({ activeTabId: activeSessionId, sessions: sessionContainers })
+  }, [sessions, activeSessionId])
+
+  // 恢复的终端 tab 直接后台创建真实 PTY，不需要用户点击
+  React.useEffect(() => {
+    const terminalTabs = initialWorkspace?.sessions.flatMap(s => s.tabs.filter(t => t.kind === 'terminal')) ?? []
+    if (terminalTabs.length === 0) return
+    let cancelled = false
+    void (async () => {
+      for (const tab of terminalTabs) {
+        if (cancelled) break
+        try {
+          if (!sessionsRef.current.some(s => s.id === tab.id)) continue
+          const real = await window.api.terminal.create({
+            cwd: tab.cwd,
+            shell: getMainShellType(),
+            autoUtf8,
+            initCommand: readDefaultAgent(),
+          })
+          const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true }
+          if (cancelled) {
+            await window.api.terminal.close(real.id)
+            break
+          }
+          if (!sessionsRef.current.some(s => s.id === tab.id)) {
+            await window.api.terminal.close(real.id)
+            continue
+          }
+          setSessions(prev => {
+            if (!prev.some(s => s.id === tab.id)) return prev
+            const idx = prev.findIndex(s => s.id === tab.id)
+            const next = prev.filter(s => s.id !== tab.id)
+            next.splice(Math.min(idx, next.length), 0, realTab)
+            return next
+          })
+          setActiveSessionId(prev => prev === tab.id ? real.id : prev)
+        } catch (err) {
+          console.error('Failed to restore terminal session:', err)
+        }
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // AI ready 时记录 CC GUI 的真实 Claude session id，供重启后 --resume 恢复
+  React.useEffect(() => {
+    const handler = window.api.ai.onReady((data: any) => {
+      const sid: string | undefined = data?.sessionId
+      const sessionId: string | undefined = data?.session_id
+      const cwd: string | undefined = data?.cwd
+      if (sid && sessionId) {
+        setSessions(prev => prev.map(s => s.id === sid ? { ...s, resumeSessionId: sessionId } : s))
+      }
+      if (sid && cwd) {
+        setSessions(prev => prev.map(s => s.id === sid ? { ...s, resumeCwd: cwd } : s))
+      }
+    })
+    return () => window.api.ai.removeReadyListener(handler)
+  }, [])
 
   React.useEffect(() => {
     aiStore.setActiveSession(activeSessionId)
@@ -760,7 +849,7 @@ export default function App() {
   // Focus input when switching sessions or returning from diff
   useEffect(() => {
     if (centerView === 'terminal' && activeSessionId) {
-      const mode = sessionViewModes[activeSessionId]
+      const mode = sessions.find(s => s.id === activeSessionId)?.kind
       const timer = setTimeout(() => {
         if (mode === 'gui') {
           aiTabRefs.current[activeSessionId]?.focus()
@@ -772,7 +861,7 @@ export default function App() {
       }, 0)
       return () => clearTimeout(timer)
     }
-  }, [centerView, activeSessionId, sessionViewModes])
+  }, [centerView, activeSessionId, sessions])
 
   // Persist font sizes to localStorage
   React.useEffect(() => {
@@ -1003,13 +1092,13 @@ export default function App() {
   const sendToDshSession = useCallback(async (sessionId: string, text: string) => {
     handleCommandEntered(sessionId, text)
     const api = await getDshApi(sessionsRef.current.find(s => s.id === sessionId)?.cwd)
-    const dshId = dshResumeIdsRef.current[sessionId] || sessionId
+    const dshId = sessionsRef.current.find(s => s.id === sessionId)?.dshSessionId || sessionId
     await api.sessions.prompt({ sessionId: dshId, mode: 'queue', content: [{ type: 'text', text }] })
   }, [handleCommandEntered])
 
   const sendDraftLine = useCallback(async (sessionId: string | null | undefined, text: string) => {
     if (!sessionId) return
-    const mode = sessionViewModesRef.current[sessionId]
+    const mode = sessionsRef.current.find(s => s.id === sessionId)?.kind
     if (mode === 'gui') {
       aiTabRefs.current[sessionId]?.sendText(text)
       aiTabRefs.current[sessionId]?.focus()
@@ -1018,10 +1107,10 @@ export default function App() {
     if (mode === 'dsh') {
       try {
         const api = await getDshApi(sessionsRef.current.find(s => s.id === sessionId)?.cwd)
-        const dshId = dshResumeIdsRef.current[sessionId] || sessionId
+        const dshId = sessionsRef.current.find(s => s.id === sessionId)?.dshSessionId || sessionId
         // 自动命名：仅当 DSH 会话还没有任何用户问题时才用当前文本命名，
         // 避免覆盖 DSH 自己按“最早问题”生成的标题（恢复的历史会话也保留原标题）。
-        if (!dshResumeIdsRef.current[sessionId] && !manuallyRenamedRef.current.has(sessionId) && !dshAutoTitledRef.current.has(sessionId)) {
+        if (!sessionsRef.current.find(s => s.id === sessionId)?.dshSessionId && !manuallyRenamedRef.current.has(sessionId) && !dshAutoTitledRef.current.has(sessionId)) {
           const historyRes = await api.sessions.history({ sessionId: dshId, maxMessages: 200 }).catch(() => null)
           const hasExistingUserMessage = !!historyRes?.result?.ok
             && ((historyRes.result.value?.events ?? []) as any[]).some(
@@ -1064,7 +1153,7 @@ export default function App() {
   // gui/dsh session 无 PTY：terminal.rename 失败时本地改名
   const applyRename = useCallback(async (id: string, name: string) => {
     const r = await window.api.terminal.rename(id, name)
-    if (r.success && r.session) setSessions(prev => prev.map(s => s.id === id ? r.session! : s))
+    if (r.success && r.session) setSessions(prev => prev.map(s => s.id === id ? { ...s, ...r.session! } : s))
     else setSessions(prev => prev.map(s => s.id === id ? { ...s, name } : s))
   }, [])
 
@@ -1116,8 +1205,9 @@ export default function App() {
       return
     }
     const command = queue.shift()!
-    const isGui = sessionViewModesRef.current[sessionId] === 'gui'
-    const isDsh = sessionViewModesRef.current[sessionId] === 'dsh'
+    const target = sessionsRef.current.find(s => s.id === sessionId)
+    const isGui = target?.kind === 'gui'
+    const isDsh = target?.kind === 'dsh'
     const PIPE_DETECT_DELAY = 2000
     const lines = command.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean)
     const runner = { cancelled: false, resolveIdle: null as (() => void) | null, sleepTimer: null as ReturnType<typeof setTimeout> | null, sleepResolve: null as (() => void) | null }
@@ -1199,7 +1289,7 @@ export default function App() {
     ;(window as any).__vibeAppendInput = (text: string) => {
       const sid = activeSessionIdRef.current
       if (!sid) return
-      if (sessionViewModesRef.current[sid] === 'gui') {
+      if (sessionsRef.current.find(s => s.id === sid)?.kind === 'gui') {
         aiTabRefs.current[sid]?.appendText(text)
         aiTabRefs.current[sid]?.focus()
       } else {
@@ -1260,7 +1350,7 @@ export default function App() {
 
     const result = await window.api.terminal.rename(sessionId, clean)
     if (result.success && result.session) {
-      setSessions(prev => prev.map(s => s.id === sessionId ? result.session! : s))
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, ...result.session! } : s))
     }
   }, [])
 
@@ -1378,9 +1468,9 @@ export default function App() {
 
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
       // Use visual order: grouped by cwd when grouping enabled, raw array order otherwise
-      let visualOrder: TerminalSession[]
+      let visualOrder: SessionTab[]
       if (groupSessionsByCwd) {
-        const groups = new Map<string, TerminalSession[]>()
+        const groups = new Map<string, SessionTab[]>()
         for (const s of sessions) {
           const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
           if (!groups.has(key)) groups.set(key, [])
@@ -1399,7 +1489,7 @@ export default function App() {
         const next = (idx + 1) % visualOrder.length
         if (visualOrder[next]) {
           const nextId = visualOrder[next].id
-          const nextMode = sessionViewModesRef.current[nextId]
+          const nextMode = sessionsRef.current.find(s => s.id === nextId)?.kind
           setActiveSessionId(nextId)
           setCenterView('terminal')
           setDiffFile(null)
@@ -1420,7 +1510,7 @@ export default function App() {
         const next = (idx - 1 + visualOrder.length) % visualOrder.length
         if (visualOrder[next]) {
           const nextId = visualOrder[next].id
-          const nextMode = sessionViewModesRef.current[nextId]
+          const nextMode = sessionsRef.current.find(s => s.id === nextId)?.kind
           setActiveSessionId(nextId)
           setCenterView('terminal')
           setDiffFile(null)
@@ -1508,7 +1598,7 @@ export default function App() {
           e.stopImmediatePropagation()
           const idx = historySelectedIndexRef.current
           if (cmds[idx]) {
-            if (sessionViewModesRef.current[activeSessionId] === 'dsh') {
+            if (sessionsRef.current.find(s => s.id === activeSessionId)?.kind === 'dsh') {
               void sendToDshSession(activeSessionId, cmds[idx])
             } else {
               window.api.terminal.write(activeSessionId, cmds[idx].replace(/\n/g, '\x1b\r') + '\r')
@@ -1589,7 +1679,7 @@ export default function App() {
             e.stopImmediatePropagation()
             active.blur()
             if (activeSessionId) {
-              const mode = sessionViewModesRef.current[activeSessionId]
+              const mode = sessionsRef.current.find(s => s.id === activeSessionId)?.kind
               setTimeout(() => {
                 if (mode === 'gui') {
                   aiTabRefs.current[activeSessionId]?.focus()
@@ -1689,17 +1779,19 @@ export default function App() {
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
 
   // 本地构造 gui/dsh session 记录（不建 PTY，三者互斥省内存）
-  function makeLocalSession(cwd: string, opts?: { name?: string; id?: string }): TerminalSession {
+  function makeLocalSession(cwd: string, opts?: { name?: string; id?: string }): SessionTab {
     return {
       id: opts?.id || `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       name: opts?.name || `Terminal ${sessionsRef.current.length + 1}`,
       cwd,
       active: true,
       createdAt: Date.now(),
+      kind: 'terminal',
+      loaded: true,
     }
   }
 
-  const addSessionRecord = useCallback((session: TerminalSession, parentId?: string | null) => {
+  const addSessionRecord = useCallback((session: SessionTab, parentId?: string | null) => {
     setSessions(prev => {
       if (prev.some(s => s.id === session.id)) return prev
       if (parentId == null) return [...prev, session]
@@ -1716,7 +1808,8 @@ export default function App() {
 
   const createTermSession = useCallback(async (cwd: string, shell: string = getMainShellType()) => {
     const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: readDefaultAgent() })
-    addSessionRecord(session)
+    const tab: SessionTab = { ...session, kind: 'terminal', loaded: true }
+    addSessionRecord(tab)
     return session
   }, [autoUtf8, addSessionRecord])
 
@@ -1725,18 +1818,22 @@ export default function App() {
   const [dirPicker, setDirPicker] = useState<{ initialDir: string; shell?: string } | null>(null)
   const dirPickerRef = useRef(dirPicker); dirPickerRef.current = dirPicker
   const handleCreateSession = useCallback((shell: string = getMainShellType()) => {
+    // 已有当前 cwd 时直接在当前目录开终端，不走目录选择向导
+    if (activeSessionCwd) {
+      void createTermSession(activeSessionCwd, shell)
+      return
+    }
     let initialDir = 'C:\\'
     try {
       const last = localStorage.getItem('vibe-ide-dirpicker-last-dir')
       if (last) initialDir = last
-      else if (activeSessionCwd) initialDir = activeSessionCwd
       else {
         const recent = cwdStore.getRecentDirs()
         if (recent.length > 0) initialDir = recent[0]
       }
     } catch {}
     setDirPicker({ initialDir, shell })
-  }, [activeSessionCwd])
+  }, [activeSessionCwd, createTermSession])
 
   // 右键「新建」：在当前 cwd 直接创建对应类型，不弹目录选择
   const handleNewSessionHere = useCallback(async (cwd: string, mode: 'term' | 'gui' | 'dsh') => {
@@ -1746,8 +1843,7 @@ export default function App() {
         await createTermSession(cwd)
       } else {
         const session = makeLocalSession(cwd)
-        addSessionRecord(session)
-        setSessionViewModes(prev => ({ ...prev, [session.id]: mode }))
+        addSessionRecord({ ...session, kind: mode, loaded: true })
       }
     } catch (err) {
       console.error('Failed to create session here:', err)
@@ -1765,8 +1861,7 @@ export default function App() {
         await createTermSession(cwd, dirPicker?.shell)
       } else {
         const session = makeLocalSession(cwd)
-        addSessionRecord(session)
-        setSessionViewModes(prev => ({ ...prev, [session.id]: mode }))
+        addSessionRecord({ ...session, kind: mode, loaded: true })
       }
     } catch (err) {
       console.error('Failed to create session:', err)
@@ -1821,20 +1916,19 @@ export default function App() {
 
   // Clone a terminal session (same cwd), insert below parent
   const handleCloneSession = useCallback(async (parentId: string | null, cwd: string, shell?: string, name?: string) => {
-    const parentMode = parentId ? sessionViewModes[parentId] : undefined
+    const parentMode = parentId ? sessions.find(s => s.id === parentId)?.kind : undefined
     if (parentMode === 'gui' || parentMode === 'dsh') {
       const session = makeLocalSession(cwd, { name })
-      addSessionRecord(session, parentId)
-      setSessionViewModes(prev => ({ ...prev, [session.id]: parentMode }))
+      addSessionRecord({ ...session, kind: parentMode, loaded: true }, parentId)
       return
     }
     try {
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name, initCommand: readDefaultAgent() })
-      addSessionRecord(session, parentId)
+      addSessionRecord({ ...session, kind: 'terminal', loaded: true }, parentId)
     } catch (err) {
       console.error('Failed to clone terminal session:', err)
     }
-  }, [autoUtf8, sessionViewModes, addSessionRecord])
+  }, [autoUtf8, sessions, addSessionRecord])
 
   // Fork AI conversation at a specific user message
   const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number, content?: string, occurrence?: number) => {
@@ -1855,16 +1949,16 @@ export default function App() {
       }
 
       // 2. Local session record (gui mode, no PTY) — AiTab's auto-create will use resumeSessionId
-      const session = makeLocalSession(current.cwd)
+      const session: SessionTab = {
+        ...makeLocalSession(current.cwd),
+        kind: 'gui',
+        resumeSessionId: result.newClaudeSessionId!,
+        resumeCwd: current.cwd,
+        loaded: true,
+      }
 
-      // 3. Store fork resume ID for the new session
-      setForkSessions(prev => ({ ...prev, [session.id]: result.newClaudeSessionId! }))
-
-      // 4. Insert session right after the current one
+      // 3. Insert session right after the current one
       addSessionRecord(session, currentSessionId)
-
-      // 5. Switch to new session in gui mode
-      setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))
     } catch (err) {
       console.error('Failed to fork session:', err)
     }
@@ -1879,8 +1973,7 @@ export default function App() {
       try {
         // 固定 id=childId 收养 dsh 子会话（dsh 模式无 PTY）
         const session = makeLocalSession(d.cwd, { id: d.childId, name: d.title })
-        addSessionRecord(session, d.sourceId)
-        setSessionViewModes(prev => ({ ...prev, [session.id]: 'dsh' }))
+        addSessionRecord({ ...session, kind: 'dsh', dshSessionId: d.childId, loaded: true }, d.sourceId)
       } catch (err) {
         console.error('Failed to fork dsh session into Vibe:', err)
       }
@@ -1890,17 +1983,75 @@ export default function App() {
   }, [addSessionRecord])
 
   // Switch active session
-  const handleSwitchSession = useCallback((id: string) => {
+  const handleSwitchSession = useCallback(async (id: string) => {
+    const session = sessionsRef.current.find(s => s.id === id)
+    if (session) {
+      const mode = session.kind
+      const isDeferred = !session.loaded
+
+      // 恢复出来的 Terminal tab 没有真实 PTY，点击时新建一个并替换占位 tab
+      if (isDeferred && mode === 'terminal') {
+        try {
+          const real = await window.api.terminal.create({
+            cwd: session.cwd,
+            shell: getMainShellType(),
+            autoUtf8,
+            initCommand: readDefaultAgent(),
+          })
+          const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true }
+          setSessions(prev => {
+            const idx = prev.findIndex(s => s.id === id)
+            if (idx === -1) return prev
+            const next = prev.filter(s => s.id !== id)
+            next.splice(Math.min(idx, next.length), 0, realTab)
+            return next
+          })
+          setActiveSessionId(real.id)
+          setCenterView('terminal')
+          setDiffFile(null)
+          return
+        } catch (err) {
+          console.error('Failed to restore terminal session:', err)
+        }
+      }
+
+      if (isDeferred && (mode === 'gui' || mode === 'dsh')) {
+        setSessions(prev => prev.map(s => s.id === id ? { ...s, loaded: true } : s))
+
+        if (mode === 'gui') {
+          const resumeSessionId = session.resumeSessionId
+          if (resumeSessionId) {
+            const resumeCwd = session.resumeCwd || session.cwd
+            if (resumeCwd !== session.cwd) {
+              setSessions(prev => prev.map(s => s.id === id ? { ...s, cwd: resumeCwd } : s))
+            }
+            void aiStore.resumeSession(id, resumeSessionId, resumeCwd, {
+              autoApprove: false,
+              permissionMode: 'bypassPermissions',
+              name: session.name,
+            }).then((result) => {
+              if (!result) return
+              if (result.cwd && result.cwd !== (sessionsRef.current.find(x => x.id === id)?.resumeCwd || session.cwd)) {
+                setSessions(prev => prev.map(s => s.id === id ? { ...s, cwd: result.cwd!, resumeCwd: result.cwd! } : s))
+              }
+              if (!result.resumed) {
+                setSessions(prev => prev.map(s => s.id === id ? { ...s, resumeSessionId: undefined, resumeCwd: undefined } : s))
+              }
+            }).catch(() => {})
+          }
+        }
+      }
+    }
     setActiveSessionId(id)
     setCenterView('terminal')
     setDiffFile(null)
-  }, [])
+  }, [autoUtf8])
 
   // Execute a custom command — sends to AI input in GUI mode, terminal otherwise
   const handleExecuteCommand = useCallback((command: string) => {
     if (!activeSessionId) return
     const normalized = command.replace(/\r\n/g, '\n')
-    const mode = sessionViewModes[activeSessionId]
+    const mode = sessions.find(s => s.id === activeSessionId)?.kind
     if (mode === 'gui') {
       aiTabRefs.current[activeSessionId]?.setValue(normalized)
       aiTabRefs.current[activeSessionId]?.focus()
@@ -1910,16 +2061,17 @@ export default function App() {
       setDiffFile(null)
       setTimeout(() => terminalRefs.current[activeSessionId]?.focus(), 0)
     }
-  }, [activeSessionId, sessionViewModes])
+  }, [activeSessionId, sessions])
 
   const handleCloneWithInit = useCallback(async (sessionId: string, cwd: string, shell: string | undefined, command: string) => {
     try {
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: command })
+      const tab: SessionTab = { ...session, kind: 'terminal', loaded: true }
       setSessions(prev => {
         const parentIndex = prev.findIndex(s => s.id === sessionId)
-        if (parentIndex === -1) return [...prev, session]
+        if (parentIndex === -1) return [...prev, tab]
         const next = [...prev]
-        next.splice(parentIndex + 1, 0, session)
+        next.splice(parentIndex + 1, 0, tab)
         return next
       })
       setActiveSessionId(session.id)
@@ -1940,9 +2092,10 @@ export default function App() {
   const handleCloseSession = useCallback(async (id: string) => {
     cancelPipe(id)
     await window.api.terminal.close(id)
-    // 清理 terminalRefs / aiTabRefs 中已关闭 session 的 handle 引用
+    // 清理 terminalRefs / aiTabRefs / dshRefs 中已关闭 session 的 handle 引用
     delete terminalRefs.current[id]
     delete aiTabRefs.current[id]
+    delete dshRefs.current[id]
     setSessions(prev => prev.filter(s => s.id !== id))
     // 清理该 session 的命令历史和 agent 状态
     setCommandHistory(prev => {
@@ -1956,11 +2109,6 @@ export default function App() {
       return next
     })
     setAiBusy(prev => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
-    setForkSessions(prev => {
       const next = { ...prev }
       delete next[id]
       return next
@@ -2000,7 +2148,7 @@ export default function App() {
 
   const handleReorderGroup = useCallback((fromGroupIdx: number, toGroupIdx: number) => {
     setSessions(prev => {
-      const map = new Map<string, TerminalSession[]>()
+      const map = new Map<string, SessionTab[]>()
       const order: string[] = []
       for (const s of prev) {
         const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -2021,10 +2169,10 @@ export default function App() {
       manuallyRenamedRef.current.add(id)
     }
     await applyRename(id, newName)
-    if (sessionViewModesRef.current[id] === 'dsh') {
+    if (oldSession?.kind === 'dsh') {
       try {
         const api = await getDshApi(oldSession?.cwd)
-        await api.sessions.rename({ sessionId: dshResumeIdsRef.current[id] || id, title: newName })
+        await api.sessions.rename({ sessionId: oldSession.dshSessionId || id, title: newName })
       } catch (e) {
         console.error('Failed to rename dsh session:', e)
       }
@@ -2371,9 +2519,7 @@ export default function App() {
     try {
       setIsOpening(true)
       const session = makeLocalSession(cwd, { name: name || undefined })
-      addSessionRecord(session)
-      setDshResumeIds(prev => ({ ...prev, [session.id]: dshSessionId }))
-      setSessionViewModes(prev => ({ ...prev, [session.id]: 'dsh' }))
+      addSessionRecord({ ...session, kind: 'dsh', dshSessionId, loaded: true })
     } catch (err) {
       console.error('Failed to resume dsh history:', err)
     } finally {
@@ -2400,12 +2546,23 @@ export default function App() {
           : isPosix ? `CLAUDE_CONFIG_DIR='${resolvedConfigDir}' ${base}`
           : `$env:CLAUDE_CONFIG_DIR='${resolvedConfigDir}'; ${base}`
         const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name: name || undefined, initCommand })
-        addSessionRecord(session)
+        addSessionRecord({ ...session, kind: 'terminal', loaded: true })
       } else {
-        const session = makeLocalSession(cwd, { name: name || undefined })
+        const session: SessionTab = {
+          ...makeLocalSession(cwd, { name: name || undefined }),
+          kind: 'gui',
+          resumeSessionId: historySessionId,
+          resumeCwd: cwd,
+          loaded: true,
+        }
         addSessionRecord(session)
-        await aiStore.resumeSession(session.id, historySessionId, cwd, { autoApprove: false, permissionMode: 'bypassPermissions', name })
-        setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))
+        const resumeResult = await aiStore.resumeSession(session.id, historySessionId, cwd, { autoApprove: false, permissionMode: 'bypassPermissions', name })
+        if (resumeResult.cwd && resumeResult.cwd !== cwd) {
+          setSessions(prev => prev.map(s => s.id === session.id ? { ...s, cwd: resumeResult.cwd!, resumeCwd: resumeResult.cwd! } : s))
+        }
+        if (!resumeResult.resumed) {
+          setSessions(prev => prev.map(s => s.id === session.id ? { ...s, resumeSessionId: undefined, resumeCwd: undefined } : s))
+        }
       }
     } catch (err) {
       console.error('Failed to resume claude history:', err)
@@ -2685,15 +2842,21 @@ export default function App() {
           <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => {
-                const isGui = sessionViewModes[session.id] === 'gui'
-                const isDsh = sessionViewModes[session.id] === 'dsh'
+                const isGui = session.kind === 'gui'
+                const isDsh = session.kind === 'dsh'
+                const isDeferred = !session.loaded
+                if (isDeferred && session.id !== activeSessionId) return null
                 return (
                   <div
                     key={session.id}
                     className="flex-1 flex flex-col overflow-hidden"
                     style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
                   >
-                    {isGui ? (
+                    {isDeferred ? (
+                      <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
+                        {t('Loading...')}
+                      </div>
+                    ) : isGui ? (
                       <AiTab
                         ref={(node) => { if (node) aiTabRefs.current[session.id] = node }}
                         activeSessionId={session.id}
@@ -2708,14 +2871,14 @@ export default function App() {
                           window.api.ai.setPermissionMode(session.id, mode)
                         }}
                         onViewAi={() => {
-                          setSessionViewModes(prev => ({ ...prev, [session.id]: 'gui' }))
+                          setSessions(prev => prev.map(s => s.id === session.id ? { ...s, kind: 'gui' } : s))
                         }}
                         onOpenFile={handleOpenFileFromSearch}
                         onRenameSession={async (name: string) => {
                           if (manuallyRenamedRef.current.has(session.id)) return
                           await applyRename(session.id, name)
                         }}
-                        resumeSessionId={forkSessions[session.id]}
+                        resumeSessionId={session.resumeSessionId}
                         onForkSession={(userMessageIndex: number, content?: string, occurrence?: number) => {
                           handleForkSession(session.id, userMessageIndex, content, occurrence)
                         }}
@@ -2727,7 +2890,7 @@ export default function App() {
                         onCommand={onCommandForSession(session.id)}
                       />
                     ) : isDsh ? (
-                      <DshView ref={(node) => { if (node) dshRefs.current[session.id] = node }} sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} dshSessionId={dshResumeIds[session.id]} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} onCommand={onCommandForSession(session.id)} />
+                      <DshView ref={(node) => { if (node) dshRefs.current[session.id] = node }} sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} dshSessionId={session.dshSessionId} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} onCommand={onCommandForSession(session.id)} />
                     ) : (
                       <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
                     )}
@@ -2833,7 +2996,7 @@ export default function App() {
                         i === historySelectedIndex ? 'bg-ide-accent/20 text-ide-text' : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
                       }`}
                       onClick={() => {
-                        if (sessionViewModesRef.current[activeSessionId] === 'dsh') {
+                        if (sessionsRef.current.find(s => s.id === activeSessionId)?.kind === 'dsh') {
                           void sendToDshSession(activeSessionId, cmd)
                         } else {
                           window.api.terminal.write(activeSessionId, cmd.replace(/\n/g, '\x1b\r'))
@@ -2945,8 +3108,8 @@ export default function App() {
         activeSessionId={activeSessionId}
         activeSessionCwd={activeSessionCwd}
         sessions={sessions}
-        dshActive={!!activeSessionId && sessionViewModes[activeSessionId] === 'dsh'}
-        dshSessionId={activeSessionId ? (dshResumeIds[activeSessionId] || activeSessionId) : undefined}
+        dshActive={!!activeSessionId && sessions.find(s => s.id === activeSessionId)?.kind === 'dsh'}
+        dshSessionId={activeSessionId ? (sessions.find(s => s.id === activeSessionId)?.dshSessionId || activeSessionId) : undefined}
       />
     </div>
   )

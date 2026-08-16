@@ -444,6 +444,8 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         }
       }
       const payload: any = { sessionId, tools: msg.tools, model: msg.model, slashCommands: msg.slash_commands }
+      if (s?.claudeSessionId) payload.session_id = s.claudeSessionId
+      if (s?.cwd) payload.cwd = s.cwd
       if (s?.enableWorktree && !s.worktreePath && s.preWorktreeSnapshot) {
         const wtPath = detectNewWorktree(s.cwd, s.preWorktreeSnapshot, configDirMarker(s.configDir))
         if (wtPath) {
