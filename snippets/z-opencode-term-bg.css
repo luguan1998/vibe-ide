@@ -1,5 +1,5 @@
 /*
-  终端 / AiTab 背景图
+  终端 / AiTab / dsh 背景图
   ─────────────────────────────────────────────────
   用法：改下面两行即可 —— 换图改 url()，调压暗改 0.65
   生效：改图后「新开 session」才生效（xterm 只在 mount 时读一次）
@@ -31,4 +31,17 @@
   background-image: linear-gradient(var(--terminal-bg-overlay), var(--terminal-bg-overlay)), var(--terminal-bg-image) !important;
   background-size: cover, cover !important;
   background-position: center, center !important;
+}
+
+/* dsh 会话同样使用终端背景图 */
+.dsh-view {
+  position: relative !important;
+  background-image: linear-gradient(var(--terminal-bg-overlay), var(--terminal-bg-overlay)), var(--terminal-bg-image) !important;
+  background-size: cover, cover !important;
+  background-position: center, center !important;
+}
+
+/* dsh 内部会话根节点透明，让背景图透出 */
+.dsh-view [data-phase] {
+  background: transparent !important;
 }

@@ -47,14 +47,44 @@
 
 /* 4. 激活 tab：与下方内容卡片同底色，盖住卡片顶边实现融合 */
 .right-panel__tab-bar .right-panel__tab--active {
+  position: relative !important;
+  z-index: 1 !important;
   background: rgb(var(--ide-sidebar)) !important;
   border-color: rgb(var(--ide-border) / 0.6) !important;
   border-bottom-color: transparent !important;
   color: rgb(var(--ide-accent)) !important;
-  margin-bottom: -1px !important;
+  box-shadow: 0 1px 0 0 rgb(var(--ide-sidebar)) !important;
 }
 
 /* 5. 内容卡片顶部紧贴 tab 底部，不再有 mt-1 间隙 */
 .right-panel__content {
   margin-top: 0 !important;
+}
+
+/* 6. 胶囊选项卡关闭（仅 SVG 图标）时的适配：保持紧凑图标 tab、垂直居中 */
+.right-panel__tab-bar > div:nth-child(2):not([class*="rounded-lg"]) {
+  align-self: center !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
+
+.right-panel__tab-bar > div:nth-child(2):not([class*="rounded-lg"]) .right-panel__tab {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 6px !important;
+  gap: 0 !important;
+  margin-bottom: 0 !important;
+  background: transparent !important;
+}
+
+.right-panel__tab-bar > div:nth-child(2):not([class*="rounded-lg"]) .right-panel__tab--active {
+  position: static !important;
+  z-index: auto !important;
+  background: rgb(var(--ide-accent) / 0.10) !important;
+  border: none !important;
+  color: rgb(var(--ide-accent)) !important;
+  box-shadow: none !important;
+  margin-bottom: 0 !important;
 }
