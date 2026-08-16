@@ -29,5 +29,10 @@ reg add "HKCU\Software\Classes\Directory\Background\shell\VibeIDE" /ve /d "Open 
 reg add "HKCU\Software\Classes\Directory\Background\shell\VibeIDE" /v "Icon" /d "%EXE_PATH%" /f >nul 2>&1
 reg add "HKCU\Software\Classes\Directory\Background\shell\VibeIDE\command" /ve /d "\"%EXE_PATH%\" \"%%V\"" /f >nul 2>&1
 
+:: Add this directory to user PATH (so `dsh` works from any terminal)
+for %%I in ("%EXE_DIR%.") do set "CLEAN_DIR=%%~fI"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$d='%CLEAN_DIR%'; $p=[Environment]::GetEnvironmentVariable('Path','User'); if (($p -split ';') -notcontains $d) { $n = if ([string]::IsNullOrEmpty($p)) { $d } else { $p.TrimEnd(';') + ';' + $d }; [Environment]::SetEnvironmentVariable('Path',$n,'User'); Write-Host 'Added to user PATH: %CLEAN_DIR%' } else { Write-Host 'Already in user PATH: %CLEAN_DIR%' }"
+
 echo Done. Right-click any file or folder to "Open with Vibe IDE".
+echo dsh command is now available in new terminals.
 pause

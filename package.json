@@ -53,6 +53,18 @@
     ],
     "extraFiles": [
       {
+        "from": "build/dsh.cmd",
+        "to": "dsh.cmd"
+      },
+      {
+        "from": "build/dsh.ps1",
+        "to": "dsh.ps1"
+      },
+      {
+        "from": "build/dsh.sh",
+        "to": "dsh.sh"
+      },
+      {
         "from": "snippets",
         "to": "snippets",
         "filter": [
@@ -64,8 +76,7 @@
           "*.gif",
           "*.webp",
           "*.bmp",
-          "assets/**",
-          "snippets.json"
+          "assets/**"
         ]
       },
       {
