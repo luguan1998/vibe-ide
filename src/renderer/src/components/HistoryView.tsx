@@ -20,6 +20,13 @@ type HistoryMode = 'tui' | 'gui' | 'dsh'
 // dsh 会话归一化为 AiSessionSummary 形状后复用同一套列表渲染；dshRunning 标记运行中会话（不可删除）
 type Summary = AiSessionSummary & { dshRunning?: boolean }
 
+// dsh 会话 cwd 与 workspacePath 的分隔符/大小写可能不一致，比较前规范化
+function samePath(a?: string, b?: string): boolean {
+  if (!a || !b) return false
+  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  return norm(a) === norm(b)
+}
+
 function highlightParts(text: string, query: string, caseSensitive: boolean): React.ReactNode[] {
   if (!query) return [text]
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -80,9 +87,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     cwd: s.cwd ?? '',
     projectDir: s.cwd ?? '',
     projectDirName: s.cwd ?? 'dsh',
-    inCurrentProject: false,
+    inCurrentProject: samePath(s.cwd, workspacePath ?? undefined),
     dshRunning: s.running,
-  }), [])
+  }), [workspacePath])
 
   const fetchSessions = useCallback(async () => {
     const reqId = ++fetchReqIdRef.current
@@ -377,16 +384,14 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           >
             <RotateCcw size={13} className={listLoading ? 'animate-spin' : ''} />
           </button>
-          {mode !== 'dsh' && (
-            <button
-              onClick={() => setOnlyCurrent(v => !v)}
-              className={`flex items-center gap-1 h-5 px-2 rounded text-[11px] transition-colors ${onlyCurrent ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-              title={t('Current project only')}
-            >
-              <Filter size={11} />
-              <span>{t('Current only')}</span>
-            </button>
-          )}
+          <button
+            onClick={() => setOnlyCurrent(v => !v)}
+            className={`flex items-center gap-1 h-5 px-2 rounded text-[11px] transition-colors ${onlyCurrent ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+            title={t('Current project only')}
+          >
+            <Filter size={11} />
+            <span>{t('Current only')}</span>
+          </button>
         </div>
         <div className="relative" style={{ display: mode === 'dsh' ? 'none' : undefined }}>
           <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-ide-text-muted/50" />
