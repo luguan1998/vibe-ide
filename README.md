@@ -6,6 +6,30 @@
 
 ---
 
+## Quick Start: Three Basic Ways to Use
+
+Vibe IDE’s center area has three core usage modes — **Terminal**, **Claude GUI**, and **dsh** — covering workflows from plain shell commands to AI pair-programming. They share the same left-side session list and right-side Git / Search / File tools, so you can switch between them without losing your working directory.
+
+### 1. Terminal — Native Shell
+
+- The default center view. Use it for everyday commands, Git operations, scripts, and anything you would normally do in PowerShell / bash.
+- Supports multiple terminal sessions, command history, right-click paste, clickable file paths, and `Ctrl+=` / `Ctrl+-` font-size adjustment.
+- The most direct, low-level way to work with your project.
+
+### 2. Claude GUI — Claude Code Desktop GUI
+
+- Pick **Claude** when creating a new session (or switch an existing session to GUI mode via right-click) to open the built-in Claude Code desktop GUI.
+- It is a desktop GUI over the Claude Code CLI: type your request in the chat box and watch streaming replies, thinking blocks, tool-use visualization, and permission prompts live.
+- Supports session history, model switching, Plan→Execute, revert/fork, worktree navigation, and more — ideal for delegating coding tasks to Claude.
+
+### 3. dsh — DeepSeek Harness Agent
+
+- Pick **dsh** when creating a new session (or switch an existing session to dsh via right-click) to enter DeepSeek Harness agent mode.
+- Renders the real dsh chat UI in-process, with thinking chains, tool calls, streaming output, and trajectory.
+- Sessions stay managed in Vibe’s left panel; dsh plugin management and the shared `~/.dsh` are supported, so it also works with the original dsh CLI.
+
+---
+
 ## Screenshots
 
 | Terminal | Git Management |
