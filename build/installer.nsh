@@ -1,7 +1,11 @@
 !include "nsDialogs.nsh"
 
-!define WM_SETTINGCHANGE 0x001A
-!define HWND_BROADCAST 0xFFFF
+!ifndef WM_SETTINGCHANGE
+  !define WM_SETTINGCHANGE 0x001A
+!endif
+!ifndef HWND_BROADCAST
+  !define HWND_BROADCAST 0xFFFF
+!endif
 
 LangString VibeOptLabel 1033 "Choose additional options for Vibe IDE:"
 LangString VibeOptLabel 2052 "选择 Vibe IDE 的附加选项:"
@@ -82,6 +86,6 @@ LangString VibeCtxMenu 2052 "将$\"用 Vibe IDE 打开$\"添加到文件和文�
   DeleteRegKey HKCU "Software\Classes\directory\shell\VibeIDE"
   DeleteRegKey HKCU "Software\Classes\Directory\Background\shell\VibeIDE"
 
-  ; 从用户 PATH 移除安装目录（dsh 命令清理）
-  nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -Command "$d=''$INSTDIR''; $p=[Environment]::GetEnvironmentVariable(''Path'',''User''); if ($p) { $n=(($p -split '';'') | Where-Object { $_ -ne $d }) -join '';''; if ($n -ne $p) { [Environment]::SetEnvironmentVariable(''Path'',$n,''User'') } }"'
+  ; 从用户 PATH 移除安装目录（dsh 命令清理）——PowerShell 变量用 $$ 转义，防止 NSIS 误解析
+  nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -Command "$$d=''$INSTDIR''; $$p=[Environment]::GetEnvironmentVariable(''Path'',''User''); if ($$p) { $$n=(($$p -split '';'') | Where-Object { $$_ -ne $$d }) -join '';''; if ($$n -ne $$p) { [Environment]::SetEnvironmentVariable(''Path'',$$n,''User'') } }"'
 !macroend
