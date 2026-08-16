@@ -3,7 +3,6 @@ import { useSyncExternalStore } from 'react'
 const MAX_RECENT_DIRS = 10
 const RECENT_KEY = 'vibe-ide-recent-dirs'
 const FAV_KEY = 'vibe-ide-fav-cwds'
-const LAST_OPEN_KEY = 'vibe-ide-last-open-cwds'
 
 function normalizeCwd(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/$/, '')
@@ -29,7 +28,6 @@ function saveArr(key: string, arr: string[]): void {
 
 let recentDirs: string[] = loadArr(RECENT_KEY, MAX_RECENT_DIRS)
 let favCwds: string[] = loadArr(FAV_KEY)
-let lastOpenCwds: string[] = loadArr(LAST_OPEN_KEY)
 const listeners = new Set<() => void>()
 function emit() { for (const l of listeners) l() }
 
@@ -40,7 +38,6 @@ export const cwdStore = {
   },
   getRecentDirs: () => recentDirs,
   getFavCwds: () => favCwds,
-  getLastOpenCwds: () => lastOpenCwds,
   addRecentDir(dir: string) {
     const n = normalizeCwd(dir)
     const next = [n, ...recentDirs.filter(d => d !== n)].slice(0, MAX_RECENT_DIRS)
@@ -65,11 +62,6 @@ export const cwdStore = {
     saveArr(FAV_KEY, next)
     emit()
   },
-  setLastOpenCwds(cwds: string[]) {
-    lastOpenCwds = cwds
-    saveArr(LAST_OPEN_KEY, cwds)
-    emit()
-  },
 }
 
 export function useRecentDirs(): string[] {
@@ -78,8 +70,4 @@ export function useRecentDirs(): string[] {
 
 export function useFavCwds(): string[] {
   return useSyncExternalStore(cwdStore.subscribe, cwdStore.getFavCwds)
-}
-
-export function useLastOpenCwds(): string[] {
-  return useSyncExternalStore(cwdStore.subscribe, cwdStore.getLastOpenCwds)
 }

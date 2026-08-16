@@ -641,13 +641,6 @@ export default function App() {
     mujicaStore.setDefaultCwd(sessions.find(s => s.id === activeSessionId)?.cwd ?? null)
   }, [sessions, activeSessionId])
 
-  // 关闭 app 时记录当前打开的 cwd 快照；sessions 清空时不写以保留上次关闭时的列表
-  React.useEffect(() => {
-    if (sessions.length === 0) return
-    const cwds = Array.from(new Set(sessions.map(s => s.cwd.replace(/\\/g, '/').replace(/\/$/, ''))))
-    cwdStore.setLastOpenCwds(cwds)
-  }, [sessions])
-
   // 持久化当前打开的所有 tab，按 cwd 聚合为 Session 容器
   React.useEffect(() => {
     const byCwd = new Map<string, { cwd: string; tabs: SessionTab[] }>()

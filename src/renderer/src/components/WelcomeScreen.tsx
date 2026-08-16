@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react'
 import { FolderOpen, FolderGit2, ChevronRight, Clock, Check, RotateCcw } from 'lucide-react'
 import iconImg from '@renderer/assets/icon.png?inline'
 import { useI18n } from '../i18n'
-import { useRecentDirs, useLastOpenCwds } from '../cwdStore'
+import { useRecentDirs } from '../cwdStore'
 
 function getFolderName(path: string): string {
   const normalized = path.replace(/\\/g, '/').replace(/\/$/, '')
@@ -49,11 +49,7 @@ function OpeningOverlay() {
 const WelcomeScreen = React.memo(function WelcomeScreen({ isOpening, onOpenFolder, onOpenPath }: WelcomeScreenProps) {
   const { t } = useI18n()
   const recentDirs = useRecentDirs()
-  const lastOpenCwds = useLastOpenCwds()
-  const [checked, setChecked] = useState<Set<string>>(() => {
-    const lastSet = new Set(lastOpenCwds)
-    return new Set(recentDirs.filter(d => lastSet.has(d)))
-  })
+  const [checked, setChecked] = useState<Set<string>>(() => new Set())
 
   const toggleCheck = useCallback((dir: string) => {
     setChecked(prev => {
