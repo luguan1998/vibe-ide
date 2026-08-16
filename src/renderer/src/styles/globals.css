@@ -840,6 +840,18 @@ html, body, #root {
   color: rgb(var(--ide-accent-hover));
 }
 .dsh-view [class*="markdown"] pre code { background: none; padding: 0; border: none; border-radius: 0; font-size: inherit; color: rgb(var(--ide-text)); }
+
+/* DSH 自带的 CodeBlock 是外层圆角容器 + 内层 pre，边框应放在外层，
+   避免内层 pre 的边框/圆角与外层 12px 容器不匹配导致底部左右缺色 */
+.dsh-view [class*="markdown"] .md-code-block {
+  border: 1px solid rgb(var(--ide-accent));
+  border-radius: 12px;
+}
+.dsh-view [class*="markdown"] .md-code-block pre {
+  border: none;
+  border-radius: 0 0 12px 12px;
+  margin: 0;
+}
 .dsh-view [class*="markdown"] blockquote {
   border-left: 3px solid rgb(var(--ide-accent));
   padding: 0.5em 1em;

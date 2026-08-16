@@ -471,7 +471,7 @@ export default function App() {
   warnSessionsRef.current = warnSessions
   const prevBusyRef = useRef<Record<string, boolean>>({})
   // 整个 app 是否聚焦（window blur / 最小化 → false），用于宠物 unfocused 状态
-  const [appFocused, setAppFocused] = useState(() => (typeof document !== 'undefined' ? document.hasFocus() : true))
+  const [appFocused, setAppFocused] = useState(true)
   const agentStatus = useMemo(() => {
     const result: Record<string, 'running' | 'idle' | 'warn'> = {}
     for (const s of sessions) {
