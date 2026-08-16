@@ -1811,22 +1811,18 @@ export default function App() {
   const [dirPicker, setDirPicker] = useState<{ initialDir: string; shell?: string } | null>(null)
   const dirPickerRef = useRef(dirPicker); dirPickerRef.current = dirPicker
   const handleCreateSession = useCallback((shell: string = getMainShellType()) => {
-    // 已有当前 cwd 时直接在当前目录开终端，不走目录选择向导
-    if (activeSessionCwd) {
-      void createTermSession(activeSessionCwd, shell)
-      return
-    }
     let initialDir = 'C:\\'
     try {
       const last = localStorage.getItem('vibe-ide-dirpicker-last-dir')
       if (last) initialDir = last
+      else if (activeSessionCwd) initialDir = activeSessionCwd
       else {
         const recent = cwdStore.getRecentDirs()
         if (recent.length > 0) initialDir = recent[0]
       }
     } catch {}
     setDirPicker({ initialDir, shell })
-  }, [activeSessionCwd, createTermSession])
+  }, [activeSessionCwd])
 
   // 右键「新建」：在当前 cwd 直接创建对应类型，不弹目录选择
   const handleNewSessionHere = useCallback(async (cwd: string, mode: 'term' | 'gui' | 'dsh') => {
