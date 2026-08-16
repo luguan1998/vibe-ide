@@ -1,0 +1,60 @@
+/*
+  右侧 RightPanel 四个 tab 标签化：居中、无背景色差异、底部与内容卡片融合
+*/
+
+/* 1. tab 栏：居中、底部对齐、去掉独立背景色（与左侧面板一致） */
+.right-panel__tab-bar {
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  height: 40px !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  background: transparent !important;
+}
+
+/* 2. 去掉原胶囊容器的底色和内边距，让 tab 直接贴在卡片上方 */
+.right-panel__tab-bar > div:nth-child(2) {
+  display: flex !important;
+  align-items: flex-end !important;
+  gap: 4px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+/* 3. tab 本身：标签式，底部与内容卡片结合 */
+.right-panel__tab-bar .right-panel__tab {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 32px !important;
+  padding: 0 12px !important;
+  border: 1px solid transparent !important;
+  border-bottom: none !important;
+  border-radius: 6px 6px 0 0 !important;
+  background: transparent !important;
+  color: rgb(var(--ide-text-muted)) !important;
+  white-space: nowrap !important;
+}
+
+.right-panel__tab-bar .right-panel__tab:hover {
+  color: rgb(var(--ide-text)) !important;
+  background: rgb(var(--ide-hover) / 0.5) !important;
+}
+
+/* 4. 激活 tab：与下方内容卡片同底色，盖住卡片顶边实现融合 */
+.right-panel__tab-bar .right-panel__tab--active {
+  background: rgb(var(--ide-sidebar)) !important;
+  border-color: rgb(var(--ide-border) / 0.6) !important;
+  border-bottom-color: transparent !important;
+  color: rgb(var(--ide-accent)) !important;
+  margin-bottom: -1px !important;
+}
+
+/* 5. 内容卡片顶部紧贴 tab 底部，不再有 mt-1 间隙 */
+.right-panel__content {
+  margin-top: 0 !important;
+}

@@ -1689,27 +1689,33 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
                       onClick={() => handleNewFromSubmenu('term')}
                     >
-                      {newMode === 'term' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
-                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent">
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent shrink-0">
                         <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
                       </svg>
                       <span>{t('Terminal')}</span>
+                      <span className="ml-auto flex items-center">
+                        {newMode === 'term' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
+                      </span>
                     </button>
                     <button
                       className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
                       onClick={() => handleNewFromSubmenu('gui')}
                     >
-                      {newMode === 'gui' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
-                      <ClaudeLogoIcon size={14} />
+                      <ClaudeLogoIcon size={14} className="shrink-0" />
                       <span>Claude</span>
+                      <span className="ml-auto flex items-center">
+                        {newMode === 'gui' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
+                      </span>
                     </button>
                     <button
                       className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
                       onClick={() => handleNewFromSubmenu('dsh')}
                     >
-                      {newMode === 'dsh' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
-                      <DeepSeekLogoIcon size={14} />
+                      <DeepSeekLogoIcon size={14} className="shrink-0" />
                       <span>dsh</span>
+                      <span className="ml-auto flex items-center">
+                        {newMode === 'dsh' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
+                      </span>
                     </button>
                   </div>
                 )}
