@@ -39,6 +39,12 @@ function getDshLoaderHook(): string {
   return join(process.resourcesPath, 'dsh-loader-hook.mjs')
 }
 
+function getDshSpawnPatch(): string {
+  const dev = join(app.getAppPath(), 'resources', 'dsh-spawn-patch.mjs')
+  if (existsSync(dev)) return dev
+  return join(process.resourcesPath, 'dsh-spawn-patch.mjs')
+}
+
 function installTrustHeaders(port: number): void {
   const origin = `http://127.0.0.1:${port}`
   const filter = { urls: [`${origin}/*`, `ws://127.0.0.1:${port}/*`] }
@@ -69,7 +75,7 @@ function startDshServer(cwd?: string): Promise<{ ok: boolean; port?: number; err
   const bin: string = binRes
 
   const env: NodeJS.ProcessEnv = { ...process.env }
-  env.DSH_HOME = join(app.getPath('userData'), 'dsh')
+  // 不设 DSH_HOME：dsh 用默认 ~/.dsh，与原版 CLI 共享预设/插件/设置/会话
   env.DSH_PERMISSION_MODE = process.env.DSH_PERMISSION_MODE || 'workspace-write'
   // harness 只认 DSH_TELEMETRY_DISABLED（任意非空即强制禁用 session-telemetry-otel）；
   // 旧写法 DSH_NO_TELEMETRY 全仓零读取，是无效变量
@@ -77,7 +83,7 @@ function startDshServer(cwd?: string): Promise<{ ok: boolean; port?: number; err
 
   // 打包后 bin 在 app.asar 内：node 读不了 asar，须用自身 exe（ELECTRON_RUN_AS_NODE 下是纯 node 且带 asar 支持）
   // loader hook 兜底插件/宿主依赖解析（profile 目录裸导入失败时回退安装锚点 node_modules）
-  const proc = spawn(app.isPackaged ? process.execPath : 'node', ['--experimental-loader', pathToFileURL(getDshLoaderHook()).href, bin, '--profile', 'web', '--port', '0'], {
+  const proc = spawn(app.isPackaged ? process.execPath : 'node', ['--experimental-loader', pathToFileURL(getDshLoaderHook()).href, '--import', pathToFileURL(getDshSpawnPatch()).href, bin, '--profile', 'web', '--port', '0'], {
     cwd: target,
     env: { ...env, ...(app.isPackaged ? { ELECTRON_RUN_AS_NODE: '1' } : {}) },
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -191,28 +197,21 @@ function projectKey(cwd: string): string {
 }
 
 function deleteDshSession(sessionId: string, cwd?: string): { ok: boolean; error?: string } {
-  // dsh server 可能用 vibe 的 userData/dsh（新构建）或 ~/.dsh（默认），两个根都尝试
-  const roots = [join(app.getPath('userData'), 'dsh'), join(homedir(), '.dsh')]
-  let deleted = false
-  for (const root of roots) {
-    const dir = join(root, 'sessions', cwd ? projectKey(cwd) : '_no-cwd', encodeSegment(sessionId))
-    if (existsSync(dir)) {
-      try {
-        rmSync(dir, { recursive: true, force: true })
-        deleted = true
-      } catch (e: any) {
-        return { ok: false, error: e?.message ?? String(e) }
-      }
-    }
+  const dir = join(homedir(), '.dsh', 'sessions', cwd ? projectKey(cwd) : '_no-cwd', encodeSegment(sessionId))
+  if (!existsSync(dir)) return { ok: false }
+  try {
+    rmSync(dir, { recursive: true, force: true })
+    return { ok: true }
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) }
   }
-  return { ok: deleted }
 }
 
 const PLUGIN_ACTIONS = new Set(['add', 'remove'])
 const PLUGIN_NAME_RE = /^[A-Za-z0-9@._/-]+$/
 
 // dsh plugin 管理：复用原版 `dsh plugin --profile web <args>`（pnpm add + reconcile bundles）。
-// DSH_HOME 必须与 dsh 服务一致（userData/dsh），否则会落到默认 ~/.dsh 装错地方。
+// 不设 DSH_HOME：与 dsh 服务一致落到默认 ~/.dsh，插件装到与原版 CLI 相同的位置。
 function runDshPlugin(args: string[]): Promise<{ ok: boolean; code: number | null; output: string }> {
   const [action, name, ...rest] = args
   if (!PLUGIN_ACTIONS.has(action) || !name || !PLUGIN_NAME_RE.test(name) || rest.length > 0) {
@@ -221,13 +220,12 @@ function runDshPlugin(args: string[]): Promise<{ ok: boolean; code: number | nul
   const binRes = getDshBinPath()
   if (typeof binRes === 'object') return Promise.resolve({ ok: false, code: null, output: binRes.error })
   const env: NodeJS.ProcessEnv = { ...process.env }
-  env.DSH_HOME = join(app.getPath('userData'), 'dsh')
   if (app.isPackaged) env.ELECTRON_RUN_AS_NODE = '1'
   return new Promise((resolvePromise) => {
     const proc = spawn(
       app.isPackaged ? process.execPath : 'node',
-      ['--experimental-loader', pathToFileURL(getDshLoaderHook()).href, binRes, 'plugin', '--profile', 'web', ...args],
-      { cwd: app.getPath('userData'), env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }
+      ['--experimental-loader', pathToFileURL(getDshLoaderHook()).href, '--import', pathToFileURL(getDshSpawnPatch()).href, binRes, 'plugin', '--profile', 'web', ...args],
+      { cwd: process.cwd(), env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }
     )
     let output = ''
     proc.stdout?.on('data', (buf: Buffer) => { output += buf.toString('utf-8') })

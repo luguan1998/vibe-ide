@@ -26,6 +26,7 @@ const EN_MAP: Record<string, string> = {
   // 会话行角色标签，w-4 宽度容纳不下完整词
   'User': 'U',
   'Assistant': 'A',
+  'Plugin Bar Hint': 'dsh plugin only manages dependencies: a package declaring dsh.bundle becomes a profile layer after restart; plain packages need a manual insert row in ~/.dsh/profiles/web/cordis.patch.yml to take effect.',
   // 窄侧栏按钮，完整词过长
   'Open CSS Config': 'Open CSS',
   // 会话列表空态提示
@@ -412,7 +413,7 @@ const ZH_MAP: Record<string, string> = {
   'Plugin Name': '插件包名',
   'Dsh Plugins': 'dsh 插件',
   'Plugins take effect after restarting dsh.': '插件已安装/卸载，重启 dsh 后生效。',
-  'Plugin Bar Hint': '原版命令：dsh plugin --profile web add|remove <包名>，下方只需输入包名即可安装/卸载。',
+  'Plugin Bar Hint': 'dsh plugin 只管理依赖：声明 dsh.bundle 的包重启后自动成为 profile 层；普通包需在 ~/.dsh/profiles/web/cordis.patch.yml 手动加 insert 行才生效。',
   'Restart dsh': '重启 dsh',
   'Restarting...': '重启中...',
   'Done': '完成',

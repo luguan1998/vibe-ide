@@ -49,6 +49,10 @@
       {
         "from": "resources/dsh-loader-hook.mjs",
         "to": "dsh-loader-hook.mjs"
+      },
+      {
+        "from": "resources/dsh-spawn-patch.mjs",
+        "to": "dsh-spawn-patch.mjs"
       }
     ],
     "extraFiles": [

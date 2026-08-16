@@ -17,5 +17,7 @@ if not exist "%BIN%" (
 
 set "ELECTRON_RUN_AS_NODE=1"
 set "LOADER_URL=file:///%LOADER:\=/%"
-"%EXE_PATH%" --experimental-loader "%LOADER_URL%" "%BIN%" %*
+set "SPAWN_PATCH=%EXE_DIR%resources\dsh-spawn-patch.mjs"
+set "SPAWN_URL=file:///%SPAWN_PATCH:\=/%"
+"%EXE_PATH%" --experimental-loader "%LOADER_URL%" --import "%SPAWN_URL%" "%BIN%" %*
 exit /b %errorlevel%

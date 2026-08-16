@@ -16,5 +16,7 @@ fi
 
 export ELECTRON_RUN_AS_NODE=1
 LOADER_URL="file:///${LOADER//\\//}"
-"$EXE" --experimental-loader "$LOADER_URL" "$BIN" "$@"
+SPAWN_PATCH="$DIR/resources/dsh-spawn-patch.mjs"
+SPAWN_URL="file:///${SPAWN_PATCH//\\//}"
+"$EXE" --experimental-loader "$LOADER_URL" --import "$SPAWN_URL" "$BIN" "$@"
 exit $?

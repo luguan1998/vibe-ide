@@ -15,5 +15,7 @@ if (-not (Test-Path $bin)) {
 
 $env:ELECTRON_RUN_AS_NODE = '1'
 $loaderUrl = 'file:///' + ($loader -replace '\\', '/')
-& $exe --experimental-loader $loaderUrl $bin @args
+$spawnPatch = Join-Path $PSScriptRoot 'resources\dsh-spawn-patch.mjs'
+$spawnUrl = 'file:///' + ($spawnPatch -replace '\\', '/')
+& $exe --experimental-loader $loaderUrl --import $spawnUrl $bin @args
 exit $LASTEXITCODE
