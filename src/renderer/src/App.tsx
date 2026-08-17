@@ -840,9 +840,11 @@ export default function App() {
   }, [])
 
   // Focus input when switching sessions or returning from diff
+  // deps 不含 sessions:AI 响应期 OSC 标题/onReady 的 setSessions(map) 会产生新数组引用,
+  // 若依赖 sessions 会被误触重跑,反复 focus 抢走宠物气泡等外部输入焦点。mode 取 sessionsRef 即可
   useEffect(() => {
     if (centerView === 'terminal' && activeSessionId) {
-      const mode = sessions.find(s => s.id === activeSessionId)?.kind
+      const mode = sessionsRef.current.find(s => s.id === activeSessionId)?.kind
       const timer = setTimeout(() => {
         if (mode === 'gui') {
           aiTabRefs.current[activeSessionId]?.focus()
@@ -854,7 +856,7 @@ export default function App() {
       }, 0)
       return () => clearTimeout(timer)
     }
-  }, [centerView, activeSessionId, sessions])
+  }, [centerView, activeSessionId])
 
   // Persist font sizes to localStorage
   React.useEffect(() => {

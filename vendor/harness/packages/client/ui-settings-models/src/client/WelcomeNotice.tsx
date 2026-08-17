@@ -32,6 +32,11 @@ export type WelcomeNoticeProps =
  * @returns the welcome modal or null while the step decides not to show.
  */
 export function WelcomeNotice(props: WelcomeNoticeProps): ReactNode {
+  // IDE 嵌入（Vibe）时不展示 harness 内测声明 onboarding：OnboardingModal 会
+  // inert #root 冻结整个 IDE 窗口，且 host persistence ack 失败时弹窗消不掉、持续
+  // 冻结。IDE 用户非 harness 开发者，无需此声明。harness 独立产品（apps/web）未
+  // 设 __VIBE_DSH_EMBEDDED__，照常弹。
+  if ((globalThis as { __VIBE_DSH_EMBEDDED__?: boolean }).__VIBE_DSH_EMBEDDED__) return null
   const { complete, controller, useWelcome, t } = props
   const state = useWelcome(snapshot => snapshot)
   const finished = useRef(false)

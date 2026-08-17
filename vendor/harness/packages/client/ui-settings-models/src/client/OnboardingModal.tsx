@@ -24,6 +24,10 @@ export function OnboardingModal({
   const titleRef = useRef<HTMLHeadingElement | null>(null)
 
   useEffect(() => {
+    // IDE 嵌入时 #root 是整个 IDE 应用根，inert 它会冻结整窗（鼠标无反应）。
+    // harness Modal 遮罩已提供模态性，无需 inert 整棵树。harness 独立产品（apps/web）
+    // 未设 __VIBE_DSH_EMBEDDED__，保留原 inert 行为。
+    if ((globalThis as { __VIBE_DSH_EMBEDDED__?: boolean }).__VIBE_DSH_EMBEDDED__) return
     const appRoot = document.getElementById('root')
     if (appRoot === null) return
     const previous = appRoot.inert

@@ -40,6 +40,11 @@ import '@deepseek-ai/dsh-client-ui-theme/src/styles/scrollbar.css'
 import '@deepseek-ai/dsh-client-ui-theme/src/styles/gradient-shadow-text.css'
 import '@deepseek-ai/dsh-client-ui-theme/src/styles/shiki.css'
 
+// IDE 嵌入标记：harness onboarding（WelcomeNotice 内测声明等）据此禁用——
+// OnboardingModal 会 inert #root 冻结整个 IDE 窗口，且 host persistence ack 失败时
+// 弹窗消不掉、持续冻结。IDE 用户非 harness 开发者，无需 harness 内测声明。
+;(globalThis as { __VIBE_DSH_EMBEDDED__?: boolean }).__VIBE_DSH_EMBEDDED__ = true
+
 export interface DshContextHandle {
   ctx: Context
   dispose: () => Promise<void>
