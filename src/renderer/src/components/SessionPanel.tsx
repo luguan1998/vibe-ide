@@ -249,6 +249,7 @@ interface SessionPanelProps {
   agentStatus?: Record<string, 'running' | 'idle' | 'warn'>
   onResumeClaudeHistory?: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
+  onOpenHistoryTab?: () => void
   onResetCache?: (sessionId: string) => void
   pollingEnabled?: boolean
   onTogglePolling?: (value: boolean) => void
@@ -455,6 +456,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   agentStatus = {},
   onResumeClaudeHistory,
   onResumeDshHistory,
+  onOpenHistoryTab,
   onResetCache,
   pollingEnabled = false,
   onTogglePolling,
@@ -594,6 +596,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     if (session && onNewSessionHere) onNewSessionHere(session.cwd, mode)
     setContextMenu(null)
     setNewSubmenu(null)
+  }
+  const quickNewCwd = sessions.find(s => s.id === activeSessionId)?.cwd
+  const handleQuickNewSession = (mode: 'term' | 'gui' | 'dsh') => {
+    if (quickNewCwd && onNewSessionHere) onNewSessionHere(quickNewCwd, mode)
+    else onCreateSession(termType)
   }
   const [cloneSubmenu, setCloneSubmenu] = useState<{ x: number; y: number; sessionId: string; cwd: string; shell?: string; initCommands: CustomCommand[] } | null>(null)
   const cloneSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1270,7 +1277,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   >{sessionEmoji}</span>
                 )
               })()}
-              <span className={`text-sm ${opts.nameClass} session-item__name ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`} title={session.name}>{session.name}</span>
+              <span className={`text-sm min-w-0 ${opts.nameClass} session-item__name ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`} title={session.name}>{session.name}</span>
             </>
           )}
         </div>
@@ -1463,6 +1470,54 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             , document.body)}
           </div>
         </div>
+      </div>
+
+      <div className="mx-2 mt-1 flex flex-col gap-1.5">
+        <div className="relative group/new-session">
+          <button
+            onClick={() => onCreateSession(termType)}
+            title={t('New Session')}
+            className="w-full h-9 flex items-center justify-start px-3 gap-1.5 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors"
+          >
+            <MessageSquarePlus size={14} className="text-ide-accent shrink-0" />
+            <span className="truncate pointer-events-none">{t('New Session')}</span>
+          </button>
+          {quickNewCwd && onNewSessionHere && (
+            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center rounded-md border border-ide-border bg-ide-bg overflow-hidden shadow-sm opacity-0 pointer-events-none group-hover/new-session:opacity-100 group-hover/new-session:pointer-events-auto transition-opacity">
+              <button
+                title={t('Terminal')}
+                onClick={() => handleQuickNewSession('term')}
+                className="w-7 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+              >
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent">
+                  <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <button
+                title="Claude"
+                onClick={() => handleQuickNewSession('gui')}
+                className="w-7 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors border-l border-ide-border"
+              >
+                <ClaudeLogoIcon size={13} />
+              </button>
+              <button
+                title="dsh"
+                onClick={() => handleQuickNewSession('dsh')}
+                className="w-7 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors border-l border-ide-border"
+              >
+                <DeepSeekLogoIcon size={13} />
+              </button>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => onOpenHistoryTab?.()}
+          disabled={sessions.length === 0}
+          className="w-full h-9 flex items-center justify-start px-3 gap-1.5 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <History size={14} className="text-ide-text-muted" />
+          {t('Session History')}
+        </button>
       </div>
 
       {/* Session List */}

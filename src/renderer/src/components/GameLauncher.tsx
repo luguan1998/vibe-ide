@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useI18n } from '../i18n'
 import { FOCUS_MUJICA } from './GameMujica'
 import { useMujica } from '../mujicaStore'
@@ -17,6 +17,7 @@ interface GameLauncherProps {
   workspacePath: string | null
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
+  historyNavNonce?: number
 }
 
 interface GameCard {
@@ -37,8 +38,15 @@ const GAMES: GameCard[] = [
   { id: 'vampire', icon: <img src={MAGE_SVG_URL} alt="Vampire Survivors" className="w-6 h-6" />, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
-export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onResumeDshHistory }: GameLauncherProps) {
+export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onResumeDshHistory, historyNavNonce }: GameLauncherProps) {
   const [currentGame, setCurrentGame] = useState<GameId>('menu')
+  const lastHistoryNonce = useRef(0)
+  useEffect(() => {
+    if (historyNavNonce && historyNavNonce !== lastHistoryNonce.current) {
+      lastHistoryNonce.current = historyNavNonce
+      setCurrentGame('history')
+    }
+  }, [historyNavNonce])
   const { t } = useI18n()
   const mujicaActive = useMujica().active
 

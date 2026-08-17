@@ -5,7 +5,10 @@
 :root {
   /* 严格遵循系统 R G B 空格机制 */
   --ide-bg: 14 14 16 !important;           /* 游戏菜单底色：风化暗石砖 */
+  --ide-sidebar: 18 17 16 !important;      /* 侧栏/按钮底色：旧锻铁板 */
   --ide-surface: 26 24 22 !important;      /* 装备栏底色：粗糙锻铁 */
+  --ide-border: 48 42 38 !important;       /* 铁钉镶边 */
+  --ide-hover: 30 26 23 !important;        /* 悬停点亮铁灰 */
   --ide-accent: 140 20 20 !important;      /* 注入血疗的陈血红 */
   --ide-text: 175 165 145 !important;      /* 游戏原生淡金色/水银骨粉色 */
 }
@@ -28,34 +31,40 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   border-radius: 0px !important;
 }
 
-/* 单个会话：完美还原游戏内“凹槽雕刻矩形框” */
-.session-item {
-  background: linear-gradient(180deg, rgba(30,28,26,0.85) 0%, rgba(18,17,16,0.9) 100%) !important;
+/* 会话分组卡片：风化暗石壁垒 + 铁钉镶边 */
+.session-group {
+  background: linear-gradient(180deg, rgba(26,24,21,0.92) 0%, rgba(16,15,14,0.96) 100%) !important;
+  border: 1px solid rgb(48 42 38) !important;
   border-radius: 0px !important;
-  margin: 8px 12px !important;
-  padding: 10px 14px !important;
-  
-  /* 关键细节：通过多层 box-shadow 堆叠出游戏 UI 特有的“黑铁外框 + 向内凹陷阴影” */
-  border: 1px solid rgb(56 50 45) !important;
-  box-shadow: 
-    inset 0 0 8px rgba(0, 0, 0, 0.95), 
-    0 1px 3px rgba(0, 0, 0, 0.7) !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.session-group__header {
+  background: rgb(17 16 15) !important;
+  border-bottom: 1px solid rgb(48 42 38) !important;
 }
 
-/* 游戏激活态：还原选中时“暗金框边缘拉丝 + 爪痕鲜血浸润效应” */
+/* 组内条目：紧凑铁板行，悬停点亮 */
+.session-item {
+  background: transparent !important;
+  border-radius: 0px !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(50, 44, 38, 0.35) !important;
+  border-left: 3px solid transparent !important;
+}
+.session-item:not(.session-item--active):hover {
+  background: rgba(46, 39, 33, 0.6) !important;
+}
+.session-item:not(.session-item--active):hover .session-item__name {
+  color: rgb(205 188 160) !important;
+}
+
+/* 游戏激活态：还原选中时”暗金框边缘拉丝 + 爪痕鲜血浸润效应” */
 .session-item--active {
-  /* 选中时底色变为深沉的仪式红渐变 */
-  background: linear-gradient(90deg, rgba(140, 20, 20, 0.25) 0%, rgba(26, 20, 20, 0.8) 100%) !important;
-  
-  /* 游戏菜单标志性的“暗金色拉丝双框线” */
-  border: 1px solid rgb(185 145 85) !important; 
-  border-left: 4px solid rgb(140 20 20) !important; /* 左侧注入高饱和度陈血线 */
-  
-  /* 外发光模拟卡瑞尔符文激活的幽光 */
-  box-shadow: 
-    0 0 10px rgba(140, 20, 20, 0.4), 
-    inset 0 0 12px rgba(140, 20, 20, 0.3) !important;
+  background: linear-gradient(90deg, rgba(140, 20, 20, 0.28) 0%, rgba(24, 18, 18, 0.9) 100%) !important;
+  border: 1px solid rgb(185 145 85) !important;
+  border-left: 4px solid rgb(140 20 20) !important;
+  box-shadow: inset 0 0 10px rgba(140, 20, 20, 0.28) !important;
 }
 
 /* 选中项文本：变成亮起的古董金 */
@@ -67,7 +76,14 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 /* Pipe 运行中：复刻提灯的冷冽青蓝色幽光 */
 .session-item--pipe-running {
   border-left: 4px solid rgb(75 130 120) !important;
-  background: linear-gradient(90deg, rgba(40, 65, 60, 0.3) 0%, rgba(14, 16, 16, 0.8) 100%) !important;
+  background: linear-gradient(90deg, rgba(40, 65, 60, 0.25) 0%, rgba(14, 16, 16, 0.6) 100%) !important;
+}
+
+/* 未分组平铺列表：同样铁板打底 */
+.session-panel__flat-list {
+  background: rgb(15 14 13) !important;
+  border: 1px solid rgb(48 42 38) !important;
+  border-radius: 0px !important;
 }
 
 /* 三态所在横栏：旧铁板材质打底 */
@@ -167,10 +183,10 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   box-shadow: 0 0 12px rgba(155, 24, 24, 0.6) !important;
 }
 
-/* 右侧 Tab 栏（誓约顶栏） */
+/* 右侧 Tab 栏（誓约顶栏）：铁板底色 + 按钮贴图叠加 */
 .right-panel__tab-bar {
-  background: url('assets/button_black.png') center/cover no-repeat !important;
-  border-bottom: 2px solid rgb(28 24 22) !important;
+  background: rgb(18 17 16) url('assets/button_black.png') center/cover no-repeat !important;
+  border-bottom: 1px solid rgb(48 42 38) !important;
 }
 .right-panel__tab--active {
   color: rgb(215 145 75) !important;

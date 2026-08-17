@@ -297,6 +297,15 @@ export default function App() {
   const [rightPanelWidth, setRightPanelWidth] = useState(380)
   const rightPanelPrevWidth = useRef(380)
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false)
+  const [historyNavNonce, setHistoryNavNonce] = useState(0)
+
+  const handleOpenHistoryTab = useCallback(() => {
+    if (rightPanelCollapsed) {
+      window.resizeBy(rightPanelWidth + 1, 0)
+      setRightPanelCollapsed(false)
+    }
+    setHistoryNavNonce(n => n + 1)
+  }, [rightPanelCollapsed, rightPanelWidth])
 
   const handleToggleRightPanel = useCallback(() => {
     const delta = rightPanelWidth + 1 // panel + resize handle
@@ -2723,6 +2732,7 @@ export default function App() {
             onCancelPipe={cancelPipe}
             onCloneWithInit={handleCloneWithInit}
             onNewSessionHere={handleNewSessionHere}
+            onOpenHistoryTab={handleOpenHistoryTab}
             recentFiles={recentFiles}
             onOpenRecentFile={handleOpenRecentFile}
             onRemoveRecentFile={removeRecentFile}
@@ -2960,6 +2970,7 @@ export default function App() {
             brushActive={brushActive}
             onResumeClaudeHistory={handleResumeClaudeHistory}
             onResumeDshHistory={handleResumeDshHistory}
+            historyNavNonce={historyNavNonce}
           />
         </div>
         )}

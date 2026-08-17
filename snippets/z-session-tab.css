@@ -1,5 +1,5 @@
 /*
-  左侧session栏目标签化
+  左侧session栏目增高
 */
 
 /* 标题栏 — 底部发丝线 */
@@ -61,6 +61,7 @@
   background: rgb(var(--ide-bg)) !important;
   border-radius: 6px !important;
   margin: 1px 6px !important;
+  min-height: 40px !important;
   transition: background-color 0.12s, color 0.12s !important;
 }
 .session-item:hover {

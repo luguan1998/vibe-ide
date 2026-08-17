@@ -48,6 +48,7 @@ interface RightPanelProps {
   onWorktreeNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
+  historyNavNonce?: number
 }
 
 type GitSection = 'git' | 'terminal' | 'file' | 'game'
@@ -400,6 +401,7 @@ function RightPanel({
   onWorktreeNavChange,
   onResumeClaudeHistory,
   onResumeDshHistory,
+  historyNavNonce,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('file')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -525,6 +527,17 @@ function RightPanel({
     }
   }, [lineHistoryPayload])
 
+  useEffect(() => {
+    if (historyNavNonce) {
+      setVisibleTabs(prev => {
+        if (prev['game']) return prev
+        const next = { ...prev, game: true }
+        return next
+      })
+      setActiveSection('game')
+    }
+  }, [historyNavNonce])
+
   // 确保 activeSection 始终可见（处理隐藏当前 tab 的情况）
   useEffect(() => {
     if (!visibleTabs[activeSection] && visibleList.length > 0) {
@@ -628,7 +641,7 @@ function RightPanel({
       </div>
 
       <div ref={gameContentRef} tabIndex={-1} style={{ display: activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden">
-        <GameLauncher workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} />
+        <GameLauncher workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} historyNavNonce={historyNavNonce} />
       </div>
 
       </div>

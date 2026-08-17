@@ -293,7 +293,7 @@
    会话分组
    ════════════════════════════════════════════════════ */
 .session-group {
-  border: 1px solid rgb(40 58 90) !important;
+  border: none !important;
   background: transparent !important;
 }
 .session-group + .session-group {
@@ -302,7 +302,7 @@
 
 .session-group__header {
   border-bottom: 1px solid rgb(40 58 90) !important;
-  background: rgb(22 36 62) !important;
+  background: transparent !important;
 }
 
 .session-group__path {
@@ -311,7 +311,7 @@
 }
 
 .session-panel__flat-list {
-  border: 1px solid rgb(40 58 90) !important;
+  border: none !important;
   background: transparent !important;
 }
 

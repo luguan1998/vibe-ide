@@ -753,12 +753,15 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   gap: 0;
-  background: transparent;
+  background:
+    radial-gradient(90% 140% at 0% 50%, rgb(var(--ide-accent) / 0.20), transparent 65%),
+    radial-gradient(90% 140% at 100% 50%, rgb(var(--ide-warning) / 0.20), transparent 65%),
+    linear-gradient(110deg, rgb(var(--ide-success) / 0.12), transparent 70%);
   border: none;
   box-shadow: 0 1px 2px -1px rgb(0 0 0 / 0.12);
   padding: 0;
   overflow: hidden;
-  border-radius: 9999px;
+  border-radius: 12px;
   font-size: 11px;
   letter-spacing: 0;
   text-transform: none;
@@ -771,7 +774,7 @@ html, body, #root {
   border-radius: 0;
   border: none;
   color: rgb(var(--ide-text-muted));
-  background: rgb(var(--ide-hover));
+  background: transparent;
   transition: color .15s ease, background-color .15s ease;
   font-size: 12px;
   font-weight: 700;
@@ -779,7 +782,7 @@ html, body, #root {
   min-height: 26px;
 }
 /* 合并药丸中间竖分隔；nes 等主题可 !important 调整 */
-.status-badge__divider { width: 1px; align-self: stretch; background: rgb(var(--ide-text-muted) / 0.4); }
+.status-badge__divider { width: 1px; align-self: stretch; background: rgb(var(--ide-text-muted) / 0.6); }
 .status-badge__icon { flex: none; width: 15px; height: 15px; }
 /* 主题用 ::before 放 emoji 替换 svg 时，约束在 13px 盒居中，避免 emoji 撑宽面板片 */
 .status-badge__segment::before {
@@ -800,11 +803,11 @@ html, body, #root {
 }
 .status-badge__segment--running.is-active {
   color: rgb(var(--ide-accent));
-  background: rgb(var(--ide-accent) / 0.12);
+  background: rgb(var(--ide-accent) / 0.30);
 }
 .status-badge__segment--warn.is-active {
   color: rgb(var(--ide-warning));
-  background: rgb(var(--ide-warning) / 0.12);
+  background: rgb(var(--ide-warning) / 0.30);
 }
 
 
@@ -895,4 +898,105 @@ html, body, #root {
 /* dsh 用户消息气泡字号与 md 正文一致 */
 .dsh-view [class*="bubble"] {
   font-size: 15px !important;
+}
+
+/* ── session-panel dsh 风格（固化自 snippets/z-session-dsh.css；unlayered 规则覆盖内联 utilities）── */
+.session-panel,
+.session-panel__list-wrapper {
+  background: rgb(var(--ide-sidebar));
+}
+.session-group {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}
+.session-group + .session-group {
+  margin-top: 4px;
+}
+.session-group__header {
+  height: 34px;
+  padding: 0 8px;
+  border-bottom: none;
+  border-radius: 0;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.session-group__path {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: rgb(var(--ide-text));
+}
+.session-group .session-item {
+  display: flex;
+  align-items: center;
+  position: relative;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: rgb(var(--ide-bg));
+}
+.session-group .session-item > div {
+  min-height: 0;
+  flex: 1;
+  min-width: 0;
+}
+.session-group .session-item__name {
+  -webkit-line-clamp: 1;
+  word-break: normal;
+}
+.session-group .session-item:hover {
+  background: rgb(var(--ide-hover) / 0.55);
+}
+.session-group .session-item--running,
+.session-group .session-item--warn {
+  border-left: none;
+}
+.session-group .session-item--active {
+  background: rgb(var(--ide-accent) / 0.16);
+  color: rgb(var(--ide-accent));
+  border-left: none;
+  box-shadow: 0 1px 2px rgba(0 0 0 / 0.15);
+}
+.session-group .session-item--active .session-item__name {
+  color: rgb(var(--ide-accent));
+}
+.session-group .session-item--active .session-item__actions button {
+  color: rgb(var(--ide-accent) / 0.85);
+}
+.session-group .session-item--active .session-item__actions button:hover {
+  background: rgb(var(--ide-accent) / 0.2);
+  color: rgb(var(--ide-accent));
+}
+.session-group .session-item--running:not(.session-item--active) {
+  background: rgb(var(--ide-accent) / 0.07);
+  box-shadow: inset 0 0 0 1px rgb(var(--ide-accent) / 0.12);
+}
+.session-group .session-item--running:not(.session-item--active) .session-item__name {
+  color: rgb(var(--ide-accent) / 0.85);
+}
+.session-group .session-item--running:not(.session-item--active):hover {
+  background: rgb(var(--ide-accent) / 0.12);
+}
+.session-group__header + div {
+  margin-top: 2px;
+}
+.session-group .session-item + .session-item {
+  margin-top: 2px;
+}
+.session-group .session-item__actions {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.session-group .session-item > div:first-child > div:first-child {
+  padding-right: 32px;
+  gap: 8px;
+}
+.session-group .session-item:not(.session-item--running) .session-item__icon {
+  visibility: hidden;
 }
