@@ -413,18 +413,27 @@ function formatIdleDuration(durMs: number): string {
   const d = Math.floor(durMs / 86_400_000)
   return `${d}d`
 }
-// 自带 1s tick 的小组件：只重渲染自身，避免整面板每秒重渲染
+// 自调度的小组件：算到下一次格式变化的时刻再 tick，稳态每分钟(或更久)一次，无空转
 function SessionIdleAge({ idleSince, running, className }: { idleSince?: number; running: boolean; className?: string }) {
   const [str, setStr] = useState<string>(() => running ? 'now' : formatIdleDuration(Date.now() - (idleSince ?? Date.now())))
   useEffect(() => {
     if (running) { setStr('now'); return }
+    const start = idleSince ?? Date.now()
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let alive = true
     const tick = () => {
-      const next = formatIdleDuration(Date.now() - (idleSince ?? Date.now()))
-      setStr(prev => prev === next ? prev : next)
+      if (!alive) return
+      const elapsed = Date.now() - start
+      setStr(formatIdleDuration(elapsed))
+      // 下一次格式变化的时刻：按当前单位算到下一个整单位边界
+      const steps: [number, number][] = [[60_000, 60_000], [3_600_000, 60_000], [86_400_000, 3_600_000], [Infinity, 86_400_000]]
+      let unit = 60_000
+      for (const [bound, u] of steps) { if (elapsed < bound) { unit = u; break } }
+      const nextAt = start + (Math.floor(elapsed / unit) + 1) * unit
+      timer = setTimeout(tick, Math.max(1000, nextAt - Date.now()))
     }
     tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
+    return () => { alive = false; if (timer) clearTimeout(timer) }
   }, [running, idleSince])
   return <span className={className}>{str}</span>
 }
