@@ -67,6 +67,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [turnsById, setTurnsById] = useState<Record<string, { turns: HistoryTurn[]; loading: boolean }>>({})
   const [mode, setMode] = useState<HistoryMode>('tui')
+  // tui 与 gui 共享同一份 claude 历史，仅 dsh 是独立数据源；
+  // 列表 fetch 依赖数据源而非 mode，避免 tui↔gui 切换重复扫描历史目录
+  const dataSource = mode === 'dsh' ? 'dsh' : 'claude'
   const [dshSessions, setDshSessions] = useState<DshHistorySession[]>([])
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
@@ -131,9 +134,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   }, [workspacePath, toSummary])
 
   useEffect(() => {
-    if (mode === 'dsh') void fetchDshList()
+    if (dataSource === 'dsh') void fetchDshList()
     else void fetchSessions()
-  }, [mode, fetchDshList, fetchSessions])
+  }, [dataSource, fetchDshList, fetchSessions])
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), 300)
@@ -309,11 +312,11 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
         <div className="flex-1 min-w-0">
           <div className="truncate text-xs text-ide-text">{s.name || s.session_id}</div>
           <div className="text-[10px] text-ide-text-muted/60 truncate">
-            {s.cwd ? <span className="text-ide-text/70">{s.cwd}</span> : null}
-            {s.cwd ? ' · ' : ''}
+            {s.cwd && searchMode ? <span className="text-ide-text/70">{s.cwd}</span> : null}
+            {s.cwd && searchMode ? ' · ' : ''}
             {s.timestamp ? new Date(s.timestamp).toLocaleString() : ''}
-            {s.model ? ` · ${s.model}` : ''}
             {s.sizeBytes > 0 ? ` · ${formatBytes(s.sizeBytes)}` : ''}
+            {s.model ? ` · ${s.model}` : ''}
           </div>
         </div>
         {canResume && (

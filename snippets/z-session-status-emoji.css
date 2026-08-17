@@ -14,7 +14,7 @@
 }
 
 .session-item--warn .session-item__icon::before {
-  content: '⏸️';
+  content: '⏸️' !important;
   font-size: 14px;
   line-height: 1;
 }

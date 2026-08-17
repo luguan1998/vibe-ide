@@ -319,6 +319,17 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
     ctx.fillStyle = 'rgba(255,200,150,0.07)'
     ctx.fillRect(0, H - tableH, W, 2)
 
+    const topLight = ctx.createLinearGradient(0, 0, 0, H * 0.55)
+    topLight.addColorStop(0, 'rgba(255,210,160,0.12)')
+    topLight.addColorStop(1, 'rgba(255,210,160,0)')
+    ctx.fillStyle = topLight
+    ctx.fillRect(0, 0, W, H * 0.55)
+    const vig = ctx.createRadialGradient(W / 2, H * 0.42, H * 0.2, W / 2, H * 0.42, H * 0.75)
+    vig.addColorStop(0, 'rgba(0,0,0,0)')
+    vig.addColorStop(1, 'rgba(0,0,0,0.5)')
+    ctx.fillStyle = vig
+    ctx.fillRect(0, 0, W, H)
+
     for (const s of splatsRef.current) {
       ctx.globalAlpha = Math.max(0, s.alpha)
       ctx.fillStyle = s.color
@@ -357,6 +368,10 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
     for (const f of fruitsRef.current) {
       ctx.save()
       ctx.translate(f.x, f.y)
+      ctx.fillStyle = 'rgba(0,0,0,0.22)'
+      ctx.beginPath()
+      ctx.ellipse(0, f.r * 1.02, f.r * 0.6, f.r * 0.26, 0, 0, Math.PI * 2)
+      ctx.fill()
       ctx.rotate(f.rot)
       ctx.fillStyle = '#ffffff'
       ctx.font = `${f.r * 2.1}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`
@@ -365,13 +380,18 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
       ctx.fillText(f.emoji, 0, 0)
       if (f.bomb) {
         const sp = 0.7 + Math.sin(performance.now() / 60) * 0.3
+        const fy = -f.r * 1.05
+        ctx.fillStyle = 'rgba(255,180,40,0.32)'
+        ctx.beginPath()
+        ctx.arc(0, fy, 9 * sp, 0, Math.PI * 2)
+        ctx.fill()
         ctx.fillStyle = '#ffca28'
         ctx.beginPath()
-        ctx.arc(0, -f.r * 1.05, 4.5 * sp, 0, Math.PI * 2)
+        ctx.arc(0, fy, 4.5 * sp, 0, Math.PI * 2)
         ctx.fill()
-        ctx.fillStyle = 'rgba(255,255,255,0.85)'
+        ctx.fillStyle = 'rgba(255,255,255,0.9)'
         ctx.beginPath()
-        ctx.arc(0, -f.r * 1.05, 2 * sp, 0, Math.PI * 2)
+        ctx.arc(0, fy, 2 * sp, 0, Math.PI * 2)
         ctx.fill()
       }
       ctx.restore()
@@ -406,6 +426,10 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
       ctx.font = `bold ${p.text.startsWith('+') && p.text.includes('x') ? 22 : 18}px "Segoe UI", sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
+      ctx.lineJoin = 'round'
+      ctx.lineWidth = 3.5
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)'
+      ctx.strokeText(p.text, p.x, p.y)
       ctx.fillStyle = p.text.includes('x') ? '#ffb300' : '#ffffff'
       ctx.fillText(p.text, p.x, p.y)
     }
@@ -547,7 +571,7 @@ export default function GameFruitNinja({ onBack }: { onBack?: () => void }) {
           height={H}
           onMouseDown={onDown}
           className="max-w-full max-h-full"
-          style={{ aspectRatio: `${W} / ${H}`, cursor: KNIFE_CURSOR, borderRadius: 8, outline: '1px solid rgba(255,255,255,0.08)' }}
+          style={{ aspectRatio: `${W} / ${H}`, cursor: KNIFE_CURSOR, borderRadius: 10, outline: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 30px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.05)' }}
         />
         {success && !gameOver && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ide-bg/60 backdrop-blur-sm z-10">

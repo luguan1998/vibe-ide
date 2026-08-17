@@ -2188,7 +2188,7 @@ export default function App() {
 
     const onMouseMove = (ev: MouseEvent) => {
       const delta = startX - ev.clientX
-      const newWidth = Math.max(280, Math.min(800, startWidth + delta))
+      const newWidth = Math.max(280, Math.min(1200, startWidth + delta))
       setRightPanelWidth(newWidth)
     }
 

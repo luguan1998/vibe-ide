@@ -995,7 +995,6 @@ html, body, #root {
 }
 .session-group .session-item > div:first-child > div:first-child {
   padding-right: 32px;
-  gap: 8px;
 }
 .session-group .session-item:not(.session-item--running) .session-item__icon {
   visibility: hidden;

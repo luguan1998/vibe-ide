@@ -83,21 +83,46 @@ const fmtTime = (s: number) => {
 }
 
 export const MAGE_SVG_URL = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <path d="M15.6 10.4C12.6 8.8 12.8 3 16 0.8c3.2 2.2 3.4 8 0.4 9.6z" fill="#7e57c2" stroke="#5e35b1" stroke-width="1.1"/>
-  <path d="M8.4 10.8q7.6 3.2 15.2 0q-7.6 2.2-15.2 0z" fill="#673ab7" stroke="#5e35b1" stroke-width="1"/>
-  <path d="M12.8 5.6l.6 1.3 1.4.2-1 .9.2 1.4-1.2-.7-1.2.7.2-1.4-1-.9 1.4-.2z" fill="#ffd54f" opacity="0.95"/>
-  <circle cx="16" cy="13.4" r="3.4" fill="#f5d7b8" stroke="#d8b08c" stroke-width="0.6"/>
-  <circle cx="14.7" cy="13.1" r="0.7" fill="#2f3542"/>
-  <circle cx="17.3" cy="13.1" r="0.7" fill="#2f3542"/>
-  <path d="M13.3 14.8c1.8 1.1 3.6 1.1 5.4 0 .2 1.7-.8 2.9-2.7 2.9-1.9 0-2.9-1.2-2.7-2.9z" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="0.6"/>
-  <path d="M16 16.5l6.8 3v7.4c0 3.2-2.7 5.2-6.8 5.8-4.1-.6-6.8-2.6-6.8-5.8v-7.4z" fill="#5c6bc0" stroke="#3f51b5" stroke-width="1.1"/>
-  <path d="M16 18.2l4.4 1.9v4c0 2.2-1.8 3.6-4.4 4-2.6-.4-4.4-1.8-4.4-4v-4z" fill="#7986cb" opacity="0.6"/>
-  <rect x="12.8" y="23" width="6.4" height="1.7" rx="0.85" fill="#ffd54f" stroke="#b08a2e" stroke-width="0.5"/>
-  <rect x="7.4" y="17.8" width="3" height="4.4" rx="1.4" fill="#f5d7b8" stroke="#d8b08c" stroke-width="0.6"/>
-  <rect x="21.6" y="17.2" width="3" height="4.8" rx="1.4" fill="#f5d7b8" stroke="#d8b08c" stroke-width="0.6"/>
-  <path d="M24.6 8.5 L22.8 24" stroke="#8d6e63" stroke-width="1.8" stroke-linecap="round"/>
-  <circle cx="25" cy="7.2" r="2.6" fill="#7e57c2" stroke="#5e35b1" stroke-width="0.8"/>
-  <path d="M25 3.8l.8 1.7 1.9.3-1.4 1.3.3 1.8-1.6-1-1.6 1 .3-1.8-1.4-1.3 1.9-.3z" fill="#ffd54f"/>
+  <defs>
+    <linearGradient id="vsHat" x1="16" y1="0.8" x2="16" y2="17.6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b39ddb"/>
+      <stop offset="0.5" stop-color="#7e57c2"/>
+      <stop offset="1" stop-color="#4527a0"/>
+    </linearGradient>
+    <linearGradient id="vsRobe" x1="16" y1="16.5" x2="16" y2="31.6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9fa8da"/>
+      <stop offset="0.5" stop-color="#5c6bc0"/>
+      <stop offset="1" stop-color="#283593"/>
+    </linearGradient>
+    <radialGradient id="vsOrb" cx="24.2" cy="6.2" r="3.1" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.4" stop-color="#ffe082"/>
+      <stop offset="1" stop-color="#ff8f00"/>
+    </radialGradient>
+    <radialGradient id="vsGlow" cx="25" cy="7.2" r="6.6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff59d" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#fff59d" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <path d="M24.6 8.5 L22.8 24" stroke="#6d4c41" stroke-width="1.9" stroke-linecap="round"/>
+  <circle cx="25" cy="7.2" r="6.6" fill="url(#vsGlow)"/>
+  <path d="M15.6 10.4C12.6 8.8 12.8 3 16 0.8c3.2 2.2 3.4 8 0.4 9.6z" fill="url(#vsHat)" stroke="#311b92" stroke-width="0.9"/>
+  <path d="M8.4 10.8q7.6 3.2 15.2 0q-7.6 2.2-15.2 0z" fill="url(#vsHat)" stroke="#311b92" stroke-width="0.8"/>
+  <path d="M12.8 5.6l.6 1.3 1.4.2-1 .9.2 1.4-1.2-.7-1.2.7.2-1.4-1-.9 1.4-.2z" fill="#ffe082" stroke="#ff8f00" stroke-width="0.35"/>
+  <circle cx="16" cy="13.4" r="3.4" fill="#f3d2b6" stroke="#c9a986" stroke-width="0.5"/>
+  <circle cx="14.7" cy="13.1" r="0.72" fill="#2f2a33"/>
+  <circle cx="17.3" cy="13.1" r="0.72" fill="#2f2a33"/>
+  <circle cx="14.9" cy="12.85" r="0.26" fill="#ffffff"/>
+  <circle cx="17.5" cy="12.85" r="0.26" fill="#ffffff"/>
+  <path d="M13.3 14.8c1.8 1.1 3.6 1.1 5.4 0 .2 1.7-.8 2.9-2.7 2.9-1.9 0-2.9-1.2-2.7-2.9z" fill="#f5f5f5" stroke="#dcdcdc" stroke-width="0.5"/>
+  <path d="M16 16.5l6.8 3v7.4c0 3.2-2.7 5.2-6.8 5.8-4.1-.6-6.8-2.6-6.8-5.8v-7.4z" fill="url(#vsRobe)" stroke="#1a237e" stroke-width="0.9"/>
+  <path d="M16 18.2l4.4 1.9v4c0 2.2-1.8 3.6-4.4 4-2.6-.4-4.4-1.8-4.4-4v-4z" fill="#7986cb" opacity="0.5"/>
+  <rect x="12.8" y="23" width="6.4" height="1.7" rx="0.85" fill="#ffd54f" stroke="#b08a2e" stroke-width="0.4"/>
+  <rect x="7.4" y="17.8" width="3" height="4.4" rx="1.4" fill="#f3d2b6" stroke="#c9a986" stroke-width="0.5"/>
+  <rect x="21.6" y="17.2" width="3" height="4.8" rx="1.4" fill="#f3d2b6" stroke="#c9a986" stroke-width="0.5"/>
+  <circle cx="25" cy="7.2" r="2.7" fill="url(#vsOrb)" stroke="#e65100" stroke-width="0.45"/>
+  <path d="M25 3.8l.8 1.7 1.9.3-1.4 1.3.3 1.8-1.6-1-1.6 1 .3-1.8-1.4-1.3 1.9-.3z" fill="#ffe082" stroke="#ff8f00" stroke-width="0.3"/>
+  <circle cx="24.1" cy="6.2" r="0.62" fill="#fffde7"/>
 </svg>`)
 
 const shuffle = <T,>(arr: T[]): T[] => {
