@@ -403,7 +403,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
         <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '32%', overflowY: 'auto' }}>
           {!showTabBar && (
             <div className="px-2 py-1 group flex items-center justify-between sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm border-b border-ide-border">
-              <span className="text-[10px] uppercase tracking-wider text-ide-accent">{t('Commands')}</span>
+              <span className="text-[10px] uppercase tracking-wider text-ide-accent">Commands</span>
               <button
                 onClick={handleRefreshCommands}
                 className="w-4 h-4 mr-1 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-all"

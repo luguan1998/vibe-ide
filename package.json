@@ -14,7 +14,8 @@
     "test": "node --test --test-reporter=spec test/**/*.test.mjs",
     "test:perf": "node test/perf-file-switch.mjs",
     "start": "electron-vite preview",
-    "build:win": "npm run build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win --x64"
+    "build:win": "npm run build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win --x64",
+    "build:win:7z": "npm run build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win 7z --x64"
   },
   "build": {
     "appId": "com.vibe-ide",
