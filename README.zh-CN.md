@@ -154,15 +154,23 @@ claudeui/
 └── vendor/harness/  # 内置 DeepSeek Harness 运行时 + CLI
 ```
 
-如果你从上游重新替换 `vendor/harness`，需要先重新构建 lib 产物：
+如果你从上游重新替换 `vendor/harness`，必须重新构建两份**未入 git** 的产物——缺失时 dsh 启动会抛模块解析错误，表现为误导性的"启动超时"：
+
+- `vendor/harness/native/landlock-run/packages/entry/lib/`（被 `.gitignore`）
+- `vendor/harness/apps/web/dist/`（从未提交）
+
+vendored 包使用 `file:` 规格（由 `scripts/patch-workspace-refs.mjs` 从 `workspace:` 改写，以便 **npm** 解析——用 npm，不要用 pnpm，pnpm 会拒绝 `peerDependencies` 里的 `file:`）。
 
 ```bash
-cd vendor/harness
-pnpm install
-npm run build:lib:host && npm run build:lib:client
-cd ..
-npm install
+# 1. landlock-run lib（纯 JS 桥接；Windows 运行时不用 landlock）
+node node_modules/typescript/bin/tsc -b vendor/harness/native/landlock-run/packages/entry/tsconfig.json
+
+# 2. dsh web 前端 dist（vite build 直接编译 vendored client src/）
+npm install --prefix vendor/harness/apps/web --ignore-scripts
+npm run --prefix vendor/harness/apps/web build
 ```
+
+`npm run postinstall` 会运行 `scripts/build-vendored-dsh.mjs` 幂等地执行以上两步（产物已存在则跳过），因此任意机器执行 `npm ci` 即可得到可用的 dsh，无需额外步骤。
 
 ### dsh 预设
 
@@ -191,20 +199,46 @@ cp -r presets/minimal-gitbash "$USERPROFILE/.dsh/.agent-presets/"
 
 ### 安装 & 运行（新电脑完整流程）
 
+**前置环境：** Node.js >= 18、Git、Windows、Visual Studio Build Tools（勾选"使用 C++ 的桌面开发"工作负载，node-pty 是原生模块）。
+
+**1. 克隆**
 ```bash
-# 1. 克隆本仓库
 git clone https://github.com/luguan/vibe-ide.git
 cd vibe-ide
-
-# 2. 安装并启动 Vibe IDE
-npm install
-npm run dev
 ```
 
-> **注意：**
-> - `node-pty` 是原生模块，Windows 下需要 Visual Studio Build Tools（C++ 工作负载）。确保 `node-gyp` 环境已配置。
-> - 内置 `file:` 依赖会在 `npm install` 时安装进 `node_modules`——替换 `vendor/harness` 后需重新 `npm install` 同步。
+**2. 新建 `.npmrc`**（国内必需——否则 electron 二进制下载失败，`npm run dev` 报 `Electron uninstall`）
+```
+registry=https://registry.npmmirror.com/
+electron_mirror=https://npmmirror.com/mirrors/electron/
+electron_builder_binaries_mirror=https://npmmirror.com/mirrors/electron-builder-binaries/
+```
+海外环境删掉 `registry` 行（保留两条 `electron_*` 镜像）。
+
+**3. 安装依赖——用 `npm ci`，永远别 `npm install`**
+```bash
+npm ci
+```
+`npm ci` 严格按 lock 装依赖、不重新解析 `^` 范围——`npm install` 会重解析并把依赖树/lock 搞漂（换电脑后"dsh 启动超时"的根因）。它还会跑 `postinstall`，其中 `scripts/build-vendored-dsh.mjs` 会**自动构建两份未入 git 的 vendored 产物**（`landlock-run/lib/` 和 `apps/web/dist/`）——无需手动构建。
+
+**4. 验证 dev**
+```bash
+npm run dev
+```
+应用里打开 AI 面板（dsh），dev 终端应打印 `dsh web: http://127.0.0.1:PORT`。
+
+**5. 打包**
+```bash
+npm run build:win
+```
+产物在 `dist/`：`Vibe IDE Setup x64.exe`（NSIS 安装包）+ 7z。装上后打开 dsh 验证。
+
+> **踩坑提醒（每条都是真实根因）：**
+> - 用 **npm，不要用 pnpm**——vendored 包使用 `file:` 规格（由 `patch-workspace-refs.mjs` 改写）；pnpm 会拒绝 `peerDependencies` 里的 `file:`。
+> - electron **二进制**必须走镜像（第 2 步），否则 dev 报 `Electron uninstall`。
+> - `node-pty` 需要 VS C++ 工作负载，否则编译失败。
 > - 开发模式自动从 `vendor/harness/apps/cli/lib/bin.js` 发现 dsh 运行时。
+> - 若 `postinstall` 漏构建 dsh 产物，手动跑 `node scripts/build-vendored-dsh.mjs`。
 
 ### 隐私说明：遥测已删除
 

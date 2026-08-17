@@ -10,6 +10,9 @@ interface DshServerState {
   proc: ChildProcess
   port: number | null
   cwd: string
+  exited: boolean
+  exitCode: number | null
+  stderrTail: string
 }
 
 let state: DshServerState | null = null
@@ -90,7 +93,7 @@ function startDshServer(cwd?: string): Promise<{ ok: boolean; port?: number; err
     windowsHide: true,
   })
 
-  const newState: DshServerState = { proc, port: null, cwd: target }
+  const newState: DshServerState = { proc, port: null, cwd: target, exited: false, exitCode: null, stderrTail: '' }
   state = newState
 
   const log = (line: string) => console.log(`[dsh] ${line}`)
@@ -108,16 +111,27 @@ function startDshServer(cwd?: string): Promise<{ ok: boolean; port?: number; err
     }
   })
   proc.stderr?.on('data', (buf: Buffer) => {
-    for (const line of buf.toString('utf-8').split('\n')) {
+    const text = buf.toString('utf-8')
+    newState.stderrTail = (newState.stderrTail + text).slice(-4000)
+    for (const line of text.split('\n')) {
       if (line.trim()) console.warn(`[dsh:err] ${line}`)
     }
   })
   proc.on('exit', (code) => {
     log(`exit code=${code}`)
+    if (newState.port === null) {
+      newState.exited = true
+      newState.exitCode = code
+    }
     state = null
   })
   proc.on('error', (err) => {
     console.warn('[dsh] spawn error:', err)
+    if (newState.port === null) {
+      newState.exited = true
+      newState.exitCode = null
+      newState.stderrTail = (newState.stderrTail + `\n[spawn error] ${err.message}`).slice(-4000)
+    }
     state = null
   })
 
@@ -132,6 +146,10 @@ function waitForPort(s: DshServerState, timeoutMs: number): Promise<{ ok: boolea
       if (s.port !== null) {
         clearInterval(timer)
         resolve({ ok: true, port: s.port })
+      } else if (s.exited) {
+        clearInterval(timer)
+        const tail = s.stderrTail.trim()
+        resolve({ ok: false, error: `dsh server exited (code=${s.exitCode}) before ready${tail ? `:\n${tail}` : ''}` })
       } else if (Date.now() - started > timeoutMs) {
         clearInterval(timer)
         resolve({ ok: false, error: 'dsh server start timeout' })

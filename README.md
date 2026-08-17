@@ -154,15 +154,29 @@ claudeui/
 └── vendor/harness/  # vendored DeepSeek Harness runtime + CLI
 ```
 
-If you replace `vendor/harness` from a fresh upstream checkout, rebuild its lib artifacts first:
+If you replace `vendor/harness` from a fresh upstream checkout, the two build
+artifacts that are NOT committed must be rebuilt — without them dsh fails to
+boot with module-resolution errors that surface as a misleading "start timeout":
+
+- `vendor/harness/native/landlock-run/packages/entry/lib/` (`.gitignore`'d)
+- `vendor/harness/apps/web/dist/` (never committed)
+
+The vendored packages use `file:` specs (rewritten from `workspace:` by
+`scripts/patch-workspace-refs.mjs` so **npm** can resolve them — use npm, NOT
+pnpm, which rejects `file:` in `peerDependencies`).
 
 ```bash
-cd vendor/harness
-pnpm install
-npm run build:lib:host && npm run build:lib:client
-cd ..
-npm install
+# 1. landlock-run lib (pure-JS seam; Windows doesn't use landlock at runtime)
+node node_modules/typescript/bin/tsc -b vendor/harness/native/landlock-run/packages/entry/tsconfig.json
+
+# 2. dsh web frontend dist (vite build compiles vendored client src/ directly)
+npm install --prefix vendor/harness/apps/web --ignore-scripts
+npm run --prefix vendor/harness/apps/web build
 ```
+
+`npm run postinstall` runs `scripts/build-vendored-dsh.mjs`, which does both
+idempotently (skips when the artifact already exists), so a fresh `npm ci` on
+any machine yields a working dsh with no extra steps.
 
 ### dsh Presets
 
@@ -194,20 +208,58 @@ After copying, the preset shows up in the dsh preset picker; set it as the defau
 
 ### Install & Run (fresh machine)
 
+**Prerequisites:** Node.js >= 18, Git, Windows, and Visual Studio Build Tools
+with the "Desktop development with C++" workload (node-pty is a native module).
+
+**1. Clone**
 ```bash
-# 1. Clone this repo
 git clone https://github.com/luguan/vibe-ide.git
 cd vibe-ide
-
-# 2. Install & run Vibe IDE
-npm install
-npm run dev
 ```
 
-> **Notes:**
-> - `node-pty` is a native module requiring C++ build tools on Windows. Make sure `node-gyp` prerequisites are installed (Visual Studio Build Tools with C++ workload).
-> - The vendored `file:` dependencies are installed into `node_modules` at `npm install` time — re-run `npm install` after replacing `vendor/harness`.
+**2. Add `.npmrc`** (required in mainland China — otherwise electron's binary
+download fails and `npm run dev` throws `Electron uninstall`)
+```
+registry=https://registry.npmmirror.com/
+electron_mirror=https://npmmirror.com/mirrors/electron/
+electron_builder_binaries_mirror=https://npmmirror.com/mirrors/electron-builder-binaries/
+```
+Outside China, drop the `registry` line (keep the two `electron_*` mirrors).
+
+**3. Install dependencies — `npm ci`, never `npm install`**
+```bash
+npm ci
+```
+`npm ci` installs exactly the locked versions without re-resolving `^` ranges —
+an `npm install` re-resolves and drifts the tree (the root cause of "dsh start
+timeout" after changing machines). It also runs `postinstall`, which runs
+`scripts/build-vendored-dsh.mjs` to **automatically build the two vendored
+harness artifacts that are not in git** (`landlock-run/lib/` and
+`apps/web/dist/`) — no manual build needed.
+
+**4. Verify dev**
+```bash
+npm run dev
+```
+Open the AI panel (dsh) in the app; the dev terminal should print
+`dsh web: http://127.0.0.1:PORT`.
+
+**5. Package**
+```bash
+npm run build:win
+```
+Outputs `dist/Vibe IDE Setup x64.exe` (NSIS) + a 7z. Install it and open dsh
+to verify.
+
+> **Gotchas (each was a real root cause):**
+> - Use **npm, not pnpm** — vendored packages use `file:` specs (patched by
+>   `patch-workspace-refs.mjs`); pnpm rejects `file:` in `peerDependencies`.
+> - The electron **binary** must come through the mirror (step 2), or dev
+>   throws `Electron uninstall`.
+> - `node-pty` needs the VS C++ workload, or its build fails.
 > - Dev mode auto-discovers the harness at `vendor/harness/apps/cli/lib/bin.js`.
+> - If `postinstall` ever skips the dsh artifacts, run
+>   `node scripts/build-vendored-dsh.mjs` by hand.
 
 ### Privacy: telemetry removed
 
