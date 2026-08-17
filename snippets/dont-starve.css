@@ -144,11 +144,6 @@ html, body, #root {
   ) !important;
 }
 
-.session-item > div {
-  position: relative !important;
-  z-index: 1 !important;
-}
-
 .session-item:hover {
   background: rgb(40 115 130) !important;
   color: rgb(38 223 162) !important;
