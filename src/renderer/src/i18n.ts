@@ -81,7 +81,7 @@ const ZH_MAP: Record<string, string> = {
   'Opening folder...': '正在打开文件夹…',
   'No sessions yet': '暂无会话',
   'Right-click blank area to open a new session': '右键空白处打开新会话',
-  'Close Session': '关闭会话',
+  'Close Session': '归档会话',
   'Clone': '克隆',
   'Rename': '重命名',
   'Close': '关闭',

@@ -403,6 +403,32 @@ function SessionCmdCopyButton({ cmd }: { cmd: string }) {
   )
 }
 
+// 会话闲置时长短英文：<60s 显示 now，否则 Nm / Nh / Nd
+function formatIdleDuration(durMs: number): string {
+  if (durMs < 60_000) return 'now'
+  const m = Math.floor(durMs / 60_000)
+  if (m < 60) return `${m}m`
+  const h = Math.floor(durMs / 3_600_000)
+  if (h < 24) return `${h}h`
+  const d = Math.floor(durMs / 86_400_000)
+  return `${d}d`
+}
+// 自带 1s tick 的小组件：只重渲染自身，避免整面板每秒重渲染
+function SessionIdleAge({ idleSince, running, className }: { idleSince?: number; running: boolean; className?: string }) {
+  const [str, setStr] = useState<string>(() => running ? 'now' : formatIdleDuration(Date.now() - (idleSince ?? Date.now())))
+  useEffect(() => {
+    if (running) { setStr('now'); return }
+    const tick = () => {
+      const next = formatIdleDuration(Date.now() - (idleSince ?? Date.now()))
+      setStr(prev => prev === next ? prev : next)
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [running, idleSince])
+  return <span className={className}>{str}</span>
+}
+
 const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPanelProps>(function SessionPanel({
   sessions,
   activeSessionId,
@@ -723,6 +749,22 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     }
     prevSessionIdsRef.current = new Set(sessions.map(s => s.id))
   }, [sessions])
+
+  // 每会话 idleSince：running→(idle|warn) 转换时盖戳 now；首次见到的非 running 会话用 createdAt 初始化
+  const [idleSinceMap, setIdleSinceMap] = useState<Record<string, number>>({})
+  const prevStatusRef = useRef<Record<string, 'running' | 'idle' | 'warn'>>({})
+  useEffect(() => {
+    const prev = prevStatusRef.current
+    const stamps: Record<string, number> = {}
+    for (const s of sessions) {
+      const cur = agentStatus[s.id] ?? 'idle'
+      const p = prev[s.id]
+      if (p === undefined) { if (cur !== 'running') stamps[s.id] = s.createdAt }
+      else if (p === 'running' && cur !== 'running') stamps[s.id] = Date.now()
+      prev[s.id] = cur
+    }
+    if (Object.keys(stamps).length) setIdleSinceMap(m => ({ ...m, ...stamps }))
+  }, [agentStatus, sessions])
 
   // Group sessions by normalized cwd
   const sessionGroups = useMemo(() => {
@@ -1246,19 +1288,26 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               </button>
             </div>
           )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onCloseSession(session.id)
-            }}
-            className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
-            title={t('Close Session')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+          <div className="relative w-5 h-5 shrink-0">
+            <SessionIdleAge
+              idleSince={idleSinceMap[session.id]}
+              running={agentStatus[session.id] === 'running'}
+              className="absolute inset-0 flex items-center justify-center text-xs tabular-nums text-ide-text-muted opacity-100 group-hover:opacity-0 transition-opacity pointer-events-none select-none whitespace-nowrap"
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onCloseSession(session.id)
+              }}
+              className="absolute inset-0 opacity-0 group-hover:opacity-100 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all flex items-center justify-center pointer-events-none group-hover:pointer-events-auto"
+              title={t('Close Session')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
       {opts.showCwd && (
