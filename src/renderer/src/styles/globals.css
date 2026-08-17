@@ -64,6 +64,27 @@ html, body, #root {
   background: transparent;
 }
 
+/* dsh scrollbar.css 全局 ::-webkit-scrollbar 把 thumb 染成 dsh token（浅色主题下
+   l1=neutral-200 近白），覆盖了 vibe 主题色。把 #root 内、.dsh-view 子树之外的滚动条
+   钉回 vibe 颜色与宽度；dsh 自身（.dsh-view 子树 + 挂 body 的 portal）仍走 dsh 样式。 */
+#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-track {
+  background: transparent;
+}
+#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb {
+  background: rgb(var(--scrollbar-thumb));
+  border-radius: 3px;
+}
+#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--scrollbar-thumb-hover));
+}
+#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* xterm overrides */
 .term-view__canvas {
   background-color: rgb(var(--term-bg, var(--ide-bg)));
