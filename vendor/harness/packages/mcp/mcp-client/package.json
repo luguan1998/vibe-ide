@@ -42,7 +42,9 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "@deepseek-ai/schemastery": "file:../../vendor/schemastery",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@deepseek-ai/dsh-attachment": "file:../../attachment/attachment",
+    "@deepseek-ai/dsh-attachment-local": "file:../../attachment/attachment-local"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-invariants": "file:../runtime-diagnostics/invariants",
