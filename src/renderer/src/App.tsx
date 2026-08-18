@@ -186,10 +186,10 @@ declare global {
         resolveConfigDir: (configDir?: string) => Promise<string>
         listSessions: (cwd?: string, configDir?: string) => Promise<{ sessions: any[]; error?: string }>
         deleteSession: (sessionId: string, cwd: string, configDir?: string) => Promise<{ success: boolean; error?: string }>
-        loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
+        loadSessionMessages: (resumeSessionId: string, cwd: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string; actualCwd?: string }>
         listAllSessions: (configDir?: string, currentCwd?: string) => Promise<{ sessions: import('@shared/types').AiSessionSummary[]; total?: number }>
         searchSessions: (query: string, opts?: import('@shared/types').AiSearchOptions) => Promise<{ sessions: import('@shared/types').AiSessionSearchGroup[]; truncated?: boolean }>
-        loadSessionMessagesByDir: (resumeSessionId: string, projectDir: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string }>
+        loadSessionMessagesByDir: (resumeSessionId: string, projectDir: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string; actualCwd?: string }>
         deleteSessionByDir: (sessionId: string, projectDir: string, configDir?: string) => Promise<{ success: boolean; error?: string }>
         revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) => Promise<{ success: boolean; error?: string }>
         fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
@@ -722,7 +722,7 @@ export default function App() {
       const sessionId: string | undefined = data?.session_id
       const cwd: string | undefined = data?.cwd
       if (sid && sessionId) {
-        setSessions(prev => prev.map(s => s.id === sid ? { ...s, resumeSessionId: sessionId } : s))
+        setSessions(prev => prev.map(s => s.id === sid ? { ...s, resumeSessionId: s.resumeSessionId || sessionId } : s))
       }
       if (sid && cwd) {
         setSessions(prev => prev.map(s => s.id === sid ? { ...s, resumeCwd: cwd } : s))

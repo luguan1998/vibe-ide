@@ -1358,25 +1358,19 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <button
             onClick={() => handleQuickNewSession(newMode)}
             title={t('New Session')}
-            className="w-full h-9 flex items-center justify-start px-3 gap-1.5 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors"
+            className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors"
           >
             <MessageSquarePlus size={14} className="text-ide-accent shrink-0" />
             <span className="truncate pointer-events-none">{t('New Session')}</span>
+            <span className="ml-auto text-[10px] font-mono text-ide-text-muted pointer-events-none group-hover/new-session:opacity-0 transition-opacity">Ctrl+N</span>
           </button>
-          <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center rounded-md border border-ide-border bg-ide-bg overflow-hidden shadow-sm opacity-0 pointer-events-none group-hover/new-session:opacity-100 group-hover/new-session:pointer-events-auto transition-opacity">
+          <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center rounded-md overflow-hidden opacity-0 pointer-events-none group-hover/new-session:opacity-100 group-hover/new-session:pointer-events-auto transition-opacity">
             <button
               title={t('New Workspace')}
               onClick={() => onCreateSession(termType)}
               className="w-7 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
             >
               <FolderPlus size={13} />
-            </button>
-            <button
-              title={t('New Session')}
-              onClick={() => handleQuickNewSession(newMode)}
-              className="w-7 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors border-l border-ide-border"
-            >
-              <ChevronRight size={13} />
             </button>
           </div>
           {quickNewSubmenu && (
@@ -1395,7 +1389,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         <button
           onClick={() => onOpenHistoryTab?.()}
           disabled={sessions.length === 0}
-          className="w-full h-9 flex items-center justify-start px-3 gap-1.5 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <History size={14} className="text-ide-text-muted" />
           {t('Session History')}

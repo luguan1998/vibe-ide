@@ -198,10 +198,11 @@ export const aiStore = {
         }))
         return
       }
-      const finish = (messages: any[], model: string, slashCommands: any[]) => {
+      const finish = (messages: any[], model: string, slashCommands: any[], actualCwd?: string) => {
+        const createCwd = actualCwd || opts.cwd
         window.api.ai.create({
           sessionId: sid,
-          cwd: opts.cwd,
+          cwd: createCwd,
           autoApprove: opts.autoApprove,
           permissionMode: opts.permissionMode,
           ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}),
@@ -214,7 +215,7 @@ export const aiStore = {
         })
         aiStore.updateSession(sid, () => ({
           ...EMPTY_SESSION,
-          cwd: opts.cwd,
+          cwd: createCwd,
           messages,
           model,
           slashCommands: enrichSlashCommands(slashCommands),
@@ -224,7 +225,7 @@ export const aiStore = {
         // CLI --resume 不重放历史事件流，须先从 JSONL 预填历史（与 resumeSession 一致），
         // 否则 fork/恢复的新会话渲染空白
         window.api.ai.loadSessionMessages(opts.resumeSessionId, opts.cwd, configDir)
-          .then((history: any) => finish(history?.messages || [], history?.model || '', history?.slashCommands || []))
+          .then((history: any) => finish(history?.messages || [], history?.model || '', history?.slashCommands || [], history?.actualCwd))
           .catch(() => finish([], '', []))
       } else {
         finish([], '', [])
@@ -258,11 +259,13 @@ export const aiStore = {
     let model = ''
     let slashCommands: any[] = []
     let resumeCwd = cwd
+    let actualCwd: string | undefined
     try {
       const history = await window.api.ai.loadSessionMessages(historySessionId, resumeCwd, configDir)
       messages = history.messages || []
       model = history.model || ''
       slashCommands = history.slashCommands || []
+      actualCwd = history.actualCwd
     } catch {}
     // 如果传入的 cwd 找不到 JSONL，可能持久化里存的是 UI 目录而不是会话实际目录
     // （例如 worktree / 子目录启动）。尝试从全量历史里按 session_id 找到真实 cwd 再试一次。
@@ -276,15 +279,19 @@ export const aiStore = {
           messages = history.messages || []
           model = history.model || ''
           slashCommands = history.slashCommands || []
+          actualCwd = history.actualCwd
         }
       } catch {}
     }
     // 如果确实找不到 JSONL，才降级为新建空白 GUI，避免 CLI 报 “No conversation found”。
     const resumed = messages.length > 0
+    // 用 JSONL 首行记录的真实 cwd 发起 CLI —— 入参 cwd 可能与真实 cwd 不一致
+    // （worktree/符号链接/大小写/尾部斜杠），CLI 推 projectDir 会落空而当成新会话。
+    const createCwd = actualCwd || resumeCwd
     try { await window.api.ai.destroy(sid) } catch {}
     window.api.ai.create({
       sessionId: sid,
-      cwd: resumeCwd,
+      cwd: createCwd,
       autoApprove: opts.autoApprove,
       permissionMode: opts.permissionMode,
       ...(resumed ? { resumeSessionId: historySessionId } : {}),
@@ -298,10 +305,10 @@ export const aiStore = {
       model,
       slashCommands: enrichSlashCommands(slashCommands),
       name: opts.name || '',
-      cwd: resumeCwd,
+      cwd: createCwd,
       ready: false,
     }))
-    return { resumed, cwd: resumeCwd }
+    return { resumed, cwd: createCwd }
   },
   handlePermissionResponse(
     sessionId: string, requestId: string, approved: boolean,

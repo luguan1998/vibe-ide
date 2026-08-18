@@ -1230,28 +1230,34 @@ export async function loadSessionMessagesFromProject(resumeSessionId: string, pr
   messages: AiMessage[]
   model: string
   slashCommands: string[]
+  actualCwd?: string
 }> {
   const jsonlPath = join(projectDir, `${resumeSessionId}.jsonl`)
   let content: string
-  try { content = await readFile(jsonlPath, 'utf-8') } catch { return { messages: [], model: '', slashCommands: [] } }
+  try { content = await readFile(jsonlPath, 'utf-8') } catch { return { messages: [], model: '', slashCommands: [], actualCwd: undefined } }
 
   const lines = content.split('\n').filter(Boolean)
+  let actualCwd: string | undefined
+  for (const line of lines) {
+    try { const o = JSON.parse(line); if (typeof o.cwd === 'string' && o.cwd) { actualCwd = o.cwd; break } } catch { /* skip malformed */ }
+  }
   const turnByLine = new Map<number, UserTurn>()
   for (const t of parseUserTurns(lines)) turnByLine.set(t.lineIdx, t)
 
   const parsed = parseTranscriptLines(lines, resumeSessionId, { allowSidechain: false, turnByLine })
   await inlineSubagents(parsed.messages, projectDir, resumeSessionId, 0)
 
-  return { messages: parsed.messages, model: parsed.model, slashCommands: parsed.slashCommands }
+  return { messages: parsed.messages, model: parsed.model, slashCommands: parsed.slashCommands, actualCwd }
 }
 
 async function loadSessionMessages(resumeSessionId: string, cwd: string, configDir?: string): Promise<{
   messages: AiMessage[]
   model: string
   slashCommands: string[]
+  actualCwd?: string
 }> {
   const projectDir = resolveProjectDir(cwd, configDir)
-  if (!projectDir) return { messages: [], model: '', slashCommands: [] }
+  if (!projectDir) return { messages: [], model: '', slashCommands: [], actualCwd: undefined }
   return loadSessionMessagesFromProject(resumeSessionId, projectDir)
 }
 

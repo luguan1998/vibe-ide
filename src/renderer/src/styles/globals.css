@@ -744,6 +744,19 @@ html, body, #root {
   border-color: rgb(var(--ide-accent) / 0.6);
   color: rgb(var(--ide-accent));
 }
+.desktop-pet__context-gear--active {
+  background: rgb(var(--ide-accent) / 0.14);
+  border-color: rgb(var(--ide-accent) / 0.6);
+  color: rgb(var(--ide-accent));
+  fill: currentColor;
+}
+.desktop-pet__context-hint {
+  pointer-events: none;
+  user-select: none;
+  font-size: 10px;
+  color: rgb(var(--ide-text-muted) / 0.8);
+  text-align: center;
+}
 
 .aux-tab__scroll { scrollbar-width: none; }
 .aux-tab__scroll::-webkit-scrollbar { display: none; }

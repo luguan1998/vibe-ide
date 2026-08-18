@@ -5,7 +5,7 @@ import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
-import { Edit, Send, ClipboardPaste, BookOpenText } from 'lucide-react'
+import { Edit, Send, ClipboardPaste, BookOpenText, Pin } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT } from '../vibeEvents'
 import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
@@ -33,6 +33,8 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [bubblesAlign, setBubblesAlign] = useState<'default' | 'left' | 'right'>('default')
   const [contextAlign, setContextAlign] = useState<'default' | 'left' | 'right'>('default')
   const [contextOpen, setContextOpen] = useState(false)
+  const [contextPinned, setContextPinned] = useState(false)
+  const [contextFocused, setContextFocused] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [draftCmd, setDraftCmd] = useState('')
   const [keypadItems, setKeypadItems] = useState<ReturnType<typeof loadKeypadItems>>([])
@@ -341,7 +343,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       e.preventDefault()
       e.stopImmediatePropagation()
       if (configOpen) setConfigOpen(false)
-      else if (contextOpen) setContextOpen(false)
+      else if (contextOpen) { setContextOpen(false); setContextPinned(false) }
       else setAiBubbleOpen(false)
     }
     window.addEventListener('keydown', handler, true)
@@ -392,13 +394,13 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     const onDown = (ev: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(ev.target as Node)) {
         setPopupOpen(false)
-        setContextOpen(false)
+        if (!contextPinned) setContextOpen(false)
         setAiBubbleOpen(false)
       }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [popupOpen, contextOpen, aiBubbleOpen])
+  }, [popupOpen, contextOpen, aiBubbleOpen, contextPinned])
 
   if (!manifest) return null
 
@@ -484,6 +486,9 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       )}
       {contextOpen && (
         <div className={`desktop-pet__context desktop-pet__context--${contextDir}${contextAlign !== 'default' ? ` desktop-pet__context--align-${contextAlign}` : ''}`}>
+          {contextPinned && contextFocused && (
+            <div className="desktop-pet__context-hint">按 Enter 发送</div>
+          )}
           <textarea
             ref={contextInputRef}
             className="desktop-pet__context-input"
@@ -492,8 +497,17 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
             onChange={(e) => setDraftCmd(e.target.value)}
             onKeyDown={onContextKeyDown}
             placeholder="输入命令，Enter 发送"
+            onFocus={() => setContextFocused(true)}
+            onBlur={() => setContextFocused(false)}
           />
           <div className="flex items-center gap-1 self-end">
+            <button
+              className={`desktop-pet__context-gear${contextPinned ? ' desktop-pet__context-gear--active' : ''}`}
+              onClick={() => setContextPinned(v => !v)}
+              title={contextPinned ? '取消固定' : '固定输入框'}
+            >
+              <Pin size={14} fill={contextPinned ? 'currentColor' : 'none'} />
+            </button>
             <button className="desktop-pet__context-gear" onClick={handleReadReply} title="显示最新回复">
               <BookOpenText size={14} />
             </button>
