@@ -45,12 +45,22 @@ const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessi
     const sessions = h.ctx.get('sessions') as any
     const workspaces = h.ctx.get('workspaces') as any
     const targetId = dshSessionId || sessionId
+    let createError: unknown = null
     try {
       // Session must belong to a workspace for the hero chip/composer to activate
       const workspace = await workspaces.create({ path: cwd })
       await sessions.create({ workspaceId: workspace.workspaceId, sessionId: targetId })
     } catch (e: any) {
       if (e?.name !== 'SessionCreateError') throw e
+      createError = e
+    }
+    if (createError !== null) {
+      // create 失败可能只是「会话已存在被收养」（旧 harness 会失败），给列表基线
+      // 一点时间把 id 带进来；仍缺席就是真失败，抛真实错误而不是吞掉后让 open()
+      // 抛 unknown session 崩整个 React 树
+      const listed = () => (sessions.list.getSnapshot().ids ?? []).includes(targetId)
+      for (let i = 0; i < 8 && !listed(); i++) await new Promise((r) => setTimeout(r, 250))
+      if (!listed()) throw createError
     }
     setReady(true)
   }, [sessionId, cwd, dshSessionId])
@@ -86,7 +96,12 @@ const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessi
   // every mounted view pointed at the session the user is actually looking at.
   useEffect(() => {
     if (!handle || !ready || !isActive) return
-    ;(handle.ctx.get('sessions') as any).open(dshSessionId || sessionId)
+    try {
+      ;(handle.ctx.get('sessions') as any).open(dshSessionId || sessionId)
+    } catch (e: any) {
+      // open 抛错（会话被删/配置错误）不能崩整个 React 树，落到错误态
+      setError(e?.message ?? String(e))
+    }
   }, [handle, ready, isActive, sessionId, dshSessionId])
 
   // 把 dsh 会话 running/idle 状态与标题变化上报给 App（sessions.list 快照订阅）
@@ -151,7 +166,7 @@ const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessi
         <div className="text-ide-danger">dsh: {error}</div>
         <button
           className="px-3 py-1 rounded bg-ide-hover hover:bg-ide-accent hover:text-white transition-colors text-xs"
-          onClick={() => { setError(null); setHandle(null); setReady(false) }}
+          onClick={() => { setError(null); setHandle(null); setReady(false); void boot() }}
         >
           Retry
         </button>
