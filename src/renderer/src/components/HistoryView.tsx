@@ -27,6 +27,51 @@ function samePath(a?: string, b?: string): boolean {
   return norm(a) === norm(b)
 }
 
+// dsh 无服务端内容搜索：对已列出的会话逐个拉 turns 做本地匹配（按最近排序取前 N 个）
+const MAX_DSH_SEARCH_SESSIONS = 30
+const MAX_DSH_MATCHES_PER_SESSION = 5
+async function searchDshSessionsLocal(
+  sessionList: DshHistorySession[],
+  query: string,
+  workspacePath: string | null,
+): Promise<{ groups: AiSessionSearchGroup[]; truncated: boolean }> {
+  const q = query.toLowerCase()
+  const pool = [...sessionList]
+    .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+    .slice(0, MAX_DSH_SEARCH_SESSIONS)
+  const groups = (await Promise.all(pool.map(async (s) => {
+    try {
+      const turns = await fetchDshHistoryTurns(s.id, s.cwd)
+      const matches: AiSearchMatch[] = []
+      for (const tr of turns) {
+        const idx = tr.text.toLowerCase().indexOf(q)
+        if (idx < 0) continue
+        const start = Math.max(0, idx - 40)
+        const end = Math.min(tr.text.length, idx + q.length + 60)
+        matches.push({
+          role: tr.role,
+          text: (start > 0 ? '…' : '') + tr.text.slice(start, end) + (end < tr.text.length ? '…' : ''),
+        })
+        if (matches.length >= MAX_DSH_MATCHES_PER_SESSION) break
+      }
+      if (matches.length === 0) return null
+      return {
+        session_id: s.id,
+        name: s.title,
+        timestamp: s.updatedAt ?? 0,
+        model: '',
+        sizeBytes: 0,
+        cwd: s.cwd ?? '',
+        projectDir: s.cwd ?? '',
+        projectDirName: s.cwd ?? 'dsh',
+        inCurrentProject: samePath(s.cwd, workspacePath ?? undefined),
+        matches,
+      } satisfies AiSessionSearchGroup
+    } catch { return null }
+  }))).filter(Boolean) as AiSessionSearchGroup[]
+  return { groups, truncated: sessionList.length > MAX_DSH_SEARCH_SESSIONS }
+}
+
 function highlightParts(text: string, query: string, caseSensitive: boolean): React.ReactNode[] {
   if (!query) return [text]
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -154,6 +199,21 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     const reqId = ++fetchReqIdRef.current
     setSearching(true)
     setSearchError('')
+    if (dataSource === 'dsh') {
+      void (async () => {
+        try {
+          const { groups, truncated } = await searchDshSessionsLocal(dshSessions, debouncedQuery, workspacePath)
+          if (fetchReqIdRef.current !== reqId) return
+          setSearchResults(groups)
+          setSearchTruncated(truncated)
+        } catch (e: any) {
+          if (fetchReqIdRef.current === reqId) setSearchError(e?.message || '搜索失败')
+        } finally {
+          if (fetchReqIdRef.current === reqId) setSearching(false)
+        }
+      })()
+      return
+    }
     const { configDir } = readAiCliConfig()
     window.api.ai.searchSessions(debouncedQuery, { configDir, currentCwd: workspacePath || undefined })
       .then((r: any) => {
@@ -168,7 +228,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
       .finally(() => {
         if (fetchReqIdRef.current === reqId) setSearching(false)
       })
-  }, [debouncedQuery])
+  }, [debouncedQuery, dshSessions, dataSource, workspacePath])
 
   const toggleExpand = useCallback(async (s: Summary) => {
     const id = s.session_id
@@ -396,12 +456,12 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
             <span>{t('Current only')}</span>
           </button>
         </div>
-        <div className="relative" style={{ display: mode === 'dsh' ? 'none' : undefined }}>
+        <div className="relative">
           <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-ide-text-muted/50" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('Search Claude sessions...')}
+            placeholder={mode === 'dsh' ? t('Search dsh sessions...') : t('Search Claude sessions...')}
             className="w-full bg-ide-sidebar border border-ide-border rounded pl-7 pr-6 py-1.5 text-xs text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/50"
           />
           {query && (

@@ -84,6 +84,7 @@ const ZH_MAP: Record<string, string> = {
   'New Workspace': '新建工作区',
   'Folder Selection': '目录文件夹选择',
   'Disks': '磁盘',
+  'Search dsh sessions...': '搜索 dsh 会话…',
   'Close Session': '归档会话',
   'Clone': '克隆',
   'Rename': '重命名',
