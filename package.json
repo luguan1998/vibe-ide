@@ -7,8 +7,8 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "postinstall": "node scripts/patch-dsh-base.mjs && node scripts/patch-dsh-hmr.mjs && node scripts/build-vendored-dsh.mjs",
+    "build": "node scripts/gen-dsh-client-plugins.mjs && electron-vite build",
+    "postinstall": "node scripts/patch-dsh-base.mjs && node scripts/patch-dsh-hmr.mjs && node scripts/build-vendored-dsh.mjs && node scripts/gen-dsh-client-plugins.mjs",
     "typecheck": "tsc -b",
     "preview": "electron-vite preview",
     "test": "node --test --test-reporter=spec test/**/*.test.mjs",

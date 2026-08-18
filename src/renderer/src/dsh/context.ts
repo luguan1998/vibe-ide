@@ -11,24 +11,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { apply as applyTypert, inject as injectTypert } from '@deepseek-ai/dsh-typert-registry/src/client/index.ts'
-import { apply as applyConnection, inject as injectConnection } from '@deepseek-ai/dsh-client-connection/src/client/index.ts'
 import { apply as applyGateway, inject as injectGateway } from '@deepseek-ai/dsh-api-gateway/src/client/index.ts'
 import { apply as applyRemotes, inject as injectRemotes } from '@deepseek-ai/dsh-api-remotes/src/client/index.ts'
-import { apply as applyRuntime, inject as injectRuntime } from '@deepseek-ai/dsh-client-runtime/src/client/index.ts'
-import { apply as applySettings, inject as injectSettings } from '@deepseek-ai/dsh-client-ui-settings/src/client/index.ts'
-import { apply as applyLocale, inject as injectLocale } from '@deepseek-ai/dsh-client-locale/src/client/index.ts'
-import { apply as applyTheme, inject as injectTheme } from '@deepseek-ai/dsh-client-ui-theme/src/client/index.ts'
-import { apply as applyConversation, inject as injectConversation } from '@deepseek-ai/dsh-client-ui-conversation/src/client/apply.ts'
-import { apply as applyTool, inject as injectTool } from '@deepseek-ai/dsh-client-ui-tool/src/client/apply.ts'
-import { apply as applySettingsGeneral, inject as injectSettingsGeneral } from '@deepseek-ai/dsh-client-ui-settings-general/src/client/index.ts'
-import { apply as applySettingsModels, inject as injectSettingsModels } from '@deepseek-ai/dsh-client-ui-settings-models/src/client/index.ts'
-import { apply as applySettingsPlugins, inject as injectSettingsPlugins } from '@deepseek-ai/dsh-client-ui-settings-plugins/src/client/index.ts'
-import { apply as applyPluginInventory, inject as injectPluginInventory } from '@deepseek-ai/dsh-client-ui-settings-plugin-inventory/src/client/index.ts'
-import { apply as applyAgentPreset, inject as injectAgentPreset } from '@deepseek-ai/dsh-client-ui-agent-preset/src/client/index.ts'
-import { apply as applyTrajectory, inject as injectTrajectory } from '@deepseek-ai/dsh-client-ui-trajectory/src/client/index.ts'
-import { apply as applyModelSelection, inject as injectModelSelection } from '@deepseek-ai/dsh-client-ui-model-selection/src/client/index.ts'
-import { apply as applyCommands, inject as injectCommands } from '@deepseek-ai/dsh-client-ui-commands/src/client/index.ts'
-import { apply as applyInputTrigger, inject as injectInputTrigger } from '@deepseek-ai/dsh-client-ui-input-trigger/src/client/index.ts'
+import { dshClientPlugins } from './generated-client-plugins'
 import { createSlotRenderer } from '@deepseek-ai/dsh-client-web-react/src/index.ts'
 import { DshRoot } from './DshRoot'
 import DshPluginTab from '../components/DshPluginTab'
@@ -83,19 +68,9 @@ async function buildDshContext(baseUrl: string): Promise<DshContextHandle> {
       },
     }),
     ctx.plugin({ apply: applyTypert, inject: injectTypert }),
-    ctx.plugin({ apply: applyConnection, inject: injectConnection }),
     ctx.plugin({ apply: applyGateway, inject: injectGateway }),
     ctx.plugin({ apply: applyRemotes, inject: injectRemotes }),
-    ctx.plugin({ apply: applyRuntime, inject: injectRuntime }),
-    ctx.plugin({ apply: applySettings, inject: injectSettings }),
-    ctx.plugin({ apply: applyLocale, inject: injectLocale }),
-    ctx.plugin({ apply: applyTheme, inject: injectTheme }),
-    ctx.plugin({ apply: applyConversation, inject: injectConversation }),
-    ctx.plugin({ apply: applyTool, inject: injectTool }),
-    ctx.plugin({ apply: applySettingsGeneral, inject: injectSettingsGeneral }),
-    ctx.plugin({ apply: applySettingsModels, inject: injectSettingsModels }),
-    ctx.plugin({ apply: applySettingsPlugins, inject: injectSettingsPlugins }),
-    ctx.plugin({ apply: applyPluginInventory, inject: injectPluginInventory }),
+    ...dshClientPlugins.map((p) => ctx.plugin(p)),
     // Preset convergence: the deployment default governs blank sessions, but
     // the host only applies it at session creation — an in-place default
     // change leaves the already-current blank session (and the hero chip
@@ -136,12 +111,7 @@ async function buildDshContext(baseUrl: string): Promise<DshContextHandle> {
         c.effect(() => () => { offList(); offSettings() })
       },
     }),
-    ctx.plugin({ apply: applyAgentPreset, inject: injectAgentPreset }),
-    ctx.plugin({ apply: applyTrajectory, inject: injectTrajectory }),
-    ctx.plugin({ apply: applyInputTrigger, inject: injectInputTrigger }),
-    ctx.plugin({ apply: applyCommands, inject: injectCommands }),
-    ctx.plugin({ apply: applyModelSelection, inject: injectModelSelection }),
-    // Vibe 侧插件管理 tab：挂进 dsh 齿轮设置弹窗的"插件"分区（settings.plugins.tab slot）
+    // Vibe 侧插件管理 tab：挂进 dsh 齿轮设置弹窗的“插件”分区（settings.plugins.tab slot）
     ctx.plugin({
       name: 'vibe-plugin-tab',
       inject: ['slots', 'locale'],

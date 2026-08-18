@@ -13,4 +13,5 @@ __pycache__/
 .mcp.json
 snippets/snippets.json
 pets/pets.json
+src/renderer/src/dsh/generated-client-plugins.ts
 doc
