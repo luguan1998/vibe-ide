@@ -2,19 +2,21 @@
   切换Session 状态 emoji：running ▶️ / warn ⏸️
 */
 
-.session-item--running .session-item__icon,
-.session-item--warn .session-item__icon {
+.session-item--running:not(.session-item--scheduled):not(.session-item--worktree) .session-item__icon,
+.session-item--warn:not(.session-item--scheduled):not(.session-item--worktree) .session-item__icon {
   font-size: 0;
 }
 
-.session-item--running .session-item__icon::before {
+.session-item--running:not(.session-item--scheduled):not(.session-item--worktree) .session-item__icon::before {
   content: '▶️';
   font-size: 14px;
   line-height: 1;
+  visibility: visible;
 }
 
-.session-item--warn .session-item__icon::before {
-  content: '⏸️' !important;
+.session-item--warn:not(.session-item--scheduled):not(.session-item--worktree) .session-item__icon::before {
+  content: '⏸️';
   font-size: 14px;
   line-height: 1;
+  visibility: visible;
 }

@@ -2678,6 +2678,7 @@ export default function App() {
             onReorderGroup={handleReorderGroup}
             commandHistory={commandHistory}
             agentStatus={agentStatus}
+            sessionWorktreeNav={sessionWorktreeNav}
             onResetCache={handleResetCache}
             pollingEnabled={pollingEnabled}
             onTogglePolling={(v) => { setPollingEnabled(v); try { localStorage.setItem('vibe-ide-polling', v ? '1' : '0') } catch {} }}

@@ -224,6 +224,7 @@ interface SessionPanelProps {
   onReorderGroup?: (fromGroupIndex: number, toGroupIndex: number) => void
   commandHistory?: Record<string, string[]>
   agentStatus?: Record<string, 'running' | 'idle' | 'warn'>
+  sessionWorktreeNav?: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onOpenHistoryTab?: () => void
   onResetCache?: (sessionId: string) => void
   pollingEnabled?: boolean
@@ -429,6 +430,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onReorderGroup,
   commandHistory = {},
   agentStatus = {},
+  sessionWorktreeNav = {},
   onOpenHistoryTab,
   onResetCache,
   pollingEnabled = false,
@@ -1004,6 +1006,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         agentStatus[session.id] === 'running' ? ' session-item--running' : ''
       }${
         agentStatus[session.id] === 'warn' ? ' session-item--warn' : ''
+      }${
+        schedTasks[session.id] ? ' session-item--scheduled' : ''
+      }${
+        sessionWorktreeNav[session.id] ? ' session-item--worktree' : ''
       } ${
         session.id === activeSessionId
           ? 'bg-ide-accent/20 text-ide-text border-l-[3px] border-ide-accent'
@@ -1093,11 +1099,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             <>
               {(() => {
                 const scheduled = !!schedTasks[session.id]
-                const sessionEmoji = scheduled ? '⏰' : (sessionEmojiOverrides[session.id] || stableEmojiForSession(session.id, sessionEmojis))
+                const worktree = !!sessionWorktreeNav[session.id]
+                const sessionEmoji = scheduled ? '⏰' : worktree ? '🌿' : (sessionEmojiOverrides[session.id] || stableEmojiForSession(session.id, sessionEmojis))
                 return (
                   <span
                     className="text-sm shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors session-item__icon"
-                    title={scheduled ? t('Scheduled Task') : t('Click to cycle emoji')}
+                    title={scheduled ? t('Scheduled Task') : worktree ? (sessionWorktreeNav[session.id]?.worktreePath || 'Worktree') : t('Click to cycle emoji')}
                     draggable={false}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -1106,6 +1113,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         openSchedModal(session.id)
                         return
                       }
+                      if (worktree) { return }
                       if (sessionEmojis.length === 0) return
                       const idx = sessionEmojis.indexOf(sessionEmoji)
                       const next = sessionEmojis[(idx + 1) % sessionEmojis.length]

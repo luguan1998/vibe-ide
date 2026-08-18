@@ -999,3 +999,9 @@ html, body, #root {
 .session-group .session-item:not(.session-item--running) .session-item__icon {
   visibility: hidden;
 }
+.session-group .session-item.session-item--scheduled .session-item__icon {
+  visibility: visible;
+}
+.session-group .session-item.session-item--worktree .session-item__icon {
+  visibility: visible;
+}
