@@ -99,7 +99,12 @@ export function applyDshTheme(ctx: Context): () => void {
     }
   }
   const off = ctx.on('theme/change', present)
+  // apply() 经 rAF 调度：MO 微任务里 getComputedStyle 对自定义属性返回上一次重算的旧值
+  //（慢一拍 → dsh 落后一个主题）。rAF 在 style recalc 后执行，computed 才是最新值；
+  // 必须读 computed 而非内联 style，才能拿到 snippet 在 :root 用 !important 叠加的覆盖色。
+  let rafId: number | null = null
   const apply = (): void => {
+    rafId = null
     const cs = getComputedStyle(document.documentElement)
     const tokens: ThemeTokenOverrides = {}
     for (const [dsw, ide] of TOKEN_MAP) {
@@ -120,10 +125,15 @@ export function applyDshTheme(ctx: Context): () => void {
     // 同步 emit theme/change → present() 立即把 token 写到 body
     theme.overrideTokens('vibe-ide', tokens)
   }
+  const schedule = (): void => {
+    if (rafId !== null) return
+    rafId = requestAnimationFrame(apply)
+  }
   apply()
-  const observer = new MutationObserver(apply)
+  const observer = new MutationObserver(schedule)
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
   return () => {
+    if (rafId !== null) cancelAnimationFrame(rafId)
     observer.disconnect()
     off()
   }

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { TerminalSession, RecentFileEntry } from '@shared/types'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, FolderPlus } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -561,8 +561,36 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [newMode, setNewMode] = useState<'term' | 'gui' | 'dsh'>('term')
+  // 新建类型菜单：勾选项置顶
+  const newModesSorted = useMemo(() => {
+    const all = ['term', 'gui', 'dsh'] as const
+    return [newMode, ...all.filter(m => m !== newMode)] as ('term' | 'gui' | 'dsh')[]
+  }, [newMode])
+  const renderNewModeItem = (mode: 'term' | 'gui' | 'dsh', onPick: (mode: 'term' | 'gui' | 'dsh') => void) => (
+    <button
+      key={mode}
+      className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+      onClick={() => { setNewMode(mode); onPick(mode) }}
+    >
+      {mode === 'term' ? (
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent shrink-0">
+          <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
+        </svg>
+      ) : mode === 'gui' ? (
+        <ClaudeLogoIcon size={14} className="shrink-0" />
+      ) : (
+        <DeepSeekLogoIcon size={14} className="shrink-0" />
+      )}
+      <span>{mode === 'term' ? t('Terminal') : mode === 'gui' ? 'Claude' : 'dsh'}</span>
+      <span className="ml-auto flex items-center">
+        {newMode === mode ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
+      </span>
+    </button>
+  )
   const [newSubmenu, setNewSubmenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const newSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [quickNewSubmenu, setQuickNewSubmenu] = useState<{ x: number; y: number } | null>(null)
+  const quickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 新建：按模式在当前会话 cwd 创建并关菜单（勾选模式为当次启动内的用户偏好）
   const handleNewFromSubmenu = (mode: 'term' | 'gui' | 'dsh') => {
@@ -789,7 +817,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       setContextMenu(null)
       setEmptyAreaMenu(null)
       setCloneSubmenu(null)
+      setQuickNewSubmenu(null)
       if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
+      if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
     }
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
@@ -947,8 +977,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setEmptyAreaMenu(null)
     setCloneSubmenu(null)
     setNewSubmenu(null)
+    setQuickNewSubmenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
     if (newSubmenuTimerRef.current) { clearTimeout(newSubmenuTimerRef.current); newSubmenuTimerRef.current = null }
+    if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
     setContextMenu({ x: e.clientX, y: e.clientY, sessionId })
   }
 
@@ -957,8 +989,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setContextMenu(null)
     setCloneSubmenu(null)
     setNewSubmenu(null)
+    setQuickNewSubmenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
     if (newSubmenuTimerRef.current) { clearTimeout(newSubmenuTimerRef.current); newSubmenuTimerRef.current = null }
+    if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
     setEmptyAreaMenu({ x: e.clientX, y: e.clientY })
   }
 
@@ -1310,40 +1344,51 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       </div>
 
       <div className="mx-2 mt-1 flex flex-col gap-1.5">
-        <div className="relative group/new-session">
+        <div
+          className="relative group/new-session"
+          onMouseEnter={(e) => {
+            if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
+            const r = e.currentTarget.getBoundingClientRect()
+            setQuickNewSubmenu({ x: r.right + 4, y: r.top })
+          }}
+          onMouseLeave={() => {
+            quickNewSubmenuTimerRef.current = setTimeout(() => setQuickNewSubmenu(null), 150)
+          }}
+        >
           <button
-            onClick={() => onCreateSession(termType)}
+            onClick={() => handleQuickNewSession(newMode)}
             title={t('New Session')}
             className="w-full h-9 flex items-center justify-start px-3 gap-1.5 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors"
           >
             <MessageSquarePlus size={14} className="text-ide-accent shrink-0" />
             <span className="truncate pointer-events-none">{t('New Session')}</span>
           </button>
-          {quickNewCwd && onNewSessionHere && (
-            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center rounded-md border border-ide-border bg-ide-bg overflow-hidden shadow-sm opacity-0 pointer-events-none group-hover/new-session:opacity-100 group-hover/new-session:pointer-events-auto transition-opacity">
-              <button
-                title={t('Terminal')}
-                onClick={() => handleQuickNewSession('term')}
-                className="w-7 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
-              >
-                <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent">
-                  <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <button
-                title="Claude"
-                onClick={() => handleQuickNewSession('gui')}
-                className="w-7 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors border-l border-ide-border"
-              >
-                <ClaudeLogoIcon size={13} />
-              </button>
-              <button
-                title="dsh"
-                onClick={() => handleQuickNewSession('dsh')}
-                className="w-7 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors border-l border-ide-border"
-              >
-                <DeepSeekLogoIcon size={13} />
-              </button>
+          <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center rounded-md border border-ide-border bg-ide-bg overflow-hidden shadow-sm opacity-0 pointer-events-none group-hover/new-session:opacity-100 group-hover/new-session:pointer-events-auto transition-opacity">
+            <button
+              title={t('New Workspace')}
+              onClick={() => onCreateSession(termType)}
+              className="w-7 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+            >
+              <FolderPlus size={13} />
+            </button>
+            <button
+              title={t('New Session')}
+              onClick={() => handleQuickNewSession(newMode)}
+              className="w-7 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors border-l border-ide-border"
+            >
+              <ChevronRight size={13} />
+            </button>
+          </div>
+          {quickNewSubmenu && (
+            <div
+              className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px]"
+              style={{ left: quickNewSubmenu.x, top: quickNewSubmenu.y }}
+              onMouseEnter={() => {
+                if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
+              }}
+              onMouseLeave={() => setQuickNewSubmenu(null)}
+            >
+              {newModesSorted.map(mode => renderNewModeItem(mode, handleQuickNewSession))}
             </div>
           )}
         </div>
@@ -1623,38 +1668,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     }}
                     onMouseLeave={() => setNewSubmenu(null)}
                   >
-                    <button
-                      className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                      onClick={() => handleNewFromSubmenu('term')}
-                    >
-                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent shrink-0">
-                        <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
-                      </svg>
-                      <span>{t('Terminal')}</span>
-                      <span className="ml-auto flex items-center">
-                        {newMode === 'term' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
-                      </span>
-                    </button>
-                    <button
-                      className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                      onClick={() => handleNewFromSubmenu('gui')}
-                    >
-                      <ClaudeLogoIcon size={14} className="shrink-0" />
-                      <span>Claude</span>
-                      <span className="ml-auto flex items-center">
-                        {newMode === 'gui' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
-                      </span>
-                    </button>
-                    <button
-                      className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                      onClick={() => handleNewFromSubmenu('dsh')}
-                    >
-                      <DeepSeekLogoIcon size={14} className="shrink-0" />
-                      <span>dsh</span>
-                      <span className="ml-auto flex items-center">
-                        {newMode === 'dsh' ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
-                      </span>
-                    </button>
+                    {newModesSorted.map(mode => renderNewModeItem(mode, handleNewFromSubmenu))}
                   </div>
                 )}
               </div>
@@ -1712,7 +1726,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       )}
 
       {/* Empty Area Context Menu — recent directories */}
-      {emptyAreaMenu && (
+      {emptyAreaMenu && (() => {
+        const activeSession = sessions.find(s => s.id === activeSessionId)
+        return (
         <div
           ref={emptyMenuPos.ref}
           className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[200px] overflow-y-auto"
@@ -1722,12 +1738,34 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
             onClick={() => {
+              if (activeSession && onNewSessionHere) onNewSessionHere(activeSession.cwd, 'term')
+              else onCreateSession(termType)
+              setEmptyAreaMenu(null)
+            }}
+          >
+            <Terminal size={14} className="text-ide-text-muted" />
+            {t('New Terminal')}
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent text-ide-text hover:bg-ide-hover"
+            disabled={!activeSession}
+            onClick={() => {
+              if (activeSession) startRename(activeSession)
+              setEmptyAreaMenu(null)
+            }}
+          >
+            <Pencil size={14} className="text-ide-text-muted" />
+            {t('Rename')}
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+            onClick={() => {
               onCreateSession(termType)
               setEmptyAreaMenu(null)
             }}
           >
-            <MessageSquarePlus size={14} className="text-ide-text-muted" />
-            {t('New Terminal')}
+            <FolderPlus size={14} className="text-ide-text-muted" />
+            {t('New Workspace')}
           </button>
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
@@ -1804,7 +1842,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </>
           )}
         </div>
-      )}
+        )
+      })()}
 
       {/* History Hover Popover */}
       {hoverPreview && (() => {

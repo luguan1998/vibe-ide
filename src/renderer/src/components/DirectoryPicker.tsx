@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Folder, FolderUp, HardDrive } from 'lucide-react'
 import { ModalOverlay } from './ModalOverlay'
 import { useI18n } from '../i18n'
+import { useRecentDirs } from '../cwdStore'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 
@@ -15,6 +16,7 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
   onCancel: () => void
 }) {
   const { t } = useI18n()
+  const recentDirs = useRecentDirs()
   const [cwd, setCwd] = useState(initialDir)
   const [entries, setEntries] = useState<DirEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -87,23 +89,45 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
   return (
     <ModalOverlay onClose={onCancel}>
       <div className="dir-picker bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[480px] h-[560px] min-w-[400px] min-h-[320px] resize flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-1 px-3 pt-2 pb-1.5 border-b border-ide-border overflow-x-auto shrink-0">
-          {(drives || []).map(d => {
-            const active = cwd.toLowerCase().startsWith(d.toLowerCase())
-            return (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-ide-border shrink-0">
+          <span className="text-sm font-medium text-ide-text">{t('New Workspace')}</span>
+        </div>
+        {recentDirs.length > 0 && (
+          <div className="px-2 py-1.5 border-b border-ide-border shrink-0 grid grid-cols-2 gap-0.5 overflow-y-auto overflow-x-auto max-h-[96px]">
+            {recentDirs.map(d => (
               <button
                 key={d}
                 onClick={() => setCwd(d)}
-                className={`shrink-0 flex items-center gap-1 px-2 py-1 rounded text-xs font-mono transition-colors ${
-                  active ? 'bg-ide-accent/20 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-                }`}
+                title={d}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors min-w-0"
               >
-                <HardDrive size={12} className={active ? 'text-ide-accent' : 'text-ide-text-muted'} />
-                <span>{d}</span>
+                <Folder size={12} className="text-ide-text-muted shrink-0" />
+                <span className="truncate">{d}</span>
               </button>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        )}
+        <div className="flex flex-1 min-h-0">
+          <div className="w-[88px] shrink-0 border-r border-ide-border overflow-y-auto py-1.5 flex flex-col gap-0.5">
+            <div className="px-3 pb-0.5">
+              <span className="text-[10px] text-ide-text-muted uppercase tracking-wider">{t('Disks')}</span>
+            </div>
+            {(drives || []).map(d => {
+              const active = cwd.toLowerCase().startsWith(d.toLowerCase())
+              return (
+                <button
+                  key={d}
+                  onClick={() => setCwd(d)}
+                  title={d}
+                  className={`flex items-center gap-1 px-2 py-1 mx-1.5 rounded text-xs font-mono transition-colors ${active ? 'bg-ide-accent/20 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+                >
+                  <HardDrive size={12} className={`shrink-0 ${active ? 'text-ide-accent' : 'text-ide-text-muted'}`} />
+                  <span className="truncate">{d}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center gap-1 px-3 py-2 border-b border-ide-border shrink-0">
           <div className={`flex-1 min-w-0 px-2 py-1 rounded bg-ide-sidebar border font-mono text-xs ${error ? 'border-ide-danger' : 'border-ide-border'}`}>
             {editingPath ? (
@@ -148,6 +172,9 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
             <FolderUp size={14} />
           </button>
         </div>
+        <div className="px-3 pt-1.5 pb-0.5 shrink-0">
+          <span className="text-[10px] text-ide-text-muted uppercase tracking-wider">{t('Folder Selection')}</span>
+        </div>
         <div className="flex-1 min-h-0 overflow-y-auto py-0.5">
           {error ? (
             <div className="px-3 py-4 text-sm text-ide-danger text-center">{error}</div>
@@ -167,6 +194,8 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
               </button>
             ))
           )}
+        </div>
+        </div>
         </div>
         <div className="flex items-center gap-1 px-3 py-2 border-t border-ide-border shrink-0">
           <div className="flex items-center rounded-md border border-ide-border overflow-hidden mr-auto">
