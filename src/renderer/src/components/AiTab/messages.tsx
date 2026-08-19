@@ -170,8 +170,11 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
   )
 }
 
-export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScroll }: { text: string; defaultOpen?: boolean; durationMs?: number; autoScroll?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen)
+export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScroll, autoFold }: { text: string; defaultOpen?: boolean; durationMs?: number; autoScroll?: boolean; autoFold?: boolean }) {
+  // autoFold（live 接管 busy 区 thinking）：以展开态挂载无缝交接（零高度跳变）、匹配其底部滚动位、
+  // 下一帧 rAF 平滑折叠、跳过 fade-in。故 autoFold 隐含 defaultOpen=true + autoScroll=true
+  const [open, setOpen] = useState(autoFold || defaultOpen)
+  const shouldAutoScroll = autoScroll || autoFold
   const contentRef = useRef<HTMLDivElement>(null)
   const userScrolledUpRef = useRef(false)
   const label = durationMs != null
@@ -179,7 +182,7 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
     : 'Thinking'
 
   useEffect(() => {
-    if (!autoScroll) return
+    if (!shouldAutoScroll) return
     const el = contentRef.current
     if (!el) return
     const onScroll = () => {
@@ -188,17 +191,24 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
     }
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
-  }, [autoScroll])
+  }, [shouldAutoScroll])
 
   useEffect(() => {
-    if (!autoScroll) return
+    if (!shouldAutoScroll) return
     const el = contentRef.current
     if (!el || userScrolledUpRef.current) return
     el.scrollTop = el.scrollHeight
-  }, [text, autoScroll])
+  }, [text, shouldAutoScroll])
+
+  // 下一帧 rAF 折叠：grid 1fr→0fr 200ms 过渡把瞬塌改为平滑收起，过渡期浏览器连续 clamp scrollTop 保持底部 pinned
+  useEffect(() => {
+    if (!autoFold) return
+    const id = requestAnimationFrame(() => setOpen(false))
+    return () => cancelAnimationFrame(id)
+  }, [autoFold])
 
   return (
-    <div className="ai-tab__thinking max-w-full animate-fade-in">
+    <div className={`ai-tab__thinking max-w-full ${autoFold ? '' : 'animate-fade-in'}`}>
       <button
         onClick={() => setOpen(v => !v)}
         className="ai-tab__thinking-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
@@ -209,11 +219,13 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
         </svg></span>
         <span className="shrink-0 leading-none">{label}</span>
       </button>
-      {open && (
-        <div ref={contentRef} className="ai-tab__thinking-content mt-1 px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
-          <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">{cleanMessageContent(text)}</pre>
+      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+        <div className="min-h-0 overflow-hidden">
+          <div ref={contentRef} className="ai-tab__thinking-content px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
+            <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">{cleanMessageContent(text)}</pre>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -280,7 +292,7 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
     </div>
   )
 }
-function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, viewMode, onFork, forkIdx }: {
+function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, viewMode, onFork, forkIdx, isLive }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
@@ -288,6 +300,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   viewMode?: number
   onFork: (idx: number) => void
   forkIdx: number
+  isLive?: boolean
 }) {
   const { t } = useI18n()
   const hideTools = viewMode === 1 || viewMode === 2
@@ -303,7 +316,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
       : null
 
   return (
-    <div className="ai-tab__message ai-tab__message--assistant flex flex-col items-center space-y-1 animate-fade-in">
+    <div className={`ai-tab__message ai-tab__message--assistant flex flex-col items-center space-y-1 ${isLive ? '' : 'animate-fade-in'}`}>
       {errorStatus && (
         <div className={`ai-tab__status-pill w-full max-w-[896px] text-[9px] font-medium px-1 ${errorStatus.color}`}>
           {errorStatus!.label}
@@ -311,7 +324,9 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
       )}
       {hasContent && (
         <div className="ai-tab__message-content w-full max-w-[896px] space-y-1.5">
-          {!hideThink && message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} />}
+          {/* isLive = 当前正在流式生成的那条消息（提交时 busy）。autoFold 让它展开态挂载无缝交接 busy 区
+              thinking、下一帧平滑收起；历史消息 isLive=false 折叠挂载。isLive 另让本消息 root 跳过 fade-in（接管不透明） */}
+          {!hideThink && message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} autoFold={isLive} />}
           {message.content && <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />}
           {!hideTools && message.toolUse && message.toolUse.length >= 2 && <CollapsedToolsSummary tools={message.toolUse} />}
           {!hideTools && message.toolUse && message.toolUse.length === 1 && (
@@ -432,6 +447,9 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   viewMode?: number
   isInternal?: boolean
 }) {
+  // isLive = 当前正在流式生成的那条消息（最后一条 + busy）。用于让它的 thinking 以展开态挂载无缝交接 busy 区、
+  // 下一帧平滑折叠；并让本消息 root 跳过 fade-in（接管时不透明）。子 agent 走 CollapsibleAgentGroup 的 isBusy=false → 永远非 live
+  const isLive = isBusy && msgIndex === allMessages.length - 1
   let copyText: string | undefined
   if (message.type === 'result' && message.numTurns != null) {
     for (let j = msgIndex - 1; j >= 0; j--) {
@@ -467,7 +485,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
       }
       forkIdx = count - 1
     }
-    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} viewMode={viewMode} onFork={onFork} forkIdx={forkIdx} />
+    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} viewMode={viewMode} onFork={onFork} forkIdx={forkIdx} isLive={isLive} />
   }
 
   return <>{inner}</>
