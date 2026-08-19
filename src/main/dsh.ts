@@ -83,6 +83,8 @@ function startDshServer(cwd?: string): Promise<{ ok: boolean; port?: number; err
   // harness 只认 DSH_TELEMETRY_DISABLED（任意非空即强制禁用 session-telemetry-otel）；
   // 旧写法 DSH_NO_TELEMETRY 全仓零读取，是无效变量
   env.DSH_TELEMETRY_DISABLED = '1'
+  // loader hook 跑在 ESM loader worker，process.argv 拿不到脚本参数，profile 须走 env 传
+  env.DSH_PROFILE = 'web'
 
   // 打包后 bin 在 app.asar 内：node 读不了 asar，须用自身 exe（ELECTRON_RUN_AS_NODE 下是纯 node 且带 asar 支持）
   // loader hook 兜底插件/宿主依赖解析（profile 目录裸导入失败时回退安装锚点 node_modules）
@@ -238,6 +240,7 @@ function runDshPlugin(args: string[]): Promise<{ ok: boolean; code: number | nul
   const binRes = getDshBinPath()
   if (typeof binRes === 'object') return Promise.resolve({ ok: false, code: null, output: binRes.error })
   const env: NodeJS.ProcessEnv = { ...process.env }
+  env.DSH_PROFILE = 'web'
   if (app.isPackaged) env.ELECTRON_RUN_AS_NODE = '1'
   return new Promise((resolvePromise) => {
     const proc = spawn(

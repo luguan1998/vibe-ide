@@ -14,8 +14,7 @@ const RESOLVERS = []
 // ELECTRON_RUN_AS_NODE 下拿不到（见 patch-dsh-hmr），EntryTree.import 走 fallback
 // import(name)（parentURL=caller=asar），bare specifier 解析不到 profile 装的插件 → host 崩。兜底 profile。
 const dshHome = process.env.DSH_HOME || join(homedir(), '.dsh')
-const profileArg = process.argv.indexOf('--profile')
-const profileName = profileArg >= 0 ? process.argv[profileArg + 1] : ''
+const profileName = process.env.DSH_PROFILE || ''
 if (profileName) {
   const profilePkg = join(dshHome, 'profiles', profileName, 'package.json')
   if (existsSync(profilePkg)) RESOLVERS.push(createRequire(profilePkg))
