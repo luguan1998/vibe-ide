@@ -1028,6 +1028,8 @@ html, body, #root {
   color: var(--ide-accent);
   animation: ai-cursor-blink 1s step-end infinite;
   vertical-align: baseline;
+  transform: scaleX(0.3);
+  transform-origin: left center;
 }
 @keyframes ai-cursor-blink {
   50% { opacity: 0; }
