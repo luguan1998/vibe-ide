@@ -303,6 +303,10 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   isLive?: boolean
 }) {
   const { t } = useI18n()
+  // 实时生成完成的那条消息曾 isLive=true：完成瞬间 isLive 切 false 会让 root 追加 animate-fade-in
+  // 重播 opacity 0→1 → 屏幕一闪。记录"曾经 live 过"，永跳过 fade-in（resume/历史消息 wasLive 始终 false，正常渐入）
+  const wasLiveRef = useRef(false)
+  if (isLive) wasLiveRef.current = true
   const hideTools = viewMode === 1 || viewMode === 2
   const hideThink = viewMode === 2
   const showMeta = message.type === 'result' && (message.costUsd != null || message.numTurns != null || message.isAborted || message.durationMs != null)
@@ -316,7 +320,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
       : null
 
   return (
-    <div className={`ai-tab__message ai-tab__message--assistant flex flex-col items-center space-y-1 ${isLive ? '' : 'animate-fade-in'}`}>
+    <div className={`ai-tab__message ai-tab__message--assistant flex flex-col items-center space-y-1 ${isLive || wasLiveRef.current ? '' : 'animate-fade-in'}`}>
       {errorStatus && (
         <div className={`ai-tab__status-pill w-full max-w-[896px] text-[9px] font-medium px-1 ${errorStatus.color}`}>
           {errorStatus!.label}
