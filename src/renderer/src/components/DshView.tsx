@@ -1,5 +1,7 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { getSharedDshContext, resetSharedDshContext, type DshContextHandle } from '../dsh/context'
+import { useI18n } from '../i18n'
 
 export interface DshViewHandle {
   focus: () => void
@@ -10,12 +12,13 @@ interface DshViewProps {
   cwd: string
   isActive: boolean
   dshSessionId?: string
+  sidebarVisible?: boolean
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   onTitleChange?: (sessionId: string, title: string) => void
   onCommand?: (command: string) => void
 }
 
-const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessionId, cwd, isActive, dshSessionId, onAgentStatusChange, onTitleChange, onCommand }, ref) {
+const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessionId, cwd, isActive, dshSessionId, sidebarVisible, onAgentStatusChange, onTitleChange, onCommand }, ref) {
   const [handle, setHandle] = useState<DshContextHandle | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
@@ -23,6 +26,7 @@ const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessi
   const lastUserTextRef = useRef<string | null>(null)
   const lastFetchAtRef = useRef(0)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const { t } = useI18n()
 
   // ESC 回退 / 切换 session 时聚焦 composer 输入框（data-composer-card 内唯一 textarea）
   useImperativeHandle(ref, () => ({
@@ -177,12 +181,22 @@ const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessi
   }
 
   return (
-    <div ref={wrapperRef} className="dsh-view flex-1 flex flex-col overflow-hidden">
+    <div ref={wrapperRef} className="dsh-view flex-1 flex flex-col overflow-hidden" data-sidebar={sidebarVisible ? 'shown' : 'hidden'}>
       {!ready && (
         <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">dsh connecting...</div>
       )}
-      <div className="flex-1 min-h-0 flex flex-col" style={{ display: ready ? 'flex' : 'none' }}>
+      <div className="flex-1 min-h-0 flex flex-col relative" style={{ display: ready ? 'flex' : 'none' }}>
         {handle && <DshSlot handle={handle} />}
+        {!sidebarVisible && (
+          <button
+            type="button"
+            aria-label={t('Expand dsh Sidebar')}
+            className="dsh-sidebar-expand-trigger"
+            onClick={() => window.dispatchEvent(new CustomEvent('vibe:dsh-sidebar-toggle'))}
+          >
+            <ChevronRight size={16} />
+          </button>
+        )}
       </div>
     </div>
   )

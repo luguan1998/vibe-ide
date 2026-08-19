@@ -229,6 +229,8 @@ interface SessionPanelProps {
   onResetCache?: (sessionId: string) => void
   pollingEnabled?: boolean
   onTogglePolling?: (value: boolean) => void
+  dshSidebarShown?: boolean
+  onToggleDshSidebar?: (value: boolean) => void
   wordWrap?: boolean
   onToggleWordWrap?: (value: boolean) => void
   autoUtf8?: boolean
@@ -435,6 +437,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onResetCache,
   pollingEnabled = false,
   onTogglePolling,
+  dshSidebarShown = false,
+  onToggleDshSidebar,
   wordWrap = false,
   onToggleWordWrap,
   autoUtf8 = true,
@@ -2081,6 +2085,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onToggleForceDomRenderer={onToggleForceDomRenderer}
         pollingEnabled={pollingEnabled}
         onTogglePolling={onTogglePolling}
+        dshSidebarShown={dshSidebarShown}
+        onToggleDshSidebar={onToggleDshSidebar}
         cwdEmojis={cwdEmojis}
         sessionEmojis={sessionEmojis}
         onSetCwdEmojis={(arr) => { setCwdEmojis(arr); saveCwdEmojis(arr) }}

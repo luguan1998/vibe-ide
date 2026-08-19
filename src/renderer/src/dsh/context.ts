@@ -44,7 +44,7 @@ async function buildDshContext(baseUrl: string): Promise<DshContextHandle> {
   // (only needs openDetails/closeDetails); ui-layout's AppFrame is not wanted
   // because Vibe owns the window frame.
   ctx.provide('layout', {
-    toggleSidebar() {},
+    toggleSidebar() { window.dispatchEvent(new CustomEvent('vibe:dsh-sidebar-toggle')) },
     openDetails() {},
     closeDetails() {},
   })
@@ -61,9 +61,10 @@ async function buildDshContext(baseUrl: string): Promise<DshContextHandle> {
         c.slots.register({
           name: 'root',
           children: {
+            sidebar: { kind: 'single', scope: 'root' },
             conversation: { kind: 'single', scope: 'session-maybe' },
             details: { kind: 'single', scope: 'session' },
-            'sidebar.settings': { kind: 'single', scope: 'root' },
+            'shell.overlay': { kind: 'list', scope: 'root' },
           },
         }, DshRoot as never)
       },

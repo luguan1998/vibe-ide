@@ -23,7 +23,15 @@
   --selection-opacity: 0.3;
   --focus-outline: 0 122 204;
   --monaco-margin-bg: 30 30 30;
+  --dsh-sidebar-width: 280px;
 }
+
+.dsh-view .dsh-root__sidebar { flex: 0 0 var(--dsh-sidebar-width, 280px); min-width: 0; overflow: hidden; }
+.dsh-view[data-sidebar="hidden"] .dsh-root__sidebar { display: none; }
+.dsh-sidebar-expand-trigger { position: absolute; left: 0; top: 0; bottom: 0; width: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 20; background: transparent; border: none; padding: 0; color: rgb(var(--ide-text-muted)); transition: background .15s; }
+.dsh-sidebar-expand-trigger:hover { background: rgb(var(--ide-hover)); }
+.dsh-sidebar-expand-trigger > svg { opacity: 0; transition: opacity .15s; }
+.dsh-sidebar-expand-trigger:hover > svg { opacity: 1; color: rgb(var(--ide-text)); }
 
 * {
   margin: 0;

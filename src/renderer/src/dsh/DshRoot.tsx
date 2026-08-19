@@ -6,11 +6,13 @@ interface DshRootProps {
 
 export function DshRoot({ renderSlot }: DshRootProps) {
   return (
-    <div className="relative w-full h-full flex flex-col overflow-hidden">
-      <div className="absolute top-1 right-3.5 z-10">
-        {renderSlot('sidebar.settings', { wide: false })}
+    <div className="relative w-full h-full flex overflow-hidden">
+      <div className="dsh-root__sidebar">
+        {renderSlot('sidebar', { collapsed: false, width: 280 })}
       </div>
-      {renderSlot('conversation', {})}
+      <div className="flex-1 min-w-0 min-h-0">
+        {renderSlot('conversation', {})}
+      </div>
     </div>
   )
 }

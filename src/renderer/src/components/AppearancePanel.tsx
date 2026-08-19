@@ -183,6 +183,8 @@ interface AppearancePanelProps {
   onToggleForceDomRenderer?: (v: boolean) => void
   pollingEnabled?: boolean
   onTogglePolling?: (v: boolean) => void
+  dshSidebarShown?: boolean
+  onToggleDshSidebar?: (v: boolean) => void
   cwdEmojis: string[]
   sessionEmojis: string[]
   onSetCwdEmojis: (arr: string[]) => void
@@ -208,6 +210,7 @@ const AppearancePanel = function AppearancePanel({
   ocrEnabled = true, onToggleOcrEnabled,
   forceDomRenderer = false, onToggleForceDomRenderer,
   pollingEnabled = false, onTogglePolling,
+  dshSidebarShown = false, onToggleDshSidebar,
   cwdEmojis, sessionEmojis, onSetCwdEmojis, onSetSessionEmojis,
   onResetUiStyle, onCreateSessionAt,
 }: AppearancePanelProps) {
@@ -699,6 +702,10 @@ const AppearancePanel = function AppearancePanel({
                 {onTogglePolling && (
                   <ToggleRow labelKey="Polling Refresh Git/File" descKey="Poll git and file tree every 6s. Recommended: off (only for network drives where file watching is unreliable)"
                     checked={pollingEnabled} onChange={onTogglePolling} zone="global" />
+                )}
+                {onToggleDshSidebar && (
+                  <ToggleRow labelKey="Show dsh Sidebar" descKey="Show the dsh sidebar (workspace browser, directory picker). Hidden by default."
+                    checked={dshSidebarShown} onChange={onToggleDshSidebar} zone="global" />
                 )}
                 <ToggleRow labelKey="Computer Use" descKey="Enable computer use MCP (screenshot/click/type). GUI mode only. Applies to new sessions."
                   checked={computerUse}

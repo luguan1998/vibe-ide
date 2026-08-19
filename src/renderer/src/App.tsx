@@ -339,6 +339,9 @@ export default function App() {
   const [pollingEnabled, setPollingEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-polling') === '1' } catch { return false }
   })
+  const [dshSidebarShown, setDshSidebarShown] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-dsh-sidebar') === '1' } catch { return false }
+  })
   const [pollingTick, setPollingTick] = useState(0)
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
 
@@ -351,6 +354,19 @@ export default function App() {
     }, 6000)
     return () => clearInterval(id)
   }, [pollingEnabled])
+
+  // dsh sidebar 收起/展开：layout stub toggleSidebar 与 DshView 展开 trigger 都 dispatch 此 event
+  useEffect(() => {
+    const onToggle = () => {
+      setDshSidebarShown(prev => {
+        const next = !prev
+        try { localStorage.setItem('vibe-ide-dsh-sidebar', next ? '1' : '0') } catch {}
+        return next
+      })
+    }
+    window.addEventListener('vibe:dsh-sidebar-toggle', onToggle)
+    return () => window.removeEventListener('vibe:dsh-sidebar-toggle', onToggle)
+  }, [])
 
   // 空闲时预热 dsh chunk（lazy 拆分后首次进入 dsh 要现场加载 2.5MB，会卡交互）
   useEffect(() => {
@@ -2682,6 +2698,8 @@ export default function App() {
             onResetCache={handleResetCache}
             pollingEnabled={pollingEnabled}
             onTogglePolling={(v) => { setPollingEnabled(v); try { localStorage.setItem('vibe-ide-polling', v ? '1' : '0') } catch {} }}
+            dshSidebarShown={dshSidebarShown}
+            onToggleDshSidebar={(v) => { setDshSidebarShown(v); try { localStorage.setItem('vibe-ide-dsh-sidebar', v ? '1' : '0') } catch {} }}
             wordWrap={wordWrap}
             onToggleWordWrap={setWordWrap}
             autoUtf8={autoUtf8}
@@ -2890,7 +2908,7 @@ export default function App() {
                         onCommand={onCommandForSession(session.id)}
                       />
                     ) : isDsh ? (
-                      <DshView ref={(node) => { if (node) dshRefs.current[session.id] = node }} sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} dshSessionId={session.dshSessionId} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} onCommand={onCommandForSession(session.id)} />
+                      <DshView ref={(node) => { if (node) dshRefs.current[session.id] = node }} sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} dshSessionId={session.dshSessionId} sidebarVisible={dshSidebarShown} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} onCommand={onCommandForSession(session.id)} />
                     ) : (
                       <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
                     )}
