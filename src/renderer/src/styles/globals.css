@@ -1018,3 +1018,17 @@ html, body, #root {
 .session-group .session-item.session-item--worktree .session-item__icon {
   visibility: visible;
 }
+
+/* 流式渲染打字光标：紧贴最后一个 block 末尾文字，step 闪烁掩盖 token 间隙 */
+.ai-tab__markdown--streaming > :last-child::after,
+.ai-tab__markdown--streaming > :last-child > :last-child::after {
+  content: '▌';
+  display: inline-block;
+  margin-left: 1px;
+  color: var(--ide-accent);
+  animation: ai-cursor-blink 1s step-end infinite;
+  vertical-align: baseline;
+}
+@keyframes ai-cursor-blink {
+  50% { opacity: 0; }
+}

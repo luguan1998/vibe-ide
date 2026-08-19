@@ -139,7 +139,9 @@ const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessi
       const snap = sessions.list.getSnapshot()
       const cur = snap.byId?.[targetId]
       if (onAgentStatusChange) {
-        const running = !!cur?.running
+        // 等待用户(approval/plan-review/question)时 harness 仍标记 running(phase 挂在 running），
+        // pendingInteraction 才是真等待信号；有则算 idle，避免左栏全程绿灯误导
+        const running = !!cur?.running && !cur?.pendingInteraction
         onAgentStatusChange(sessionId, running ? 'running' : 'idle')
       }
       if (onTitleChange) {
