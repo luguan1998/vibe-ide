@@ -715,6 +715,58 @@ const retroChinese: IDETheme = {
   titleBar: { color: '#eff1ee', symbolColor: '#7c847d', backgroundColor: '#eff1ee' }
 }
 
+// 🤍 Claude Cream — Claude Desktop / claude.ai 官方奶白配色
+// 取自 anthropic.com 品牌 swatch：ivory #F0EEE6 底 / clay #D97757 强调 / slate #141413 文字
+const claudeCream: IDETheme = {
+  id: 'claude-cream',
+  label: 'Claude Cream',
+  css: {
+    'ide-bg': t('#F0EEE6'),
+    'ide-sidebar': t('#E8E6DC'),
+    'ide-panel': t('#FAF9F5'),
+    'ide-border': t('#D1CFC5'),
+    'ide-text': t('#141413'),
+    'ide-text-muted': t('#696860'),
+    'ide-accent': t('#D97757'),
+    'ide-accent-hover': t('#C6613F'),
+    'ide-success': t('#5B8A6A'),
+    'ide-danger': t('#B5453C'),
+    'ide-warning': t('#B8821E'),
+    'ide-hover': t('#E3E1D6'),
+    'ide-active': t('#D6D3C7'),
+    'scrollbar-thumb': t('#D1CFC5'),
+    'scrollbar-thumb-hover': t('#B0AEA5'),
+    'selection-bg': t('#D97757'),
+    'selection-opacity': '0.2',
+    'focus-outline': t('#D97757'),
+    'monaco-margin-bg': t('#F0EEE6')
+  },
+  terminal: {
+    background: '#F0EEE6', foreground: '#141413', cursor: '#D97757', cursorAccent: '#F0EEE6',
+    selectionBackground: hexToRgba('#D97757', 0.25),
+    black: '#2A2925', red: '#B5453C', green: '#5B8A6A', yellow: '#B8821E',
+    blue: '#4A6D8F', magenta: '#9A5A7A', cyan: '#3A7A7A', white: '#141413',
+    brightBlack: '#696860', brightRed: '#C5544A', brightGreen: '#6A9A78',
+    brightYellow: '#D0A040', brightBlue: '#6A8DAB', brightMagenta: '#B06A8A',
+    brightCyan: '#5A9A9A', brightWhite: '#000000',
+    fontWeight: '500',
+    allowTransparency: false
+  },
+  monacoTheme: 'vibe-ide-claude-cream',
+  monacoRules: [
+    { token: 'comment', foreground: '#87867F', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#C6613F' },
+    { token: 'string', foreground: '#4A7C5A' },
+    { token: 'number', foreground: '#B8821E' },
+    { token: 'type', foreground: '#8A5A2C' },
+    { token: 'function', foreground: '#D97757' },
+    { token: 'variable', foreground: '#141413' },
+    { token: 'constant', foreground: '#9A5A7A' },
+    { token: 'regexp', foreground: '#B5453C' }
+  ],
+  titleBar: { color: '#E8E6DC', symbolColor: '#696860', backgroundColor: '#E8E6DC' }
+}
+
 export const THEMES: IDETheme[] = [
   vscodeDark,
   githubLight,
@@ -729,7 +781,8 @@ export const THEMES: IDETheme[] = [
   monkeyKing,
   retroChinese,
   miku,
-  mikuLight
+  mikuLight,
+  claudeCream
 ]
 
 export const DEFAULT_THEME_ID = 'vscode-dark'
