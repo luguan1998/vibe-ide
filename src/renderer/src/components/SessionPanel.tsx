@@ -570,6 +570,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
+  const menuSession = contextMenu ? sessions.find(s => s.id === contextMenu.sessionId) : null
   const [newMode, setNewMode] = useState<'term' | 'gui' | 'dsh'>('term')
   // 新建类型菜单：勾选项置顶
   const newModesSorted = useMemo(() => {
@@ -1654,21 +1655,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               </div>
             )}
           </div>
-          <button
-            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-            onClick={() => {
-              const session = sessions.find(s => s.id === contextMenu.sessionId)
-              if (session && session.kind === 'terminal') onSplitSession?.(session.id)
-              setContextMenu(null)
-              setCloneSubmenu(null)
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <path d="M3 9h18" />
-            </svg>
-            <span>{t('Split')}</span>
-          </button>
           {onNewSessionHere && (
             <>
               <div
@@ -1704,7 +1690,23 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               <div className="border-t border-ide-border my-1" />
             </>
           )}
-          {onResetCache && (
+          {menuSession?.kind === 'terminal' && (
+            <button
+              className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+              onClick={() => {
+                if (menuSession && menuSession.kind === 'terminal') onSplitSession?.(menuSession.id)
+                setContextMenu(null)
+                setCloneSubmenu(null)
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18" />
+              </svg>
+              <span>{t('Split')}</span>
+            </button>
+          )}
+          {onResetCache && menuSession?.kind === 'terminal' && (
             <button
               className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
               onClick={() => {
