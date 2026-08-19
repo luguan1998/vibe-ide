@@ -9,7 +9,7 @@ import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAN
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
 import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X } from 'lucide-react'
 import { StreamingMarkdown } from './markdown'
-import { ThinkingBlock, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList } from './messages'
+import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, ModeSelector } from './inputArea'
@@ -1021,8 +1021,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           </div>
         )}
         {/* Busy indicator — thinking + streaming + sparkle */}
-        {state.busy && (
-          <div className="ai-tab__busy w-full max-w-[896px] mx-auto space-y-1.5 animate-fade-in">
+        <FadeOutOnUnmount visible={state.busy} duration={200}>
+          <div className="ai-tab__busy w-full max-w-[896px] mx-auto space-y-1.5">
             {Object.keys(state.runningTools).length > 0 && (
               <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">
                 {Object.entries(state.runningTools).map(([id, rt]) => (
@@ -1034,7 +1034,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 ))}
               </div>
             )}
-            {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll />}
+            {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll noAnimate />}
             {state.streamBuffer ? (
               <div>
                 <StreamingMarkdown text={state.streamBuffer} workspacePath={workspacePath} onOpenFile={onOpenFile} />
@@ -1048,7 +1048,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               </div>
             )}
           </div>
-        )}
+        </FadeOutOnUnmount>
         <div ref={messagesEndRef} />
       </div>
 

@@ -170,7 +170,7 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
   )
 }
 
-export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScroll, autoFold }: { text: string; defaultOpen?: boolean; durationMs?: number; autoScroll?: boolean; autoFold?: boolean }) {
+export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScroll, autoFold, noAnimate }: { text: string; defaultOpen?: boolean; durationMs?: number; autoScroll?: boolean; autoFold?: boolean; noAnimate?: boolean }) {
   // autoFold（live 接管 busy 区 thinking）：以展开态挂载无缝交接（零高度跳变）、匹配其底部滚动位、
   // 下一帧 rAF 平滑折叠、跳过 fade-in。故 autoFold 隐含 defaultOpen=true + autoScroll=true
   const [open, setOpen] = useState(autoFold || defaultOpen)
@@ -208,7 +208,7 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
   }, [autoFold])
 
   return (
-    <div className={`ai-tab__thinking max-w-full ${autoFold ? '' : 'animate-fade-in'}`}>
+    <div className={`ai-tab__thinking max-w-full ${autoFold || noAnimate ? '' : 'animate-fade-in'}`}>
       <button
         onClick={() => setOpen(v => !v)}
         className="ai-tab__thinking-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
@@ -226,6 +226,44 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// busy 区淡出包装：visible 翻 false 时先走 duration 毫秒 opacity 过渡再卸载，配合消息区 autoFold 折叠形成平滑交接
+export function FadeOutOnUnmount({ visible, duration = 200, children }: {
+  visible: boolean
+  duration?: number
+  children: React.ReactNode
+}) {
+  const [mounted, setMounted] = useState(visible)
+  const [fading, setFading] = useState(false)
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true)
+      setFading(false)
+    } else if (mounted) {
+      setFading(true)
+      const id = setTimeout(() => {
+        setMounted(false)
+        setFading(false)
+      }, duration)
+      return () => clearTimeout(id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible])
+
+  if (!mounted) return null
+
+  return (
+    <div
+      style={{
+        opacity: fading ? 0 : 1,
+        transition: `opacity ${duration}ms ease-out`,
+      }}
+    >
+      {children}
     </div>
   )
 }
