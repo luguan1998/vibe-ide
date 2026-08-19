@@ -12,6 +12,8 @@ export interface SessionTab {
   resumeCwd?: string
   dshSessionId?: string
   loaded: boolean
+  splitTwinId?: string
+  splitParentId?: string
 }
 
 export interface Session {
@@ -54,6 +56,8 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           resumeSessionId: typeof t.resumeSessionId === 'string' ? t.resumeSessionId : undefined,
           resumeCwd: typeof t.resumeCwd === 'string' ? t.resumeCwd : undefined,
           dshSessionId: typeof t.dshSessionId === 'string' ? t.dshSessionId : undefined,
+          splitTwinId: typeof t.splitTwinId === 'string' ? t.splitTwinId : undefined,
+          splitParentId: typeof t.splitParentId === 'string' ? t.splitParentId : undefined,
           loaded: t.kind === 'dsh' ? false : !!t.loaded,
         })
       }

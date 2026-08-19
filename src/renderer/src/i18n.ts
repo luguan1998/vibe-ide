@@ -78,6 +78,7 @@ const ZH_MAP: Record<string, string> = {
   'Scroll Left': '向左滚动',
   'Scroll Right': '向右滚动',
   'Split Down': '向下分屏',
+  'Split': '分屏',
   'Recent Directories': '最近打开的目录',
   'Open Folder': '打开文件夹',
   'Restore Selected': '恢复收藏',

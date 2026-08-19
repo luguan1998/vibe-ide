@@ -708,7 +708,7 @@ export default function App() {
             autoUtf8,
             initCommand: readDefaultAgent(),
           })
-          const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true }
+          const realTab: SessionTab = { ...tab, ...real, kind: 'terminal', loaded: true }
           if (cancelled) {
             await window.api.terminal.close(real.id)
             break
@@ -1949,6 +1949,55 @@ export default function App() {
     }
   }, [autoUtf8, sessions, addSessionRecord])
 
+  // 分屏：仅 terminal 生效。主屏下方新增同 cwd 的副屏；副屏不参与 running/idle/OSC 检测
+  const [splitRatios, setSplitRatios] = useState<Record<string, number>>({})
+  const splitDragRef = useRef<{ parentId: string; startY: number; startRatio: number; containerHeight: number } | null>(null)
+  const onSplitDragMove = useCallback((e: MouseEvent) => {
+    const d = splitDragRef.current
+    if (!d) return
+    const ratio = Math.min(0.9, Math.max(0.1, d.startRatio + (e.clientY - d.startY) / d.containerHeight))
+    setSplitRatios(prev => prev[d.parentId] === ratio ? prev : { ...prev, [d.parentId]: ratio })
+  }, [])
+  const onSplitDragUp = useCallback(() => {
+    splitDragRef.current = null
+    window.removeEventListener('mousemove', onSplitDragMove)
+    window.removeEventListener('mouseup', onSplitDragUp)
+  }, [onSplitDragMove])
+  const startSplitDrag = useCallback((e: React.MouseEvent, parentId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const container = (e.currentTarget as HTMLElement).parentElement
+    splitDragRef.current = {
+      parentId,
+      startY: e.clientY,
+      startRatio: splitRatios[parentId] ?? 0.5,
+      containerHeight: container?.clientHeight ?? 1,
+    }
+    window.addEventListener('mousemove', onSplitDragMove)
+    window.addEventListener('mouseup', onSplitDragUp)
+  }, [onSplitDragMove, onSplitDragUp, splitRatios])
+
+  const handleSplitSession = useCallback(async (sessionId: string) => {
+    const session = sessionsRef.current.find(s => s.id === sessionId)
+    if (!session || session.kind !== 'terminal' || !session.loaded) return
+    if (session.splitTwinId || session.splitParentId) return
+    try {
+      const twin = await window.api.terminal.create({ cwd: session.cwd, shell: session.shell, autoUtf8, initCommand: readDefaultAgent() })
+      const twinTab: SessionTab = { ...twin, kind: 'terminal', loaded: true, splitParentId: session.id }
+      setSessions(prev => {
+        const parentIdx = prev.findIndex(s => s.id === sessionId)
+        if (parentIdx === -1) return prev
+        const next = [...prev]
+        next.splice(parentIdx + 1, 0, twinTab)
+        return next.map(s => s.id === sessionId ? { ...s, splitTwinId: twin.id } : s)
+      })
+      setCenterView('terminal')
+      setDiffFile(null)
+    } catch (err) {
+      console.error('Failed to split terminal session:', err)
+    }
+  }, [autoUtf8])
+
   // Fork AI conversation at a specific user message
   const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number, content?: string, occurrence?: number) => {
     try {
@@ -2017,7 +2066,7 @@ export default function App() {
             autoUtf8,
             initCommand: readDefaultAgent(),
           })
-          const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true }
+          const realTab: SessionTab = { ...session, ...real, kind: 'terminal', loaded: true }
           setSessions(prev => {
             const idx = prev.findIndex(s => s.id === id)
             if (idx === -1) return prev
@@ -2109,49 +2158,65 @@ export default function App() {
 
   // Close a terminal session
   const handleCloseSession = useCallback(async (id: string) => {
+    const session = sessionsRef.current.find(s => s.id === id)
+    const twinId = session?.splitTwinId
     cancelPipe(id)
+    if (twinId) cancelPipe(twinId)
     await window.api.terminal.close(id)
+    if (twinId) await window.api.terminal.close(twinId)
+    if (twinId) delete terminalRefs.current[twinId]
     // 清理 terminalRefs / aiTabRefs / dshRefs 中已关闭 session 的 handle 引用
     delete terminalRefs.current[id]
     delete aiTabRefs.current[id]
     delete dshRefs.current[id]
-    setSessions(prev => prev.filter(s => s.id !== id))
+    // 关主屏连副屏一起移除；关副屏只解除主屏的分屏引用
+    setSessions(prev => prev
+      .filter(s => s.id !== id && s.id !== twinId)
+      .map(s => s.splitTwinId === id ? { ...s, splitTwinId: undefined } : s))
     // 清理该 session 的命令历史和 agent 状态
     setCommandHistory(prev => {
       const next = { ...prev }
       delete next[id]
+      if (twinId) delete next[twinId]
       return next
     })
     setTerminalBusy(prev => {
       const next = { ...prev }
       delete next[id]
+      if (twinId) delete next[twinId]
       return next
     })
     setAiBusy(prev => {
       const next = { ...prev }
       delete next[id]
+      if (twinId) delete next[twinId]
       return next
     })
     // 清理该 session 的全部右侧终端
-    const rightTerms = rightTerminalSessions[id]
-    if (rightTerms && rightTerms.length > 0) {
+    const closeRightTerms = (sid: string) => {
+      const rightTerms = rightTerminalSessions[sid]
+      if (!rightTerms || rightTerms.length === 0) return
       Promise.all(rightTerms.flatMap(tab => tab.terminals).map(t => window.api.terminal.close(t.id)))
       setRightTerminalSessions(prev => {
         const next = { ...prev }
-        delete next[id]
+        delete next[sid]
         return next
       })
       setActiveAuxIndex(prev => {
         const next = { ...prev }
-        delete next[id]
+        delete next[sid]
         return next
       })
     }
+    closeRightTerms(id)
+    if (twinId) closeRightTerms(twinId)
+    const ratioOwner = session?.splitParentId ?? (twinId ? id : null)
+    if (ratioOwner) setSplitRatios(prev => { const n = { ...prev }; delete n[ratioOwner]; return n })
     // 清理该 session 的 AI 子进程 + renderer 单例 store 中的状态(消除残骸)
     window.api.ai.destroy(id)
     aiStore.clearSession(id)
     if (activeSessionId === id) {
-      const remaining = sessions.filter(s => s.id !== id)
+      const remaining = sessions.filter(s => s.id !== id && s.id !== twinId)
       setActiveSessionId(remaining.length > 0 ? remaining[0].id : null)
     }
   }, [activeSessionId, sessions, rightTerminalSessions])
@@ -2690,6 +2755,7 @@ export default function App() {
               onCreateSession={handleCreateSession}
             onCreateSessionAt={handleCreateSessionAt}
             onCloneSession={handleCloneSession}
+            onSplitSession={handleSplitSession}
             onSwitchSession={handleSwitchSession}
             onCloseSession={handleCloseSession}
             onRenameSession={handleRenameSession}
@@ -2865,57 +2931,86 @@ export default function App() {
           <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => {
-                const isGui = session.kind === 'gui'
-                const isDsh = session.kind === 'dsh'
+                // 分屏副屏由主屏一起渲染（上下两屏），不再单独占位
+                if (session.splitParentId) return null
+                const twin = session.splitTwinId ? sessions.find(s => s.id === session.splitTwinId) || null : null
                 const isDeferred = !session.loaded
                 if (isDeferred && session.id !== activeSessionId) return null
-                return (
-                  <div
-                    key={session.id}
-                    className="flex-1 flex flex-col overflow-hidden"
-                    style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
-                  >
-                    {isDeferred ? (
+                const visible = session.id === activeSessionId || (twin ? twin.id === activeSessionId : false)
+                const renderPane = (s: SessionTab) => {
+                  if (!s.loaded) {
+                    return (
                       <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
                         {t('Loading...')}
                       </div>
-                    ) : isGui ? (
+                    )
+                  }
+                  if (s.kind === 'gui') {
+                    return (
                       <AiTab
-                        ref={(node) => { if (node) aiTabRefs.current[session.id] = node }}
-                        activeSessionId={session.id}
-                        workspacePath={session.cwd}
-                        isActive={session.id === activeSessionId}
+                        ref={(node) => { if (node) aiTabRefs.current[s.id] = node }}
+                        activeSessionId={s.id}
+                        workspacePath={s.cwd}
+                        isActive={s.id === activeSessionId}
                         autoApprove={false}
-                        permissionMode={aiPermissionModes[session.id] ?? 'bypassPermissions'}
+                        permissionMode={aiPermissionModes[s.id] ?? 'bypassPermissions'}
                         onPermissionModeChange={(mode: AiPermissionMode) => {
-                          setAiPermissionModes(prev => ({ ...prev, [session.id]: mode }))
+                          setAiPermissionModes(prev => ({ ...prev, [s.id]: mode }))
                           // Push to subprocess so the actual --permission-mode reflects UI state.
                           // Without this, subprocess keeps the spawn-time mode and UI lies.
-                          window.api.ai.setPermissionMode(session.id, mode)
+                          window.api.ai.setPermissionMode(s.id, mode)
                         }}
                         onViewAi={() => {
-                          setSessions(prev => prev.map(s => s.id === session.id ? { ...s, kind: 'gui' } : s))
+                          setSessions(prev => prev.map(x => x.id === s.id ? { ...x, kind: 'gui' } : x))
                         }}
                         onOpenFile={handleOpenFileFromSearch}
                         onRenameSession={async (name: string) => {
-                          if (manuallyRenamedRef.current.has(session.id)) return
-                          await applyRename(session.id, name)
+                          if (manuallyRenamedRef.current.has(s.id)) return
+                          await applyRename(s.id, name)
                         }}
-                        resumeSessionId={session.resumeSessionId}
+                        resumeSessionId={s.resumeSessionId}
                         onForkSession={(userMessageIndex: number, content?: string, occurrence?: number) => {
-                          handleForkSession(session.id, userMessageIndex, content, occurrence)
+                          handleForkSession(s.id, userMessageIndex, content, occurrence)
                         }}
                         onAgentStatusChange={handleAiAgentStatusChange}
                         brushActive={brushActive}
                         lastOpenedFile={lastOpenedFile}
-                        worktreeNav={sessionWorktreeNav[session.id] ?? null}
+                        worktreeNav={sessionWorktreeNav[s.id] ?? null}
                         onWorktreeNavChange={setSessionWorktreeNav}
-                        onCommand={onCommandForSession(session.id)}
+                        onCommand={onCommandForSession(s.id)}
                       />
-                    ) : isDsh ? (
-                      <DshView ref={(node) => { if (node) dshRefs.current[session.id] = node }} sessionId={session.id} cwd={session.cwd} isActive={session.id === activeSessionId} dshSessionId={session.dshSessionId} sidebarVisible={dshSidebarShown} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} onCommand={onCommandForSession(session.id)} />
+                    )
+                  }
+                  if (s.kind === 'dsh') {
+                    return (
+                      <DshView ref={(node) => { if (node) dshRefs.current[s.id] = node }} sessionId={s.id} cwd={s.cwd} isActive={s.id === activeSessionId} dshSessionId={s.dshSessionId} sidebarVisible={dshSidebarShown} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} onCommand={onCommandForSession(s.id)} />
+                    )
+                  }
+                  return (
+                    <TerminalView ref={(node) => { if (node) terminalRefs.current[s.id] = node }} sessionId={s.id} sessionName={s.name} sessionCwd={s.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(s.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={s.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={s.splitParentId ? undefined : handleAgentStatusChange} onOscTitle={s.splitParentId ? undefined : handleOscTitleChange} />
+                  )
+                }
+                return (
+                  <div
+                    key={session.id}
+                    className="flex-1 flex flex-col overflow-hidden"
+                    style={{ display: visible ? 'flex' : 'none' }}
+                  >
+                    {twin ? (
+                      <>
+                        <div className="flex-1 min-h-0 flex flex-col overflow-hidden" style={{ flexGrow: splitRatios[session.id] ?? 0.5, flexBasis: 0 }}>
+                          {renderPane(session)}
+                        </div>
+                        <div
+                          className="shrink-0 h-1 cursor-ns-resize bg-ide-border hover:bg-ide-accent/60 transition-colors"
+                          onMouseDown={(e) => startSplitDrag(e, session.id)}
+                        />
+                        <div className="flex-1 min-h-0 flex flex-col overflow-hidden" style={{ flexGrow: 1 - (splitRatios[session.id] ?? 0.5), flexBasis: 0 }}>
+                          {renderPane(twin)}
+                        </div>
+                      </>
                     ) : (
-                      <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={session.id === activeSessionId} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
+                      renderPane(session)
                     )}
                   </div>
                 )

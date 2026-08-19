@@ -216,6 +216,7 @@ interface SessionPanelProps {
   onCreateSession: (shell?: string) => void
   onCreateSessionAt?: (cwd: string, shell?: string) => void
   onCloneSession: (parentId: string | null, cwd: string, shell?: string, name?: string) => void
+  onSplitSession?: (sessionId: string) => void
   onCloneWithInit?: (sessionId: string, cwd: string, shell: string | undefined, command: string) => void
   onSwitchSession: (id: string) => void
   onCloseSession: (id: string) => void
@@ -426,6 +427,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onCreateSession,
   onCreateSessionAt,
   onCloneSession,
+  onSplitSession,
   onCloneWithInit,
   onSwitchSession,
   onCloseSession,
@@ -1652,6 +1654,21 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               </div>
             )}
           </div>
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+            onClick={() => {
+              const session = sessions.find(s => s.id === contextMenu.sessionId)
+              if (session && session.kind === 'terminal') onSplitSession?.(session.id)
+              setContextMenu(null)
+              setCloneSubmenu(null)
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M3 9h18" />
+            </svg>
+            <span>{t('Split')}</span>
+          </button>
           {onNewSessionHere && (
             <>
               <div
