@@ -41,7 +41,6 @@ import { credentialRef } from "@deepseek-ai/dsh-credentials";
 import { launchEnvironmentOf } from "@deepseek-ai/dsh-launch-environment";
 import { deepEqualJson, installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-settings";
 import { MAX_TIMER_DELAY_MS } from "@deepseek-ai/dsh-timeout";
-import { getOrCreateAnonymousUserId } from "@deepseek-ai/dsh-anonymous-user-id";
 
 // vendor/harness/packages/llm/llm-deepseek/src/adapter.ts
 import { attributionHeaders, CONTEXT_WINDOW_EXCEEDED_CODE, isContextWindowExceededError, isQuotaExceededError, LlmAdapter, LlmError as LlmError4, ProviderRequestId, QUOTA_EXCEEDED_CODE, ReasoningEffortId } from "@deepseek-ai/dsh-llm";
@@ -398,7 +397,6 @@ var DeepSeekAdapter = class extends LlmAdapter {
     try {
       const connection = this.config.options();
       const apiKey = await this.config.resolveApiKey(connection);
-      const userId = this.config.resolveUserId();
       const consumer = new AbortController();
       const upstream = options.signal === void 0 ? consumer.signal : AbortSignal.any([options.signal, consumer.signal]);
       const watchdog = __using(_stack, idleWatchdog(upstream, connection.streamIdleTimeoutMs, STREAM_IDLE_TIMEOUT_CODE));
@@ -407,7 +405,6 @@ var DeepSeekAdapter = class extends LlmAdapter {
         watchdog.signal,
         connection,
         apiKey,
-        userId,
         () => {
           watchdog.pulse();
         }
@@ -450,7 +447,7 @@ var DeepSeekAdapter = class extends LlmAdapter {
       __callDispose(_stack, _error, _hasError);
     }
   }
-  async *request(options, signal, connection, apiKey, userId, onComment) {
+  async *request(options, signal, connection, apiKey, onComment) {
     const body = serializeRequest(options, connection.defaults);
     const payload = JSON.stringify(body);
     const headers = {
@@ -458,7 +455,6 @@ var DeepSeekAdapter = class extends LlmAdapter {
       "content-type": "application/json",
       "accept": "text/event-stream",
       ...attributionHeaders(),
-      "x-deepseek-harness-user-id": String(userId),
       ...options.sessionId !== void 0 ? { "x-deepseek-harness-session-id": String(options.sessionId) } : {},
       ...options.purpose === "compaction" ? { "x-deepseek-harness-compact": "1" } : {}
     };
@@ -628,9 +624,7 @@ function apply(ctx, config) {
       "MISSING_CREDENTIAL"
     );
   };
-  let userId;
-  const resolveUserId = () => userId ??= getOrCreateAnonymousUserId();
-  const adapter = new DeepSeekAdapter({ options, resolveApiKey, resolveUserId });
+  const adapter = new DeepSeekAdapter({ options, resolveApiKey });
   ctx.llm.registerConfigurableProviders([
     { provider: PROVIDER, displayName: "DeepSeek", settingsNs: NS, settingsPath: [] }
   ]);

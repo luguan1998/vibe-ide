@@ -18,6 +18,7 @@ const EXCLUDE = new Set([
   'ui-workspace',                // 挂 dsh sidebar，vibe 不用
   'modules',                     // loader 机制本身，vibe 手写 ctx.plugin 替代
   'hmr',                         // dev-only 热更新，prod 不需
+  'ui-message-feedback',         // 点赞/点踩反馈条，数据落本地 sidecar 不外发，IDE 无此交互需求
 ])
 
 const found = []
