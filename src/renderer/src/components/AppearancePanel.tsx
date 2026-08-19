@@ -185,6 +185,8 @@ interface AppearancePanelProps {
   onTogglePolling?: (v: boolean) => void
   dshSidebarShown?: boolean
   onToggleDshSidebar?: (v: boolean) => void
+  dshThemeOverride?: boolean
+  onToggleDshThemeOverride?: (v: boolean) => void
   cwdEmojis: string[]
   sessionEmojis: string[]
   onSetCwdEmojis: (arr: string[]) => void
@@ -211,6 +213,7 @@ const AppearancePanel = function AppearancePanel({
   forceDomRenderer = false, onToggleForceDomRenderer,
   pollingEnabled = false, onTogglePolling,
   dshSidebarShown = false, onToggleDshSidebar,
+  dshThemeOverride = true, onToggleDshThemeOverride,
   cwdEmojis, sessionEmojis, onSetCwdEmojis, onSetSessionEmojis,
   onResetUiStyle, onCreateSessionAt,
 }: AppearancePanelProps) {
@@ -706,6 +709,10 @@ const AppearancePanel = function AppearancePanel({
                 {onToggleDshSidebar && (
                   <ToggleRow labelKey="Show dsh Sidebar" descKey="Show the dsh sidebar (workspace browser, directory picker). Hidden by default."
                     checked={dshSidebarShown} onChange={onToggleDshSidebar} zone="global" />
+                )}
+                {onToggleDshThemeOverride && (
+                  <ToggleRow labelKey="Sync dsh Theme to Vibe" descKey="Map Vibe colors into dsh. Off uses dsh native theme. On by default."
+                    checked={dshThemeOverride} onChange={onToggleDshThemeOverride} zone="global" />
                 )}
                 <ToggleRow labelKey="Computer Use" descKey="Enable computer use MCP (screenshot/click/type). GUI mode only. Applies to new sessions."
                   checked={computerUse}

@@ -90,12 +90,22 @@ export function applyDshTheme(ctx: Context): () => void {
   // ui-layout 的 ThemePresenter 未挂载，这里补上它的 DOM 写入职责：
   // 把合成后的 token 快照写为 body 内联 CSS 变量（否则 override 只存在快照里，样式表看不到）
   let appliedTokens: string[] = []
+  const readOverride = (): boolean => {
+    try { return localStorage.getItem('vibe-ide-dsh-theme-override') !== '0' } catch { return true }
+  }
   const present = (snapshot: ThemeSnapshot): void => {
     for (const name of appliedTokens) body.style.removeProperty(name)
     appliedTokens = []
     for (const [name, value] of Object.entries(snapshot.active.tokens)) {
       body.style.setProperty(name, value)
       appliedTokens.push(name)
+    }
+    // 关闭 vibe override 时，dark/colorScheme 跟 dsh theme（snapshot.active.colorScheme），不再由 vibe bg 决定
+    if (!readOverride()) {
+      const scheme = snapshot.active.colorScheme
+      if (scheme === 'dark') body.setAttribute('data-ds-dark-theme', '')
+      else body.removeAttribute('data-ds-dark-theme')
+      document.documentElement.style.colorScheme = scheme
     }
   }
   const off = ctx.on('theme/change', present)
@@ -106,24 +116,32 @@ export function applyDshTheme(ctx: Context): () => void {
   const apply = (): void => {
     rafId = null
     const cs = getComputedStyle(document.documentElement)
-    const tokens: ThemeTokenOverrides = {}
-    for (const [dsw, ide] of TOKEN_MAP) {
-      const value = cs.getPropertyValue(ide).trim()
-      if (!value) continue
-      const color = toCssColor(value)
-      tokens[dsw] = { light: color, dark: color }
+    if (readOverride()) {
+      // vibe 接管：vibe 配色映射 + vibe dark/font，dsh 跟 vibe 主题
+      body.dataset.dshThemeOverride = 'on'
+      const tokens: ThemeTokenOverrides = {}
+      for (const [dsw, ide] of TOKEN_MAP) {
+        const value = cs.getPropertyValue(ide).trim()
+        if (!value) continue
+        const color = toCssColor(value)
+        tokens[dsw] = { light: color, dark: color }
+      }
+      // 未映射的 dsh token 走调色板默认值：浅色 Vibe 主题切浅色调色板，保持对比度
+      const dark = isDark(cs.getPropertyValue('--ide-bg').trim())
+      if (dark) body.setAttribute('data-ds-dark-theme', '')
+      else body.removeAttribute('data-ds-dark-theme')
+      document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+      // dsh 全局 UI 字体跟随 Vibe 设置（--dsw-font-family 定义在 :root，body 内联才能覆盖）。
+      // markdown 内部字体由 globals.css 的 .dsh-view [class*="markdown"] 对齐规则负责，无需在此注入
+      const ideFont = cs.getPropertyValue('--ide-font-family').trim()
+      if (ideFont) body.style.setProperty('--dsw-font-family', quoteFamily(ideFont))
+      theme.overrideTokens('vibe-ide', tokens)
+    } else {
+      // dsh 自管：清 vibe 注入的 font，dark/colorScheme 由 present(snapshot) 按 dsh theme 设，override 清空让 base theme 生效
+      body.dataset.dshThemeOverride = 'off'
+      body.style.removeProperty('--dsw-font-family')
+      theme.overrideTokens('vibe-ide', {})
     }
-    // 未映射的 dsh token 走调色板默认值：浅色 Vibe 主题切浅色调色板，保持对比度
-    const dark = isDark(cs.getPropertyValue('--ide-bg').trim())
-    if (dark) body.setAttribute('data-ds-dark-theme', '')
-    else body.removeAttribute('data-ds-dark-theme')
-    document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
-    // dsh 全局 UI 字体跟随 Vibe 设置（--dsw-font-family 定义在 :root，body 内联才能覆盖）。
-    // markdown 内部字体由 globals.css 的 .dsh-view [class*="markdown"] 对齐规则负责，无需在此注入
-    const ideFont = cs.getPropertyValue('--ide-font-family').trim()
-    if (ideFont) body.style.setProperty('--dsw-font-family', quoteFamily(ideFont))
-    // 同步 emit theme/change → present() 立即把 token 写到 body
-    theme.overrideTokens('vibe-ide', tokens)
   }
   const schedule = (): void => {
     if (rafId !== null) return
@@ -132,9 +150,11 @@ export function applyDshTheme(ctx: Context): () => void {
   apply()
   const observer = new MutationObserver(schedule)
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
+  window.addEventListener('vibe:dsh-theme-override-change', schedule)
   return () => {
     if (rafId !== null) cancelAnimationFrame(rafId)
     observer.disconnect()
     off()
+    window.removeEventListener('vibe:dsh-theme-override-change', schedule)
   }
 }

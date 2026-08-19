@@ -342,6 +342,9 @@ export default function App() {
   const [dshSidebarShown, setDshSidebarShown] = useState(() => {
     try { return localStorage.getItem('vibe-ide-dsh-sidebar') === '1' } catch { return false }
   })
+  const [dshThemeOverride, setDshThemeOverride] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-dsh-theme-override') !== '0' } catch { return true }
+  })
   const [pollingTick, setPollingTick] = useState(0)
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
 
@@ -2700,6 +2703,8 @@ export default function App() {
             onTogglePolling={(v) => { setPollingEnabled(v); try { localStorage.setItem('vibe-ide-polling', v ? '1' : '0') } catch {} }}
             dshSidebarShown={dshSidebarShown}
             onToggleDshSidebar={(v) => { setDshSidebarShown(v); try { localStorage.setItem('vibe-ide-dsh-sidebar', v ? '1' : '0') } catch {} }}
+            dshThemeOverride={dshThemeOverride}
+            onToggleDshThemeOverride={(v) => { setDshThemeOverride(v); try { localStorage.setItem('vibe-ide-dsh-theme-override', v ? '1' : '0') } catch {}; window.dispatchEvent(new CustomEvent('vibe:dsh-theme-override-change')) }}
             wordWrap={wordWrap}
             onToggleWordWrap={setWordWrap}
             autoUtf8={autoUtf8}
