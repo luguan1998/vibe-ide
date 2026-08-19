@@ -49,12 +49,15 @@ export async function fetchBootGraph(baseUrl: string): Promise<WebBootGraph | nu
 
 /** filter：@deepseek-ai/* shipped 全排除（官方走 vendor/generated，vibe 替代项不碰），
  * 只留纯玩家插件（dsh plugin add 装的普通包名）。 */
-export function playerRowsOf(graph: WebBootGraph | null): BootModuleRow[] {
+export function playerRowsOf(graph: WebBootGraph | null, baseUrl: string): BootModuleRow[] {
   if (graph?.entries === undefined) return []
   const rows: BootModuleRow[] = []
   for (const entry of graph.entries) {
     if (entry.id.startsWith('@deepseek-ai/')) continue
-    rows.push({ id: entry.id, url: entry.url, rev: entry.rev })
+    // entry.url 是 host 相对路径（/plugins/<id>/client.js），renderer origin 非 dsh host
+    // （dev=vite、prod=app），不绝对化 loadBundle 会打到 renderer origin → 404
+    const url = /^https?:\/\//.test(entry.url) ? entry.url : new URL(entry.url, baseUrl).href
+    rows.push({ id: entry.id, url, rev: entry.rev })
   }
   return rows
 }

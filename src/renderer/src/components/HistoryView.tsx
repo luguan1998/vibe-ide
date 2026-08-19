@@ -360,7 +360,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     const canResume = !!workspacePath && (s.inCurrentProject || !!s.projectDir)
     return (
       <div
-        className="px-2.5 py-2 flex items-center gap-2 cursor-pointer hover:bg-ide-hover transition-colors group"
+        className="px-2.5 py-0.5 flex items-center gap-2 cursor-pointer hover:bg-ide-hover transition-colors group"
         onClick={searchMode ? () => toggleSearchCollapse(s) : () => toggleExpand(s)}
       >
         <button
@@ -524,14 +524,14 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
                   className={`flex items-center gap-1 px-1 pt-1 pb-1.5 cursor-pointer select-none rounded hover:bg-ide-hover/50 transition-colors ${isCollapsed ? 'bg-ide-hover/40' : ''}`}
                   onClick={() => toggleGroup(dirName)}
                 >
-                  <ChevronDown size={11} className={`text-ide-text-muted shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                  <span className="text-[10px] font-bold flex-1 min-w-0 flex items-center gap-1">
-                    <FolderOpen size={11} className="text-ide-accent/70 shrink-0" />
+                  <ChevronDown size={13} className={`text-ide-text-muted shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                  <span className="text-xs font-bold flex-1 min-w-0 flex items-center gap-1.5">
+                    <FolderOpen size={14} className="text-ide-accent/70 shrink-0" />
                     <span className="truncate font-mono text-ide-text/80">{list[0]?.cwd || dirName}</span>
                   </span>
-                  <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted">{list.length}</span>
+                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted">{list.length}</span>
                   {list[0]?.inCurrentProject && (
-                    <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-ide-accent/15 text-ide-accent">{t('Current')}</span>
+                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-ide-accent/15 text-ide-accent">{t('Current')}</span>
                   )}
                 </div>
                 {!isCollapsed && (
