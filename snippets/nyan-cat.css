@@ -228,10 +228,8 @@
    ════════════════════════════════════════════════════ */
 .session-item {
   position: relative !important;
-  border-top: none !important;
-  border-right: none !important;
-  border-bottom: 1px solid rgb(30 44 72) !important;
-  border-radius: 0 !important;
+  border: none !important;
+  border-radius: 8px !important;
   transition: background-color 0.15s, border-color 0.15s, color 0.15s !important;
   clip-path: none !important;
 }
@@ -243,7 +241,6 @@
 .session-item--active {
   font-weight: 700 !important;
   background: rgb(38 55 92) !important;
-  border-left: 3px solid rgb(242 140 245) !important;
   box-shadow: 0 0 18px rgb(242 140 245 / 0.06) !important;
 }
 
@@ -301,7 +298,7 @@
 }
 
 .session-group__header {
-  border-bottom: 1px solid rgb(40 58 90) !important;
+  border-bottom: none !important;
   background: transparent !important;
 }
 
@@ -323,7 +320,7 @@
 }
 
 .right-panel__tab-bar {
-  border-bottom: 1px solid rgb(40 58 90) !important;
+  border-bottom: none !important;
 }
 
 .right-panel__tab {
