@@ -902,6 +902,8 @@ html, body, #root {
 .dsh-view [class*="markdown"] table { width: 100%; border-collapse: collapse; margin-bottom: 1em; font-size: 13px; font-family: inherit; }
 .dsh-view [class*="markdown"] thead { background-color: rgb(var(--ide-sidebar)); }
 .dsh-view [class*="markdown"] th, .dsh-view [class*="markdown"] td { border: 1px solid rgb(var(--ide-border)); padding: 0.5em 0.75em; text-align: left; }
+.dsh-view [class*="markdown"] th:first-child, .dsh-view [class*="markdown"] td:first-child { padding-left: 1em; }
+.dsh-view [class*="markdown"] th:last-child, .dsh-view [class*="markdown"] td:last-child { padding-right: 1em; }
 .dsh-view [class*="markdown"] th { font-weight: 600; color: rgb(var(--ide-accent)); }
 .dsh-view [class*="markdown"] tbody tr:hover { background-color: rgb(var(--ide-hover)); }
 .dsh-view [class*="markdown"] hr { border: none; border-top: 1px solid rgb(var(--ide-accent)); margin: 1.5em 0; opacity: 0.5; }

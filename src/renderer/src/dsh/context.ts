@@ -14,6 +14,7 @@ import { apply as applyTypert, inject as injectTypert } from '@deepseek-ai/dsh-t
 import { apply as applyGateway, inject as injectGateway } from '@deepseek-ai/dsh-api-gateway/src/client/index.ts'
 import { apply as applyRemotes, inject as injectRemotes } from '@deepseek-ai/dsh-api-remotes/src/client/index.ts'
 import { dshClientPlugins } from './generated-client-plugins'
+import { fetchBootGraph, playerRowsOf, activatePlayerRows } from './dynamic-plugins'
 import { createSlotRenderer } from '@deepseek-ai/dsh-client-web-react/src/index.ts'
 import { DshRoot } from './DshRoot'
 import DshPluginTab from '../components/DshPluginTab'
@@ -132,6 +133,9 @@ async function buildDshContext(baseUrl: string): Promise<DshContextHandle> {
   ]
   await Promise.all(fibers.map((f) => f.await()))
   ;(globalThis as { __dshCtx?: unknown }).__dshCtx = ctx
+  // 动态加载 host 上的玩家插件（dsh plugin add 装的）：fetch host graph → filter 纯玩家 → 动态激活。
+  // 放在 probe 前：玩家插件走 ctx 的 Loader，不影响已装载的 vendor plugin 与 probe 检查。
+  await activatePlayerRows(ctx, playerRowsOf(await fetchBootGraph(baseUrl)))
   const probe = ['slots', 'sessions', 'workspaces', 'connection', 'typert', 'remote', 'remote.commands', 'settingsScope', 'locale', 'theme', 'layout', 'conversationEvents', 'conversationViews']
   let missing = probe.filter((k) => ctx.get(k as never) === undefined)
   for (let i = 0; i < 10 && missing.length > 0; i++) {
