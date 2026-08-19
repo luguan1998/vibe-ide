@@ -199,8 +199,10 @@
   align-self: flex-end !important;
   align-items: center !important;
   gap: 8px !important;
-  padding: 2px 18px 2px 8px !important;
+  padding: 2px 10px 2px 8px !important;
   margin: 0 6px -2px !important;
+  max-width: calc(100% - 44px) !important;
+  min-width: 0 !important;
   border: 1px solid rgb(255 64 129 / 0.15) !important;
   border-bottom: none !important;
   border-radius: 14px 14px 0 0 !important;

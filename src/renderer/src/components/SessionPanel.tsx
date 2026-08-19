@@ -1503,8 +1503,18 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         e.stopPropagation()
                         onCloneSession(null, group.cwd, termType)
                       }}
-                      className="w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
+                      className="w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center font-mono font-bold text-[11px]"
                       title={t('New Terminal in this folder')}
+                    >
+                      &gt;_
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onNewSessionHere?.(group.cwd, newMode)
+                      }}
+                      className="w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
+                      title={t('New Session')}
                     >
                       <Plus size={13} />
                     </button>
