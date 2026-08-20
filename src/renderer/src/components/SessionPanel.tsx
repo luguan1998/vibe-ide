@@ -261,6 +261,8 @@ interface SessionPanelProps {
   onNewSessionHere?: (cwd: string, mode: 'term' | 'gui' | 'dsh') => void
   groupSessionsByCwd?: boolean
   onToggleGroupSessionsByCwd?: (v: boolean) => void
+  showSessionButtons?: boolean
+  onToggleShowSessionButtons?: (v: boolean) => void
   terminalFontSize?: number
   editorFontSize?: number
   onAdjustTerminalFontSize?: (delta: number) => void
@@ -472,6 +474,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onNewSessionHere,
   groupSessionsByCwd = true,
   onToggleGroupSessionsByCwd,
+  showSessionButtons = true,
+  onToggleShowSessionButtons,
   terminalFontSize = 14,
   editorFontSize = 14,
   onAdjustTerminalFontSize,
@@ -1357,6 +1361,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       </div>
 
       <div className="mx-2 mt-1 flex flex-col gap-1.5">
+        {showSessionButtons && (<>
         <div
           className="relative group/new-session"
           onMouseEnter={(e) => {
@@ -1411,6 +1416,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <History size={14} className="text-ide-text-muted" />
           {t('Session History')}
         </button>
+        </>)}
       </div>
 
       {/* Session List */}
@@ -2103,6 +2109,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onToggleCapsuleTabs={onToggleCapsuleTabs}
         groupSessionsByCwd={groupSessionsByCwd}
         onToggleGroupSessionsByCwd={onToggleGroupSessionsByCwd}
+        showSessionButtons={showSessionButtons}
+        onToggleShowSessionButtons={onToggleShowSessionButtons}
         inlineDiff={inlineDiff}
         onToggleInlineDiff={onToggleInlineDiff}
         wordWrap={wordWrap}

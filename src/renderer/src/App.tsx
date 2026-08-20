@@ -598,6 +598,9 @@ export default function App() {
   const [groupSessionsByCwd, setGroupSessionsByCwd] = useState(() => {
     try { return localStorage.getItem('vibe-ide-group-sessions-by-cwd') !== 'false' } catch { return true }
   })
+  const [showSessionButtons, setShowSessionButtons] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-session-buttons') !== 'false' } catch { return true }
+  })
   const [outlineOverlayEnabled, setOutlineOverlayEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-outline-overlay') !== 'false' } catch { return true }
   })
@@ -939,6 +942,9 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-group-sessions-by-cwd', String(groupSessionsByCwd)) } catch {}
   }, [groupSessionsByCwd])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-session-buttons', String(showSessionButtons)) } catch {}
+  }, [showSessionButtons])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-outline-overlay', String(outlineOverlayEnabled)) } catch {}
   }, [outlineOverlayEnabled])
@@ -2774,6 +2780,8 @@ export default function App() {
             onToggleCapsuleTabs={setCapsuleTabs}
             groupSessionsByCwd={groupSessionsByCwd}
             onToggleGroupSessionsByCwd={setGroupSessionsByCwd}
+            showSessionButtons={showSessionButtons}
+            onToggleShowSessionButtons={setShowSessionButtons}
             terminalFontSize={terminalFontSize}
             editorFontSize={editorFontSize}
             onAdjustTerminalFontSize={(delta: number) => setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))}
@@ -2789,6 +2797,7 @@ export default function App() {
               setEditorFontSize(14)
               setCapsuleTabs(true)
               setGroupSessionsByCwd(true)
+              setShowSessionButtons(true)
               setInlineDiff(false)
               setDiffSplitRatio(0.3)
               setSessionFontFamily('Consolas')

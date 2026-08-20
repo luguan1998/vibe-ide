@@ -214,6 +214,8 @@ const ZH_MAP: Record<string, string> = {
   'Use capsule-style tab bar instead of icon buttons.': '使用胶囊风格选项卡替代方形图标按钮。',
   'Group Sessions by Folder': '按目录分组',
   'Group sessions by their working directory. Off = flat list with cwd under each item.': '按工作目录分组显示会话。关闭则平铺，每条下方显示目录。',
+  'Show Default Buttons': '显示默认按钮',
+  'Show New Session and Session History buttons in the sidebar. Turn off to hide them.': '在侧栏显示「新建会话」和「会话历史」按钮。关闭后隐藏。',
   'UI Style': 'UI 样式',
   'CSS Snippets': 'CSS 片段',
   'Open CSS Config': '打开 CSS 配置',

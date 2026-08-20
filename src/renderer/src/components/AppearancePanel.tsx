@@ -157,6 +157,8 @@ interface AppearancePanelProps {
   onToggleCapsuleTabs?: (v: boolean) => void
   groupSessionsByCwd?: boolean
   onToggleGroupSessionsByCwd?: (v: boolean) => void
+  showSessionButtons?: boolean
+  onToggleShowSessionButtons?: (v: boolean) => void
   inlineDiff?: boolean
   onToggleInlineDiff?: (v: boolean) => void
   wordWrap?: boolean
@@ -199,6 +201,7 @@ const AppearancePanel = function AppearancePanel({
   open, onClose,
   capsuleTabs = true, onToggleCapsuleTabs,
   groupSessionsByCwd = true, onToggleGroupSessionsByCwd,
+  showSessionButtons = true, onToggleShowSessionButtons,
   inlineDiff = false, onToggleInlineDiff,
   wordWrap = false, onToggleWordWrap,
   diffSplitRatio = 0.3, onSetDiffSplitRatio,
@@ -554,6 +557,10 @@ const AppearancePanel = function AppearancePanel({
                 {onToggleGroupSessionsByCwd && (
                   <ToggleRow labelKey="Group Sessions by Folder" descKey="Group sessions by their working directory. Off = flat list with cwd under each item."
                     checked={groupSessionsByCwd} onChange={onToggleGroupSessionsByCwd} zone="session" />
+                )}
+                {onToggleShowSessionButtons && (
+                  <ToggleRow labelKey="Show Default Buttons" descKey="Show New Session and Session History buttons in the sidebar. Turn off to hide them."
+                    checked={showSessionButtons} onChange={onToggleShowSessionButtons} zone="session" />
                 )}
                 {onSetFontFamily && (
                   <FontRow labelKey="Session Font" value={fontFamily} recommended="Consolas" onChange={onSetFontFamily} zone="session" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
