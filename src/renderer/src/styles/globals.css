@@ -386,13 +386,13 @@ html, body, #root {
   animation: slideUp 0.15s ease-out;
 }
 
-@keyframes sparkle {
-  0%, 100% { transform: scale(0.9) rotate(0deg); opacity: 0.5; text-shadow: 0 0 2px rgb(var(--ide-accent) / 0.5); }
-  50% { transform: scale(1.25) rotate(12deg); opacity: 1; text-shadow: 0 0 8px rgb(var(--ide-accent) / 0.8); }
+/* Claude 旋转雪花标记：✻ 连续 360° 旋转（CC 状态指示器同款），取代原来的呼吸缩放闪烁 */
+@keyframes spin-snowflake {
+  to { transform: rotate(360deg); }
 }
 
-.animate-sparkle {
-  animation: sparkle 1s ease-in-out infinite;
+.animate-spin-snowflake {
+  animation: spin-snowflake 1.2s linear infinite;
   display: inline-block;
   color: rgb(var(--ide-accent));
 }
