@@ -459,49 +459,87 @@ export function InputBar({
   useEffect(() => {
     const hasFiles = (event: globalThis.DragEvent): boolean =>
       event.dataTransfer?.types.includes('Files') ?? false
+    // Electron 下从文件管理器拖入属外部拖拽，无 HTML 源元素，`dragend` 永不触发，
+    // 原依赖 window dragend 的兜底失效。一旦 drop 未触发或 dragleave 计数未平衡
+    // （拖出窗口松开/取消），overlay 永久卡死且无 ESC/关闭途径。心跳自愈：
+    // dragenter/dragover 持续重置定时器；拖拽结束后 dragover 停止，定时器到期即
+    // reset。窗口失焦也必终止拖拽，一并兜底。
+    let staleTimer: ReturnType<typeof setTimeout> | null = null
+    const STALE_MS = 2000
     const reset = (): void => {
+      if (staleTimer !== null) { clearTimeout(staleTimer); staleTimer = null }
       dragDepthRef.current = 0
       setDragActive(false)
     }
+    const armStaleHeal = (): void => {
+      if (staleTimer !== null) clearTimeout(staleTimer)
+      staleTimer = setTimeout(() => {
+        staleTimer = null
+        reset()
+      }, STALE_MS)
+    }
     const onDragEnter = (event: globalThis.DragEvent): void => {
       if (!hasFiles(event)) return
+      // 仅当 composer 可见（dsh 为当前 session 且中栏在 terminal 视图）才响应：
+      // 多个 dsh session 的 DshView 常驻挂载、各自 InputBar 都在 document 上挂
+      // drag 监听，不加门控则切到终端/diff 视图或非活动 dsh 时拖文件仍弹本 overlay。
+      // display:none 祖先时 offsetParent 为 null（card 非 fixed），可靠且不触发 layout。
+      const card = cardRef.current
+      if (card === null || card.offsetParent === null) return
       event.preventDefault()
       dragDepthRef.current += 1
       setDragActive(true)
+      armStaleHeal()
     }
     const onDragOver = (event: globalThis.DragEvent): void => {
+      // dragenter 未通过可见性门控时 dragDepth 为 0，不抢 dragover/drop 控制。
+      if (dragDepthRef.current === 0) return
       if (!hasFiles(event) || event.dataTransfer === null) return
       event.preventDefault()
       event.dataTransfer.dropEffect = canAcceptDrop ? 'copy' : 'none'
+      armStaleHeal()
     }
     const onDragLeave = (event: globalThis.DragEvent): void => {
-      if (!hasFiles(event)) return
-      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
-      if (dragDepthRef.current === 0) setDragActive(false)
+      // dragleave 时 dataTransfer.types 在取消/drop 收尾已被清空（spec: Break the
+      // association），不做 hasFiles 前置——dragenter 已确认 Files 才增计数，此处
+      // 无条件递减并 clamp ≥0；否则取消场景 types 为空被前置拒绝、计数永不归零。
+      // 计数已 0（无活动 Files 拖拽，如纯文本拖拽）直接 return。
+      if (dragDepthRef.current === 0) return
+      dragDepthRef.current -= 1
+      if (dragDepthRef.current === 0) { reset(); return }
       // Leaving through the viewport edge does not balance the count on every
       // engine; a page-root leave at the border means the drag left the window.
       const leavingViewport = event.clientX <= 0 || event.clientY <= 0
         || event.clientX >= window.innerWidth || event.clientY >= window.innerHeight
       if ((event.target === document.documentElement || event.target === document.body) && leavingViewport) reset()
+      else armStaleHeal()
     }
     const onDrop = (event: globalThis.DragEvent): void => {
       if (!hasFiles(event)) return
+      // 不可见的 composer（dsh 非活动/不在中栏）不接收 drop：常驻挂载的多个
+      // InputBar 都监听 document drop，不加门控会抢同一个 drop 事件。
+      const card = cardRef.current
+      if (card === null || card.offsetParent === null) return
       event.preventDefault()
       reset()
       if (!canAcceptDrop) return
       intakeImages([...(event.dataTransfer?.files ?? [])])
     }
+    const onBlur = (): void => reset()
     document.addEventListener('dragenter', onDragEnter)
     document.addEventListener('dragover', onDragOver)
     document.addEventListener('dragleave', onDragLeave)
     document.addEventListener('drop', onDrop)
     window.addEventListener('dragend', reset)
+    window.addEventListener('blur', onBlur)
     return () => {
+      if (staleTimer !== null) clearTimeout(staleTimer)
       document.removeEventListener('dragenter', onDragEnter)
       document.removeEventListener('dragover', onDragOver)
       document.removeEventListener('dragleave', onDragLeave)
       document.removeEventListener('drop', onDrop)
       window.removeEventListener('dragend', reset)
+      window.removeEventListener('blur', onBlur)
     }
   }, [canAcceptDrop, intakeImages])
 
