@@ -249,13 +249,13 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
     <div className="ai-tab__tool-call block w-full max-w-[896px] mx-auto animate-fade-in">
       <button
         onClick={() => setExpanded(v => !v)}
-        className={`ai-tab__tool-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${
+        className={`ai-tab__tool-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${
           isFileEdit ? 'bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25' : 'bg-ide-hover text-ide-text-muted hover:bg-ide-active'
         }`}
       >
         <span className="shrink-0"><ToolIcon category={category} /></span>
-        <span className="shrink-0 leading-none">{tool.name}{' '}</span>
-        {detail && <span className="ai-tab__tool-detail-preview truncate flex-1 min-w-0 opacity-60 text-[10px] leading-none">{detail}</span>}
+        <span className="shrink-0 leading-none">{tool.name}</span>
+        {detail && <span className="ai-tab__tool-detail-preview truncate flex-1 min-w-0 ml-0.5 opacity-60 text-[10px] leading-none">{detail}</span>}
         {hasResult && (
           <span className={`ai-tab__tool-status shrink-0 text-[10px] leading-none ${tool.result!.isError ? 'text-ide-danger' : 'text-ide-success'}`}>
             {tool.result!.isError ? '✗' : '✓'}
