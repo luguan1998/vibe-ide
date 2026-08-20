@@ -39,7 +39,7 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 }
 .session-group__header {
   background: rgb(17 16 15) !important;
-  border-bottom: 1px solid rgb(48 42 38) !important;
+  border-bottom: 1px solid rgba(50, 44, 38, 0.35) !important;
 }
 
 /* 组内条目：紧凑铁板行，悬停点亮 */
@@ -92,9 +92,20 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   background-position-y: calc(50% + 0.5px) !important;
   border-bottom: none !important;
 }
-.status-badge__segment,
-.status-badge__divider {
+/* 三态药丸：去掉默认左右径向极光渐变（右端 warning 泛黄），背景透明露出横栏贴图，收窄段间距 */
+.status-badge {
   background: transparent !important;
+  box-shadow: none !important;
+}
+.status-badge__segment {
+  background: transparent !important;
+}
+.status-badge__divider {
+  background: linear-gradient(180deg, transparent 15%, rgb(90 78 66) 50%, transparent 85%) !important;
+  width: 2px !important;
+}
+.status-badge__segment {
+  padding: 4px 14px !important;
 }
 
 
@@ -148,10 +159,9 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 .ai-tab__thinking {
   background: rgba(12, 14, 18, 0.85) !important;
   border: 1px dashed rgba(65, 95, 115, 0.4) !important;
-  border-left: 3px solid rgb(65 105 130) !important; /* 标志性的眼眸幽邃蓝 */
   color: rgb(125 140 155) !important;
   font-style: italic;
-  box-shadow: inset 0 0 15px rgba(0,0,0,0.95);
+  box-shadow: inset 3px 0 0 rgb(65 105 130), inset 0 0 15px rgba(0,0,0,0.95) !important;
 }
 
 /* 计划卡片：羊皮纸契约卷轴（Covenants Panel） */

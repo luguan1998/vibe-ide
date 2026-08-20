@@ -600,8 +600,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   )
   const [newSubmenu, setNewSubmenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const newSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [quickNewSubmenu, setQuickNewSubmenu] = useState<{ x: number; y: number } | null>(null)
+  const [quickNewSubmenu, setQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const quickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [groupQuickNewSubmenu, setGroupQuickNewSubmenu] = useState<{ x: number; y: number } | null>(null)
+  const groupQuickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 新建：按模式在当前会话 cwd 创建并关菜单（勾选模式为当次启动内的用户偏好）
   const handleNewFromSubmenu = (mode: 'term' | 'gui' | 'dsh') => {
@@ -1360,7 +1362,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           onMouseEnter={(e) => {
             if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
             const r = e.currentTarget.getBoundingClientRect()
-            setQuickNewSubmenu({ x: r.right + 4, y: r.top })
+            setQuickNewSubmenu({ x: r.right + 4, y: r.top, cwd: null })
           }}
           onMouseLeave={() => {
             quickNewSubmenuTimerRef.current = setTimeout(() => setQuickNewSubmenu(null), 150)
@@ -1393,7 +1395,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               }}
               onMouseLeave={() => setQuickNewSubmenu(null)}
             >
-              {newModesSorted.map(mode => renderNewModeItem(mode, handleQuickNewSession))}
+              {newModesSorted.map(mode => renderNewModeItem(mode, (m) => {
+                if (quickNewSubmenu.cwd && onNewSessionHere) onNewSessionHere(quickNewSubmenu.cwd, m)
+                else handleQuickNewSession(m)
+                setQuickNewSubmenu(null)
+              }))}
             </div>
           )}
         </div>
@@ -1512,23 +1518,38 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        onCloneSession(null, group.cwd, termType)
-                      }}
-                      className="w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center font-mono font-bold text-[11px]"
-                      title={t('New Terminal in this folder')}
-                    >
-                      &gt;_
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
+                        if (groupQuickNewSubmenuTimerRef.current) { clearTimeout(groupQuickNewSubmenuTimerRef.current); groupQuickNewSubmenuTimerRef.current = null }
+                        setGroupQuickNewSubmenu(null)
                         onNewSessionHere?.(group.cwd, newMode)
+                      }}
+                      onMouseEnter={(e) => {
+                        if (groupQuickNewSubmenuTimerRef.current) { clearTimeout(groupQuickNewSubmenuTimerRef.current); groupQuickNewSubmenuTimerRef.current = null }
+                        const r = e.currentTarget.getBoundingClientRect()
+                        setGroupQuickNewSubmenu({ x: r.right + 4, y: r.top })
+                      }}
+                      onMouseLeave={() => {
+                        groupQuickNewSubmenuTimerRef.current = setTimeout(() => setGroupQuickNewSubmenu(null), 150)
                       }}
                       className="w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center"
                       title={t('New Session')}
                     >
                       <Plus size={13} />
                     </button>
+                    {groupQuickNewSubmenu && (
+                      <div
+                        className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px]"
+                        style={{ left: groupQuickNewSubmenu.x, top: groupQuickNewSubmenu.y }}
+                        onMouseEnter={() => {
+                          if (groupQuickNewSubmenuTimerRef.current) { clearTimeout(groupQuickNewSubmenuTimerRef.current); groupQuickNewSubmenuTimerRef.current = null }
+                        }}
+                        onMouseLeave={() => setGroupQuickNewSubmenu(null)}
+                      >
+                        {newModesSorted.map(mode => renderNewModeItem(mode, (m) => {
+                          if (onNewSessionHere) onNewSessionHere(group.cwd, m)
+                          setGroupQuickNewSubmenu(null)
+                        }))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 {/* Sessions under this folder */}
