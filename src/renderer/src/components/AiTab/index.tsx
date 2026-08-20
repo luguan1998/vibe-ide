@@ -1025,10 +1025,10 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           <div className="ai-tab__busy w-full max-w-[896px] mx-auto space-y-1.5">
             {Object.keys(state.runningTools).length > 0 && (
               <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">
-                {Object.entries(state.runningTools).map(([id, rt]) => (
-                  <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-hover text-ide-text-muted border border-ide-border/50">
+                {Object.entries(state.runningTools).map(([id, rt], i) => (
+                  <span key={id} className="claude-row-enter inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-hover text-ide-text-muted border border-ide-border/50" style={{ '--enter-delay': `${i * 45}ms` } as React.CSSProperties}>
                     <ToolIcon category={getToolCategory(rt.tool)} />
-                    <span className="truncate max-w-[160px]">{rt.tool}</span>
+                    <span className="claude-shimmer-text truncate max-w-[160px]">{rt.tool}</span>
                     <span className="text-ide-text-muted/50">{Math.round(rt.elapsed)}s</span>
                   </span>
                 ))}

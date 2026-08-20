@@ -349,11 +349,19 @@ export const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm,
   useEffect(() => {
     const el = feedbackRef.current
     if (!el) return
-    el.style.height = 'auto'
-    const maxH = 120
-    const newH = Math.min(el.scrollHeight, maxH)
-    el.style.height = `${newH}px`
-    el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden'
+    const resize = () => {
+      el.style.height = 'auto'
+      const maxH = 120
+      // display:none 子树（AI 会话非当前视图时权限卡仍在挂载）中 scrollHeight=0，
+      // 保底一行，避免钉成 0 高无法输入；切回可见时 ResizeObserver 会重新测量
+      const newH = Math.max(Math.min(el.scrollHeight, maxH), 20)
+      el.style.height = `${newH}px`
+      el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden'
+    }
+    resize()
+    const ro = new ResizeObserver(resize)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [feedback])
   const [annotationInput, setAnnotationInput] = useState<{ top: number; left: number; heading: string | null; snippet: string } | null>(null)
   const planContentRef = useRef<HTMLDivElement>(null)

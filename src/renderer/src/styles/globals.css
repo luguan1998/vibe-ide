@@ -397,6 +397,69 @@ html, body, #root {
   color: rgb(var(--ide-accent));
 }
 
+
+/* TextShimmer：活动标签流光（AssistantThinkingChain.tsx:87-103，1.6s linear）*/
+@keyframes claude-text-shimmer {
+  from { background-position: 200% center; }
+  to { background-position: 0% center; }
+}
+.claude-text-shimmer {
+  color: transparent;
+  background-image: linear-gradient(90deg,
+    rgb(var(--ide-text-muted) / 0.72) 0%,
+    rgb(var(--ide-text) / 0.92) 48%,
+    rgb(var(--ide-text-muted) / 0.72) 100%);
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: claude-text-shimmer 1.6s linear infinite;
+}
+
+/* 慢速"Running"流光（MainContent.tsx:789-801，4s linear，200%→-200%）*/
+@keyframes claude-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.claude-shimmer-text {
+  background: linear-gradient(90deg,
+    rgb(var(--ide-text-muted)) 45%,
+    rgb(var(--ide-text)) 50%,
+    rgb(var(--ide-text-muted)) 55%);
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: claude-shimmer 4s linear infinite;
+}
+
+/* 行入场：220ms/240ms cubic-bezier(0.22,1,0.36,1)，inline --enter-delay 错峰 index*45ms */
+@keyframes claude-row-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes claude-result-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.claude-row-enter {
+  animation: claude-row-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--enter-delay, 0ms);
+}
+.claude-result-enter {
+  animation: claude-result-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--enter-delay, 0ms);
+}
+
+/* 思考状态行字体：Serif italic（Anthropic_Serif_Text 不可得时 Georgia 回退）*/
+.claude-status-copy {
+  font-family: 'Anthropic Serif Text', Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 14px;
+  line-height: 21px;
+  letter-spacing: -0.07px;
+}
+
 /* ── Acrylic frosted glass title bar ── */
 .acrylic-titlebar {
   --acrylic-tint: rgb(var(--ide-accent) / 0.05);
@@ -822,13 +885,14 @@ html, body, #root {
   font-variant-numeric: tabular-nums;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+/* is-active 用透明渐晕代替实心色块：色感居中、边缘透明，不透死底层极光渐变背景 */
 .status-badge__segment--running.is-active {
   color: rgb(var(--ide-accent));
-  background: rgb(var(--ide-accent) / 0.30);
+  background: radial-gradient(150% 170% at 50% -30%, rgb(var(--ide-accent) / 0.42), rgb(var(--ide-accent) / 0.12) 58%, transparent 80%);
 }
 .status-badge__segment--warn.is-active {
   color: rgb(var(--ide-warning));
-  background: rgb(var(--ide-warning) / 0.30);
+  background: radial-gradient(150% 170% at 50% -30%, rgb(var(--ide-warning) / 0.42), rgb(var(--ide-warning) / 0.12) 58%, transparent 80%);
 }
 
 
