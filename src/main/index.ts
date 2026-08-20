@@ -30,6 +30,9 @@ let cachedFontList: string[] | null = null
 
 // Fix Windows permission issues
 app.commandLine.appendSwitch('no-sandbox')
+// dsh server 只监听 127.0.0.1，本机回环请求不得走系统代理（公司 PAC/代理未
+// bypass 本机时上层的 504 Gateway Time-out 就是这么来的）
+app.commandLine.appendSwitch('proxy-bypass-list', '<local>;127.0.0.1;localhost')
 // app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096')
 
 // 测试模式下启用精确内存信息，供 performance.memory 采集渲染进程 JSHeap
