@@ -89,6 +89,10 @@
 # carries whatever the deployment registered globally (repository plugins).
 - id: skill-filesystem
   name: '@deepseek-ai/dsh-skill-filesystem'
+  config:
+    customSkillDirs:
+      - !!js process.cwd() + '/.claude/skills'
+      - !!js (process.env.USERPROFILE || process.env.HOME || '') + '/.claude/skills'
 
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
