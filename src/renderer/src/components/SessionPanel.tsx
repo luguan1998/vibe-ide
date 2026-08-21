@@ -1188,7 +1188,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   : (session.kind === 'terminal' ? t('Terminal') : session.kind === 'gui' ? 'Claude' : 'dsh')
                 return (
                   <span
-                    className={`text-[14px] shrink-0 w-4 h-4 flex items-center justify-center select-none transition-colors session-item__icon${clickable ? ' cursor-pointer hover:bg-ide-hover rounded' : ''}`}
+                    className={`text-[13px] shrink-0 w-4 h-4 flex items-center justify-center select-none transition-colors session-item__icon${clickable ? ' cursor-pointer hover:bg-ide-hover rounded' : ''}`}
                     title={title}
                     draggable={false}
                     onClick={(e) => {
@@ -1557,7 +1557,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span
-                      className="text-[14px] shrink-0 w-3.5 h-3.5 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
+                      className="text-[13px] shrink-0 w-3.5 h-3.5 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
                       title={t('Click to cycle emoji')}
                       draggable={false}
                       onClick={(e) => {
