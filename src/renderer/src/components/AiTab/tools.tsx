@@ -58,8 +58,8 @@ function getLanguageFromFilePath(path: string): string {
   const ext = path.split('.').pop()?.toLowerCase() || ''
   return DIFF_LANG_MAP[ext] || 'plaintext'
 }
-export function ToolIcon({ category }: { category: 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'task' | 'default' }) {
-  const cls = "w-3.5 h-3.5 shrink-0"
+export function ToolIcon({ category, className }: { category: 'file' | 'command' | 'search' | 'web' | 'plan' | 'skill' | 'agent' | 'question' | 'task' | 'default'; className?: string }) {
+  const cls = className ? `w-3.5 h-3.5 shrink-0 ${className}` : "w-3.5 h-3.5 shrink-0"
   if (category === 'skill') return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
       <path d="M12 3c-5 3-9 8-9 14 3-2 6-2 9 0 3-2 6-2 9 0 0-6-4-11-9-14Z" />

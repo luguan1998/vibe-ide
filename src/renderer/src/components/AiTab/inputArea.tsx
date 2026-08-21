@@ -2,11 +2,11 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import type { AiPermissionMode, AiSlashCommand } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from '../FileIcons'
 import { aiStore } from '../../aiStore'
-import { ChevronDown, Check, Folder } from 'lucide-react'
+import { Bot, ChevronDown, Check, Folder } from 'lucide-react'
 const MODE_OPTIONS: { value: AiPermissionMode; label: string; icon: string }[] = [
   { value: 'plan', label: 'Plan', icon: '📋' },
-  { value: 'acceptEdits', label: 'Edit', icon: '✏️' },
-  { value: 'bypassPermissions', label: 'Auto', icon: '🔓' },
+  { value: 'acceptEdits', label: 'Edit', icon: '🖌️' },
+  { value: 'bypassPermissions', label: 'Bypass', icon: '🔓' },
 ]
 
 // ── ContextBar ──────────────────────────────────────────────────────
@@ -49,7 +49,11 @@ export function ContextBar({ percent }: { percent: number | null }) {
 }
 
 // ── ModelBadge ──────────────────────────────────────────────────────
-const MODEL_ALIASES = ['opus', 'sonnet', 'haiku']
+const MODEL_OPTIONS = [
+  { alias: 'opus', label: 'Opus', icon: '🧠', desc: '最强推理' },
+  { alias: 'sonnet', label: 'Sonnet', icon: '⚖️', desc: '均衡' },
+  { alias: 'haiku', label: 'Haiku', icon: '⚡', desc: '最快' },
+] as const
 
 export function ModelBadge({
   model,
@@ -62,13 +66,6 @@ export function ModelBadge({
   const ref = useRef<HTMLDivElement>(null)
   const [pendingModel, setPendingModel] = useState<string | null>(null)
   const prevModelRef = useRef(model)
-
-  const displayModel = pendingModel || model
-
-  const shortName = (() => {
-    if (!displayModel) return ''
-    return displayModel
-  })()
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -106,11 +103,15 @@ export function ModelBadge({
     }
   }, [model, pendingModel])
 
-  const currentAlias = MODEL_ALIASES.find(a => {
-    if (!model) return false
-    const resolved = model.toLowerCase()
-    return resolved.includes(a) || resolved.includes({ opus: 'pro', sonnet: 'pro', haiku: 'flash' }[a] || '')
-  })
+  // 直接按 alias 子串匹配档位；勿加 pro/flash 映射，否则 opus 与 sonnet 共享 pro 会误判
+  const currentOption = (() => {
+    if (!model) return undefined
+    const m = model.toLowerCase()
+    return MODEL_OPTIONS.find(o => m.includes(o.alias))
+  })()
+  const pendingOption = pendingModel ? MODEL_OPTIONS.find(o => o.alias === pendingModel) : undefined
+  const displayOption = pendingOption || currentOption
+  const displayLabel = displayOption?.label || model || 'default'
 
   return (
     <div ref={ref} className="ai-tab__model relative shrink-0">
@@ -126,28 +127,35 @@ export function ModelBadge({
         title={model || 'Model'}
         disabled={!sessionId}
       >
-        <span className="truncate max-w-[160px]">{shortName || 'default'}</span>
+        {displayOption
+          ? <span className="text-xs leading-none">{displayOption.icon}</span>
+          : <Bot size={12} strokeWidth={2} className="shrink-0" />}
+        <span className="truncate max-w-[80px]">{displayLabel}</span>
         {sessionId && <ChevronDown size={10} className={`opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
       </button>
       {open && (
         <div className="ai-tab__model-dropdown absolute bottom-full right-0 mb-1.5 z-30
           bg-ide-sidebar border border-ide-border rounded-lg
-          shadow-lg min-w-[110px] py-0.5 animate-fade-in">
-          {MODEL_ALIASES.map(alias => {
-            const isCurrent = !pendingModel && alias === currentAlias
+          shadow-lg min-w-[170px] py-0.5 animate-fade-in">
+          {MODEL_OPTIONS.map(opt => {
+            const isCurrent = !pendingModel && opt.alias === currentOption?.alias
+            const isPending = pendingModel === opt.alias
+            const marked = isCurrent || isPending
             return (
               <button
-                key={alias}
+                key={opt.alias}
                 type="button"
-                onClick={() => handleSelect(alias)}
+                onClick={() => handleSelect(opt.alias)}
                 className={`ai-tab__model-option w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors ${
-                  isCurrent
+                  marked
                     ? 'ai-tab__model-option--selected bg-ide-accent/15 text-ide-accent'
                     : 'text-ide-text hover:bg-ide-hover'
                 }`}
               >
-                <span className="truncate">{alias}</span>
-                {isCurrent && <Check size={10} className="ml-auto shrink-0" />}
+                <span className="text-xs leading-none shrink-0">{opt.icon}</span>
+                <span className="truncate shrink-0">{opt.label}</span>
+                <span className={`text-[10px] truncate ${marked ? 'text-ide-accent/60' : 'text-ide-text-muted/50'}`}>{opt.desc}</span>
+                {marked && <Check size={10} className="ml-auto shrink-0" />}
               </button>
             )
           })}

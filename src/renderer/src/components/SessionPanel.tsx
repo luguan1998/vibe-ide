@@ -16,6 +16,7 @@ import mujicaIcon from '@renderer/assets/mujica.png?inline'
 import { useMujicaCounts } from '../mujicaStore'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
+import { ToolIcon } from './AiTab/tools'
 
 // ── Claude 配置组（model/provider 多组切换）──
 interface ClaudeConfigGroup {
@@ -581,21 +582,21 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     const all = ['term', 'gui', 'dsh'] as const
     return [newMode, ...all.filter(m => m !== newMode)] as ('term' | 'gui' | 'dsh')[]
   }, [newMode])
+  const renderModeIcon = (mode: 'term' | 'gui' | 'dsh') =>
+    mode === 'term' ? (
+      <ToolIcon category="command" className="text-ide-accent" />
+    ) : mode === 'gui' ? (
+      <ClaudeLogoIcon size={14} className="shrink-0" />
+    ) : (
+      <DeepSeekLogoIcon size={14} className="shrink-0" />
+    )
   const renderNewModeItem = (mode: 'term' | 'gui' | 'dsh', onPick: (mode: 'term' | 'gui' | 'dsh') => void) => (
     <button
       key={mode}
       className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
       onClick={() => { setNewMode(mode); onPick(mode) }}
     >
-      {mode === 'term' ? (
-        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent shrink-0">
-          <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
-        </svg>
-      ) : mode === 'gui' ? (
-        <ClaudeLogoIcon size={14} className="shrink-0" />
-      ) : (
-        <DeepSeekLogoIcon size={14} className="shrink-0" />
-      )}
+      {renderModeIcon(mode)}
       <span>{mode === 'term' ? t('Terminal') : mode === 'gui' ? 'Claude' : 'dsh'}</span>
       <span className="ml-auto flex items-center">
         {newMode === mode ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
@@ -1378,19 +1379,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             title={t('New Session')}
             className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors"
           >
-            <MessageSquarePlus size={14} className="text-ide-accent shrink-0" />
+            {renderModeIcon(newMode)}
             <span className="truncate pointer-events-none">{t('New Session')}</span>
-            <span className="ml-auto text-[10px] font-mono text-ide-text-muted pointer-events-none group-hover/new-session:opacity-0 transition-opacity">Ctrl+N</span>
+            <span className="ml-auto text-[10px] font-mono text-ide-text-muted pointer-events-none">Ctrl+N</span>
           </button>
-          <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center rounded-md overflow-hidden opacity-0 pointer-events-none group-hover/new-session:opacity-100 group-hover/new-session:pointer-events-auto transition-opacity">
-            <button
-              title={t('New Workspace')}
-              onClick={() => onCreateSession(termType)}
-              className="w-7 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
-            >
-              <FolderPlus size={13} />
-            </button>
-          </div>
           {quickNewSubmenu && (
             <div
               className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px]"
@@ -1405,6 +1397,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 else handleQuickNewSession(m)
                 setQuickNewSubmenu(null)
               }))}
+              <div className="border-t border-ide-border my-1" />
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                onClick={() => { onCreateSession(termType); setQuickNewSubmenu(null) }}
+              >
+                <FolderPlus size={14} className="text-ide-text-muted" />
+                <span>{t('New Workspace')}</span>
+                <span className="ml-auto w-3.5 h-3.5 shrink-0" />
+              </button>
             </div>
           )}
         </div>
