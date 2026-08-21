@@ -299,6 +299,15 @@
   border-radius: var(--dsh-r-card) !important;
   box-shadow: var(--dsh-shadow-lv1) !important;
 }
+/* tool 卡 — 白底 pill + 整卡点击展开：toggle pill 纯白底无装饰（简洁，融入白卡）；
+   点击回调在整卡（cursor:pointer），药丸冒泡触发不双开；折叠态整卡 hover 浅米白提示可点 */
+.ai-tab__tool-call { cursor: pointer !important; }
+.ai-tab__tool-call:not(:has(.ai-tab__tool-detail-panel)):hover { background: rgb(var(--ide-bg)) !important; }
+.ai-tab__tool-call > .ai-tab__tool-toggle {
+  background: rgb(255 255 255) !important;
+  vertical-align: middle !important;
+  margin-left: -1px !important;
+}
 /* 空态 — 蓝色图标 + 描边示例按钮 */
 .ai-tab__empty-icon { color: rgb(var(--ide-accent)) !important; }
 .ai-tab__example-btn {

@@ -246,9 +246,9 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
   const newContent = editContent?.newContent
 
   return (
-    <div className="ai-tab__tool-call block w-full max-w-[896px] mx-auto animate-fade-in">
+    <div className="ai-tab__tool-call block w-full max-w-[896px] mx-auto animate-fade-in cursor-pointer select-none" onClick={() => setExpanded(v => !v)}>
       <button
-        onClick={() => setExpanded(v => !v)}
+        type="button"
         className={`ai-tab__tool-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${
           isFileEdit ? 'bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25' : 'bg-ide-hover text-ide-text-muted hover:bg-ide-active'
         }`}
@@ -263,7 +263,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
         )}
       </button>
       {expanded && (
-        <div className={`ai-tab__tool-detail-panel mt-0.5 px-2 py-1 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-0.5 ${isFileEdit ? 'p-1' : 'max-h-48 overflow-y-auto'}`}>
+        <div onClick={(e) => e.stopPropagation()} className={`ai-tab__tool-detail-panel select-text mt-0.5 px-2 py-1 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-0.5 ${isFileEdit ? 'p-1' : 'max-h-48 overflow-y-auto'}`}>
           {isFileEdit && newContent ? (
             <>
               <div className="ai-tab__tool-file-header text-ide-text-muted text-[10px] font-sans">
