@@ -458,7 +458,7 @@ const ZH_MAP: Record<string, string> = {
   'Grill My Requirements': '拷问我需求',
   'Refactor': '重构',
   // AI Permission Modes
-  'Session History': '会话历史',
+  'Session History': '历史会话',
   'Task Board': '任务看板',
   'No history sessions': '暂无历史会话',
   'Browse & search Claude history': '跨项目浏览与搜索 Claude 会话',
@@ -474,7 +474,7 @@ const ZH_MAP: Record<string, string> = {
   'Assistant': '答',
   'Resume': '恢复',
   'New': '新建',
-  'New Session': '新建会话',
+  'New Session': '新会话',
   'Copy Conversation': '拷贝对话',
   'Copy as Markdown (content follows eye filter)': '复制为 Markdown（内容随 eye 按钮筛选）',
   'Show All': '全部展示',

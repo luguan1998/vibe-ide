@@ -1294,10 +1294,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {!showSessionButtons && (
         <button
           onClick={() => onToggleShowSessionButtons?.(true)}
-          className="absolute top-0 inset-x-0 h-2.5 z-30 group/expand flex items-center justify-center cursor-pointer hover:bg-ide-hover/50 transition-colors"
+          className="absolute top-0 inset-x-0 h-3.5 z-30 group/expand flex items-end justify-center cursor-pointer"
           title={t('Expand')}
         >
-          <ChevronDown size={12} className="opacity-0 group-hover/expand:opacity-100 transition-opacity text-ide-text-muted" />
+          <span className="w-full h-2.5 flex items-center justify-center hover:bg-ide-hover/50 transition-colors">
+            <ChevronDown size={14} className="opacity-0 group-hover/expand:opacity-100 transition-opacity text-ide-text-muted" />
+          </span>
         </button>
       )}
       <div className="mx-2 mt-1 flex flex-col gap-1.5">
@@ -1379,10 +1381,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         <div className="relative h-0 z-30">
           <button
             onClick={() => onToggleShowSessionButtons?.(false)}
-            className="absolute top-0 inset-x-0 h-1.5 group/collapse flex items-start justify-center cursor-pointer hover:bg-ide-hover/60 transition-colors"
+            className="absolute top-0 inset-x-0 h-3 group/collapse flex items-start justify-center cursor-pointer"
             title={t('Collapse')}
           >
-            <ChevronUp size={10} className="opacity-0 group-hover/collapse:opacity-100 transition-opacity text-ide-text-muted" />
+            <span className="w-full h-2 flex items-start justify-center hover:bg-ide-hover/60 transition-colors">
+              <ChevronUp size={12} className="opacity-0 group-hover/collapse:opacity-100 transition-opacity text-ide-text-muted" />
+            </span>
           </button>
         </div>
       )}
