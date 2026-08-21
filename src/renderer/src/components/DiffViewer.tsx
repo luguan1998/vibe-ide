@@ -773,6 +773,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }, [fullPath, filePath, modifiedContent, onSaved])
 
   const diffOptions = useMemo(() => ({
+    // addExtraSpaceOnTop 默认按 Ctrl+F 在首行上方插入 view zone；短文件 scrollTop 钳制后
+    // 补偿失效，正文会被顶下去。改为浮动覆盖：bar 由 globals.css top:16px 下移留白
+    find: { addExtraSpaceOnTop: false },
     renderSideBySide: !inlineDiff,
     splitViewDefaultRatio: diffSplitRatio,
     readOnly: !!commitHash,
@@ -792,6 +795,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }), [inlineDiff, commitHash, fontSize, wordWrap, diffSplitRatio])
 
   const editOptions = useMemo(() => ({
+    find: { addExtraSpaceOnTop: false },
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
     fontSize,

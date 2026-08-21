@@ -109,6 +109,15 @@ html, body, #root {
   background-color: rgb(var(--monaco-margin-bg)) !important;
 }
 
+/* Monaco find widget: 顶部留白。monaco 每次渲染用内联重写 top:0，须 !important；
+   :not(.visible) 隐藏态补偿（-26px = 偏移16 + 阴影10），否则关闭后底部残留 6px */
+.monaco-editor .find-widget {
+  top: 16px !important;
+}
+.monaco-editor .find-widget:not(.visible) {
+  transform: translateY(calc(-100% - 26px));
+}
+
 /* Brush mode: feather pen cursor */
 .diff-brush-mode,
 .diff-brush-mode *,
