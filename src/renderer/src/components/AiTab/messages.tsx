@@ -282,7 +282,7 @@ function CopyButton({ text }: { text: string }) {
       className="shrink-0 opacity-0 group-hover/meta:opacity-100 transition-opacity hover:text-ide-accent"
       title="Copy"
     >
-      {copied ? <Check size={12} /> : <Copy size={12} />}
+      {copied ? <Check size={14} /> : <Copy size={14} />}
     </button>
   )
 }
@@ -390,7 +390,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
               className="shrink-0 opacity-0 group-hover/meta:opacity-100 transition-opacity hover:text-ide-accent"
               title={t('Fork to new session')}
             >
-              <GitFork size={12} />
+              <GitFork size={14} />
             </button>
           )}
         </div>
