@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCa
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
 import { type SessionTab, type TabKind } from '../sessionRestore'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, FolderPlus } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, KanbanSquare, FolderPlus } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -1290,9 +1290,105 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   )
 
   return (
-    <div ref={panelRef} className={`flex flex-col session-panel${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
-      {/* Header + Dashboard merged */}
-      <div className="px-5 py-1.5 flex items-center justify-center shrink-0 session-panel__header">
+    <div ref={panelRef} className={`flex flex-col relative session-panel${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
+      {!showSessionButtons && (
+        <button
+          onClick={() => onToggleShowSessionButtons?.(true)}
+          className="absolute top-0 inset-x-0 h-2.5 z-30 group/expand flex items-center justify-center cursor-pointer hover:bg-ide-hover/50 transition-colors"
+          title={t('Expand')}
+        >
+          <ChevronDown size={12} className="opacity-0 group-hover/expand:opacity-100 transition-opacity text-ide-text-muted" />
+        </button>
+      )}
+      <div className="mx-2 mt-1 flex flex-col gap-1.5">
+        {showSessionButtons && (<>
+        <div
+          className="relative group/new-session"
+          onMouseEnter={(e) => {
+            if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
+            const r = e.currentTarget.getBoundingClientRect()
+            setQuickNewSubmenu({ x: r.right + 4, y: r.top, cwd: null })
+          }}
+          onMouseLeave={() => {
+            quickNewSubmenuTimerRef.current = setTimeout(() => setQuickNewSubmenu(null), 150)
+          }}
+        >
+          <button
+            onClick={() => handleQuickNewSession(newMode)}
+            title={t('New Session')}
+            className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors"
+          >
+            {renderModeIcon(newMode)}
+            <span className="truncate pointer-events-none">{t('New Session')}</span>
+            <span className="ml-auto text-[10px] font-mono text-ide-text-muted pointer-events-none">Ctrl+N</span>
+          </button>
+          {quickNewSubmenu && (
+            <div
+              className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px]"
+              style={{ left: quickNewSubmenu.x, top: quickNewSubmenu.y }}
+              onMouseEnter={() => {
+                if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
+              }}
+              onMouseLeave={() => setQuickNewSubmenu(null)}
+            >
+              {newModesSorted.map(mode => renderNewModeItem(mode, (m) => {
+                if (quickNewSubmenu.cwd && onNewSessionHere) onNewSessionHere(quickNewSubmenu.cwd, m)
+                else handleQuickNewSession(m)
+                setQuickNewSubmenu(null)
+              }))}
+              <div className="border-t border-ide-border my-1" />
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                onClick={() => { onCreateSession(termType); setQuickNewSubmenu(null) }}
+              >
+                <FolderPlus size={14} className="text-ide-text-muted" />
+                <span>{t('New Workspace')}</span>
+                <span className="ml-auto w-3.5 h-3.5 shrink-0" />
+              </button>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => onOpenHistoryTab?.()}
+          disabled={sessions.length === 0}
+          className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <History size={14} className="text-ide-text-muted" />
+          {t('Session History')}
+        </button>
+        <div className="group relative w-full">
+          <button
+            onClick={() => { /* TODO: 任务看板功能预留 */ }}
+            className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors"
+          >
+            <KanbanSquare size={14} className="text-ide-text-muted" />
+            {t('Task Board')}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleShowSessionButtons?.(false) }}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto hover:bg-ide-accent hover:text-white transition-all flex items-center justify-center"
+            title={t('Collapse')}
+          >
+            <ChevronUp size={14} />
+          </button>
+        </div>
+        </>)}
+      </div>
+
+      {showSessionButtons && (
+        <div className="relative h-0 z-30">
+          <button
+            onClick={() => onToggleShowSessionButtons?.(false)}
+            className="absolute top-0 inset-x-0 h-1.5 group/collapse flex items-start justify-center cursor-pointer hover:bg-ide-hover/60 transition-colors"
+            title={t('Collapse')}
+          >
+            <ChevronUp size={10} className="opacity-0 group-hover/collapse:opacity-100 transition-opacity text-ide-text-muted" />
+          </button>
+        </div>
+      )}
+
+      {/* 三态 status badge — moved below Session History */}
+      <div className="px-5 py-1.5 mt-1.5 flex items-center justify-center shrink-0 session-panel__header">
         <div className="status-badge">
           <span
             className={`status-badge__segment status-badge__segment--running${stats.running > 0 ? ' is-active' : ''}`}
@@ -1396,65 +1492,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             , document.body)}
           </div>
         </div>
-      </div>
-
-      <div className="mx-2 mt-1 flex flex-col gap-1.5">
-        {showSessionButtons && (<>
-        <div
-          className="relative group/new-session"
-          onMouseEnter={(e) => {
-            if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
-            const r = e.currentTarget.getBoundingClientRect()
-            setQuickNewSubmenu({ x: r.right + 4, y: r.top, cwd: null })
-          }}
-          onMouseLeave={() => {
-            quickNewSubmenuTimerRef.current = setTimeout(() => setQuickNewSubmenu(null), 150)
-          }}
-        >
-          <button
-            onClick={() => handleQuickNewSession(newMode)}
-            title={t('New Session')}
-            className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors"
-          >
-            {renderModeIcon(newMode)}
-            <span className="truncate pointer-events-none">{t('New Session')}</span>
-            <span className="ml-auto text-[10px] font-mono text-ide-text-muted pointer-events-none">Ctrl+N</span>
-          </button>
-          {quickNewSubmenu && (
-            <div
-              className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px]"
-              style={{ left: quickNewSubmenu.x, top: quickNewSubmenu.y }}
-              onMouseEnter={() => {
-                if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
-              }}
-              onMouseLeave={() => setQuickNewSubmenu(null)}
-            >
-              {newModesSorted.map(mode => renderNewModeItem(mode, (m) => {
-                if (quickNewSubmenu.cwd && onNewSessionHere) onNewSessionHere(quickNewSubmenu.cwd, m)
-                else handleQuickNewSession(m)
-                setQuickNewSubmenu(null)
-              }))}
-              <div className="border-t border-ide-border my-1" />
-              <button
-                className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                onClick={() => { onCreateSession(termType); setQuickNewSubmenu(null) }}
-              >
-                <FolderPlus size={14} className="text-ide-text-muted" />
-                <span>{t('New Workspace')}</span>
-                <span className="ml-auto w-3.5 h-3.5 shrink-0" />
-              </button>
-            </div>
-          )}
-        </div>
-        <button
-          onClick={() => onOpenHistoryTab?.()}
-          disabled={sessions.length === 0}
-          className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <History size={14} className="text-ide-text-muted" />
-          {t('Session History')}
-        </button>
-        </>)}
       </div>
 
       {/* Session List */}

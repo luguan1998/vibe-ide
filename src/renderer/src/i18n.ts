@@ -459,6 +459,7 @@ const ZH_MAP: Record<string, string> = {
   'Refactor': '重构',
   // AI Permission Modes
   'Session History': '会话历史',
+  'Task Board': '任务看板',
   'No history sessions': '暂无历史会话',
   'Browse & search Claude history': '跨项目浏览与搜索 Claude 会话',
   'Search Claude sessions...': '搜索会话内容…',
