@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { TerminalSession, RecentFileEntry } from '@shared/types'
+import { RecentFileEntry } from '@shared/types'
+import { type SessionTab, type TabKind } from '../sessionRestore'
 import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, FolderPlus } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
@@ -210,8 +211,12 @@ function stableEmojiForSession(sessionId: string, pool: string[]): string {
   return pool[Math.abs(hash) % pool.length]
 }
 
+// 行首图标状态机：idle 默认类型图标，点击循环切到 emoji；瞬态按优先级覆盖（加状态只加一条）
+const ICON_TYPE = ''
+type SessionIconState = 'scheduled' | 'worktree' | 'running' | 'warn' | 'idle'
+
 interface SessionPanelProps {
-  sessions: TerminalSession[]
+  sessions: SessionTab[]
   activeSessionId: string | null
   compact?: boolean
   onCreateSession: (shell?: string) => void
@@ -603,6 +608,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       </span>
     </button>
   )
+
+  // 会话类型图标（term→ToolIcon(command) / gui→Claude / dsh→DeepSeek），照抄 renderModeIcon
+  const renderKindIcon = (kind: TabKind) => kind === 'terminal' ? (
+    <ToolIcon category="command" className="text-ide-accent" />
+  ) : kind === 'gui' ? (
+    <ClaudeLogoIcon size={14} className="shrink-0" />
+  ) : (
+    <DeepSeekLogoIcon size={14} className="shrink-0" />
+  )
   const [newSubmenu, setNewSubmenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const newSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [quickNewSubmenu, setQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
@@ -795,7 +809,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   // Group sessions by normalized cwd
   const sessionGroups = useMemo(() => {
-    const map = new Map<string, TerminalSession[]>()
+    const map = new Map<string, SessionTab[]>()
     const order: string[] = []
     for (const s of sessions) {
       const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -1028,7 +1042,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setNewName('')
   }
 
-  const startRename = (session: TerminalSession) => {
+  const startRename = (session: SessionTab) => {
     setRenaming(session.id)
     setNewName(session.name)
     setContextMenu(null)
@@ -1045,7 +1059,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const mujicaCounts = useMujicaCounts()
 
   const renderSessionItem = (
-    session: TerminalSession,
+    session: SessionTab,
     dragIdx: number,
     opts: { showCwd: boolean; outerClass: string; nameClass: string; minHeightClass: string }
   ) => (
@@ -1150,29 +1164,52 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           ) : (
             <>
               {(() => {
+                // 行首图标状态机：scheduled > worktree > running > warn > idle（可调）
                 const scheduled = !!schedTasks[session.id]
                 const worktree = !!sessionWorktreeNav[session.id]
-                const sessionEmoji = scheduled ? '⏰' : worktree ? '🌿' : (sessionEmojiOverrides[session.id] || stableEmojiForSession(session.id, sessionEmojis))
+                const state: SessionIconState = scheduled ? 'scheduled'
+                  : worktree ? 'worktree'
+                  : agentStatus[session.id] === 'running' ? 'running'
+                  : agentStatus[session.id] === 'warn' ? 'warn'
+                  : 'idle'
+                // idle：默认类型图标，点击循环切到 emoji（ICON_TYPE 哨兵=类型位）
+                const cur = sessionEmojiOverrides[session.id]
+                const idleGlyph = (cur && cur !== ICON_TYPE && sessionEmojis.includes(cur)) ? cur : renderKindIcon(session.kind)
+                const glyph = state === 'scheduled' ? '⏰'
+                  : state === 'worktree' ? '🌿'
+                  : state === 'running' ? <Loader2 className="w-3.5 h-3.5 text-ide-accent animate-spin shrink-0" />
+                  : state === 'warn' ? '⚠️'
+                  : idleGlyph
+                const clickable = state === 'scheduled' || state === 'idle'
+                const title = state === 'scheduled' ? t('Scheduled Task')
+                  : state === 'worktree' ? (sessionWorktreeNav[session.id]?.worktreePath || 'Worktree')
+                  : state === 'running' ? t('Running')
+                  : state === 'warn' ? t('Warning')
+                  : (session.kind === 'terminal' ? t('Terminal') : session.kind === 'gui' ? 'Claude' : 'dsh')
                 return (
                   <span
-                    className="text-sm shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors session-item__icon"
-                    title={scheduled ? t('Scheduled Task') : worktree ? (sessionWorktreeNav[session.id]?.worktreePath || 'Worktree') : t('Click to cycle emoji')}
+                    className={`text-xs shrink-0 w-4 h-4 flex items-center justify-center select-none transition-colors session-item__icon${clickable ? ' cursor-pointer hover:bg-ide-hover rounded' : ''}`}
+                    title={title}
                     draggable={false}
                     onClick={(e) => {
+                      if (!clickable) return
                       e.stopPropagation()
                       e.preventDefault()
-                      if (scheduled) {
-                        openSchedModal(session.id)
+                      if (state === 'scheduled') { openSchedModal(session.id); return }
+                      // idle：循环 type → emoji 池 → type
+                      if (sessionEmojis.length === 0) return
+                      const ov = sessionEmojiOverrides[session.id]
+                      const emojiOv = (ov && ov !== ICON_TYPE && sessionEmojis.includes(ov)) ? ov : undefined
+                      if (!emojiOv) {
+                        setSessionEmojiOverrides(prev => ({ ...prev, [session.id]: stableEmojiForSession(session.id, sessionEmojis) }))
                         return
                       }
-                      if (worktree) { return }
-                      if (sessionEmojis.length === 0) return
-                      const idx = sessionEmojis.indexOf(sessionEmoji)
-                      const next = sessionEmojis[(idx + 1) % sessionEmojis.length]
+                      const idx = sessionEmojis.indexOf(emojiOv)
+                      const next = idx + 1 >= sessionEmojis.length ? ICON_TYPE : sessionEmojis[idx + 1]
                       setSessionEmojiOverrides(prev => ({ ...prev, [session.id]: next }))
                     }}
                     onContextMenu={(e) => e.stopPropagation()}
-                  >{sessionEmoji}</span>
+                  >{glyph}</span>
                 )
               })()}
               <span className={`text-sm min-w-0 ${opts.nameClass} session-item__name ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`} title={session.name}>{session.name}</span>

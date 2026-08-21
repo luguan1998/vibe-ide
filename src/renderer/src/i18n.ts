@@ -163,6 +163,8 @@ const ZH_MAP: Record<string, string> = {
   'No emojis': '无表情',
   'Click to cycle emoji': '点击切换图标',
   'Scheduled Task': '定时任务',
+  'Running': '运行中',
+  'Warning': '警告',
   'File Filter Rules': '文件夹过滤',
   'Skip directories matching these names. One per line.': '跳过匹配这些名称的目录。每行一个。',
   'Expand All': '全部展开',
