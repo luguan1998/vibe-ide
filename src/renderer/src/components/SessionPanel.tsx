@@ -606,7 +606,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const newSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [quickNewSubmenu, setQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const quickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [groupQuickNewSubmenu, setGroupQuickNewSubmenu] = useState<{ x: number; y: number } | null>(null)
+  const [groupQuickNewSubmenu, setGroupQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const groupQuickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 新建：按模式在当前会话 cwd 创建并关菜单（勾选模式为当次启动内的用户偏好）
@@ -1531,7 +1531,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       onMouseEnter={(e) => {
                         if (groupQuickNewSubmenuTimerRef.current) { clearTimeout(groupQuickNewSubmenuTimerRef.current); groupQuickNewSubmenuTimerRef.current = null }
                         const r = e.currentTarget.getBoundingClientRect()
-                        setGroupQuickNewSubmenu({ x: r.right + 4, y: r.top })
+                        setGroupQuickNewSubmenu({ x: r.right + 4, y: r.top, cwd: group.cwd })
                       }}
                       onMouseLeave={() => {
                         groupQuickNewSubmenuTimerRef.current = setTimeout(() => setGroupQuickNewSubmenu(null), 150)
@@ -1541,7 +1541,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     >
                       <Plus size={13} />
                     </button>
-                    {groupQuickNewSubmenu && (
+                    {groupQuickNewSubmenu && groupQuickNewSubmenu.cwd === group.cwd && (
                       <div
                         className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px]"
                         style={{ left: groupQuickNewSubmenu.x, top: groupQuickNewSubmenu.y }}
