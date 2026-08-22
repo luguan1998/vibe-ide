@@ -1270,7 +1270,10 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
     })
     if (item.kind === 'joker') {
       const j = JOKERS.find(x => x.id === item.id)
-      if (j) setJokers(js => [...js, { ...j, edition: item.edition, uid: crypto.randomUUID() }])
+      if (j) {
+        setJokers(js => [...js, { ...j, edition: item.edition, uid: crypto.randomUUID() }])
+        if (item.id === 'todo') setTodoHand(cur => cur ?? HAND_TYPES_ORDER[Math.floor(Math.random() * HAND_TYPES_ORDER.length)])
+      }
     } else if (item.kind === 'tarot') {
       const t = TAROTS.find(x => x.id === item.id)
       if (t) setPendingTarots(ps => [...ps, { ...t, uid: crypto.randomUUID() }])
@@ -1325,7 +1328,10 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       else setPendingTarots(ps => [...ps, { ...(opt as TarotDef), uid: crypto.randomUUID() }])
     } else if (openPack.kind === 'joker') {
       if (jokers.length >= jokerSlots) showToast('Joker 槽位已满')
-      else setJokers(js => [...js, opt as Joker])
+      else {
+        setJokers(js => [...js, opt as Joker])
+        if ((opt as Joker).id === 'todo') setTodoHand(cur => cur ?? HAND_TYPES_ORDER[Math.floor(Math.random() * HAND_TYPES_ORDER.length)])
+      }
     } else {
       const p = opt as { hand: string }
       const nxt = (levels[p.hand] || 1) + 1 + (voucherObservatory ? 1 : 0)
@@ -1637,6 +1643,11 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
               {st && (
                 <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-1 rounded-[2px] text-[8px] font-black leading-[11px] whitespace-nowrap" style={{ background: '#0d1510', border: `1px solid ${st.color}`, color: st.color }}>
                   {st.text}
+                </span>
+              )}
+              {j.id === 'todo' && todoHand && (
+                <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-1 rounded-[2px] text-[8px] font-black leading-[11px] whitespace-nowrap" style={{ background: '#0d1510', border: `1px solid ${BAL.goldBright}`, color: BAL.goldBright }}>
+                  {HAND_CN[todoHand] || todoHand}
                 </span>
               )}
               <button
