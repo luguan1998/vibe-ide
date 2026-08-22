@@ -30,6 +30,7 @@ async function truncateJsonlAtUserMessage(
   configDir?: string,
   content?: string,
   occurrence?: number,
+  lineIdx?: number,
 ): Promise<{ truncated: string[] } | { error: string }> {
   const projectDir = resolveProjectDir(cwd, configDir)
   if (!projectDir) return { error: 'Project directory not found under ~/.claude/projects/' }
@@ -43,13 +44,14 @@ async function truncateJsonlAtUserMessage(
   const lines = fileContent.split('\n').filter(Boolean)
   const turns = parseUserTurns(lines)
 
-  // Renderer's userMessageIndex can drift below the JSONL turn index: injected turns
-  // (AskUserQuestion answers, plan approvals, continuation prompts) exist only in the
-  // JSONL and never reach the live stream. When the renderer passes content, resolve the
-  // target turn by content + occurrence (which occurrence of that content was clicked);
-  // fall back to the index when content is absent or unmatched.
-  let targetTurnIdx = userMessageIndex
-  if (content && turns.length > 0) {
+  // 目标轮次一律以真实报文定位：lineIdx（渲染层最近一次 parseUserTurns 快照里的精确行号）
+  // 优先且须 content 吻合；其次 content+occurrence；裸索引仅作最后兜底。
+  let targetTurnIdx = -1
+  if (lineIdx != null) {
+    const byLine = turns.findIndex(t => t.lineIdx === lineIdx)
+    if (byLine >= 0 && (!content || turns[byLine].content === content)) targetTurnIdx = byLine
+  }
+  if (targetTurnIdx < 0 && content && turns.length > 0) {
     let found = -1
     let seen = 0
     const occ = occurrence ?? 0
@@ -61,6 +63,9 @@ async function truncateJsonlAtUserMessage(
     }
     if (found >= 0) targetTurnIdx = found
   }
+  // 带报文定位字段（content）时禁止裸索引兜底：两个真实报文定位都失配说明报文已变，
+  // 此时按数字索引截断必然错位，直接报错让渲染层重拉 userTurns
+  if (targetTurnIdx < 0 && !content) targetTurnIdx = userMessageIndex
   if (targetTurnIdx < 0 || targetTurnIdx >= turns.length) {
     return { error: `User message index ${userMessageIndex} not found (found ${turns.length} user turns)` }
   }
@@ -99,7 +104,7 @@ export function registerRevertHandlers(): void {
     const effectiveCwd = prev?.cwd || cwd
 
     // 1. Truncate JSONL
-    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, false, prev?.configDir, payload.content, payload.occurrence)
+    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, false, prev?.configDir, payload.content, payload.occurrence, payload.lineIdx)
     if ('error' in result) {
       return { success: false, error: result.error }
     }
@@ -184,7 +189,7 @@ export function registerRevertHandlers(): void {
     const effectiveCwd = prev?.cwd || cwd
 
     // 1. Truncate JSONL (keep target message for fork)
-    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, true, prev?.configDir, payload.content, payload.occurrence)
+    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, true, prev?.configDir, payload.content, payload.occurrence, payload.lineIdx)
     if ('error' in result) {
       return { success: false, error: result.error }
     }

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { AiMessage, AiToolUse, UserTurn } from '@shared/types'
 import { useI18n } from '../../i18n'
 import { cleanMessageContent } from '../../utils/aiConversationFormatter'
@@ -76,32 +76,44 @@ function isRealUserInput(messages: AiMessage[], i: number): boolean {
   return !(i > 0 && messages[i - 1].type === 'assistant')
 }
 
-export function findMessageIndexForUserMessage(messages: AiMessage[], userMessageIndex: number): number {
-  let count = 0
+// 渲染层气泡 ↔ 真实 JSONL 轮次的绑定。turnIdx/lineIdx 来自 listUserTurns 的报文解析，
+// 回退/fork 只认这个绑定；气泡在报文中找不到对应轮次时为 null（不显示回退入口）。
+export interface RevertTurnRef {
+  turnIdx: number
+  lineIdx: number
+  content: string
+  isInternal: boolean
+}
+
+const EMPTY_TURN_MAP: Map<AiMessage, RevertTurnRef> = new Map()
+
+// 按出现顺序把每个真实用户输入气泡匹配到第一条未消费的同 content 真实轮次。
+// 报文是唯一事实源：本地回显若从未写入 JSONL（如发送失败），匹配不到即无回退节点，
+// 后续气泡的轮次对位不受影响。
+export function mapRealUserTurns(messages: AiMessage[], userTurns: UserTurn[]): Map<AiMessage, RevertTurnRef> {
+  const map = new Map<AiMessage, RevertTurnRef>()
+  let cursor = 0
   for (let i = 0; i < messages.length; i++) {
-    if (isRealUserInput(messages, i)) {
-      if (count === userMessageIndex) return i
-      count++
+    if (!isRealUserInput(messages, i)) continue
+    const msg = messages[i]
+    for (let k = cursor; k < userTurns.length; k++) {
+      if (userTurns[k].content === msg.content) {
+        map.set(msg, { turnIdx: k, lineIdx: userTurns[k].lineIdx, content: userTurns[k].content, isInternal: userTurns[k].isInternal })
+        cursor = k + 1
+        break
+      }
     }
   }
-  return -1
+  return map
 }
 
-// 该 content 在真实用户输入中、index 之前出现的次数 = index 处消息的 occurrence（0-based）
-export function countContentOccurrencesBefore(messages: AiMessage[], index: number, content: string): number {
-  let occurrence = 0
-  for (let i = 0; i < index; i++) {
-    if (isRealUserInput(messages, i) && messages[i].content === content) occurrence++
-  }
-  return occurrence
-}
-
-function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAndCode, isInternal }: {
+function AiUserMessage({ message, revertTurn, bubbleMsgIdx, isBusy, onRevert, onRevertAndCode, isInternal }: {
   message: AiMessage
-  userMessageIndex: number
+  revertTurn: RevertTurnRef | null
+  bubbleMsgIdx: number
   isBusy: boolean
-  onRevert: (idx: number) => void
-  onRevertAndCode: (idx: number) => void
+  onRevert: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
+  onRevertAndCode: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
   isInternal?: boolean
 }) {
   const { t } = useI18n()
@@ -137,14 +149,14 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
           {cleanedContent}
         </div>
 
-        {showPopover && userMessageIndex > 0 && !isInternal && !isBusy && (
+        {showPopover && revertTurn && revertTurn.turnIdx > 0 && !isInternal && !isBusy && (
           <div ref={popoverRef}
             className="ai-tab__user-popover absolute right-0 top-full mt-1 z-40
                        bg-ide-sidebar border border-ide-border rounded-lg shadow-lg
                        py-1 min-w-[170px] animate-fade-in"
           >
             <button
-              onClick={() => { setShowPopover(false); onRevertAndCode(userMessageIndex) }}
+              onClick={() => { setShowPopover(false); onRevertAndCode(revertTurn, bubbleMsgIdx) }}
               disabled={isBusy}
               className="ai-tab__user-popover-item w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left text-ide-text-muted
                          hover:bg-ide-hover hover:text-ide-text
@@ -154,7 +166,7 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
               {t('Revert conversation & code')}
             </button>
             <button
-              onClick={() => { setShowPopover(false); onRevert(userMessageIndex) }}
+              onClick={() => { setShowPopover(false); onRevert(revertTurn, bubbleMsgIdx) }}
               disabled={isBusy}
               className="ai-tab__user-popover-item w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left text-ide-text-muted
                          hover:bg-ide-hover hover:text-ide-text
@@ -316,12 +328,14 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
                 allMessages={messages}
                 workspacePath={workspacePath}
                 onOpenFile={onOpenFile}
-                userMessageIndex={-1}
+                revertTurn={null}
+                bubbleMsgIdx={-1}
                 isBusy={false}
                 onRevert={() => {}}
                 onRevertAndCode={() => {}}
                 onFork={() => {}}
                 viewMode={viewMode}
+                turnForMsg={EMPTY_TURN_MAP}
               />
             ))}
           </div>
@@ -330,14 +344,14 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
     </div>
   )
 }
-function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, viewMode, onFork, forkIdx, isLive }: {
+function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, viewMode, onFork, forkTurn, isLive }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   copyText?: string
   viewMode?: number
-  onFork: (idx: number) => void
-  forkIdx: number
+  onFork: (turn: RevertTurnRef) => void
+  forkTurn: RevertTurnRef | null
   isLive?: boolean
 }) {
   const { t } = useI18n()
@@ -384,9 +398,9 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
             {message.isAborted && <span className="text-ide-text-muted/40"> · paused by user</span>}
           </span>
           {copyText && <CopyButton text={copyText} />}
-          {forkIdx >= 0 && (
+          {forkTurn && (
             <button
-              onClick={() => onFork(forkIdx)}
+              onClick={() => onFork(forkTurn)}
               className="shrink-0 opacity-0 group-hover/meta:opacity-100 transition-opacity hover:text-ide-accent"
               title={t('Fork to new session')}
             >
@@ -475,19 +489,21 @@ export function TodoListPanel({ items }: { items: TodoItem[] }) {
   )
 }
 
-const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal }: {
+const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, revertTurn, bubbleMsgIdx, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal, turnForMsg }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
-  userMessageIndex: number
+  revertTurn: RevertTurnRef | null
+  bubbleMsgIdx: number
   isBusy: boolean
-  onRevert: (idx: number) => void
-  onRevertAndCode: (idx: number) => void
-  onFork: (idx: number) => void
+  onRevert: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
+  onRevertAndCode: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
+  onFork: (turn: RevertTurnRef) => void
   msgIndex: number
   allMessages: AiMessage[]
   viewMode?: number
   isInternal?: boolean
+  turnForMsg: Map<AiMessage, RevertTurnRef>
 }) {
   // isLive = 当前正在流式生成的那条消息（最后一条 + busy）。用于让它的 thinking 以展开态挂载无缝交接 busy 区、
   // 下一帧平滑折叠；并让本消息 root 跳过 fade-in（接管时不透明）。子 agent 走 CollapsibleAgentGroup 的 isBusy=false → 永远非 live
@@ -504,7 +520,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   if (message.error) {
     inner = <AiErrorMessage message={message} />
   } else if (message.role === 'user') {
-    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} isInternal={isInternal} />
+    inner = <AiUserMessage message={message} revertTurn={revertTurn} bubbleMsgIdx={bubbleMsgIdx} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} isInternal={isInternal} />
   } else if (
     message.type === 'result'
     && message.costUsd == null
@@ -516,18 +532,18 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
     // success 且无 meta → 重复消息，不渲染
     return null
   } else {
-    // fork 语义 = 保留到该 AI 回复正文结束：第 N 个主会话 result = 第 N 回合完成，
-    // 其 forkIdx = 其之前真实用户输入数 - 1（截断点 = 该回合的 user 消息索引，
-    // main 端会保留整个回合）
-    let forkIdx = -1
+    // fork 语义 = 保留到该 AI 回复正文结束：fork 点 = 该 result 之前最后一个存在于
+    // 真实报文中的用户轮次（revertTurn 绑定），main 端会保留整个回合。
+    // 报文里没有可绑定轮次时不显示 fork 入口，避免按渲染层计数错位分叉。
+    let forkTurn: RevertTurnRef | null = null
     if (message.type === 'result' && !message.parentToolUseId) {
-      let count = 0
-      for (let j = 0; j < msgIndex; j++) {
-        if (isRealUserInput(allMessages, j)) count++
+      for (let j = msgIndex - 1; j >= 0; j--) {
+        if (!isRealUserInput(allMessages, j)) continue
+        const bound = turnForMsg.get(allMessages[j])
+        if (bound) { forkTurn = bound; break }
       }
-      forkIdx = count - 1
     }
-    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} viewMode={viewMode} onFork={onFork} forkIdx={forkIdx} isLive={isLive} />
+    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} viewMode={viewMode} onFork={onFork} forkTurn={forkTurn} isLive={isLive} />
   }
 
   return <>{inner}</>
@@ -540,11 +556,10 @@ export function MessageList({ messages, userTurns, viewMode, busy, workspacePath
   busy: boolean
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
-  onRevert: (idx: number) => void
-  onRevertAndCode: (idx: number) => void
-  onFork: (idx: number) => void
+  onRevert: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
+  onRevertAndCode: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
+  onFork: (turn: RevertTurnRef) => void
 }) {
-  const userMessages = messages.filter((m, i) => isRealUserInput(messages, i))
   const groups: Array<
     | { type: 'agent'; messages: AiMessage[]; parentId: string; startIndex: number }
     | { type: 'msg'; message: AiMessage; index: number }
@@ -601,6 +616,8 @@ export function MessageList({ messages, userTurns, viewMode, busy, workspacePath
   }
   flushReads()
 
+  const turnForMsg = useMemo(() => mapRealUserTurns(messages, userTurns), [messages, userTurns])
+
   return <>{groups.map((item) => {
     if (item.type === 'agent') {
       return <CollapsibleAgentGroup key={`agent-${item.startIndex}`} messages={item.messages} workspacePath={workspacePath} onOpenFile={onOpenFile} viewMode={viewMode} />
@@ -612,9 +629,8 @@ export function MessageList({ messages, userTurns, viewMode, busy, workspacePath
       return <AiToolCallCard key={`tool-${item.tool.id}`} tool={item.tool} />
     }
     const msg = item.message
-    const uIdx = isRealUserInput(messages, item.index)
-      ? userMessages.indexOf(msg)
-      : -1
+    const isReal = isRealUserInput(messages, item.index)
+    const bound = isReal ? turnForMsg.get(msg) : undefined
     return (
       <AiMessageBubble
         key={item.index}
@@ -623,13 +639,15 @@ export function MessageList({ messages, userTurns, viewMode, busy, workspacePath
         allMessages={messages}
         workspacePath={workspacePath}
         onOpenFile={onOpenFile}
-        userMessageIndex={uIdx}
+        revertTurn={bound ?? null}
+        bubbleMsgIdx={item.index}
         isBusy={busy}
         onRevert={onRevert}
         onRevertAndCode={onRevertAndCode}
         onFork={onFork}
         viewMode={viewMode}
-        isInternal={userTurns[uIdx]?.isInternal ?? false}
+        isInternal={bound?.isInternal ?? false}
+        turnForMsg={turnForMsg}
       />
     )
   })}</>

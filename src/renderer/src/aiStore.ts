@@ -349,6 +349,9 @@ export const aiStore = {
       thinkingStartedAt: null,
       runningTools: {},
     }))
+    // 被强杀的回合不会有 result 事件，且 CLI --resume 会 fork 出新报文；
+    // 重拉真实轮次对齐回退节点，否则 pause 后节点列表停留在旧报文上
+    aiStore.refreshUserTurns(sid)
   },
 }
 
