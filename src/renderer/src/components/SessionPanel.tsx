@@ -1086,7 +1086,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
       } ${dragIndex === dragIdx ? 'opacity-40' : ''} ${dropIndex === dragIdx && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
       onClick={() => onSwitchSession(session.id)}
-      onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
       onContextMenu={(e) => handleContextMenu(e, session.id)}
       // mouseEnter 驱动 + 真实移动校验：display:none→visible 或 item 插入鼠标下会派发幽灵 mouseover（无 mousemove 伴随），
       // 判非真实 hover 不打开；timer 触发时再校验鼠标仍在 item 上，防 leave 丢失导致异常打开
@@ -1212,7 +1211,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   >{glyph}</span>
                 )
               })()}
-              <span className={`text-sm min-w-0 ${opts.nameClass} session-item__name ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`} title={session.name}>{session.name}</span>
+              <span
+                className={`text-sm min-w-0 ${opts.nameClass} session-item__name ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`} title={session.name}
+                onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
+              >{session.name}</span>
             </>
           )}
         </div>

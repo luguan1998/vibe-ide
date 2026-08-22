@@ -63,7 +63,7 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 .session-item--active {
   background: linear-gradient(90deg, rgba(140, 20, 20, 0.28) 0%, rgba(24, 18, 18, 0.9) 100%) !important;
   border: 1px solid rgb(185 145 85) !important;
-  border-left: 4px solid rgb(140 20 20) !important;
+  border-left: 3px solid rgb(140 20 20) !important;
   box-shadow: inset 0 0 10px rgba(140, 20, 20, 0.28) !important;
 }
 
@@ -75,7 +75,7 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 
 /* Pipe 运行中：复刻提灯的冷冽青蓝色幽光 */
 .session-item--pipe-running {
-  border-left: 4px solid rgb(75 130 120) !important;
+  border-left: 3px solid rgb(75 130 120) !important;
   background: linear-gradient(90deg, rgba(40, 65, 60, 0.25) 0%, rgba(14, 16, 16, 0.6) 100%) !important;
 }
 

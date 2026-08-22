@@ -134,8 +134,10 @@ html, body, #root {
   border-radius: 0 !important;
   margin: 2px 4px !important;
   transition: transform 0.25s, background 0.25s, color 0.25s !important;
+  transform-origin: left center !important;
   background: rgb(31 94 107) !important;
   color: rgb(228 204 159) !important;
+  border-left: 3px solid transparent !important;
   clip-path: polygon(
     2.5% 8%, 5% 0%, 30% 0%, 60% 1.5%, 85% 0%, 95% 2%, 98% 8%,
     96% 18%, 100% 28%, 96% 40%, 100% 52%, 96% 65%, 100% 78%,
@@ -161,7 +163,6 @@ html, body, #root {
   font-weight: 700 !important;
   background: rgb(217 93 85) !important;
   color: rgb(255 245 240) !important;
-  border-left: none !important;
 }
 .session-item--active .session-item__name {
   color: rgb(255 245 240) !important;
