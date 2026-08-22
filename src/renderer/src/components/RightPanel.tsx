@@ -355,7 +355,7 @@ function TabBar({
                   onDrop={(e) => handleDrop(e, section)}
                   ref={(el) => { if (el) (el as any).__section = section }}
                 >
-                  <span className="scale-105">{TAB_DEFS[section].icon}</span>
+                  <span className="scale-100">{TAB_DEFS[section].icon}</span>
                 </button>
               )
             })}
