@@ -2574,6 +2574,17 @@ export default function App() {
     setCenterView('diff')
   }, [activeSessionCwd])
 
+  // dsh 会话内点击文件（tool 行/产物）：dsh context 把 host.openPath 重定向为本事件，
+  // 这里用编辑器打开，替代 OS 默认应用的「打开方式」弹窗
+  useEffect(() => {
+    const onDshOpenFile = (e: Event) => {
+      const path = (e as CustomEvent<{ path?: string }>).detail?.path
+      if (path) handleOpenFileFromSearch(path)
+    }
+    window.addEventListener('vibe:dsh-open-file', onDshOpenFile)
+    return () => window.removeEventListener('vibe:dsh-open-file', onDshOpenFile)
+  }, [handleOpenFileFromSearch])
+
   const handleCompareWithCurrent = useCallback(async (compareFullPath: string) => {
     if (!diffFile?.defaultEdit) return
     const [compareResult] = await Promise.all([

@@ -130,7 +130,7 @@ export function ModelBadge({
         {displayOption
           ? <span className="text-xs leading-none">{displayOption.icon}</span>
           : <Bot size={12} strokeWidth={2} className="shrink-0" />}
-        <span className="truncate max-w-[80px]">{displayLabel}</span>
+        <span className="truncate max-w-[200px]">{displayLabel}</span>
         {sessionId && <ChevronDown size={10} className={`opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
       </button>
       {open && (

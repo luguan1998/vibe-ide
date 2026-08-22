@@ -31,6 +31,24 @@ import '@deepseek-ai/dsh-client-ui-theme/src/styles/shiki.css'
 // 弹窗消不掉、持续冻结。IDE 用户非 harness 开发者，无需 harness 内测声明。
 ;(globalThis as { __VIBE_DSH_EMBEDDED__?: boolean }).__VIBE_DSH_EMBEDDED__ = true
 
+/** 判定 openPath 目标是可编辑文件（目录/无法判定时 false，保持 OS 默认应用行为）。 */
+async function isDshOpenableFile(path: string): Promise<boolean> {
+  const normalized = path.replace(/[\\/]+$/, '')
+  const cut = Math.max(normalized.lastIndexOf('\\'), normalized.lastIndexOf('/'))
+  if (cut <= 0) return false
+  const parent = normalized.slice(0, cut)
+  const base = normalized.slice(cut + 1).toLowerCase()
+  if (base === '.' || base === '..') return false
+  try {
+    const entries: Array<{ name?: string; type?: string }> | undefined = await window.api?.file?.list(parent)
+    if (!Array.isArray(entries)) return true
+    const hit = entries.find((e) => String(e?.name ?? '').toLowerCase() === base)
+    return hit ? hit.type !== 'directory' : true
+  } catch {
+    return true
+  }
+}
+
 export interface DshContextHandle {
   ctx: Context
   dispose: () => Promise<void>
@@ -186,6 +204,22 @@ async function buildDshContext(baseUrl: string): Promise<DshContextHandle> {
       // fork 已成功，Vibe 侧广播失败不阻断
     }
     return childId
+  }
+  // 文件点击重定向：dsh UI 的 tool 行（edit/read 等）与产物 openFile 最终都走
+  // host.openPath（OS 默认应用，Windows 无文件关联时弹「选择打开方式」）。嵌入
+  // Vibe 时改为派发 vibe:dsh-open-file，由 App.tsx 用 Monaco 打开；目录与无法
+  // 探测的路径保持原行为。
+  const hostApi = (ctx.get('connection') as unknown as {
+    api: { host: { openPath: (payload: { path: string }, signal?: AbortSignal) => Promise<{ result: { ok: boolean; value?: { opened?: boolean } } }> } }
+  }).api.host
+  const origHostOpenPath = hostApi.openPath
+  hostApi.openPath = async (payload) => {
+    const path = typeof payload?.path === 'string' ? payload.path.trim() : ''
+    if (path !== '' && path !== '.' && path !== '..' && await isDshOpenableFile(path)) {
+      window.dispatchEvent(new CustomEvent('vibe:dsh-open-file', { detail: { path } }))
+      return { result: { ok: true, value: { opened: true } } }
+    }
+    return origHostOpenPath(payload)
   }
   ctx.slots.install(createSlotRenderer())
 
