@@ -51,8 +51,6 @@ html, body, #root {
 }
 
 /* 全局图标放大 */
-.session-item__icon { width: 20px !important; height: 20px !important; }
-.session-item__icon svg { width: 18px !important; height: 18px !important; }
 .session-panel__settings-btn svg,
 .session-panel__new-btn svg { width: 15px !important; height: 15px !important; }
 .right-panel__tab svg { width: 16px !important; height: 16px !important; }
@@ -820,7 +818,45 @@ html, body, #root {
 }
 
 
-/* 隐藏原来的 emoji 文字 */
+/* 隐藏原生图标内容：font-size:0 藏 emoji 文字，display:none 藏 SVG（spinner/类型图标） */
 .session-item__icon {
   font-size: 0 !important;
+}
+.session-item__icon > * {
+  display: none !important;
+}
+
+/* ═══════════════════════════════════════
+   状态会话优先 — 像素图只画 idle 行，
+   running/warn/scheduled/worktree 清像素画、显示状态图形
+   （::before emoji 与 z-session-status-emoji.css 同款同选择器，单独开或一起开都不叠图）
+   ═══════════════════════════════════════ */
+.session-item--running:not(.session-item--scheduled):not(.session-item--worktree) .session-item__icon::before,
+.session-item--warn:not(.session-item--scheduled):not(.session-item--worktree) .session-item__icon::before,
+.session-item--scheduled .session-item__icon::before,
+.session-item--worktree .session-item__icon::before {
+  box-shadow: none !important;
+}
+
+.session-item--running:not(.session-item--scheduled):not(.session-item--worktree) .session-item__icon::before {
+  content: '▶️' !important;
+  position: static;
+  width: auto;
+  height: auto;
+  font-size: 14px !important;
+  line-height: 1;
+}
+.session-item--warn:not(.session-item--scheduled):not(.session-item--worktree) .session-item__icon::before {
+  content: '⏸️' !important;
+  position: static;
+  width: auto;
+  height: auto;
+  font-size: 14px !important;
+  line-height: 1;
+}
+
+/* scheduled/worktree 恢复原生文字图形（⏰ / 🌿） */
+.session-item--scheduled .session-item__icon,
+.session-item--worktree .session-item__icon {
+  font-size: 13px !important;
 }
