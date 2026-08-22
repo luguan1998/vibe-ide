@@ -762,6 +762,9 @@ export default function App() {
   const aiTabRefs = useRef<Record<string, AiTabHandle>>({})
   const dshRefs = useRef<Record<string, DshViewHandle>>({})
   const browserViewRef = useRef<BrowserViewHandle | null>(null)
+  const [browserDocked, setBrowserDocked] = useState(false)
+  const [browserDockNonce, setBrowserDockNonce] = useState(0)
+  const browserDockedRef = useRef(false)
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const centerPanelRef = useRef<HTMLDivElement>(null)
   const sessionPanelRef = useRef<SessionPanelHandle>(null)
@@ -1328,7 +1331,10 @@ export default function App() {
     }
     ;(window as any).__vibeBrowse = (url: string) => {
       if (!url) return
-      if (centerViewRef.current === 'browser') browserViewRef.current?.loadURL(url)
+      if (browserDockedRef.current || centerViewRef.current === 'browser') {
+        if (browserDockedRef.current) setBrowserDockNonce(n => n + 1)
+        browserViewRef.current?.loadURL(url)
+      }
       else window.open(url, '_blank')
     }
   }, [waitDraftIdle, sendDraftLine])
@@ -2318,6 +2324,24 @@ export default function App() {
     setDiffFile(null)
   }, [])
 
+  const handleCloseBrowser = useCallback(() => {
+    browserDockedRef.current = false
+    setBrowserDocked(false)
+    setCenterView('terminal')
+  }, [])
+
+  const handleToggleBrowserDock = useCallback(() => {
+    const next = !browserDockedRef.current
+    browserDockedRef.current = next
+    setBrowserDocked(next)
+    if (next) {
+      if (centerViewRef.current === 'browser') setCenterView('terminal')
+      setBrowserDockNonce(n => n + 1)
+    } else {
+      setCenterView('browser')
+    }
+  }, [])
+
   const handleRefreshGit = useCallback(async () => {
     setGitRefreshKey(k => k + 1)
   }, [])
@@ -2717,7 +2741,10 @@ export default function App() {
         <button
           className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
           style={{ marginRight: 16 }}
-          onClick={() => setCenterView('browser')}
+          onClick={() => {
+            if (browserDockedRef.current) { setBrowserDockNonce(n => n + 1); return }
+            setCenterView('browser')
+          }}
           title={t('Web Debug')}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4">
@@ -2915,12 +2942,13 @@ export default function App() {
             </div>
           )}
           {/* Browser */}
-          {centerView === 'browser' && (
+          {centerView === 'browser' && !browserDocked && (
             <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
               <BrowserView
                 ref={browserViewRef}
-                onBack={handleBackToTerminal}
+                onBack={handleCloseBrowser}
                 onAnnotate={(line) => { (window as any).__vibeAppendInput?.(line) }}
+                onToggleDock={activeSessionCwd ? handleToggleBrowserDock : undefined}
               />
             </div>
           )}
@@ -3079,6 +3107,12 @@ export default function App() {
             onResumeClaudeHistory={handleResumeClaudeHistory}
             onResumeDshHistory={handleResumeDshHistory}
             historyNavNonce={historyNavNonce}
+            browserDocked={browserDocked}
+            browserDockNonce={browserDockNonce}
+            browserViewRef={browserViewRef}
+            onBrowserBack={handleCloseBrowser}
+            onBrowserAnnotate={(line) => { (window as any).__vibeAppendInput?.(line) }}
+            onBrowserToggleDock={handleToggleBrowserDock}
           />
         </div>
         )}

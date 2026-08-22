@@ -5,6 +5,7 @@ import GitTab from './GitTab'
 import AuxTab from './AuxTab'
 import FileTab from './FileTab'
 import GameLauncher from './GameLauncher'
+import BrowserView, { BrowserViewHandle } from './BrowserView'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { AuxTerminalTab, RecentFileEntry } from '@shared/types'
 
@@ -49,6 +50,12 @@ interface RightPanelProps {
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
   historyNavNonce?: number
+  browserDocked?: boolean
+  browserDockNonce?: number
+  browserViewRef?: React.MutableRefObject<BrowserViewHandle | null>
+  onBrowserBack?: () => void
+  onBrowserAnnotate?: (line: string) => void
+  onBrowserToggleDock?: () => void
 }
 
 type GitSection = 'git' | 'terminal' | 'file' | 'game'
@@ -402,6 +409,12 @@ function RightPanel({
   onResumeClaudeHistory,
   onResumeDshHistory,
   historyNavNonce,
+  browserDocked,
+  browserDockNonce,
+  browserViewRef,
+  onBrowserBack,
+  onBrowserAnnotate,
+  onBrowserToggleDock,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('file')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -538,6 +551,18 @@ function RightPanel({
     }
   }, [historyNavNonce])
 
+  // 浏览器停靠右栏 → 切到 Nga tab 展示覆盖层
+  useEffect(() => {
+    if (browserDocked && browserDockNonce) {
+      setVisibleTabs(prev => {
+        if (prev['game']) return prev
+        const next = { ...prev, game: true }
+        return next
+      })
+      setActiveSection('game')
+    }
+  }, [browserDocked, browserDockNonce])
+
   // 确保 activeSection 始终可见（处理隐藏当前 tab 的情况）
   useEffect(() => {
     if (!visibleTabs[activeSection] && visibleList.length > 0) {
@@ -640,8 +665,19 @@ function RightPanel({
         />
       </div>
 
-      <div ref={gameContentRef} tabIndex={-1} style={{ display: activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden">
+      <div ref={gameContentRef} tabIndex={-1} style={{ display: activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden relative">
         <GameLauncher workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} historyNavNonce={historyNavNonce} />
+        {browserDocked && (
+          <div className="absolute inset-0 z-10 flex flex-col bg-ide-bg">
+            <BrowserView
+              ref={browserViewRef ?? undefined}
+              docked
+              onBack={onBrowserBack ?? (() => {})}
+              onAnnotate={onBrowserAnnotate ?? (() => {})}
+              onToggleDock={onBrowserToggleDock}
+            />
+          </div>
+        )}
       </div>
 
       </div>

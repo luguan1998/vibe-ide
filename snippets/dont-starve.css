@@ -187,6 +187,46 @@ html, body, #root {
   color: rgb(255 245 240 / 0.65) !important;
 }
 
+/* ── running 可讀性修復：紅底上 accent 轉圈與 muted→accent 波浪字會隱形 ──
+   轉圈統一炭黑（紅/青/金/綠/藍底全部 ≥4.5:1），波浪字換各底色專屬漸層 */
+.session-item.border-ide-accent\/60:not(.session-item--active) .animate-spin,
+.session-item--active .animate-spin {
+  color: rgb(32 27 24) !important;
+}
+.session-item.border-ide-accent\/60:not(.session-item--active) .session-item__name.animate-text-wave,
+.session-item--active .session-item__name.animate-text-wave {
+  background-image: linear-gradient(
+    90deg,
+    rgb(255 245 240) 0%,
+    rgb(255 245 240) 40%,
+    rgb(32 27 24) 50%,
+    rgb(255 245 240) 60%,
+    rgb(255 245 240) 100%
+  ) !important;
+}
+.session-item:nth-child(5n+1).session-item--active .session-item__name.animate-text-wave {
+  background-image: linear-gradient(90deg, rgb(18 43 56) 0%, rgb(18 43 56) 40%, rgb(0 62 74) 50%, rgb(18 43 56) 60%, rgb(18 43 56) 100%) !important;
+}
+.session-item:nth-child(5n+2).session-item--active .session-item__name.animate-text-wave {
+  background-image: linear-gradient(90deg, rgb(18 43 56) 0%, rgb(18 43 56) 40%, rgb(94 52 8) 50%, rgb(18 43 56) 60%, rgb(18 43 56) 100%) !important;
+}
+.session-item:nth-child(5n+3).session-item--active .session-item__name.animate-text-wave {
+  background-image: linear-gradient(90deg, rgb(18 43 56) 0%, rgb(18 43 56) 40%, rgb(4 82 58) 50%, rgb(18 43 56) 60%, rgb(18 43 56) 100%) !important;
+}
+
+/* running 進度膠囊（x/y + 小轉圈）在高亮底上同色隱形 → 半透明白底炭黑 */
+.session-item.border-ide-accent\/60:not(.session-item--active) .session-item__pipe,
+.session-item--active .session-item__pipe {
+  background: rgb(255 245 240 / 0.28) !important;
+  color: rgb(32 27 24) !important;
+}
+.session-item.border-ide-accent\/60:not(.session-item--active) .session-item__pipe-spinner,
+.session-item--active .session-item__pipe-spinner,
+.session-item.border-ide-accent\/60:not(.session-item--active) .session-item__pipe-cancel,
+.session-item--active .session-item__pipe-cancel {
+  color: rgb(32 27 24) !important;
+}
+
 /* ── 輪換色相（5色週期）─ 青 / 金 / 綠 / 紅 / 藍 ── */
 .session-item:nth-child(5n+1).session-item--active { background: rgb(38 200 200) !important; color: rgb(18 43 56) !important; }
 .session-item:nth-child(5n+1).session-item--active .session-item__name { color: rgb(18 43 56) !important; }
@@ -423,6 +463,17 @@ input[type="checkbox"] { accent-color: rgb(38 223 162); }
 .text-ide-success { color: rgb(var(--ide-success)) !important; }
 .text-ide-danger { color: rgb(var(--ide-danger)) !important; }
 .text-ide-warning { color: rgb(var(--ide-warning)) !important; }
+
+/* ════════════════════════════════════════════════════
+   AI 忙碌狀態行 — 珊瑚紅雪花/quip 在深海底看不清
+   雪花轉圈改螢光綠，quip 文字改沙灘金
+   ════════════════════════════════════════════════════ */
+.ai-tab__busy .animate-spin-snowflake {
+  color: rgb(38 223 162) !important;
+}
+.ai-tab__busy span[class*="text-ide-accent/60"] {
+  color: rgb(228 204 159 / 0.85) !important;
+}
 
 /* ════════════════════════════════════════════════════
    Markdown 預覽 — 深海手稿風

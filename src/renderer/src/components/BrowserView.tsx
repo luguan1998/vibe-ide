@@ -1,11 +1,13 @@
 import React, { useRef, useState, useEffect, useCallback, useImperativeHandle } from 'react'
-import { RotateCw, X, ArrowLeft, ArrowRight, Feather } from 'lucide-react'
+import { RotateCw, X, ArrowLeft, ArrowRight, Feather, PanelRight, PanelLeft } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { InlineAnnotationInput } from './AiTab'
 
 interface BrowserViewProps {
   onBack: () => void
   onAnnotate: (line: string) => void
+  docked?: boolean
+  onToggleDock?: () => void
 }
 
 export interface BrowserViewHandle {
@@ -20,6 +22,9 @@ interface PickData {
 }
 
 const PICK_PREFIX = '__vibePick:'
+
+// webview 搬家（中栏 ↔ 右栏覆盖）必然重挂载，用模块级变量保住当前网址
+let lastBrowserUrl = 'about:blank'
 
 const INJECT_INSTALL = `
 (function(){
@@ -104,13 +109,13 @@ const INJECT_REMOVE = `
 })();
 `
 
-const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(function BrowserView({ onBack, onAnnotate }: BrowserViewProps, ref) {
+const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(function BrowserView({ onBack, onAnnotate, docked, onToggleDock }: BrowserViewProps, ref) {
   const { t } = useI18n()
   const webviewRef = useRef<any>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const annotationRef = useRef<PickData | null>(null)
-  const [url, setUrl] = useState('about:blank')
-  const [address, setAddress] = useState('')
+  const [url, setUrl] = useState(() => lastBrowserUrl)
+  const [address, setAddress] = useState(() => (lastBrowserUrl && lastBrowserUrl !== 'about:blank' ? lastBrowserUrl : ''))
   const [annotation, setAnnotation] = useState<PickData | null>(null)
   annotationRef.current = annotation
   const [pickMode, setPickMode] = useState(false)
@@ -122,7 +127,7 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
     loadURL: (u: string) => {
       const wv = webviewRef.current
       if (!wv) return
-      try { wv.loadURL(u); setUrl(u); setAddress(u) } catch {}
+      try { wv.loadURL(u); setUrl(u); setAddress(u); lastBrowserUrl = u } catch {}
     }
   }), [])
 
@@ -165,6 +170,7 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
     }
     const onNav = (e: any) => {
       setAddress(e.url ?? '')
+      if (typeof e.url === 'string' && e.url && e.url !== 'about:blank') lastBrowserUrl = e.url
       if (pickRef.current) { try { wv.executeJavaScript(INJECT_INSTALL) } catch {} }
     }
     const onWillNav = (e: any) => {
@@ -197,6 +203,7 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
     const final = u.includes('://') || u === 'about:blank' ? u : 'https://' + u
     setUrl(final)
     setAddress(final)
+    lastBrowserUrl = final
   }, [address])
 
   return (
@@ -217,6 +224,11 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
         <button onClick={() => webviewRef.current?.reload()} className="w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0" title={t('Refresh')}>
           <RotateCw className="w-3.5 h-3.5" />
         </button>
+        {onToggleDock && (
+          <button onClick={onToggleDock} className="w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0" title={docked ? t('Move to Center') : t('Move to Right')}>
+            {docked ? <PanelLeft className="w-3.5 h-3.5" /> : <PanelRight className="w-3.5 h-3.5" />}
+          </button>
+        )}
         <input
           value={address}
           onChange={(e) => setAddress(e.target.value)}

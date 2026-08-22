@@ -454,6 +454,8 @@ const ZH_MAP: Record<string, string> = {
   'Write tests': '编写测试',
   'Web Search': '联网调研',
   'Web Debug': '网页调试',
+  'Move to Right': '移到右侧',
+  'Move to Center': '移回中间',
   'Diagnose Bug': '定位bug',
   'Grill My Requirements': '拷问我需求',
   'Refactor': '重构',
