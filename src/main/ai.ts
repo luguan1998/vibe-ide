@@ -27,6 +27,7 @@ export interface ManagedAiSession {
   }
   cancelRequested?: boolean
   awaitingUserInput?: boolean
+  resumeTargetMissing?: boolean
   seenToolUseIds?: Set<string>
   revertAwaitingReady?: boolean
   enableWorktree?: boolean
@@ -1314,6 +1315,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     for (const line of lines) {
       const trimmed = line.trim()
       if (!trimmed) continue
+      if (trimmed.includes('No conversation found with session ID')) session.resumeTargetMissing = true
       try {
         handleNdjsonMessage(sessionId, JSON.parse(trimmed), cwd)
       } catch {
@@ -1353,11 +1355,42 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
       if (current!.awaitingUserInput === true) {
         return
       }
+      const stderrMsg = stderrChunks.join('\n').trim()
+      // --resume 目标报文已不存在（被清理/fork 失联）：不展示死错误现场，
+      // 通知渲染层按新对话清空，再免 resume 重开 CLI 完成恢复
+      const resumeMissing = session.resumeTargetMissing === true || stderrMsg.includes('No conversation found with session ID')
       if (current.computerUse) { try { require('./computer-use').stopForSession(sessionId) } catch {} }
       stopSidecarWatchersForSession(sessionId)
       aiSessions.delete(sessionId)
+      if (resumeMissing) {
+        send(IPC_CHANNELS.AI_ERROR, { sessionId, error: 'No conversation found with session ID' })
+        const mcpConfigPath = startCuForSession(sessionId, current.computerUse)
+        const result = spawnClaude({
+          cwd: current.cwd,
+          permissionMode: current.permissionMode || 'bypassPermissions',
+          model: current.model,
+          cliCommand: current.cliCommand,
+          configDir: current.configDir,
+          persona: current.persona,
+          computerUse: current.computerUse,
+          mcpConfigPath,
+        })
+        if ('error' in result) {
+          stopCuForSession(sessionId, current.computerUse)
+          send(IPC_CHANNELS.AI_ERROR, { sessionId, error: result.error, installCmd: result.installCmd })
+          return
+        }
+        attachAiProcess(sessionId, result, current.cwd, current.model, current.configDir, current.cliCommand, current.computerUse)
+        const fresh = aiSessions.get(sessionId)
+        if (fresh) {
+          fresh.permissionMode = current.permissionMode || 'bypassPermissions'
+          fresh.persona = current.persona
+          if (current.model) fresh.model = current.model
+          if (current.contextWindow) fresh.contextWindow = current.contextWindow
+        }
+        return
+      }
       if (code !== 0 && code !== null) {
-        const stderrMsg = stderrChunks.join('\n').trim()
         const baseMsg = `Process exited with code ${code}${signal ? ` (signal: ${signal})` : ''}`
         const errorDetail = stderrMsg ? `${baseMsg}\n\n${stderrMsg}` : baseMsg
         send(IPC_CHANNELS.AI_ERROR, {

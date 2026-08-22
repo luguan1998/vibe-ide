@@ -617,6 +617,18 @@ function initListeners() {
 
   // ── onError ──
   window.api.ai.onError(({ sessionId, error, installCmd }: any) => {
+    // 主进程对 "--resume 找不到会话报文" 已自动免 resume 重开 CLI；
+    // 渲染层同步把现场重置为新对话，不渲染死错误卡片
+    if (typeof error === 'string' && error.includes('No conversation found with session ID')) {
+      aiStore.updateSession(sessionId, (s) => ({
+        ...EMPTY_SESSION,
+        cwd: s.cwd,
+        model: s.model,
+        slashCommands: s.slashCommands,
+        ready: true,
+      }))
+      return
+    }
     aiStore.updateSession(sessionId, (s) => {
       const pendingToolIdx = findPendingToolIndex(s.messages)
       let messages: AiMessage[]
