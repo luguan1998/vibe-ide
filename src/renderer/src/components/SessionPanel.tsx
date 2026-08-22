@@ -1555,9 +1555,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     setDropIndex(null)
                   }}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     <span
-                      className="text-[13px] shrink-0 w-3.5 h-3.5 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
+                      className="text-[13px] shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
                       title={t('Click to cycle emoji')}
                       draggable={false}
                       onClick={(e) => {

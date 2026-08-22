@@ -791,6 +791,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
     renderOverviewRuler: true,
     ignoreTrimWhitespace: false,
     diffAlgorithm: 'advanced' as const,
+    automaticLayout: true,
     scrollbar: { verticalScrollbarSize: 0, horizontalScrollbarSize: 16, useShadows: false }
   }), [inlineDiff, commitHash, fontSize, wordWrap, diffSplitRatio])
 
@@ -856,9 +857,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }
 
   return (
-    <div ref={containerRef} className={`flex flex-col animate-fade-in center-overlay${brushActive ? ' diff-brush-mode diff-brush-code' : ''}`}>
+    <div ref={containerRef} className={`flex flex-col h-full animate-fade-in center-overlay${brushActive ? ' diff-brush-mode diff-brush-code' : ''}`}>
       <div
-        className="diff-titlebar h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0"
+        className="diff-titlebar h-8 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0"
         onContextMenu={!commitHash ? (e) => { e.preventDefault(); setEncodingContextMenu({ x: e.clientX, y: e.clientY }) } : undefined}
         onClick={(e) => {
           if (!brushActive || !fullPath) return
@@ -934,7 +935,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         </div>
       </div>
 
-      <div className="relative overflow-hidden" style={{ height: 'calc(100vh - 80px)' }}>
+      <div className="relative flex-1 min-h-0 overflow-hidden">
         {viewMode === 'diff' ? (
           <DiffEditor
             height="100%"

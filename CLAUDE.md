@@ -109,7 +109,6 @@ Each terminal session owns its RightPanel/GitTab state independently — **no gl
     └── *.css          # 任意 CSS 文件
 ```
 
-- `snippets.json` 控制每个 `.css` 文件的启用/禁用，在设置菜单 → Snippets 中切换
 - **覆盖主题色变量必须加 `!important`** — `ThemeProvider` 用 `setProperty` 写内联样式（优先级 1000），普通 `:root` 规则无效。例：
   ```css
   :root { --ide-accent: 255 179 0 !important; }

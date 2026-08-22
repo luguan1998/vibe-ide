@@ -355,7 +355,7 @@ function TabBar({
                   onDrop={(e) => handleDrop(e, section)}
                   ref={(el) => { if (el) (el as any).__section = section }}
                 >
-                  {TAB_DEFS[section].icon}
+                  <span className="scale-105">{TAB_DEFS[section].icon}</span>
                 </button>
               )
             })}
@@ -559,7 +559,7 @@ function RightPanel({
           capsuleTabs={capsuleTabs}
           onToggleCapsuleTabs={onToggleCapsuleTabs}
         />
-        <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center right-panel__content">
+        <div className="flex-1 min-h-0 mx-2 mb-1 mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center right-panel__content">
           <span className="text-ide-text-muted text-xs">No active session</span>
         </div>
       </div>
@@ -580,7 +580,7 @@ function RightPanel({
         onToggleCapsuleTabs={onToggleCapsuleTabs}
       />
 
-      <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col right-panel__content">
+      <div className="flex-1 min-h-0 mx-2 mb-2 mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col right-panel__content">
 
       <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <GitTab

@@ -3,6 +3,8 @@ import { useI18n } from '../i18n'
 import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
 import { ModalOverlay } from './ModalOverlay'
 import GitGraph from './GitGraph'
+import { ContextMenuItem } from './FileTab'
+import { FolderOpen, Route, Check, FileText } from 'lucide-react'
 
 interface GitTabProps {
   workspacePath: string | null
@@ -1897,43 +1899,30 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           style={{ left: fileContextMenu.x, top: fileContextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center">
-            <button
-              className="flex-1 px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
-              onClick={() => {
-                window.api.file.openExplorer(fileContextMenu.fullPath)
-                setFileContextMenu(null)
-              }}
-            >
-              {t('Open Containing Folder')}
-            </button>
-            <button
-              className="px-2 py-1.5 text-ide-text-muted hover:text-ide-accent hover:bg-ide-hover shrink-0"
-              title={t('Copy Path')}
-              onClick={() => handleCopyFilePath(fileContextMenu.fullPath)}
-            >
-              {copied ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-success">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                  <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                  <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                </svg>
-              )}
-            </button>
-          </div>
+          <ContextMenuItem
+            icon={<FolderOpen className="ft-icon" />}
+            label={t('Open Containing Folder')}
+            onClick={() => {
+              window.api.file.openExplorer(fileContextMenu.fullPath)
+              setFileContextMenu(null)
+            }}
+          />
+          <ContextMenuItem
+            icon={copied
+              ? <Check className="ft-icon text-ide-success" strokeWidth={3} />
+              : <Route className="ft-icon" />}
+            label={t('Copy Path')}
+            onClick={() => handleCopyFilePath(fileContextMenu.fullPath)}
+          />
           {onNavigateToFile && (
-            <button
-              className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
+            <ContextMenuItem
+              icon={<FileText className="ft-icon" />}
+              label={t('Open in File Panel')}
               onClick={() => {
                 onNavigateToFile(fileContextMenu.fullPath)
                 setFileContextMenu(null)
               }}
-            >
-              {t('Open in File Panel')}
-            </button>
+            />
           )}
         </div>
       )}

@@ -732,7 +732,7 @@ ${clone.innerHTML}
           const namePart = lastSep >= 0 ? fullPath.substring(lastSep + 1) : fullPath
           return (
             <div className={`flex flex-col h-full animate-fade-in relative center-overlay${brushActive ? ' diff-brush-mode' : ''}`} ref={containerRef}>
-              <div className="h-10 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0" title="Ctrl+L 切换编辑模式 · 双击段落进入编辑"
+              <div className="h-8 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0" title="Ctrl+L 切换编辑模式 · 双击段落进入编辑"
                 onClick={(e) => {
                   if (!brushActive) return
                   e.preventDefault()
@@ -867,7 +867,7 @@ ${clone.innerHTML}
       </div>
 
       {dragOver && (
-        <div className="absolute inset-x-0 top-10 bottom-0 z-20 flex items-end justify-center pb-6 pointer-events-none">
+        <div className="absolute inset-x-0 top-8 bottom-0 z-20 flex items-end justify-center pb-6 pointer-events-none">
           <span className="px-3 py-1.5 rounded-md bg-ide-accent/15 text-ide-accent text-xs">
             {hoverBlockIdx >= 0 ? '松开以插入该段落末尾' : '松开以追加到文件末尾'}
           </span>
@@ -875,7 +875,7 @@ ${clone.innerHTML}
       )}
 
       {searchOpen && (
-        <div className="absolute top-12 right-3 z-20 flex items-center gap-1 p-1.5 bg-ide-sidebar border border-ide-border rounded-md shadow-lg">
+        <div className="absolute top-10 right-3 z-20 flex items-center gap-1 p-1.5 bg-ide-sidebar border border-ide-border rounded-md shadow-lg">
           <input
             ref={searchInputRef}
             type="text"
