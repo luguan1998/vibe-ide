@@ -9,7 +9,7 @@ import RightPanel from './components/RightPanel'
 import DiffViewer from './components/DiffViewer'
 import MarkdownPreview, { MD_SEARCH_OPEN } from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
-import BrowserView, { BrowserViewHandle } from './components/BrowserView'
+import BrowserView, { BrowserViewHandle, setBrowserStartUrl } from './components/BrowserView'
 import NavBar, { NavEntry } from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
@@ -239,6 +239,16 @@ declare global {
 }
 
 type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser' | 'mujica' | 'search'
+
+// 网页调试停靠位置偏好（中栏 / 右栏覆盖 Nga tab），localStorage 持久化
+function loadBrowserDockPref(): 'center' | 'right' {
+  try { return localStorage.getItem('vibe-ide-browser-dock') === 'right' ? 'right' : 'center' } catch {}
+  return 'center'
+}
+
+function saveBrowserDockPref(pos: 'center' | 'right') {
+  try { localStorage.setItem('vibe-ide-browser-dock', pos) } catch {}
+}
 
 interface DiffFileState {
   defaultEdit?: boolean
@@ -762,9 +772,9 @@ export default function App() {
   const aiTabRefs = useRef<Record<string, AiTabHandle>>({})
   const dshRefs = useRef<Record<string, DshViewHandle>>({})
   const browserViewRef = useRef<BrowserViewHandle | null>(null)
-  const [browserDocked, setBrowserDocked] = useState(false)
+  const [browserDocked, setBrowserDocked] = useState(() => loadBrowserDockPref() === 'right')
   const [browserDockNonce, setBrowserDockNonce] = useState(0)
-  const browserDockedRef = useRef(false)
+  const browserDockedRef = useRef(loadBrowserDockPref() === 'right')
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const centerPanelRef = useRef<HTMLDivElement>(null)
   const sessionPanelRef = useRef<SessionPanelHandle>(null)
@@ -1331,11 +1341,20 @@ export default function App() {
     }
     ;(window as any).__vibeBrowse = (url: string) => {
       if (!url) return
-      if (browserDockedRef.current || centerViewRef.current === 'browser') {
-        if (browserDockedRef.current) setBrowserDockNonce(n => n + 1)
+      if (browserDockedRef.current) {
+        setBrowserDockNonce(n => n + 1)
         browserViewRef.current?.loadURL(url)
+        return
       }
-      else window.open(url, '_blank')
+      if (centerViewRef.current === 'browser') { browserViewRef.current?.loadURL(url); return }
+      if (loadBrowserDockPref() === 'right' && sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd) {
+        setBrowserStartUrl(url)
+        browserDockedRef.current = true
+        setBrowserDocked(true)
+        setBrowserDockNonce(n => n + 1)
+        return
+      }
+      window.open(url, '_blank')
     }
   }, [waitDraftIdle, sendDraftLine])
 
@@ -2334,6 +2353,7 @@ export default function App() {
     const next = !browserDockedRef.current
     browserDockedRef.current = next
     setBrowserDocked(next)
+    saveBrowserDockPref(next ? 'right' : 'center')
     if (next) {
       if (centerViewRef.current === 'browser') setCenterView('terminal')
       setBrowserDockNonce(n => n + 1)
@@ -2341,6 +2361,21 @@ export default function App() {
       setCenterView('browser')
     }
   }, [])
+
+  // 打开网页调试：按停靠偏好决定落点（右侧时直接覆盖 Nga tab）
+  const handleOpenWebDebug = useCallback(() => {
+    if (browserDockedRef.current) {
+      setBrowserDockNonce(n => n + 1)
+      return
+    }
+    if (loadBrowserDockPref() === 'right' && activeSessionCwd) {
+      browserDockedRef.current = true
+      setBrowserDocked(true)
+      setBrowserDockNonce(n => n + 1)
+      return
+    }
+    setCenterView('browser')
+  }, [activeSessionCwd])
 
   const handleRefreshGit = useCallback(async () => {
     setGitRefreshKey(k => k + 1)
@@ -2741,10 +2776,7 @@ export default function App() {
         <button
           className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
           style={{ marginRight: 16 }}
-          onClick={() => {
-            if (browserDockedRef.current) { setBrowserDockNonce(n => n + 1); return }
-            setCenterView('browser')
-          }}
+          onClick={handleOpenWebDebug}
           title={t('Web Debug')}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4">

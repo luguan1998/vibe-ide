@@ -26,6 +26,11 @@ const PICK_PREFIX = '__vibePick:'
 // webview 搬家（中栏 ↔ 右栏覆盖）必然重挂载，用模块级变量保住当前网址
 let lastBrowserUrl = 'about:blank'
 
+// 停靠偏好为右侧时，浏览器尚未挂载就要先定好起始网址（挂载时作为初始 url/address）
+export function setBrowserStartUrl(u: string) {
+  if (u) lastBrowserUrl = u
+}
+
 const INJECT_INSTALL = `
 (function(){
   if(window.__vibePickMove){document.removeEventListener('mousemove',window.__vibePickMove,true);}
