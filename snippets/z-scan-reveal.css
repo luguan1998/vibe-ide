@@ -1,0 +1,36 @@
+/*
+  session emoji 像素级扫描线 loading 特效（可选）
+  启用后：会话行首 running 图标由「变色呼吸」覆盖为「逐列扫描显像」——
+  图标纵向切成 8 个像素条带，从左到右一段段点亮（steps 跳进，非平滑），
+  accent 色 1px 竖向扫描线带光晕同步右移，整图显示后瞬时清屏重新扫描，循环
+  可调：steps(8) 条带数 / 1.6s 一轮周期
+  注意：与 z-loading-fx.css 同时启用时，序号大（排后面）的生效
+*/
+
+@keyframes scanReveal {
+  0%        { clip-path: inset(0 100% 0 0); }
+  70%, 92%  { clip-path: inset(0 0 0 0); }
+  100%      { clip-path: inset(0 100% 0 0); }
+}
+
+@keyframes scanBeam {
+  0%        { left: -1px; opacity: 1; }
+  70%, 100% { left: 100%; opacity: 0; }
+}
+
+.session-item .animate-color-pulse {
+  position: relative;
+  overflow: hidden;
+  animation: scanReveal 1.6s steps(8) infinite;
+}
+
+.session-item .animate-color-pulse::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 1px;
+  background: rgb(var(--ide-accent));
+  box-shadow: 0 0 4px rgb(var(--ide-accent) / 0.9);
+  animation: scanBeam 1.6s steps(8) infinite;
+}

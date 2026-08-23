@@ -213,6 +213,7 @@ function stableEmojiForSession(sessionId: string, pool: string[]): string {
 
 // 行首图标状态机：idle 默认类型图标，点击循环切到 emoji；瞬态按优先级覆盖（加状态只加一条）
 const ICON_TYPE = ''
+const ICON_NONE = '\uE001'
 type SessionIconState = 'scheduled' | 'worktree' | 'running' | 'warn' | 'idle'
 
 interface SessionPanelProps {
@@ -546,7 +547,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   useEffect(() => {
     setSessionEmojiOverrides(prev => {
       const next: Record<string, string> = {}
-      for (const [k, v] of Object.entries(prev)) if (sessionEmojis.includes(v)) next[k] = v
+      for (const [k, v] of Object.entries(prev)) if (v === ICON_TYPE || v === ICON_NONE || sessionEmojis.includes(v)) next[k] = v
       return Object.keys(next).length === Object.keys(prev).length ? prev : next
     })
   }, [sessionEmojis])
@@ -580,6 +581,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
+  const [emojiMenu, setEmojiMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const menuSession = contextMenu ? sessions.find(s => s.id === contextMenu.sessionId) : null
   const [newMode, setNewMode] = useState<'term' | 'gui' | 'dsh'>('term')
   // 新建类型菜单：勾选项置顶
@@ -642,6 +644,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [emptyAreaMenu, setEmptyAreaMenu] = useState<{ x: number; y: number } | null>(null)
   const ctxMenuPos = useAdaptiveMenuPos(!!contextMenu, contextMenu?.x ?? 0, contextMenu?.y ?? 0)
   const emptyMenuPos = useAdaptiveMenuPos(!!emptyAreaMenu, emptyAreaMenu?.x ?? 0, emptyAreaMenu?.y ?? 0)
+  const emojiMenuPos = useAdaptiveMenuPos(!!emojiMenu, emojiMenu?.x ?? 0, emojiMenu?.y ?? 0)
   const recentDirs = useRecentDirs()
   const favCwds = useFavCwds()
   const prevSessionIdsRef = useRef<Set<string>>(new Set())
@@ -848,6 +851,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     const handleClick = () => {
       setContextMenu(null)
       setEmptyAreaMenu(null)
+      setEmojiMenu(null)
       setCloneSubmenu(null)
       setQuickNewSubmenu(null)
       if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
@@ -1007,6 +1011,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     e.preventDefault()
     e.stopPropagation()
     setEmptyAreaMenu(null)
+    setEmojiMenu(null)
     setCloneSubmenu(null)
     setNewSubmenu(null)
     setQuickNewSubmenu(null)
@@ -1019,6 +1024,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const handleEmptyAreaContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
     setContextMenu(null)
+    setEmojiMenu(null)
     setCloneSubmenu(null)
     setNewSubmenu(null)
     setQuickNewSubmenu(null)
@@ -1173,10 +1179,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   : 'idle'
                 // idle：默认类型图标，点击循环切到 emoji（ICON_TYPE 哨兵=类型位）
                 const cur = sessionEmojiOverrides[session.id]
-                const idleGlyph = (cur && cur !== ICON_TYPE && sessionEmojis.includes(cur)) ? cur : renderKindIcon(session.kind)
+                const curEmoji = (cur && cur !== ICON_TYPE && cur !== ICON_NONE && sessionEmojis.includes(cur)) ? cur : null
+                const blankIcon = cur === ICON_NONE
+                const idleGlyph = blankIcon ? '' : (curEmoji ?? renderKindIcon(session.kind))
                 const glyph = state === 'scheduled' ? '⏰'
                   : state === 'worktree' ? '🌿'
-                  : state === 'running' ? <Loader2 className="w-3.5 h-3.5 text-ide-accent animate-spin shrink-0" />
+                  : state === 'running'
+                    ? blankIcon
+                      ? <Loader2 className="w-3.5 h-3.5 text-ide-accent animate-spin-slow shrink-0" />
+                      : <span className="w-full h-full flex items-center justify-center animate-color-pulse">{idleGlyph}</span>
                   : state === 'warn' ? '⚠️'
                   : idleGlyph
                 const clickable = state === 'scheduled' || state === 'idle'
@@ -1184,7 +1195,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   : state === 'worktree' ? (sessionWorktreeNav[session.id]?.worktreePath || 'Worktree')
                   : state === 'running' ? t('Running')
                   : state === 'warn' ? t('Warning')
-                  : (session.kind === 'terminal' ? t('Terminal') : session.kind === 'gui' ? 'Claude' : 'dsh')
+                  : (blankIcon ? t('Blank') : session.kind === 'terminal' ? t('Terminal') : session.kind === 'gui' ? 'Claude' : 'dsh')
                 return (
                   <span
                     className={`text-[13px] shrink-0 w-4 h-4 flex items-center justify-center select-none transition-colors session-item__icon${clickable ? ' cursor-pointer hover:bg-ide-hover rounded' : ''}`}
@@ -1207,7 +1218,17 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       const next = idx + 1 >= sessionEmojis.length ? ICON_TYPE : sessionEmojis[idx + 1]
                       setSessionEmojiOverrides(prev => ({ ...prev, [session.id]: next }))
                     }}
-                    onContextMenu={(e) => e.stopPropagation()}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setContextMenu(null)
+                      setEmptyAreaMenu(null)
+                      setCloneSubmenu(null)
+                      setNewSubmenu(null)
+                      setQuickNewSubmenu(null)
+                      setGroupQuickNewSubmenu(null)
+                      setEmojiMenu({ x: e.clientX, y: e.clientY, sessionId: session.id })
+                    }}
                   >{glyph}</span>
                 )
               })()}
@@ -1863,6 +1884,38 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           </button>
         </div>
       )}
+
+      {/* Emoji Picker Menu */}
+      {emojiMenu && (() => {
+        const ov = sessionEmojiOverrides[emojiMenu.sessionId]
+        const pickSession = sessions.find(s => s.id === emojiMenu.sessionId)
+        const pick = (v: string) => {
+          setSessionEmojiOverrides(prev => ({ ...prev, [emojiMenu.sessionId]: v }))
+          setEmojiMenu(null)
+        }
+        const cellCls = (active: boolean) => `w-8 h-8 rounded flex items-center justify-center text-base hover:bg-ide-hover transition-colors${active ? ' bg-ide-accent/20 ring-1 ring-ide-accent' : ''}`
+        return (
+          <div
+            ref={emojiMenuPos.ref}
+            className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1.5 px-1.5 z-50 w-[248px] max-h-[260px] overflow-y-auto"
+            style={emojiMenuPos.style}
+            onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
+          >
+            <div className="grid grid-cols-7 gap-0.5">
+              <button title={t('Type Icon')} className={cellCls(ov === undefined || ov === ICON_TYPE)} onClick={() => pick(ICON_TYPE)}>
+                {pickSession ? renderKindIcon(pickSession.kind) : null}
+              </button>
+              <button title={t('Blank')} className={cellCls(ov === ICON_NONE)} onClick={() => pick(ICON_NONE)}>
+                <span className="w-3.5 h-3.5 rounded-sm border border-dashed border-ide-text-muted" />
+              </button>
+              {sessionEmojis.map(em => (
+                <button key={em} title={em} className={cellCls(ov === em)} onClick={() => pick(em)}>{em}</button>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Empty Area Context Menu — recent directories */}
       {emptyAreaMenu && (() => {

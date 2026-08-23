@@ -1,0 +1,17 @@
+/*
+  步进帧动画 loading 特效 会话行首 running 图标由「变色呼吸」覆盖为「机械步进旋转」
+*/
+
+@keyframes spinSteps {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-steps {
+  animation: spinSteps 1.2s steps(8) infinite;
+}
+
+.session-item .animate-color-pulse {
+  animation: spinSteps 1.2s steps(8) infinite;
+}

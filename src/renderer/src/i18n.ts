@@ -162,6 +162,8 @@ const ZH_MAP: Record<string, string> = {
   'One per line': '每行一个',
   'No emojis': '无表情',
   'Click to cycle emoji': '点击切换图标',
+  'Type Icon': '类型图标',
+  'Blank': '空',
   'Scheduled Task': '定时任务',
   'Running': '运行中',
   'Warning': '警告',
