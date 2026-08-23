@@ -1972,11 +1972,13 @@ export default function App() {
     if (parentMode === 'gui' || parentMode === 'dsh') {
       const session = makeLocalSession(cwd, { name })
       addSessionRecord({ ...session, kind: parentMode, loaded: true }, parentId)
+      if (parentId) window.dispatchEvent(new CustomEvent('vibe:session-emoji-copy', { detail: { from: parentId, to: session.id } }))
       return
     }
     try {
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name, initCommand: readDefaultAgent() })
       addSessionRecord({ ...session, kind: 'terminal', loaded: true }, parentId)
+      if (parentId) window.dispatchEvent(new CustomEvent('vibe:session-emoji-copy', { detail: { from: parentId, to: session.id } }))
     } catch (err) {
       console.error('Failed to clone terminal session:', err)
     }

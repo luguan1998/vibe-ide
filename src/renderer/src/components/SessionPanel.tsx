@@ -543,6 +543,17 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     })
   }, [sessionEmojis])
 
+  // 克隆/Ctrl+N 新会话继承源会话的行首 emoji（App.handleCloneSession 派发）
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent<{ from: string; to: string }>).detail
+      if (!d?.from || !d.to) return
+      setSessionEmojiOverrides(prev => (prev[d.from] === undefined || prev[d.from] === prev[d.to]) ? prev : { ...prev, [d.to]: prev[d.from] })
+    }
+    window.addEventListener('vibe:session-emoji-copy', handler)
+    return () => window.removeEventListener('vibe:session-emoji-copy', handler)
+  }, [])
+
   // 启动时从主进程获取本机已安装的 shell，过滤选项
   useEffect(() => {
     window.api.terminal.getShells().then((shells: { value: string; label: string }[]) => {
