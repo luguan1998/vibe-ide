@@ -202,15 +202,6 @@ function getCwdEmoji(index: number, pool: string[], override?: string): string {
   return pickEmoji(index, pool, override)
 }
 
-function stableEmojiForSession(sessionId: string, pool: string[]): string {
-  if (pool.length === 0) return ''
-  let hash = 0
-  for (let i = 0; i < sessionId.length; i++) {
-    hash = ((hash << 5) - hash + sessionId.charCodeAt(i)) | 0
-  }
-  return pool[Math.abs(hash) % pool.length]
-}
-
 // 行首图标状态机：idle 默认类型图标，点击循环切到 emoji；瞬态按优先级覆盖（加状态只加一条）
 const ICON_TYPE = ''
 const ICON_NONE = '\uE001'
@@ -581,7 +572,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
-  const [emojiMenu, setEmojiMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
+  const [emojiMenu, setEmojiMenu] = useState<{ x: number; y: number } & ({ sessionId: string } | { cwd: string }) | null>(null)
   const menuSession = contextMenu ? sessions.find(s => s.id === contextMenu.sessionId) : null
   const [newMode, setNewMode] = useState<'term' | 'gui' | 'dsh'>('term')
   // 新建类型菜单：勾选项置顶
@@ -1177,7 +1168,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   : agentStatus[session.id] === 'running' ? 'running'
                   : agentStatus[session.id] === 'warn' ? 'warn'
                   : 'idle'
-                // idle：默认类型图标，点击循环切到 emoji（ICON_TYPE 哨兵=类型位）
+                // idle：默认类型图标，左键随机换 emoji、右键开选择菜单（ICON_TYPE 哨兵=类型位）
                 const cur = sessionEmojiOverrides[session.id]
                 const curEmoji = (cur && cur !== ICON_TYPE && cur !== ICON_NONE && sessionEmojis.includes(cur)) ? cur : null
                 const blankIcon = cur === ICON_NONE
@@ -1206,16 +1197,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       e.stopPropagation()
                       e.preventDefault()
                       if (state === 'scheduled') { openSchedModal(session.id); return }
-                      // idle：循环 type → emoji 池 → type
                       if (sessionEmojis.length === 0) return
-                      const ov = sessionEmojiOverrides[session.id]
-                      const emojiOv = (ov && ov !== ICON_TYPE && sessionEmojis.includes(ov)) ? ov : undefined
-                      if (!emojiOv) {
-                        setSessionEmojiOverrides(prev => ({ ...prev, [session.id]: stableEmojiForSession(session.id, sessionEmojis) }))
-                        return
-                      }
-                      const idx = sessionEmojis.indexOf(emojiOv)
-                      const next = idx + 1 >= sessionEmojis.length ? ICON_TYPE : sessionEmojis[idx + 1]
+                      const candidates = curEmoji ? sessionEmojis.filter(em => em !== curEmoji) : sessionEmojis
+                      if (candidates.length === 0) return
+                      const next = candidates[Math.floor(Math.random() * candidates.length)]
                       setSessionEmojiOverrides(prev => ({ ...prev, [session.id]: next }))
                     }}
                     onContextMenu={(e) => {
@@ -1581,17 +1566,29 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span
                       className="text-[13px] shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
-                      title={t('Click to cycle emoji')}
+                      title={t('Click for another emoji')}
                       draggable={false}
                       onClick={(e) => {
                         e.stopPropagation()
                         e.preventDefault()
                         if (cwdEmojis.length === 0) return
-                        const idx = cwdEmojis.indexOf(cwdEmoji)
-                        const next = cwdEmojis[(idx + 1) % cwdEmojis.length]
+                        const candidates = cwdEmojis.filter(em => em !== cwdEmoji)
+                        if (candidates.length === 0) return
+                        const next = candidates[Math.floor(Math.random() * candidates.length)]
                         setCwdEmojiOverrides(prev => ({ ...prev, [group.cwd]: next }))
                       }}
-                      onContextMenu={(e) => e.stopPropagation()}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (cwdEmojis.length === 0) return
+                        setContextMenu(null)
+                        setEmptyAreaMenu(null)
+                        setCloneSubmenu(null)
+                        setNewSubmenu(null)
+                        setQuickNewSubmenu(null)
+                        setGroupQuickNewSubmenu(null)
+                        setEmojiMenu({ x: e.clientX, y: e.clientY, cwd: group.cwd })
+                      }}
                     >{cwdEmoji}</span>
                     <span
                       className={`text-xs font-medium truncate min-w-0 cursor-pointer transition-all session-group__path ${
@@ -1887,10 +1884,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
       {/* Emoji Picker Menu */}
       {emojiMenu && (() => {
-        const ov = sessionEmojiOverrides[emojiMenu.sessionId]
-        const pickSession = sessions.find(s => s.id === emojiMenu.sessionId)
+        const isCwdMenu = !('sessionId' in emojiMenu)
+        const ov = 'sessionId' in emojiMenu ? sessionEmojiOverrides[emojiMenu.sessionId] : cwdEmojiOverrides[emojiMenu.cwd]
+        const pickSession = 'sessionId' in emojiMenu ? sessions.find(s => s.id === emojiMenu.sessionId) : null
+        const pool = isCwdMenu ? cwdEmojis : sessionEmojis
         const pick = (v: string) => {
-          setSessionEmojiOverrides(prev => ({ ...prev, [emojiMenu.sessionId]: v }))
+          if ('sessionId' in emojiMenu) setSessionEmojiOverrides(prev => ({ ...prev, [emojiMenu.sessionId]: v }))
+          else setCwdEmojiOverrides(prev => ({ ...prev, [emojiMenu.cwd]: v }))
           setEmojiMenu(null)
         }
         const cellCls = (active: boolean) => `w-8 h-8 rounded flex items-center justify-center text-base hover:bg-ide-hover transition-colors${active ? ' bg-ide-accent/20 ring-1 ring-ide-accent' : ''}`
@@ -1903,13 +1903,17 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
           >
             <div className="grid grid-cols-7 gap-0.5">
-              <button title={t('Type Icon')} className={cellCls(ov === undefined || ov === ICON_TYPE)} onClick={() => pick(ICON_TYPE)}>
-                {pickSession ? renderKindIcon(pickSession.kind) : null}
-              </button>
-              <button title={t('Blank')} className={cellCls(ov === ICON_NONE)} onClick={() => pick(ICON_NONE)}>
-                <span className="w-3.5 h-3.5 rounded-sm border border-dashed border-ide-text-muted" />
-              </button>
-              {sessionEmojis.map(em => (
+              {!isCwdMenu && (
+                <>
+                  <button title={t('Type Icon')} className={cellCls(ov === undefined || ov === ICON_TYPE)} onClick={() => pick(ICON_TYPE)}>
+                    {pickSession ? renderKindIcon(pickSession.kind) : null}
+                  </button>
+                  <button title={t('Blank')} className={cellCls(ov === ICON_NONE)} onClick={() => pick(ICON_NONE)}>
+                    <span className="w-3.5 h-3.5 rounded-sm border border-dashed border-ide-text-muted" />
+                  </button>
+                </>
+              )}
+              {pool.map(em => (
                 <button key={em} title={em} className={cellCls(ov === em)} onClick={() => pick(em)}>{em}</button>
               ))}
             </div>

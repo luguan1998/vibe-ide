@@ -161,7 +161,7 @@ const ZH_MAP: Record<string, string> = {
   'Session Icons': '会话图标（按会话分配）',
   'One per line': '每行一个',
   'No emojis': '无表情',
-  'Click to cycle emoji': '点击切换图标',
+  'Click for another emoji': '点击随机换图标',
   'Type Icon': '类型图标',
   'Blank': '空',
   'Scheduled Task': '定时任务',
