@@ -20,6 +20,7 @@ import { DirectoryPicker } from './components/DirectoryPicker'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import GameMujica, { FOCUS_MUJICA, MUJICA_CLOSE } from './components/GameMujica'
+import BoardView, { BOARD_FOCUS } from './components/BoardView'
 import { mujicaStore, useMujica } from './mujicaStore'
 import { aiStore, readAiCliConfig } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
@@ -28,7 +29,7 @@ import { getFileInfo, FILE_ICON_PATHS } from './components/FileIcons'
 import iconPattern from '@renderer/assets/icon-pattern.png?inline'
 import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
 import { ADD_ANNOTATION_EVENT, toRelPath } from './components/vibeEvents'
-import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry } from '@shared/types'
+import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
 import { cwdStore } from './cwdStore'
@@ -155,6 +156,12 @@ declare global {
       ocr: {
         recognize: (input: string | { buffer: Uint8Array; name: string }) => Promise<string>
       }
+      board: {
+        records: (workspacePath: string) => Promise<import('@shared/types').BoardRecordsResult>
+        create: (options: import('@shared/types').BoardCreateOptions) => Promise<import('@shared/types').BoardOpResult>
+        finish: (workspacePath: string, recordId: string) => Promise<import('@shared/types').BoardOpResult>
+        clear: (workspacePath: string, recordId: string) => Promise<import('@shared/types').BoardOpResult>
+      }
       theme: {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
       }
@@ -240,7 +247,7 @@ declare global {
   }
 }
 
-type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser' | 'mujica' | 'search'
+type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser' | 'mujica' | 'search' | 'board'
 
 // 网页调试停靠位置偏好（中栏 / 右栏覆盖 Nga tab），localStorage 持久化
 function loadBrowserDockPref(): 'center' | 'right' {
@@ -533,19 +540,21 @@ export default function App() {
     const prev = prevBusyRef.current
     const updates: Record<string, boolean> = {}
     let changed = false
+    // 看板开启时没有"选中的session"（effSel=null）：所有 running→idle 一视同仁记 warn
+    const effSel = centerView === 'board' ? null : activeSessionId
     for (const s of sessions) {
       const sid = s.id
       const busy = !!(terminalBusy[sid] || aiBusy[sid])
       const prevBusy = prev[sid] ?? false
       // 非被选中 session：running→idle 变 warn，并触发一次回复快照读取（游标未注册时主进程 no-op）
-      if (prevBusy && !busy && sid !== activeSessionId) {
+      if (prevBusy && !busy && sid !== effSel) {
         updates[sid] = true
         changed = true
         window.api.ai.readReply(sid).catch(() => {})
       }
     }
-    if (activeSessionId && warnSessionsRef.current[activeSessionId]) {
-      updates[activeSessionId] = false
+    if (effSel && warnSessionsRef.current[effSel]) {
+      updates[effSel] = false
       changed = true
     }
     const cur: Record<string, boolean> = {}
@@ -561,7 +570,7 @@ export default function App() {
         return n
       })
     }
-  }, [sessions, terminalBusy, aiBusy, activeSessionId])
+  }, [sessions, terminalBusy, aiBusy, activeSessionId, centerView])
 
   // 窗口聚焦/可见性 → appFocused（切走/最小化时宠物切 unfocused）
   useEffect(() => {
@@ -675,6 +684,14 @@ export default function App() {
       window.removeEventListener(FOCUS_MUJICA, openMujica)
       window.removeEventListener(MUJICA_CLOSE, closeMujica)
     }
+  }, [])
+
+  // Session panel "Task Board" button requests the board center view.
+  // The board is the bottom layer: no selected session, no ESC semantics of its own.
+  React.useEffect(() => {
+    const openBoard = () => setCenterView('board')
+    window.addEventListener(BOARD_FOCUS, openBoard)
+    return () => window.removeEventListener(BOARD_FOCUS, openBoard)
   }, [])
 
   // mujica base repo defaults to the active session cwd until the user browses for another.
@@ -1522,6 +1539,13 @@ export default function App() {
         }
       }
 
+      // board.focus → toggle session board center view
+      if (eventMatchesBinding(e, bindings['board.focus'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setCenterView(prev => (prev === 'board' ? 'terminal' : 'board'))
+      }
+
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
       // Use visual order: grouped by cwd when grouping enabled, raw array order otherwise
       let visualOrder: SessionTab[]
@@ -2241,6 +2265,91 @@ export default function App() {
     }
   }, [activeSessionId, sessions, rightTerminalSessions, splitTwins, setSplitTwins, setSplitRatios])
 
+  const handleBoardClearWarn = useCallback((id: string) => {
+    setWarnSessions(prev => {
+      if (!(id in prev)) return prev
+      const n = { ...prev }
+      delete n[id]
+      return n
+    })
+  }, [])
+
+  const handleBoardFocusSession = useCallback((id: string) => {
+    setActiveSessionId(id)
+    setCenterView('terminal')
+  }, [])
+
+  const handleBoardCreate = useCallback(async (title: string, launchCommand?: string): Promise<{ ok: boolean; record?: WorktreeRecord; error?: string }> => {
+    if (!activeSessionCwd) return { ok: false, error: '无活动工作区' }
+    try {
+      const res = await window.api.board.create({ workspacePath: activeSessionCwd, title, launchCommand })
+      if (!res.ok || !res.record) return { ok: false, error: res.error ?? '创建失败' }
+      const rec = res.record
+      setSessions(prev => prev.some(s => s.id === rec.id) ? prev : [...prev, {
+        id: rec.id,
+        kind: 'terminal',
+        name: `▶ ${rec.title}`,
+        cwd: rec.worktreePath,
+        active: true,
+        createdAt: Date.now(),
+        loaded: true
+      }])
+      setActiveSessionId(rec.id)
+      setCenterView('terminal')
+      return { ok: true, record: rec }
+    } catch (e: any) {
+      console.warn('[board] create failed:', e?.message)
+      return { ok: false, error: e?.message ?? '创建失败' }
+    }
+  }, [activeSessionCwd])
+
+  const handleBoardOpenRecord = useCallback(async (rec: WorktreeRecord) => {
+    if (!sessionsRef.current.some(s => s.id === rec.id)) {
+      try {
+        await window.api.terminal.create({ id: rec.id, cwd: rec.worktreePath, name: `▶ ${rec.title}`, initCommand: rec.launchCommand })
+      } catch (e: any) {
+        console.warn('[board] open terminal failed:', e?.message)
+        return
+      }
+      setSessions(prev => prev.some(s => s.id === rec.id) ? prev : [...prev, {
+        id: rec.id,
+        kind: 'terminal',
+        name: `▶ ${rec.title}`,
+        cwd: rec.worktreePath,
+        active: true,
+        createdAt: Date.now(),
+        loaded: true
+      }])
+    }
+    setActiveSessionId(rec.id)
+    setCenterView('terminal')
+  }, [])
+
+  const handleBoardFinishRecord = useCallback(async (rec: WorktreeRecord): Promise<boolean> => {
+    await handleCloseSession(rec.id)
+    if (!activeSessionCwd) return false
+    try {
+      const res = await window.api.board.finish(activeSessionCwd, rec.id)
+      if (res?.error) {
+        console.warn('[board] finish:', res.error)
+        return false
+      }
+      return true
+    } catch (e: any) {
+      console.warn('[board] finish failed:', e?.message)
+      return false
+    }
+  }, [handleCloseSession, activeSessionCwd])
+
+  const handleBoardClearRecord = useCallback(async (rec: WorktreeRecord) => {
+    if (!activeSessionCwd) return
+    try {
+      await window.api.board.clear(activeSessionCwd, rec.id)
+    } catch (e: any) {
+      console.warn('[board] clear failed:', e?.message)
+    }
+  }, [activeSessionCwd])
+
   const handleReorderSessions = useCallback((fromIndex: number, toIndex: number) => {
     setSessions(prev => {
       const next = [...prev]
@@ -2817,7 +2926,7 @@ export default function App() {
             <SessionPanel
               ref={sessionPanelRef}
               sessions={sessions}
-              activeSessionId={activeSessionId}
+              activeSessionId={centerView === 'board' ? null : activeSessionId}
               onCreateSession={handleCreateSession}
             onCreateSessionAt={handleCreateSessionAt}
             onCloneSession={handleCloneSession}
@@ -3076,6 +3185,22 @@ export default function App() {
           {/* mujica canvas — display-toggle so state + running agents survive hide (ESC = collapse, restore pill shows in session list) */}
           <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'mujica' ? 'flex' : 'none' }}>
             <GameMujica onCollapse={() => setCenterView('terminal')} />
+          </div>
+          {/* session board — display-toggle so terminals keep their buffers while the board is shown */}
+          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'board' ? 'flex' : 'none' }}>
+            <BoardView
+              workspacePath={activeSessionCwd}
+              sessions={sessions}
+              agentStatus={agentStatus}
+              activeSessionId={centerView === 'board' ? null : activeSessionId}
+              onFocusSession={handleBoardFocusSession}
+              onCreateRecord={handleBoardCreate}
+              onOpenRecord={handleBoardOpenRecord}
+              onExecuteFinish={handleBoardFinishRecord}
+              onClearRecord={handleBoardClearRecord}
+              onSendToSession={handlePipeToSession}
+              onAcknowledgeWarn={handleBoardClearWarn}
+            />
           </div>
           {/* Drag-over overlay for file compare */}
           {isDragOverEdit && (

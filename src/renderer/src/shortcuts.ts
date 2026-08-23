@@ -64,6 +64,7 @@ const CODE_TO_LABEL: Record<string, string> = {
   Digit9: '9',
   KeyL: 'L',
   KeyA: 'A',
+  KeyB: 'B',
 }
 
 /** KeyboardEvent.code → human label (falls back to stripping "Key" / "Digit" prefix) */
@@ -273,6 +274,11 @@ const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     id: 'quickOpen.file',
     label: 'Quick Open File',
     defaultKeys: 'Ctrl+KeyE',
+  },
+  {
+    id: 'board.focus',
+    label: 'Toggle Task Board',
+    defaultKeys: 'Ctrl+KeyB',
   },
   {
     id: 'brush.activate',

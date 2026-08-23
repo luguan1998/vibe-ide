@@ -161,6 +161,12 @@ export const IPC_CHANNELS = {
   SNIPPETS_LOAD: 'app:snippetsLoad',
   SNIPPETS_TOGGLE: 'app:snippetsToggle',
 
+  // Board (session kanban)
+  BOARD_RECORDS: 'board:records',
+  BOARD_CREATE: 'board:create',
+  BOARD_FINISH: 'board:finish',
+  BOARD_CLEAR: 'board:clear',
+
   // Pet (codex-style webp sprite sheet)
   PET_LIST: 'pet:list',
   PET_SET_ACTIVE: 'pet:setActive',
@@ -223,6 +229,40 @@ export interface AuxTerminalTab {
   id: string
   terminals: TerminalSession[]
   sizes: number[]
+}
+
+// Board (session kanban) types
+export interface WorktreeRecord {
+  id: string              // = 创建时的 pty 会话 id
+  title: string
+  slug: string
+  launchCommand?: string
+  worktreePath: string    // {repoRoot}/.vibe/worktrees/{slug}
+  branchName: string      // task/{slug}
+  baseBranch: string
+  repoRoot: string
+  createdAt: number
+}
+
+export interface WorktreeRecordView extends WorktreeRecord {
+  orphan: boolean         // 目录已不存在(手动删除/清理失败)
+}
+
+export interface BoardCreateOptions {
+  workspacePath: string   // 入口目录,主进程解析到仓库 toplevel
+  title?: string          // 留空则自动生成 task-MMDD-HHmmss
+  launchCommand?: string
+}
+
+export interface BoardRecordsResult {
+  repoRoot: string | null // null = 非 git 工作区
+  records: WorktreeRecordView[]
+}
+
+export interface BoardOpResult {
+  ok?: boolean
+  record?: WorktreeRecord
+  error?: string
 }
 
 export interface RenameTerminalResult {

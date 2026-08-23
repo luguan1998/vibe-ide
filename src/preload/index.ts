@@ -381,6 +381,18 @@ const api = {
     },
   },
 
+  // Board (session kanban)
+  board: {
+    records: (workspacePath: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BOARD_RECORDS, workspacePath) as Promise<import('../shared/types').BoardRecordsResult>,
+    create: (options: import('../shared/types').BoardCreateOptions) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BOARD_CREATE, options) as Promise<import('../shared/types').BoardOpResult>,
+    finish: (workspacePath: string, recordId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BOARD_FINISH, workspacePath, recordId) as Promise<import('../shared/types').BoardOpResult>,
+    clear: (workspacePath: string, recordId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BOARD_CLEAR, workspacePath, recordId) as Promise<import('../shared/types').BoardOpResult>
+  },
+
   // DSH (deepseek harness agent service)
   dsh: {
     start: (cwd?: string) =>

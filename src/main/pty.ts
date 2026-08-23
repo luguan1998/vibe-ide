@@ -223,6 +223,40 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUt
   return ptyProcess
 }
 
+export function createTerminalSession(options: CreateTerminalOptions): TerminalSession {
+  // dsh fork 传固定 id：Vibe session id 必须等于 dsh child session id，
+  // DshView 才能用 sessions.create 收养已分叉的对话
+  const id = options.id || `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const cwd = options.cwd || process.cwd()
+  const name = options.name || `Terminal ${terminals.size + 1}`
+  const autoUtf8 = options.autoUtf8 !== false
+
+  const ptyProcess = spawnPty(id, cwd, options.shell, autoUtf8, 80, 24, options.initCommand)
+
+  const session: TerminalSession = {
+    id,
+    name,
+    cwd,
+    shell: options.shell,
+    active: true,
+    createdAt: Date.now()
+  }
+
+  terminals.set(id, { pty: ptyProcess, session, autoUtf8, cols: 80, rows: 24, restarts: [] })
+
+  return session
+}
+
+export function closeTerminalSession(id: string): boolean {
+  const managed = terminals.get(id)
+  if (managed) {
+    try { managed.pty.kill() } catch {}
+    terminals.delete(id)
+    return true
+  }
+  return false
+}
+
 export function registerPtyHandlers(): void {
 
   // 返回本机已安装的 shell 列表
@@ -286,27 +320,7 @@ export function registerPtyHandlers(): void {
   // Create a new terminal session
   ipcMain.handle(IPC_CHANNELS.PTY_CREATE, (_event, options: CreateTerminalOptions) => {
     try {
-      // dsh fork 传固定 id：Vibe session id 必须等于 dsh child session id，
-      // DshView 才能用 sessions.create 收养已分叉的对话
-      const id = options.id || `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      const cwd = options.cwd || process.cwd()
-      const name = options.name || `Terminal ${terminals.size + 1}`
-      const autoUtf8 = options.autoUtf8 !== false
-
-      const ptyProcess = spawnPty(id, cwd, options.shell, autoUtf8, 80, 24, options.initCommand)
-
-      const session: TerminalSession = {
-        id,
-        name,
-        cwd,
-        shell: options.shell,
-        active: true,
-        createdAt: Date.now()
-      }
-
-      terminals.set(id, { pty: ptyProcess, session, autoUtf8, cols: 80, rows: 24, restarts: [] })
-
-      return session
+      return createTerminalSession(options)
     } catch (err: any) {
       console.error('Failed to create PTY:', err)
       throw err

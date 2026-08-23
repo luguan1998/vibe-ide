@@ -12,6 +12,7 @@ import { registerAskResumeHandlers } from './ai-ask-resume'
 import { registerRevertHandlers } from './ai-revert'
 import { registerHistoryHandlers } from './ai-history'
 import { registerGitHandlers } from './git'
+import { registerBoardHandlers } from './board'
 import { stopWatching } from './watcher'
 import { registerFileHandlers } from './file'
 import { registerSearchHandlers } from './search'
@@ -232,6 +233,7 @@ app.whenReady().then(() => {
 
   // Register PTY handlers after window is created
   registerPtyHandlers()
+  registerBoardHandlers()
   registerAiHandlers()
   registerDshHandlers()
   registerPlanExecuteHandlers()

@@ -16,6 +16,7 @@ import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import mujicaIcon from '@renderer/assets/mujica.png?inline'
 import { useMujicaCounts } from '../mujicaStore'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
+import { BOARD_FOCUS } from './BoardView'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 import { ToolIcon } from './AiTab/tools'
 
@@ -1379,7 +1380,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         </button>
         <div className="group relative w-full">
           <button
-            onClick={() => { /* TODO: 任务看板功能预留 */ }}
+            onClick={() => window.dispatchEvent(new CustomEvent(BOARD_FOCUS))}
             className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors"
           >
             <KanbanSquare size={14} className="text-ide-text-muted" />
