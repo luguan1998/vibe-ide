@@ -1886,17 +1886,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             {t('New Terminal')}
           </button>
           <button
-            className="w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent text-ide-text hover:bg-ide-hover"
-            disabled={!activeSession}
-            onClick={() => {
-              if (activeSession) startRename(activeSession)
-              setEmptyAreaMenu(null)
-            }}
-          >
-            <Pencil size={14} className="text-ide-text-muted" />
-            {t('Rename')}
-          </button>
-          <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
             onClick={() => {
               onCreateSession(termType)
