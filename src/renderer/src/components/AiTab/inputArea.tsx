@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { AiPermissionMode, AiSlashCommand } from '@shared/types'
+import { DEFAULT_AI_CONTEXT_WINDOW } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from '../FileIcons'
 import { aiStore } from '../../aiStore'
-import { Bot, ChevronDown, Check, Folder } from 'lucide-react'
+import { Bot, ChevronDown, Check, Folder, Pencil } from 'lucide-react'
 const MODE_OPTIONS: { value: AiPermissionMode; label: string; icon: string }[] = [
   { value: 'plan', label: 'Plan', icon: '📋' },
   { value: 'acceptEdits', label: 'Edit', icon: '🖌️' },
@@ -10,41 +11,148 @@ const MODE_OPTIONS: { value: AiPermissionMode; label: string; icon: string }[] =
 ]
 
 // ── ContextBar ──────────────────────────────────────────────────────
-export function ContextBar({ percent }: { percent: number | null }) {
-  const pct = percent ?? 0
-  const TOTAL = 10
-  const filled = Math.round(pct / 100 * TOTAL)
+const CONTEXT_RING_RADIUS = 5.5
+const CONTEXT_RING_CIRCUMFERENCE = 2 * Math.PI * CONTEXT_RING_RADIUS
 
-  const colorClass =
-    pct >= 80 ? 'bg-ide-danger'
-    : pct >= 50 ? 'bg-ide-warning'
-    : 'bg-ide-success'
+function parseContextWindowInput(raw: string): number | null {
+  const m = raw.trim().match(/^(\d+(?:\.\d+)?)\s*(k|m)?$/i)
+  if (!m) return null
+  const unit = m[2]?.toLowerCase()
+  const n = parseFloat(m[1]) * (unit === 'm' ? 1_000_000 : unit === 'k' ? 1_000 : 1)
+  return n >= 1000 ? Math.round(n) : null
+}
 
-  const textColor =
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return `${+(n / 1_000_000).toFixed(1)}m`
+  if (n >= 1000) return `${+(n / 1000).toFixed(1)}k`
+  return `${n}`
+}
+
+export function ContextBar({ percent, sessionId }: { percent: number | null; sessionId: string | null }) {
+  const pct = Math.min(100, Math.round(percent ?? 0))
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [info, setInfo] = useState<{ usedTokens: number | null; contextWindow: number | null } | null>(null)
+  const ref = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setOpen(false); e.stopPropagation() }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open])
+
+  const toggleOpen = useCallback(() => {
+    if (!sessionId) return
+    const next = !open
+    setOpen(next)
+    setEditing(false)
+    setDraft('')
+    if (next) {
+      window.api.ai.getContextInfo(sessionId).then(setInfo).catch(() => {})
+    }
+  }, [sessionId, open])
+
+  const startEdit = useCallback(() => {
+    setDraft(info?.contextWindow != null ? fmtTokens(info.contextWindow) : '')
+    setEditing(true)
+  }, [info])
+
+  const handleSave = useCallback(async () => {
+    if (!sessionId) return
+    const tokens = parseContextWindowInput(draft)
+    if (!tokens) return
+    try {
+      const res = await window.api.ai.setContextWindow(sessionId, tokens)
+      const nextPercent = res?.contextPercent
+      if (res?.success && nextPercent != null) {
+        aiStore.updateSession(sessionId, s => ({ ...s, contextPercent: Math.round(nextPercent) }))
+      }
+      setInfo(prev => ({ usedTokens: prev?.usedTokens ?? null, contextWindow: tokens }))
+    } catch {}
+    setEditing(false)
+  }, [sessionId, draft])
+
+  const ringColorClass =
     pct >= 80 ? 'text-ide-danger'
     : pct >= 50 ? 'text-ide-warning'
     : 'text-ide-success'
 
+  const usedLabel = info?.usedTokens != null ? fmtTokens(info.usedTokens) : '–'
+  const maxLabel = info?.contextWindow != null ? fmtTokens(info.contextWindow) : fmtTokens(DEFAULT_AI_CONTEXT_WINDOW)
+
   return (
-    <div
-      className="ai-tab__context-bar flex items-center gap-1.5 shrink-0"
-      title={`${pct}% context used`}
-    >
-      {/* energy bar frame */}
-      <div className="ai-tab__context-bar-frame flex gap-[2px] border-2 border-ide-border/80 rounded-md px-[3px] py-[3px]">
-        {Array.from({ length: TOTAL }).map((_, i) => (
-          <div
-            key={i}
-            className={`ai-tab__context-bar-cell w-[5px] h-3 rounded-[2px] transition-all duration-500 ${
-              i < filled ? `ai-tab__context-bar-cell--filled ${colorClass}` : 'bg-ide-border/25'
-            }`}
+    <span ref={ref} className="ai-tab__context relative shrink-0">
+      <button
+        type="button"
+        onClick={toggleOpen}
+        disabled={!sessionId}
+        title={`${pct}% context used`}
+        className={`ai-tab__context-btn w-7 h-7 grid place-items-center rounded-full transition-colors ${
+          sessionId
+            ? 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text cursor-pointer'
+            : 'opacity-40 cursor-default'
+        }`}
+      >
+        <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden>
+          <circle cx="7" cy="7" r={CONTEXT_RING_RADIUS} fill="none" stroke="currentColor" strokeWidth="2" className="opacity-25" />
+          <circle
+            cx="7" cy="7" r={CONTEXT_RING_RADIUS} fill="none" strokeWidth="2"
+            strokeLinecap="round"
+            className={`${ringColorClass} transition-all duration-500`}
+            strokeDasharray={`${CONTEXT_RING_CIRCUMFERENCE * pct / 100} ${CONTEXT_RING_CIRCUMFERENCE}`}
+            transform="rotate(-90 7 7)"
           />
-        ))}
-      </div>
-      <span className={`ai-tab__context-bar-pct text-[10px] font-mono leading-none tabular-nums ${textColor}`}>
-        {pct}%
-      </span>
-    </div>
+        </svg>
+      </button>
+      {open && (
+        <div className="ai-tab__context-panel absolute bottom-full right-0 mb-1.5 z-30 w-max
+                        bg-ide-sidebar border border-ide-border rounded-lg shadow-lg px-1.5 py-1 animate-fade-in">
+          {editing ? (
+            <div className="ai-tab__context-edit flex items-center gap-1.5 h-5 text-[11px] leading-none whitespace-nowrap">
+              <span className={`${ringColorClass} tabular-nums font-medium`}>{pct}%</span>
+              <span className="text-ide-text-muted tabular-nums">{usedLabel} /</span>
+              <input
+                autoFocus
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleSave()
+                  if (e.key === 'Escape') { e.stopPropagation(); setEditing(false) }
+                }}
+                placeholder={maxLabel}
+                className="ai-tab__context-input w-[56px] bg-transparent text-ide-text border-b border-ide-accent/60
+                           focus:outline-none focus:border-ide-accent placeholder:text-ide-text-muted/40"
+              />
+            </div>
+          ) : (
+            <div className="ai-tab__context-view flex items-center gap-1.5 h-5 text-[11px] leading-none whitespace-nowrap">
+              <span className={`${ringColorClass} tabular-nums font-medium`}>{pct}%</span>
+              <span className="ai-tab__context-figures text-ide-text-muted tabular-nums">{usedLabel} / {maxLabel}</span>
+              <button
+                type="button"
+                onClick={startEdit}
+                title="Edit max context"
+                className="ai-tab__context-edit-btn text-ide-text-muted hover:text-ide-text transition-colors"
+              >
+                <Pencil size={10} strokeWidth={2} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </span>
   )
 }
 
@@ -118,20 +226,20 @@ export function ModelBadge({
       <button
         type="button"
         onClick={() => sessionId && setOpen(v => !v)}
-        className={`ai-tab__model-btn flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-full
-          transition-colors leading-tight
+        className={`ai-tab__model-btn flex items-center gap-1 px-2 py-1.5 text-xs rounded-lg
+          transition-colors
           ${sessionId
-            ? 'bg-ide-border/30 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text cursor-pointer'
+            ? 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover cursor-pointer'
             : 'bg-ide-border/15 text-ide-text-muted/40 cursor-default'
           }`}
         title={model || 'Model'}
         disabled={!sessionId}
       >
         {displayOption
-          ? <span className="text-xs leading-none">{displayOption.icon}</span>
-          : <Bot size={12} strokeWidth={2} className="shrink-0" />}
+          ? <span className="text-sm">{displayOption.icon}</span>
+          : <Bot size={14} strokeWidth={2} className="shrink-0" />}
         <span className="truncate max-w-[200px]">{displayLabel}</span>
-        {sessionId && <ChevronDown size={10} className={`opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
+        {sessionId && <ChevronDown size={12} className={`opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
       </button>
       {open && (
         <div className="ai-tab__model-dropdown absolute bottom-full right-0 mb-1.5 z-30

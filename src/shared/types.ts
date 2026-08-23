@@ -126,6 +126,8 @@ export const IPC_CHANNELS = {
   AI_PLAN_EXECUTE: 'ai:planExecute',
   AI_SET_PERMISSION_MODE: 'ai:setPermissionMode',
   AI_SET_MODEL: 'ai:setModel',
+  AI_SET_CONTEXT_WINDOW: 'ai:setContextWindow',
+  AI_GET_CONTEXT_INFO: 'ai:getContextInfo',
   AI_SET_VISIBLE: 'ai:setVisible',       // invoke: renderer hidden → main drops stream tokens
   AI_ASK_RESUME: 'ai:askResume',
   AI_RESOLVE_CONFIG_DIR: 'ai:resolveConfigDir',
@@ -607,6 +609,16 @@ export interface AiSetModelPayload {
   sessionId: string
   model: string
 }
+
+// Manually override a session's max context window (tokens), persisted by
+// claudeSessionId so resumed conversations keep the custom value.
+export interface AiSetContextWindowPayload {
+  sessionId: string
+  contextWindow: number
+}
+
+// Fallback context window (tokens) when the model name carries no [Nk|Nm] marker.
+export const DEFAULT_AI_CONTEXT_WINDOW = 200_000
 
 // Kill-and-resume for AskUserQuestion. Claude CLI auto-fills empty answers after ~0.5s when
 // waiting on a control_response in stream-json input mode, so we can't rely on the normal

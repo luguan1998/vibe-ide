@@ -280,6 +280,10 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_RESOLVE_CONFIG_DIR, configDir),
     setModel: (sessionId: string, model: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_MODEL, { sessionId, model }),
+    setContextWindow: (sessionId: string, contextWindow: number) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_SET_CONTEXT_WINDOW, { sessionId, contextWindow }),
+    getContextInfo: (sessionId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_GET_CONTEXT_INFO, sessionId),
     setVisible: (visible: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_VISIBLE, visible),
     revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string; lineIdx?: number; content?: string; occurrence?: number }) =>

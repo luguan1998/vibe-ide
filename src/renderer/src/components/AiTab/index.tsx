@@ -7,7 +7,7 @@ import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { loadFilterRules } from '../FileTab'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X } from 'lucide-react'
+import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X, Plus } from 'lucide-react'
 import { StreamingMarkdown } from './markdown'
 import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, MessageList, type RevertTurnRef } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
@@ -732,17 +732,39 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             {/* Bottom toolbar */}
             <div className="ai-tab__input-toolbar flex items-center gap-2 px-2 pt-0 pb-1.5
                             border-t border-ide-border/30">
-              {/* LEFT: Context bar + model badge */}
+              {/* LEFT: plus + mode selector + last file */}
               <div className="ai-tab__toolbar-left flex items-center gap-2 shrink-0">
-                <ContextBar percent={state.contextPercent} />
-                <ModelBadge model={state.model} sessionId={activeSessionId} />
-              </div>
-
-              {/* CENTER: flex spacer */}
-              <div className="flex-1" />
-
-              {/* RIGHT: Mode selector + Send/Cancel */}
-              <div className="ai-tab__toolbar-right flex items-center gap-1 shrink-0">
+                <div className="ai-tab__toolbar-controls flex items-center gap-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (slashMenuOpen) {
+                        setSlashMenuOpen(false)
+                        setSlashFilter('')
+                        setSlashSelectedIndex(0)
+                        return
+                      }
+                      if (inputValue === '') setInputValue('/')
+                      setSlashMenuOpen(true)
+                      setSlashFilter('')
+                      setSlashSelectedIndex(0)
+                      inputRef.current?.focus({ preventScroll: true })
+                    }}
+                    className={`ai-tab__plus-btn w-7 h-7 flex items-center justify-center rounded-lg
+                                transition-colors ${
+                                  slashMenuOpen
+                                    ? 'bg-ide-accent/15 text-ide-accent'
+                                    : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+                                }`}
+                    title={t('Commands')}
+                  >
+                    <Plus size={14} strokeWidth={2} />
+                  </button>
+                  <ModeSelector
+                    value={permissionMode}
+                    onChange={onPermissionModeChange}
+                  />
+                </div>
                 {lastFile && (
                   <button
                     type="button"
@@ -760,10 +782,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                     <span className="truncate">{lastFile.label}</span>
                   </button>
                 )}
-                <ModeSelector
-                  value={permissionMode}
-                  onChange={onPermissionModeChange}
-                />
+              </div>
+
+              {/* CENTER: flex spacer */}
+              <div className="flex-1" />
+
+              {/* RIGHT: model badge + context bar + Send/Cancel */}
+              <div className="ai-tab__toolbar-right flex items-center gap-1 shrink-0">
+                <ModelBadge model={state.model} sessionId={activeSessionId} />
+                <ContextBar key={activeSessionId ?? 'none'} percent={state.contextPercent} sessionId={activeSessionId} />
 
                 {state.busy ? (
                   <button

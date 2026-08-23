@@ -1,12 +1,12 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
 import { readFile, readdir, stat, rm } from 'fs/promises'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
-import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
-import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
+import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS, DEFAULT_AI_CONTEXT_WINDOW } from '../shared/types'
+import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, AiSetContextWindowPayload, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
 
 export interface ManagedAiSession {
   process: ChildProcess
@@ -16,6 +16,7 @@ export interface ManagedAiSession {
   ready: boolean
   claudeSessionId?: string
   contextWindow?: number
+  lastUsage?: Record<string, number>
   permissionMode?: AiPermissionMode
   model?: string
   configDir?: string
@@ -373,20 +374,41 @@ function isFileEditTool(toolName: string): boolean {
 // Claude CLI stream-json does NOT include context_window in output.
 // modelUsage block (used by newer CLI versions) has not been observed in practice.
 // Fallback: parse context window from model name (e.g. "deepseek-v4-pro[1m]" → 1M).
-const DEFAULT_CONTEXT_WINDOW_SIZE = 200000
 
 function parseContextWindowFromModel(model: string): number | undefined {
   const m = model.match(/\[(\d+(?:\.\d+)?)\s*(k|m)\]/i)
   if (!m) return undefined
-  const num = parseFloat(m[1])
-  return m[2].toLowerCase() === 'm' ? num * 1_000_000 : num * 1_000
+  return m[2].toLowerCase() === 'm' ? parseFloat(m[1]) * 1_000_000 : parseFloat(m[1]) * 1_000
+}
+
+// Manual max-context overrides (ring click → edit), keyed by claudeSessionId so a
+// resumed conversation keeps its custom window across app restarts.
+function contextWindowOverridesFile(): string {
+  return join(app.getPath('userData'), 'ai-context-windows.json')
+}
+
+function loadContextWindowOverrides(): Record<string, number> {
+  try {
+    const raw = JSON.parse(readFileSync(contextWindowOverridesFile(), 'utf-8'))
+    return raw && typeof raw === 'object' ? raw : {}
+  } catch {
+    return {}
+  }
+}
+
+function persistContextWindowOverride(claudeSessionId: string, tokens: number): void {
+  try {
+    const all = loadContextWindowOverrides()
+    all[claudeSessionId] = tokens
+    writeFileSync(contextWindowOverridesFile(), JSON.stringify(all))
+  } catch { /* non-fatal */ }
 }
 
 function calcContextPercent(usage: any, contextWindow?: number): number | undefined {
   if (!usage) return undefined
   const input = (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0)
   if (input === 0) return undefined
-  const denom = contextWindow || DEFAULT_CONTEXT_WINDOW_SIZE
+  const denom = contextWindow || DEFAULT_AI_CONTEXT_WINDOW
   return (input / denom) * 100
 }
 
@@ -445,6 +467,10 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         if (msg.model) {
           const parsed = parseContextWindowFromModel(msg.model)
           if (parsed) s.contextWindow = parsed
+        }
+        if (msg.session_id) {
+          const override = loadContextWindowOverrides()[msg.session_id]
+          if (override) s.contextWindow = override
         }
       }
       const payload: any = { sessionId, tools: msg.tools, model: msg.model, slashCommands: msg.slash_commands }
@@ -509,6 +535,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       // top level (msg.parent_tool_use_id) rather than under msg.message — read both.
       const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
       const session = aiSessions.get(sessionId)
+      if (session && msg.message?.usage) session.lastUsage = msg.message.usage
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
         type: 'assistant',
@@ -1698,6 +1725,8 @@ export function registerAiHandlers(): void {
     // immediately regardless of ready state, since the CLI doesn't echo [1m] in system/init.
     const parsed = parseContextWindowFromModel(payload.model)
     if (parsed) session.contextWindow = parsed
+    const override = session.claudeSessionId ? loadContextWindowOverrides()[session.claudeSessionId] : undefined
+    if (override) session.contextWindow = override
     session.model = payload.model
 
     if (!session.ready) return { success: false, error: 'AI not ready' }
@@ -1713,6 +1742,28 @@ export function registerAiHandlers(): void {
     session.process.stdin!.write(ndjson)
     send(IPC_CHANNELS.AI_MODEL_CHANGED, { sessionId: payload.sessionId, model: payload.model })
     return { success: true }
+  })
+
+  // Manually set max context window (tokens) for a session; persisted by claudeSessionId.
+  ipcMain.handle(IPC_CHANNELS.AI_SET_CONTEXT_WINDOW, (_event, payload: AiSetContextWindowPayload) => {
+    const session = aiSessions.get(payload.sessionId)
+    if (!session) return { success: false, error: 'Session not found' }
+    const tokens = Math.max(1000, Math.round(payload.contextWindow))
+    session.contextWindow = tokens
+    if (session.claudeSessionId) persistContextWindowOverride(session.claudeSessionId, tokens)
+    const contextPercent = calcContextPercent(session.lastUsage, tokens)
+    return { success: true, contextPercent }
+  })
+
+  // Current context occupancy facts for the ring's info row (used / max tokens).
+  ipcMain.handle(IPC_CHANNELS.AI_GET_CONTEXT_INFO, (_event, sessionId: string) => {
+    const session = aiSessions.get(sessionId)
+    if (!session) return null
+    const usage = session.lastUsage
+    const usedTokens = usage
+      ? (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0)
+      : null
+    return { usedTokens, contextWindow: session.contextWindow ?? null }
   })
 
   // Cancel current operation — send interrupt via stdin (CLI handles it gracefully)
