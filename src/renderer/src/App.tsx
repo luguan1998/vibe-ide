@@ -2684,8 +2684,9 @@ export default function App() {
         const binPart = bin.includes(' ') ? (shell === 'cmd' ? `"${bin}"` : isPosix ? `'${bin}'` : `& '${bin}'`) : bin
         const base = `${binPart} --resume ${historySessionId}`
         // Bare names (.opencc) resolve to ~/.opencc so the tui launch and the gui history
-        // lookup agree on the same config dir. Use the resolved absolute path in the env var.
-        const resolvedConfigDir = configDir ? await window.api.ai.resolveConfigDir(configDir) : ''
+        // lookup agree on the same config dir. Always resolve (fallback included) and pin
+        // it via env var so the resumed tui reads the same dir the gui listed sessions from.
+        const resolvedConfigDir = await window.api.ai.resolveConfigDir(configDir || undefined)
         initCommand = !resolvedConfigDir ? base
           : shell === 'cmd' ? `set "CLAUDE_CONFIG_DIR=${resolvedConfigDir}" && ${base}`
           : isPosix ? `CLAUDE_CONFIG_DIR='${resolvedConfigDir}' ${base}`

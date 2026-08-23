@@ -2,6 +2,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
 import { readFile, readdir, stat, rm } from 'fs/promises'
+import { existsSync } from 'fs'
 import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS } from '../shared/types'
@@ -350,7 +351,9 @@ export function spawnClaude(opts: {
 
   const args = buildClaudeArgs(opts)
   const env = sanitizeEnvForCli()
-  if (opts.configDir) env.CLAUDE_CONFIG_DIR = resolveConfigDir(opts.configDir)
+  // Pin the config dir even when unset so a fallback-picked binary (e.g. opencc)
+  // writes sessions into the same dir all read paths resolve to.
+  env.CLAUDE_CONFIG_DIR = resolveConfigDir(opts.configDir)
   if (opts.computerUse) {
     env.ENABLE_TOOL_SEARCH = 'false'
   }
@@ -916,17 +919,26 @@ async function listSessionsForCwd(cwd: string, configDir?: string): Promise<{ se
 
 // ── Load full session history from .jsonl for resume display ──
 
-// Resolve the Claude config dir: user-configured directory (with ~ expansion) wins,
-// otherwise ~/.claude. Shared by spawn-side CLAUDE_CONFIG_DIR and all JSONL read paths.
-function resolveConfigDir(configDir?: string): string {
+// Priority: explicit setting > CLAUDE_CONFIG_DIR env (spawn used to inherit it — keep
+// honoring it) > existence probe ~/.claude → ~/.openclaude → ~/.opencc (same order as
+// findBinary) > ~/.claude default. Shared by spawn-side CLAUDE_CONFIG_DIR and all JSONL
+// read paths so writes and reads always agree.
+function expandHomeDir(v: string): string {
   const home = homedir()
-  if (configDir && configDir.trim()) {
-    const v = configDir.trim()
-    if (v === '~') return home
-    if (v.startsWith('~/') || v.startsWith('~\\')) return join(home, v.slice(2))
-    return isAbsolute(v) ? v : join(home, v)
+  if (v === '~') return home
+  if (v.startsWith('~/') || v.startsWith('~\\')) return join(home, v.slice(2))
+  return isAbsolute(v) ? v : join(home, v)
+}
+
+export function resolveConfigDir(configDir?: string): string {
+  if (configDir && configDir.trim()) return expandHomeDir(configDir.trim())
+  const envDir = process.env.CLAUDE_CONFIG_DIR?.trim()
+  if (envDir) return expandHomeDir(envDir)
+  for (const dir of ['.claude', '.openclaude', '.opencc']) {
+    const p = join(homedir(), dir)
+    if (existsSync(p)) return p
   }
-  return join(home, '.claude')
+  return join(homedir(), '.claude')
 }
 
 export function getProjectsRoot(configDir?: string): string {
