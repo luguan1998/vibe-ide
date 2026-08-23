@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Folder, FolderUp, HardDrive } from 'lucide-react'
 import { ModalOverlay } from './ModalOverlay'
 import { useI18n } from '../i18n'
@@ -9,6 +9,54 @@ import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 export type SessionMode = 'term' | 'gui' | 'dsh'
 
 interface DirEntry { name: string; path: string; type: string }
+
+let middleTextCtx: CanvasRenderingContext2D | null = null
+const measureMiddleText = (text: string, font: string) => {
+  middleTextCtx ||= document.createElement('canvas').getContext('2d')
+  if (!middleTextCtx) return text.length * 6
+  middleTextCtx.font = font
+  return middleTextCtx.measureText(text).width
+}
+
+const middleDisplay = (text: string, headLen: number, tailLen: number) =>
+  headLen <= 0 && tailLen <= 0 ? '...' : text.slice(0, headLen) + '...' + (tailLen > 0 ? text.slice(text.length - tailLen) : '')
+
+const MiddlePathText = ({ text }: { text: string }) => {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [display, setDisplay] = useState(text)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let raf = 0
+    const fit = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const cs = window.getComputedStyle(el)
+        const font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+        const avail = el.clientWidth
+        if (avail <= 0) return
+        if (measureMiddleText(text, font) <= avail) { setDisplay(text); return }
+        let lo = 0
+        let hi = text.length
+        while (lo < hi) {
+          const mid = Math.ceil((lo + hi) / 2)
+          const headLen = Math.ceil(mid / 2)
+          const tailLen = mid - headLen
+          if (measureMiddleText(middleDisplay(text, headLen, tailLen), font) <= avail) lo = mid
+          else hi = mid - 1
+        }
+        const headLen = Math.ceil(lo / 2)
+        const tailLen = lo - headLen
+        setDisplay(middleDisplay(text, headLen, tailLen))
+      })
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => { ro.disconnect(); cancelAnimationFrame(raf) }
+  }, [text])
+  return <span ref={ref} className="dir-picker__recent-path">{display}</span>
+}
 
 export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
   initialDir: string
@@ -102,7 +150,7 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
                 className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors min-w-0"
               >
                 <Folder size={12} className="text-ide-text-muted shrink-0" />
-                <span className="truncate">{d}</span>
+                <MiddlePathText text={d} />
               </button>
             ))}
           </div>

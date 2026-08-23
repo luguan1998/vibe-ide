@@ -265,6 +265,15 @@ html, body, #root {
   outline: none;
 }
 
+/* 最近目录两列路径中间省略：MiddlePathText 用 canvas 实测宽度均摊截取头尾，
+   这里只需保证盒子被 flex 约束且可测宽（span 需显式块级化） */
+.dir-picker__recent-path {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 /* Tailwind preflight 把 svg 设为 display:block，会破坏 dsh 非 flex 上下文中
    图标+文字的行内布局（原版 svg 是行内元素）；flex 容器内不受影响 */
 .dsh-view svg {
