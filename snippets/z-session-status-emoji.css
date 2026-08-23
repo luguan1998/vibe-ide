@@ -7,6 +7,12 @@
   font-size: 0;
 }
 
+/* font-size:0 只能藏文字节点；SVG 图标（Claude/dsh/Loader2）和动画包装 span 需要 display:none */
+.session-item--running:not(.session-item--scheduled):not(.session-item--worktree) .session-item__icon > *,
+.session-item--warn:not(.session-item--scheduled):not(.session-item--worktree) .session-item__icon > * {
+  display: none;
+}
+
 .session-item--running:not(.session-item--scheduled):not(.session-item--worktree) .session-item__icon::before {
   content: '▶️';
   font-size: 14px;
