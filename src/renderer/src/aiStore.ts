@@ -213,12 +213,15 @@ export const aiStore = {
           ...(opts.persona?.trim() ? { persona: opts.persona } : {}),
           ...(computerUse ? { computerUse: true } : {}),
         })
-        aiStore.updateSession(sid, () => ({
+        aiStore.updateSession(sid, (s) => ({
           ...EMPTY_SESSION,
           cwd: createCwd,
           messages,
           model,
           slashCommands: enrichSlashCommands(slashCommands),
+          // resume/fork 后轮次下标域不变（parseUserTurns 全文件域），
+          // 保留历史变更数据，否则该会话"回退代码"永远空转
+          fileChangesByTurn: s.fileChangesByTurn,
         }))
       }
       if (opts.resumeSessionId) {
@@ -299,7 +302,7 @@ export const aiStore = {
       ...(configDir ? { configDir } : {}),
       ...(computerUse ? { computerUse: true } : {}),
     })
-    aiStore.updateSession(sid, () => ({
+    aiStore.updateSession(sid, (s) => ({
       ...EMPTY_SESSION,
       messages,
       model,
@@ -307,6 +310,7 @@ export const aiStore = {
       name: opts.name || '',
       cwd: createCwd,
       ready: false,
+      fileChangesByTurn: s.fileChangesByTurn,
     }))
     return { resumed, cwd: createCwd }
   },
@@ -349,8 +353,8 @@ export const aiStore = {
       thinkingStartedAt: null,
       runningTools: {},
     }))
-    // 被强杀的回合不会有 result 事件，且 CLI --resume 会 fork 出新报文；
-    // 重拉真实轮次对齐回退节点，否则 pause 后节点列表停留在旧报文上
+    // pause 强杀后 CLI --resume 会 fork 出新报文（无 result 事件），
+    // 重拉真实轮次，否则回退节点停留在旧报文上
     aiStore.refreshUserTurns(sid)
   },
 }
@@ -626,6 +630,7 @@ function initListeners() {
         model: s.model,
         slashCommands: s.slashCommands,
         ready: true,
+        fileChangesByTurn: s.fileChangesByTurn,
       }))
       return
     }

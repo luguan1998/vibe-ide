@@ -9,7 +9,7 @@ import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAN
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
 import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X, Plus } from 'lucide-react'
 import { StreamingMarkdown } from './markdown'
-import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, MessageList, type RevertTurnRef } from './messages'
+import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, ModeSelector } from './inputArea'
@@ -31,7 +31,7 @@ interface AiTabProps {
   onViewAi: () => void
   onRenameSession: (name: string) => void
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
-  onForkSession?: (userMessageIndex: number, content?: string, lineIdx?: number) => void
+  onForkSession?: (userMessageIndex: number, content?: string, occurrence?: number) => void
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   resumeSessionId?: string
   brushActive?: boolean
@@ -455,18 +455,27 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   // ── Revert / Fork handlers ──────────────────────────────────────
 
-  const handleRevert = useCallback(async (turn: RevertTurnRef, bubbleMsgIdx: number) => {
+  const handleRevert = useCallback(async (userMessageIndex: number) => {
     if (!activeSessionId || !workspacePath) return
+
+    const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
+    if (targetMsgIdx < 0) return
+
+    // Renderer's userMessageIndex can drift below the JSONL turn index (AskUserQuestion
+    // answers / plan approvals / continuation prompts exist only in the JSONL). Pass the
+    // clicked message's content + occurrence so the main process resolves the true turn.
+    const targetContent = state.messages[targetMsgIdx]?.content
+    const occurrence = targetContent ? countContentOccurrencesBefore(state.messages, targetMsgIdx, targetContent) : 0
 
     const savedMessages = state.messages
     const savedFileChanges = state.fileChangesByTurn
 
-    const truncatedMessages = state.messages.slice(0, bubbleMsgIdx)
-    // fileChangesByTurn 由主进程按真实 JSONL 轮次序号（extractFileChange 的 turnIndex）写入，
-    // 必须用 turnIdx 报文空间切，渲染层气泡序号与之不同域
-    const truncatedFileChanges = state.fileChangesByTurn.slice(0, turn.turnIdx)
+    const truncatedMessages = state.messages.slice(0, targetMsgIdx)
+    const truncatedFileChanges = state.fileChangesByTurn.slice(0, userMessageIndex)
 
-    setInputValue(turn.content)
+    if (targetMsgIdx >= 0 && state.messages[targetMsgIdx]?.content) {
+      setInputValue(state.messages[targetMsgIdx].content!)
+    }
 
     updateSession(activeSessionId, (s) => ({
       ...s,
@@ -477,14 +486,12 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       pendingPermission: null,
     }))
 
-    // 回退定位只认真实报文：lineIdx + content 交给主进程对最新 parseUserTurns 校验后截断
     const result = await window.api.ai.revert({
       sessionId: activeSessionId,
-      userMessageIndex: turn.turnIdx,
-      lineIdx: turn.lineIdx,
+      userMessageIndex,
       scope: 'conversation',
       cwd: workspacePath,
-      content: turn.content,
+      ...(targetContent ? { content: targetContent, occurrence } : {}),
     })
 
     if (!result.success) {
@@ -499,12 +506,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     }
   }, [activeSessionId, workspacePath, state.messages, state.fileChangesByTurn, updateSession, setInputValue])
 
-  const handleRevertAndCode = useCallback(async (turn: RevertTurnRef, bubbleMsgIdx: number) => {
+  const handleRevertAndCode = useCallback(async (userMessageIndex: number) => {
     if (!activeSessionId || !workspacePath) return
 
+    const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
+    if (targetMsgIdx < 0) return
+
     const filesToRevert = new Map<string, { filePath: string; action: string; oldContent?: string }>()
-    for (let ti = turn.turnIdx; ti < state.fileChangesByTurn.length; ti++) {
-      const changes = state.fileChangesByTurn[ti]
+    for (let turn = userMessageIndex; turn < state.fileChangesByTurn.length; turn++) {
+      const changes = state.fileChangesByTurn[turn]
       if (!changes) continue
       for (const change of changes) {
         if (!filesToRevert.has(change.relativePath)) {
@@ -521,19 +531,27 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       try {
         if (info.action === 'create') {
           await window.api.file.delete(info.filePath)
+        } else if (info.action === 'delete') {
+          // AI 删除的文件：回滚 = 恢复旧内容（write 会重建文件）
+          if (info.oldContent != null) {
+            await window.api.file.write(info.filePath, info.oldContent)
+          }
         } else if (info.oldContent != null) {
           await window.api.file.write(info.filePath, info.oldContent)
         }
       } catch (err) { console.error('file revert failed:', err) }
     }
 
-    await handleRevert(turn, bubbleMsgIdx)
-  }, [handleRevert, workspacePath, state.fileChangesByTurn])
+    await handleRevert(userMessageIndex)
+  }, [handleRevert, workspacePath, state.messages, state.fileChangesByTurn])
 
-  const handleFork = useCallback((turn: RevertTurnRef) => {
+  const handleFork = useCallback(async (userMessageIndex: number) => {
     if (!activeSessionId || !onForkSession) return
-    onForkSession(turn.turnIdx, turn.content, turn.lineIdx)
-  }, [activeSessionId, onForkSession])
+    const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
+    const targetContent = targetMsgIdx >= 0 ? state.messages[targetMsgIdx]?.content : undefined
+    const occurrence = targetContent ? countContentOccurrencesBefore(state.messages, targetMsgIdx, targetContent) : 0
+    onForkSession(userMessageIndex, targetContent, occurrence)
+  }, [activeSessionId, onForkSession, state.messages])
 
   // ── Todo list ──
   const todoItems = useMemo(() => deriveTodoList(state.messages), [state.messages])

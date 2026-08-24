@@ -200,8 +200,8 @@ declare global {
         searchSessions: (query: string, opts?: import('@shared/types').AiSearchOptions) => Promise<{ sessions: import('@shared/types').AiSessionSearchGroup[]; truncated?: boolean }>
         loadSessionMessagesByDir: (resumeSessionId: string, projectDir: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string; actualCwd?: string }>
         deleteSessionByDir: (sessionId: string, projectDir: string, configDir?: string) => Promise<{ success: boolean; error?: string }>
-        revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string; lineIdx?: number; content?: string; occurrence?: number }) => Promise<{ success: boolean; error?: string }>
-        fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string; lineIdx?: number; content?: string; occurrence?: number }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
+        revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) => Promise<{ success: boolean; error?: string }>
+        fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
         onMessage: (callback: (data: any) => void) => any
         removeMessageListener: (handler?: any) => void
         onStreamToken: (callback: (data: { sessionId: string; token: string }) => void) => any
@@ -2053,7 +2053,7 @@ export default function App() {
   }, [autoUtf8, splitTwins])
 
   // Fork AI conversation at a specific user message
-  const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number, content?: string, lineIdx?: number) => {
+  const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number, content?: string, occurrence?: number) => {
     try {
       const current = sessions.find(s => s.id === currentSessionId)
       if (!current) return
@@ -2063,7 +2063,7 @@ export default function App() {
         sessionId: currentSessionId,
         userMessageIndex,
         cwd: current.cwd,
-        ...(content ? { content, lineIdx } : {}),
+        ...(content ? { content, occurrence } : {}),
       })
       if (!result.success || !result.newClaudeSessionId) {
         console.error('Fork failed:', result.error)
@@ -3146,8 +3146,8 @@ export default function App() {
                           await applyRename(session.id, name)
                         }}
                         resumeSessionId={session.resumeSessionId}
-                        onForkSession={(userMessageIndex: number, content?: string, lineIdx?: number) => {
-                          handleForkSession(session.id, userMessageIndex, content, lineIdx)
+                        onForkSession={(userMessageIndex: number, content?: string, occurrence?: number) => {
+                          handleForkSession(session.id, userMessageIndex, content, occurrence)
                         }}
                         onAgentStatusChange={handleAiAgentStatusChange}
                         brushActive={brushActive}

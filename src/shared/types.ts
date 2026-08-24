@@ -474,6 +474,7 @@ export interface AiMessage {
 export const AI_FILE_EDIT_TOOLS = new Set([
   'write_file', 'edit_file', 'file_write', 'file_edit',
   'create_file', 'replace', 'insert', 'Write', 'Edit', 'NotebookEdit',
+  'delete_file', 'DeleteFile', 'file_delete', 'rm', 'Remove', 'remove',
 ])
 
 export interface AiToolUse {
@@ -674,13 +675,14 @@ export interface AiAskResumePayload {
 // Scope 'conversation' only rewinds messages; 'both' also reverts file changes via git checkout.
 export interface AiRevertPayload {
   sessionId: string
-  userMessageIndex: number   // target turn index in the real JSONL (fallback locator)
+  userMessageIndex: number   // index of the target user message among real user messages
   scope: 'conversation' | 'both'
   cwd: string
-  // Target is located against a fresh parseUserTurns of the real JSONL: lineIdx (exact line,
-  // from listUserTurns) verified by content first; content+occurrence second; raw index last.
-  // Renderer-side counts never locate the cut on their own.
-  lineIdx?: number
+  // Renderer's user-message index can drift below the JSONL turn index (injected turns like
+  // AskUserQuestion answers / plan approvals / continuation prompts never reach the live
+  // stream). When present, the main process resolves the target turn by content + occurrence
+  // instead of trusting userMessageIndex. occurrence = which occurrence of that content the
+  // user clicked (0-based, counted among renderer user messages).
   content?: string
   occurrence?: number
 }
@@ -691,7 +693,6 @@ export interface AiForkPayload {
   sessionId: string
   userMessageIndex: number
   cwd: string
-  lineIdx?: number
   content?: string
   occurrence?: number
 }

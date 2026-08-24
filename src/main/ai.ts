@@ -370,6 +370,9 @@ function isFileEditTool(toolName: string): boolean {
   return AI_FILE_EDIT_TOOLS.has(toolName)
 }
 
+// 删除类工具：回滚时按"恢复文件"处理（写回 oldContent），而非删除
+const DELETION_TOOLS = new Set(['delete_file', 'DeleteFile', 'file_delete', 'rm', 'Remove', 'remove'])
+
 // Calculate context percentage from usage token counts.
 // Claude CLI stream-json does NOT include context_window in output.
 // modelUsage block (used by newer CLI versions) has not been observed in practice.
@@ -414,14 +417,20 @@ function calcContextPercent(usage: any, contextWindow?: number): number | undefi
 
 async function extractFileChange(sessionId: string, block: any, cwd: string): Promise<void> {
   const input = block.input || {}
-  const filePath = input.file_path || input.path || input.filePath
+  // 工具字段名不统一：标准 CLI 用 file_path，部分 harness 输出 fp
+  const filePath = input.file_path || input.path || input.filePath || input.fp
   if (!filePath) return
+
+  // 删除类工具（delete_file/rm…）：AI 删除文件，回滚方需要旧内容来恢复
+  const isDeleteTool = DELETION_TOOLS.has(block.name)
 
   const absPath = isAbsolute(filePath) ? filePath : join(cwd, filePath)
   const relPath = relative(cwd, absPath)
   let oldContent: string | undefined
   try { oldContent = await readFile(absPath, 'utf-8') } catch { /* file may not exist yet */ }
-  const newContent = input.content || input.new_content || input.newContent
+  const newContent = input.new_string !== undefined
+    ? input.new_string
+    : (input.content || input.new_content || input.newContent)
 
   // turnIndex = the user turn this edit belongs to (last completed user turn), computed from
   // the live JSONL via parseUserTurns — the same single source revert uses. File edits run
@@ -445,7 +454,7 @@ async function extractFileChange(sessionId: string, block: any, cwd: string): Pr
     sessionId,
     filePath: absPath,
     relativePath: relPath,
-    action: oldContent !== undefined ? 'edit' : 'create',
+    action: isDeleteTool ? 'delete' : (oldContent !== undefined ? 'edit' : 'create'),
     content: newContent,
     oldContent,
     turnIndex,
@@ -1341,12 +1350,6 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
   const stderrChunks: string[] = []
   send(IPC_CHANNELS.AI_READY, { sessionId })
 
-  const startupTimer = setTimeout(() => {
-    if (session.lineBuffer === '' && aiSessions.has(sessionId)) {
-      console.warn(`[ai:${sessionId}] No stdout received in 8s — CLI may not support the given flags`)
-    }
-  }, 8000)
-
   proc.stdout!.on('data', (chunk: Buffer) => {
     session.lineBuffer += chunk.toString('utf-8')
     const lines = session.lineBuffer.split('\n')
@@ -1372,7 +1375,6 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
   })
 
   proc.on('error', (err) => {
-    clearTimeout(startupTimer)
     // Only handle if this is still the active process for this session
     // (a new process may have been spawned for the same sessionId via resume)
     const current = aiSessions.get(sessionId)
@@ -1385,7 +1387,6 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
   })
 
   proc.on('exit', (code, signal) => {
-    clearTimeout(startupTimer)
     // Only handle if this is still the active process for this session
     const current = aiSessions.get(sessionId)
     if (current && current.process.pid === proc.pid) {
