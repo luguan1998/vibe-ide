@@ -308,9 +308,23 @@ function HistoryCopyButton({ cmd }: { cmd: string }) {
 export default function App() {
   const { t } = useI18n()
   const [initialWorkspace] = useState(loadSessionWorkspace)
-  const initialTabs = useMemo(() => initialWorkspace?.sessions.flatMap(s => s.tabs) ?? [], [initialWorkspace])
+  // 一个 cwd 只恢复一个 terminal tab（其余丢弃），gui/dsh 不变
+  const initialTabs = useMemo(() => {
+    const all = initialWorkspace?.sessions.flatMap(s => s.tabs) ?? []
+    const seen = new Set<string>()
+    return all.filter(t => {
+      if (t.kind !== 'terminal') return true
+      const key = t.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [initialWorkspace])
   const [sessions, setSessions] = useState<SessionTab[]>(initialTabs)
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(initialWorkspace?.activeTabId ?? null)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
+    const id = initialWorkspace?.activeTabId ?? null
+    return id && initialTabs.some(t => t.id === id) ? id : (initialTabs[0]?.id ?? null)
+  })
   const [rightTerminalSessions, setRightTerminalSessions] = useState<Record<string, AuxTerminalTab[]>>({})  // 每个 session 独立的 aux terminal tabs（每 tab 含 1-3 个 terminal）
   const [activeAuxIndex, setActiveAuxIndex] = useState<Record<string, number>>({})  // 每个 session 当前 active 的 aux terminal 下标
   const [rightPanelWidth, setRightPanelWidth] = useState(380)
@@ -726,7 +740,7 @@ export default function App() {
 
   // 恢复的终端 tab 直接后台创建真实 PTY，不需要用户点击
   React.useEffect(() => {
-    const terminalTabs = initialWorkspace?.sessions.flatMap(s => s.tabs.filter(t => t.kind === 'terminal')) ?? []
+    const terminalTabs = initialTabs.filter(t => t.kind === 'terminal')
     if (terminalTabs.length === 0) return
     let cancelled = false
     void (async () => {
