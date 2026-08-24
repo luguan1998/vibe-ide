@@ -226,6 +226,7 @@ interface SessionPanelProps {
   agentStatus?: Record<string, 'running' | 'idle' | 'warn'>
   sessionWorktreeNav?: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onOpenHistoryTab?: () => void
+  boardActive?: boolean
   onResetCache?: (sessionId: string) => void
   pollingEnabled?: boolean
   onTogglePolling?: (value: boolean) => void
@@ -439,6 +440,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   agentStatus = {},
   sessionWorktreeNav = {},
   onOpenHistoryTab,
+  boardActive = false,
   onResetCache,
   pollingEnabled = false,
   onTogglePolling,
@@ -1381,9 +1383,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         <div className="group relative w-full">
           <button
             onClick={() => window.dispatchEvent(new CustomEvent(BOARD_FOCUS))}
-            className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors"
+            className={`w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border text-sm font-medium transition-colors ${boardActive
+              ? 'border-ide-accent/50 bg-ide-accent/15 text-ide-accent'
+              : 'border-transparent bg-ide-sidebar text-ide-text hover:border-ide-border hover:bg-ide-hover'}`}
           >
-            <KanbanSquare size={14} className="text-ide-text-muted" />
+            <KanbanSquare size={14} className={boardActive ? 'text-ide-accent' : 'text-ide-text-muted'} />
             {t('Task Board')}
           </button>
           <button

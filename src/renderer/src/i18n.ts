@@ -464,6 +464,8 @@ const ZH_MAP: Record<string, string> = {
   // AI Permission Modes
   'Session History': '历史会话',
   'Task Board': '任务看板',
+  'All': '全部',
+  'Filter by directory': '按目录筛选',
   // Task Board (session kanban)
   'plan': '计划',
   'idle': '空闲',

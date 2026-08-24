@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { KanbanSquare, X, Send, BookOpenText } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { KanbanSquare, X, Send, BookOpenText, ChevronDown, Filter, Check } from 'lucide-react'
 import type { SessionTab } from '../sessionRestore'
 import type { WorktreeRecord, WorktreeRecordView } from '@shared/types'
 import { useI18n } from '../i18n'
@@ -58,6 +58,18 @@ function statusOf(s: SessionTab, agentStatus: Record<string, 'running' | 'idle' 
 function pathTail(p: string): string {
   const parts = p.replace(/[\\/]+$/, '').split(/[\\/]/)
   return parts[parts.length - 1] || p
+}
+
+function midTruncatePath(path: string, maxLen: number = 28): string {
+  if (path.length <= maxLen) return path
+  const sep = path.includes('\\') ? '\\' : '/'
+  const parts = path.split(sep).filter(Boolean)
+  if (parts.length <= 2) return path
+  const root = /^[A-Z]:\\/i.test(path) ? path.slice(0, 3) : (path.startsWith('/') ? '/' : '')
+  const rest = path.slice(root.length).split(sep).filter(Boolean)
+  if (rest.length <= 2) return path
+  const last = rest.slice(-2).join(sep)
+  return root + '...' + sep + last
 }
 
 interface LiveCard {
@@ -239,6 +251,9 @@ function PlanCardView({ record, busy, openLabel, doneLabel, clearLabel, clearTit
           </span>
         )}
       </div>
+      <div className="mt-0.5 text-[10px] text-ide-text-muted/60 truncate" title={record.repoRoot}>
+        {midTruncatePath(record.repoRoot)}
+      </div>
     </div>
   )
 }
@@ -271,22 +286,36 @@ export default function BoardView({
   const [draft, setDraft] = useState('')
   const [defaultCmd, setDefaultCmd] = useState(readDefaultCmd)
   const [defaultCmdDraft, setDefaultCmdDraft] = useState(defaultCmd)
+  const [cwdFilter, setCwdFilter] = useState<string | null>(null)
+  const [cwdMenu, setCwdMenu] = useState<{ x: number; y: number } | null>(null)
+  const repoRootsRef = useRef<string[]>([])
 
   const reload = useCallback(async () => {
-    if (!workspacePath) {
+    const cwds = new Set<string>()
+    if (workspacePath) cwds.add(workspacePath)
+    for (const s of sessions) if (s.cwd) cwds.add(s.cwd)
+    for (const r of repoRootsRef.current) cwds.add(r)
+    if (cwds.size === 0) {
       setRepoRoot(null)
       setRecords([])
       return
     }
     try {
-      const res = await window.api.board.records(workspacePath)
-      setRepoRoot(res.repoRoot)
-      setRecords(res.records)
+      const repoMap = new Map<string, WorktreeRecordView[]>()
+      for (const cwd of cwds) {
+        const res = await window.api.board.records(cwd)
+        if (res.repoRoot && !repoMap.has(res.repoRoot)) {
+          repoMap.set(res.repoRoot, res.records)
+          if (!repoRootsRef.current.includes(res.repoRoot)) repoRootsRef.current.push(res.repoRoot)
+        }
+      }
+      setRepoRoot([...repoMap.keys()][0] ?? null)
+      setRecords([...repoMap.values()].flat())
     } catch {
       setRepoRoot(null)
       setRecords([])
     }
-  }, [workspacePath])
+  }, [workspacePath, sessions])
 
   useEffect(() => {
     void reload()
@@ -307,7 +336,11 @@ export default function BoardView({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (ctxMenu) {
+      if (cwdMenu) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setCwdMenu(null)
+      } else if (ctxMenu) {
         e.preventDefault()
         e.stopImmediatePropagation()
         setCtxMenu(null)
@@ -323,7 +356,7 @@ export default function BoardView({
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [ctxMenu, replyFor, finishTarget, closeOverlays, closeReply])
+  }, [cwdMenu, ctxMenu, replyFor, finishTarget, closeOverlays, closeReply])
 
   const loadReply = useCallback(async (s: SessionTab) => {
     setReplyFor(s)
@@ -401,12 +434,24 @@ export default function BoardView({
     void loadReply(s)
   }, [ctxMenu, loadReply])
 
+  const distinctCwds = useMemo(() => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const s of sessions) {
+      if (!s.cwd || seen.has(s.cwd)) continue
+      seen.add(s.cwd)
+      out.push(s.cwd)
+    }
+    return out
+  }, [sessions])
+
   const recordById = new Map(records.map(r => [r.id, r]))
   const liveIds = new Set(sessions.map(s => s.id))
   const planCards = records.filter(r => !liveIds.has(r.id))
 
   const liveByStatus: Record<CardStatus, LiveCard[]> = { running: [], idle: [], warning: [] }
   for (const s of sessions) {
+    if (cwdFilter && s.cwd !== cwdFilter) continue
     liveByStatus[statusOf(s, agentStatus)].push({ session: s, status: statusOf(s, agentStatus) })
   }
 
@@ -418,6 +463,13 @@ export default function BoardView({
     setDefaultCmd(v)
     setDefaultCmdDraft(v)
   }, [defaultCmdDraft])
+
+  const openCwdMenu = useCallback((e: ReactMouseEvent) => {
+    setCwdMenu({
+      x: Math.max(8, Math.min(e.clientX, window.innerWidth - 200)),
+      y: Math.max(8, Math.min(e.clientY, window.innerHeight - 260))
+    })
+  }, [])
 
   const quickCreate = useCallback(async () => {
     if (creating || !workspacePath || !repoRoot) return
@@ -487,7 +539,20 @@ export default function BoardView({
             </span>
           )}
         </div>
-        <span className="text-[10px] text-ide-text-muted/60 shrink-0">Ctrl+B</span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] text-ide-text-muted/60">Ctrl+B</span>
+          <button
+            onClick={(e) => openCwdMenu(e)}
+            title={cwdFilter ?? t('Filter by directory')}
+            className={`px-1.5 py-0.5 rounded-full text-[10px] border flex items-center gap-1 max-w-[150px] transition-colors ${
+              cwdFilter ? 'text-ide-accent border-ide-accent/40 bg-ide-accent/10' : 'text-ide-text-muted border-ide-border bg-ide-hover hover:text-ide-text hover:border-ide-accent/50'
+            }`}
+          >
+            <Filter size={10} className="shrink-0" />
+            <span className="truncate min-w-0">{cwdFilter ? pathTail(cwdFilter) : t('All')}</span>
+            <ChevronDown size={10} className="shrink-0 opacity-70" />
+          </button>
+        </div>
       </div>
       <div className="flex-1 flex min-h-0">
         {columns.map((col, ci) => (
@@ -600,6 +665,49 @@ export default function BoardView({
               <BookOpenText size={12} className="text-ide-text-muted shrink-0" />
               {t('View latest reply')}
             </button>
+          </div>
+        </>
+      )}
+
+      {cwdMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-[64]"
+            onMouseDown={() => setCwdMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setCwdMenu(null)
+            }}
+          />
+          <div
+            className="fixed z-[65] bg-ide-sidebar border border-ide-border rounded-md shadow-2xl py-1 min-w-[180px] max-w-[280px] max-h-[60vh] overflow-y-auto"
+            style={{ left: cwdMenu.x, top: cwdMenu.y }}
+          >
+            <button
+              onClick={() => {
+                setCwdFilter(null)
+                setCwdMenu(null)
+              }}
+              className={`w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 transition-colors ${!cwdFilter ? 'text-ide-accent' : 'text-ide-text hover:bg-ide-hover'}`}
+            >
+              <span className="w-3.5 shrink-0">{!cwdFilter && <Check size={11} />}</span>
+              <span className="truncate">{t('All')}</span>
+            </button>
+            {distinctCwds.length > 0 && <div className="border-t border-ide-border my-1" />}
+            {distinctCwds.map(cwd => (
+              <button
+                key={cwd}
+                title={cwd}
+                onClick={() => {
+                  setCwdFilter(cwd)
+                  setCwdMenu(null)
+                }}
+                className={`w-full px-3 py-1.5 text-left text-xs hover:bg-ide-hover transition-colors flex items-center gap-2 ${cwdFilter === cwd ? 'text-ide-accent' : 'text-ide-text'}`}
+              >
+                <span className="w-3.5 shrink-0">{cwdFilter === cwd && <Check size={11} />}</span>
+                <span className="truncate font-mono">{pathTail(cwd)}</span>
+              </button>
+            ))}
           </div>
         </>
       )}

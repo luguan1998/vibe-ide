@@ -2290,12 +2290,10 @@ export default function App() {
         kind: 'terminal',
         name: `▶ ${rec.title}`,
         cwd: rec.worktreePath,
-        active: true,
+        active: false,
         createdAt: Date.now(),
         loaded: true
       }])
-      setActiveSessionId(rec.id)
-      setCenterView('terminal')
       return { ok: true, record: rec }
     } catch (e: any) {
       console.warn('[board] create failed:', e?.message)
@@ -2327,9 +2325,8 @@ export default function App() {
 
   const handleBoardFinishRecord = useCallback(async (rec: WorktreeRecord): Promise<boolean> => {
     await handleCloseSession(rec.id)
-    if (!activeSessionCwd) return false
     try {
-      const res = await window.api.board.finish(activeSessionCwd, rec.id)
+      const res = await window.api.board.finish(rec.repoRoot, rec.id)
       if (res?.error) {
         console.warn('[board] finish:', res.error)
         return false
@@ -2339,16 +2336,15 @@ export default function App() {
       console.warn('[board] finish failed:', e?.message)
       return false
     }
-  }, [handleCloseSession, activeSessionCwd])
+  }, [handleCloseSession])
 
   const handleBoardClearRecord = useCallback(async (rec: WorktreeRecord) => {
-    if (!activeSessionCwd) return
     try {
-      await window.api.board.clear(activeSessionCwd, rec.id)
+      await window.api.board.clear(rec.repoRoot, rec.id)
     } catch (e: any) {
       console.warn('[board] clear failed:', e?.message)
     }
-  }, [activeSessionCwd])
+  }, [])
 
   const handleReorderSessions = useCallback((fromIndex: number, toIndex: number) => {
     setSessions(prev => {
@@ -2999,6 +2995,7 @@ export default function App() {
             onCloneWithInit={handleCloneWithInit}
             onNewSessionHere={handleNewSessionHere}
             onOpenHistoryTab={handleOpenHistoryTab}
+            boardActive={centerView === 'board'}
             recentFiles={recentFiles}
             onOpenRecentFile={handleOpenRecentFile}
             onRemoveRecentFile={removeRecentFile}
