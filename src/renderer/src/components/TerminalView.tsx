@@ -58,6 +58,7 @@ export interface TerminalViewHandle {
   focus: () => void
   clearBuffer: () => void
   appendText: (text: string) => void
+  readTail: (maxLines?: number) => string[]
 }
 
 
@@ -510,6 +511,17 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       const line = buf.getLine(buf.cursorY)?.translateToString(true) ?? ''
       const sep = line.trim() ? '; ' : ''
       term.paste(sep + text)
+    },
+    readTail: (maxLines: number = 40) => {
+      const term = xtermRef.current
+      if (!term) return []
+      const buf = term.buffer.active.type === 'alternate' ? term.buffer.normal : term.buffer.active
+      const count = Math.min(maxLines, buf.length)
+      const lines: string[] = []
+      for (let i = buf.length - count; i < buf.length; i++) {
+        lines.push(buf.getLine(i)?.translateToString(true) ?? '')
+      }
+      return lines
     }
   }), [])
 

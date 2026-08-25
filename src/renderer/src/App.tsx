@@ -1900,8 +1900,8 @@ export default function App() {
     setDiffFile(null)
   }, [])
 
-  const createTermSession = useCallback(async (cwd: string, shell: string = getMainShellType()) => {
-    const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: readDefaultAgent() })
+  const createTermSession = useCallback(async (cwd: string, shell: string = getMainShellType(), initOverride?: string) => {
+    const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: initOverride ?? readDefaultAgent() })
     const tab: SessionTab = { ...session, kind: 'terminal', loaded: true }
     addSessionRecord(tab)
     return session
@@ -2293,16 +2293,17 @@ export default function App() {
     setCenterView('terminal')
   }, [])
 
-  const handleBoardCreate = useCallback(async (title: string, launchCommand?: string): Promise<{ ok: boolean; record?: WorktreeRecord; error?: string }> => {
-    if (!activeSessionCwd) return { ok: false, error: '无活动工作区' }
+  const handleBoardCreate = useCallback(async (title: string, launchCommand?: string, createCwd?: string | null): Promise<{ ok: boolean; record?: WorktreeRecord; error?: string }> => {
+    const targetCwd = createCwd || activeSessionCwd
+    if (!targetCwd) return { ok: false, error: '无活动工作区' }
     try {
-      const res = await window.api.board.create({ workspacePath: activeSessionCwd, title, launchCommand })
+      const res = await window.api.board.create({ workspacePath: targetCwd, title, launchCommand })
       if (!res.ok || !res.record) return { ok: false, error: res.error ?? '创建失败' }
       const rec = res.record
       setSessions(prev => prev.some(s => s.id === rec.id) ? prev : [...prev, {
         id: rec.id,
         kind: 'terminal',
-        name: `▶ ${rec.title}`,
+        name: rec.title,
         cwd: rec.worktreePath,
         active: false,
         createdAt: Date.now(),
@@ -2318,7 +2319,7 @@ export default function App() {
   const handleBoardOpenRecord = useCallback(async (rec: WorktreeRecord) => {
     if (!sessionsRef.current.some(s => s.id === rec.id)) {
       try {
-        await window.api.terminal.create({ id: rec.id, cwd: rec.worktreePath, name: `▶ ${rec.title}`, initCommand: rec.launchCommand })
+        await window.api.terminal.create({ id: rec.id, cwd: rec.worktreePath, name: rec.title, initCommand: rec.launchCommand })
       } catch (e: any) {
         console.warn('[board] open terminal failed:', e?.message)
         return
@@ -2326,7 +2327,7 @@ export default function App() {
       setSessions(prev => prev.some(s => s.id === rec.id) ? prev : [...prev, {
         id: rec.id,
         kind: 'terminal',
-        name: `▶ ${rec.title}`,
+        name: rec.title,
         cwd: rec.worktreePath,
         active: true,
         createdAt: Date.now(),
@@ -2358,6 +2359,19 @@ export default function App() {
     } catch (e: any) {
       console.warn('[board] clear failed:', e?.message)
     }
+  }, [])
+
+  const handleBoardCreatePlain = useCallback(async (cwd: string, launchCommand?: string) => {
+    try {
+      return await createTermSession(cwd, undefined, launchCommand)
+    } catch (e: any) {
+      console.warn('[board] create plain session failed:', e?.message)
+      return null
+    }
+  }, [createTermSession])
+
+  const handleReadTerminalTail = useCallback((sessionId: string, maxLines?: number): string[] => {
+    return terminalRefs.current[sessionId]?.readTail(maxLines ?? 200) ?? []
   }, [])
 
   const handleReorderSessions = useCallback((fromIndex: number, toIndex: number) => {
@@ -3204,13 +3218,16 @@ export default function App() {
               sessions={sessions}
               agentStatus={agentStatus}
               activeSessionId={centerView === 'board' ? null : activeSessionId}
-              onFocusSession={handleBoardFocusSession}
               onCreateRecord={handleBoardCreate}
+              onFocusSession={handleBoardFocusSession}
               onOpenRecord={handleBoardOpenRecord}
               onExecuteFinish={handleBoardFinishRecord}
               onClearRecord={handleBoardClearRecord}
               onSendToSession={handlePipeToSession}
               onAcknowledgeWarn={handleBoardClearWarn}
+              onCreatePlainSession={handleBoardCreatePlain}
+              onReadSessionTail={handleReadTerminalTail}
+              onCloseSession={handleCloseSession}
             />
           </div>
           {/* Drag-over overlay for file compare */}

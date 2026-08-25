@@ -93,6 +93,22 @@ html, body, #root {
   background: transparent;
 }
 
+/* reply popover: scrollbar 仅 hover 显示（含内层 markdown 代码块等横向滚动条） */
+#root .board-reply-scroll::-webkit-scrollbar,
+#root .board-reply-scroll *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+#root .board-reply-scroll::-webkit-scrollbar-thumb,
+#root .board-reply-scroll *::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+#root .board-reply-scroll:hover::-webkit-scrollbar-thumb,
+#root .board-reply-scroll:hover *::-webkit-scrollbar-thumb {
+  background: rgb(var(--scrollbar-thumb));
+}
+
 /* xterm overrides */
 .term-view__canvas {
   background-color: rgb(var(--term-bg, var(--ide-bg)));

@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { KanbanSquare, X, Send, BookOpenText, ChevronDown, Filter, Check } from 'lucide-react'
+import { KanbanSquare, X, Send, CornerDownLeft, ChevronDown, Filter, Check, Folder, ArrowUp } from 'lucide-react'
 import type { SessionTab } from '../sessionRestore'
 import type { WorktreeRecord, WorktreeRecordView } from '@shared/types'
 import { useI18n } from '../i18n'
 import { aiStore } from '../aiStore'
 import { getDshApi } from '../dsh/history'
 import { ChatMarkdown } from './AiTab'
+import { ToolIcon } from './AiTab/tools'
+import { ClaudeLogoIcon } from './ClaudeLogoIcon'
+import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 
 export const BOARD_FOCUS = 'board-focus'
 
 const BOARD_DEFAULT_CMD_KEY = 'vibe-ide-board-default-cmd'
+const BOARD_TRUNCATE_KEY = 'vibe-ide-board-truncate'
+const BOARD_FILTER_KEY = 'vibe-ide-board-cwd-exclude'
 
 function readDefaultCmd(): string {
   try {
@@ -19,14 +24,42 @@ function readDefaultCmd(): string {
   }
 }
 
+function readTruncate(): string {
+  try {
+    return localStorage.getItem(BOARD_TRUNCATE_KEY) ?? '✻|❯'
+  } catch {
+    return '✻|❯'
+  }
+}
+
+// 纯横线装饰行渲染收缩为固定默认宽度，避免超长横向滚动
+function shortenHrLines(text: string): string {
+  return text.split('\n').map(line => line.replace(/^\s*([─═━]+)\s*$/, (_, s: string) => s.slice(0, 74))).join('\n')
+}
+
+// 截断规则：按正则解析（m 多行模式，取最后一个匹配处截断；^ 匹配每行行首），正则非法则退化为字面量字符串匹配
+function truncateReply(text: string, marker: string): string | null {
+  const src = text || ''
+  if (!marker) return src || null
+  let idx = -1
+  try {
+    const re = new RegExp(marker, 'gm')
+    let m: RegExpExecArray | null
+    let lastIdx = -1
+    while ((m = re.exec(src))) {
+      lastIdx = m.index
+      if (m[0].length === 0) re.lastIndex++
+    }
+    idx = lastIdx
+  } catch {
+    idx = src.lastIndexOf(marker)
+  }
+  if (idx < 0) return src || null
+  return src.slice(0, idx)
+}
+
 type CardStatus = 'running' | 'idle' | 'warning'
 type SourceKind = SessionTab['kind']
-
-const SOURCE_LABEL: Record<SourceKind, string> = {
-  terminal: 'term',
-  gui: 'aitab',
-  dsh: 'dsh'
-}
 
 export interface BoardCreateResult {
   ok: boolean
@@ -39,13 +72,16 @@ interface BoardViewProps {
   sessions: SessionTab[]
   agentStatus: Record<string, 'running' | 'idle' | 'warn'>
   activeSessionId: string | null
-  onCreateRecord: (title: string, launchCommand?: string) => Promise<BoardCreateResult>
+  onCreateRecord: (title: string, launchCommand?: string, cwd?: string | null) => Promise<BoardCreateResult>
   onFocusSession: (sessionId: string) => void
+  onCloseSession: (sessionId: string) => void
   onOpenRecord: (record: WorktreeRecord) => Promise<void> | void
   onExecuteFinish: (record: WorktreeRecord) => Promise<boolean>
   onClearRecord: (record: WorktreeRecord) => Promise<void>
   onSendToSession: (sessionId: string, text: string) => void
   onAcknowledgeWarn: (sessionId: string) => void
+  onCreatePlainSession: (cwd: string, launchCommand?: string) => Promise<{ id: string } | null>
+  onReadSessionTail: (sessionId: string, maxLines?: number) => string[]
 }
 
 function statusOf(s: SessionTab, agentStatus: Record<string, 'running' | 'idle' | 'warn'>): CardStatus {
@@ -53,6 +89,10 @@ function statusOf(s: SessionTab, agentStatus: Record<string, 'running' | 'idle' 
   if (st === 'running') return 'running'
   if (st === 'warn') return 'warning'
   return 'idle'
+}
+
+function stripTaskMark(name: string): string {
+  return name.replace(/^\s*▶\s*/, '')
 }
 
 function pathTail(p: string): string {
@@ -77,34 +117,27 @@ interface LiveCard {
   status: CardStatus
 }
 
-function StatusDot({ status }: { status: CardStatus }) {
+function TypeIcon({ kind, status }: { kind: SourceKind; status: CardStatus }) {
   const cls =
     status === 'running'
-      ? 'bg-ide-accent animate-pulse'
+      ? 'text-ide-accent animate-pulse'
       : status === 'warning'
-        ? 'bg-ide-warning'
-        : 'bg-ide-border'
-  return <span className={`w-2 h-2 rounded-full shrink-0 ${cls}`} />
-}
-
-function SourceBadge({ kind }: { kind: SourceKind }) {
-  const cls =
-    kind === 'gui'
-      ? 'text-ide-accent border-ide-accent/40'
-      : kind === 'dsh'
-        ? 'text-ide-success border-ide-success/40'
-        : 'text-ide-text-muted border-ide-border'
-  return (
-    <span className={`px-1 py-0.5 rounded border text-[10px] leading-none shrink-0 ${cls}`}>
-      {SOURCE_LABEL[kind]}
-    </span>
+        ? 'text-ide-warning'
+        : 'text-ide-text-muted'
+  return kind === 'terminal' ? (
+    <ToolIcon category="command" className="text-ide-accent" />
+  ) : kind === 'gui' ? (
+    <ClaudeLogoIcon size={14} className={`shrink-0 ${cls}`} />
+  ) : (
+    <DeepSeekLogoIcon size={14} className={`shrink-0 ${cls}`} />
   )
 }
 
 const FINISH_BTN_CLS =
   'px-1.5 py-0.5 rounded text-[10px] text-ide-text-muted hover:text-ide-danger hover:border-ide-danger/50 border border-transparent transition-colors shrink-0'
 
-const REPLY_W = 460
+const REPLY_W = 640
+const REPLY_H = 560
 
 interface ReplyBox {
   left: number
@@ -120,7 +153,7 @@ function computeReplyBox(cardRect: DOMRect): ReplyBox {
   const vh = window.innerHeight
   const margin = 8
   const width = Math.min(REPLY_W, vw - margin * 2)
-  const height = Math.min(460, Math.max(280, vh - margin * 2))
+  const height = Math.min(REPLY_H, Math.max(280, vh - margin * 2))
   const centerX = cardRect.left + cardRect.width / 2
   let left = centerX >= vw / 2 ? cardRect.left - width - margin : cardRect.right + margin
   if (left < margin) left = cardRect.right + margin
@@ -136,19 +169,19 @@ interface LiveCardProps {
   active: boolean
   finishable: WorktreeRecord | null
   finishLabel: string
-  onFocus: () => void
+  onReply: (e: ReactMouseEvent | React.KeyboardEvent<HTMLDivElement>) => void
   onFinish: (record: WorktreeRecord) => void
   onContextMenu: (e: ReactMouseEvent) => void
 }
 
-function LiveCardView({ card, active, finishable, finishLabel, onFocus, onFinish, onContextMenu }: LiveCardProps) {
+function LiveCardView({ card, active, finishable, finishLabel, onReply, onFinish, onContextMenu }: LiveCardProps) {
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={onFocus}
+      onClick={onReply}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') onFocus()
+        if (e.key === 'Enter') onReply(e)
       }}
       onContextMenu={onContextMenu}
       className={`w-full text-left px-2.5 py-2 rounded-lg border bg-ide-sidebar hover:bg-ide-hover transition-colors cursor-pointer select-none ${
@@ -156,9 +189,8 @@ function LiveCardView({ card, active, finishable, finishLabel, onFocus, onFinish
       }`}
     >
       <div className="flex items-center gap-1.5 min-w-0">
-        <StatusDot status={card.status} />
-        <span className="text-xs text-ide-text truncate flex-1">{card.session.name}</span>
-        <SourceBadge kind={card.session.kind} />
+        <TypeIcon kind={card.session.kind} status={card.status} />
+        <span className="text-xs text-ide-text truncate flex-1">{stripTaskMark(card.session.name)}</span>
       </div>
       <div className="flex items-center gap-1 mt-1">
         <span className="text-[10px] text-ide-text-muted truncate flex-1" title={card.session.cwd}>
@@ -265,16 +297,20 @@ export default function BoardView({
   activeSessionId,
   onCreateRecord,
   onFocusSession,
+  onCloseSession,
   onOpenRecord,
   onExecuteFinish,
   onClearRecord,
   onSendToSession,
-  onAcknowledgeWarn
+  onAcknowledgeWarn,
+  onCreatePlainSession,
+  onReadSessionTail
 }: BoardViewProps) {
   const { t } = useI18n()
   const [records, setRecords] = useState<WorktreeRecordView[]>([])
   const [repoRoot, setRepoRoot] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [creatingPlain, setCreatingPlain] = useState(false)
   const [finishTarget, setFinishTarget] = useState<WorktreeRecord | null>(null)
   const [finishing, setFinishing] = useState(false)
   const [finishError, setFinishError] = useState<string | null>(null)
@@ -283,12 +319,47 @@ export default function BoardView({
   const [replyBox, setReplyBox] = useState<ReplyBox | null>(null)
   const [replyText, setReplyText] = useState<string | null>(null)
   const [replyLoading, setReplyLoading] = useState(false)
+  const [tailDepth, setTailDepth] = useState(60)
+  const [showLoadMore, setShowLoadMore] = useState(true)
+
+  const loadTailMore = useCallback((s: SessionTab) => {
+    const next = tailDepth + 60
+    setTailDepth(next)
+    const text = onReadSessionTail(s.id, next).join('\n').slice(-12000)
+    setReplyText(shortenHrLines(truncateReply(text, readTruncate())))
+  }, [onReadSessionTail, tailDepth])
   const [draft, setDraft] = useState('')
+  const [truncate, setTruncate] = useState(readTruncate)
   const [defaultCmd, setDefaultCmd] = useState(readDefaultCmd)
   const [defaultCmdDraft, setDefaultCmdDraft] = useState(defaultCmd)
-  const [cwdFilter, setCwdFilter] = useState<string | null>(null)
+  const [excludedCwds, setExcludedCwds] = useState<string[]>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(BOARD_FILTER_KEY) || '[]')
+      return Array.isArray(v) ? v.filter((x: any) => typeof x === 'string') : []
+    } catch {
+      return []
+    }
+  })
+  const toggleExcludeCwd = useCallback((cwd: string) => {
+    setExcludedCwds(prev => {
+      const next = prev.includes(cwd) ? prev.filter(c => c !== cwd) : [...prev, cwd]
+      try { localStorage.setItem(BOARD_FILTER_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }, [])
+  const clearExcludedCwds = useCallback(() => {
+    setExcludedCwds([])
+    try { localStorage.setItem(BOARD_FILTER_KEY, '[]') } catch {}
+  }, [])
   const [cwdMenu, setCwdMenu] = useState<{ x: number; y: number } | null>(null)
+  const [createCwd, setCreateCwd] = useState<string | null>(workspacePath)
+  const [createDirMenu, setCreateDirMenu] = useState<{ x: number; y: number } | null>(null)
+  const createCwdManualRef = useRef(false)
   const repoRootsRef = useRef<string[]>([])
+
+  useEffect(() => {
+    if (!createCwdManualRef.current) setCreateCwd(workspacePath)
+  }, [workspacePath])
 
   const reload = useCallback(async () => {
     const cwds = new Set<string>()
@@ -327,11 +398,30 @@ export default function BoardView({
   }, [])
 
   const closeReply = useCallback(() => {
+    const sid = replyFor?.id
     setReplyFor(null)
     setReplyBox(null)
     setReplyText(null)
     setDraft('')
-  }, [])
+    if (sid) onAcknowledgeWarn(sid)
+  }, [replyFor, onAcknowledgeWarn])
+
+  const replyTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (replyFor) replyTextareaRef.current?.focus()
+  }, [replyFor])
+
+  useEffect(() => {
+    if (!replyFor) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t?.closest?.('[data-reply-box]')) return
+      closeReply()
+    }
+    window.addEventListener('mousedown', onDown, true)
+    return () => window.removeEventListener('mousedown', onDown, true)
+  }, [replyFor, closeReply])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -340,6 +430,10 @@ export default function BoardView({
         e.preventDefault()
         e.stopImmediatePropagation()
         setCwdMenu(null)
+      } else if (createDirMenu) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setCreateDirMenu(null)
       } else if (ctxMenu) {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -356,13 +450,13 @@ export default function BoardView({
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [cwdMenu, ctxMenu, replyFor, finishTarget, closeOverlays, closeReply])
+  }, [cwdMenu, createDirMenu, ctxMenu, replyFor, finishTarget, closeOverlays, closeReply])
 
   const loadReply = useCallback(async (s: SessionTab) => {
     setReplyFor(s)
-    onAcknowledgeWarn(s.id)
     setReplyLoading(true)
     setReplyText(null)
+    setShowLoadMore(true)
     try {
       if (s.kind === 'gui') {
         const msgs = aiStore.getSessionState(s.id).messages ?? []
@@ -386,6 +480,11 @@ export default function BoardView({
           }
         }
         setReplyText(text)
+        return
+      }
+      if (s.kind === 'terminal') {
+        const text = onReadSessionTail(s.id, 60).join('\n').slice(-12000)
+        setReplyText(shortenHrLines(truncateReply(text, readTruncate())))
         return
       }
       if (s.kind === 'dsh') {
@@ -417,22 +516,15 @@ export default function BoardView({
     } finally {
       setReplyLoading(false)
     }
-  }, [onAcknowledgeWarn])
+  }, [onReadSessionTail])
 
   const sendDraft = useCallback(() => {
     const text = draft.trim()
     if (!text || !replyFor) return
     onSendToSession(replyFor.id, text)
     setDraft('')
-  }, [draft, replyFor, onSendToSession])
-
-  const openReplyFromMenu = useCallback(() => {
-    if (!ctxMenu) return
-    const s = ctxMenu.session
-    setReplyBox(computeReplyBox(ctxMenu.cardRect))
-    setCtxMenu(null)
-    void loadReply(s)
-  }, [ctxMenu, loadReply])
+    closeReply()
+  }, [draft, replyFor, onSendToSession, closeReply])
 
   const distinctCwds = useMemo(() => {
     const seen = new Set<string>()
@@ -445,13 +537,18 @@ export default function BoardView({
     return out
   }, [sessions])
 
+  const createDirOptions = useMemo(() => {
+    if (workspacePath && !distinctCwds.includes(workspacePath)) return [workspacePath, ...distinctCwds]
+    return distinctCwds
+  }, [workspacePath, distinctCwds])
+
   const recordById = new Map(records.map(r => [r.id, r]))
   const liveIds = new Set(sessions.map(s => s.id))
   const planCards = records.filter(r => !liveIds.has(r.id))
 
   const liveByStatus: Record<CardStatus, LiveCard[]> = { running: [], idle: [], warning: [] }
   for (const s of sessions) {
-    if (cwdFilter && s.cwd !== cwdFilter) continue
+    if (excludedCwds.includes(s.cwd)) continue
     liveByStatus[statusOf(s, agentStatus)].push({ session: s, status: statusOf(s, agentStatus) })
   }
 
@@ -471,16 +568,39 @@ export default function BoardView({
     })
   }, [])
 
+  const openCreateDirMenu = useCallback((e: ReactMouseEvent) => {
+    setCreateDirMenu({
+      x: Math.max(8, Math.min(e.clientX, window.innerWidth - 200)),
+      y: Math.max(8, Math.min(e.clientY, window.innerHeight - 260))
+    })
+  }, [])
+
+  const pickCreateDir = useCallback((cwd: string) => {
+    setCreateCwd(cwd)
+    createCwdManualRef.current = true
+    setCreateDirMenu(null)
+  }, [])
+
   const quickCreate = useCallback(async () => {
-    if (creating || !workspacePath || !repoRoot) return
+    if (creating || !createCwd || !repoRoot) return
     setCreating(true)
     try {
-      await onCreateRecord('', defaultCmd)
+      await onCreateRecord('', defaultCmd, createCwd)
       await reload()
     } finally {
       setCreating(false)
     }
-  }, [creating, workspacePath, repoRoot, onCreateRecord, reload, defaultCmd])
+  }, [creating, createCwd, repoRoot, onCreateRecord, reload, defaultCmd])
+
+  const quickCreatePlain = useCallback(async () => {
+    if (creatingPlain || !createCwd) return
+    setCreatingPlain(true)
+    try {
+      await onCreatePlainSession(createCwd, defaultCmd)
+    } finally {
+      setCreatingPlain(false)
+    }
+  }, [creatingPlain, createCwd, defaultCmd, onCreatePlainSession])
 
   const confirmFinish = useCallback(async () => {
     if (!finishTarget || finishing) return
@@ -533,24 +653,16 @@ export default function BoardView({
         <div className="flex items-center gap-1.5 min-w-0">
           <KanbanSquare size={13} className="text-ide-accent shrink-0" />
           <span className="text-xs font-medium text-ide-text">{t('Task Board')}</span>
-          {repoRoot && (
-            <span className="px-1.5 py-0.5 rounded-full bg-ide-hover text-[10px] text-ide-text-muted truncate max-w-[220px]" title={repoRoot}>
-              {pathTail(repoRoot)}
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] text-ide-text-muted/60">Ctrl+B</span>
           <button
             onClick={(e) => openCwdMenu(e)}
-            title={cwdFilter ?? t('Filter by directory')}
-            className={`px-1.5 py-0.5 rounded-full text-[10px] border flex items-center gap-1 max-w-[150px] transition-colors ${
-              cwdFilter ? 'text-ide-accent border-ide-accent/40 bg-ide-accent/10' : 'text-ide-text-muted border-ide-border bg-ide-hover hover:text-ide-text hover:border-ide-accent/50'
+            title={t('Filter by directory')}
+            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+              excludedCwds.length ? 'text-ide-accent hover:bg-ide-accent/15' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
             }`}
           >
-            <Filter size={10} className="shrink-0" />
-            <span className="truncate min-w-0">{cwdFilter ? pathTail(cwdFilter) : t('All')}</span>
-            <ChevronDown size={10} className="shrink-0 opacity-70" />
+            <Filter size={15} className="shrink-0" />
           </button>
         </div>
       </div>
@@ -560,6 +672,20 @@ export default function BoardView({
             <div className="h-7 px-3 flex items-center gap-1.5 border-b border-ide-border shrink-0">
               <span className="text-xs font-medium text-ide-text-muted">{col.label}</span>
               <span className="text-[10px] px-1 rounded-full bg-ide-hover text-ide-text-muted">{col.count}</span>
+              {col.key === 'plan' && repoRoot && createCwd && (
+                <>
+                  <div className="flex-1" />
+                  <button
+                    onClick={(e) => openCreateDirMenu(e)}
+                    title={createCwd}
+                    className="px-1.5 py-0.5 rounded-full text-[10px] border flex items-center gap-1 max-w-[150px] text-ide-text-muted border-ide-border bg-ide-hover transition-colors hover:text-ide-text hover:border-ide-accent/50"
+                  >
+                    <Folder size={10} className="shrink-0" />
+                    <span className="truncate min-w-0">{pathTail(createCwd)}</span>
+                    <ChevronDown size={10} className="shrink-0 opacity-70" />
+                  </button>
+                </>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
               {col.key === 'plan' && (
@@ -590,11 +716,19 @@ export default function BoardView({
                   )}
                   <button
                     onClick={() => void quickCreate()}
-                    disabled={!workspacePath || !repoRoot || creating}
-                    title={!workspacePath ? t('No active workspace') : repoRoot === null ? t('Not a git repo — worktree unavailable') : t('New worktree session')}
+                    disabled={!createCwd || !repoRoot || creating}
+                    title={!createCwd ? t('No active workspace') : repoRoot === null ? t('Not a git repo — worktree unavailable') : t('New worktree session')}
                     className="w-full py-1.5 rounded-lg border border-dashed border-ide-border text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
-                    {creating ? t('Creating...') : `+ ${t('Create')}`}
+                    {creating ? t('Creating...') : `+ ${t('New worktree session')}`}
+                  </button>
+                  <button
+                    onClick={() => void quickCreatePlain()}
+                    disabled={!createCwd || creatingPlain}
+                    title={!createCwd ? t('No active workspace') : t('New terminal session')}
+                    className="w-full py-1.5 rounded-lg border border-dashed border-ide-border text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    {creatingPlain ? t('Creating...') : `+ ${t('New terminal')}`}
                   </button>
                 </>
               )}
@@ -609,7 +743,10 @@ export default function BoardView({
                       active={card.session.id === activeSessionId}
                       finishable={recordById.get(card.session.id) ?? null}
                       finishLabel={t('Finish & clean worktree / branch')}
-                      onFocus={() => onFocusSession(card.session.id)}
+                      onReply={(e) => {
+                        setReplyBox(computeReplyBox((e.currentTarget as HTMLElement).getBoundingClientRect()))
+                        void loadReply(card.session)
+                      }}
                       onFinish={setFinishTarget}
                       onContextMenu={(e) => {
                         e.preventDefault()
@@ -625,19 +762,35 @@ export default function BoardView({
                 ))}
             </div>
             {col.key === 'plan' && (
-              <div className="shrink-0 border-t border-ide-border px-2 py-1.5 flex items-center gap-1.5 bg-ide-sidebar/50">
-                <span className="text-[10px] text-ide-text-muted shrink-0">{t('Default launch')}</span>
-                <input
-                  value={defaultCmdDraft}
-                  onChange={e => setDefaultCmdDraft(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') e.currentTarget.blur()
-                  }}
-                  onBlur={saveDefaultCmd}
-                  placeholder="claude"
-                  title={t('Prefilled when creating a task')}
-                  className="flex-1 min-w-0 px-1.5 py-0.5 text-[11px] font-mono bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
-                />
+              <div className="shrink-0 border-t border-ide-border px-2 py-1.5 flex flex-col gap-1.5 bg-ide-sidebar/50">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-ide-text-muted shrink-0">{t('Default launch')}</span>
+                  <input
+                    value={defaultCmdDraft}
+                    onChange={e => setDefaultCmdDraft(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') e.currentTarget.blur()
+                    }}
+                    onBlur={saveDefaultCmd}
+                    placeholder="claude"
+                    title={t('Prefilled when creating a task')}
+                    className="flex-1 min-w-0 px-1.5 py-0.5 text-[11px] font-mono bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-ide-text-muted shrink-0">{t('Truncate')}</span>
+                  <input
+                    value={truncate}
+                    onChange={(e) => {
+                      setTruncate(e.target.value)
+                      try { localStorage.setItem(BOARD_TRUNCATE_KEY, e.target.value) } catch {}
+                    }}
+                    placeholder="✻|❯"
+                    maxLength={16}
+                    title={t('Hide chars after this marker (claude status bar). Empty to disable.')}
+                    className="flex-1 min-w-0 px-1.5 py-0.5 text-[11px] font-mono bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -660,10 +813,25 @@ export default function BoardView({
           >
             <button
               className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover flex items-center gap-2 transition-colors"
-              onClick={openReplyFromMenu}
+              onClick={() => {
+                const id = ctxMenu.session.id
+                setCtxMenu(null)
+                onFocusSession(id)
+              }}
             >
-              <BookOpenText size={12} className="text-ide-text-muted shrink-0" />
-              {t('View latest reply')}
+              <CornerDownLeft size={12} className="text-ide-text-muted shrink-0" />
+              {t('Switch to session')}
+            </button>
+            <button
+              className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover flex items-center gap-2 transition-colors"
+              onClick={() => {
+                const id = ctxMenu.session.id
+                setCtxMenu(null)
+                onCloseSession(id)
+              }}
+            >
+              <X size={12} className="text-ide-text-muted shrink-0" />
+              {t('Close')}
             </button>
           </div>
         </>
@@ -680,31 +848,63 @@ export default function BoardView({
             }}
           />
           <div
-            className="fixed z-[65] bg-ide-sidebar border border-ide-border rounded-md shadow-2xl py-1 min-w-[180px] max-w-[280px] max-h-[60vh] overflow-y-auto"
+            className="fixed z-[65] bg-ide-sidebar border border-ide-border rounded-md shadow-2xl py-1 min-w-[200px] max-w-[300px] max-h-[60vh] overflow-y-auto"
             style={{ left: cwdMenu.x, top: cwdMenu.y }}
           >
             <button
               onClick={() => {
-                setCwdFilter(null)
+                clearExcludedCwds()
                 setCwdMenu(null)
               }}
-              className={`w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 transition-colors ${!cwdFilter ? 'text-ide-accent' : 'text-ide-text hover:bg-ide-hover'}`}
+              className={`w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 transition-colors ${excludedCwds.length === 0 ? 'text-ide-accent' : 'text-ide-text hover:bg-ide-hover'}`}
             >
-              <span className="w-3.5 shrink-0">{!cwdFilter && <Check size={11} />}</span>
+              <span className="w-3.5 shrink-0">{excludedCwds.length === 0 && <Check size={11} />}</span>
               <span className="truncate">{t('All')}</span>
             </button>
             {distinctCwds.length > 0 && <div className="border-t border-ide-border my-1" />}
             {distinctCwds.map(cwd => (
+              <div
+                key={cwd}
+                title={cwd}
+                onClick={() => toggleExcludeCwd(cwd)}
+                className={`w-full px-3 py-1.5 text-left text-xs cursor-pointer hover:bg-ide-hover transition-colors flex items-center gap-2 ${excludedCwds.includes(cwd) ? 'text-ide-text-muted' : 'text-ide-text'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={!excludedCwds.includes(cwd)}
+                  readOnly
+                  onChange={() => {}}
+                  className="accent-ide-accent shrink-0 pointer-events-none"
+                />
+                <span className="truncate font-mono">{pathTail(cwd)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {createDirMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-[64]"
+            onMouseDown={() => setCreateDirMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setCreateDirMenu(null)
+            }}
+          />
+          <div
+            className="fixed z-[65] bg-ide-sidebar border border-ide-border rounded-md shadow-2xl py-1 min-w-[180px] max-w-[280px] max-h-[60vh] overflow-y-auto"
+            style={{ left: createDirMenu.x, top: createDirMenu.y }}
+          >
+            {createDirOptions.map(cwd => (
               <button
                 key={cwd}
                 title={cwd}
-                onClick={() => {
-                  setCwdFilter(cwd)
-                  setCwdMenu(null)
-                }}
-                className={`w-full px-3 py-1.5 text-left text-xs hover:bg-ide-hover transition-colors flex items-center gap-2 ${cwdFilter === cwd ? 'text-ide-accent' : 'text-ide-text'}`}
+                onClick={() => pickCreateDir(cwd)}
+                className={`w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 transition-colors ${createCwd === cwd ? 'text-ide-accent' : 'text-ide-text hover:bg-ide-hover'}`}
               >
-                <span className="w-3.5 shrink-0">{cwdFilter === cwd && <Check size={11} />}</span>
+                <span className="w-3.5 shrink-0">{createCwd === cwd && <Check size={11} />}</span>
                 <span className="truncate font-mono">{pathTail(cwd)}</span>
               </button>
             ))}
@@ -714,50 +914,69 @@ export default function BoardView({
 
       {replyFor && replyBox && (
         <div
+          data-reply-box
           className="fixed z-[66] flex flex-col rounded-xl border border-ide-border bg-ide-sidebar shadow-2xl overflow-hidden"
           style={{ left: replyBox.left, top: replyBox.top, width: replyBox.width, height: replyBox.height }}
         >
           <div className="h-9 px-3 flex items-center gap-1.5 border-b border-ide-border shrink-0">
-            <StatusDot status={statusOf(replyFor, agentStatus)} />
-            <span className="text-xs text-ide-text truncate flex-1" title={replyFor.name}>{replyFor.name}</span>
-            <SourceBadge kind={replyFor.kind} />
+            <TypeIcon kind={replyFor.kind} status={statusOf(replyFor, agentStatus)} />
+            <span className="text-xs text-ide-text truncate flex-1" title={replyFor.name}>{stripTaskMark(replyFor.name)}</span>
             <button
-              onClick={closeReply}
-              className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+              onClick={() => {
+                closeReply()
+                onFocusSession(replyFor.id)
+              }}
+              title={t('Switch to session')}
+              className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-hover transition-colors"
             >
-              <X size={13} />
+              <CornerDownLeft size={13} />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-3 min-h-0">
+          {replyFor.kind === 'terminal' && showLoadMore && (
+            <div className="shrink-0 px-3 pt-1.5 flex justify-center">
+              <button
+                onClick={() => loadTailMore(replyFor)}
+                title={t('Load earlier terminal output')}
+                className="flex items-center gap-1.5 text-xs text-ide-text-muted hover:text-ide-text px-2.5 py-1 rounded hover:bg-ide-hover transition-colors"
+              >
+                <ArrowUp size={12} />
+                {t('Load more')}
+              </button>
+            </div>
+          )}
+          <div
+            className="flex-1 overflow-y-auto p-3 min-h-0 board-reply-scroll"
+            onScroll={(e) => setShowLoadMore(e.currentTarget.scrollTop <= 0)}
+          >
             {replyLoading ? (
               <div className="text-xs text-ide-text-muted animate-pulse">{t('Searching...')}</div>
             ) : replyText ? (
               <ChatMarkdown text={replyText} workspacePath={null} />
-            ) : replyFor.kind === 'terminal' ? (
-              <div className="text-xs text-ide-text-muted/60">{t('No structured reply for terminal sessions')}</div>
             ) : (
               <div className="text-xs text-ide-text-muted/60">{t('No reply yet')}</div>
             )}
           </div>
-          <div className="border-t border-ide-border p-2 shrink-0 space-y-1.5">
-            <textarea
-              rows={2}
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                  e.preventDefault()
-                  sendDraft()
-                }
-              }}
-              placeholder={t('Type a message, Enter to send')}
-              className="w-full resize-none px-2 py-1.5 text-xs bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
-            />
-            <div className="flex justify-end">
+          <div className="border-t border-ide-border p-2 shrink-0">
+            <div className="relative">
+              <textarea
+                ref={replyTextareaRef}
+                rows={2}
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    e.preventDefault()
+                    sendDraft()
+                  }
+                }}
+                placeholder={t('Type a message, Enter to send')}
+                className="block w-full resize-none px-2 py-1.5 pr-14 text-xs bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+              />
               <button
                 onClick={sendDraft}
                 disabled={!draft.trim()}
-                className="px-2.5 py-1 rounded text-[11px] text-ide-accent border border-ide-accent/50 hover:bg-ide-accent/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                title={t('Send')}
+                className="absolute right-1 bottom-1 px-2 py-1 rounded text-[11px] text-ide-accent border border-ide-accent/50 hover:bg-ide-accent/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
               >
                 <Send size={10} className="-scale-x-100" />
                 {t('Send')}

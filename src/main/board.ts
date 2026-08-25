@@ -137,7 +137,7 @@ function createBoardSession(options: BoardCreateOptions): BoardOpResult {
   saveRecords(repoRoot, records)
 
   try {
-    createTerminalSession({ id, cwd: worktreePath, name: `▶ ${title}`, initCommand: record.launchCommand })
+    createTerminalSession({ id, cwd: worktreePath, name: title, initCommand: record.launchCommand })
   } catch (err: any) {
     console.warn('[board] terminal spawn failed:', err?.message)
   }
