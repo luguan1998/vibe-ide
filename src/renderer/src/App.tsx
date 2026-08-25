@@ -3052,7 +3052,7 @@ export default function App() {
           onBlur={handleCenterBlur}>
           {/* Diff */}
           {centerView === 'diff' && diffFile && (
-            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
+            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-card">
               <DiffViewer
                 key={`${diffFile.fullPath}-${diffFile.commitHash || 'working'}`}
                 filePath={diffFile.filePath}
@@ -3116,7 +3116,7 @@ export default function App() {
           )}
           {/* Browser */}
           {centerView === 'browser' && !browserDocked && (
-            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col">
+            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-card">
               <BrowserView
                 ref={browserViewRef}
                 onBack={handleCloseBrowser}
@@ -3134,7 +3134,7 @@ export default function App() {
             />
           )}
           {/* Terminal sessions / AI GUI mode */}
-          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>
+          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => {
                 const isGui = session.kind === 'gui'
@@ -3210,11 +3210,11 @@ export default function App() {
             </Suspense>
           </div>
           {/* mujica canvas — display-toggle so state + running agents survive hide (ESC = collapse, restore pill shows in session list) */}
-          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'mujica' ? 'flex' : 'none' }}>
+          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card" style={{ display: centerView === 'mujica' ? 'flex' : 'none' }}>
             <GameMujica onCollapse={() => setCenterView('terminal')} />
           </div>
           {/* session board — display-toggle so terminals keep their buffers while the board is shown */}
-          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col" style={{ display: centerView === 'board' ? 'flex' : 'none' }}>
+          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card" style={{ display: centerView === 'board' ? 'flex' : 'none' }}>
             <BoardView
               workspacePath={activeSessionCwd}
               sessions={sessions}

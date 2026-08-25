@@ -259,6 +259,7 @@ html, body, #root {
   background: #000 !important;
   border: 4px solid #fff !important;
   outline: 3px solid rgb(var(--ide-border)) !important;
+  border-radius: 0 0 12px 12px !important;
 }
 
 .term-view__header {
@@ -381,7 +382,7 @@ html, body, #root {
 
 
 /* ════════════════════════════════════════════════════
-   右侧面板 — Tab 凸起按钮
+   右侧面板 — Tab 凸起四色轮换（蓝绿黄红，按位置循环）
    ════════════════════════════════════════════════════ */
 
 .right-panel__tab-bar {
@@ -390,24 +391,68 @@ html, body, #root {
 
 .right-panel__tab {
   border: 2px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   text-transform: uppercase !important;
-  background: #fff !important;
+  font-weight: 700 !important;
   border-radius: 0 !important;
   /* NES 像素四角缺口 — 每角缺 4×4 方块（L 形阶梯） */
   clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
 }
-.right-panel__tab + .right-panel__tab {
-  border-left: 1px solid rgb(var(--ide-border)) !important;
+
+/* tab 1 — NES 蓝（白字） */
+.right-panel__tab:nth-child(1) {
+  background: rgb(var(--ide-accent)) !important;
+  color: #fff !important;
+  box-shadow: inset 2px 2px 0 #5ebdf5, inset -2px -2px 0 #006bb3 !important;
+}
+.right-panel__tab:nth-child(1).right-panel__tab--active {
+  box-shadow: inset 2px 2px 0 #006bb3, inset -2px -2px 0 #5ebdf5 !important;
 }
 
-.right-panel__tab--active {
-  box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
-  font-weight: 700 !important;
+/* tab 2 — NES 绿（深字） */
+.right-panel__tab:nth-child(2) {
+  background: rgb(var(--ide-success)) !important;
+  color: rgb(var(--ide-text)) !important;
+  box-shadow: inset 2px 2px 0 #c6e68c, inset -2px -2px 0 #6f9e2e !important;
+}
+.right-panel__tab:nth-child(2).right-panel__tab--active {
+  box-shadow: inset 2px 2px 0 #6f9e2e, inset -2px -2px 0 #c6e68c !important;
 }
 
+/* tab 3 — NES 黄（深字） */
+.right-panel__tab:nth-child(3) {
+  background: #ffdd57 !important;
+  color: rgb(var(--ide-text)) !important;
+  box-shadow: inset 2px 2px 0 #fff6b0, inset -2px -2px 0 #c9a100 !important;
+}
+.right-panel__tab:nth-child(3).right-panel__tab--active {
+  box-shadow: inset 2px 2px 0 #c9a100, inset -2px -2px 0 #fff6b0 !important;
+}
+
+/* tab 4 — NES 红（白字） */
+.right-panel__tab:nth-child(4) {
+  background: rgb(var(--ide-danger)) !important;
+  color: #fff !important;
+  box-shadow: inset 2px 2px 0 #f2a088, inset -2px -2px 0 #ab4028 !important;
+}
+.right-panel__tab:nth-child(4).right-panel__tab--active {
+  box-shadow: inset 2px 2px 0 #ab4028, inset -2px -2px 0 #f2a088 !important;
+}
+
+.right-panel__tab:hover { filter: brightness(1.08) !important; }
+.right-panel__tab + .right-panel__tab { border-left: 1px solid rgb(var(--ide-border)) !important; }
+
+/* 内容卡片 — 圆角像素风：粗黑边 + 圆角 + 硬投影 + 内嵌 3D */
 .right-panel__content {
   border: 2px solid rgb(var(--ide-border)) !important;
+  border-radius: 12px !important;
+  box-shadow: 4px 4px 0 rgba(33, 37, 41, 0.35), inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
+}
+
+/* 中间栏卡片（终端/Diff/Browser/Board）— 与右侧内容卡片同款圆角像素风 */
+.center-card {
+  border: 2px solid rgb(var(--ide-border)) !important;
+  border-radius: 12px !important;
+  box-shadow: 4px 4px 0 rgba(33, 37, 41, 0.35), inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
 }
 
 
@@ -435,21 +480,24 @@ html, body, #root {
   border-bottom: 2px solid rgb(var(--ide-border)) !important;
 }
 
-/* 用户气泡 */
+/* 用户气泡 — 圆角像素风 */
 .ai-tab__user-bubble {
   border: 2px solid rgb(var(--ide-border)) !important;
   box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   background: #fff !important;
+  border-radius: 12px !important;
 }
 
-/* AI 输入框 — 黑边框缺角 + 灰白内部 */
+/* AI 输入框 — 圆角像素风：粗黑边 + 圆角 + 凹陷内嵌 3D + 硬投影 */
 .ai-tab__input-pill {
   border: 2px solid rgb(var(--ide-border)) !important;
+  border-radius: 12px !important;
+  box-shadow: 4px 4px 0 rgba(33, 37, 41, 0.35), inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
 }
 
-/* 内部 textarea — 去掉全局白底和 2px 边框，露出灰白 */
+/* 内部 textarea — 随输入框圆角，去掉像素缺角 */
 .ai-tab__textarea {
-  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
+  border-radius: 12px !important;
   background: transparent !important;
 }
 
