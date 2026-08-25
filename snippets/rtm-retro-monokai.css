@@ -1,0 +1,142 @@
+/*
+  Rtm Retro Monokai — Monokai 配色 × 复古浅色（奶色底 + 轮廓线按钮 + CRT）
+  结构同 rtm-retro-violet.css（浅色 rtm 派生），配色换 Monokai 经典色板：
+  墨底 #272822 → 暖米浅底 · 品红 #f92672 主强调 · 绿/黄/蓝/紫/橙 状态与彩虹标题
+  轮廓线 = Monokai 墨色 #272822 · 次强调 = Monokai 青蓝 #66d9ef
+*/
+
+/* ════════════════════════════════════════════════════
+   主题色 — Monokai 复古浅色
+   暖米底 #f4f1e9~#ede9dd · 墨绿灰文字 #272822 · 强调品红 #f92672
+   ════════════════════════════════════════════════════ */
+:root {
+  --ide-bg: 244 241 233 !important;
+  --ide-sidebar: 237 233 221 !important;
+  --ide-panel: 240 237 227 !important;
+  --ide-border: 213 208 192 !important;
+  --ide-text: 39 40 34 !important;
+  --ide-text-muted: 117 113 94 !important;
+  --ide-accent: 249 38 114 !important;
+  --ide-accent-hover: 216 31 94 !important;
+  --ide-success: 125 168 31 !important;
+  --ide-danger: 214 48 48 !important;
+  --ide-warning: 200 134 13 !important;
+  --ide-hover: 229 224 210 !important;
+  --ide-active: 221 214 194 !important;
+  --scrollbar-thumb: 203 197 178 !important;
+  --scrollbar-thumb-hover: 162 154 130 !important;
+  --selection-bg: 249 38 114 !important;
+  --selection-opacity: 0.22 !important;
+  --focus-outline: 249 38 114 !important;
+  --monaco-margin-bg: 244 241 233 !important;
+  --ide-titlebar-symbol: 117 113 94 !important;
+
+  --rtm-btn-outline: 39 40 34 !important;
+  --rtm-btn-shadow: 39 40 34 !important;
+  --rtm-accent-secondary: 102 217 239 !important;
+}
+
+/* ════════════════════════════════════════════════════
+   按钮轮廓线 + 3D 硬阴影（rtm neubrutalism）
+   1px 墨色轮廓线 · 2px 半透明硬阴影 · 按下时位移下沉阴影消失
+   ╚ `:not(.dsh-view *)` 挂在目标元素上，排除 dsh 子树（勿改成中间祖先）
+   ════════════════════════════════════════════════════ */
+#root button:not(.dsh-view *):not(.ai-tab__input-area *) {
+  border: 1px solid rgb(var(--rtm-btn-outline) / 0.7) !important;
+  border-radius: 6px !important;
+  box-shadow: 2px 2px 0 0 rgb(var(--rtm-btn-shadow) / 0.4) !important;
+}
+
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):hover {
+  border-color: rgb(var(--rtm-btn-outline) / 0.85) !important;
+  box-shadow: 3px 3px 0 0 rgb(var(--rtm-btn-shadow) / 0.4) !important;
+}
+
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):active {
+  border-color: rgb(var(--ide-accent) / 0.7) !important;
+  box-shadow: none !important;
+  transform: translate(2px, 2px);
+}
+
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):focus-visible {
+  outline: 1px solid rgb(var(--ide-accent)) !important;
+  outline-offset: 1px !important;
+}
+
+/* 悬浮热区/遮罩按钮（session 收缩展开热区、CallGraph 关闭钮）保持透明原样 */
+#root button.absolute:not(.dsh-view *),
+#root button.fixed:not(.dsh-view *) {
+  border: none !important;
+  border-radius: revert !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* ════════════════════════════════════════════════════
+   右侧 tab — rtm tab-style-btn（激活 = 按下状态）
+   ════════════════════════════════════════════════════ */
+.right-panel__tab {
+  border: 1px solid rgb(var(--rtm-btn-outline) / 0.45) !important;
+  border-radius: 6px !important;
+  box-shadow: 2px 2px 0 0 rgb(var(--rtm-btn-shadow) / 0.4) !important;
+}
+
+.right-panel__tab--active {
+  border-color: rgb(var(--ide-accent) / 0.8) !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow) / 0.35) !important;
+  transform: translate(1px, 1px);
+}
+
+/* ════════════════════════════════════════════════════
+   会话项 — 激活会话 = 强调色轮廓 + 凹陷
+   ════════════════════════════════════════════════════ */
+.session-item--active {
+  outline: 1px solid rgb(var(--ide-accent) / 0.75) !important;
+  outline-offset: -1px !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow) / 0.35) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   输入框 — 轮廓 + 内凹陷（rtm form-field）
+   ════════════════════════════════════════════════════ */
+#root input[type="text"]:not(.dsh-view *):not(.ai-tab__context-input),
+#root textarea:not(.dsh-view *):not(.ai-tab__input-area *),
+.git-tab__commit-input:not(.dsh-view *) {
+  border: 1px solid rgb(var(--rtm-btn-outline) / 0.7) !important;
+  border-radius: 6px !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow) / 0.35) !important;
+}
+
+#root input[type="text"]:not(.dsh-view *):not(.ai-tab__context-input):focus,
+#root textarea:not(.dsh-view *):not(.ai-tab__input-area *):focus,
+.git-tab__commit-input:not(.dsh-view *):focus {
+  border-color: rgb(var(--ide-accent)) !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow) / 0.35), 0 0 6px rgb(var(--ide-accent) / 0.3) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   彩虹标题（Monokai 色板深调：品红 → 紫）
+   ════════════════════════════════════════════════════ */
+.md-preview h1 { color: rgb(194 31 91) !important; border-bottom-color: rgb(194 31 91) !important; }
+.md-preview h2 { color: rgb(176 106 16) !important; border-bottom-color: rgb(176 106 16) !important; }
+.md-preview h3 { color: rgb(155 140 29) !important; }
+.md-preview h4 { color: rgb(111 156 28) !important; }
+.md-preview h5 { color: rgb(46 148 181) !important; border-bottom-color: rgb(46 148 181) !important; }
+.md-preview h6 { color: rgb(125 95 214) !important; }
+.md-preview h3, .md-preview h6 { border-bottom-color: rgb(var(--ide-border)) !important; }
+
+/* ════════════════════════════════════════════════════
+   CRT 扫描线 + 暗角（rtm CRT overlay，浅色版减淡）
+   ════════════════════════════════════════════════════ */
+#root::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgb(0 0 0 / 9%) 0 1px, rgb(0 0 0 / 3%) 1px 2px, transparent 2px 4px),
+    radial-gradient(ellipse at center, transparent 65%, rgb(60 55 40 / 14%) 100%);
+  mix-blend-mode: multiply;
+  opacity: 0.6;
+}

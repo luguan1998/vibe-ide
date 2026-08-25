@@ -614,6 +614,8 @@ html, body, #root {
 .md-preview del { text-decoration: line-through; color: rgb(var(--ide-danger)); }
 .md-preview > *:first-child { margin-top: 0; }
 .md-preview > *:last-child { margin-bottom: 0; }
+/* Board 回复:term 输出为字符打印,单换行不得折叠(soft break 保留),仅作用 term 类回复容器 */
+.board-reply-md :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, th, td) { white-space: pre-wrap; }
 
 
 /* ── Frontmatter card ── */

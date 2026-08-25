@@ -16,55 +16,58 @@ function hexToRgba(hex: string, alpha: number): string {
 
 function t(hex: string): string { return hexToRgb(hex) }
 
+// 🐱 Vibe Dark — 深空蓝 × 复古蓝混合
+// 底/边框取 nyan-cat 深空蓝（#0f1932 系）· 强调/状态色取 rtm 复古深蓝主题（#2287f9 系）
+// selection/hover 保留 nyancat 粉色糖霜印记
 const vibeDark: IDETheme = {
   id: 'vibe-dark',
   label: 'Vibe Dark',
   css: {
-    'ide-bg': t('#1a1a2e'),
-    'ide-sidebar': t('#16213e'),
-    'ide-panel': t('#0f3460'),
-    'ide-border': t('#2a2a4a'),
-    'ide-text': t('#e0e0e0'),
-    'ide-text-muted': t('#8888aa'),
-    'ide-accent': t('#7c3aed'),
-    'ide-accent-hover': t('#6d28d9'),
-    'ide-success': t('#10b981'),
-    'ide-danger': t('#ef4444'),
-    'ide-warning': t('#f59e0b'),
-    'ide-hover': t('#2a2a48'),
-    'ide-active': t('#363656'),
-    'scrollbar-thumb': t('#3a3a5a'),
-    'scrollbar-thumb-hover': t('#5a5a7a'),
-    'selection-bg': t('#7c3aed'),
+    'ide-bg': t('#0f1932'),
+    'ide-sidebar': t('#14203c'),
+    'ide-panel': t('#182642'),
+    'ide-border': t('#283a5a'),
+    'ide-text': t('#dcdce6'),
+    'ide-text-muted': t('#8c96af'),
+    'ide-accent': t('#2287f9'),
+    'ide-accent-hover': t('#3e9eff'),
+    'ide-success': t('#71ca72'),
+    'ide-danger': t('#ff897e'),
+    'ide-warning': t('#c4b424'),
+    'ide-hover': t('#202e4e'),
+    'ide-active': t('#26375c'),
+    'scrollbar-thumb': t('#283a5a'),
+    'scrollbar-thumb-hover': t('#f28cf5'),
+    'selection-bg': t('#f28cf5'),
     'selection-opacity': '0.3',
-    'focus-outline': t('#7c3aed'),
-    'monaco-margin-bg': t('#1a1a2e')
+    'focus-outline': t('#2287f9'),
+    'monaco-margin-bg': t('#0f1932')
   },
   terminal: {
-    background: '#1a1a2e',
-    foreground: '#e0e0e0',
-    cursor: '#7c3aed',
-    cursorAccent: '#1a1a2e',
-    selectionBackground: 'rgba(124, 58, 237, 0.3)',
-    black: '#000000', red: '#e74c3c', green: '#10b981', yellow: '#f59e0b',
-    blue: '#3b82f6', magenta: '#a855f7', cyan: '#06b6d4', white: '#e0e0e0',
-    brightBlack: '#555555', brightRed: '#ff6b6b', brightGreen: '#34d399',
-    brightYellow: '#fbbf24', brightBlue: '#60a5fa', brightMagenta: '#c084fc',
-    brightCyan: '#22d3ee', brightWhite: '#ffffff'
+    background: '#0f1932',
+    foreground: '#dcdce6',
+    cursor: '#2287f9',
+    cursorAccent: '#0f1932',
+    selectionBackground: 'rgba(242, 140, 245, 0.3)',
+    black: '#10182c', red: '#ff897e', green: '#71ca72', yellow: '#c4b424',
+    blue: '#5cb8ff', magenta: '#ff869d', cyan: '#00cae7', white: '#dcdce6',
+    brightBlack: '#8c96af', brightRed: '#ffa99d', brightGreen: '#91eb91',
+    brightYellow: '#e4d550', brightBlue: '#7dd8ff', brightMagenta: '#ffa6bc',
+    brightCyan: '#00ebff', brightWhite: '#ffffff'
   },
   monacoTheme: 'vibe-ide-default',
   monacoRules: [
-    { token: 'comment', foreground: '#8888aa', fontStyle: 'italic' },
-    { token: 'keyword', foreground: '#a855f7' },
-    { token: 'string', foreground: '#10b981' },
-    { token: 'number', foreground: '#f59e0b' },
-    { token: 'type', foreground: '#6d28d9' },
-    { token: 'function', foreground: '#7c3aed' },
-    { token: 'variable', foreground: '#e0e0e0' },
-    { token: 'constant', foreground: '#3b82f6' },
-    { token: 'regexp', foreground: '#ef4444' }
+    { token: 'comment', foreground: '#8c96af', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#2287f9' },
+    { token: 'string', foreground: '#71ca72' },
+    { token: 'number', foreground: '#c4b424' },
+    { token: 'type', foreground: '#3e9eff' },
+    { token: 'function', foreground: '#f28cf5' },
+    { token: 'variable', foreground: '#dcdce6' },
+    { token: 'constant', foreground: '#5cb8ff' },
+    { token: 'regexp', foreground: '#ff897e' }
   ],
-  titleBar: { color: '#16213e', symbolColor: '#8888aa', backgroundColor: '#16213e' }
+  titleBar: { color: '#14203c', symbolColor: '#8c96af', backgroundColor: '#14203c' }
 }
 
 const oneDark: IDETheme = {
@@ -298,52 +301,58 @@ const solarizedLight: IDETheme = {
   titleBar: { color: '#eee8d5', symbolColor: '#93a1a1', backgroundColor: '#eee8d5' }
 }
 
-const monokai: IDETheme = {
-  id: 'monokai',
-  label: 'Monokai',
+// 📺 Rtm Retro Violet — 紫罗兰浅色（适配 snippets/rtm-retro-violet.css）
+// 原 monokai 条目改造：种子 --hue-purple #673ab7 · 奶蓝底名 #d3ecff ~ #aac1f2
+// 主强调紫罗兰 #673ab7 · hover/激活粉紫 #ad3aad（次强调 +30°）
+// 与 snippet 的 :root 变量一一对应，终端/Monaco 底色跟随浅色
+const rtmRetroViolet: IDETheme = {
+  id: 'rtm-retro-violet',
+  label: 'Rtm Retro Violet',
   css: {
-    'ide-bg': t('#272822'),
-    'ide-sidebar': t('#1e1f1c'),
-    'ide-panel': t('#1a1b18'),
-    'ide-border': t('#3e3d32'),
-    'ide-text': t('#f8f8f2'),
-    'ide-text-muted': t('#75715e'),
-    'ide-accent': t('#f92672'),
-    'ide-accent-hover': t('#d91e62'),
-    'ide-success': t('#a6e22e'),
-    'ide-danger': t('#f92672'),
-    'ide-warning': t('#e6db74'),
-    'ide-hover': t('#3e3d32'),
-    'ide-active': t('#49483e'),
-    'scrollbar-thumb': t('#49483e'),
-    'scrollbar-thumb-hover': t('#75715e'),
-    'selection-bg': t('#f92672'),
-    'selection-opacity': '0.3',
-    'focus-outline': t('#f92672'),
-    'monaco-margin-bg': t('#272822')
+    'ide-bg': t('#d3ecff'),
+    'ide-sidebar': t('#aac1f2'),
+    'ide-panel': t('#cae2ff'),
+    'ide-border': t('#9ab1e2'),
+    'ide-text': t('#595763'),
+    'ide-text-muted': t('#7d7a8c'),
+    'ide-accent': t('#673ab7'),
+    'ide-accent-hover': t('#ad3aad'),
+    'ide-success': t('#407541'),
+    'ide-danger': t('#984e48'),
+    'ide-warning': t('#726911'),
+    'ide-hover': t('#859ccb'),
+    'ide-active': t('#6e83b1'),
+    'scrollbar-thumb': t('#91a8d8'),
+    'scrollbar-thumb-hover': t('#5b6d99'),
+    'selection-bg': t('#673ab7'),
+    'selection-opacity': '0.25',
+    'focus-outline': t('#673ab7'),
+    'monaco-margin-bg': t('#d3ecff')
   },
   terminal: {
-    background: '#272822', foreground: '#f8f8f2', cursor: '#f92672', cursorAccent: '#272822',
-    selectionBackground: hexToRgba('#f92672', 0.3),
-    black: '#272822', red: '#f92672', green: '#a6e22e', yellow: '#e6db74',
-    blue: '#66d9ef', magenta: '#ae81ff', cyan: '#a1efe4', white: '#f8f8f2',
-    brightBlack: '#75715e', brightRed: '#f92672', brightGreen: '#a6e22e',
-    brightYellow: '#e6db74', brightBlue: '#66d9ef', brightMagenta: '#ae81ff',
-    brightCyan: '#a1efe4', brightWhite: '#ffffff'
+    background: '#d3ecff', foreground: '#595763', cursor: '#673ab7', cursorAccent: '#d3ecff',
+    selectionBackground: hexToRgba('#673ab7', 0.25),
+    black: '#1f2f57', red: '#984e48', green: '#407541', yellow: '#726911',
+    blue: '#336a9d', magenta: '#902a98', cyan: '#2f8099', white: '#595763',
+    brightBlack: '#a3a0ad', brightRed: '#b8685f', brightGreen: '#5c905d',
+    brightYellow: '#977f28', brightBlue: '#5f86c4', brightMagenta: '#b45ab4',
+    brightCyan: '#5794b8', brightWhite: '#2b2e3d',
+    fontWeight: '500',
+    allowTransparency: false
   },
-  monacoTheme: 'vibe-ide-monokai',
+  monacoTheme: 'vibe-ide-rtm-retro-violet',
   monacoRules: [
-    { token: 'comment', foreground: '#75715e', fontStyle: 'italic' },
-    { token: 'keyword', foreground: '#f92672' },
-    { token: 'string', foreground: '#e6db74' },
-    { token: 'number', foreground: '#ae81ff' },
-    { token: 'type', foreground: '#66d9ef' },
-    { token: 'function', foreground: '#a6e22e' },
-    { token: 'variable', foreground: '#f8f8f2' },
-    { token: 'constant', foreground: '#ae81ff' },
-    { token: 'regexp', foreground: '#e6db74' }
+    { token: 'comment', foreground: '#7d7a8c', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '#673ab7' },
+    { token: 'string', foreground: '#407541' },
+    { token: 'number', foreground: '#726911' },
+    { token: 'type', foreground: '#336a9d' },
+    { token: 'function', foreground: '#ad3aad' },
+    { token: 'variable', foreground: '#595763' },
+    { token: 'constant', foreground: '#6e83b1' },
+    { token: 'regexp', foreground: '#984e48' }
   ],
-  titleBar: { color: '#1e1f1c', symbolColor: '#75715e', backgroundColor: '#1e1f1c' }
+  titleBar: { color: '#aac1f2', symbolColor: '#1f2f57', backgroundColor: '#aac1f2' }
 }
 
 const monokaiPro: IDETheme = {
@@ -776,13 +785,13 @@ export const THEMES: IDETheme[] = [
   nord,
   solarizedDark,
   solarizedLight,
-  monokai,
   monokaiPro,
   monkeyKing,
   retroChinese,
   miku,
   mikuLight,
-  claudeCream
+  claudeCream,
+  rtmRetroViolet
 ]
 
 export const DEFAULT_THEME_ID = 'vscode-dark'

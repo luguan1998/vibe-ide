@@ -1,0 +1,145 @@
+/*
+  Rtm Retro — Obsidian Rtm 主题复刻（暗色渲染）
+  配色推导自原版 theme.css 的 oklch 派生链：
+  种子 #7f6df2(靛蓝) · 主强调 = 种子 +330°(#2287f9 蓝) · 次强调 = +30°(#b45dd6 magenta)
+  背景 = 强调色降亮度 L0.16→0.04 深海军蓝 · 文字 #dadada(rtm 硬编码)
+  状态色 = hue 种子 取 L0.75 C0.15（红/绿/黄/蓝）
+  按钮 = 1px 轮廓线 + 3D 硬阴影（neubrutalism）+ 按下位移
+*/
+
+/* ════════════════════════════════════════════════════
+   主题色 — 跟随 ts 主题（Vibe Dark 已是深空蓝×复古蓝配方）
+   以下值仅作后备默认，勿加 !important：主题内联色优先于此
+   ╚ 加 !important 会压过主题色，导致换主题不跟随
+   ════════════════════════════════════════════════════ */
+:root {
+  --ide-bg: 0 16 41;
+  --ide-sidebar: 0 2 26;
+  --ide-panel: 0 4 31;
+  --ide-border: 29 50 78;
+  --ide-text: 218 218 218;
+  --ide-text-muted: 179 179 179;
+  --ide-accent: 34 135 249;
+  --ide-accent-hover: 62 158 255;
+  --ide-success: 113 202 114;
+  --ide-danger: 255 137 126;
+  --ide-warning: 196 180 36;
+  --ide-hover: 2 23 49;
+  --ide-active: 8 33 59;
+  --scrollbar-thumb: 19 40 67;
+  --scrollbar-thumb-hover: 81 105 136;
+  --selection-bg: 34 135 249;
+  --selection-opacity: 0.3;
+  --focus-outline: 34 135 249;
+  --monaco-margin-bg: 0 16 41;
+  --ide-titlebar-symbol: 179 179 179;
+
+  --rtm-btn-outline: 81 105 136;
+  --rtm-btn-shadow: 0 0 8;
+  --rtm-accent-secondary: 180 93 214
+}
+
+/* ════════════════════════════════════════════════════
+   按钮轮廓线 + 3D 硬阴影（rtm neubrutalism）
+   1px 轮廓线 · 2px 硬阴影 · 按下时位移下沉阴影消失
+   ╚ `:not(.dsh-view *)` 挂在目标元素上，排除 dsh 子树（勿改成中间祖先）
+   ════════════════════════════════════════════════════ */
+#root button:not(.dsh-view *):not(.ai-tab__input-area *) {
+  border: 1px solid rgb(var(--rtm-btn-outline)) !important;
+  border-radius: 6px !important;
+  box-shadow: 2px 2px 0 0 rgb(var(--rtm-btn-shadow)) !important;
+}
+
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):hover {
+  border-color: rgb(var(--rtm-btn-outline)) !important;
+  box-shadow: 3px 3px 0 0 rgb(var(--rtm-btn-shadow)) !important;
+}
+
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):active {
+  border-color: rgb(var(--ide-accent) / 0.6) !important;
+  box-shadow: none !important;
+  transform: translate(2px, 2px);
+}
+
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):focus-visible {
+  outline: 1px solid rgb(var(--ide-accent)) !important;
+  outline-offset: 1px !important;
+}
+
+/* 悬浮热区/遮罩按钮（session 收缩展开热区、CallGraph 关闭钮）保持透明原样 */
+#root button.absolute:not(.dsh-view *),
+#root button.fixed:not(.dsh-view *) {
+  border: none !important;
+  border-radius: revert !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* ════════════════════════════════════════════════════
+   右侧 tab — rtm tab-style-btn（激活 = 按下状态）
+   ════════════════════════════════════════════════════ */
+.right-panel__tab {
+  border: 1px solid rgb(var(--rtm-btn-outline) / 0.6) !important;
+  border-radius: 6px !important;
+  box-shadow: 2px 2px 0 0 rgb(var(--rtm-btn-shadow)) !important;
+}
+
+.right-panel__tab--active {
+  border-color: rgb(var(--ide-accent) / 0.85) !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow)) !important;
+  transform: translate(1px, 1px);
+}
+
+/* ════════════════════════════════════════════════════
+   会话项 — 激活会话 = 强调色轮廓 + 凹陷
+   ════════════════════════════════════════════════════ */
+.session-item--active {
+  outline: 1px solid rgb(var(--ide-accent) / 0.8) !important;
+  outline-offset: -1px !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow)) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   输入框 — 轮廓 + 内凹陷（rtm form-field）
+   ════════════════════════════════════════════════════ */
+#root input[type="text"]:not(.dsh-view *):not(.ai-tab__context-input),
+#root textarea:not(.dsh-view *):not(.ai-tab__input-area *),
+.git-tab__commit-input:not(.dsh-view *) {
+  border: 1px solid rgb(var(--rtm-btn-outline)) !important;
+  border-radius: 6px !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow)) !important;
+}
+
+#root input[type="text"]:not(.dsh-view *):not(.ai-tab__context-input):focus,
+#root textarea:not(.dsh-view *):not(.ai-tab__input-area *):focus,
+.git-tab__commit-input:not(.dsh-view *):focus {
+  border-color: rgb(var(--ide-accent)) !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow)), 0 0 6px rgb(var(--ide-accent) / 0.3) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   彩虹标题（rtm 虹色标题：h1 红 → h6 紫）
+   ════════════════════════════════════════════════════ */
+.md-preview h1 { color: rgb(255 137 126) !important; border-bottom-color: rgb(255 137 126) !important; }
+.md-preview h2 { color: rgb(242 155 56) !important; border-bottom-color: rgb(242 155 56) !important; }
+.md-preview h3 { color: rgb(196 180 36) !important; }
+.md-preview h4 { color: rgb(113 202 114) !important; }
+.md-preview h5 { color: rgb(92 184 255) !important; border-bottom-color: rgb(92 184 255) !important; }
+.md-preview h6 { color: rgb(185 157 255) !important; }
+.md-preview h3, .md-preview h6 { border-bottom-color: rgb(var(--ide-border)) !important; }
+
+/* ════════════════════════════════════════════════════
+   CRT 扫描线 + 暗角（rtm CRT overlay，multiply 混合）
+   ════════════════════════════════════════════════════ */
+#root::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgb(0 0 0 / 22%) 0 1px, rgb(255 255 255 / 4%) 1px 2px, transparent 2px 4px),
+    radial-gradient(ellipse at center, transparent 62%, rgb(0 0 0 / 25%) 100%);
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}

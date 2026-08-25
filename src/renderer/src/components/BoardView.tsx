@@ -951,7 +951,11 @@ export default function BoardView({
             {replyLoading ? (
               <div className="text-xs text-ide-text-muted animate-pulse">{t('Searching...')}</div>
             ) : replyText ? (
-              <ChatMarkdown text={replyText} workspacePath={null} />
+              <ChatMarkdown
+                text={replyText}
+                workspacePath={null}
+                className={replyFor.kind === 'terminal' ? 'board-reply-md' : ''}
+              />
             ) : (
               <div className="text-xs text-ide-text-muted/60">{t('No reply yet')}</div>
             )}
