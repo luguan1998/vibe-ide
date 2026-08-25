@@ -41,7 +41,7 @@ const ImagePreview = React.memo(function ImagePreview({
       const dirPart = lastSep >= 0 ? fullPath.substring(0, lastSep + 1) : ''
       const namePart = lastSep >= 0 ? fullPath.substring(lastSep + 1) : fullPath
       return (
-        <div className={`flex flex-col h-full animate-fade-in center-overlay${brushActive ? ' diff-brush-mode' : ''}`}>
+        <div className={`flex flex-col h-full animate-fade-in center-overlay image-preview${brushActive ? ' diff-brush-mode' : ''}`}>
           <div className="h-8 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0"
             onClick={(e) => {
               if (!brushActive) return

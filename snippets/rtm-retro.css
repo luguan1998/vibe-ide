@@ -44,31 +44,34 @@
    1px 轮廓线 · 2px 硬阴影 · 按下时位移下沉阴影消失
    ╚ `:not(.dsh-view *)` 挂在目标元素上，排除 dsh 子树（勿改成中间祖先）
    ════════════════════════════════════════════════════ */
-#root button:not(.dsh-view *):not(.ai-tab__input-area *) {
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action) {
   border: 1px solid rgb(var(--rtm-btn-outline)) !important;
   border-radius: 6px !important;
   box-shadow: 2px 2px 0 0 rgb(var(--rtm-btn-shadow)) !important;
 }
 
-#root button:not(.dsh-view *):not(.ai-tab__input-area *):hover {
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action):hover {
   border-color: rgb(var(--rtm-btn-outline)) !important;
   box-shadow: 3px 3px 0 0 rgb(var(--rtm-btn-shadow)) !important;
 }
 
-#root button:not(.dsh-view *):not(.ai-tab__input-area *):active {
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action):active {
   border-color: rgb(var(--ide-accent) / 0.6) !important;
   box-shadow: none !important;
   transform: translate(2px, 2px);
 }
 
-#root button:not(.dsh-view *):not(.ai-tab__input-area *):focus-visible {
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action):focus-visible {
   outline: 1px solid rgb(var(--ide-accent)) !important;
   outline-offset: 1px !important;
 }
 
-/* 悬浮热区/遮罩按钮（session 收缩展开热区、CallGraph 关闭钮）保持透明原样 */
-#root button.absolute:not(.dsh-view *),
-#root button.fixed:not(.dsh-view *) {
+/* 悬浮热区/遮罩按钮（session 收缩展开热区、CallGraph 关闭钮）保持透明原样
+   ╚ 末尾 :not(.session-panel__quick-action) 不起过滤作用（这些按钮无该 class），
+     只为抬升特异性到 (1,3,1) 与规则 47 平齐，恢复“后定义胜出”让其 reset 生效——
+     否则规则 47 多一个 :not 会压过此处，热区按钮又被加上边框/阴影常显 */
+#root button.absolute:not(.dsh-view *):not(.session-panel__quick-action),
+#root button.fixed:not(.dsh-view *):not(.session-panel__quick-action) {
   border: none !important;
   border-radius: revert !important;
   box-shadow: none !important;
@@ -135,11 +138,19 @@
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 2147483647;
+  z-index: 45; /* 高于正常 UI（z≤40，扫描线覆盖）；低于弹窗 z-50（弹窗自然无扫描线） */
   pointer-events: none;
   background:
     repeating-linear-gradient(0deg, rgb(0 0 0 / 22%) 0 1px, rgb(255 255 255 / 4%) 1px 2px, transparent 2px 4px),
     radial-gradient(ellipse at center, transparent 62%, rgb(0 0 0 / 25%) 100%);
   mix-blend-mode: multiply;
   opacity: 0.55;
+}
+
+/* 图片预览窗格跳过 CRT 扫描线/暗角：
+   position:relative 不脱离中栏布局（不改视觉位置），z-index 48 盖过 overlay(45) →
+   overlay 的 multiply 作用不到图片预览矩形；又低于弹窗 z-50，外观菜单等弹窗正常盖在其上 */
+.image-preview {
+  position: relative;
+  z-index: 48;
 }

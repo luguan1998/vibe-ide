@@ -1341,7 +1341,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <button
             onClick={() => handleQuickNewSession(newMode)}
             title={t('New Session')}
-            className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors"
+            className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors session-panel__quick-action"
           >
             {renderModeIcon(newMode)}
             <span className="truncate pointer-events-none">{t('New Session')}</span>
@@ -1376,7 +1376,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         <button
           onClick={() => onOpenHistoryTab?.()}
           disabled={sessions.length === 0}
-          className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border border-transparent hover:border-ide-border bg-ide-sidebar text-ide-text text-sm font-medium hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed session-panel__quick-action"
         >
           <History size={14} className="text-ide-text-muted" />
           {t('Session History')}
@@ -1384,7 +1384,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         <div className="group relative w-full">
           <button
             onClick={() => window.dispatchEvent(new CustomEvent(BOARD_FOCUS))}
-            className={`w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border text-sm font-medium transition-colors ${boardActive
+            className={`w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border text-sm font-medium transition-colors session-panel__quick-action ${boardActive
               ? 'border-ide-accent/50 bg-ide-accent/15 text-ide-accent'
               : 'border-transparent bg-ide-sidebar text-ide-text hover:border-ide-border hover:bg-ide-hover'}`}
           >
