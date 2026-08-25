@@ -38,34 +38,37 @@
 
 /* ════════════════════════════════════════════════════
    按钮轮廓线 + 3D 硬阴影（rtm neubrutalism）
-   1px 墨色轮廓线 · 2px 半透明硬阴影 · 按下时位移下沉阴影消失
+   1px 轮廓线 · 2px 硬阴影 · 按下时位移下沉阴影消失
    ╚ `:not(.dsh-view *)` 挂在目标元素上，排除 dsh 子树（勿改成中间祖先）
    ════════════════════════════════════════════════════ */
-#root button:not(.dsh-view *):not(.ai-tab__input-area *) {
-  border: 1px solid rgb(var(--rtm-btn-outline) / 0.7) !important;
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action) {
+  border: 1px solid rgb(var(--rtm-btn-outline)) !important;
   border-radius: 6px !important;
-  box-shadow: 2px 2px 0 0 rgb(var(--rtm-btn-shadow) / 0.4) !important;
+  box-shadow: 2px 2px 0 0 rgb(var(--rtm-btn-shadow)) !important;
 }
 
-#root button:not(.dsh-view *):not(.ai-tab__input-area *):hover {
-  border-color: rgb(var(--rtm-btn-outline) / 0.85) !important;
-  box-shadow: 3px 3px 0 0 rgb(var(--rtm-btn-shadow) / 0.4) !important;
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action):hover {
+  border-color: rgb(var(--rtm-btn-outline)) !important;
+  box-shadow: 3px 3px 0 0 rgb(var(--rtm-btn-shadow)) !important;
 }
 
-#root button:not(.dsh-view *):not(.ai-tab__input-area *):active {
-  border-color: rgb(var(--ide-accent) / 0.7) !important;
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action):active {
+  border-color: rgb(var(--ide-accent) / 0.6) !important;
   box-shadow: none !important;
   transform: translate(2px, 2px);
 }
 
-#root button:not(.dsh-view *):not(.ai-tab__input-area *):focus-visible {
+#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action):focus-visible {
   outline: 1px solid rgb(var(--ide-accent)) !important;
   outline-offset: 1px !important;
 }
 
-/* 悬浮热区/遮罩按钮（session 收缩展开热区、CallGraph 关闭钮）保持透明原样 */
-#root button.absolute:not(.dsh-view *),
-#root button.fixed:not(.dsh-view *) {
+/* 悬浮热区/遮罩按钮（session 收缩展开热区、CallGraph 关闭钮）保持透明原样
+   ╚ 末尾 :not(.session-panel__quick-action) 不起过滤作用（这些按钮无该 class），
+     只为抬升特异性到 (1,3,1) 与规则 47 平齐，恢复“后定义胜出”让其 reset 生效——
+     否则规则 47 多一个 :not 会压过此处，热区按钮又被加上边框/阴影常显 */
+#root button.absolute:not(.dsh-view *):not(.session-panel__quick-action),
+#root button.fixed:not(.dsh-view *):not(.session-panel__quick-action) {
   border: none !important;
   border-radius: revert !important;
   box-shadow: none !important;
@@ -76,14 +79,14 @@
    右侧 tab — rtm tab-style-btn（激活 = 按下状态）
    ════════════════════════════════════════════════════ */
 .right-panel__tab {
-  border: 1px solid rgb(var(--rtm-btn-outline) / 0.45) !important;
+  border: 1px solid rgb(var(--rtm-btn-outline) / 0.6) !important;
   border-radius: 6px !important;
-  box-shadow: 2px 2px 0 0 rgb(var(--rtm-btn-shadow) / 0.4) !important;
+  box-shadow: 2px 2px 0 0 rgb(var(--rtm-btn-shadow)) !important;
 }
 
 .right-panel__tab--active {
-  border-color: rgb(var(--ide-accent) / 0.8) !important;
-  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow) / 0.35) !important;
+  border-color: rgb(var(--ide-accent) / 0.85) !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow)) !important;
   transform: translate(1px, 1px);
 }
 
@@ -93,7 +96,7 @@
 .session-item--active {
   outline: 1px solid rgb(var(--ide-accent) / 0.75) !important;
   outline-offset: -1px !important;
-  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow) / 0.35) !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow) / 0.4) !important;
 }
 
 /* ════════════════════════════════════════════════════
@@ -102,41 +105,49 @@
 #root input[type="text"]:not(.dsh-view *):not(.ai-tab__context-input),
 #root textarea:not(.dsh-view *):not(.ai-tab__input-area *),
 .git-tab__commit-input:not(.dsh-view *) {
-  border: 1px solid rgb(var(--rtm-btn-outline) / 0.7) !important;
+  border: 1px solid rgb(var(--rtm-btn-outline)) !important;
   border-radius: 6px !important;
-  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow) / 0.35) !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow)) !important;
 }
 
 #root input[type="text"]:not(.dsh-view *):not(.ai-tab__context-input):focus,
 #root textarea:not(.dsh-view *):not(.ai-tab__input-area *):focus,
 .git-tab__commit-input:not(.dsh-view *):focus {
   border-color: rgb(var(--ide-accent)) !important;
-  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow) / 0.35), 0 0 6px rgb(var(--ide-accent) / 0.3) !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow)), 0 0 6px rgb(var(--ide-accent) / 0.3) !important;
 }
 
 /* ════════════════════════════════════════════════════
-   彩虹标题（Monokai 色板深调：品红 → 紫）
+   彩虹标题（rtm 虹色标题：h1 红 → h6 紫）
    ════════════════════════════════════════════════════ */
-.md-preview h1 { color: rgb(194 31 91) !important; border-bottom-color: rgb(194 31 91) !important; }
-.md-preview h2 { color: rgb(176 106 16) !important; border-bottom-color: rgb(176 106 16) !important; }
-.md-preview h3 { color: rgb(155 140 29) !important; }
-.md-preview h4 { color: rgb(111 156 28) !important; }
-.md-preview h5 { color: rgb(46 148 181) !important; border-bottom-color: rgb(46 148 181) !important; }
-.md-preview h6 { color: rgb(125 95 214) !important; }
+.md-preview h1 { color: rgb(255 137 126) !important; border-bottom-color: rgb(255 137 126) !important; }
+.md-preview h2 { color: rgb(242 155 56) !important; border-bottom-color: rgb(242 155 56) !important; }
+.md-preview h3 { color: rgb(196 180 36) !important; }
+.md-preview h4 { color: rgb(113 202 114) !important; }
+.md-preview h5 { color: rgb(92 184 255) !important; border-bottom-color: rgb(92 184 255) !important; }
+.md-preview h6 { color: rgb(185 157 255) !important; }
 .md-preview h3, .md-preview h6 { border-bottom-color: rgb(var(--ide-border)) !important; }
 
 /* ════════════════════════════════════════════════════
-   CRT 扫描线 + 暗角（rtm CRT overlay，浅色版减淡）
+   CRT 扫描线 + 暗角（rtm CRT overlay，multiply 混合）
    ════════════════════════════════════════════════════ */
 #root::after {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 2147483647;
+  z-index: 45; /* 高于正常 UI（z≤40，扫描线覆盖）；低于弹窗 z-50（弹窗自然无扫描线） */
   pointer-events: none;
   background:
-    repeating-linear-gradient(0deg, rgb(0 0 0 / 9%) 0 1px, rgb(0 0 0 / 3%) 1px 2px, transparent 2px 4px),
-    radial-gradient(ellipse at center, transparent 65%, rgb(60 55 40 / 14%) 100%);
+    repeating-linear-gradient(0deg, rgb(0 0 0 / 22%) 0 1px, rgb(255 255 255 / 4%) 1px 2px, transparent 2px 4px),
+    radial-gradient(ellipse at center, transparent 62%, rgb(0 0 0 / 25%) 100%);
   mix-blend-mode: multiply;
-  opacity: 0.6;
+  opacity: 0.55;
+}
+
+/* 图片预览窗格跳过 CRT 扫描线/暗角：
+   position:relative 不脱离中栏布局（不改视觉位置），z-index 48 盖过 overlay(45) →
+   overlay 的 multiply 作用不到图片预览矩形；又低于弹窗 z-50，外观菜单等弹窗正常盖在其上 */
+.image-preview {
+  position: relative;
+  z-index: 48;
 }

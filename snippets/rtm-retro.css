@@ -97,9 +97,9 @@
    会话项 — 激活会话 = 强调色轮廓 + 凹陷
    ════════════════════════════════════════════════════ */
 .session-item--active {
-  outline: 1px solid rgb(var(--ide-accent) / 0.8) !important;
+  outline: 1px solid rgb(var(--ide-accent) / 0.75) !important;
   outline-offset: -1px !important;
-  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow)) !important;
+  box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow) / 0.4) !important;
 }
 
 /* ════════════════════════════════════════════════════
