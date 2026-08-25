@@ -496,7 +496,6 @@ interface AiFileChange {
   filePath: string
   relativePath: string
   action: 'create' | 'edit' | 'delete'
-  content?: string
   oldContent?: string
 }
 

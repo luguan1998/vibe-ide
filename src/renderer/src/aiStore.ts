@@ -430,14 +430,18 @@ function initListeners() {
       // 比较是否被覆盖时按 trim 口径，否则末尾空白会让 includes 失败 → 虚假 extra → 多渲染一条重复 thinking。
       const coveredByMergedThinking = isSameMessageId && !!lastMsg?.thinking && lastMsg.thinking.includes(s0.thinkingBuffer.trim())
       const coveredByMergedText = isSameMessageId && !!lastMsg?.content && lastMsg.content.includes(s0.streamBuffer.trim())
-      const extraThinking = s0.thinkingBuffer
-        && (!msg.thinking || !msg.thinking.includes(s0.thinkingBuffer.trim()))
-        && !coveredByMergedThinking
-        ? s0.thinkingBuffer : ''
-      const extraText = s0.streamBuffer
-        && (!msg.content || !msg.content.includes(s0.streamBuffer.trim()))
-        && !coveredByMergedText
-        ? s0.streamBuffer : ''
+      // 差分而非整段补发:streamBuffer 是 token 累积,msg.content/thinking 是 cleanText 后的最终版,
+      // 正常应为 buffer 前缀(trim 差异);只补 content 未覆盖的尾部,避免整段重复常驻一条历史
+      const tailNotCovered = (buf: string, covered: string | undefined): string => {
+        if (!buf) return ''
+        const target = covered ?? ''
+        let i = 0
+        const max = Math.min(buf.length, target.length)
+        while (i < max && buf[i] === target[i]) i++
+        return i >= buf.length ? '' : buf.slice(i)
+      }
+      const extraThinking = coveredByMergedThinking ? '' : tailNotCovered(s0.thinkingBuffer, msg.thinking)
+      const extraText = coveredByMergedText ? '' : tailNotCovered(s0.streamBuffer, msg.content)
       const hasExtra = extraThinking || extraText
 
       const flushedMsg = (hasExtra && s0.streaming && (isAssistant || msg.type === 'result'))
@@ -593,7 +597,6 @@ function initListeners() {
         filePath: data.filePath,
         relativePath: data.relativePath,
         action: data.action,
-        content: data.content,
         oldContent: data.oldContent,
       })
 

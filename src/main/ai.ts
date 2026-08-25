@@ -373,6 +373,14 @@ function isFileEditTool(toolName: string): boolean {
 // 删除类工具：回滚时按"恢复文件"处理（写回 oldContent），而非删除
 const DELETION_TOOLS = new Set(['delete_file', 'DeleteFile', 'file_delete', 'rm', 'Remove', 'remove'])
 
+// 工具 result 仅 UI 展示用（agent 上下文由 CLI 自持），人不会读超大原文；
+// 截断到 16KB 避免几 MB 的工具输出无限常驻渲染进程。原文仍在 CLI jsonl 里。
+const MAX_TOOL_RESULT_CHARS = 16 * 1024
+function truncateToolResult(text: string): string {
+  if (text.length <= MAX_TOOL_RESULT_CHARS) return text
+  return text.slice(0, MAX_TOOL_RESULT_CHARS) + `\n…(truncated ${text.length - MAX_TOOL_RESULT_CHARS} chars, see session jsonl)`
+}
+
 // Calculate context percentage from usage token counts.
 // Claude CLI stream-json does NOT include context_window in output.
 // modelUsage block (used by newer CLI versions) has not been observed in practice.
@@ -428,9 +436,6 @@ async function extractFileChange(sessionId: string, block: any, cwd: string): Pr
   const relPath = relative(cwd, absPath)
   let oldContent: string | undefined
   try { oldContent = await readFile(absPath, 'utf-8') } catch { /* file may not exist yet */ }
-  const newContent = input.new_string !== undefined
-    ? input.new_string
-    : (input.content || input.new_content || input.newContent)
 
   // turnIndex = the user turn this edit belongs to (last completed user turn), computed from
   // the live JSONL via parseUserTurns — the same single source revert uses. File edits run
@@ -455,7 +460,6 @@ async function extractFileChange(sessionId: string, block: any, cwd: string): Pr
     filePath: absPath,
     relativePath: relPath,
     action: isDeleteTool ? 'delete' : (oldContent !== undefined ? 'edit' : 'create'),
-    content: newContent,
     oldContent,
     turnIndex,
   })
@@ -707,7 +711,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
               role: 'user',
               toolResult: {
                 toolUseId: block.tool_use_id,
-                content: resultContent,
+                content: truncateToolResult(resultContent),
                 isError: block.is_error || false,
               },
               parentToolUseId: parentToolUseId || undefined,
@@ -809,7 +813,7 @@ function emitSidecarMessage(sessionId: string, msg: any, parentToolUseId: string
           role: 'user',
           toolResult: {
             toolUseId: block.tool_use_id,
-            content: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
+            content: truncateToolResult(typeof block.content === 'string' ? block.content : JSON.stringify(block.content)),
             isError: block.is_error || false,
           },
           parentToolUseId,
@@ -1186,7 +1190,7 @@ function parseTranscriptLines(
           if (block.type === 'tool_result') {
             const toolUseId = block.tool_use_id
             const resultContent = typeof block.content === 'string' ? block.content : JSON.stringify(block.content)
-            const result: AiToolResult = { toolUseId, content: resultContent, isError: block.is_error || false }
+            const result: AiToolResult = { toolUseId, content: truncateToolResult(resultContent), isError: block.is_error || false }
 
             const pos = toolUseIndex.get(toolUseId)
             if (pos) {
