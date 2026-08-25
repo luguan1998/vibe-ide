@@ -1,9 +1,12 @@
 import { app, ipcMain } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { execFileSync } from 'child_process'
+import { execFile, execFileSync } from 'child_process'
+import { promisify } from 'util'
 import { BoardCreateOptions, BoardOpResult, BoardRecordsResult, IPC_CHANNELS, WorktreeRecord } from '../shared/types'
 import { closeTerminalSession, createTerminalSession } from './pty'
+
+const gitAsync = promisify(execFile)
 
 const recordsCache = new Map<string, WorktreeRecord[]>()
 
@@ -98,13 +101,22 @@ function ensureVibeExcluded(repoRoot: string): void {
   }
 }
 
-function createBoardSession(options: BoardCreateOptions): BoardOpResult {
-  const repoRoot = resolveToplevel(options.workspacePath)
+async function resolveToplevelAsync(entryDir: string): Promise<string | null> {
+  try {
+    const { stdout } = await gitAsync('git', ['rev-parse', '--show-toplevel'], { cwd: entryDir, timeout: 15000, windowsHide: true })
+    return stdout.trim() || null
+  } catch {
+    return null
+  }
+}
+
+async function createBoardSession(options: BoardCreateOptions): Promise<BoardOpResult> {
+  const repoRoot = await resolveToplevelAsync(options.workspacePath)
   if (!repoRoot) return { error: '当前工作区不是 git 仓库,无法创建 worktree' }
 
   const records = loadRecords(repoRoot)
   let baseBranch = ''
-  try { baseBranch = git(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD']) } catch {}
+  try { baseBranch = (await gitAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: repoRoot, timeout: 15000, windowsHide: true })).stdout.trim() } catch {}
 
   const title = options.title?.trim() || genTaskTitle()
   const slug = uniqueSlug(slugify(title), records)
@@ -114,10 +126,20 @@ function createBoardSession(options: BoardCreateOptions): BoardOpResult {
   if (existsSync(worktreePath)) return { error: `目录已存在: ${worktreePath}` }
 
   const branchName = `task/${slug}`
+  // Windows 下每个新文件落盘有固定开销(杀软实时扫描)，串行检出 9000+ 文件需 5-27s；
+  // 先 --no-checkout 秒建元数据，再用并行 checkout(workers=8) 重叠该延迟，实测稳定 ~2.2s。
+  // 必须走异步 execFile：execFileSync 会阻塞主进程事件循环，冻结全部终端输出与 IPC
   try {
-    git(repoRoot, ['worktree', 'add', '-b', branchName, worktreePath], 30000)
+    await gitAsync('git', ['worktree', 'add', '--no-checkout', '-b', branchName, worktreePath], { cwd: repoRoot, timeout: 30000, windowsHide: true })
   } catch (err: any) {
     return { error: `worktree 创建失败: ${String(err?.message ?? err).split('\n')[0]}` }
+  }
+  try {
+    await gitAsync('git', ['-c', 'checkout.workers=8', '-c', 'checkout.threshold=10000', 'checkout', 'HEAD'], { cwd: worktreePath, timeout: 60000, windowsHide: true })
+  } catch (err: any) {
+    try { await gitAsync('git', ['worktree', 'remove', '--force', worktreePath], { cwd: repoRoot, timeout: 15000, windowsHide: true }) } catch {}
+    try { await gitAsync('git', ['branch', '-D', branchName], { cwd: repoRoot, timeout: 15000, windowsHide: true }) } catch {}
+    return { error: `worktree 检出失败: ${String(err?.message ?? err).split('\n')[0]}` }
   }
   ensureVibeExcluded(repoRoot)
 
@@ -144,6 +166,33 @@ function createBoardSession(options: BoardCreateOptions): BoardOpResult {
   return { ok: true, record }
 }
 
+async function cleanupWorktree(repoRoot: string, rec: WorktreeRecord): Promise<void> {
+  // pty.kill 后 shell 进程退出有延迟，立即删目录会被其 cwd 句柄锁住，稍等再动手
+  await new Promise(r => setTimeout(r, 500))
+  let removed = !existsSync(rec.worktreePath)
+  if (!removed) {
+    try {
+      await gitAsync('git', ['worktree', 'remove', '--force', rec.worktreePath], { cwd: repoRoot, timeout: 60000, windowsHide: true })
+    } catch {
+      try {
+        await gitAsync('git', ['worktree', 'remove', '--force', '--force', rec.worktreePath], { cwd: repoRoot, timeout: 60000, windowsHide: true })
+      } catch {
+        try { rmSync(rec.worktreePath, { recursive: true, force: true }) } catch {}
+      }
+    }
+    removed = !existsSync(rec.worktreePath)
+  }
+  try { await gitAsync('git', ['worktree', 'prune'], { cwd: repoRoot, timeout: 15000, windowsHide: true }) } catch {}
+  try { await gitAsync('git', ['branch', '-D', rec.branchName], { cwd: repoRoot, timeout: 15000, windowsHide: true }) } catch {}
+  if (!removed) {
+    const records = loadRecords(repoRoot)
+    if (!records.some(r => r.id === rec.id)) {
+      records.push(rec)
+      saveRecords(repoRoot, records)
+    }
+  }
+}
+
 function finishBoardSession(workspacePath: string, recordId: string): BoardOpResult {
   const repoRoot = resolveToplevel(workspacePath)
   if (!repoRoot) return { error: '当前工作区不是 git 仓库' }
@@ -154,29 +203,11 @@ function finishBoardSession(workspacePath: string, recordId: string): BoardOpRes
 
   closeTerminalSession(rec.id)
 
-  if (existsSync(rec.worktreePath)) {
-    try {
-      git(repoRoot, ['worktree', 'remove', '--force', rec.worktreePath], 30000)
-    } catch {
-      try {
-        git(repoRoot, ['worktree', 'remove', '--force', '--force', rec.worktreePath], 30000)
-      } catch {
-        try {
-          rmSync(rec.worktreePath, { recursive: true, force: true })
-          try { git(repoRoot, ['worktree', 'prune']) } catch {}
-        } catch (err2: any) {
-          return { error: `worktree 清理失败(已停止,记录保留): ${String(err2?.message ?? err2).split('\n')[0]}` }
-        }
-      }
-    }
-  } else {
-    try { git(repoRoot, ['worktree', 'prune']) } catch {}
-  }
-
-  try { git(repoRoot, ['branch', '-D', rec.branchName]) } catch {}
-
+  // 先删记录让卡片立即消失，6s+ 的目录删除放后台异步做，不阻塞主进程事件循环；
+  // 清理失败时把记录塞回去，用户可重试 finish 或 clear
   records.splice(idx, 1)
   saveRecords(repoRoot, records)
+  void cleanupWorktree(repoRoot, rec)
   return { ok: true }
 }
 
@@ -186,6 +217,7 @@ function clearBoardRecord(workspacePath: string, recordId: string): BoardOpResul
   const records = loadRecords(repoRoot)
   const idx = records.findIndex(r => r.id === recordId)
   if (idx < 0) return { error: '记录不存在' }
+  const rec = records[idx]
   // 与 finishBoardSession 对齐:清记录必须一并关闭 board 终端,否则 shell 进程 + 终端 tab 永久泄漏
   closeTerminalSession(rec.id)
   records.splice(idx, 1)
@@ -202,10 +234,10 @@ export function registerBoardHandlers(): void {
     return { repoRoot, records: loadRecords(repoRoot).map(r => ({ ...r, orphan: !existsSync(r.worktreePath) })) }
   })
 
-  ipcMain.handle(IPC_CHANNELS.BOARD_CREATE, (_e, options?: BoardCreateOptions): BoardOpResult => {
+  ipcMain.handle(IPC_CHANNELS.BOARD_CREATE, async (_e, options?: BoardCreateOptions): Promise<BoardOpResult> => {
     if (!options || typeof options.workspacePath !== 'string') return { error: '参数缺失' }
     try {
-      return createBoardSession(options)
+      return await createBoardSession(options)
     } catch (err: any) {
       console.error('[board] create error:', err)
       return { error: err?.message ?? String(err) }
