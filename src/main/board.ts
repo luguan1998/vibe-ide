@@ -186,6 +186,8 @@ function clearBoardRecord(workspacePath: string, recordId: string): BoardOpResul
   const records = loadRecords(repoRoot)
   const idx = records.findIndex(r => r.id === recordId)
   if (idx < 0) return { error: '记录不存在' }
+  // 与 finishBoardSession 对齐:清记录必须一并关闭 board 终端,否则 shell 进程 + 终端 tab 永久泄漏
+  closeTerminalSession(rec.id)
   records.splice(idx, 1)
   saveRecords(repoRoot, records)
   try { git(repoRoot, ['worktree', 'prune']) } catch {}

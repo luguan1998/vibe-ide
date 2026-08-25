@@ -236,12 +236,15 @@ async function buildDshContext(baseUrl: string): Promise<DshContextHandle> {
 // instead of each view assembling its own plugin stack + connection + list
 // mirrors. Rejected builds reset so a later mount can retry.
 let sharedPromise: Promise<DshContextHandle> | null = null
+// applyDshTheme 的清理函数与 ctx 生命周期绑定:重启重建 ctx 时必须摘掉旧的
+// MutationObserver + 全局监听,否则每次插件装卸重启残留一份旧 ctx + 监听(泄漏)
+let themeDispose: (() => void) | null = null
 
 export function getSharedDshContext(baseUrl: string): Promise<DshContextHandle> {
   if (sharedPromise === null) {
     sharedPromise = buildDshContext(baseUrl)
       .then((h) => {
-        applyDshTheme(h.ctx)
+        themeDispose = applyDshTheme(h.ctx)
         return h
       })
       .catch((e) => {
@@ -258,4 +261,5 @@ export async function resetSharedDshContext(): Promise<void> {
   if (p === null) return
   sharedPromise = null
   try { await (await p).dispose() } catch {}
+  try { themeDispose?.() } catch {} finally { themeDispose = null }
 }

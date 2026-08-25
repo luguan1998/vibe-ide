@@ -2354,12 +2354,14 @@ export default function App() {
   }, [handleCloseSession])
 
   const handleBoardClearRecord = useCallback(async (rec: WorktreeRecord) => {
+    // 与 handleBoardFinishRecord 对齐:清记录前先关 pty + 删 tab,否则泄漏 shell 进程 + 孤儿会话
+    await handleCloseSession(rec.id)
     try {
       await window.api.board.clear(rec.repoRoot, rec.id)
     } catch (e: any) {
       console.warn('[board] clear failed:', e?.message)
     }
-  }, [])
+  }, [handleCloseSession])
 
   const handleBoardCreatePlain = useCallback(async (cwd: string, launchCommand?: string) => {
     try {
