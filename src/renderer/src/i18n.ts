@@ -494,6 +494,7 @@ const ZH_MAP: Record<string, string> = {
   'Prefilled when creating a task': '新建任务时自动预填，Enter 或失焦保存',
   'Type a message, Enter to send': '输入消息，Enter 发送到该会话',
   'Send': '发送',
+  'times send': '倍发送',
   'Load more': '加载更早',
   'Load earlier terminal output': '向上加载更早的终端输出',
   'Truncate': '截断文字',

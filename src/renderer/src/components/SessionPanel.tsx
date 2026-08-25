@@ -658,6 +658,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [showAppendCmdModal, setShowAppendCmdModal] = useState(false)
   const [appendCmdSessionId, setAppendCmdSessionId] = useState<string | null>(null)
   const [appendCmdDraft, setAppendCmdDraft] = useState('')
+  const [appendCmdTimes, setAppendCmdTimes] = useState(1)
   const appendCmdAnchorYRef = useRef(0)
   const [schedTasks, setSchedTasks] = useState<Record<string, SchedTask>>({})
   const schedTasksRef = useRef(schedTasks)
@@ -677,7 +678,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const handleSendAppendCmd = () => {
     if (!appendCmdDraft.trim() || !appendCmdSessionId) return
     onSwitchSession(appendCmdSessionId)
-    onPipeCommand?.(appendCmdDraft)
+    for (let i = 0; i < appendCmdTimes; i++) onPipeCommand?.(appendCmdDraft)
     setShowAppendCmdModal(false)
   }
   const openSchedModal = (sessionId: string) => {
@@ -1877,6 +1878,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             onClick={() => {
               setAppendCmdSessionId(contextMenu.sessionId)
               setAppendCmdDraft('')
+              setAppendCmdTimes(1)
               appendCmdAnchorYRef.current = contextMenu.y
               setShowAppendCmdModal(true)
               setContextMenu(null)
@@ -2552,6 +2554,18 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 }
               }}
             />
+            <div className="flex items-center gap-1 mt-1.5 justify-end pr-2">
+              <select
+                value={appendCmdTimes}
+                onChange={e => setAppendCmdTimes(Number(e.target.value))}
+                className="px-1 py-0.5 text-xs bg-ide-bg border border-ide-border rounded text-ide-text outline-none focus:border-ide-accent/60"
+              >
+                {[1, 2, 3, 5, 10].map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <span className="text-xs text-ide-text-muted">{t('times send')}</span>
+            </div>
           </div>
         </ModalOverlay>
       )}
