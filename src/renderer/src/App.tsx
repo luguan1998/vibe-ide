@@ -1885,7 +1885,7 @@ export default function App() {
     }
   }
 
-  const addSessionRecord = useCallback((session: SessionTab, parentId?: string | null) => {
+  const addSessionRecord = useCallback((session: SessionTab, parentId?: string | null, activate = true) => {
     setSessions(prev => {
       if (prev.some(s => s.id === session.id)) return prev
       if (parentId == null) return [...prev, session]
@@ -1895,15 +1895,16 @@ export default function App() {
       next.splice(parentIndex + 1, 0, session)
       return next
     })
+    if (!activate) return
     setActiveSessionId(session.id)
     setCenterView('terminal')
     setDiffFile(null)
   }, [])
 
-  const createTermSession = useCallback(async (cwd: string, shell: string = getMainShellType(), initOverride?: string) => {
+  const createTermSession = useCallback(async (cwd: string, shell: string = getMainShellType(), initOverride?: string, activate = true) => {
     const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: initOverride ?? readDefaultAgent() })
     const tab: SessionTab = { ...session, kind: 'terminal', loaded: true }
-    addSessionRecord(tab)
+    addSessionRecord(tab, null, activate)
     return session
   }, [autoUtf8, addSessionRecord])
 
@@ -2365,7 +2366,7 @@ export default function App() {
 
   const handleBoardCreatePlain = useCallback(async (cwd: string, launchCommand?: string) => {
     try {
-      return await createTermSession(cwd, undefined, launchCommand)
+      return await createTermSession(cwd, undefined, launchCommand, false)
     } catch (e: any) {
       console.warn('[board] create plain session failed:', e?.message)
       return null

@@ -321,12 +321,14 @@ export default function BoardView({
   const [replyLoading, setReplyLoading] = useState(false)
   const [tailDepth, setTailDepth] = useState(60)
   const [showLoadMore, setShowLoadMore] = useState(true)
+  const [tailEnded, setTailEnded] = useState(false)
 
   const loadTailMore = useCallback((s: SessionTab) => {
     const next = tailDepth + 60
     setTailDepth(next)
-    const text = onReadSessionTail(s.id, next).join('\n').slice(-12000)
-    setReplyText(shortenHrLines(truncateReply(text, readTruncate())))
+    const lines = onReadSessionTail(s.id, next)
+    setTailEnded(lines.length < next)
+    setReplyText(shortenHrLines(truncateReply(lines.join('\n').slice(-12000), readTruncate())))
   }, [onReadSessionTail, tailDepth])
   const [draft, setDraft] = useState('')
   const [truncate, setTruncate] = useState(readTruncate)
@@ -483,8 +485,9 @@ export default function BoardView({
         return
       }
       if (s.kind === 'terminal') {
-        const text = onReadSessionTail(s.id, 60).join('\n').slice(-12000)
-        setReplyText(shortenHrLines(truncateReply(text, readTruncate())))
+        const lines = onReadSessionTail(s.id, 60)
+        setTailEnded(lines.length < 60)
+        setReplyText(shortenHrLines(truncateReply(lines.join('\n').slice(-12000), readTruncate())))
         return
       }
       if (s.kind === 'dsh') {
@@ -655,6 +658,17 @@ export default function BoardView({
           <span className="text-xs font-medium text-ide-text">{t('Task Board')}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {repoRoot && createCwd && (
+            <button
+              onClick={(e) => openCreateDirMenu(e)}
+              title={createCwd}
+              className="px-1.5 py-0.5 rounded-full text-[10px] border flex items-center gap-1 max-w-[150px] text-ide-text-muted border-ide-border bg-ide-hover transition-colors hover:text-ide-text hover:border-ide-accent/50"
+            >
+              <Folder size={10} className="shrink-0" />
+              <span className="truncate min-w-0">{pathTail(createCwd)}</span>
+              <ChevronDown size={10} className="shrink-0 opacity-70" />
+            </button>
+          )}
           <button
             onClick={(e) => openCwdMenu(e)}
             title={t('Filter by directory')}
@@ -672,20 +686,6 @@ export default function BoardView({
             <div className="h-7 px-3 flex items-center gap-1.5 border-b border-ide-border shrink-0">
               <span className="text-xs font-medium text-ide-text-muted">{col.label}</span>
               <span className="text-[10px] px-1 rounded-full bg-ide-hover text-ide-text-muted">{col.count}</span>
-              {col.key === 'plan' && repoRoot && createCwd && (
-                <>
-                  <div className="flex-1" />
-                  <button
-                    onClick={(e) => openCreateDirMenu(e)}
-                    title={createCwd}
-                    className="px-1.5 py-0.5 rounded-full text-[10px] border flex items-center gap-1 max-w-[150px] text-ide-text-muted border-ide-border bg-ide-hover transition-colors hover:text-ide-text hover:border-ide-accent/50"
-                  >
-                    <Folder size={10} className="shrink-0" />
-                    <span className="truncate min-w-0">{pathTail(createCwd)}</span>
-                    <ChevronDown size={10} className="shrink-0 opacity-70" />
-                  </button>
-                </>
-              )}
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
               {col.key === 'plan' && (
@@ -932,7 +932,7 @@ export default function BoardView({
               <CornerDownLeft size={13} />
             </button>
           </div>
-          {replyFor.kind === 'terminal' && showLoadMore && (
+          {replyFor.kind === 'terminal' && showLoadMore && !tailEnded && (
             <div className="shrink-0 px-3 pt-1.5 flex justify-center">
               <button
                 onClick={() => loadTailMore(replyFor)}

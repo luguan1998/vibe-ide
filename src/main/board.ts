@@ -1,7 +1,7 @@
 import { app, ipcMain } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { execFile, execFileSync } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { BoardCreateOptions, BoardOpResult, BoardRecordsResult, IPC_CHANNELS, WorktreeRecord } from '../shared/types'
 import { closeTerminalSession, createTerminalSession } from './pty'
@@ -44,18 +44,6 @@ function saveRecords(repoRoot: string, list: WorktreeRecord[]): void {
     renameSync(tmp, file)
   } catch (err: any) {
     console.warn('[board] save records failed:', err?.message)
-  }
-}
-
-function git(cwd: string, args: string[], timeoutMs = 15000): string {
-  return execFileSync('git', args, { cwd, encoding: 'utf-8', timeout: timeoutMs, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
-}
-
-function resolveToplevel(entryDir: string): string | null {
-  try {
-    return git(entryDir, ['rev-parse', '--show-toplevel']) || null
-  } catch {
-    return null
   }
 }
 
@@ -193,8 +181,8 @@ async function cleanupWorktree(repoRoot: string, rec: WorktreeRecord): Promise<v
   }
 }
 
-function finishBoardSession(workspacePath: string, recordId: string): BoardOpResult {
-  const repoRoot = resolveToplevel(workspacePath)
+async function finishBoardSession(workspacePath: string, recordId: string): Promise<BoardOpResult> {
+  const repoRoot = await resolveToplevelAsync(workspacePath)
   if (!repoRoot) return { error: '当前工作区不是 git 仓库' }
   const records = loadRecords(repoRoot)
   const idx = records.findIndex(r => r.id === recordId)
@@ -211,8 +199,8 @@ function finishBoardSession(workspacePath: string, recordId: string): BoardOpRes
   return { ok: true }
 }
 
-function clearBoardRecord(workspacePath: string, recordId: string): BoardOpResult {
-  const repoRoot = resolveToplevel(workspacePath)
+async function clearBoardRecord(workspacePath: string, recordId: string): Promise<BoardOpResult> {
+  const repoRoot = await resolveToplevelAsync(workspacePath)
   if (!repoRoot) return { error: '当前工作区不是 git 仓库' }
   const records = loadRecords(repoRoot)
   const idx = records.findIndex(r => r.id === recordId)
@@ -222,14 +210,14 @@ function clearBoardRecord(workspacePath: string, recordId: string): BoardOpResul
   closeTerminalSession(rec.id)
   records.splice(idx, 1)
   saveRecords(repoRoot, records)
-  try { git(repoRoot, ['worktree', 'prune']) } catch {}
+  void cleanupWorktree(repoRoot, rec)
   return { ok: true }
 }
 
 export function registerBoardHandlers(): void {
-  ipcMain.handle(IPC_CHANNELS.BOARD_RECORDS, (_e, workspacePath?: string): BoardRecordsResult => {
+  ipcMain.handle(IPC_CHANNELS.BOARD_RECORDS, async (_e, workspacePath?: string): Promise<BoardRecordsResult> => {
     if (!workspacePath) return { repoRoot: null, records: [] }
-    const repoRoot = resolveToplevel(workspacePath)
+    const repoRoot = await resolveToplevelAsync(workspacePath)
     if (!repoRoot) return { repoRoot: null, records: [] }
     return { repoRoot, records: loadRecords(repoRoot).map(r => ({ ...r, orphan: !existsSync(r.worktreePath) })) }
   })
@@ -244,20 +232,20 @@ export function registerBoardHandlers(): void {
     }
   })
 
-  ipcMain.handle(IPC_CHANNELS.BOARD_FINISH, (_e, workspacePath?: string, recordId?: string): BoardOpResult => {
+  ipcMain.handle(IPC_CHANNELS.BOARD_FINISH, async (_e, workspacePath?: string, recordId?: string): Promise<BoardOpResult> => {
     if (!workspacePath || !recordId) return { error: '参数缺失' }
     try {
-      return finishBoardSession(workspacePath, recordId)
+      return await finishBoardSession(workspacePath, recordId)
     } catch (err: any) {
       console.error('[board] finish error:', err)
       return { error: err?.message ?? String(err) }
     }
   })
 
-  ipcMain.handle(IPC_CHANNELS.BOARD_CLEAR, (_e, workspacePath?: string, recordId?: string): BoardOpResult => {
+  ipcMain.handle(IPC_CHANNELS.BOARD_CLEAR, async (_e, workspacePath?: string, recordId?: string): Promise<BoardOpResult> => {
     if (!workspacePath || !recordId) return { error: '参数缺失' }
     try {
-      return clearBoardRecord(workspacePath, recordId)
+      return await clearBoardRecord(workspacePath, recordId)
     } catch (err: any) {
       return { error: err?.message ?? String(err) }
     }
