@@ -8,6 +8,10 @@ function normalizeCwd(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/$/, '')
 }
 
+function isVibeDir(path: string): boolean {
+  return /(^|\/)\.vibe(\/|$)/i.test(normalizeCwd(path))
+}
+
 function loadArr(key: string, max?: number): string[] {
   try {
     const raw = localStorage.getItem(key)
@@ -26,7 +30,7 @@ function saveArr(key: string, arr: string[]): void {
   try { localStorage.setItem(key, JSON.stringify(arr)) } catch {}
 }
 
-let recentDirs: string[] = loadArr(RECENT_KEY, MAX_RECENT_DIRS)
+let recentDirs: string[] = loadArr(RECENT_KEY, MAX_RECENT_DIRS).filter(d => !isVibeDir(d))
 let favCwds: string[] = loadArr(FAV_KEY)
 const listeners = new Set<() => void>()
 function emit() { for (const l of listeners) l() }
@@ -40,6 +44,7 @@ export const cwdStore = {
   getFavCwds: () => favCwds,
   addRecentDir(dir: string) {
     const n = normalizeCwd(dir)
+    if (isVibeDir(n)) return
     const next = [n, ...recentDirs.filter(d => d !== n)].slice(0, MAX_RECENT_DIRS)
     recentDirs = next
     saveArr(RECENT_KEY, next)
