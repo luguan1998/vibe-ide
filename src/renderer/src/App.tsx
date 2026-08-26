@@ -25,7 +25,7 @@ import { mujicaStore, useMujica } from './mujicaStore'
 import { aiStore, readAiCliConfig } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
-import { getFileInfo, FILE_ICON_PATHS } from './components/FileIcons'
+import { getFileInfo } from './components/FileIcons'
 import iconPattern from '@renderer/assets/icon-pattern.png?inline'
 import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
 import { ADD_ANNOTATION_EVENT, toRelPath } from './components/vibeEvents'
@@ -1553,13 +1553,6 @@ export default function App() {
         }
       }
 
-      // board.focus → toggle session board center view
-      if (eventMatchesBinding(e, bindings['board.focus'])) {
-        e.preventDefault()
-        e.stopImmediatePropagation()
-        setCenterView(prev => (prev === 'board' ? 'terminal' : 'board'))
-      }
-
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
       // Use visual order: grouped by cwd when grouping enabled, raw array order otherwise
       let visualOrder: SessionTab[]
@@ -2007,17 +2000,17 @@ export default function App() {
 
   // Clone a terminal session (same cwd), insert below parent
   const handleCloneSession = useCallback(async (parentId: string | null, cwd: string, shell?: string, name?: string) => {
-    const parentMode = parentId ? sessions.find(s => s.id === parentId)?.kind : undefined
+    const parent = parentId ? sessions.find(s => s.id === parentId) : undefined
+    const parentMode = parent?.kind
+    const parentEmoji = parent?.emoji
     if (parentMode === 'gui' || parentMode === 'dsh') {
       const session = makeLocalSession(cwd, { name })
-      addSessionRecord({ ...session, kind: parentMode, loaded: true }, parentId)
-      if (parentId) window.dispatchEvent(new CustomEvent('vibe:session-emoji-copy', { detail: { from: parentId, to: session.id } }))
+      addSessionRecord({ ...session, kind: parentMode, loaded: true, emoji: parentEmoji }, parentId)
       return
     }
     try {
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name, initCommand: readDefaultAgent() })
-      addSessionRecord({ ...session, kind: 'terminal', loaded: true }, parentId)
-      if (parentId) window.dispatchEvent(new CustomEvent('vibe:session-emoji-copy', { detail: { from: parentId, to: session.id } }))
+      addSessionRecord({ ...session, kind: 'terminal', loaded: true, emoji: parentEmoji }, parentId)
     } catch (err) {
       console.error('Failed to clone terminal session:', err)
     }
@@ -2400,6 +2393,11 @@ export default function App() {
       groups.splice(toGroupIdx, 0, moved)
       return groups.flatMap(g => g.sessions)
     })
+  }, [])
+
+  // Set session row-icon emoji (undefined = type icon), stored on SessionTab
+  const handleSetSessionEmoji = useCallback((id: string, emoji?: string) => {
+    setSessions(prev => prev.some(s => s.id === id) ? prev.map(s => s.id === id ? { ...s, emoji: emoji || undefined } : s) : prev)
   }, [])
 
   // Rename a terminal session
@@ -2961,6 +2959,7 @@ export default function App() {
             onSwitchSession={handleSwitchSession}
             onCloseSession={handleCloseSession}
             onRenameSession={handleRenameSession}
+            onSetSessionEmoji={handleSetSessionEmoji}
             onReorderSessions={handleReorderSessions}
             onReorderGroup={handleReorderGroup}
             commandHistory={commandHistory}
@@ -3221,6 +3220,7 @@ export default function App() {
               sessions={sessions}
               agentStatus={agentStatus}
               activeSessionId={centerView === 'board' ? null : activeSessionId}
+              sessionWorktreeNav={sessionWorktreeNav}
               onCreateRecord={handleBoardCreate}
               onFocusSession={handleBoardFocusSession}
               onOpenRecord={handleBoardOpenRecord}

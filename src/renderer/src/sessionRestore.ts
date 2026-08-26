@@ -1,10 +1,14 @@
 export type TabKind = 'terminal' | 'gui' | 'dsh'
 
+// 行首图标哨兵：空白图标（emoji === undefined 表示类型图标位）
+export const ICON_NONE = ''
+
 export interface SessionTab {
   id: string
   kind: TabKind
   name: string
   cwd: string
+  emoji?: string
   active: boolean
   createdAt: number
   shell?: string
@@ -48,6 +52,7 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           kind: t.kind,
           name: t.name,
           cwd: t.cwd,
+          emoji: typeof t.emoji === 'string' ? t.emoji : undefined,
           active: true,
           createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
           shell: typeof t.shell === 'string' ? t.shell : undefined,

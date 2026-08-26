@@ -616,6 +616,9 @@ html, body, #root {
 .md-preview > *:last-child { margin-bottom: 0; }
 /* Board 回复:term 输出为字符打印,单换行不得折叠(soft break 保留),仅作用 term 类回复容器 */
 .board-reply-md :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, th, td) { white-space: pre-wrap; }
+/* Board 回复:term 超宽内容截断,不显示横向滚动条 */
+#root .board-reply-md pre,
+#root .board-reply-md .md-code-block { overflow-x: hidden; }
 
 
 /* ── Frontmatter card ── */

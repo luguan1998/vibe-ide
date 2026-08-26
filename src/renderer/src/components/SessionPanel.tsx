@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect, useMemo, useImperativeHandle, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
-import { type SessionTab, type TabKind } from '../sessionRestore'
+import { type SessionTab, ICON_NONE } from '../sessionRestore'
 import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, KanbanSquare, FolderPlus } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
@@ -17,6 +17,8 @@ import mujicaIcon from '@renderer/assets/mujica.png?inline'
 import { useMujicaCounts } from '../mujicaStore'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { BOARD_FOCUS } from './BoardView'
+import { SessionGlyph, renderKindIcon } from '../sessionIcon'
+import { useSchedTasks, setSchedTask, deleteSchedTask, markSchedFired, pruneSchedTasks } from '../schedStore'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 import { ToolIcon } from './AiTab/tools'
 
@@ -203,10 +205,7 @@ function getCwdEmoji(index: number, pool: string[], override?: string): string {
   return pickEmoji(index, pool, override)
 }
 
-// 行首图标状态机：idle 默认类型图标，点击循环切到 emoji；瞬态按优先级覆盖（加状态只加一条）
-const ICON_TYPE = ''
-const ICON_NONE = '\uE001'
-type SessionIconState = 'scheduled' | 'worktree' | 'running' | 'warn' | 'idle'
+// 行首图标状态机见 sessionIcon.tsx（SessionPanel 与 BoardView 共用）
 
 interface SessionPanelProps {
   sessions: SessionTab[]
@@ -220,6 +219,7 @@ interface SessionPanelProps {
   onSwitchSession: (id: string) => void
   onCloseSession: (id: string) => void
   onRenameSession?: (id: string, newName: string) => Promise<void>
+  onSetSessionEmoji?: (id: string, emoji?: string) => void
   onReorderSessions?: (fromIndex: number, toIndex: number) => void
   onReorderGroup?: (fromGroupIndex: number, toGroupIndex: number) => void
   commandHistory?: Record<string, string[]>
@@ -291,12 +291,7 @@ function clearTimer(ref: { current: ReturnType<typeof setTimeout> | null }) {
   if (ref.current) { clearTimeout(ref.current); ref.current = null }
 }
 
-// ── 定时任务：5 段 cron（分 时 日 月 周）最小解析 ──
-interface SchedTask {
-  cron: string
-  command: string
-  lastFired: string
-}
+// ── 定时任务：5 段 cron（分 时 日 月 周）最小解析（SchedTask 类型见 schedStore.ts）
 
 function cronFieldMatch(field: string, value: number, min: number, max: number): boolean {
   for (const raw of field.split(',')) {
@@ -434,6 +429,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onSwitchSession,
   onCloseSession,
   onRenameSession,
+  onSetSessionEmoji,
   onReorderSessions,
   onReorderGroup,
   commandHistory = {},
@@ -527,7 +523,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [cwdEmojis, setCwdEmojis] = useState<string[]>(() => loadCwdEmojis())
   const [sessionEmojis, setSessionEmojis] = useState<string[]>(() => loadSessionEmojis())
   const [cwdEmojiOverrides, setCwdEmojiOverrides] = useState<Record<string, string>>({})
-  const [sessionEmojiOverrides, setSessionEmojiOverrides] = useState<Record<string, string>>({})
   const [showAppearance, setShowAppearance] = useState(false)
 
   // 池变更时清理失效 override（用户在 modal 删了被 override 引用的 emoji 时）
@@ -538,24 +533,14 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       return Object.keys(next).length === Object.keys(prev).length ? prev : next
     })
   }, [cwdEmojis])
+  // 会话 emoji 已收进 SessionTab.emoji（随 session 持久化）；池变更时把引用失效 emoji 的会话复位为类型图标
   useEffect(() => {
-    setSessionEmojiOverrides(prev => {
-      const next: Record<string, string> = {}
-      for (const [k, v] of Object.entries(prev)) if (v === ICON_TYPE || v === ICON_NONE || sessionEmojis.includes(v)) next[k] = v
-      return Object.keys(next).length === Object.keys(prev).length ? prev : next
-    })
-  }, [sessionEmojis])
-
-  // 克隆/Ctrl+N 新会话继承源会话的行首 emoji（App.handleCloneSession 派发）
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const d = (e as CustomEvent<{ from: string; to: string }>).detail
-      if (!d?.from || !d.to) return
-      setSessionEmojiOverrides(prev => (prev[d.from] === undefined || prev[d.from] === prev[d.to]) ? prev : { ...prev, [d.to]: prev[d.from] })
+    for (const s of sessions) {
+      if (s.emoji && s.emoji !== ICON_NONE && !sessionEmojis.includes(s.emoji)) {
+        onSetSessionEmoji?.(s.id, undefined)
+      }
     }
-    window.addEventListener('vibe:session-emoji-copy', handler)
-    return () => window.removeEventListener('vibe:session-emoji-copy', handler)
-  }, [])
+  }, [sessionEmojis, sessions, onSetSessionEmoji])
 
   // 启动时从主进程获取本机已安装的 shell，过滤选项
   useEffect(() => {
@@ -616,14 +601,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     </button>
   )
 
-  // 会话类型图标（term→ToolIcon(command) / gui→Claude / dsh→DeepSeek），照抄 renderModeIcon
-  const renderKindIcon = (kind: TabKind) => kind === 'terminal' ? (
-    <ToolIcon category="command" className="text-ide-accent" />
-  ) : kind === 'gui' ? (
-    <ClaudeLogoIcon size={14} className="shrink-0" />
-  ) : (
-    <DeepSeekLogoIcon size={14} className="shrink-0" />
-  )
   const [newSubmenu, setNewSubmenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const newSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [quickNewSubmenu, setQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
@@ -660,7 +637,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [appendCmdDraft, setAppendCmdDraft] = useState('')
   const [appendCmdTimes, setAppendCmdTimes] = useState(1)
   const appendCmdAnchorYRef = useRef(0)
-  const [schedTasks, setSchedTasks] = useState<Record<string, SchedTask>>({})
+  const schedTasks = useSchedTasks()
   const schedTasksRef = useRef(schedTasks)
   schedTasksRef.current = schedTasks
   const [showSchedModal, setShowSchedModal] = useState(false)
@@ -696,12 +673,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       setSchedCronError(t('Invalid cron format. Need 5 fields: minute hour day month weekday'))
       return
     }
-    setSchedTasks(prev => ({ ...prev, [schedSessionId]: { cron, command: schedCmdDraft, lastFired: '' } }))
+    setSchedTask(schedSessionId, { cron, command: schedCmdDraft, lastFired: '' })
     setShowSchedModal(false)
   }
   const handleDeleteSched = () => {
     if (!schedSessionId) return
-    setSchedTasks(prev => { const n = { ...prev }; delete n[schedSessionId!]; return n })
+    deleteSchedTask(schedSessionId)
     setShowSchedModal(false)
   }
   // 定时轮询：秒级检查 cron 命中，同一分钟只触发一次，向指定 session 发命令
@@ -714,8 +691,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       for (const [sid, task] of Object.entries(schedTasksRef.current)) {
         if (task.lastFired === stamp) continue
         if (cronMatches(task.cron, now)) {
-          setSchedTasks(prev => prev[sid] && prev[sid].lastFired !== stamp ? { ...prev, [sid]: { ...prev[sid], lastFired: stamp } } : prev)
-          onPipeToSessionRef.current?.(sid, task.command)
+          if (markSchedFired(sid, stamp)) onPipeToSessionRef.current?.(sid, task.command)
         }
       }
     }, 1000)
@@ -723,16 +699,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }, [])
   // session 关闭后清理其定时任务
   useEffect(() => {
-    const ids = new Set(sessions.map(s => s.id))
-    setSchedTasks(prev => {
-      let changed = false
-      const next: Record<string, SchedTask> = {}
-      for (const [sid, task] of Object.entries(prev)) {
-        if (ids.has(sid)) next[sid] = task
-        else changed = true
-      }
-      return changed ? next : prev
-    })
+    pruneSchedTasks(new Set(sessions.map(s => s.id)))
   }, [sessions])
   // 定时弹窗 ESC（window capture 优先于 App 层）
   useEffect(() => {
@@ -1174,64 +1141,28 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             />
           ) : (
             <>
-              {(() => {
-                // 行首图标状态机：scheduled > worktree > running > warn > idle（可调）
-                const scheduled = !!schedTasks[session.id]
-                const worktree = !!sessionWorktreeNav[session.id]
-                const state: SessionIconState = scheduled ? 'scheduled'
-                  : worktree ? 'worktree'
-                  : agentStatus[session.id] === 'running' ? 'running'
-                  : agentStatus[session.id] === 'warn' ? 'warn'
-                  : 'idle'
-                // idle：默认类型图标，左键随机换 emoji、右键开选择菜单（ICON_TYPE 哨兵=类型位）
-                const cur = sessionEmojiOverrides[session.id]
-                const curEmoji = (cur && cur !== ICON_TYPE && cur !== ICON_NONE && sessionEmojis.includes(cur)) ? cur : null
-                const blankIcon = cur === ICON_NONE
-                const idleGlyph = blankIcon ? '' : (curEmoji ?? renderKindIcon(session.kind))
-                const glyph = state === 'scheduled' ? '⏰'
-                  : state === 'worktree' ? '🌿'
-                  : state === 'running'
-                    ? blankIcon
-                      ? <Loader2 className="w-3.5 h-3.5 text-ide-accent animate-spin-slow shrink-0" />
-                      : <span className="w-full h-full flex items-center justify-center animate-color-pulse">{idleGlyph}</span>
-                  : state === 'warn' ? '⚠️'
-                  : idleGlyph
-                const clickable = state === 'scheduled' || state === 'idle'
-                const title = state === 'scheduled' ? t('Scheduled Task')
-                  : state === 'worktree' ? (sessionWorktreeNav[session.id]?.worktreePath || 'Worktree')
-                  : state === 'running' ? t('Running')
-                  : state === 'warn' ? t('Warning')
-                  : (blankIcon ? t('Blank') : session.kind === 'terminal' ? t('Terminal') : session.kind === 'gui' ? 'Claude' : 'dsh')
-                return (
-                  <span
-                    className={`text-[13px] shrink-0 w-4 h-4 flex items-center justify-center select-none transition-colors session-item__icon${clickable ? ' cursor-pointer hover:bg-ide-hover rounded' : ''}`}
-                    title={title}
-                    draggable={false}
-                    onClick={(e) => {
-                      if (!clickable) return
-                      e.stopPropagation()
-                      e.preventDefault()
-                      if (state === 'scheduled') { openSchedModal(session.id); return }
-                      if (sessionEmojis.length === 0) return
-                      const candidates = curEmoji ? sessionEmojis.filter(em => em !== curEmoji) : sessionEmojis
-                      if (candidates.length === 0) return
-                      const next = candidates[Math.floor(Math.random() * candidates.length)]
-                      setSessionEmojiOverrides(prev => ({ ...prev, [session.id]: next }))
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setContextMenu(null)
-                      setEmptyAreaMenu(null)
-                      setCloneSubmenu(null)
-                      setNewSubmenu(null)
-                      setQuickNewSubmenu(null)
-                      setGroupQuickNewSubmenu(null)
-                      setEmojiMenu({ x: e.clientX, y: e.clientY, sessionId: session.id })
-                    }}
-                  >{glyph}</span>
-                )
-              })()}
+              <SessionGlyph
+                session={session}
+                status={agentStatus[session.id]}
+                worktreeNav={sessionWorktreeNav[session.id] ?? null}
+                onClick={(info) => {
+                  if (info.state === 'scheduled') { openSchedModal(session.id); return }
+                  if (sessionEmojis.length === 0) return
+                  const candidates = info.curEmoji ? sessionEmojis.filter(em => em !== info.curEmoji) : sessionEmojis
+                  if (candidates.length === 0) return
+                  const next = candidates[Math.floor(Math.random() * candidates.length)]
+                  onSetSessionEmoji?.(session.id, next)
+                }}
+                onContextMenu={(e) => {
+                  setContextMenu(null)
+                  setEmptyAreaMenu(null)
+                  setCloneSubmenu(null)
+                  setNewSubmenu(null)
+                  setQuickNewSubmenu(null)
+                  setGroupQuickNewSubmenu(null)
+                  setEmojiMenu({ x: e.clientX, y: e.clientY, sessionId: session.id })
+                }}
+              />
               <span
                 className={`text-sm min-w-0 ${opts.nameClass} session-item__name ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`} title={session.name}
                 onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
@@ -1903,12 +1834,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {/* Emoji Picker Menu */}
       {emojiMenu && (() => {
         const isCwdMenu = !('sessionId' in emojiMenu)
-        const ov = 'sessionId' in emojiMenu ? sessionEmojiOverrides[emojiMenu.sessionId] : cwdEmojiOverrides[emojiMenu.cwd]
         const pickSession = 'sessionId' in emojiMenu ? sessions.find(s => s.id === emojiMenu.sessionId) : null
+        const ov = pickSession?.emoji ?? cwdEmojiOverrides[emojiMenu.cwd]
         const pool = isCwdMenu ? cwdEmojis : sessionEmojis
-        const pick = (v: string) => {
-          if ('sessionId' in emojiMenu) setSessionEmojiOverrides(prev => ({ ...prev, [emojiMenu.sessionId]: v }))
-          else setCwdEmojiOverrides(prev => ({ ...prev, [emojiMenu.cwd]: v }))
+        const pick = (v: string | undefined) => {
+          if ('sessionId' in emojiMenu) onSetSessionEmoji?.(emojiMenu.sessionId, v)
+          else if (v) setCwdEmojiOverrides(prev => ({ ...prev, [emojiMenu.cwd]: v }))
           setEmojiMenu(null)
         }
         const cellCls = (active: boolean) => `w-8 h-8 rounded flex items-center justify-center text-base hover:bg-ide-hover transition-colors${active ? ' bg-ide-accent/20 ring-1 ring-ide-accent' : ''}`
@@ -1923,7 +1854,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             <div className="grid grid-cols-7 gap-0.5">
               {!isCwdMenu && (
                 <>
-                  <button title={t('Type Icon')} className={cellCls(ov === undefined || ov === ICON_TYPE)} onClick={() => pick(ICON_TYPE)}>
+                  <button title={t('Type Icon')} className={cellCls(ov === undefined)} onClick={() => pick(undefined)}>
                     {pickSession ? renderKindIcon(pickSession.kind) : null}
                   </button>
                   <button title={t('Blank')} className={cellCls(ov === ICON_NONE)} onClick={() => pick(ICON_NONE)}>

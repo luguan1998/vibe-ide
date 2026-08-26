@@ -276,11 +276,6 @@ const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Ctrl+KeyE',
   },
   {
-    id: 'board.focus',
-    label: 'Toggle Task Board',
-    defaultKeys: 'Ctrl+KeyB',
-  },
-  {
     id: 'brush.activate',
     label: 'Feather Pen (Brush Mode)',
     defaultKeys: 'Ctrl',

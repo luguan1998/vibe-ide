@@ -6,9 +6,7 @@ import { useI18n } from '../i18n'
 import { aiStore } from '../aiStore'
 import { getDshApi } from '../dsh/history'
 import { ChatMarkdown } from './AiTab'
-import { ToolIcon } from './AiTab/tools'
-import { ClaudeLogoIcon } from './ClaudeLogoIcon'
-import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
+import { SessionGlyph } from '../sessionIcon'
 
 export const BOARD_FOCUS = 'board-focus'
 
@@ -49,8 +47,7 @@ function truncateReply(text: string, marker: string): string | null {
   return src.slice(0, idx)
 }
 
-type CardStatus = 'running' | 'idle' | 'warning'
-type SourceKind = SessionTab['kind']
+type CardStatus = 'running' | 'idle' | 'warn'
 
 export interface BoardCreateResult {
   ok: boolean
@@ -63,6 +60,7 @@ interface BoardViewProps {
   sessions: SessionTab[]
   agentStatus: Record<string, 'running' | 'idle' | 'warn'>
   activeSessionId: string | null
+  sessionWorktreeNav?: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onCreateRecord: (title: string, launchCommand?: string, cwd?: string | null) => Promise<BoardCreateResult>
   onFocusSession: (sessionId: string) => void
   onCloseSession: (sessionId: string) => void
@@ -76,10 +74,7 @@ interface BoardViewProps {
 }
 
 function statusOf(s: SessionTab, agentStatus: Record<string, 'running' | 'idle' | 'warn'>): CardStatus {
-  const st = agentStatus[s.id]
-  if (st === 'running') return 'running'
-  if (st === 'warn') return 'warning'
-  return 'idle'
+  return agentStatus[s.id] ?? 'idle'
 }
 
 function stripTaskMark(name: string): string {
@@ -106,22 +101,6 @@ function midTruncatePath(path: string, maxLen: number = 28): string {
 interface LiveCard {
   session: SessionTab
   status: CardStatus
-}
-
-function TypeIcon({ kind, status }: { kind: SourceKind; status: CardStatus }) {
-  const cls =
-    status === 'running'
-      ? 'text-ide-accent animate-pulse'
-      : status === 'warning'
-        ? 'text-ide-warning'
-        : 'text-ide-text-muted'
-  return kind === 'terminal' ? (
-    <ToolIcon category="command" className="text-ide-accent" />
-  ) : kind === 'gui' ? (
-    <ClaudeLogoIcon size={14} className={`shrink-0 ${cls}`} />
-  ) : (
-    <DeepSeekLogoIcon size={14} className={`shrink-0 ${cls}`} />
-  )
 }
 
 const FINISH_BTN_CLS =
@@ -160,12 +139,13 @@ interface LiveCardProps {
   active: boolean
   finishable: WorktreeRecord | null
   finishLabel: string
+  worktreeNav?: { worktreePath: string } | null
   onReply: (e: ReactMouseEvent | React.KeyboardEvent<HTMLDivElement>) => void
   onFinish: (record: WorktreeRecord) => void
   onContextMenu: (e: ReactMouseEvent) => void
 }
 
-function LiveCardView({ card, active, finishable, finishLabel, onReply, onFinish, onContextMenu }: LiveCardProps) {
+function LiveCardView({ card, active, finishable, finishLabel, worktreeNav, onReply, onFinish, onContextMenu }: LiveCardProps) {
   return (
     <div
       role="button"
@@ -180,7 +160,11 @@ function LiveCardView({ card, active, finishable, finishLabel, onReply, onFinish
       }`}
     >
       <div className="flex items-center gap-1.5 min-w-0">
-        <TypeIcon kind={card.session.kind} status={card.status} />
+        <SessionGlyph
+          session={card.session}
+          status={card.status}
+          worktreeNav={worktreeNav}
+        />
         <span className="text-xs text-ide-text truncate flex-1">{stripTaskMark(card.session.name)}</span>
       </div>
       <div className="flex items-center gap-1 mt-1">
@@ -286,6 +270,7 @@ export default function BoardView({
   sessions,
   agentStatus,
   activeSessionId,
+  sessionWorktreeNav,
   onCreateRecord,
   onFocusSession,
   onCloseSession,
@@ -554,7 +539,7 @@ export default function BoardView({
   const liveIds = new Set(sessions.map(s => s.id))
   const planCards = records.filter(r => !liveIds.has(r.id))
 
-  const liveByStatus: Record<CardStatus, LiveCard[]> = { running: [], idle: [], warning: [] }
+  const liveByStatus: Record<CardStatus, LiveCard[]> = { running: [], idle: [], warn: [] }
   for (const s of sessions) {
     if (excludedCwds.includes(s.cwd)) continue
     liveByStatus[statusOf(s, agentStatus)].push({ session: s, status: statusOf(s, agentStatus) })
@@ -641,7 +626,7 @@ export default function BoardView({
     { key: 'plan', label: t('plan'), count: planCards.length },
     { key: 'running', label: t('running'), count: liveByStatus.running.length },
     { key: 'idle', label: t('idle'), count: liveByStatus.idle.length },
-    { key: 'warning', label: t('warning'), count: liveByStatus.warning.length }
+    { key: 'warn', label: t('warning'), count: liveByStatus.warn.length }
   ]
 
   const emptyHint: Record<string, string> = {
@@ -652,7 +637,7 @@ export default function BoardView({
       : t('No active workspace'),
     running: t('No running sessions'),
     idle: t('No idle sessions'),
-    warning: t('No warning sessions')
+    warn: t('No warning sessions')
   }
 
   return (
@@ -748,6 +733,7 @@ export default function BoardView({
                       active={card.session.id === activeSessionId}
                       finishable={recordById.get(card.session.id) ?? null}
                       finishLabel={t('Finish & clean worktree / branch')}
+                      worktreeNav={sessionWorktreeNav?.[card.session.id] ?? null}
                       onReply={(e) => {
                         setReplyBox(computeReplyBox((e.currentTarget as HTMLElement).getBoundingClientRect()))
                         void loadReply(card.session)
@@ -923,7 +909,11 @@ export default function BoardView({
           style={{ left: replyBox.left, top: replyBox.top, width: replyBox.width, height: replyBox.height }}
         >
           <div className="h-9 px-3 flex items-center gap-1.5 border-b border-ide-border shrink-0">
-            <TypeIcon kind={replyFor.kind} status={statusOf(replyFor, agentStatus)} />
+            <SessionGlyph
+              session={replyFor}
+              status={statusOf(replyFor, agentStatus)}
+              worktreeNav={sessionWorktreeNav?.[replyFor.id] ?? null}
+            />
             <span className="text-xs text-ide-text truncate flex-1" title={replyFor.name}>{stripTaskMark(replyFor.name)}</span>
             <button
               onClick={() => {
