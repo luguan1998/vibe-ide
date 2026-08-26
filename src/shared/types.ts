@@ -240,7 +240,7 @@ export interface WorktreeRecord {
   slug: string
   launchCommand?: string
   worktreePath: string    // {repoRoot}/.vibe/worktrees/{slug}
-  branchName: string      // task/{slug}
+  branchName: string      // worktree- 开头，与目录/标题同 slug（供 GitTab 分辨 worktree）
   baseBranch: string
   repoRoot: string
   createdAt: number

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { KanbanSquare, X, Send, CornerDownLeft, ChevronDown, Filter, Check, Folder, ArrowUp, Merge } from 'lucide-react'
+import { KanbanSquare, X, Send, CornerDownLeft, ChevronDown, Filter, Check, Folder, ArrowUp, Merge, MousePointer2, SquareCheck } from 'lucide-react'
 import type { SessionTab } from '../sessionRestore'
 import type { WorktreeRecord, WorktreeRecordView } from '@shared/types'
 import { useI18n } from '../i18n'
@@ -147,25 +147,42 @@ interface LiveCardProps {
   finishable: WorktreeRecord | null
   finishLabel: string
   mergeLabel: string
+  selectable: boolean
+  selectMode: boolean
+  selected: boolean
   worktreeNav?: { worktreePath: string } | null
   onReply: (e: ReactMouseEvent | React.KeyboardEvent<HTMLDivElement>) => void
   onFinish: (record: WorktreeRecord) => void
   onMerge: (record: WorktreeRecord) => void
+  onToggleSelect: () => void
   onContextMenu: (e: ReactMouseEvent) => void
 }
 
-function LiveCardView({ card, active, finishable, finishLabel, mergeLabel, worktreeNav, onReply, onFinish, onMerge, onContextMenu }: LiveCardProps) {
+function LiveCardView({ card, active, finishable, finishLabel, mergeLabel, selectable, selectMode, selected, worktreeNav, onReply, onFinish, onMerge, onToggleSelect, onContextMenu }: LiveCardProps) {
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={onReply}
+      onClick={selectable ? onToggleSelect : (selectMode ? undefined : onReply)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') onReply(e)
+        if (e.key !== 'Enter') return
+        if (selectable) onToggleSelect()
+        else if (!selectMode) onReply(e)
       }}
-      onContextMenu={onContextMenu}
-      className={`w-full text-left px-2.5 py-2 rounded-lg border bg-ide-sidebar hover:bg-ide-hover transition-colors cursor-pointer select-none ${
-        active ? 'border-ide-accent/60' : 'border-ide-border hover:border-ide-accent/50'
+      onContextMenu={(e) => {
+        if (selectable) {
+          e.preventDefault()
+          onToggleSelect()
+          return
+        }
+        onContextMenu(e)
+      }}
+      className={`w-full text-left px-2.5 py-2 rounded-lg border transition-colors select-none ${
+        selected
+          ? 'border-ide-accent bg-ide-accent/10 cursor-pointer'
+          : selectable
+            ? 'bg-ide-sidebar hover:bg-ide-hover hover:border-ide-accent/60 cursor-pointer'
+            : `bg-ide-sidebar hover:bg-ide-hover cursor-pointer ${active ? 'border-ide-accent/60' : 'border-ide-border hover:border-ide-accent/50'}`
       }`}
     >
       <div className="flex items-center gap-1.5 min-w-0">
@@ -340,6 +357,9 @@ export default function BoardView({
   const [showLoadMore, setShowLoadMore] = useState(true)
   const [tailEnded, setTailEnded] = useState(false)
   const [truncate, setTruncate] = useState('✻')
+  const [multiSelect, setMultiSelect] = useState(false)
+  const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set())
+  const [multiDraft, setMultiDraft] = useState('')
 
   const loadTailMore = useCallback((s: SessionTab) => {
     const next = tailDepth + 60
@@ -470,6 +490,38 @@ export default function BoardView({
     }
   }, [mergeTarget, mergeBusy, onMergeAbort, closeMerge])
 
+  const exitMultiSelect = useCallback(() => {
+    setMultiSelect(false)
+    setMultiSelected(new Set())
+    setMultiDraft('')
+  }, [])
+
+  const enterMultiSelect = useCallback(() => {
+    setMultiSelect(true)
+    setMultiSelected(new Set())
+    setMultiDraft('')
+    setReplyFor(null)
+    setReplyBox(null)
+    setReplyText(null)
+    setDraft('')
+  }, [])
+
+  const toggleMultiSelect = useCallback((id: string) => {
+    setMultiSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const sendMulti = useCallback(() => {
+    const text = multiDraft.trim()
+    if (!text || multiSelected.size === 0) return
+    for (const id of multiSelected) onSendToSession(id, text)
+    setMultiDraft('')
+  }, [multiDraft, multiSelected, onSendToSession])
+
   const closeReply = useCallback(() => {
     const sid = replyFor?.id
     setReplyFor(null)
@@ -537,11 +589,15 @@ export default function BoardView({
         e.preventDefault()
         e.stopImmediatePropagation()
         closeOverlays()
+      } else if (multiSelect) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        exitMultiSelect()
       }
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [cwdMenu, createDirMenu, ctxMenu, replyFor, finishTarget, mergeTarget, mergeBusy, mergePhase, closeOverlays, closeReply, closeMerge])
+  }, [cwdMenu, createDirMenu, ctxMenu, replyFor, finishTarget, mergeTarget, mergeBusy, mergePhase, multiSelect, closeOverlays, closeReply, closeMerge, exitMultiSelect])
 
   const loadReply = useCallback(async (s: SessionTab) => {
     setReplyFor(s)
@@ -769,12 +825,56 @@ export default function BoardView({
           </button>
         </div>
       </div>
+      {multiSelect && (
+        <div className="shrink-0 border-b border-ide-border px-3 py-1.5 flex items-center gap-2 bg-ide-sidebar/50">
+          <span className="text-[11px] text-ide-text-muted shrink-0">{t('Selected {n}').replace('{n}', String(multiSelected.size))}</span>
+          <input
+            value={multiDraft}
+            onChange={e => setMultiDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault()
+                sendMulti()
+              }
+            }}
+            placeholder={t('Prompt text — Enter to send to all selected')}
+            className="flex-1 min-w-0 px-1.5 py-0.5 text-[11px] bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+          />
+          <button
+            onClick={sendMulti}
+            disabled={!multiDraft.trim() || multiSelected.size === 0}
+            title={t('Send to all selected')}
+            className="px-2 py-0.5 rounded text-[11px] text-ide-accent border border-ide-accent/50 hover:bg-ide-accent/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 shrink-0"
+          >
+            <Send size={10} className="-scale-x-100" />
+            {t('Send')}
+          </button>
+          <button
+            onClick={exitMultiSelect}
+            title={t('Exit multi-select')}
+            className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
       <div className="flex-1 flex min-h-0">
         {columns.map((col, ci) => (
           <div key={col.key} className={`flex-1 min-w-0 min-h-0 flex flex-col ${ci > 0 ? 'border-l border-ide-border' : ''}`}>
             <div className="h-7 px-3 flex items-center gap-1.5 border-b border-ide-border shrink-0">
               <span className="text-xs font-medium text-ide-text-muted">{col.label}</span>
               <span className="text-[10px] px-1 rounded-full bg-ide-hover text-ide-text-muted">{col.count}</span>
+              {col.key === 'idle' && (
+                <button
+                  onClick={() => (multiSelect ? exitMultiSelect() : enterMultiSelect())}
+                  title={multiSelect ? t('Exit multi-select') : t('Multi-select idle cards & send')}
+                  className={`ml-auto w-6 h-6 flex items-center justify-center rounded transition-colors ${
+                    multiSelect ? 'text-ide-accent hover:bg-ide-accent/15' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+                  }`}
+                >
+                  {multiSelect ? <SquareCheck size={13} className="shrink-0" /> : <MousePointer2 size={13} className="shrink-0" />}
+                </button>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
               {col.key === 'plan' && (
@@ -836,6 +936,9 @@ export default function BoardView({
                       finishable={recordById.get(card.session.id) ?? null}
                       finishLabel={t('Finish & clean worktree / branch')}
                       mergeLabel={t('Merge into main branch')}
+                      selectable={multiSelect && col.key === 'idle'}
+                      selectMode={multiSelect}
+                      selected={multiSelected.has(card.session.id)}
                       worktreeNav={sessionWorktreeNav?.[card.session.id] ?? null}
                       onReply={(e) => {
                         setReplyBox(computeReplyBox((e.currentTarget as HTMLElement).getBoundingClientRect()))
@@ -843,6 +946,7 @@ export default function BoardView({
                       }}
                       onFinish={setFinishTarget}
                       onMerge={openMerge}
+                      onToggleSelect={() => toggleMultiSelect(card.session.id)}
                       onContextMenu={(e) => {
                         e.preventDefault()
                         setCtxMenu({

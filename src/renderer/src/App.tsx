@@ -2296,7 +2296,8 @@ export default function App() {
       const res = await window.api.board.create({ workspacePath: targetCwd, title, launchCommand })
       if (!res.ok || !res.record) return { ok: false, error: res.error ?? '创建失败' }
       const rec = res.record
-      // worktree 会话固定 🌿（与 sessionIcon 的 worktree 状态一致），随 session 持久化，重启自动恢复
+      // worktree 会话：注册 worktreeNav 让图标走 worktree 状态(🌿)；emoji 持久化负责重启后仍显示 🌿
+      setSessionWorktreeNav(prev => prev[rec.id] ? prev : { ...prev, [rec.id]: { originalPath: rec.repoRoot, worktreePath: rec.worktreePath, originalBranch: rec.baseBranch } })
       setSessions(prev => prev.some(s => s.id === rec.id) ? prev : [...prev, {
         id: rec.id,
         kind: 'terminal',
@@ -2322,7 +2323,8 @@ export default function App() {
         console.warn('[board] open terminal failed:', e?.message)
         return
       }
-      // 与 handleBoardCreate 对齐：worktree 会话固定 🌿，随 session 持久化
+      // 与 handleBoardCreate 对齐：worktreeNav 注册(图标走 worktree 状态) + emoji 持久化双保险
+      setSessionWorktreeNav(prev => prev[rec.id] ? prev : { ...prev, [rec.id]: { originalPath: rec.repoRoot, worktreePath: rec.worktreePath, originalBranch: rec.baseBranch } })
       setSessions(prev => prev.some(s => s.id === rec.id) ? prev : [...prev, {
         id: rec.id,
         kind: 'terminal',
