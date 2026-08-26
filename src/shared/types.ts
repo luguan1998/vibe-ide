@@ -166,6 +166,8 @@ export const IPC_CHANNELS = {
   BOARD_CREATE: 'board:create',
   BOARD_FINISH: 'board:finish',
   BOARD_CLEAR: 'board:clear',
+  BOARD_MERGE: 'board:merge',
+  BOARD_MERGE_ABORT: 'board:mergeAbort',
 
   // Pet (codex-style webp sprite sheet)
   PET_LIST: 'pet:list',
@@ -263,6 +265,15 @@ export interface BoardOpResult {
   ok?: boolean
   record?: WorktreeRecord
   error?: string
+}
+
+export interface BoardMergeResult {
+  ok?: boolean          // 合并成功
+  conflict?: boolean    // 合并冲突(merge 状态保留在主仓库,worktree/分支保留待解决)
+  error?: string
+  message?: string      // 冲突详情 / 成功提示
+  branch?: string       // 冲突涉及的合并分支名
+  target?: string       // 目标分支(baseBranch)
 }
 
 export interface RenameTerminalResult {

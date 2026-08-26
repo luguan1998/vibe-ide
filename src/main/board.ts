@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { join } from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { BoardCreateOptions, BoardOpResult, BoardRecordsResult, IPC_CHANNELS, WorktreeRecord } from '../shared/types'
+import { BoardCreateOptions, BoardMergeResult, BoardOpResult, BoardRecordsResult, IPC_CHANNELS, WorktreeRecord } from '../shared/types'
 import { closeTerminalSession, createTerminalSession } from './pty'
 
 const gitAsync = promisify(execFile)
@@ -214,6 +214,61 @@ async function clearBoardRecord(workspacePath: string, recordId: string): Promis
   return { ok: true }
 }
 
+// 把 worktree 分支合入创建时的基线分支(baseBranch)。
+// 未提交修改不进 merge(先提示而非自动 commit);冲突时不回滚、不删 worktree/分支,保留冲突状态供用户在 GitTab 解决。
+async function mergeBoardSession(workspacePath: string, recordId: string): Promise<BoardMergeResult> {
+  const repoRoot = await resolveToplevelAsync(workspacePath)
+  if (!repoRoot) return { error: '当前工作区不是 git 仓库' }
+  const records = loadRecords(repoRoot)
+  const rec = records.find(r => r.id === recordId)
+  if (!rec) return { error: '记录不存在(可能属于其他仓库)' }
+
+  // worktree 未提交修改不会随 merge 进入主分支,先报错提示,避免用户误以为已合入
+  try {
+    const { stdout } = await gitAsync('git', ['status', '--porcelain'], { cwd: rec.worktreePath, timeout: 15000, windowsHide: true })
+    if (stdout.trim()) {
+      return { error: `worktree 存在未提交的修改,不会随合并进入主分支。请先提交或丢弃后再合并。(${stdout.trim().split('\n').length} 个文件)` }
+    }
+  } catch {}
+
+  let current = ''
+  try { current = (await gitAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: repoRoot, timeout: 15000, windowsHide: true })).stdout.trim() } catch {}
+
+  if (current !== rec.baseBranch) {
+    try {
+      await gitAsync('git', ['checkout', rec.baseBranch], { cwd: repoRoot, timeout: 20000, windowsHide: true })
+    } catch (err: any) {
+      const msg = String(err?.message ?? err)
+      if (/local changes|would be overwritten|uncommitted|untracked/i.test(msg)) {
+        return { error: `主工作区有未提交修改,无法切换到 ${rec.baseBranch} 进行合并。请先提交或暂存。` }
+      }
+      return { error: `切换到 ${rec.baseBranch} 失败:${msg.split('\n')[0]}` }
+    }
+  }
+
+  try {
+    await gitAsync('git', ['merge', '--no-edit', rec.branchName], { cwd: repoRoot, timeout: 60000, windowsHide: true })
+    return { ok: true, message: '', branch: rec.branchName, target: rec.baseBranch }
+  } catch (err: any) {
+    const msg = String(err?.message ?? err)
+    if (/CONFLICT|conflict/i.test(msg)) {
+      return { conflict: true, message: msg, branch: rec.branchName, target: rec.baseBranch }
+    }
+    return { error: msg.split('\n')[0] }
+  }
+}
+
+async function abortMergeSession(workspacePath: string): Promise<BoardOpResult> {
+  const repoRoot = await resolveToplevelAsync(workspacePath)
+  if (!repoRoot) return { error: '当前工作区不是 git 仓库' }
+  try {
+    await gitAsync('git', ['merge', '--abort'], { cwd: repoRoot, timeout: 30000, windowsHide: true })
+    return { ok: true }
+  } catch (err: any) {
+    return { error: `中止合并失败:${String(err?.message ?? err).split('\n')[0]}` }
+  }
+}
+
 export function registerBoardHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.BOARD_RECORDS, async (_e, workspacePath?: string): Promise<BoardRecordsResult> => {
     if (!workspacePath) return { repoRoot: null, records: [] }
@@ -246,6 +301,25 @@ export function registerBoardHandlers(): void {
     if (!workspacePath || !recordId) return { error: '参数缺失' }
     try {
       return await clearBoardRecord(workspacePath, recordId)
+    } catch (err: any) {
+      return { error: err?.message ?? String(err) }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.BOARD_MERGE, async (_e, workspacePath?: string, recordId?: string): Promise<BoardMergeResult> => {
+    if (!workspacePath || !recordId) return { error: '参数缺失' }
+    try {
+      return await mergeBoardSession(workspacePath, recordId)
+    } catch (err: any) {
+      console.error('[board] merge error:', err)
+      return { error: err?.message ?? String(err) }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.BOARD_MERGE_ABORT, async (_e, workspacePath?: string): Promise<BoardOpResult> => {
+    if (!workspacePath) return { error: '参数缺失' }
+    try {
+      return await abortMergeSession(workspacePath)
     } catch (err: any) {
       return { error: err?.message ?? String(err) }
     }

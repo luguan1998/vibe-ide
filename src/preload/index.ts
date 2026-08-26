@@ -390,7 +390,11 @@ const api = {
     finish: (workspacePath: string, recordId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.BOARD_FINISH, workspacePath, recordId) as Promise<import('../shared/types').BoardOpResult>,
     clear: (workspacePath: string, recordId: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.BOARD_CLEAR, workspacePath, recordId) as Promise<import('../shared/types').BoardOpResult>
+      ipcRenderer.invoke(IPC_CHANNELS.BOARD_CLEAR, workspacePath, recordId) as Promise<import('../shared/types').BoardOpResult>,
+    merge: (workspacePath: string, recordId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BOARD_MERGE, workspacePath, recordId) as Promise<import('../shared/types').BoardMergeResult>,
+    mergeAbort: (workspacePath: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BOARD_MERGE_ABORT, workspacePath) as Promise<import('../shared/types').BoardOpResult>
   },
 
   // DSH (deepseek harness agent service)

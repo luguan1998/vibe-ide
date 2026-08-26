@@ -161,6 +161,8 @@ declare global {
         create: (options: import('@shared/types').BoardCreateOptions) => Promise<import('@shared/types').BoardOpResult>
         finish: (workspacePath: string, recordId: string) => Promise<import('@shared/types').BoardOpResult>
         clear: (workspacePath: string, recordId: string) => Promise<import('@shared/types').BoardOpResult>
+        merge: (workspacePath: string, recordId: string) => Promise<import('@shared/types').BoardMergeResult>
+        mergeAbort: (workspacePath: string) => Promise<import('@shared/types').BoardOpResult>
       }
       theme: {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
@@ -2294,11 +2296,13 @@ export default function App() {
       const res = await window.api.board.create({ workspacePath: targetCwd, title, launchCommand })
       if (!res.ok || !res.record) return { ok: false, error: res.error ?? '创建失败' }
       const rec = res.record
+      // worktree 会话固定 🌿（与 sessionIcon 的 worktree 状态一致），随 session 持久化，重启自动恢复
       setSessions(prev => prev.some(s => s.id === rec.id) ? prev : [...prev, {
         id: rec.id,
         kind: 'terminal',
         name: rec.title,
         cwd: rec.worktreePath,
+        emoji: '🌿',
         active: false,
         createdAt: Date.now(),
         loaded: true
@@ -2318,11 +2322,13 @@ export default function App() {
         console.warn('[board] open terminal failed:', e?.message)
         return
       }
+      // 与 handleBoardCreate 对齐：worktree 会话固定 🌿，随 session 持久化
       setSessions(prev => prev.some(s => s.id === rec.id) ? prev : [...prev, {
         id: rec.id,
         kind: 'terminal',
         name: rec.title,
         cwd: rec.worktreePath,
+        emoji: '🌿',
         active: true,
         createdAt: Date.now(),
         loaded: true
@@ -2356,6 +2362,26 @@ export default function App() {
       console.warn('[board] clear failed:', e?.message)
     }
   }, [handleCloseSession])
+
+  const handleBoardMergeRecord = useCallback(async (rec: WorktreeRecord) => {
+    try {
+      return await window.api.board.merge(rec.repoRoot, rec.id)
+    } catch (e: any) {
+      console.warn('[board] merge failed:', e?.message)
+      return { error: e?.message ?? '合并失败' }
+    }
+  }, [])
+
+  const handleBoardMergeAbort = useCallback(async (rec: WorktreeRecord) => {
+    try {
+      const res = await window.api.board.mergeAbort(rec.repoRoot)
+      if (res?.error) console.warn('[board] merge abort:', res.error)
+      return res
+    } catch (e: any) {
+      console.warn('[board] merge abort failed:', e?.message)
+      return { error: e?.message ?? '中止合并失败' }
+    }
+  }, [])
 
   const handleBoardCreatePlain = useCallback(async (cwd: string, launchCommand?: string) => {
     try {
@@ -3226,6 +3252,8 @@ export default function App() {
               onOpenRecord={handleBoardOpenRecord}
               onExecuteFinish={handleBoardFinishRecord}
               onClearRecord={handleBoardClearRecord}
+              onMergeRecord={handleBoardMergeRecord}
+              onMergeAbort={handleBoardMergeAbort}
               onSendToSession={handlePipeToSession}
               onAcknowledgeWarn={handleBoardClearWarn}
               onCreatePlainSession={handleBoardCreatePlain}

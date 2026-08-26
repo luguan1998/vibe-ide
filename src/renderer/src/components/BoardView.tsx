@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { KanbanSquare, X, Send, CornerDownLeft, ChevronDown, Filter, Check, Folder, ArrowUp } from 'lucide-react'
+import { KanbanSquare, X, Send, CornerDownLeft, ChevronDown, Filter, Check, Folder, ArrowUp, Merge } from 'lucide-react'
 import type { SessionTab } from '../sessionRestore'
 import type { WorktreeRecord, WorktreeRecordView } from '@shared/types'
 import { useI18n } from '../i18n'
@@ -67,6 +67,8 @@ interface BoardViewProps {
   onOpenRecord: (record: WorktreeRecord) => Promise<void> | void
   onExecuteFinish: (record: WorktreeRecord) => Promise<boolean>
   onClearRecord: (record: WorktreeRecord) => Promise<void>
+  onMergeRecord: (record: WorktreeRecord) => Promise<import('@shared/types').BoardMergeResult>
+  onMergeAbort: (record: WorktreeRecord) => Promise<import('@shared/types').BoardOpResult>
   onSendToSession: (sessionId: string, text: string) => void
   onAcknowledgeWarn: (sessionId: string) => void
   onCreatePlainSession: (cwd: string, launchCommand?: string) => Promise<{ id: string } | null>
@@ -106,6 +108,11 @@ interface LiveCard {
 const FINISH_BTN_CLS =
   'px-1.5 py-0.5 rounded text-[10px] text-ide-text-muted hover:text-ide-danger hover:border-ide-danger/50 border border-transparent transition-colors shrink-0'
 
+const MERGE_BTN_CLS =
+  'px-1.5 py-0.5 rounded text-[10px] text-ide-text-muted hover:text-ide-success hover:border-ide-success/50 border border-transparent transition-colors shrink-0'
+
+type MergePhase = 'idle' | 'running' | 'success' | 'conflict' | 'error'
+
 const REPLY_W = 640
 const REPLY_H = 560
 
@@ -139,13 +146,15 @@ interface LiveCardProps {
   active: boolean
   finishable: WorktreeRecord | null
   finishLabel: string
+  mergeLabel: string
   worktreeNav?: { worktreePath: string } | null
   onReply: (e: ReactMouseEvent | React.KeyboardEvent<HTMLDivElement>) => void
   onFinish: (record: WorktreeRecord) => void
+  onMerge: (record: WorktreeRecord) => void
   onContextMenu: (e: ReactMouseEvent) => void
 }
 
-function LiveCardView({ card, active, finishable, finishLabel, worktreeNav, onReply, onFinish, onContextMenu }: LiveCardProps) {
+function LiveCardView({ card, active, finishable, finishLabel, mergeLabel, worktreeNav, onReply, onFinish, onMerge, onContextMenu }: LiveCardProps) {
   return (
     <div
       role="button"
@@ -175,6 +184,18 @@ function LiveCardView({ card, active, finishable, finishLabel, worktreeNav, onRe
           <button
             onClick={(e) => {
               e.stopPropagation()
+              onMerge(finishable)
+            }}
+            title={mergeLabel}
+            className={MERGE_BTN_CLS}
+          >
+            {mergeLabel.slice(0, 2)}
+          </button>
+        )}
+        {finishable && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
               onFinish(finishable)
             }}
             title={finishLabel}
@@ -193,15 +214,18 @@ interface PlanCardProps {
   busy: boolean
   openLabel: string
   doneLabel: string
+  mergeLabel: string
   clearLabel: string
   clearTitle: string
   finishTitle: string
+  mergeTitle: string
   onOpen: () => void
   onFinish: () => void
+  onMerge: () => void
   onClear: () => void
 }
 
-function PlanCardView({ record, busy, openLabel, doneLabel, clearLabel, clearTitle, finishTitle, onOpen, onFinish, onClear }: PlanCardProps) {
+function PlanCardView({ record, busy, openLabel, doneLabel, mergeLabel, clearLabel, clearTitle, finishTitle, mergeTitle, onOpen, onFinish, onMerge, onClear }: PlanCardProps) {
   return (
     <div
       className={`w-full px-2.5 py-2 rounded-lg border bg-ide-sidebar hover:bg-ide-hover transition-colors ${
@@ -235,6 +259,17 @@ function PlanCardView({ record, busy, openLabel, doneLabel, clearLabel, clearTit
               className="px-1.5 py-0.5 rounded text-[10px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 border border-transparent transition-colors shrink-0"
             >
               {openLabel}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onMerge()
+              }}
+              disabled={busy}
+              title={mergeTitle}
+              className={MERGE_BTN_CLS}
+            >
+              {mergeLabel.slice(0, 2)}
             </button>
             <button
               onClick={(e) => {
@@ -277,6 +312,8 @@ export default function BoardView({
   onOpenRecord,
   onExecuteFinish,
   onClearRecord,
+  onMergeRecord,
+  onMergeAbort,
   onSendToSession,
   onAcknowledgeWarn,
   onCreatePlainSession,
@@ -290,6 +327,10 @@ export default function BoardView({
   const [finishTarget, setFinishTarget] = useState<WorktreeRecord | null>(null)
   const [finishing, setFinishing] = useState(false)
   const [finishError, setFinishError] = useState<string | null>(null)
+  const [mergeTarget, setMergeTarget] = useState<WorktreeRecord | null>(null)
+  const [mergePhase, setMergePhase] = useState<MergePhase>('idle')
+  const [mergeBusy, setMergeBusy] = useState(false)
+  const [mergeInfo, setMergeInfo] = useState('')
   const [ctxMenu, setCtxMenu] = useState<{ session: SessionTab; x: number; y: number; cardRect: DOMRect } | null>(null)
   const [replyFor, setReplyFor] = useState<SessionTab | null>(null)
   const [replyBox, setReplyBox] = useState<ReplyBox | null>(null)
@@ -375,6 +416,60 @@ export default function BoardView({
     setFinishError(null)
   }, [])
 
+  const openMerge = useCallback((rec: WorktreeRecord) => {
+    setMergeTarget(rec)
+    setMergePhase('idle')
+    setMergeInfo('')
+  }, [])
+
+  const closeMerge = useCallback(() => {
+    setMergeTarget(null)
+    setMergeInfo('')
+  }, [])
+
+  const confirmMerge = useCallback(async () => {
+    if (!mergeTarget || mergeBusy) return
+    setMergeBusy(true)
+    setMergePhase('running')
+    setMergeInfo('')
+    try {
+      const res = await onMergeRecord(mergeTarget)
+      if (res?.ok) {
+        setMergePhase('success')
+      } else if (res?.conflict) {
+        setMergePhase('conflict')
+        setMergeInfo(res.message ?? '')
+      } else {
+        setMergePhase('error')
+        setMergeInfo(res?.error ?? '合并失败')
+      }
+    } catch (e: any) {
+      setMergePhase('error')
+      setMergeInfo(e?.message ?? '合并失败')
+    } finally {
+      setMergeBusy(false)
+    }
+  }, [mergeTarget, mergeBusy, onMergeRecord])
+
+  const abortMerge = useCallback(async () => {
+    if (!mergeTarget || mergeBusy) return
+    setMergeBusy(true)
+    try {
+      const res = await onMergeAbort(mergeTarget)
+      if (res?.error) {
+        setMergePhase('error')
+        setMergeInfo(res.error)
+      } else {
+        closeMerge()
+      }
+    } catch (e: any) {
+      setMergePhase('error')
+      setMergeInfo(e?.message ?? '中止合并失败')
+    } finally {
+      setMergeBusy(false)
+    }
+  }, [mergeTarget, mergeBusy, onMergeAbort, closeMerge])
+
   const closeReply = useCallback(() => {
     const sid = replyFor?.id
     setReplyFor(null)
@@ -434,6 +529,10 @@ export default function BoardView({
         e.preventDefault()
         e.stopImmediatePropagation()
         closeReply()
+      } else if (mergeTarget) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (!mergeBusy && mergePhase !== 'running') closeMerge()
       } else if (finishTarget) {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -442,7 +541,7 @@ export default function BoardView({
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [cwdMenu, createDirMenu, ctxMenu, replyFor, finishTarget, closeOverlays, closeReply])
+  }, [cwdMenu, createDirMenu, ctxMenu, replyFor, finishTarget, mergeTarget, mergeBusy, mergePhase, closeOverlays, closeReply, closeMerge])
 
   const loadReply = useCallback(async (s: SessionTab) => {
     setReplyFor(s)
@@ -687,17 +786,20 @@ export default function BoardView({
                     <PlanCardView
                       key={r.id}
                       record={r}
-                      busy={finishing || creating}
+                      busy={finishing || creating || mergeBusy}
                       openLabel={t('Open')}
                       doneLabel={t('Done')}
+                      mergeLabel={t('Merge into main branch')}
                       clearLabel={t('Clear')}
                       clearTitle={t('Record only (directory gone)')}
                       finishTitle={t('Finish & clean worktree / branch')}
+                      mergeTitle={t('Merge branch into the main branch')}
                       onOpen={() => void openOne(r)}
                       onFinish={() => {
                         setFinishError(null)
                         setFinishTarget(r)
                       }}
+                      onMerge={() => openMerge(r)}
                       onClear={() => void clearOne(r)}
                     />
                   ))}
@@ -733,12 +835,14 @@ export default function BoardView({
                       active={card.session.id === activeSessionId}
                       finishable={recordById.get(card.session.id) ?? null}
                       finishLabel={t('Finish & clean worktree / branch')}
+                      mergeLabel={t('Merge into main branch')}
                       worktreeNav={sessionWorktreeNav?.[card.session.id] ?? null}
                       onReply={(e) => {
                         setReplyBox(computeReplyBox((e.currentTarget as HTMLElement).getBoundingClientRect()))
                         void loadReply(card.session)
                       }}
                       onFinish={setFinishTarget}
+                      onMerge={openMerge}
                       onContextMenu={(e) => {
                         e.preventDefault()
                         setCtxMenu({
@@ -908,23 +1012,22 @@ export default function BoardView({
           className="fixed z-[66] flex flex-col rounded-xl border border-ide-border bg-ide-sidebar shadow-2xl overflow-hidden"
           style={{ left: replyBox.left, top: replyBox.top, width: replyBox.width, height: replyBox.height }}
         >
-          <div className="h-9 px-3 flex items-center gap-1.5 border-b border-ide-border shrink-0">
+          <div
+            role="button"
+            onClick={() => {
+              closeReply()
+              onFocusSession(replyFor.id)
+            }}
+            title={t('Switch to session')}
+            className="group h-9 px-3 flex items-center gap-1.5 border-b border-ide-border shrink-0 cursor-pointer hover:bg-ide-hover transition-colors"
+          >
             <SessionGlyph
               session={replyFor}
               status={statusOf(replyFor, agentStatus)}
               worktreeNav={sessionWorktreeNav?.[replyFor.id] ?? null}
             />
             <span className="text-xs text-ide-text truncate flex-1" title={replyFor.name}>{stripTaskMark(replyFor.name)}</span>
-            <button
-              onClick={() => {
-                closeReply()
-                onFocusSession(replyFor.id)
-              }}
-              title={t('Switch to session')}
-              className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-hover transition-colors"
-            >
-              <CornerDownLeft size={13} />
-            </button>
+            <CornerDownLeft size={13} className="shrink-0 text-ide-text-muted group-hover:text-ide-accent transition-colors" />
           </div>
           {replyFor.kind === 'terminal' && showLoadMore && !tailEnded && (
             <div className="shrink-0 px-3 pt-1.5 flex justify-center">
@@ -1021,6 +1124,117 @@ export default function BoardView({
               >
                 {finishing ? t('Cleaning up...') : t('Confirm cleanup')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mergeTarget && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center"
+          onMouseDown={() => {
+            if (!mergeBusy) closeMerge()
+          }}
+        >
+          <div
+            className="bg-ide-sidebar border border-ide-border rounded-xl p-4 w-[420px] mx-4 shadow-2xl space-y-3"
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-1.5">
+              <Merge size={14} className="text-ide-success shrink-0" />
+              <span className="text-sm text-ide-text font-medium truncate">{t('Merge into main branch')} · {mergeTarget.title}</span>
+            </div>
+            {(mergePhase === 'idle' || mergePhase === 'running') && (
+              <div className="text-xs text-ide-text-muted leading-relaxed">
+                {t('Will merge {branch} into {base}. The worktree and branch are kept; uncommitted worktree changes are not merged.')
+                  .replace('{branch}', mergeTarget.branchName)
+                  .replace('{base}', mergeTarget.baseBranch)}
+              </div>
+            )}
+            {mergePhase === 'success' && (
+              <div className="text-xs text-ide-success leading-relaxed">
+                {t('Merged into {base}').replace('{base}', mergeTarget.baseBranch)}
+              </div>
+            )}
+            {(mergePhase === 'conflict' || mergePhase === 'error') && (
+              <>
+                <div className="text-xs text-ide-danger">
+                  {mergePhase === 'conflict'
+                    ? t('Conflicts detected while merging {branch}').replace('{branch}', mergeTarget.branchName)
+                    : t('Merge failed')}
+                </div>
+                {mergeInfo && (
+                  <div className="text-[11px] font-mono text-ide-text-muted max-h-24 overflow-y-auto whitespace-pre-wrap">
+                    {mergeInfo.slice(0, 600)}
+                  </div>
+                )}
+                {mergePhase === 'conflict' && (
+                  <div className="text-[11px] text-ide-text-muted leading-relaxed">
+                    {t('Conflict state is kept in the main workspace. Resolve conflicts in the Git tab, or abort the merge. The worktree and branch are kept.')}
+                  </div>
+                )}
+              </>
+            )}
+            <div className="flex gap-2 justify-end pt-1">
+              {mergePhase === 'idle' && (
+                <>
+                  <button
+                    onClick={closeMerge}
+                    disabled={mergeBusy}
+                    className="px-3 py-1.5 rounded-md text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors disabled:opacity-40"
+                  >
+                    {t('Cancel')}
+                  </button>
+                  <button
+                    onClick={() => void confirmMerge()}
+                    disabled={mergeBusy}
+                    className="px-3 py-1.5 rounded-md text-xs text-ide-success bg-ide-success/15 border border-ide-success/40 hover:bg-ide-success/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {mergeBusy ? t('Merging...') : t('Merge Now')}
+                  </button>
+                </>
+              )}
+              {mergePhase === 'running' && (
+                <button
+                  disabled={mergeBusy}
+                  className="px-3 py-1.5 rounded-md text-xs text-ide-success bg-ide-success/15 border border-ide-success/40 transition-colors disabled:opacity-40 cursor-not-allowed"
+                >
+                  {t('Merging...')}
+                </button>
+              )}
+              {mergePhase === 'success' && (
+                <button
+                  onClick={closeMerge}
+                  className="px-3 py-1.5 rounded-md text-xs text-ide-success bg-ide-success/15 border border-ide-success/40 hover:bg-ide-success/25 transition-colors"
+                >
+                  {t('Done')}
+                </button>
+              )}
+              {mergePhase === 'conflict' && (
+                <>
+                  <button
+                    onClick={() => void abortMerge()}
+                    disabled={mergeBusy}
+                    className="px-3 py-1.5 rounded-md text-xs text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 transition-colors disabled:opacity-40"
+                  >
+                    {mergeBusy ? t('Merging...') : t('Abort Merge')}
+                  </button>
+                  <button
+                    onClick={closeMerge}
+                    className="px-3 py-1.5 rounded-md text-xs text-ide-accent bg-ide-accent/15 border border-ide-accent/40 hover:bg-ide-accent/25 transition-colors"
+                  >
+                    {t('Keep Conflicts')}
+                  </button>
+                </>
+              )}
+              {mergePhase === 'error' && (
+                <button
+                  onClick={closeMerge}
+                  className="px-3 py-1.5 rounded-md text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                >
+                  {t('Close')}
+                </button>
+              )}
             </div>
           </div>
         </div>
