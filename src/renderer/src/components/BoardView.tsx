@@ -13,7 +13,6 @@ import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 export const BOARD_FOCUS = 'board-focus'
 
 const BOARD_DEFAULT_CMD_KEY = 'vibe-ide-board-default-cmd'
-const BOARD_TRUNCATE_KEY = 'vibe-ide-board-truncate'
 const BOARD_FILTER_KEY = 'vibe-ide-board-cwd-exclude'
 
 function readDefaultCmd(): string {
@@ -21,14 +20,6 @@ function readDefaultCmd(): string {
     return localStorage.getItem(BOARD_DEFAULT_CMD_KEY)?.trim() || 'claude'
   } catch {
     return 'claude'
-  }
-}
-
-function readTruncate(): string {
-  try {
-    return localStorage.getItem(BOARD_TRUNCATE_KEY) ?? '✻|❯'
-  } catch {
-    return '✻|❯'
   }
 }
 
@@ -322,16 +313,16 @@ export default function BoardView({
   const [tailDepth, setTailDepth] = useState(60)
   const [showLoadMore, setShowLoadMore] = useState(true)
   const [tailEnded, setTailEnded] = useState(false)
+  const [truncate, setTruncate] = useState('✻')
 
   const loadTailMore = useCallback((s: SessionTab) => {
     const next = tailDepth + 60
     setTailDepth(next)
     const lines = onReadSessionTail(s.id, next)
     setTailEnded(lines.length < next)
-    setReplyText(shortenHrLines(truncateReply(lines.join('\n').slice(-12000), readTruncate())))
-  }, [onReadSessionTail, tailDepth])
+    setReplyText(shortenHrLines(truncateReply(lines.join('\n').slice(-12000), truncate)))
+  }, [onReadSessionTail, tailDepth, truncate])
   const [draft, setDraft] = useState('')
-  const [truncate, setTruncate] = useState(readTruncate)
   const [defaultCmd, setDefaultCmd] = useState(readDefaultCmd)
   const [defaultCmdDraft, setDefaultCmdDraft] = useState(defaultCmd)
   const [excludedCwds, setExcludedCwds] = useState<string[]>(() => {
@@ -409,6 +400,20 @@ export default function BoardView({
   }, [replyFor, onAcknowledgeWarn])
 
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const replyScrollRef = useRef<HTMLDivElement>(null)
+  const replyScrollInited = useRef(false)
+
+  useEffect(() => {
+    if (!replyFor) return
+    replyScrollInited.current = false
+  }, [replyFor])
+
+  useEffect(() => {
+    if (!replyFor || !replyText || replyScrollInited.current) return
+    replyScrollInited.current = true
+    const el = replyScrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [replyText, replyFor])
 
   useEffect(() => {
     if (replyFor) replyTextareaRef.current?.focus()
@@ -487,7 +492,7 @@ export default function BoardView({
       if (s.kind === 'terminal') {
         const lines = onReadSessionTail(s.id, 60)
         setTailEnded(lines.length < 60)
-        setReplyText(shortenHrLines(truncateReply(lines.join('\n').slice(-12000), readTruncate())))
+        setReplyText(shortenHrLines(truncateReply(lines.join('\n').slice(-12000), truncate)))
         return
       }
       if (s.kind === 'dsh') {
@@ -519,7 +524,7 @@ export default function BoardView({
     } finally {
       setReplyLoading(false)
     }
-  }, [onReadSessionTail])
+  }, [onReadSessionTail, truncate])
 
   const sendDraft = useCallback(() => {
     const text = draft.trim()
@@ -783,9 +788,8 @@ export default function BoardView({
                     value={truncate}
                     onChange={(e) => {
                       setTruncate(e.target.value)
-                      try { localStorage.setItem(BOARD_TRUNCATE_KEY, e.target.value) } catch {}
                     }}
-                    placeholder="✻|❯"
+                    placeholder="✻"
                     maxLength={16}
                     title={t('Hide chars after this marker (claude status bar). Empty to disable.')}
                     className="flex-1 min-w-0 px-1.5 py-0.5 text-[11px] font-mono bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
@@ -945,6 +949,7 @@ export default function BoardView({
             </div>
           )}
           <div
+            ref={replyScrollRef}
             className="flex-1 overflow-y-auto p-3 min-h-0 board-reply-scroll"
             onScroll={(e) => setShowLoadMore(e.currentTarget.scrollTop <= 0)}
           >
