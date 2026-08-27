@@ -604,6 +604,7 @@ html, body, #root {
   background-color: rgb(var(--ide-accent) / 0.05);
   padding: 0.5em 1em; border-radius: 0 4px 4px 0;
 }
+.md-preview blockquote > :last-child { margin-bottom: 0; }
 .md-preview table { width: 100%; border-collapse: collapse; margin-bottom: 1em; font-size: 13px; }
 .md-preview thead { background-color: rgb(var(--ide-sidebar)); }
 .md-preview th, .md-preview td { border: 1px solid rgb(var(--ide-border)); padding: 0.5em 0.75em; text-align: left; }
