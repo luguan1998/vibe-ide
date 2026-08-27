@@ -248,8 +248,8 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
     const idx = wrapper ? parseInt(wrapper.getAttribute('data-block-idx') || '', 10) : -1
     const snippet = ((target as HTMLElement).textContent || '').trim().slice(0, 80)
     let heading: string | null = null
-    if (idx > 0) {
-      for (let i = idx - 1; i >= 0; i--) {
+    if (idx >= 0) {
+      for (let i = idx; i >= 0; i--) {
         const src = blocks[i].source.trimStart()
         if (/^#{1,6}\s/.test(src)) {
           heading = src.replace(/^#{1,6}\s+/, '').split('\n')[0].trim()
@@ -258,7 +258,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
       }
     }
 
-    const ref = heading ? `**${heading}** "${snippet}"` : `"${snippet}"`
+    const ref = heading && heading !== snippet ? `**${heading}** "${snippet}"` : `"${snippet}"`
     window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: `${fileName} ${ref}` } }))
   }, [brushActive, blocks, fullPath, fileName])
 
