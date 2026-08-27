@@ -108,7 +108,7 @@ export function ContextBar({ percent, sessionId }: { percent: number | null; ses
         <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden>
           <circle cx="7" cy="7" r={CONTEXT_RING_RADIUS} fill="none" stroke="currentColor" strokeWidth="2" className="opacity-25" />
           <circle
-            cx="7" cy="7" r={CONTEXT_RING_RADIUS} fill="none" strokeWidth="2"
+            cx="7" cy="7" r={CONTEXT_RING_RADIUS} fill="none" stroke="currentColor" strokeWidth="2"
             strokeLinecap="round"
             className={`${ringColorClass} transition-all duration-500`}
             strokeDasharray={`${CONTEXT_RING_CIRCUMFERENCE * pct / 100} ${CONTEXT_RING_CIRCUMFERENCE}`}
