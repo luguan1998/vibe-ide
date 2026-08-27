@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 const TerminalView = React.lazy(() => import('./TerminalView'))
 import type { TerminalViewHandle } from './TerminalView'
 import { AuxTerminalTab } from '@shared/types'
-import { parseCommands, loadMdContent } from './DocTree'
+import { parseCommands } from './DocTree'
 import { useI18n } from '../i18n'
 
 interface AuxTabProps {
@@ -84,10 +84,23 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
       if (pendingPathRef.current === targetPath) setCommands([])
       return
     }
-    const content = await loadMdContent(targetPath)
-    if (pendingPathRef.current !== targetPath) return
-    if (!content) { setCommands([]); return }
-    setCommands(parseCommands(content))
+    const base = targetPath.replace(/\\/g, '/')
+    const candidates = ['CLAUDE.md', 'AGENTS.md']
+    for (const candidate of candidates) {
+      if (pendingPathRef.current !== targetPath) return
+      let content: string | null = null
+      try {
+        const res: any = await window.api.file.read(base + '/' + candidate)
+        if (res.content) content = res.content
+      } catch {}
+      if (!content) continue
+      const commands = parseCommands(content)
+      if (commands.length > 0) {
+        setCommands(commands)
+        return
+      }
+    }
+    if (pendingPathRef.current === targetPath) setCommands([])
   }, [])
 
   useEffect(() => {
