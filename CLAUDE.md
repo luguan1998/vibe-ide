@@ -132,7 +132,6 @@ Each terminal session owns its RightPanel/GitTab state independently — **no gl
 |--------|------|
 | `Ctrl+ArrowLeft/Right` | 切换右侧 panel tab 并聚焦新 tab（Git/Aux→容器，Search→input） |
 | `Ctrl+ArrowUp/Down` | blur 右侧 panel → 切换 session → 聚焦新终端 |
-| `Ctrl+F` | 切到 Search tab 并聚焦输入框 |
 
 **规则：**
 

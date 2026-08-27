@@ -2907,7 +2907,7 @@ export default function App() {
         <button
           className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${showSearchDropdown ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
           style={{ marginRight: 16 }}
-          onClick={() => setShowSearchDropdown(true)}
+          onClick={() => { setShowSearchDropdown(true); setSearchFocusTrigger(k => k + 1) }}
           title={t('Search')}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4">
