@@ -18,6 +18,8 @@ export function registerMonacoThemes(monaco: any): void {
     const sidebar = rgbToHex(css['ide-sidebar'])
     const success = rgbToHex(css['ide-success'])
     const danger = rgbToHex(css['ide-danger'])
+    // miku 的 ide-success 是樱粉紫点缀色(success/danger 同为红粉系,diff 增删不可辨),插入色改用 terminal.green
+    const diffInserted = theme.id === 'miku' ? theme.terminal.green : success
     const warning = rgbToHex(css['ide-warning'])
     const accentHover = rgbToHex(css['ide-accent-hover'])
     const panel = rgbToHex(css['ide-panel'])
@@ -70,12 +72,12 @@ export function registerMonacoThemes(monaco: any): void {
         'list.activeSelectionBackground': accent + '40',
         'list.hoverBackground': hover,
         'list.inactiveSelectionBackground': accent + '20',
-        'diffEditor.insertedTextBackground': success + '20',
+        'diffEditor.insertedTextBackground': diffInserted + '20',
         'diffEditor.removedTextBackground': danger + '20',
-        'diffEditor.insertedLineBackground': success + '15',
+        'diffEditor.insertedLineBackground': diffInserted + '15',
         'diffEditor.removedLineBackground': danger + '15',
         'diffEditor.border': border,
-        'diffEditorOverviewRuler.insertedForeground': success + '80',
+        'diffEditorOverviewRuler.insertedForeground': diffInserted + '80',
         'diffEditorOverviewRuler.removedForeground': danger + '80',
         'diffEditor.diagonalFill': border + '0D',
       }
