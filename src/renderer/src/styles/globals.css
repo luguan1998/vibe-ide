@@ -614,6 +614,9 @@ html, body, #root {
 .md-preview del { text-decoration: line-through; color: rgb(var(--ide-danger)); }
 .md-preview > *:first-child { margin-top: 0; }
 .md-preview > *:last-child { margin-bottom: 0; }
+/* 块级增量渲染包了一层 .md-block，首尾边距规则穿透到块内元素 */
+.ai-tab__markdown--streaming > .md-block:first-child > :first-child { margin-top: 0; }
+.ai-tab__markdown--streaming > .md-block:last-child > :last-child { margin-bottom: 0; }
 /* Board 回复:term 输出为字符打印,单换行不得折叠(soft break 保留),仅作用 term 类回复容器 */
 .board-reply-md :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, th, td) { white-space: pre-wrap; }
 /* Board 回复:term 超宽内容截断,不显示横向滚动条 */
@@ -1146,9 +1149,22 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
   padding-right: 32px;
 }
 
-/* 流式渲染打字光标：紧贴最后一个 block 末尾文字，step 闪烁掩盖 token 间隙 */
-.ai-tab__markdown--streaming > :last-child::after,
-.ai-tab__markdown--streaming > :last-child > :last-child::after {
+/* 流式渲染打字光标：只贴「最后一行可见文本」末尾，不落在块级容器后。
+   ul/ol/table 容器的 ::after 会成新行，故精确到 li/p/标题/code 等文本流元素 */
+.ai-tab__markdown--streaming > pre:last-child::after,
+.ai-tab__markdown--streaming > pre:last-child > :last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > p:last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > h1:last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > h2:last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > h3:last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > h4:last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > h5:last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > h6:last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > blockquote:last-child > :last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > pre:last-child > code:last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > div.md-code-block > pre:last-child > code:last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > ul:last-child > li:last-child::after,
+.ai-tab__markdown--streaming > .md-block:last-child > ol:last-child > li:last-child::after {
   content: '▌';
   display: inline-block;
   margin-left: 1px;
@@ -1158,6 +1174,29 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
   transform: scaleX(0.3);
   transform-origin: left center;
 }
+
+/* 流式块级淡入：新块挂载时播一次（冻结块 ReactNode 复用 → 不重挂载 → 不重播）*/
+.md-block-enter {
+  animation: md-block-fade-in-up 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--enter-delay, 0ms);
+}
+@keyframes md-block-fade-in-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* thinking 平滑浮现：每次 flush 增量段整段做一次柔和淡入（0.25→1，无字符颗粒、不闪眼），
+   旧段 DOM 复用不重播；起点非 0 避免「凭空猛闪」的刺眼跳变 */
+.ai-tab__think-seg {
+  animation: think-seg-in 400ms ease-out;
+}
+@keyframes think-seg-in {
+  from { opacity: 0.25; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .md-block-enter, .ai-tab__think-seg { animation: none; }
+}
+
 @keyframes ai-cursor-blink {
   50% { opacity: 0; }
 }

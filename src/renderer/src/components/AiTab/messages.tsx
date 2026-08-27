@@ -170,7 +170,7 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
   )
 }
 
-export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScroll, autoFold, noAnimate }: { text: string; defaultOpen?: boolean; durationMs?: number; autoScroll?: boolean; autoFold?: boolean; noAnimate?: boolean }) {
+export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScroll, autoFold, noAnimate, smoothStream = false }: { text: string; defaultOpen?: boolean; durationMs?: number; autoScroll?: boolean; autoFold?: boolean; noAnimate?: boolean; smoothStream?: boolean }) {
   // autoFold（live 接管 busy 区 thinking）：以展开态挂载无缝交接（零高度跳变）、匹配其底部滚动位、
   // 下一帧 rAF 平滑折叠、跳过 fade-in。故 autoFold 隐含 defaultOpen=true + autoScroll=true
   const [open, setOpen] = useState(autoFold || defaultOpen)
@@ -180,6 +180,32 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
   const label = durationMs != null
     ? `Thinking for ${(durationMs / 1000).toFixed(1)}s`
     : 'Thinking'
+
+  // 平滑流式：每次 flush 增量段挂一个 span 做整段柔和淡入（无字符颗粒、不闪眼）。
+  // 段累积超 SEG_MERGE_LIMIT 时合并为静态 baseline + 最近一段活段，防长 thinking span 无限膨胀。
+  const SEG_MERGE_LIMIT = 24
+  const segsRef = useRef<{ id: number; text: string; live?: boolean }[]>([])
+  if (smoothStream) {
+    const segs = segsRef.current
+    const clean = cleanMessageContent(text)
+    const rendered = segs.map((s) => s.text).join('')
+    if (segs.length === 0) {
+      if (clean) segsRef.current = [{ id: 0, text: clean, live: true }]
+    } else if (clean.startsWith(rendered)) {
+      if (clean.length > rendered.length) {
+        const tail = { id: segs.length, text: clean.slice(rendered.length), live: true }
+        if (segs.length >= SEG_MERGE_LIMIT) {
+          // 合并旧段为静态 baseline（不带 live，避免 merge 时重播动画闪一下）
+          const base = { id: 0, text: segs.map((s) => s.text).join('') }
+          segsRef.current = [base, tail]
+        } else {
+          segsRef.current = [...segs, tail]
+        }
+      }
+    } else {
+      segsRef.current = clean ? [{ id: 0, text: clean, live: true }] : []
+    }
+  }
 
   useEffect(() => {
     if (!shouldAutoScroll) return
@@ -222,7 +248,15 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
       <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="min-h-0 overflow-hidden">
           <div ref={contentRef} className="ai-tab__thinking-content px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
-            <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">{cleanMessageContent(text)}</pre>
+            {smoothStream ? (
+              <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">
+                {segsRef.current.map((s) => (
+                  <span key={s.id} className={s.live ? 'ai-tab__think-seg' : undefined}>{s.text}</span>
+                ))}
+              </pre>
+            ) : (
+              <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">{cleanMessageContent(text)}</pre>
+            )}
           </div>
         </div>
       </div>
