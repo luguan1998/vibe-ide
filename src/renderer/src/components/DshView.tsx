@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react'
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback, useMemo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { getSharedDshContext, resetSharedDshContext, type DshContextHandle } from '../dsh/context'
 import { useI18n } from '../i18n'
@@ -115,7 +115,8 @@ const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessi
     const targetId = dshSessionId || sessionId
     // dsh 无本地输入记录：快照变化时拉取会话最新 user 消息，新文本上报 App 命令历史（Ctrl+R 复用）
     const reportLatestUserMessage = async () => {
-      if (!onCommand) return
+      // 隐藏 tab 不轮询:命令历史只有 active 会话有意义;切回时 effect 重订阅立即补抓
+      if (!onCommand || !isActive) return
       if (Date.now() - lastFetchAtRef.current < 1000) return
       lastFetchAtRef.current = Date.now()
       try {
@@ -164,7 +165,7 @@ const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessi
       off()
       onAgentStatusChange?.(sessionId, 'idle')
     }
-  }, [handle, ready, sessionId, dshSessionId, onAgentStatusChange, onTitleChange, onCommand])
+  }, [handle, ready, sessionId, dshSessionId, onAgentStatusChange, onTitleChange, onCommand, isActive])
 
   if (error) {
     return (
@@ -186,7 +187,7 @@ const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessi
         <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">dsh connecting...</div>
       )}
       <div className="flex-1 min-h-0 flex flex-col relative" style={{ display: ready ? 'flex' : 'none' }}>
-        {handle && <DshSlot handle={handle} />}
+        {handle && isActive && <DshSlot handle={handle} />}
         {!sidebarVisible && (
           <button
             type="button"
@@ -205,9 +206,9 @@ const DshView = forwardRef<DshViewHandle, DshViewProps>(function DshView({ sessi
 export default DshView
 
 function DshSlot({ handle }: { handle: DshContextHandle }) {
-  const [node, setNode] = useState<React.ReactNode>(null)
-  useEffect(() => {
-    setNode(handle.ctx.slots.renderSlot('root', {}))
-  }, [handle])
+  // 同步渲染:renderSlot('root') 是纯 ReactNode 调用,useMemo 惰性重建。
+  // 不用 useEffect+setState —— 那会晚一帧才有树,App 切 tab 的 setTimeout(0) focus 会落空。
+  // 隐藏 tab(isActive=false)不渲染整棵 dsh 树,切回时首帧重建(数据在共享 ctx service 层,不丢)。
+  const node = useMemo(() => handle.ctx.slots.renderSlot('root', {}), [handle])
   return <>{node}</>
 }

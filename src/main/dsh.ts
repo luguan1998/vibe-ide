@@ -170,7 +170,16 @@ function stopDshServer(): { ok: boolean } {
   if (!state) return { ok: true }
   const proc = state.proc
   state = null
-  try { proc.kill() } catch {}
+  try {
+    if (process.platform === 'win32') {
+      // proc.kill 在 Windows 只终止顶层节点进程,dsh-bash-local 拉起的 bash/cmd
+      // 子进程树收不到信号 → 关窗/插件重启后变孤儿进程继续吃 CPU/内存。
+      // taskkill /f /t 树级清理(与 ai.ts killAiProcess 同款)。
+      spawn('taskkill', ['/pid', String(proc.pid), '/f', '/t'], { stdio: 'ignore', windowsHide: true })
+    } else {
+      proc.kill()
+    }
+  } catch {}
   return { ok: true }
 }
 
