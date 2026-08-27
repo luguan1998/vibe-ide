@@ -19,9 +19,7 @@ import { ModalOverlay } from './components/ModalOverlay'
 import { DirectoryPicker } from './components/DirectoryPicker'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
-import GameMujica, { FOCUS_MUJICA, MUJICA_CLOSE } from './components/GameMujica'
 import BoardView, { BOARD_FOCUS } from './components/BoardView'
-import { mujicaStore, useMujica } from './mujicaStore'
 import { aiStore, readAiCliConfig } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
@@ -249,7 +247,7 @@ declare global {
   }
 }
 
-type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser' | 'mujica' | 'search' | 'board'
+type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser' | 'search' | 'board'
 
 // 网页调试停靠位置偏好（中栏 / 右栏覆盖 Nga tab），localStorage 持久化
 function loadBrowserDockPref(): 'center' | 'right' {
@@ -686,22 +684,6 @@ export default function App() {
     centerViewRef.current = centerView
   }, [centerView])
 
-  // mujica stays active while its agents run even after the center view is switched away —
-  // the session panel shows a restore pill when it's hidden but still running.
-  const mujicaActive = useMujica().active
-
-  // Nga "mujica" card requests the canvas as a center view (covers the terminal area, not full-app)
-  React.useEffect(() => {
-    const openMujica = () => { mujicaStore.setActive(true); setCenterView('mujica') }
-    const closeMujica = () => { mujicaStore.setActive(false); setCenterView('terminal') }
-    window.addEventListener(FOCUS_MUJICA, openMujica)
-    window.addEventListener(MUJICA_CLOSE, closeMujica)
-    return () => {
-      window.removeEventListener(FOCUS_MUJICA, openMujica)
-      window.removeEventListener(MUJICA_CLOSE, closeMujica)
-    }
-  }, [])
-
   // Session panel "Task Board" button requests the board center view.
   // The board is the bottom layer: no selected session, no ESC semantics of its own.
   React.useEffect(() => {
@@ -709,13 +691,6 @@ export default function App() {
     window.addEventListener(BOARD_FOCUS, openBoard)
     return () => window.removeEventListener(BOARD_FOCUS, openBoard)
   }, [])
-
-  // mujica base repo defaults to the active session cwd until the user browses for another.
-  // Computed inline from sessions/activeSessionId (declared above) — referencing the
-  // derived `activeSessionCwd` const here would hit TDZ (it's declared further down).
-  React.useEffect(() => {
-    mujicaStore.setDefaultCwd(sessions.find(s => s.id === activeSessionId)?.cwd ?? null)
-  }, [sessions, activeSessionId])
 
   // 持久化当前打开的所有 tab，按 cwd 聚合为 Session 容器
   React.useEffect(() => {
@@ -3058,8 +3033,6 @@ export default function App() {
             onOpenRecentFile={handleOpenRecentFile}
             onRemoveRecentFile={removeRecentFile}
             onTogglePinRecentFile={togglePinRecentFile}
-            mujicaRestoreVisible={mujicaActive && centerView !== 'mujica'}
-            onRestoreMujica={() => window.dispatchEvent(new CustomEvent(FOCUS_MUJICA))}
           />
           </div>
         </div>
@@ -3236,10 +3209,6 @@ export default function App() {
                 )
               })}
             </Suspense>
-          </div>
-          {/* mujica canvas — display-toggle so state + running agents survive hide (ESC = collapse, restore pill shows in session list) */}
-          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card" style={{ display: centerView === 'mujica' ? 'flex' : 'none' }}>
-            <GameMujica onCollapse={() => setCenterView('terminal')} />
           </div>
           {/* session board — display-toggle so terminals keep their buffers while the board is shown */}
           <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card" style={{ display: centerView === 'board' ? 'flex' : 'none' }}>

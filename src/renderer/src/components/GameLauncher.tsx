@@ -1,9 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useI18n } from '../i18n'
-import { FOCUS_MUJICA } from './GameMujica'
-import { useMujica } from '../mujicaStore'
-import MujicaConfig from './MujicaConfig'
-import mujicaIcon from '@renderer/assets/mujica.png?inline'
 import Game2048 from './Game2048'
 import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
@@ -11,7 +7,7 @@ import GameFruitNinja from './GameFruitNinja'
 import GameVampire from './GameVampire'
 import HistoryView from './HistoryView'
 
-type GameId = 'menu' | 'history' | '2048' | 'sandspiel' | 'balatro' | 'mujica' | 'fruitninja' | 'vampire'
+type GameId = 'menu' | 'history' | '2048' | 'sandspiel' | 'balatro' | 'fruitninja' | 'vampire'
 
 interface GameLauncherProps {
   workspacePath: string | null
@@ -30,7 +26,6 @@ interface GameCard {
 
 const GAMES: GameCard[] = [
   { id: 'history', icon: <span className="text-2xl leading-none">📜</span>, name: 'Session History', desc: 'Browse & search Claude history' },
-  { id: 'mujica', icon: <img src={mujicaIcon} alt="Mujica" className="w-7 h-7 object-contain rounded" />, name: 'Mujica', desc: 'Form a band of Claude agents — conduct them in parallel' },
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
@@ -48,21 +43,8 @@ export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onR
     }
   }, [historyNavNonce])
   const { t } = useI18n()
-  const mujicaActive = useMujica().active
-
-  // When mujica is the active center view, this tab becomes its config panel.
-  if (mujicaActive) {
-    return <MujicaConfig />
-  }
 
   const launch = (id: GameId) => {
-    // mujica lives in the center (a centerView), not inside this narrow tab.
-    // Dispatch an event App.tsx listens for → switches the center to the canvas
-    // and flips mujicaStore.active so this tab shows MujicaConfig.
-    if (id === 'mujica') {
-      window.dispatchEvent(new CustomEvent(FOCUS_MUJICA))
-      return
-    }
     setCurrentGame(id)
   }
 
