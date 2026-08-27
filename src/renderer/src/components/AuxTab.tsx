@@ -23,6 +23,7 @@ interface AuxTabProps {
 
 export default function AuxTab({ rightTerminalSessions, activeSessionId, effectiveGitPath, worktreeNav, onCreateRightTerminal, onCloseAuxTerminal, onSelectAuxTab, onSplitAuxTerminal, onResizeAuxSplit, activeAuxIndex = {}, onOpenFileFromRightTerminal, isActive, clearAuxBufferTrigger }: AuxTabProps) {
   const [commands, setCommands] = useState<Array<{ command: string; comment: string }>>([])
+  const [commandsSource, setCommandsSource] = useState('')
   const [selectedCommandIndex, setSelectedCommandIndex] = useState<number | null>(null)
   const pendingCommandRef = useRef<string | null>(null)
   const auxTerminalRefs = useRef<Record<string, TerminalViewHandle>>({})
@@ -81,7 +82,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
 
   const loadCommands = useCallback(async (targetPath: string | null) => {
     if (!targetPath) {
-      if (pendingPathRef.current === targetPath) setCommands([])
+      if (pendingPathRef.current === targetPath) { setCommands([]); setCommandsSource('') }
       return
     }
     const base = targetPath.replace(/\\/g, '/')
@@ -97,10 +98,11 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
       const commands = parseCommands(content)
       if (commands.length > 0) {
         setCommands(commands)
+        setCommandsSource(candidate)
         return
       }
     }
-    if (pendingPathRef.current === targetPath) setCommands([])
+    if (pendingPathRef.current === targetPath) { setCommands([]); setCommandsSource('') }
   }, [])
 
   useEffect(() => {
@@ -416,7 +418,12 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
         <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '32%', overflowY: 'auto' }}>
           {!showTabBar && (
             <div className="px-2 py-1 group flex items-center justify-between sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm border-b border-ide-border">
-              <span className="text-[10px] uppercase tracking-wider text-ide-accent">Commands</span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-[10px] uppercase tracking-wider text-ide-accent shrink-0">Commands</span>
+                {commandsSource && (
+                  <span className="text-[10px] text-ide-text-muted opacity-0 group-hover:opacity-100 transition-opacity truncate min-w-0">from {commandsSource}</span>
+                )}
+              </div>
               <button
                 onClick={handleRefreshCommands}
                 className="w-4 h-4 mr-1 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-all"
