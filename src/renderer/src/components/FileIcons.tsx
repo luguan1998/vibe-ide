@@ -9,6 +9,8 @@ const FILE_KINDS: Record<string, { kind: FileKind; color: string }> = {
   java: { kind: 'code', color: 'text-[#b07219]' },
   dart: { kind: 'code', color: 'text-ide-accent' }, kt: { kind: 'code', color: 'text-ide-accent' }, kts: { kind: 'code', color: 'text-ide-accent' },
   c: { kind: 'code', color: 'text-[#00ADD8]' }, cpp: { kind: 'code', color: 'text-[#f34b7d]' }, h: { kind: 'code', color: 'text-[#00ADD8]' }, hpp: { kind: 'code', color: 'text-[#f34b7d]' },
+  gd: { kind: 'script', color: 'text-[#478CBF]' }, gdshader: { kind: 'code', color: 'text-[#478CBF]' },
+  tscn: { kind: 'data', color: 'text-[#478CBF]' }, tres: { kind: 'data', color: 'text-[#478CBF]' },
   css: { kind: 'style', color: 'text-[#a855f7]' }, scss: { kind: 'style', color: 'text-[#a855f7]' }, less: { kind: 'style', color: 'text-[#a855f7]' },
   html: { kind: 'markup', color: 'text-ide-accent' }, htm: { kind: 'markup', color: 'text-ide-accent' },
   vue: { kind: 'markup', color: 'text-ide-accent' }, svelte: { kind: 'markup', color: 'text-ide-accent' },

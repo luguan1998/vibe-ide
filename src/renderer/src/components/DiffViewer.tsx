@@ -53,6 +53,8 @@ const langMap: Record<string, string> = {
   'dockerfile': 'dockerfile',
   'tf': 'hcl', 'tfvars': 'hcl',
   'ini': 'ini', 'properties': 'ini',
+  'gd': 'gdscript', 'gdshader': 'gdshader',
+  'tscn': 'ini', 'tres': 'ini',
   'graphql': 'graphql', 'gql': 'graphql',
   'handlebars': 'handlebars', 'hbs': 'handlebars',
   'pug': 'pug', 'jade': 'pug', 'twig': 'twig',
