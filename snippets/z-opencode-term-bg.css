@@ -1,13 +1,13 @@
 /*
   终端 / AiTab / dsh 背景图
   ─────────────────────────────────────────────────
-  用法：改下面两行即可 —— 换图改 url()，调压暗改 0.65
+  用法：改下面两行即可 —— 换图改 url()，调压暗改 0.7
   生效：改图后「新开 session」才生效（xterm 只在 mount 时读一次）
   不用图：注释掉 --terminal-bg-image，回落纯黑
 */
 :root {
   --terminal-bg-image: url('assets/night.jpg');
-  --terminal-bg-overlay: rgba(10, 10, 10, 0.65);
+  --terminal-bg-overlay: rgba(15, 18, 42, 0.7);
 }
 
 /* 终端容器：纯色 fallback + 背景图层 */

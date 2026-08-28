@@ -614,5 +614,21 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
   box-shadow: 0 0 8px rgba(255, 195, 40, 0.15) !important;
 }
 
+/* ════════════════════════════════════════════════════
+   dsh — 星月夜背景图（对话根透明化，露出星空）
+   harness 底层容器背景走 --dsw-alias-bg-base（body token），
+   在 .dsh-view 作用域内重定义透明即可透出背景图，消息卡片等上层的
+   layer/静态色 token 不受影响
+   ════════════════════════════════════════════════════ */
+.dsh-view {
+  background-image: linear-gradient(var(--terminal-bg-overlay), var(--terminal-bg-overlay)), var(--terminal-bg-image) !important;
+  background-size: cover, cover !important;
+  background-position: center, center !important;
+  --dsw-alias-bg-base: transparent !important;
+}
+.dsh-view .dsh-root__sidebar {
+  background: transparent !important;
+}
+
 
 
