@@ -7,6 +7,7 @@ import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import { getMainShellType, setMainShellType, getAuxShellType, setAuxShellType } from '@renderer/utils/shellPrefs'
+import { setLastNewMode } from '@renderer/utils/sessionModePrefs'
 import SettingsPanel from './SettingsPanel'
 import { ModalOverlay } from './ModalOverlay'
 import AppearancePanel from './AppearancePanel'
@@ -568,6 +569,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [emojiMenu, setEmojiMenu] = useState<{ x: number; y: number } & ({ sessionId: string } | { cwd: string }) | null>(null)
   const menuSession = contextMenu ? sessions.find(s => s.id === contextMenu.sessionId) : null
   const [newMode, setNewMode] = useState<'term' | 'gui' | 'dsh'>('term')
+  // 勾选即记入内存，历史会话打开时按此默认
+  const pickNewMode = (mode: 'term' | 'gui' | 'dsh') => {
+    setNewMode(mode)
+    setLastNewMode(mode)
+  }
   // 新建类型菜单：勾选项置顶
   const newModesSorted = useMemo(() => {
     const all = ['term', 'gui', 'dsh'] as const
@@ -585,7 +591,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     <button
       key={mode}
       className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-      onClick={() => { setNewMode(mode); onPick(mode) }}
+      onClick={() => { pickNewMode(mode); onPick(mode) }}
     >
       {renderModeIcon(mode)}
       <span>{mode === 'term' ? t('Terminal') : mode === 'gui' ? 'Claude' : 'dsh'}</span>
@@ -604,7 +610,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   // 新建：按模式在当前会话 cwd 创建并关菜单（勾选模式为当次启动内的用户偏好）
   const handleNewFromSubmenu = (mode: 'term' | 'gui' | 'dsh') => {
-    setNewMode(mode)
+    pickNewMode(mode)
     const session = sessions.find(s => s.id === contextMenu?.sessionId)
     if (session && onNewSessionHere) onNewSessionHere(session.cwd, mode)
     setContextMenu(null)

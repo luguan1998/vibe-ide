@@ -8,6 +8,7 @@ import { ArrowLeft, ChevronDown, Filter, FolderOpen, Loader2, RotateCcw, Search,
 import { fetchDshSessions, fetchDshHistoryTurns, type DshHistorySession } from '../dsh/history'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
+import { getLastNewMode, toHistoryMode, type HistoryMode } from '../utils/sessionModePrefs'
 
 interface HistoryViewProps {
   onBack: () => void
@@ -16,7 +17,6 @@ interface HistoryViewProps {
   onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
 }
 
-type HistoryMode = 'tui' | 'gui' | 'dsh'
 // dsh 会话归一化为 AiSessionSummary 形状后复用同一套列表渲染；dshRunning 标记运行中会话（不可删除）
 type Summary = AiSessionSummary & { dshRunning?: boolean }
 
@@ -111,7 +111,8 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [listError, setListError] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [turnsById, setTurnsById] = useState<Record<string, { turns: HistoryTurn[]; loading: boolean }>>({})
-  const [mode, setMode] = useState<HistoryMode>('tui')
+  // 默认恢复类型跟随「新会话」最近勾选（term→tui 同为终端恢复；不随重启持久化）
+  const [mode, setMode] = useState<HistoryMode>(() => toHistoryMode(getLastNewMode()))
   // tui 与 gui 共享同一份 claude 历史，仅 dsh 是独立数据源；
   // 列表 fetch 依赖数据源而非 mode，避免 tui↔gui 切换重复扫描历史目录
   const dataSource = mode === 'dsh' ? 'dsh' : 'claude'
@@ -125,6 +126,15 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
   const [onlyCurrent, setOnlyCurrent] = useState(false)
   const fetchReqIdRef = useRef(0)
+
+  // 非当前项目分组默认收缩（claude 与 dsh 共用；只增不减，用户已展开的保持展开）
+  const collapseNonCurrent = (list: Summary[]) => {
+    setCollapsedProjects(prev => {
+      const next = new Set(prev)
+      for (const s of list) if (!s.inCurrentProject) next.add(s.projectDirName)
+      return next
+    })
+  }
 
   const toSummary = useCallback((s: DshHistorySession): Summary => ({
     session_id: s.id,
@@ -148,14 +158,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
       const r = await window.api.ai.listAllSessions(configDir, workspacePath || undefined)
       if (fetchReqIdRef.current !== reqId) return
       setSessions(r.sessions || [])
-      // 非当前项目默认收缩
-      setCollapsedProjects(prev => {
-        const next = new Set(prev)
-        for (const s of r.sessions || []) {
-          if (!s.inCurrentProject) next.add(s.projectDirName)
-        }
-        return next
-      })
+      collapseNonCurrent(r.sessions || [])
     } catch (e: any) {
       if (fetchReqIdRef.current !== reqId) return
       setListError(e?.message || t('No history sessions'))
@@ -169,8 +172,10 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     setListError('')
     try {
       const list = await fetchDshSessions(workspacePath || undefined)
+      const summaries = list.map(toSummary)
       setDshSessions(list)
-      setSessions(list.map(toSummary))
+      setSessions(summaries)
+      collapseNonCurrent(summaries)
     } catch (e: any) {
       setListError(e?.message || '加载失败')
     } finally {
