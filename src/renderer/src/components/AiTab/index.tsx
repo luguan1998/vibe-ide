@@ -329,8 +329,11 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     if (scrollRafRef.current != null) return
     scrollRafRef.current = requestAnimationFrame(() => {
       scrollRafRef.current = null
+      // 只滚 messages 自身,不用 scrollIntoView —— scrollIntoView 在提交瞬间
+      // 内容空窗期会级联滚动 overflow:hidden 的 ai-tab 祖先(整屏被推走,输入框上弹)
       if (!userScrolledUpRef.current) {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+        const el = scrollContainerRef.current
+        if (el) el.scrollTop = el.scrollHeight
       }
     })
   }, [state.messages.length, state.streamBuffer, state.thinkingBuffer])
@@ -343,6 +346,18 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       autoGrow()
     }
   }, [isActive, state.ready, autoGrow])
+
+  // ── 兜底:overflow:hidden 的 ai-tab 不该有滚动位置;scrollIntoView 级联
+  // 残留时强制归零(修复焦点必须 capture,滚动事件在 ai-tab 自身才处理)──
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const fix = (e: Event) => {
+      if (e.target === el && el.scrollTop !== 0) el.scrollTop = 0
+    }
+    el.addEventListener('scroll', fix, true)
+    return () => el.removeEventListener('scroll', fix, true)
+  }, [])
 
   // ── Dispatch a message to the subprocess (shared core) ──
   // Immediate send and piped auto-send both funnel through here.
@@ -1031,7 +1046,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       el.selectionStart = el.selectionEnd = text.length
                       el.scrollTop = el.scrollHeight
                     }
-                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
                   }}
                   className="ai-tab__example-btn px-3 py-1.5 text-xs border border-ide-border rounded-full text-ide-text-muted hover:text-ide-text hover:bg-ide-hover hover:border-ide-accent/30 transition-colors"
                 >

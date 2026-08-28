@@ -615,6 +615,12 @@ html, body, #root {
 .md-preview del { text-decoration: line-through; color: rgb(var(--ide-danger)); }
 .md-preview > *:first-child { margin-top: 0; }
 .md-preview > *:last-child { margin-bottom: 0; }
+/* 注脚跳转:平滑滚动到定义处 + 短暂高亮,消除"跳到尾部迷路"的观感 */
+@keyframes fn-glow-pulse {
+  0% { background-color: rgb(var(--ide-accent) / 0.4); }
+  100% { background-color: transparent; }
+}
+.fn-glow { animation: fn-glow-pulse 2.5s ease-out; border-radius: 4px; }
 /* 块级增量渲染包了一层 .md-block，首尾边距规则穿透到块内元素 */
 .ai-tab__markdown--streaming > .md-block:first-child > :first-child { margin-top: 0; }
 .ai-tab__markdown--streaming > .md-block:last-child > :last-child { margin-bottom: 0; }

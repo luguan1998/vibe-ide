@@ -327,6 +327,34 @@ function CodeBlock({ language, code, onColorized }: { language: string; code: st
 function getMarkdownCodeOverrides(onColorized?: () => void): Record<string, React.ComponentType<any>> {
   return {
     pre: ({ children }: any) => <>{children}</>,
+    a: (props: any) => {
+      const href = props.href || ''
+      const isFootnote = ('data-footnote-ref' in props) || ('data-footnote-backref' in props)
+      if (!isFootnote || !href.startsWith('#')) return <a {...props} />
+      return (
+        <a {...props} onClick={(e) => {
+          e.preventDefault()
+          const target = document.getElementById(href.slice(1))
+          if (!target) return
+          // 手动滚动最近可滚动容器(不 scrollIntoView,避免级联滚动 overflow:hidden 祖先)
+          let scroller = target.parentElement
+          while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY) && scroller !== document.body) scroller = scroller.parentElement
+          if (scroller === document.body) scroller = null
+          if (scroller) {
+            const tRect = target.getBoundingClientRect()
+            const sRect = scroller.getBoundingClientRect()
+            scroller.scrollTo({
+              top: scroller.scrollTop + (tRect.top - sRect.top) - (sRect.height / 2 - tRect.height / 2),
+              behavior: 'smooth',
+            })
+          }
+          target.classList.remove('fn-glow')
+          void target.offsetWidth
+          target.classList.add('fn-glow')
+          setTimeout(() => target.classList.remove('fn-glow'), 2500)
+        }} />
+      )
+    },
     code: ({ className, children, ...props }: any) => {
       const match = /language-(\w+)/.exec(className || '')
       const code = String(children).replace(/\n$/, '')
