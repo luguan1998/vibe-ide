@@ -285,10 +285,10 @@ const BOSSES: Boss[] = [
 
 const JOKERS: Joker[] = [
   { id: 'joker', name: 'Joker', cost: 2, desc: '+4 Mult', glyph: '🃏', face: 'linear-gradient(160deg,#f0d48a,#c89b3c)', rarity: 'common', mult: () => 4 },
-  { id: 'greedy', name: 'Greedy Joker', cost: 4, desc: '打出任意 ♦ 牌时 +$3', glyph: '💰', face: 'linear-gradient(160deg,#ffe3b8,#d98a3c)', rarity: 'common', money: c => c.played.filter(x => x.suit === 'diamonds' && x.enh !== 'stone').length * 3 },
-  { id: 'lusty', name: 'Lusty Joker', cost: 4, desc: '打出任意 ♥ 牌时 +$3', glyph: '💗', face: 'linear-gradient(160deg,#ffb8b8,#c04a4a)', rarity: 'common', money: c => c.played.filter(x => x.suit === 'hearts' && x.enh !== 'stone').length * 3 },
-  { id: 'wrathful', name: 'Wrathful Joker', cost: 4, desc: '打出任意 ♠ 牌时 +$3', glyph: '⚡', face: 'linear-gradient(160deg,#d9dde0,#6d7780)', rarity: 'common', money: c => c.played.filter(x => x.suit === 'spades' && x.enh !== 'stone').length * 3 },
-  { id: 'gluttonous', name: 'Gluttonous Joker', cost: 4, desc: '打出任意 ♣ 牌时 +$3', glyph: '🍴', face: 'linear-gradient(160deg,#b8e3c0,#3c9a5c)', rarity: 'common', money: c => c.played.filter(x => x.suit === 'clubs' && x.enh !== 'stone').length * 3 },
+  { id: 'greedy', name: 'Greedy Joker', cost: 4, desc: '打出任意 ♦ 牌时 +3 Mult', glyph: '💰', face: 'linear-gradient(160deg,#ffe3b8,#d98a3c)', rarity: 'common', mult: c => c.played.filter(x => x.suit === 'diamonds' && x.enh !== 'stone').length * 3 },
+  { id: 'lusty', name: 'Lusty Joker', cost: 4, desc: '打出任意 ♥ 牌时 +3 Mult', glyph: '💗', face: 'linear-gradient(160deg,#ffb8b8,#c04a4a)', rarity: 'common', mult: c => c.played.filter(x => x.suit === 'hearts' && x.enh !== 'stone').length * 3 },
+  { id: 'wrathful', name: 'Wrathful Joker', cost: 4, desc: '打出任意 ♠ 牌时 +3 Mult', glyph: '⚡', face: 'linear-gradient(160deg,#d9dde0,#6d7780)', rarity: 'common', mult: c => c.played.filter(x => x.suit === 'spades' && x.enh !== 'stone').length * 3 },
+  { id: 'gluttonous', name: 'Gluttonous Joker', cost: 4, desc: '打出任意 ♣ 牌时 +3 Mult', glyph: '🍴', face: 'linear-gradient(160deg,#b8e3c0,#3c9a5c)', rarity: 'common', mult: c => c.played.filter(x => x.suit === 'clubs' && x.enh !== 'stone').length * 3 },
   { id: 'half', name: 'Half Joker', cost: 5, desc: '出牌 ≤3 张时 +20 Mult', glyph: '½', face: 'linear-gradient(160deg,#b8d4ff,#4a7ac0)', rarity: 'common', mult: c => (c.played.length <= 3 ? 20 : 0) },
   { id: 'odd', name: 'Odd Todd', cost: 5, desc: '每张打出的奇数牌 +31 Chips', glyph: '🦉', face: 'linear-gradient(160deg,#e8b8ff,#a04ac0)', rarity: 'common', chips: c => c.played.filter(x => x.enh !== 'stone' && ODD_RANKS.has(x.rank)).length * 31 },
   { id: 'even', name: 'Even Steven', cost: 4, desc: '每张打出的偶数牌 +4 Mult', glyph: '🎯', face: 'linear-gradient(160deg,#b8fff0,#3c9a8c)', rarity: 'common', mult: c => c.played.filter(x => x.enh !== 'stone' && EVEN_RANKS.has(x.rank)).length * 4 },
@@ -303,8 +303,8 @@ const JOKERS: Joker[] = [
   { id: 'walkie', name: 'Walkie Talkie', cost: 4, desc: '每张打出的 10 或 4 +10 Chips +4 Mult', glyph: '🎙️', face: 'linear-gradient(160deg,#e8e8b8,#8a8a3c)', rarity: 'common', chips: c => c.played.filter(x => x.enh !== 'stone' && (x.rank === '10' || x.rank === '4')).length * 10, mult: c => c.played.filter(x => x.enh !== 'stone' && (x.rank === '10' || x.rank === '4')).length * 4 },
   { id: 'abstract', name: 'Abstract Joker', cost: 4, desc: '每有 1 张小丑(含自己) +3 Mult', glyph: '🎨', face: 'linear-gradient(160deg,#ff9ad5,#8a3cd0)', rarity: 'common', mult: c => (c.jokerCount + 1) * 3 },
   { id: 'square', name: 'Square Joker', cost: 4, desc: '出牌恰好 4 张时 +4 Chips(累积)', glyph: '⬛', face: 'linear-gradient(160deg,#b8ffd8,#3c9a6a)', rarity: 'common', onPlay: c => (c.handType && c.played.length === 4 ? 1 : 0), value: (c, s) => ({ chips: s * 4 }) },
-  { id: 'golden', name: 'Golden Joker', cost: 4, desc: '每轮结束 +$4', glyph: '🪙', face: 'linear-gradient(160deg,#ffd166,#9a7a2a)', rarity: 'common', roundEnd: () => 4 },
-  { id: 'rocket', name: 'Rocket', cost: 4, desc: '每轮结束 +$1,每击败 1 个 Boss +$2(累积)', glyph: '🚀', face: 'linear-gradient(160deg,#ffb0a0,#a83828)', rarity: 'common', roundEnd: c => 1 + 2 * c.bossesDefeated },
+  { id: 'golden', name: 'Golden Joker', cost: 6, desc: '每轮结束 +$4', glyph: '🪙', face: 'linear-gradient(160deg,#ffd166,#9a7a2a)', rarity: 'common', roundEnd: () => 4 },
+  { id: 'rocket', name: 'Rocket', cost: 6, desc: '每轮结束 +$1,每击败 1 个 Boss +$2(累积)', glyph: '🚀', face: 'linear-gradient(160deg,#ffb0a0,#a83828)', rarity: 'uncommon', roundEnd: c => 1 + 2 * c.bossesDefeated },
   { id: 'supernova', name: 'Supernova', cost: 5, desc: '当前牌型本局已玩次数 +Mult', glyph: '💥', face: 'linear-gradient(160deg,#ff9ab8,#b03868)', rarity: 'common', mult: c => c.handCount },
   { id: 'egg', name: 'Egg', cost: 4, desc: '每轮结束卖价 +$3', glyph: '🥚', face: 'linear-gradient(160deg,#f8f0dc,#c8b898)', rarity: 'common', onRoundEnd: () => 3 },
   { id: 'todo', name: 'To-Do List', cost: 4, desc: '每轮随机指定 1 种牌型,打出时 +$4(轮末更换)', glyph: '📝', face: 'linear-gradient(160deg,#f0e8c8,#a89860)', rarity: 'common', money: c => (c.handType && c.todoHand && c.handType.name === c.todoHand ? 4 : 0) },
@@ -463,6 +463,13 @@ function generateShop(): ShopItem[] {
   return items
 }
 
+function fmtMult(m: number): string {
+  if (!Number.isFinite(m)) return '∞'
+  const r = Math.round(m * 100) / 100
+  if (Math.abs(r) >= 1e6) return r.toExponential(2)
+  return String(r)
+}
+
 function jokerStateText(j: Joker, state: number): { text: string; color: string } | null {
   if (state <= 0) return null
   const emptyCtx: JokerCtx = { played: [], hand: [], handType: null, money: 0, jokerCount: 0, lastPlayed: null, bossesDefeated: 0, deck9: 0, handCount: 0, todoHand: null, tarotsUsed: 0 }
@@ -473,7 +480,7 @@ function jokerStateText(j: Joker, state: number): { text: string; color: string 
   }
   if (j.xmult) {
     const x = j.xmult(emptyCtx, state)
-    if (x !== 1) return { text: `×${x.toFixed(x >= 10 ? 0 : 1)}`, color: '#c8b8ff' }
+    if (x !== 1) return { text: `×${fmtMult(x)}`, color: '#c8b8ff' }
   }
   return null
 }
@@ -690,8 +697,8 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       if (j.edition === 'holographic') mult += 10
     }
     for (const j of jokers) {
-      if (j.xmult) mult *= j.xmult(ctx, jokerState[j.uid || j.id] || 0)
-      if (j.edition === 'polychrome') mult *= 1.5
+      if (j.xmult) mult = Math.round(mult * j.xmult(ctx, jokerState[j.uid || j.id] || 0) * 100) / 100
+      if (j.edition === 'polychrome') mult = Math.round(mult * 1.5 * 100) / 100
     }
     return { chips, mult, total: Math.floor(chips * mult), name: ht.name, lvl }
   })()
@@ -1067,8 +1074,8 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
       if (glassCount) mult *= 2 ** glassCount
     }
     for (const j of jokers) {
-      if (j.xmult) mult *= j.xmult(ctx, jokerState[j.uid || j.id] || 0)
-      if (j.edition === 'polychrome') mult *= 1.5
+      if (j.xmult) mult = Math.round(mult * j.xmult(ctx, jokerState[j.uid || j.id] || 0) * 100) / 100
+      if (j.edition === 'polychrome') mult = Math.round(mult * 1.5 * 100) / 100
     }
     let luckyMult = 0
     let luckyMoney = 0
@@ -1578,7 +1585,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             }}
           >
             <span className="text-[17px] font-black tabular-nums leading-none" style={{ color: '#fff', fontWeight: 900, textShadow: '2px 2px 0 rgba(0,0,0,0.55)' }}>
-              ×{sbMult}
+              ×{fmtMult(sbMult)}
             </span>
           </div>
           </div>
@@ -1867,7 +1874,7 @@ export default function GameBalatro({ onBack }: { onBack?: () => void }) {
             )}
             {anim.stage === 1 && (
               <div key={`m-${anim.mult}`} className="text-3xl font-black tabular-nums" style={{ color: BAL.mult, animation: 'bPop 0.25s ease-out' }}>
-                ×{anim.mult}
+                ×{fmtMult(anim.mult)}
               </div>
             )}
             {anim.stage === 2 && (
