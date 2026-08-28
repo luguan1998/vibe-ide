@@ -1,5 +1,6 @@
 /*
-  左侧session栏目增高
+  左侧session栏目 — 照抄 macos.css 会话区骨架（源列表/选中态/间距/梯形tab），颜色全用主题变量
+  参考 macos.css：实心主题色选中 · 白卡片通栏 · 毛玻璃菜单 · cwd 梯形 tab
 */
 
 /* 标题栏 — 底部发丝线 */
@@ -7,7 +8,7 @@
   border-bottom: 1px solid rgb(var(--ide-border) / 0.6) !important;
 }
 
-/* 会话面板 — 侧栏 vibrancy 模拟（面板色渐变底） */
+/* 会话面板 — 侧栏底色 */
 .session-panel {
   background: rgb(var(--ide-sidebar)) !important;
 }
@@ -31,13 +32,13 @@
   background: rgb(var(--ide-hover)) !important;
   color: rgb(var(--ide-text)) !important;
 }
-/* 配置按钮菜单打开态 — 主题色激活（精确命中 bg-ide-accent/20，不误伤 hover:bg-ide-accent） */
+/* 配置按钮菜单打开态 — 主题色浅激活（精确命中 bg-ide-accent/20，不误伤 hover:bg-ide-accent） */
 .session-panel__settings-btn[class*="bg-ide-accent/20"] {
   background: rgb(var(--ide-accent) / 0.16) !important;
   color: rgb(var(--ide-accent)) !important;
 }
 
-/* 配置菜单 — 面板色毛玻璃 + 主题色菜单高亮 */
+/* 配置菜单 — 面板色毛玻璃；悬浮实心主题色 + 白字（macOS 菜单高亮） */
 .session-panel__settings-menu {
   background: rgb(var(--ide-panel) / 0.85) !important;
   -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
@@ -51,61 +52,57 @@
   border: none !important;
 }
 .session-panel__settings-menu button:hover {
-  background: rgb(var(--ide-accent) / 0.15) !important;
-  color: rgb(var(--ide-accent)) !important;
+  background: rgb(var(--ide-accent)) !important;
+  color: #fff !important;
 }
 
-/* 会话项 — 源列表：圆角内缩选中块，无左条 */
+/* 会话项 — 源列表卡片：圆角无左条，通栏（macOS 白卡片块） */
 .session-item {
   border: none !important;
   background: rgb(var(--ide-bg)) !important;
   border-radius: 6px !important;
-  margin: 1px 6px !important;
-  min-height: 40px !important;
+  margin: 1px 0 !important;
   transition: background-color 0.12s, color 0.12s !important;
-}
-/* 分组内 session 项缩进：与 Session History 图标/文字对齐（emoji 16px / name 38px）*/
-.session-group .session-item {
-  padding-left: 2px !important;
 }
 .session-item:hover {
   background: rgb(var(--ide-hover) / 0.55) !important;
 }
+/* 选中 — 实心主题色 + 白字 */
 .session-item--active {
-  background: rgb(var(--ide-accent) / 0.16) !important;
-  color: rgb(var(--ide-accent)) !important;
+  background: rgb(var(--ide-accent)) !important;
+  color: #fff !important;
   border-left: none !important;
   box-shadow: 0 1px 2px rgba(0 0 0 / 0.15) !important;
 }
-.session-item--active .session-item__name { color: rgb(var(--ide-accent)) !important; }
+.session-item--active .session-item__name { color: #fff !important; }
 .session-item--active .session-item__cwd,
 .session-item--active .session-item__cwd span {
-  color: rgb(var(--ide-accent) / 0.72) !important;
+  color: rgba(255 255 255 / 0.78) !important;
   opacity: 1 !important;
 }
-.session-item--active .session-item__actions button { color: rgb(var(--ide-accent) / 0.85) !important; }
+.session-item--active .session-item__actions button { color: rgba(255 255 255 / 0.9) !important; }
 .session-item--active .session-item__actions button:hover {
-  background: rgb(var(--ide-accent) / 0.2) !important;
-  color: rgb(var(--ide-accent)) !important;
+  background: rgba(255 255 255 / 0.2) !important;
+  color: #fff !important;
 }
-/* running 状态 — 主题色浅覆盖，比 active 淡一档，可区分 */
+/* running 状态 — 主题色浅底，无左条无 ring（比 active 淡一档） */
 .session-item--running:not(.session-item--active) {
-  background: rgb(var(--ide-accent) / 0.07) !important;
-  box-shadow: inset 0 0 0 1px rgb(var(--ide-accent) / 0.12) !important;
+  background: rgb(var(--ide-accent) / 0.08) !important;
+  border-left: none !important;
 }
 .session-item--running:not(.session-item--active) .session-item__name {
-  color: rgb(var(--ide-accent) / 0.85) !important;
+  color: rgb(var(--ide-accent) / 0.9) !important;
 }
 .session-item--running:not(.session-item--active) .session-item__cwd,
 .session-item--running:not(.session-item--active) .session-item__cwd span {
-  color: rgb(var(--ide-accent) / 0.6) !important;
+  color: rgb(var(--ide-accent) / 0.65) !important;
   opacity: 1 !important;
 }
 .session-item--running:not(.session-item--active):hover {
-  background: rgb(var(--ide-accent) / 0.12) !important;
+  background: rgb(var(--ide-accent) / 0.14) !important;
 }
 
-/* 会话分组 — cwd 梯形 tab 包裹 + 与第一个 session 结合 */
+/* 会话分组 — cwd 梯形 tab 通栏包裹 + 与第一个 session 结合 */
 .session-group {
   border: none !important;
   background: transparent !important;
@@ -124,8 +121,8 @@
   align-self: flex-end !important;
   align-items: center !important;
   gap: 8px !important;
-  padding: 2px 12px 2px 4px !important;
-  margin: 0 3px -1px !important;
+  padding: 2px 12px 2px 6px !important;
+  margin: 0 0 -1px !important;
   border: 1px solid rgb(var(--ide-border) / 0.6) !important;
   border-bottom: none !important;
   border-radius: 8px 8px 0 0 !important;

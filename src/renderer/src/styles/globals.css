@@ -1147,7 +1147,8 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
   transform: translateY(-50%);
 }
 .session-group .session-item > div:first-child > div:first-child {
-  padding-right: 32px;
+  /* 组合档：padding 24 拿回 8px 可视宽（中文约半字），actions right 4 把文本-X 间距拉回 12px 防挤 */
+  padding-right: 24px;
 }
 
 /* 流式渲染打字光标：只贴「最后一行可见文本」末尾，不落在块级容器后。
