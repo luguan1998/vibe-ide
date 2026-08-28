@@ -1027,6 +1027,29 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setContextMenu(null)
   }
 
+  const statusBadgeAreaRef = useRef<HTMLDivElement | null>(null)
+  const statusBadgeRef = useRef<HTMLDivElement | null>(null)
+  const statusBadgeBaseRef = useRef(0)
+
+  useEffect(() => {
+    const area = statusBadgeAreaRef.current
+    const badge = statusBadgeRef.current
+    if (!area || !badge) return
+    const ro = new ResizeObserver(() => {
+      const areaW = area.offsetWidth
+      if (!statusBadgeBaseRef.current) statusBadgeBaseRef.current = badge.offsetWidth
+      const base = statusBadgeBaseRef.current
+      if (areaW <= 200) {
+        badge.style.width = ''
+      } else {
+        const w = Math.min(base + (areaW - 200) * 0.5, base * 1.6)
+        badge.style.width = `${w}px`
+      }
+    })
+    ro.observe(area)
+    return () => ro.disconnect()
+  }, [])
+
   const stats = useMemo(() => {
     const total = sessions.length
     const running = sessions.filter(s => agentStatus[s.id] === 'running').length
@@ -1346,8 +1369,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       )}
 
       {/* 三态 status badge — moved below Session History */}
-      <div className="px-5 py-1.5 mt-1.5 flex items-center justify-center shrink-0 session-panel__header">
-        <div className="status-badge">
+      <div ref={statusBadgeAreaRef} className="px-5 py-1.5 mt-1.5 flex items-center justify-center shrink-0 session-panel__header">
+        <div ref={statusBadgeRef} className="status-badge">
           <span
             className={`status-badge__segment status-badge__segment--running${stats.running > 0 ? ' is-active' : ''}`}
             title={t('running')}

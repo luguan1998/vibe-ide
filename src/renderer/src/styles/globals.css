@@ -924,6 +924,8 @@ html, body, #root {
 }
 .status-badge__segment {
   display: inline-flex;
+  flex: 1 1 0;
+  justify-content: center;
   align-items: center;
   gap: 0.3rem;
   padding: 4px 14px;
@@ -1154,7 +1156,7 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
 }
 .session-group .session-item > div:first-child > div:first-child {
   /* 组合档：padding 24 拿回 8px 可视宽（中文约半字），actions right 4 把文本-X 间距拉回 12px 防挤 */
-  padding-right: 24px;
+  padding-right: 32px;
 }
 
 /* 流式渲染打字光标：只贴「最后一行可见文本」末尾，不落在块级容器后。
