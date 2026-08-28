@@ -30,8 +30,13 @@ export async function getDshApi(cwd?: string): Promise<any> {
 export async function fetchDshSessions(cwd?: string): Promise<DshHistorySession[]> {
   const h = await getDshHandle(cwd)
   const sessions = h.ctx.get('sessions') as any
-  // wire 层 sessions.list 不带 title 字段，用 client runtime 快照：
-  // displayTitle 派生规则为 title → cwd 目录名 → id（避免历史列表全是数字 id）
+  // 快照只随 host 事件增量更新：删除 jsonl 文件不产生任何事件，列表会永远陈旧。
+  // refresh() 走 session.list 重拉服务端基线（single-flight），与磁盘真相对齐。
+  try {
+    await sessions.refresh()
+  } catch {
+    // refresh 内部将失败折叠进 listState，不回抛；这里兜底走快照
+  }
   const deadline = Date.now() + 1500
   let byId: Record<string, any> = {}
   for (;;) {
@@ -44,6 +49,8 @@ export async function fetchDshSessions(cwd?: string): Promise<DshHistorySession[
     .filter((s: any) => !s.blank)
     .map((s: any) => ({
       id: s.id,
+      // wire 层 sessions.list 不带 title 字段，用 client runtime 快照：
+      // displayTitle 派生规则为 title → cwd 目录名 → id（避免历史列表全是数字 id）
       title: s.title || s.displayTitle || s.id,
       cwd: s.cwd,
       updatedAt: s.updatedAt,
@@ -58,7 +65,12 @@ export async function fetchDshHistoryTurns(
 ): Promise<HistoryTurn[]> {
   const api = await getDshApi(cwd)
   const res = await api.sessions.history({ sessionId, maxMessages: 200 })
-  if (!res.result?.ok) return []
+  if (!res.result?.ok) {
+    // 会话已删除/不存在时服务端报 not-found：抛可读错误，不再静默返回空列表
+    const code = res.result?.error?.code ?? 'session-history-failed'
+    const message = res.result?.error?.message ?? 'session history failed'
+    throw new Error(`${code}: ${message}`)
+  }
   const events = ((res.result.value?.events ?? []) as any[]).map((e: any) => e.event)
   const turns: HistoryTurn[] = []
   for (const ev of events) {

@@ -227,7 +227,8 @@ function projectKey(cwd: string): string {
 
 function deleteDshSession(sessionId: string, cwd?: string): { ok: boolean; error?: string } {
   const dir = join(homedir(), '.dsh', 'sessions', cwd ? projectKey(cwd) : '_no-cwd', encodeSegment(sessionId))
-  if (!existsSync(dir)) return { ok: false }
+  // 幂等：目录已不存在视为删除成功（重复删除/列表残留场景不报“删除失败”）
+  if (!existsSync(dir)) return { ok: true }
   try {
     rmSync(dir, { recursive: true, force: true })
     return { ok: true }
