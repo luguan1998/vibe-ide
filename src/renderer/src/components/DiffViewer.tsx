@@ -270,6 +270,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
   const diffDisposablesRef = useRef<Array<{ dispose?: () => void }>>([])
   // 首次 diff 就绪后自动跳到第一处修改（无指定行号时）；切文件重置
   const autoJumpedRef = useRef(false)
+  const pendingEditLineRef = useRef<number | null>(null)
   const [revertBtn, setRevertBtn] = useState<{ visible: boolean; top: number; left: number; ln: number }>({ visible: false, top: 0, left: 56, ln: 0 })
   const revertBtnDomRef = useRef<HTMLButtonElement | null>(null)
   const lastRevertLnRef = useRef<number | null>(null)
@@ -728,6 +729,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
     setRevertBtn({ visible: false, top: 0, left: 56, ln: 0 })
     lastRevertLnRef.current = null
     autoJumpedRef.current = false
+    pendingEditLineRef.current = null
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null }
   }, [fullPath])
 
@@ -850,6 +852,23 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
     }
   }
 
+  // diff→edit：把 diff 右侧当前行带到 edit。光标不在视口内（纯滚动过）→ 用视口中间行
+  const switchToEdit = () => {
+    let target: number | null = null
+    try {
+      const ed = diffEditorRef.current?.getModifiedEditor()
+      if (ed) {
+        const vr = ed.getVisibleRanges()
+        const v = vr && vr.length ? vr[0] : null
+        const pos = ed.getPosition()
+        const inView = !!(v && pos && pos.lineNumber >= v.startLineNumber && pos.lineNumber <= v.endLineNumber)
+        target = inView && pos ? pos.lineNumber : v ? v.startLineNumber + Math.round((v.endLineNumber - v.startLineNumber) / 2) : (pos?.lineNumber ?? null)
+      }
+    } catch {}
+    pendingEditLineRef.current = target
+    setViewMode('edit')
+  }
+
   return (
     <div ref={containerRef} className={`flex flex-col h-full animate-fade-in center-overlay${brushActive ? ' diff-brush-mode diff-brush-code' : ''}`}>
       <div
@@ -907,7 +926,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
             Diff
           </button>
           <button
-            onClick={() => setViewMode('edit')}
+            onClick={switchToEdit}
             className={`px-2.5 py-1 text-xs transition-colors ${
               viewMode === 'edit' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'
             }`}
@@ -1178,6 +1197,20 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
                     editor.setPosition({ lineNumber: ln, column: 1 })
                   }
                 } catch {}
+              }
+              if (pendingEditLineRef.current) {
+                setTimeout(() => {
+                  const t = pendingEditLineRef.current
+                  if (!t) return
+                  pendingEditLineRef.current = null
+                  const e = editEditorRef.current
+                  const c = e?.getModel()?.getLineCount() || 0
+                  const ln = Math.min(t, c)
+                  if (e && ln > 0) {
+                    e.revealLineInCenter(ln)
+                    e.setPosition({ lineNumber: ln, column: 1 })
+                  }
+                }, 100)
               }
               ;(editor as any)._callGraphActionDisposable = editor.addAction({
                 id: 'open-call-graph',
