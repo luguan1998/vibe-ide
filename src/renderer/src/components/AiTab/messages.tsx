@@ -133,30 +133,15 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
   const showRevert = userMessageIndex >= 0 && !isInternal
 
   return (
-    <div className="ai-tab__message ai-tab__message--user w-full max-w-[896px] mx-auto flex justify-end animate-fade-in group/user">
+    <div className="ai-tab__message ai-tab__message--user w-full max-w-[896px] mx-auto flex flex-col items-end gap-1.5 animate-fade-in group/user">
       <div className="ai-tab__message-wrap max-w-[85%] relative">
         <div className="ai-tab__user-bubble px-3 py-2 rounded-2xl bg-ide-accent/12 border-2 border-ide-accent/30 text-ide-text whitespace-pre-wrap">
           {cleanedContent}
         </div>
-        <div className="ai-tab__user-actions flex items-center justify-end gap-2.5 h-7 opacity-0 group-hover/user:opacity-100 transition-opacity">
-          <span className="text-sm leading-none tabular-nums text-ide-text-muted/50">{timeStr}</span>
-          {showRevert && (
-            <button
-              ref={revertBtnRef}
-              onClick={() => setShowPopover(v => !v)}
-              disabled={isBusy}
-              title={t('Revert')}
-              className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <Undo2 size={14} />
-            </button>
-          )}
-          <CopyButton text={cleanedContent} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />
-        </div>
 
         {showPopover && showRevert && !isBusy && (
           <div ref={popoverRef}
-            className="ai-tab__user-popover absolute right-0 top-full mt-1 z-40
+            className="ai-tab__user-popover absolute right-0 top-[calc(100%+34px)] z-40
                        bg-ide-sidebar border border-ide-border rounded-lg shadow-lg
                        py-1 min-w-[170px] animate-fade-in"
           >
@@ -182,6 +167,21 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
             </button>
           </div>
         )}
+      </div>
+      <div className="ai-tab__user-actions flex items-center justify-end gap-2.5 h-7 opacity-0 group-hover/user:opacity-100 transition-opacity">
+        <span className="text-sm leading-none tabular-nums text-ide-text-muted/50">{timeStr}</span>
+        {showRevert && (
+          <button
+            ref={revertBtnRef}
+            onClick={() => setShowPopover(v => !v)}
+            disabled={isBusy}
+            title={t('Revert')}
+            className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Undo2 size={14} />
+          </button>
+        )}
+        <CopyButton text={cleanedContent} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />
       </div>
     </div>
   )
