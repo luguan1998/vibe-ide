@@ -321,6 +321,48 @@ export default function App() {
     })
   }, [initialWorkspace])
   const [sessions, setSessions] = useState<SessionTab[]>(initialTabs)
+  const normCwdKey = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
+  // 稳定分组顺序:会话数组按创建序混杂插入,组序若按"首现位置"推导,删除组内会话会令该组位置跳变导致排布错位。
+  // 用 session id 保序子序列判定:仅删/仅增(含 clone 插入、cwd 变更)→ 保持旧组序(被删组剔除、新组追加);
+  // id 相对顺序被打乱(组/会话拖拽重排)→ 才跟随新首现序。
+  const stableGroupRef = useRef<{ ids: string[]; order: string[] } | null>(null)
+  const stableGroupOrder = useMemo(() => {
+    const order: string[] = []
+    const seen = new Set<string>()
+    for (const s of sessions) {
+      const key = normCwdKey(s.cwd)
+      if (!seen.has(key)) { seen.add(key); order.push(key) }
+    }
+    const prev = stableGroupRef.current
+    if (prev) {
+      const newIds = sessions.map(s => s.id)
+      const subseq = (outer: string[], inner: string[]) => {
+        let j = 0
+        for (const id of outer) {
+          if (id === inner[j]) { j++; if (j === inner.length) return true }
+        }
+        return false
+      }
+      const sameIds = prev.ids.length === newIds.length && prev.ids.every((id, i) => id === newIds[i])
+      const keepOrder = sameIds || subseq(prev.ids, newIds) || subseq(newIds, prev.ids)
+      if (keepOrder) {
+        const next = prev.order.filter(k => seen.has(k))
+        for (const k of order) if (!next.includes(k)) next.push(k)
+        stableGroupRef.current = { ids: newIds, order: next }
+        return next
+      }
+      stableGroupRef.current = { ids: newIds, order }
+      return order
+    }
+    stableGroupRef.current = { ids: sessions.map(s => s.id), order }
+    return order
+  }, [sessions])
+  // 按稳定组序重排的会话数组:分组模式取代 sessions 传面板与快捷键循环,组内会话保持原相对顺序
+  const stableSessions = useMemo(() => {
+    if (stableGroupOrder.length === 0) return sessions
+    const pos = new Map<string, number>(stableGroupOrder.map((k, i) => [k, i]))
+    return [...sessions].sort((a, b) => (pos.get(normCwdKey(a.cwd)) ?? Infinity) - (pos.get(normCwdKey(b.cwd)) ?? Infinity))
+  }, [sessions, stableGroupOrder])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
     const id = initialWorkspace?.activeTabId ?? null
     return id && initialTabs.some(t => t.id === id) ? id : (initialTabs[0]?.id ?? null)
@@ -693,9 +735,10 @@ export default function App() {
   }, [])
 
   // 持久化当前打开的所有 tab，按 cwd 聚合为 Session 容器
+  // 分组模式下按稳定组序(stableSessions)保存，保证重启后组排布与删除前一致
   React.useEffect(() => {
     const byCwd = new Map<string, { cwd: string; tabs: SessionTab[] }>()
-    for (const s of sessions) {
+    for (const s of (groupSessionsByCwd ? stableSessions : sessions)) {
       const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
       const group = byCwd.get(key) || { cwd: s.cwd, tabs: [] }
       group.tabs.push(s)
@@ -713,7 +756,7 @@ export default function App() {
       })
     }
     saveSessionWorkspace({ activeTabId: activeSessionId, sessions: sessionContainers })
-  }, [sessions, activeSessionId])
+  }, [sessions, stableSessions, activeSessionId, groupSessionsByCwd])
 
   // 恢复的终端 tab 直接后台创建真实 PTY，不需要用户点击
   React.useEffect(() => {
@@ -1532,18 +1575,8 @@ export default function App() {
 
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
       // Use visual order: grouped by cwd when grouping enabled, raw array order otherwise
-      let visualOrder: SessionTab[]
-      if (groupSessionsByCwd) {
-        const groups = new Map<string, SessionTab[]>()
-        for (const s of sessions) {
-          const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
-          if (!groups.has(key)) groups.set(key, [])
-          groups.get(key)!.push(s)
-        }
-        visualOrder = Array.from(groups.values()).flat()
-      } else {
-        visualOrder = sessions
-      }
+      // 分组模式下用 stableSessions(稳定组序),与左侧面板视觉排布一致:删除会话不改变组序
+      const visualOrder = groupSessionsByCwd ? stableSessions : sessions
 
       if (eventMatchesBinding(e, bindings['terminal.next'])) {
         e.preventDefault()
@@ -2953,7 +2986,7 @@ export default function App() {
           <div className="flex-1 overflow-hidden">
             <SessionPanel
               ref={sessionPanelRef}
-              sessions={sessions}
+              sessions={groupSessionsByCwd ? stableSessions : sessions}
               activeSessionId={centerView === 'board' ? null : activeSessionId}
               onCreateSession={handleCreateSession}
             onCreateSessionAt={handleCreateSessionAt}

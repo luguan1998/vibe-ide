@@ -1650,7 +1650,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           })
         ) : (
           <div className="bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-panel__flat-list">
-            {sessions.map((session, index) => renderSessionItem(session, index, { showCwd: true, outerClass: 'px-3 py-1 cursor-pointer transition-colors relative', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[32px]' }))}
+            {sessions.map((session, index) => renderSessionItem(session, index, { showCwd: true, outerClass: 'px-3 py-1 cursor-pointer transition-colors relative', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[24px]' }))}
           </div>
         )}
         {dropGroupIndex !== null && dropGroupIndex === sessionGroups.length && dropGroupIndex !== dragGroupIndex && (
