@@ -429,7 +429,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
       )}
       {showMeta && (
         <div className="ai-tab__message-meta w-full max-w-[896px] flex items-center gap-2.5 text-xs text-ide-text-muted/50 group/meta">
-          <span className="inline-flex items-center gap-0.5">
+          <span className="inline-flex items-center gap-0.5 mr-2">
             <span className="text-sm">✻</span>
             <span>Churned for {(() => { const sec = (message.durationMs || 0) / 1000; if (sec < 60) return `${sec.toFixed(1)}s`; const m = Math.floor(sec / 60); const s = Math.round(sec % 60); return `${m}m ${s}s`; })()}</span>
             {message.isAborted && <span className="text-ide-text-muted/40"> · paused by user</span>}
