@@ -346,7 +346,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         notGitRef.current = isNotGit
         notGitPathRef.current = isNotGit ? effectiveGitPath : null
       } else {
-        setStatus(result)
+        if (!statusRef.current || JSON.stringify(result) !== JSON.stringify(statusRef.current)) {
+          setStatus(result)
+        }
         notGitRef.current = false
         notGitPathRef.current = null
       }
@@ -786,16 +788,28 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   }, [refreshKey])
 
   // Listen for fs:changed events from file watcher
+  const statusDirtyRef = useRef(false)
   useEffect(() => {
     fsChangedHandlerRef.current = window.api.file.onChanged(() => {
+      if (!isActiveRef.current) {
+        statusDirtyRef.current = true
+        return
+      }
       refreshStatus()
-      if (logExpanded) refreshGraph()
     })
 
     return () => {
       window.api.file.removeChangedListener(fsChangedHandlerRef.current)
     }
-  }, [logExpanded])
+  }, [refreshStatus])
+
+  // 非活动面板攒下的文件变动，切回时补一次刷新
+  useEffect(() => {
+    if (isActive && statusDirtyRef.current) {
+      statusDirtyRef.current = false
+      refreshStatus()
+    }
+  }, [isActive, refreshStatus])
 
   // Dismiss context menus on outside click
   useEffect(() => {
