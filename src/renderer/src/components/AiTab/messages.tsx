@@ -169,7 +169,7 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
         )}
       </div>
       <div className="ai-tab__user-actions flex items-center justify-end gap-2.5 h-7 opacity-0 group-hover/user:opacity-100 transition-opacity">
-        <span className="text-sm leading-none tabular-nums text-ide-text-muted/50">{timeStr}</span>
+        <span className="text-sm leading-none tabular-nums text-ide-text-muted/50 mr-1">{timeStr}</span>
         {showRevert && (
           <button
             ref={revertBtnRef}
