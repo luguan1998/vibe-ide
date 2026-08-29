@@ -71,7 +71,7 @@ export function deriveTodoList(messages: AiMessage[]): TodoItem[] {
 // 真实用户输入：tool_result 回填消息也是 type:'user' 的 AiMessage（CLI 把工具结果写进
 // user 行），但它们紧跟含 tool_use 的 assistant 之后，不得计入 userTurns/revert/fork 索引
 // resume 历史由主进程 turnByLine 打 isRealUserTurn 标记，跨轮无 result 分隔时启发式不可信，标记优先
-function isRealUserInput(messages: AiMessage[], i: number): boolean {
+export function isRealUserInput(messages: AiMessage[], i: number): boolean {
   const m = messages[i]
   if (!m || m.role !== 'user' || m.type !== 'user' || !m.content) return false
   if (m.isRealUserTurn === true) return true
@@ -133,7 +133,10 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
   const showRevert = userMessageIndex >= 0 && !isInternal
 
   return (
-    <div className="ai-tab__message ai-tab__message--user w-full max-w-[896px] mx-auto flex flex-col items-end gap-1.5 animate-fade-in group/user">
+    <div
+      className="ai-tab__message ai-tab__message--user w-full max-w-[896px] mx-auto flex flex-col items-end gap-1.5 animate-fade-in group/user"
+      {...(userMessageIndex >= 0 ? { 'data-user-turn': userMessageIndex } : undefined)}
+    >
       <div className="ai-tab__message-wrap max-w-[85%] relative">
         <div className="ai-tab__user-bubble px-3 py-2 rounded-2xl bg-ide-accent/12 border-2 border-ide-accent/30 text-ide-text whitespace-pre-wrap">
           {cleanedContent}

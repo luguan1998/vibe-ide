@@ -9,7 +9,7 @@ import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAN
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
 import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X, Plus } from 'lucide-react'
 import { StreamingMarkdown } from './markdown'
-import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList } from './messages'
+import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, ModeSelector } from './inputArea'
@@ -324,6 +324,84 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   }, [state.messages.length, state.streaming])
 
   const scrollRafRef = useRef<number | null>(null)
+
+  // ── 右侧面包屑:真实用户输入轮次导航 ──
+  const userTurnList = useMemo(() => {
+    const turns: { turnIdx: number; content: string }[] = []
+    let idx = 0
+    state.messages.forEach((m, i) => {
+      if (isRealUserInput(state.messages, i)) {
+        turns.push({ turnIdx: idx, content: m.content || '' })
+        idx++
+      }
+    })
+    return turns
+  }, [state.messages])
+  const lastTurnIdx = userTurnList.length ? userTurnList[userTurnList.length - 1].turnIdx : -1
+
+  const [activeTurn, setActiveTurn] = useState(-1)
+  const [turnNavHover, setTurnNavHover] = useState(false)
+  // mouse 距滚动区右缘 < 48px 即浮现面包屑;检测挂在 wrap 上,面包屑自身不吞
+  // mousedown 消息区不受遮挡(悬浮层 pointer-events-none,仅按钮区接收点击)
+  const onScrollWrapMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const wrap = e.currentTarget
+    const rect = wrap.getBoundingClientRect()
+    const distFromRight = rect.right - e.clientX
+    setTurnNavHover(prev => {
+      const hover = distFromRight < 48
+      return hover === prev ? prev : hover
+    })
+  }, [])
+
+  // 滚动容器中心线附近最近的 user turn = 当前轮(遍历 Map 顺序即渲染顺序,turn 递增)
+  const computeActiveTurn = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const centerY = container.getBoundingClientRect().top + container.clientHeight / 2
+    let active = -1
+    container.querySelectorAll<HTMLElement>('[data-user-turn]').forEach((el) => {
+      const idx = Number(el.dataset.userTurn)
+      if (el.getBoundingClientRect().top <= centerY) active = Math.max(active, idx)
+    })
+    setActiveTurn(prev => (prev === active ? prev : active))
+  }, [])
+
+  // 跳转到指定 user turn:手动 scrollTo 居中(scrollIntoView 会级联滚动 ai-tab 祖先)
+  const jumpToUserTurn = useCallback((turnIdx: number) => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const el = container.querySelector<HTMLElement>(`[data-user-turn="${turnIdx}"]`)
+    if (!el) return
+    const cRect = container.getBoundingClientRect()
+    const eRect = el.getBoundingClientRect()
+    const top = eRect.top - cRect.top + container.scrollTop - container.clientHeight / 2 + eRect.height / 2
+    // 跳到最新轮且原在底部 → 保持流式跟随;否则停住防止 auto-scroll 拉回
+    userScrolledUpRef.current = turnIdx === lastTurnIdx ? false : true
+    container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  }, [lastTurnIdx])
+
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    let raf = 0
+    const onScroll = () => {
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      userScrolledUpRef.current = distFromBottom > 40
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        computeActiveTurn()
+      })
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    const initRaf = requestAnimationFrame(computeActiveTurn)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(raf)
+      cancelAnimationFrame(initRaf)
+    }
+  }, [state.messages.length, state.streaming, computeActiveTurn])
+
   useEffect(() => {
     if (userScrolledUpRef.current) return
     if (scrollRafRef.current != null) return
@@ -1057,7 +1135,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         </>
       ) : (
         <>
-        <div ref={scrollContainerRef} className="ai-tab__messages flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-1">
+        <div className="ai-tab__scroll-wrap relative flex-1 min-h-0" onMouseMove={onScrollWrapMouseMove} onMouseLeave={() => setTurnNavHover(false)}>
+        <div ref={scrollContainerRef} className="ai-tab__messages h-full min-h-0 overflow-y-auto overflow-x-hidden px-2 py-2 space-y-1">
         <MessageList
           messages={state.messages}
           userTurns={state.userTurns}
@@ -1105,7 +1184,35 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           </div>
         </FadeOutOnUnmount>
         <div ref={messagesEndRef} />
-      </div>
+        </div>
+
+        {/* 右侧面包屑:用户输入轮次指示器(JS 检测距右缘距离浮现,不拦截消息区点击) */}
+        {userTurnList.length > 0 && (
+          <div className={`ai-tab__turn-zone pointer-events-none absolute inset-y-1 right-0 z-10 w-8 flex items-center justify-center
+                          transition-opacity duration-150 ${turnNavHover ? 'opacity-100' : 'opacity-0'}`}>
+            <div className="ai-tab__turn-nav pointer-events-auto flex flex-col items-center gap-0.5
+                            max-h-full overflow-y-auto overflow-x-hidden w-full py-0.5">
+              {userTurnList.map((turn) => (
+                <button
+                  key={turn.turnIdx}
+                  type="button"
+                  onClick={() => jumpToUserTurn(turn.turnIdx)}
+                  title={`#${turn.turnIdx + 1} ${turn.content.slice(0, 60)}`}
+                  className={`ai-tab__turn-btn shrink-0 w-6 h-5 flex items-center justify-center rounded-md transition-colors ${
+                    activeTurn === turn.turnIdx ? 'bg-ide-accent/15' : 'hover:bg-ide-hover'
+                  }`}
+                >
+                  <span className={`ai-tab__turn-bar rounded-full transition-all duration-200 ${
+                    activeTurn === turn.turnIdx
+                      ? 'w-[3px] h-4 bg-ide-accent'
+                      : 'w-[3px] h-1.5 bg-ide-text-muted/30'
+                  }`} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        </div>
 
       {/* Permission popup — floats above input, not inside scroll area */}
       {state.pendingPermission && activeSessionId && (
