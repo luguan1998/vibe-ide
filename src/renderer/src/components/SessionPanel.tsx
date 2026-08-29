@@ -1051,10 +1051,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       const areaW = area.offsetWidth
       if (!statusBadgeBaseRef.current) statusBadgeBaseRef.current = badge.offsetWidth
       const base = statusBadgeBaseRef.current
-      if (areaW <= 200) {
+      if (areaW <= 220) {
         badge.style.width = ''
       } else {
-        const w = Math.min(base + (areaW - 200) * 0.5, base * 1.6)
+        const w = Math.min(base + (areaW - 220) * 0.5, base * 1.6)
         badge.style.width = `${w}px`
       }
     })
