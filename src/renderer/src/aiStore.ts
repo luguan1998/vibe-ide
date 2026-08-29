@@ -509,17 +509,23 @@ function initListeners() {
         }
       }
 
+      // 插话后 CLI 中断被抓切的 turn：result 带 isAborted，且距插话打点 ≤5s → 视为切轮
+      // 而非停止，busy 保持 true（停止按钮两段式武装不因闪烁被重置），直到新 turn 消息流清掉标志
+      const interjectCutover = msg.type === 'result' && msg.isAborted
+        && s0.interjectingAt != null && Date.now() - s0.interjectingAt < 5000
+
       return {
         ...s0,
         messages,
         name: newName,
-        busy: s0.busy && msg.type !== 'result',
+        busy: interjectCutover ? true : (s0.busy && msg.type !== 'result'),
         streaming: msg.type === 'result' ? false : s0.streaming,
         streamBuffer: clearText || msg.type === 'result' ? '' : s0.streamBuffer,
         thinkingBuffer: clearThinking || msg.type === 'result' ? '' : s0.thinkingBuffer,
         thinkingStartedAt: clearThinking || msg.type === 'result' ? null : s0.thinkingStartedAt,
         contextPercent: msg.contextPercent != null ? Math.round(msg.contextPercent) : s0.contextPercent,
         runningTools,
+        interjectingAt: msg.type === 'result' ? (interjectCutover ? s0.interjectingAt : undefined) : undefined,
       }
     })
     if (msg.type === 'result') aiStore.refreshUserTurns(msg.sessionId)

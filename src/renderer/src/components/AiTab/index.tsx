@@ -7,7 +7,7 @@ import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { loadFilterRules } from '../FileTab'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X, Plus } from 'lucide-react'
+import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X, Plus, Pencil, Send } from 'lucide-react'
 import { StreamingMarkdown } from './markdown'
 import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
@@ -70,15 +70,26 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const state = useAiSession(activeSessionId)
 
   const busyStartRef = useRef<number>(0)
+  const busyPrevStartRef = useRef<number>(0)   // 上一段忙碌起点（排队/无 isAborted CLI 的闪烁兜底）
+  const busyPrevEndRef = useRef<number>(0)     // 上一段忙碌结束时刻
   const [busySeconds, setBusySeconds] = useState(0)
   useEffect(() => {
     if (state.busy) {
-      if (!busyStartRef.current) busyStartRef.current = Date.now()
+      if (!busyStartRef.current) {
+        // 插话会让 CLI end 当前 turn（result→busy 闪烁）再开新 turn；
+        // 3s 内复起视为同一轮工作，延续计时避免计数归零跳变
+        busyStartRef.current =
+          busyPrevEndRef.current && Date.now() - busyPrevEndRef.current <= 3000 && busyPrevStartRef.current
+            ? busyPrevStartRef.current
+            : Date.now()
+      }
       const tick = () => setBusySeconds(Math.floor((Date.now() - busyStartRef.current) / 1000))
       tick()
       const id = setInterval(tick, 1000)
       return () => clearInterval(id)
     }
+    busyPrevEndRef.current = Date.now()
+    busyPrevStartRef.current = busyStartRef.current
     busyStartRef.current = 0
     setBusySeconds(0)
   }, [state.busy])
@@ -92,7 +103,11 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const [interruptTried, setInterruptTried] = useState(false)
   const [forceArmed, setForceArmed] = useState(false)
   useEffect(() => {
-    if (!state.busy) { setInterruptTried(false); setForceArmed(false); return }
+    if (!state.busy) {
+      // busy 可能因中断切轮/排队短暂闪 false；延迟确认再复位，避免"插话后停不下来"
+      const t = setTimeout(() => { setInterruptTried(false); setForceArmed(false) }, 1500)
+      return () => clearTimeout(t)
+    }
     if (!interruptTried) return
     const t = setTimeout(() => setForceArmed(true), 5000)
     return () => clearTimeout(t)
@@ -448,7 +463,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     updateSession(activeSessionId, (s) => {
       const newName = !s.name && !isSlash ? message.slice(0, 60) : s.name
       return {
+        // busy 时发送 = 插话：打点标记，isAborted result 在此后 5s 内保持 busy 不断（停止按钮两段式不被重置）
         ...s, busy: true, name: newName, pipedPrompt: '',
+        interjectingAt: s.busy ? Date.now() : undefined,
         messages: isClear ? [] : [...s.messages, userMsg],
         ...(isClear ? { fileChangesByTurn: [], userTurns: [] } : {}),
       }
@@ -466,6 +483,40 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   }, [activeSessionId, updateSession])
 
   dispatchMessageRef.current = dispatchMessage
+
+  // ── Piped chip: interject send (stdin write while busy, same as pet) + inline edit ──
+  const [editingPiped, setEditingPiped] = useState<string | null>(null)
+  const pipedEditRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (editingPiped === null) return
+    const el = pipedEditRef.current
+    if (el) {
+      el.focus({ preventScroll: true })
+      el.setSelectionRange(el.value.length, el.value.length)
+    }
+  }, [editingPiped])
+
+  useEffect(() => { setEditingPiped(null) }, [activeSessionId])
+
+  // 排队文本被消费/撤销后，编辑态一并复位，避免 stale editingPiped 卡住视图切换
+  useEffect(() => {
+    if (!state.pipedPrompt) setEditingPiped(null)
+  }, [state.pipedPrompt])
+
+  const handleInterjectPiped = useCallback(() => {
+    const sid = activeSessionId
+    const text = (editingPiped !== null ? editingPiped : state.pipedPrompt || '').trim()
+    if (!sid || !text) return
+    dispatchMessageRef.current?.(text)
+  }, [activeSessionId, editingPiped, state.pipedPrompt])
+
+  const handleSavePipedEdit = useCallback(() => {
+    const sid = activeSessionId
+    if (!sid) return
+    updateSession(sid, s => ({ ...s, pipedPrompt: (editingPiped || '').trim() }))
+    setEditingPiped(null)
+  }, [activeSessionId, editingPiped, updateSession])
 
   // ── Send handler (immediate, idle only) ──
   const handleSend = useCallback(async () => {
@@ -1234,20 +1285,83 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       {/* Todo list — pins above input so it stays visible */}
       {todoItems.length > 0 && <TodoListPanel items={todoItems} />}
 
-      {/* Piped prompt — queued while busy, auto-sent when idle, X to dismiss */}
-      {state.pipedPrompt && activeSessionId && (
-        <div className="ai-tab__piped w-full max-w-[896px] mx-auto mb-1 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">
-          <Plug size={12} className="shrink-0 text-ide-accent" />
-          <span className="text-[11px] font-medium text-ide-accent/80 shrink-0">{t('Queued')}</span>
-          <span className="text-xs text-ide-text/80 truncate flex-1 min-w-0" title={state.pipedPrompt}>{state.pipedPrompt}</span>
+      {/* Piped prompt — queued while busy, auto-sent when idle; 样式对齐 dsh QueueDock（36px 行高 / 14px 图标 / 28px 圆形动作） */}
+      {state.pipedPrompt && activeSessionId && editingPiped === null && (
+        <div className="w-full max-w-[928px] mx-auto mb-1 px-2">
+        <div className="ai-tab__piped w-full h-9 flex items-center gap-2.5 px-3 rounded-xl bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">
+          <Plug size={14} className="shrink-0 text-ide-text-muted" />
+          <span className="text-xs font-medium text-ide-accent/80 shrink-0">{t('Queued')}</span>
+          <span className="text-[13px] text-ide-text/80 truncate flex-1 min-w-0" title={state.pipedPrompt}>{state.pipedPrompt}</span>
+          <button
+            type="button"
+            onClick={() => setEditingPiped(state.pipedPrompt)}
+            className="ai-tab__piped-edit shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            title={t('Edit')}
+          >
+            <Pencil size={14} />
+          </button>
           <button
             type="button"
             onClick={() => updateSession(activeSessionId, s => ({ ...s, pipedPrompt: '' }))}
-            className="ai-tab__piped-dismiss shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            className="ai-tab__piped-dismiss shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
             title={t('Remove')}
           >
-            <X size={12} />
+            <X size={14} />
           </button>
+          <button
+            type="button"
+            onClick={handleInterjectPiped}
+            className="ai-tab__piped-send shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-accent/80 hover:bg-ide-accent/15 hover:text-ide-accent transition-colors"
+            title={t('Interject')}
+          >
+            <Send size={14} />
+          </button>
+        </div>
+        </div>
+      )}
+
+      {/* Piped prompt edit mode — textarea 对齐 dsh editor（28px 高/描边/焦点主题色），Enter 保存 / Esc 取消 */}
+      {state.pipedPrompt && activeSessionId && editingPiped !== null && (
+        <div className="w-full max-w-[928px] mx-auto mb-1 px-2">
+        <div className="ai-tab__piped w-full min-h-9 flex items-center gap-2.5 px-3 py-1 rounded-xl bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">
+          <Plug size={14} className="shrink-0 text-ide-text-muted" />
+          <span className="text-xs font-medium text-ide-accent/80 shrink-0">{t('Queued')}</span>
+          <textarea
+            ref={pipedEditRef}
+            value={editingPiped}
+            onChange={(e) => setEditingPiped(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSavePipedEdit() }
+              else if (e.key === 'Escape') { e.preventDefault(); setEditingPiped(null) }
+            }}
+            rows={Math.max(1, Math.min(3, editingPiped.split('\n').length))}
+            className="ai-tab__piped-edit flex-1 min-w-0 min-h-7 px-2 py-0.5 text-[13px] leading-5 text-ide-text bg-transparent rounded-md border border-ide-border/60 resize-none outline-none focus:border-ide-accent/60 transition-colors"
+          />
+          <button
+            type="button"
+            onClick={handleInterjectPiped}
+            className="ai-tab__piped-send shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-accent/80 hover:bg-ide-accent/15 hover:text-ide-accent transition-colors"
+            title={t('Interject')}
+          >
+            <Send size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={handleSavePipedEdit}
+            className="ai-tab__piped-save shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            title={t('Save')}
+          >
+            <Check size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditingPiped(null)}
+            className="ai-tab__piped-cancel shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            title={t('Cancel')}
+          >
+            <X size={14} />
+          </button>
+        </div>
         </div>
       )}
 

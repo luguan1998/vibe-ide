@@ -591,6 +591,8 @@ export interface AiSessionState {
   cwd: string
   worktreePath?: string
   pipedPrompt?: string
+  // busy 时发消息（插话）打点：isAborted result 至此 5s 内视为"中断切轮"，busy 保持 true
+  interjectingAt?: number
   runningTools: Record<string, AiRunningTool>
 }
 
