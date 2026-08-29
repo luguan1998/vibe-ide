@@ -4,10 +4,12 @@ import { CodeSymbol } from '@shared/types'
 import { getKindColorHex } from '../utils/kindColors'
 import { useTheme } from '../themes/context'
 
-const NODE_W = 160
-const NODE_H = 28
-const RANK_SEP = 24
+const NODE_W = 200
+const NODE_H = 22
+const RANK_SEP = 14
 const NODE_SEP = 6
+/** codegraph 节点 kind：file 是文件符号，调用图不放文件 */
+const SKIP_KINDS = new Set(['file'])
 const MONACO_FONT = "'Consolas', 'Cascadia Code', 'Fira Code', 'Cascadia Mono', 'Courier New', monospace"
 
 /** Read CSS variable "R G B" triplet → { r, g, b, hex } */
@@ -55,16 +57,34 @@ interface CallGraphOverlayProps {
 }
 
 function layoutGraph(nodes: Map<string, GraphNode>, edges: GraphEdge[]) {
-  if (nodes.size === 0) return new Map<string, { x: number; y: number }>()
-  const g = new dagre.graphlib.Graph()
-  g.setGraph({ rankdir: 'LR', ranksep: RANK_SEP, nodesep: NODE_SEP, marginx: 40, marginy: 40 })
-  g.setDefaultEdgeLabel(() => ({}))
-  for (const [id] of nodes) g.setNode(id, { width: NODE_W, height: NODE_H })
-  for (const e of edges) g.setEdge(e.from, e.to)
-  dagre.layout(g)
-  const pos = new Map<string, { x: number; y: number }>()
-  for (const id of nodes.keys()) { const n = g.node(id); if (n) pos.set(id, { x: n.x, y: n.y }) }
-  return pos
+  if (nodes.size === 0) return { positions: new Map<string, { x: number; y: number }>(), widths: new Map<string, number>() }
+  const graph = (w: Map<string, number>) => {
+    const g = new dagre.graphlib.Graph()
+    g.setGraph({ rankdir: 'LR', ranksep: RANK_SEP, nodesep: NODE_SEP, marginx: 40, marginy: 40 })
+    g.setDefaultEdgeLabel(() => ({}))
+    for (const [id] of nodes) g.setNode(id, { width: w.get(id) ?? NODE_W, height: NODE_H })
+    for (const e of edges) g.setEdge(e.from, e.to)
+    dagre.layout(g)
+    return g
+  }
+  // 第一遍：确定 rank（列），同列取最长名字宽度
+  const g1 = graph(new Map())
+  const rankW = new Map<number, number>()
+  for (const [id, gn] of nodes) {
+    const r = g1.node(id)?.rank ?? 0
+    const w = Math.min(gn.name.length, 30) * 6.5 + 44
+    rankW.set(r, Math.max(rankW.get(r) ?? 0, w))
+  }
+  const widths = new Map<string, number>()
+  for (const [id, gn] of nodes) {
+    const r = g1.node(id)?.rank ?? 0
+    widths.set(id, Math.max(140, Math.min(260, rankW.get(r) ?? 140)))
+  }
+  // 第二遍：用逐列宽度重布局
+  const g2 = graph(widths)
+  const positions = new Map<string, { x: number; y: number }>()
+  for (const id of nodes.keys()) { const n = g2.node(id); if (n) positions.set(id, { x: n.x, y: n.y }) }
+  return { positions, widths }
 }
 
 function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlayProps) {
@@ -73,9 +93,10 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
     const accent = cssRgb('--ide-accent')
     const sidebar = cssRgbToHex('--ide-sidebar')
     const border = cssRgbToHex('--ide-border')
+    const text = cssRgbToHex('--ide-text')
     const textMuted = cssRgbToHex('--ide-text-muted')
     return {
-      accent, sidebar, border, textMuted,
+      accent, sidebar, border, text, textMuted,
       accentRgba: (opacity: number) => `rgba(${accent.r},${accent.g},${accent.b},${opacity})`,
     }
   }, [currentThemeId])
@@ -111,7 +132,7 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
   const viewBoxRef = useRef(viewBox); viewBoxRef.current = viewBox
 
   // Dagre layout
-  const positions = useMemo(() => layoutGraph(nodes, edges), [nodes, edges])
+  const { positions, widths } = useMemo(() => layoutGraph(nodes, edges), [nodes, edges])
 
   // Center on focal — debounced: wait for async caller/callee data to settle
   const hasCentered = useRef(false)
@@ -144,19 +165,19 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
     setLoadingNodes(prev => new Set(prev).add(nodeId))
     try {
       const res = await (dir === 'callers' ? window.api.code.getCallers(nodeId, depth) : window.api.code.getCallees(nodeId, depth))
-      setNodes(prev => {
-        const next = new Map(prev)
-        for (const item of (res.nodes || [])) {
-          const n = item.node; if (!n || next.has(n.id)) continue
-          next.set(n.id, { id: n.id, name: n.name, kind: n.kind, filePath: n.filePath, line: n.line ?? n.startLine, column: n.column ?? n.startColumn ?? 0, x: 0, y: 0, callersExpanded: false, calleesExpanded: false })
-        }
-        return next
-      })
+      const next = new Map(nodesRef.current)
+      const cur = next.get(nodeId); if (cur) next.set(nodeId, { ...cur, [key]: true })
+      for (const item of (res.nodes || [])) {
+        const n = item.node; if (!n || next.has(n.id) || SKIP_KINDS.has(n.kind)) continue
+        next.set(n.id, { id: n.id, name: n.name, kind: n.kind, filePath: n.filePath, line: n.line ?? n.startLine, column: n.column ?? n.startColumn ?? 0, x: 0, y: 0, callersExpanded: false, calleesExpanded: false })
+      }
+      setNodes(() => next)
       const newEdges: GraphEdge[] = []
       for (const item of (res.nodes || [])) {
         const n = item.node; if (!n) continue
         // Use edge.source/target from the API to handle multi-level chains correctly
         const edge = item.edge ? { from: item.edge.source, to: item.edge.target } : (dir === 'callers' ? { from: n.id, to: nodeId } : { from: nodeId, to: n.id })
+        if (!next.has(edge.from) || !next.has(edge.to)) continue
         if (!edgesRef.current.some(e => e.from === edge.from && e.to === edge.to)) newEdges.push(edge)
       }
       if (newEdges.length) setEdges(prev => [...prev, ...newEdges])
@@ -308,8 +329,8 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
   })
 
   const allP = Array.from(displayNodes.values()).map(getPos)
-  const svgW = Math.max(1200, (allP.length ? Math.max(...allP.map(p => p.x)) - Math.min(...allP.map(p => p.x)) : 0) + 200)
-  const svgH = Math.max(800, (allP.length ? Math.max(...allP.map(p => p.y)) - Math.min(...allP.map(p => p.y)) : 0) + 200)
+  const svgW = Math.max(900, (allP.length ? Math.max(...allP.map(p => p.x)) - Math.min(...allP.map(p => p.x)) : 0) + 160)
+  const svgH = Math.max(600, (allP.length ? Math.max(...allP.map(p => p.y)) - Math.min(...allP.map(p => p.y)) : 0) + 160)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
@@ -333,60 +354,62 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
               const fn = displayNodes.get(e.from), tn = displayNodes.get(e.to)
               if (!fn || !tn) return null
               const fp = getPos(fn), tp = getPos(tn)
-              const x1 = fp.x + NODE_W / 2, x2 = tp.x - NODE_W / 2, midX = (x1 + x2) / 2
+              const fw = widths.get(e.from) ?? NODE_W, tw = widths.get(e.to) ?? NODE_W
+              const x1 = fp.x + fw / 2, x2 = tp.x - tw / 2, midX = (x1 + x2) / 2
               return <path key={`e${i}`} d={`M${x1},${fp.y} C${midX},${fp.y} ${midX},${tp.y} ${x2},${tp.y}`} fill="none" stroke={th.accent.hex} strokeWidth={1.5} markerEnd="url(#arrowhead)" opacity={0.35}/>
             })}
             {Array.from(displayNodes.values()).map(gn => {
               const isFocal = gn.id === focalNode.id
               const p = getPos(gn)
               const kindColor = getKindColorHex(gn.kind)
-              const name = gn.name.length > 20 ? gn.name.slice(0, 18) + '…' : gn.name
+              const name = gn.name.length > 28 ? gn.name.slice(0, 26) + '…' : gn.name
               const loading = loadingNodes.has(gn.id)
+              const fw = widths.get(gn.id) ?? NODE_W
               const canLeft = true
               const canRight = true
               const callersActive = gn.callersExpanded && hasCallers(gn.id)
               const isIconHovered = iconHoveredNode === gn.id
               const showTrash = callersActive && isIconHovered
               return (
-                <g key={gn.id} data-node-id={gn.id} transform={`translate(${p.x - NODE_W / 2},${p.y - NODE_H / 2})`} style={{ pointerEvents: 'auto' }}
+                <g key={gn.id} data-node-id={gn.id} transform={`translate(${p.x - fw / 2},${p.y - NODE_H / 2})`} style={{ pointerEvents: 'auto' }}
                   onMouseDown={(e) => { e.stopPropagation(); if (e.button === 0) dragStartPos.current = { x: e.clientX, y: e.clientY, nodeId: gn.id } }}
                   onClick={() => onJumpToFile(gn.filePath, gn.line)}
                   onMouseEnter={() => handleNodeEnter(gn.id)} onMouseLeave={handleNodeLeave}>
-                  <rect x={0} y={0} width={NODE_W} height={NODE_H} rx={5} ry={5}
+                  <rect x={0} y={0} width={fw} height={NODE_H} rx={5} ry={5}
                     fill={isFocal ? th.accentRgba(0.2) : th.sidebar} stroke={isFocal ? th.accent.hex : th.accentRgba(0.4)} strokeWidth={isFocal ? 2 : 1.2}
                     filter={isFocal ? 'url(#focal-glow)' : undefined}/>
                   {loading
-                    ? <text x={NODE_W/2} y={NODE_H/2+4} fill={th.textMuted} fontSize={11} textAnchor="middle" fontFamily={MONACO_FONT}>loading...</text>
+                    ? <text x={fw/2} y={NODE_H/2+4} fill={th.textMuted} fontSize={10} textAnchor="middle" fontFamily={MONACO_FONT}>loading...</text>
                     : <>
                         {/* Left: kind icon doubles as caller expand/collapse */}
                         {!loading && canLeft ? (
                           <g onClick={(e) => { e.stopPropagation(); callersActive ? collapse(gn.id, 'callers') : expand(gn.id, 'callers') }}
                             onMouseEnter={() => setIconHoveredNode(gn.id)} onMouseLeave={() => setIconHoveredNode(null)}
                             className={`cursor-pointer ${callersActive && !isIconHovered ? '' : (isIconHovered ? 'text-ide-accent' : 'text-ide-accent/70')}`}>
-                            <rect x={3} y={3} width={22} height={22} rx={3} fill="transparent"/>
+                            <rect x={3} y={3} width={20} height={20} rx={3} fill="transparent"/>
                             {showTrash ? (
-                              <svg x={7} y={6} width={16} height={18} viewBox="0 0 16 16">
+                              <svg x={6} y={5} width={16} height={16} viewBox="0 0 16 16">
                                 <path d="M3 5h10M5 5v9a1 1 0 001 1h4a1 1 0 001-1V5M7 5V3a1 1 0 011-1h1a1 1 0 011 1v2" fill="none" stroke="#f88" strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round"/>
                                 <line x1="6" y1="8" x2="6" y2="12" stroke="#f88" strokeWidth={1} strokeLinecap="round" opacity={0.6}/>
                                 <line x1="8" y1="8" x2="8" y2="12" stroke="#f88" strokeWidth={1} strokeLinecap="round" opacity={0.6}/>
                                 <line x1="10" y1="8" x2="10" y2="12" stroke="#f88" strokeWidth={1} strokeLinecap="round" opacity={0.6}/>
                               </svg>
                             ) : (
-                              <svg x={5} y={5} width={20} height={20} viewBox="0 0 16 16" opacity={callersActive ? 1 : isIconHovered ? 1 : 0.7}>
+                              <svg x={5} y={5} width={16} height={16} viewBox="0 0 16 16" opacity={callersActive ? 1 : isIconHovered ? 1 : 0.7}>
                                 {kindIconPaths(gn.kind, callersActive ? kindColor : 'currentColor')}
                               </svg>
                             )}
                           </g>
                         ) : (
-                          <svg x={6} y={7} width={14} height={14} viewBox="0 0 16 16" opacity={0.35}>{kindIconPaths(gn.kind, kindColor)}</svg>
+                          <svg x={5} y={5} width={14} height={14} viewBox="0 0 16 16" opacity={0.35}>{kindIconPaths(gn.kind, kindColor)}</svg>
                         )}
-                        <text x={loading ? NODE_W/2 : 28} y={18} fill={isFocal ? '#fff' : '#d0d0dc'} fontSize={11.5} fontFamily={MONACO_FONT} textAnchor={loading ? 'middle' : 'start'} fontWeight={isFocal ? 600 : 400}>{name}</text>
+                        <text x={loading ? fw/2 : 28} y={15} fill={th.text} fontSize={10} fontFamily={MONACO_FONT} textAnchor={loading ? 'middle' : 'start'} fontWeight={isFocal ? 600 : 400}>{name}</text>
                         {/* Right: callees +/- */}
                         {!loading && canRight && (
                           <g onClick={(e) => { e.stopPropagation(); gn.calleesExpanded ? collapse(gn.id, 'callees') : expand(gn.id, 'callees') }}
                             style={{ cursor: 'pointer' }}>
-                            <rect x={NODE_W - 16} y={0} width={16} height={NODE_H} fill="transparent"/>
-                            <text x={NODE_W - 8} y={14} fill={gn.calleesExpanded ? th.accent.hex : th.accentRgba(0.6)} fontSize={gn.calleesExpanded ? 14 : 13} textAnchor="middle" fontFamily={MONACO_FONT} fontWeight="bold" style={{ pointerEvents: 'none' }}>{gn.calleesExpanded ? '−' : '+'}</text>
+                            <rect x={fw - 16} y={0} width={16} height={NODE_H} fill="transparent"/>
+                            <text x={fw - 8} y={13} fill={gn.calleesExpanded ? th.accent.hex : th.accentRgba(0.6)} fontSize={gn.calleesExpanded ? 13 : 12} textAnchor="middle" fontFamily={MONACO_FONT} fontWeight="bold" style={{ pointerEvents: 'none' }}>{gn.calleesExpanded ? '−' : '+'}</text>
                           </g>
                         )}
                       </>
@@ -401,11 +424,11 @@ function CallGraphOverlay({ focalNode, onClose, onJumpToFile }: CallGraphOverlay
               if (!tn) return null
               const tp = getPos(tn)
               const label = `${tn.filePath}:${tn.line}`
-              const tw = label.length * 6.5 + 16
+              const tw = Math.min(label.length * 6 + 16, 480)
               return (
                 <g transform={`translate(${tp.x - tw/2},${tp.y + NODE_H/2 + 5})`} style={{ pointerEvents: 'none' }}>
                   <rect x={0} y={0} width={tw} height={18} rx={4} ry={4} fill={th.sidebar} stroke={th.accentRgba(0.5)} strokeWidth={1}/>
-                  <text x={tw/2} y={12} fill="#bbb" fontSize={10} fontFamily={MONACO_FONT} textAnchor="middle">{label}</text>
+                  <text x={tw/2} y={12} fill={th.textMuted} fontSize={10} fontFamily={MONACO_FONT} textAnchor="middle">{label}</text>
                 </g>
               )
             })()}
