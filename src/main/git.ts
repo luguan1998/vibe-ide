@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import simpleGit, { SimpleGit } from 'simple-git'
-import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitDiffResult, GitBranch, CommitOptions, AmendOptions, GitShowResult, GitCommitFile, GitLineLogEntry, GitGraphEntry } from '../shared/types'
+import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, CommitOptions, AmendOptions, GitShowResult, GitCommitFile, GitLineLogEntry, GitGraphEntry } from '../shared/types'
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
@@ -249,29 +249,6 @@ export function registerGitHandlers(): void {
       return entries
     } catch (err: any) {
       return { error: err.message }
-    }
-  })
-
-  // Get git diff
-  ipcMain.handle(IPC_CHANNELS.GIT_DIFF, async (_event, filePath?: string, staged?: boolean) => {
-    try {
-      const git = getGit()
-      let diffOutput: string
-
-      if (filePath) {
-        const cmdArgs = staged
-          ? ['diff', '--cached', '--', filePath]
-          : ['diff', '--', filePath]
-        diffOutput = await git.raw(cmdArgs)
-      } else {
-        diffOutput = staged
-          ? await git.raw(['diff', '--cached'])
-          : await git.raw(['diff'])
-      }
-
-      return { content: diffOutput } as GitDiffResult
-    } catch (err: any) {
-      return { error: err.message, content: '' }
     }
   })
 
@@ -704,19 +681,6 @@ export function registerGitHandlers(): void {
       result.truncated = truncated
 
       return result
-    } catch (err: any) {
-      return { error: err.message }
-    }
-  })
-
-  // Git diff single file in a commit — 按需加载，避免展开 commit 时逐文件跑 git diff
-  ipcMain.handle(IPC_CHANNELS.GIT_DIFF_COMMIT_FILE, async (_event, hash: string, filePath: string, isRoot: boolean) => {
-    try {
-      const git = getGit()
-      const diff = isRoot
-        ? await git.raw(['diff-tree', '--root', '-p', hash, '--', filePath])
-        : await git.diff([`${hash}^`, hash, '--', filePath])
-      return { diff }
     } catch (err: any) {
       return { error: err.message }
     }

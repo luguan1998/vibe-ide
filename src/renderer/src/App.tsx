@@ -58,7 +58,6 @@ declare global {
         setWorkspace: (path: string) => Promise<any>
         status: () => Promise<any>
         log: (opts?: { count?: number; skip?: number }) => Promise<any>
-        diff: (filePath?: string, staged?: boolean) => Promise<any>
         add: (files: string | string[]) => Promise<any>
         reset: (files: string | string[]) => Promise<any>
         commit: (options: any) => Promise<any>
@@ -81,7 +80,6 @@ declare global {
         deleteWorktree: (branch: string, force?: boolean) => Promise<any>
         deleteBranch: (branch: string) => Promise<any>
         setFilterRules: (rules: string[]) => Promise<any>
-        diffCommitFile: (hash: string, filePath: string, isRoot: boolean) => Promise<any>
         lineLog: (filePath: string, startLine: number, endLine: number) => Promise<any>
         graph: (opts?: { count?: number; skip?: number }) => Promise<any>
       }
@@ -263,7 +261,7 @@ interface DiffFileState {
   defaultEdit?: boolean
   filePath: string          // 相对路径（用于 git diff）
   fullPath: string          // 完整路径（用于 file read/write）
-  diffContent: string
+  gitStats?: { additions: number; deletions: number }  // git 来源：+N -N 徽章数字
   isStaged: boolean
   commitHash?: string       // 查看历史 commit 时的 commit hash
   lineNumber?: number       // 跳转到指定行
@@ -1120,7 +1118,6 @@ export default function App() {
       setDiffFile(prev => prev ? {
         ...prev,
         defaultEdit: false,
-        diffContent: '',
         compareOriginalContent: compareContent,
         compareOriginalPath: comparePath,
         revision: ++diffRevisionRef.current
@@ -1719,7 +1716,6 @@ export default function App() {
           setDiffFile({
             filePath,
             fullPath: fp,
-            diffContent: '',
             isStaged: false,
             defaultEdit: true,
             revision: ++diffRevisionRef.current
@@ -1820,7 +1816,6 @@ export default function App() {
         setDiffFile({
           filePath,
           fullPath: entry.fullPath,
-          diffContent: '',
           isStaged: false,
           defaultEdit: true,
           lineNumber: entry.line,
@@ -1849,7 +1844,6 @@ export default function App() {
       setDiffFile({
         filePath,
         fullPath: entry.fullPath,
-        diffContent: '',
         isStaged: false,
         defaultEdit: true,
         lineNumber: entry.line,
@@ -1863,7 +1857,6 @@ export default function App() {
     setDiffFile({
       filePath: relativePath,
       fullPath,
-      diffContent: '',
       isStaged: false,
       defaultEdit: true,
       revision: ++diffRevisionRef.current,
@@ -1994,7 +1987,6 @@ export default function App() {
           setDiffFile({
             filePath,
             fullPath: data.path,
-            diffContent: '',
             isStaged: false,
             defaultEdit: true,
             revision: ++diffRevisionRef.current
@@ -2498,9 +2490,9 @@ export default function App() {
     document.addEventListener('mouseup', onMouseUp)
   }, [leftPanelWidth])
 
-  const handleFileSelect = useCallback((filePath: string, diffContent: string, isStaged: boolean, commitHash?: string, resolvedFullPath?: string) => {
+  const handleFileSelect = useCallback((filePath: string, isStaged: boolean, commitHash: string | undefined, resolvedFullPath: string | undefined, gitStats: { additions: number; deletions: number }) => {
     const fullPath = resolvedFullPath || (activeSessionCwd ? `${activeSessionCwd}/${filePath}` : filePath)
-    setDiffFile({ filePath, fullPath, diffContent, isStaged, commitHash, revision: ++diffRevisionRef.current })
+    setDiffFile({ filePath, fullPath, gitStats, isStaged, commitHash, revision: ++diffRevisionRef.current })
     setCenterView('diff')
   }, [activeSessionCwd])
 
@@ -2590,7 +2582,6 @@ export default function App() {
     setDiffFile({
       filePath,
       fullPath,
-      diffContent: '',
       isStaged: false,
       lineNumber,
       defaultEdit: true,
@@ -2615,7 +2606,6 @@ export default function App() {
     setDiffFile({
       filePath,
       fullPath,
-      diffContent: '',
       isStaged: false,
       lineNumber,
       revision: ++diffRevisionRef.current
@@ -2753,7 +2743,6 @@ export default function App() {
     setDiffFile({
       filePath,
       fullPath,
-      diffContent: '',
       isStaged: false,
       defaultEdit: true,
       lineNumber,
@@ -2774,7 +2763,6 @@ export default function App() {
     setDiffFile({
       filePath,
       fullPath,
-      diffContent: '',
       isStaged: false,
       defaultEdit: true,
       lineNumber,
@@ -2798,7 +2786,6 @@ export default function App() {
     setDiffFile({
       filePath,
       fullPath,
-      diffContent: '',
       isStaged: false,
       defaultEdit: true,
       lineNumber,
@@ -2827,7 +2814,6 @@ export default function App() {
     setDiffFile(prev => prev ? {
       ...prev,
       defaultEdit: false,
-      diffContent: '',
       compareOriginalContent: compareContent,
       compareOriginalPath: compareFullPath,
       revision: ++diffRevisionRef.current
@@ -3091,7 +3077,7 @@ export default function App() {
                 key={`${diffFile.fullPath}-${diffFile.commitHash || 'working'}`}
                 filePath={diffFile.filePath}
                 fullPath={diffFile.fullPath}
-                diffContent={diffFile.diffContent}
+                gitStats={diffFile.gitStats}
                 isStaged={diffFile.isStaged}
                 commitHash={diffFile.commitHash}
                 lineNumber={diffFile.lineNumber}

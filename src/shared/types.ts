@@ -16,7 +16,6 @@ export const IPC_CHANNELS = {
   GIT_SET_WORKSPACE: 'git:setWorkspace',
   FS_CHANGED: 'fs:changed',  // Push event when filesystem changes (file watcher)
   GIT_LOG: 'git:log',
-  GIT_DIFF: 'git:diff',
   GIT_COMMIT: 'git:commit',
   GIT_AMEND: 'git:amend',
   GIT_ADD: 'git:add',
@@ -32,7 +31,6 @@ export const IPC_CHANNELS = {
   GIT_INIT: 'git:init',
   GIT_SHOW: 'git:show',
   GIT_SHOW_FILE: 'git:showFile',
-  GIT_DIFF_COMMIT_FILE: 'git:diffCommitFile',
   GIT_DISCARD: 'git:discard',
   GIT_REMOTE_BRANCHES: 'git:remoteBranches',
   GIT_WORKTREE_PATH: 'git:worktreePath',
@@ -342,21 +340,6 @@ export interface GitShowResult {
   diff?: string
   truncated?: boolean
   isRoot?: boolean
-}
-
-export interface GitDiffResult {
-  file: string
-  content: string
-  oldContent: string
-  hunks: GitDiffHunk[]
-}
-
-interface GitDiffHunk {
-  oldStart: number
-  oldLines: number
-  newStart: number
-  newLines: number
-  content: string
 }
 
 export interface GitStatusResult {

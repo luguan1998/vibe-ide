@@ -11,7 +11,7 @@ import { AuxTerminalTab, RecentFileEntry } from '@shared/types'
 
 interface RightPanelProps {
   workspacePath: string | null
-  onFileSelect?: (filePath: string, diffContent: string, isStaged: boolean, commitHash?: string, fullPath?: string) => void
+  onFileSelect?: (filePath: string, isStaged: boolean, commitHash: string | undefined, fullPath: string | undefined, gitStats: { additions: number; deletions: number }) => void
   refreshKey?: number
   pollingTick?: number
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void

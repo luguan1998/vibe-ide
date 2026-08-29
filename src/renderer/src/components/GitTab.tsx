@@ -10,7 +10,7 @@ interface GitTabProps {
   workspacePath: string | null
   effectiveGitPath: string | null
   worktreeNav: { originalPath: string; worktreePath: string; originalBranch: string } | null
-  onFileSelect?: (filePath: string, diffContent: string, isStaged: boolean, commitHash?: string, fullPath?: string) => void
+  onFileSelect?: (filePath: string, isStaged: boolean, commitHash: string | undefined, fullPath: string | undefined, gitStats: { additions: number; deletions: number }) => void
   refreshKey?: number
   activeSessionId?: string | null
   isActive?: boolean
@@ -167,9 +167,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [loadingMoreGraph, setLoadingMoreGraph] = useState(false)
   const loadingMoreRef = useRef(false)
   const [branches, setBranches] = useState<GitBranch[]>([])
-  const [, setSelectedFile] = useState<string | null>(null)
-  const [, setDiffContent] = useState<string>('')
-  const [, setDiffStaged] = useState<boolean>(false)
   const [commitMessage, setCommitMessage] = useState('')
   const [, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -178,7 +175,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const notGitRef = useRef<boolean>(false)
   const notGitPathRef = useRef<string | null>(null)
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
-  const [commitIsRoot, setCommitIsRoot] = useState(false)
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   const [commitFileCount, setCommitFileCount] = useState(0)
   const [, setCommitDiff] = useState<string>('')
@@ -426,28 +422,14 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   }, [])
 
   // Handle file click - show diff
-  const handleFileClick = useCallback(async (file: GitFileStatus) => {
-    setSelectedFile(file.path)
-    setLoading(true)
-    try {
-      const result = await window.api.git.diff(file.path, file.staged)
-      if (result.error) {
-        setError(result.error)
-        setDiffContent('')
-      } else {
-        setDiffContent(result.content || '')
-        setDiffStaged(file.staged)
-      }
-      if (onFileSelect) {
-        const resolvedFullPath = resolveFullPath(file.path)
-        onFileSelect(file.path, result.content || '', file.staged, undefined, resolvedFullPath)
-      }
-    } catch (err: any) {
-      setError(err.message)
-      setDiffContent('')
-    }
-    setLoading(false)
-  }, [onFileSelect, effectiveGitPath])
+  const handleFileClick = useCallback((file: GitFileStatus) => {
+    if (!onFileSelect) return
+    const resolvedFullPath = resolveFullPath(file.path)
+    onFileSelect(file.path, file.staged, undefined, resolvedFullPath, {
+      additions: file.additions || 0,
+      deletions: file.deletions || 0
+    })
+  }, [onFileSelect, resolveFullPath])
   const handleFileClickRef = useRef(handleFileClick)
   handleFileClickRef.current = handleFileClick
 
@@ -455,7 +437,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const handleCommitClick = useCallback(async (hash: string) => {
     if (expandedCommit === hash) {
       setExpandedCommit(null)
-      setCommitIsRoot(false)
       setCommitFiles([])
       setCommitFileCount(0)
       setCommitDiff('')
@@ -468,7 +449,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         setError(result.error)
       } else {
         setExpandedCommit(hash)
-        setCommitIsRoot(result.isRoot || false)
         setCommitFiles(result.files || [])
         setCommitFileCount(result.fileCount || result.files?.length || 0)
         setCommitDiff(result.diff || '')
@@ -479,21 +459,15 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     setLoading(false)
   }, [expandedCommit])
 
-  // Handle commit file click - load diff on demand, then show in main view
-  const handleCommitFileClick = useCallback(async (file: GitCommitFile) => {
+  // Handle commit file click - show in main view, contents load on demand inside DiffViewer
+  const handleCommitFileClick = useCallback((file: GitCommitFile) => {
     if (!onFileSelect || !expandedCommit) return
-    setSelectedFile(file.path)
-    setLoading(true)
-    try {
-      const result = await window.api.git.diffCommitFile(expandedCommit, file.path, commitIsRoot)
-      const diff = result.error ? '' : (result.diff || '')
-      const resolvedFullPath = resolveFullPath(file.path)
-      onFileSelect(file.path, diff, false, expandedCommit, resolvedFullPath)
-    } catch {
-      onFileSelect(file.path, '', false, expandedCommit, resolveFullPath(file.path))
-    }
-    setLoading(false)
-  }, [onFileSelect, expandedCommit, commitIsRoot, resolveFullPath])
+    const resolvedFullPath = resolveFullPath(file.path)
+    onFileSelect(file.path, false, expandedCommit, resolvedFullPath, {
+      additions: file.additions || 0,
+      deletions: file.deletions || 0
+    })
+  }, [onFileSelect, expandedCommit, resolveFullPath])
 
   // Stage a file
   const handleStage = useCallback(async (filePath: string) => {
@@ -787,8 +761,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     setHasMoreGraph(true)
     setBranches([])
     setError(null)
-    setSelectedFile(null)
-    setDiffContent('')
     setLoading(true)
 
     const switchWorkspace = async () => {

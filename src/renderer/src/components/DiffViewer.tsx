@@ -70,7 +70,7 @@ function getLanguageFromFile(path: string): string {
 interface DiffViewerProps {
   filePath: string          // 相对路径（用于 git 操作）
   fullPath: string          // 完整路径（用于 file read/write）
-  diffContent: string
+  gitStats?: { additions: number; deletions: number }
   isStaged: boolean
   commitHash?: string       // 查看历史 commit 时的 commit hash
   lineNumber?: number       // 跳转到指定行
@@ -99,18 +99,6 @@ interface DiffViewerProps {
 }
 
 type ViewMode = 'diff' | 'edit'
-
-function parseDiffStats(diff: string): { additions: number; deletions: number } {
-  let additions = 0
-  let deletions = 0
-
-  for (const line of diff.split('\n')) {
-    if (line.startsWith('+') && !line.startsWith('+++')) additions++
-    else if (line.startsWith('-') && !line.startsWith('---')) deletions++
-  }
-
-  return { additions, deletions }
-}
 
 // 单行回退：从 ILineChange[] 构建 modified 侧改动行集合。纯 deleted（mE===0）跳过——
 // modified 侧无真实行，inline 模式虚拟行 hover 不可靠，让用户用现有 gutter 圆钮。
@@ -231,7 +219,7 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   )
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffContent, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, outlineEnabled = false, onToggleOutline, onOutlineNavigate = () => {} }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, outlineEnabled = false, onToggleOutline, onOutlineNavigate = () => {} }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -247,6 +235,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   const [modifiedContent, setModifiedContent] = useState<string>('')
   const [, setSaving] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
+  const [diffLoading, setDiffLoading] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [diffStats, setDiffStats] = useState<{ additions: number; deletions: number }>({ additions: 0, deletions: 0 })
   const savedContentRef = useRef('')
@@ -389,6 +378,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
   }, [scrollTrigger, viewMode])
 
   const loadContents = useCallback(async () => {
+    setDiffLoading(true)
     try {
       let original: string
       let modified: string
@@ -421,7 +411,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
         modified = currResult.error ? '' : (currResult.content || '')
       }
 
-      const stats = diffContent ? parseDiffStats(diffContent) : { additions: 0, deletions: 0 }
+      const stats = gitStats || { additions: 0, deletions: 0 }
       setOriginalContent(original)
       setModifiedContent(modified)
       setDiffStats(stats)
@@ -449,15 +439,17 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       setOriginalContent('')
       setModifiedContent('')
       setDiffStats({ additions: 0, deletions: 0 })
+    } finally {
+      setDiffLoading(false)
     }
-  }, [filePath, fullPath, isStaged, commitHash, diffContent, revision, compareOriginalContent])
+  }, [filePath, fullPath, isStaged, commitHash, gitStats, revision, compareOriginalContent])
 
   useEffect(() => {
-    // edit 模式 + 无 diffContent（从文件浏览器直接打开）→ 不需要 diff 版本
+    // edit 模式 + 非 git 来源（从文件浏览器直接打开）→ 不需要 diff 版本
     // loadForEdit 的 useEffect[viewMode] 会负责加载文件内容
-    if (viewMode === 'edit' && !diffContent) return
+    if (viewMode === 'edit' && !gitStats) return
     loadContents()
-  }, [loadContents, viewMode, diffContent])
+  }, [loadContents, viewMode, gitStats])
 
   const loadForEdit = useCallback(async (encoding?: string, forceOpen?: boolean) => {
     try {
@@ -938,6 +930,11 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, diffCont
       </div>
 
       <div className="relative flex-1 min-h-0 overflow-hidden">
+        {diffLoading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center text-ide-text-muted text-sm bg-ide-bg/60">
+            Loading...
+          </div>
+        )}
         {viewMode === 'diff' ? (
           <DiffEditor
             height="100%"
