@@ -1142,7 +1142,10 @@ function parseTranscriptLines(
       messages.push({
         sessionId: sid, type: 'user', role: 'user',
         messageId: msg.message?.id,
-        content: turn.content, timestamp: ts,
+        content: turn.content,
+        timestamp: ts,
+        // 标记让 renderer 的 isRealUserInput 直接认可该行（跨轮无 result 分隔时启发式会误判）
+        isRealUserTurn: turn.isInternal !== true,
       })
       continue
     }

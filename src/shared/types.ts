@@ -462,6 +462,9 @@ export interface AiMessage {
   subtype?: 'success' | 'error_max_tokens' | 'error_during_execution'
   isAborted?: boolean
   parentToolUseId?: string
+  // 由主进程 turnByLine(parseUserTurns 对齐)注入：resume 历史中轮间无 result 行时，
+  // renderer 的 prev-assistant 启发式会误判真实输入为工具回填，此标记绕过启发式
+  isRealUserTurn?: boolean
   timestamp: number
 }
 
