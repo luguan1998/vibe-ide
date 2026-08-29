@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
 import { type SessionTab, ICON_NONE } from '../sessionRestore'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, KanbanSquare, FolderPlus } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -501,6 +501,18 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     try { return localStorage.getItem('vibe-ide-ai-config-dir') || '' } catch { return '' }
   })
   const [cliConfigDirDraft, setCliConfigDirDraft] = useState('')
+  const [resolvedConfigDir, setResolvedConfigDir] = useState('')
+  const openConfigDir = async () => {
+    const dir = await window.api.claudeConfig.dir(cliConfigDirDraft || undefined)
+    onNewSessionHere?.(dir, 'term')
+  }
+  useEffect(() => {
+    let cancelled = false
+    window.api.claudeConfig.dir(cliConfigDirDraft || undefined).then((d) => {
+      if (!cancelled) setResolvedConfigDir(d)
+    })
+    return () => { cancelled = true }
+  }, [cliConfigDirDraft])
   const [defaultAgent, setDefaultAgent] = useState(() => {
     try { return localStorage.getItem('vibe-ide-default-agent') || '' } catch { return '' }
   })
@@ -919,23 +931,23 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     try {
       const result = await window.api.terminal.refreshEnv()
       if (result.success) {
-        setClaudeApplyMsg(`已刷新 ${result.count} 个环境变量`)
+        setClaudeApplyMsg(t('Refreshed {n} environment variables').replace('{n}', String(result.count)))
         window.setTimeout(() => setClaudeApplyMsg(''), 3000)
       } else {
-        setClaudeApplyMsg(`刷新失败：${result.error}`)
+        setClaudeApplyMsg(t('Refresh failed: {err}').replace('{err}', result.error))
       }
     } catch (e: any) {
-      setClaudeApplyMsg(`刷新失败：${e?.message || e}`)
+      setClaudeApplyMsg(t('Refresh failed: {err}').replace('{err}', e?.message || e))
     }
   }
   const handleClaudeApply = async (g: ClaudeConfigGroup) => {
     try {
       await applyClaudeGroup(g)
       persistClaudeGroups(claudeGroups, g.id)
-      setClaudeApplyMsg('已写入 ~/.claude/settings.json · 下次启动 claude 生效')
+      setClaudeApplyMsg(t('Written to ~/.claude/settings.json · effective after claude restarts'))
       window.setTimeout(() => setClaudeApplyMsg(''), 4000)
     } catch (e: any) {
-      setClaudeApplyMsg(`写入失败：${e?.message || '已保留现有 settings.json'}`)
+      setClaudeApplyMsg(t('Write failed: {err}').replace('{err}', e?.message || t('Settings preserved')))
     }
   }
   const handleClaudeDelete = (g: ClaudeConfigGroup) => {
@@ -2299,7 +2311,25 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               </label>
               {/* AI Config Dir */}
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-ide-text-muted">{t('Claude Config Dir')}</span>
+                <span className="flex items-center justify-between">
+                  <span className="text-xs text-ide-text-muted">{t('Claude Config Dir')}</span>
+                  <span className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      title={`在 vibe ide 打开 ${resolvedConfigDir}`}
+                      onClick={openConfigDir}
+                      className="text-xs text-ide-text-muted/60 hover:text-ide-accent transition-colors"
+                    >
+                      <FolderOpen size={13} className="inline-block align-[-1px]" />
+                    </button>
+                    <button
+                      type="button"
+                      title={`在 vibe ide 打开 ${resolvedConfigDir}`}
+                      onClick={openConfigDir}
+                      className="text-xs text-ide-text-muted/60 hover:text-ide-accent transition-colors"
+                    >{t('Current')}</button>
+                  </span>
+                </span>
                 <input
                   type="text"
                   value={cliConfigDirDraft}
@@ -2331,15 +2361,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               {/* Claude 配置组：多组 model/provider 预设，一键切换写入 ~/.claude/settings.json */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-ide-text-muted">claude code 多provider配置</span>
+                  <span className="text-xs text-ide-text-muted">{t('Claude Provider Config')}</span>
                   <button
                     onClick={handleClaudeNew}
                     className="text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors"
-                  >+ 新建</button>
+                  >+ {t('New')}</button>
                 </div>
                 {claudeGroups.length === 0 ? (
                   <div className="text-[11px] text-ide-text-muted/60 py-2 text-center border border-dashed border-ide-border rounded">
-                    无 provider 配置 · 点「+ 新建」添加
+                    {t('No provider config. Click "+ New" to add')}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
@@ -2353,27 +2383,27 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               <span className="text-xs font-medium text-ide-text truncate">{g.name}</span>
-                              {isActive && <span className="text-[10px] text-ide-accent shrink-0">生效中</span>}
+                              {isActive && <span className="text-[10px] text-ide-accent shrink-0">{t('Active')}</span>}
                             </div>
                             <div className="text-[10px] text-ide-text-muted truncate">{groupSummary(g)}</div>
                           </div>
                           <button
                             onClick={() => handleClaudeApply(g)}
-                            title="应用（写入 settings.json，下次启动生效）"
+                            title={t('Apply (write settings.json, effective after restart)')}
                             className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/15 transition-colors"
                           >
                             <Zap size={12} />
                           </button>
                           <button
                             onClick={() => handleClaudeEdit(g)}
-                            title="编辑"
+                            title={t('Edit')}
                             className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
                           >
                             <Pencil size={12} />
                           </button>
                           <button
                             onClick={() => handleClaudeDelete(g)}
-                            title="删除"
+                            title={t('Delete')}
                             className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover transition-colors"
                           >
                             <X size={12} />
@@ -2395,7 +2425,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         <ModalOverlay onClose={() => setShowClaudeGroupEditModal(false)} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[460px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-              <span className="text-sm font-semibold text-ide-text">{editingGroup ? '编辑 provider 配置' : '新建 provider 配置'}</span>
+              <span className="text-sm font-semibold text-ide-text">{editingGroup ? t('Edit Provider Config') : t('New Provider Config')}</span>
               <button
                 className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
                 onClick={() => setShowClaudeGroupEditModal(false)}
@@ -2403,23 +2433,23 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </div>
             <div className="p-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto">
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-ide-text-muted">名称</span>
+                <span className="text-xs text-ide-text-muted">{t('Name')}</span>
                 <input
                   type="text"
                   value={editName}
                   onChange={e => setEditName(e.target.value)}
-                  placeholder="如：阿里云 GLM"
+                  placeholder={t('e.g. Aliyun GLM')}
                   autoFocus
                   className="w-full px-3 py-1.5 text-sm bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
               </label>
               <div className="flex flex-col gap-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-ide-text-muted">env 变量</span>
+                  <span className="text-xs text-ide-text-muted">{t('Env Variables')}</span>
                   <button
                     onClick={() => setEditEnv(prev => [...prev, { key: '', value: '' }])}
                     className="text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors"
-                  >+ 添加</button>
+                  >+ {t('Add')}</button>
                 </div>
                 <div className="flex flex-col gap-1">
                   {editEnv.map((row, i) => (
@@ -2451,12 +2481,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               <button
                 className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
                 onClick={() => setShowClaudeGroupEditModal(false)}
-              >取消</button>
+              >{t('Cancel')}</button>
               <button
                 className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 disabled={!editName.trim()}
                 onClick={handleClaudeEditSave}
-              >保存</button>
+              >{t('Save')}</button>
             </div>
           </div>
         </ModalOverlay>

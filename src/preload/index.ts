@@ -104,7 +104,7 @@ const api = {
 
   // Workspace operations
   claudeConfig: {
-    dir: () => ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_CONFIG_DIR),
+    dir: (configDir?: string) => ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_CONFIG_DIR, configDir),
   },
 
   workspace: {

@@ -106,7 +106,7 @@ declare global {
         removeChangedListener: (handler?: any) => void
       }
       claudeConfig: {
-        dir: () => Promise<string>
+        dir: (configDir?: string) => Promise<string>
       }
       workspace: {
         open: () => Promise<any>
