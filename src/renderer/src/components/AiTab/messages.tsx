@@ -96,6 +96,11 @@ export function countContentOccurrencesBefore(messages: AiMessage[], index: numb
   return occurrence
 }
 
+function formatHourMin(ts: number): string {
+  const d = new Date(ts)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAndCode, isInternal }: {
   message: AiMessage
   userMessageIndex: number
@@ -107,18 +112,14 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
   const { t } = useI18n()
   const [showPopover, setShowPopover] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const clearHideTimer = () => {
-    if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null }
-  }
+  const revertBtnRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (!showPopover) return
     const handleClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setShowPopover(false)
-      }
+      const target = e.target as Node
+      if (popoverRef.current?.contains(target) || revertBtnRef.current?.contains(target)) return
+      setShowPopover(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -126,18 +127,32 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
 
   const cleanedContent = cleanMessageContent(message.content || '')
   if (!cleanedContent) return null
+  const timeStr = message.timestamp ? formatHourMin(message.timestamp) : ''
+  const showRevert = userMessageIndex >= 0 && !isInternal
 
   return (
-    <div className="ai-tab__message ai-tab__message--user w-full max-w-[896px] mx-auto flex justify-end animate-fade-in">
-      <div className="ai-tab__message-wrap max-w-[85%] relative"
-        onMouseEnter={() => { clearHideTimer(); setShowPopover(true) }}
-        onMouseLeave={() => { hideTimerRef.current = setTimeout(() => setShowPopover(false), 300) }}
-      >
+    <div className="ai-tab__message ai-tab__message--user w-full max-w-[896px] mx-auto flex justify-end animate-fade-in group/user">
+      <div className="ai-tab__message-wrap max-w-[85%] relative">
         <div className="ai-tab__user-bubble px-3 py-2 rounded-2xl bg-ide-accent/12 border-2 border-ide-accent/30 text-ide-text whitespace-pre-wrap">
           {cleanedContent}
         </div>
+        <div className="ai-tab__user-actions flex items-center justify-end gap-2.5 h-7 opacity-0 group-hover/user:opacity-100 transition-opacity">
+          <span className="text-sm leading-none tabular-nums text-ide-text-muted/50">{timeStr}</span>
+          {showRevert && (
+            <button
+              ref={revertBtnRef}
+              onClick={() => setShowPopover(v => !v)}
+              disabled={isBusy}
+              title={t('Revert')}
+              className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <Undo2 size={14} />
+            </button>
+          )}
+          <CopyButton text={cleanedContent} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />
+        </div>
 
-        {showPopover && userMessageIndex >= 0 && !isInternal && !isBusy && (
+        {showPopover && showRevert && !isBusy && (
           <div ref={popoverRef}
             className="ai-tab__user-popover absolute right-0 top-full mt-1 z-40
                        bg-ide-sidebar border border-ide-border rounded-lg shadow-lg
@@ -302,7 +317,7 @@ export function FadeOutOnUnmount({ visible, duration = 200, children }: {
   )
 }
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, className = 'opacity-0 group-hover/meta:opacity-100 transition-opacity hover:text-ide-accent' }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false)
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(text).then(() => {
@@ -313,7 +328,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="shrink-0 opacity-0 group-hover/meta:opacity-100 transition-opacity hover:text-ide-accent"
+      className={`shrink-0 ${className}`}
       title="Copy"
     >
       {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -411,7 +426,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
         </div>
       )}
       {showMeta && (
-        <div className="ai-tab__message-meta w-full max-w-[896px] flex items-center gap-2 text-xs text-ide-text-muted/50 group/meta">
+        <div className="ai-tab__message-meta w-full max-w-[896px] flex items-center gap-2.5 text-xs text-ide-text-muted/50 group/meta">
           <span className="inline-flex items-center gap-0.5">
             <span className="text-sm">✻</span>
             <span>Churned for {(() => { const sec = (message.durationMs || 0) / 1000; if (sec < 60) return `${sec.toFixed(1)}s`; const m = Math.floor(sec / 60); const s = Math.round(sec % 60); return `${m}m ${s}s`; })()}</span>
