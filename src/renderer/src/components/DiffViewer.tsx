@@ -446,11 +446,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
   }, [filePath, fullPath, isStaged, commitHash, gitStats, revision, compareOriginalContent])
 
   useEffect(() => {
-    // edit 模式 + 非 git 来源（从文件浏览器直接打开）→ 不需要 diff 版本
-    // loadForEdit 的 useEffect[viewMode] 会负责加载文件内容
-    if (viewMode === 'edit' && !gitStats) return
+    // edit 模式内容由 loadForEdit 负责，切回 diff 时再重新拉取
+    if (viewMode === 'edit') return
     loadContents()
-  }, [loadContents, viewMode, gitStats])
+  }, [loadContents, viewMode])
 
   const loadForEdit = useCallback(async (encoding?: string, forceOpen?: boolean) => {
     try {
