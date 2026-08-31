@@ -85,6 +85,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       }
       const tick = () => setBusySeconds(Math.floor((Date.now() - busyStartRef.current) / 1000))
       tick()
+      // 非活动 session 的 AiTab 是 display:none，秒表看不见 → 不起定时器（多个后台忙碌会话会各自 1 次/秒重渲染）
+      if (!isActive) return
       const id = setInterval(tick, 1000)
       return () => clearInterval(id)
     }
@@ -92,7 +94,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     busyPrevStartRef.current = busyStartRef.current
     busyStartRef.current = 0
     setBusySeconds(0)
-  }, [state.busy])
+  }, [state.busy, isActive])
   const busyTimeLabel = busySeconds >= 10
     ? busySeconds >= 60
       ? ` (${Math.floor(busySeconds / 60)}m ${busySeconds % 60}s)`
@@ -356,6 +358,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   const [activeTurn, setActiveTurn] = useState(-1)
   const [turnNavHover, setTurnNavHover] = useState(false)
+  const turnNavHoverRef = useRef(false)
   // mouse 距滚动区右缘 < 48px 即浮现面包屑;检测挂在 wrap 上,面包屑自身不吞
   // mousedown 消息区不受遮挡(悬浮层 pointer-events-none,仅按钮区接收点击)
   const onScrollWrapMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -374,12 +377,21 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     if (!container) return
     const centerY = container.getBoundingClientRect().top + container.clientHeight / 2
     let active = -1
-    container.querySelectorAll<HTMLElement>('[data-user-turn]').forEach((el) => {
-      const idx = Number(el.dataset.userTurn)
-      if (el.getBoundingClientRect().top <= centerY) active = Math.max(active, idx)
-    })
+    // turn 元素按文档顺序排列 → rect.top 单调递增，越过中心线即可停，避免每帧全量 rect 读取
+    const els = container.querySelectorAll<HTMLElement>('[data-user-turn]')
+    for (let i = 0; i < els.length; i++) {
+      const top = els[i].getBoundingClientRect().top
+      if (top > centerY) break
+      active = Math.max(active, Number(els[i].dataset.userTurn))
+    }
     setActiveTurn(prev => (prev === active ? prev : active))
   }, [])
+
+  // 面包屑只在 hover 时可见 → 非 hover 期间完全不量测（流式每次 flush 都会程序化滚到底并派发 scroll）
+  useEffect(() => {
+    turnNavHoverRef.current = turnNavHover
+    if (turnNavHover) computeActiveTurn()
+  }, [turnNavHover, computeActiveTurn])
 
   // 跳转到指定 user turn:手动 scrollTo 居中(scrollIntoView 会级联滚动 ai-tab 祖先)
   const jumpToUserTurn = useCallback((turnIdx: number) => {
@@ -402,14 +414,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     const onScroll = () => {
       const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
       userScrolledUpRef.current = distFromBottom > 40
-      if (raf) return
+      if (raf || !turnNavHoverRef.current) return
       raf = requestAnimationFrame(() => {
         raf = 0
         computeActiveTurn()
       })
     }
     el.addEventListener('scroll', onScroll, { passive: true })
-    const initRaf = requestAnimationFrame(computeActiveTurn)
+    let initRaf = 0
+    if (turnNavHoverRef.current) initRaf = requestAnimationFrame(computeActiveTurn)
     return () => {
       el.removeEventListener('scroll', onScroll)
       cancelAnimationFrame(raf)
@@ -1206,7 +1219,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           </div>
         )}
         {/* Busy indicator — thinking + streaming + sparkle */}
-        <FadeOutOnUnmount visible={state.busy} duration={200}>
+        {/* isActive=false 的 AiTab 挂在 DOM 里但 display:none：不挂载 live 区，后台会话每次 flush 不再
+            产生 markdown/thinking 渲染、动画与滚动量测（store 仍是唯一真相源，切回即补全 live 视图） */}
+        <FadeOutOnUnmount visible={state.busy && isActive} duration={200}>
           <div className="ai-tab__busy w-full max-w-[896px] mx-auto space-y-1.5">
             {Object.keys(state.runningTools).length > 0 && (
               <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">

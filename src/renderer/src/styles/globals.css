@@ -451,6 +451,7 @@ html, body, #root {
 .animate-spin-snowflake {
   animation: spin-snowflake 1.2s linear infinite;
   display: inline-block;
+  will-change: transform;
   color: rgb(var(--ide-accent));
 }
 
@@ -1194,14 +1195,20 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* thinking 平滑浮现：每次 flush 增量段整段做一次柔和淡入（0.25→1，无字符颗粒、不闪眼），
-   旧段 DOM 复用不重播；起点非 0 避免「凭空猛闪」的刺眼跳变 */
+/* thinking 平滑浮现：每次 flush 增量段整段做一次柔和淡入（0.1→1，无字符颗粒），旧段 DOM 复用不重播；
+   起点非 0 避免「凭空猛闪」。时长必须 ≥ 2×flush 节流(200ms)才看得见：linear + 600ms
+   让尾部稳定保持 3 段雾散梯度（约 0.1/0.4/0.7），ease-out 会把亮度堆在前 100ms、快模型下融成一片 */
 .ai-tab__think-seg {
-  animation: think-seg-in 400ms ease-out;
+  animation: think-seg-in 600ms linear;
 }
 @keyframes think-seg-in {
-  from { opacity: 0.25; }
+  from { opacity: 0.1; }
   to { opacity: 1; }
+}
+/* 流式 thinking 的每次 DOM 增量都在此容器内：layout/paint/style 隔离把脏区域限制在盒内，
+   避免 pre-wrap 文本增长向整条消息链传播重排（内联 span 无法提层，只能缩小失效面积） */
+.ai-tab__thinking-content {
+  contain: layout paint style;
 }
 @media (prefers-reduced-motion: reduce) {
   .md-block-enter, .ai-tab__think-seg { animation: none; }

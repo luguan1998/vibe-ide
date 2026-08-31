@@ -190,6 +190,12 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
   )
 }
 
+// cleanMessageContent 是 6 趟 [\s\S]*? 正则 + 6 次字符串分配；thinking 正文几乎不含标签，
+// 先用 indexOf 探一次 '<'（V8 SIMD 扫描，未命中即原文），命中才走完整清洗，语义完全一致
+function stripCommandTags(text: string): string {
+  return text.indexOf('<') < 0 ? text.trim() : cleanMessageContent(text)
+}
+
 export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScroll, autoFold, noAnimate, smoothStream = false }: { text: string; defaultOpen?: boolean; durationMs?: number; autoScroll?: boolean; autoFold?: boolean; noAnimate?: boolean; smoothStream?: boolean }) {
   // autoFold（live 接管 busy 区 thinking）：以展开态挂载无缝交接（零高度跳变）、匹配其底部滚动位、
   // 下一帧 rAF 平滑折叠、跳过 fade-in。故 autoFold 隐含 defaultOpen=true + autoScroll=true
@@ -201,29 +207,40 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
     ? `Thinking for ${(durationMs / 1000).toFixed(1)}s`
     : 'Thinking'
 
-  // 平滑流式：每次 flush 增量段挂一个 span 做整段柔和淡入（无字符颗粒、不闪眼）。
-  // 段累积超 SEG_MERGE_LIMIT 时合并为静态 baseline + 最近一段活段，防长 thinking span 无限膨胀。
-  const SEG_MERGE_LIMIT = 24
-  const segsRef = useRef<{ id: number; text: string; live?: boolean }[]>([])
+  // 平滑流式：每次 flush 增量段挂一个 span 做整段柔和淡入（时序参数见 globals.css .ai-tab__think-seg）。
+  //
+  // 省 CPU 的两件事（视觉不变）：
+  // 1) 段只存字符偏移，DOM 里只渲染最近 TAIL_LOW~TAIL_MAX 字符的滑动窗口。旧实现把全部已收文本
+  //    常驻一个 <pre>，每次 flush 触发整块文本重排 + cleanMessageContent 全文 6 趟正则 → O(n²)。
+  //    窗口化后 layout/paint/正则面积恒定。
+  // 2) live 标记在段的创建时刻固化（不再按下标推断）：动画播完前摘掉 class 会让旧段中途硬跳到不透明。
+  const TAIL_MAX = 6000
+  const TAIL_LOW = 4000
+  const SEG_KEEP = 24
+  const segStreamRef = useRef<{ last: string; win: number; seq: number; segs: { id: number; start: number; end: number; live: boolean }[] }>(
+    { last: '', win: 0, seq: 0, segs: [] })
+  let segView: { cut: boolean; segs: { id: number; text: string; live: boolean }[] } | null = null
   if (smoothStream) {
-    const segs = segsRef.current
-    const clean = cleanMessageContent(text)
-    const rendered = segs.map((s) => s.text).join('')
-    if (segs.length === 0) {
-      if (clean) segsRef.current = [{ id: 0, text: clean, live: true }]
-    } else if (clean.startsWith(rendered)) {
-      if (clean.length > rendered.length) {
-        const tail = { id: segs.length, text: clean.slice(rendered.length), live: true }
-        if (segs.length >= SEG_MERGE_LIMIT) {
-          // 合并旧段为静态 baseline（不带 live，避免 merge 时重播动画闪一下）
-          const base = { id: 0, text: segs.map((s) => s.text).join('') }
-          segsRef.current = [base, tail]
-        } else {
-          segsRef.current = [...segs, tail]
-        }
-      }
-    } else {
-      segsRef.current = clean ? [{ id: 0, text: clean, live: true }] : []
+    const st = segStreamRef.current
+    const clean = stripCommandTags(text)
+    if (!st.segs.length || !clean.startsWith(st.last)) {
+      st.segs = clean ? [{ id: st.seq++, start: 0, end: clean.length, live: true }] : []
+      st.win = 0
+    } else if (clean.length > st.last.length) {
+      st.segs.push({ id: st.seq++, start: st.last.length, end: clean.length, live: true })
+    }
+    st.last = clean
+    if (clean.length - st.win > TAIL_MAX) st.win = clean.length - TAIL_LOW
+    while (st.segs.length > 1 && st.segs[0].end <= st.win) st.segs.shift()
+    if (st.segs.length > SEG_KEEP) {
+      const drop = st.segs.length - SEG_KEEP + 1
+      // 最旧 drop 段并成一条，且沿用首段 id → React 复用同一 DOM 节点，只改文本不重挂载，
+      // 已播完的淡入不会被重新触发
+      st.segs.splice(0, drop, { id: st.segs[0].id, start: st.segs[0].start, end: st.segs[drop - 1].end, live: st.segs[0].live })
+    }
+    segView = {
+      cut: st.win > 0,
+      segs: st.segs.map((s) => ({ id: s.id, text: clean.slice(s.start > st.win ? s.start : st.win, s.end), live: s.live })),
     }
   }
 
@@ -268,9 +285,10 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
       <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="min-h-0 overflow-hidden">
           <div ref={contentRef} className="ai-tab__thinking-content px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
-            {smoothStream ? (
+            {segView ? (
               <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">
-                {segsRef.current.map((s) => (
+                {segView.cut && <span className="text-ide-text-muted/40 select-none">…</span>}
+                {segView.segs.map((s) => (
                   <span key={s.id} className={s.live ? 'ai-tab__think-seg' : undefined}>{s.text}</span>
                 ))}
               </pre>
@@ -587,7 +605,9 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   return <>{inner}</>
 })
 
-export function MessageList({ messages, userTurns, viewMode, busy, workspacePath, onOpenFile, onRevert, onRevertAndCode, onFork }: {
+// memo：thinking 每次 flush 只换 thinkingBuffer（messages/busy/回调引用不变）→
+// 跳过整表分组重算与 N 个 bubble 的 element 创建，5 次/秒的 O(N) 工作归零
+export const MessageList = React.memo(function MessageList({ messages, userTurns, viewMode, busy, workspacePath, onOpenFile, onRevert, onRevertAndCode, onFork }: {
   messages: AiMessage[]
   userTurns: UserTurn[]
   viewMode: number
@@ -687,4 +707,4 @@ export function MessageList({ messages, userTurns, viewMode, busy, workspacePath
       />
     )
   })}</>
-}
+})
