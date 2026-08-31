@@ -5,10 +5,11 @@ import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
 import GameFruitNinja from './GameFruitNinja'
 import GameVampire from './GameVampire'
+import GameClimb from './GameClimb'
 import HistoryView from './HistoryView'
 import SkillView from './SkillView'
 
-type GameId = 'menu' | 'history' | 'skills' | '2048' | 'sandspiel' | 'balatro' | 'fruitninja' | 'vampire'
+type GameId = 'menu' | 'history' | 'skills' | '2048' | 'sandspiel' | 'balatro' | 'fruitninja' | 'vampire' | 'climb'
 
 interface GameLauncherProps {
   workspacePath: string | null
@@ -35,6 +36,7 @@ const GAMES: GameCard[] = [
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
   { id: 'fruitninja', icon: <span className="text-2xl leading-none">🍉</span>, name: 'Fruit Ninja', desc: 'Slice fruits with your swipe — dodge the bombs' },
   { id: 'vampire', icon: <span className="text-2xl leading-none">🧛</span>, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
+  { id: 'climb', icon: <span className="text-2xl leading-none">⛏️</span>, name: 'Get Over It', desc: 'Hammer your way up the mountain — every fall hurts' },
 ]
 
 export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onResumeDshHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown }: GameLauncherProps) {
@@ -62,6 +64,7 @@ export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onR
       case '2048': return <Game2048 onBack={back} />
       case 'fruitninja': return <GameFruitNinja onBack={back} />
       case 'vampire': return <GameVampire onBack={back} />
+      case 'climb': return <GameClimb onBack={back} />
     }
   }
 
