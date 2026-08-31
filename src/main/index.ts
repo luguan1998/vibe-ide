@@ -206,7 +206,13 @@ electronApp.setAppUserModelId('com.vibe-ide')
 app.whenReady().then(() => {
   app.on('web-contents-created', (_e, contents) => {
     if (contents.getType?.() === 'webview') {
-      contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      // 网页里的 target=_blank / window.open:先在 webview 内原地打开,而不是静默吞掉
+      contents.setWindowOpenHandler(({ url }) => {
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          contents.loadURL(url)
+        }
+        return { action: 'deny' }
+      })
     }
   })
   // Default sandbox for renderer

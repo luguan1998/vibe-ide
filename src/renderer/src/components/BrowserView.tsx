@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useImperativeHandle } from 'react'
-import { RotateCw, X, ArrowLeft, ArrowRight, Feather, PanelRight, PanelLeft } from 'lucide-react'
+import { RotateCw, ArrowLeft, ArrowRight, Feather, PanelRight, PanelLeft } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { InlineAnnotationInput } from './AiTab'
 
@@ -127,6 +127,7 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
   const pick = pickMode
   const pickRef = useRef(false)
   pickRef.current = pick
+  const [loading, setLoading] = useState(false)
 
   useImperativeHandle(ref, () => ({
     loadURL: (u: string) => {
@@ -181,15 +182,21 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
     const onWillNav = (e: any) => {
       if (pickRef.current) { e.preventDefault() }
     }
+    const onStart = () => setLoading(true)
+    const onStop = () => setLoading(false)
     wv.addEventListener('console-message', onConsole)
     wv.addEventListener('did-navigate', onNav)
     wv.addEventListener('did-navigate-in-page', onNav)
     wv.addEventListener('will-navigate', onWillNav)
+    wv.addEventListener('did-start-loading', onStart)
+    wv.addEventListener('did-stop-loading', onStop)
     return () => {
       wv.removeEventListener('console-message', onConsole)
       wv.removeEventListener('did-navigate', onNav)
       wv.removeEventListener('did-navigate-in-page', onNav)
       wv.removeEventListener('will-navigate', onWillNav)
+      wv.removeEventListener('did-start-loading', onStart)
+      wv.removeEventListener('did-stop-loading', onStop)
     }
   }, [])
 
@@ -229,24 +236,32 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
         <button onClick={() => webviewRef.current?.reload()} className="w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0" title={t('Refresh')}>
           <RotateCw className="w-3.5 h-3.5" />
         </button>
+        <div className="flex-1 min-w-0 relative">
+          <input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') commitAddress() }}
+            placeholder={t('Enter URL or search')}
+            className="w-full h-6 px-2 pr-7 text-xs bg-ide-bg border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent"
+          />
+          {loading && <div className="absolute right-2 top-1.5 w-3 h-3 border-2 border-ide-accent/30 border-t-ide-accent rounded-full animate-spin pointer-events-none" />}
+        </div>
         {onToggleDock && (
           <button onClick={onToggleDock} className="w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0" title={docked ? t('Move to Center') : t('Move to Right')}>
             {docked ? <PanelLeft className="w-3.5 h-3.5" /> : <PanelRight className="w-3.5 h-3.5" />}
           </button>
         )}
-        <input
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') commitAddress() }}
-          placeholder={t('Enter URL or search')}
-          className="flex-1 min-w-0 h-6 px-2 text-xs bg-ide-bg border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent"
-        />
-        <button onClick={onBack} className="w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0" title={t('Close')}>
-          <X className="w-3.5 h-3.5" />
-        </button>
       </div>
       <div ref={wrapperRef} className="flex-1 relative overflow-hidden bg-white">
-        {React.createElement('webview', { ref: webviewRef, src: url, className: 'w-full h-full border-0' })}
+        {React.createElement('webview', { ref: webviewRef, src: url, className: 'w-full h-full border-0', allowpopups: 'true' })}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-ide-bg/20 z-10">
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-ide-sidebar/90 backdrop-blur-sm border border-ide-border rounded-lg text-xs text-ide-text shadow-lg">
+              <div className="w-4 h-4 border-2 border-ide-accent/30 border-t-ide-accent rounded-full animate-spin" />
+              <span>{t('Loading...')}</span>
+            </div>
+          </div>
+        )}
         {annotation && (
           <InlineAnnotationInput top={annotation.y} left={annotation.x} containerRef={wrapperRef} onSubmit={handleAnnotateSubmit} onDismiss={() => setAnnotation(null)} />
         )}
