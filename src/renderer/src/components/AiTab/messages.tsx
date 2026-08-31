@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import type { AiMessage, AiToolUse, UserTurn } from '@shared/types'
+import { asToolArray } from '@shared/types'
 import { useI18n } from '../../i18n'
 import { cleanMessageContent } from '../../utils/aiConversationFormatter'
 import { ChevronDown, Check, Undo2, MessageSquare, GitFork, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
@@ -32,7 +33,7 @@ export function deriveTodoList(messages: AiMessage[]): TodoItem[] {
     if (!msg.toolUse) continue
     for (const tool of msg.toolUse) {
       if (tool.name === 'TodoWrite') {
-        const todos = (tool.input?.todos || []) as Array<{ content?: string; status?: string; activeForm?: string }>
+        const todos = asToolArray<{ content?: string; status?: string; activeForm?: string }>(tool.input?.todos)
         tasks.clear()
         todos.forEach((td, i) => {
           const status = td.status === 'completed' || td.status === 'in_progress' ? td.status : 'pending'

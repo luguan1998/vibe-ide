@@ -5,7 +5,7 @@ import { readFile, readdir, stat, rm } from 'fs/promises'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
-import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS, DEFAULT_AI_CONTEXT_WINDOW } from '../shared/types'
+import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS, DEFAULT_AI_CONTEXT_WINDOW, asToolArray } from '../shared/types'
 import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, AiSetContextWindowPayload, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
 
 export interface ManagedAiSession {
@@ -1658,7 +1658,7 @@ export function registerAiHandlers(): void {
     // pipe, so a raw write would vanish silently. Route the typed message through
     // kill-and-resume as the free-text answer so the conversation actually continues.
     if (session.awaitingUserInput) {
-      const questions = (session.pendingPermission?.toolInput?.questions || []) as Array<{ question: string }>
+      const questions = asToolArray<{ question: string }>(session.pendingPermission?.toolInput?.questions)
       const answers: Record<string, string> = {}
       for (const q of questions) answers[q.question] = payload.message
       return resumeAfterAsk(payload.sessionId, answers)

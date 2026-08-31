@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import type { AiPermissionRequest } from '@shared/types'
+import { asToolArray } from '@shared/types'
 import { useI18n } from '../../i18n'
 import { ChevronDown, ChevronUp, HelpCircle, Check, FileText } from 'lucide-react'
 import { displayLabel, getShortcuts } from '../../shortcuts'
@@ -11,7 +12,7 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
 }) {
   const { t } = useI18n()
 
-  const questions = (perm.toolInput?.questions || []) as Array<{
+  const questions = asToolArray<{
     question: string
     header: string
     multiSelect: boolean

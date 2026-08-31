@@ -475,6 +475,19 @@ export const AI_FILE_EDIT_TOOLS = new Set([
   'delete_file', 'DeleteFile', 'file_delete', 'rm', 'Remove', 'remove',
 ])
 
+// 非 Claude 模型(代理/中转)常把嵌套数组参数双重编码为 JSON 字符串,或整个传成对象;
+// 工具 input 是从 CLI 原样透传的,消费前必须归一化,否则 .map/.forEach 直接崩渲染
+export function asToolArray<T>(v: unknown): T[] {
+  if (Array.isArray(v)) return v as T[]
+  if (typeof v === 'string' && v) {
+    try {
+      const parsed = JSON.parse(v)
+      if (Array.isArray(parsed)) return parsed as T[]
+    } catch { /* fall through */ }
+  }
+  return []
+}
+
 export interface AiToolUse {
   id: string
   name: string
