@@ -295,6 +295,7 @@ app.whenReady().then(() => {
 
   // App version
   ipcMain.handle(IPC_CHANNELS.APP_VERSION, () => app.getVersion())
+  ipcMain.handle(IPC_CHANNELS.APP_HOME, () => app.getPath('home'))
 
   // Claude 配置目录：renderer 无 homedir，由 main 返回路径后用 file 读写 settings.json / 配置组文件。
   // 与 ai.ts 共用 resolveConfigDir：未显式配置时按 ~/.claude → ~/.openclaude → ~/.opencc 探测

@@ -156,6 +156,7 @@ export const IPC_CHANNELS = {
 
   // App
   APP_VERSION: 'app:version',
+  APP_HOME: 'app:home',
   SNIPPETS_LOAD: 'app:snippetsLoad',
   SNIPPETS_TOGGLE: 'app:snippetsToggle',
 

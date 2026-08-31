@@ -6,14 +6,17 @@ import GameBalatro from './GameBalatro'
 import GameFruitNinja from './GameFruitNinja'
 import GameVampire from './GameVampire'
 import HistoryView from './HistoryView'
+import SkillView from './SkillView'
 
-type GameId = 'menu' | 'history' | '2048' | 'sandspiel' | 'balatro' | 'fruitninja' | 'vampire'
+type GameId = 'menu' | 'history' | 'skills' | '2048' | 'sandspiel' | 'balatro' | 'fruitninja' | 'vampire'
 
 interface GameLauncherProps {
   workspacePath: string | null
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
   historyNavNonce?: number
+  onOpenFileFromExplorer?: (fullPath: string) => void
+  onPreviewMarkdown?: (fullPath: string, fileName: string) => void
 }
 
 interface GameCard {
@@ -26,6 +29,7 @@ interface GameCard {
 
 const GAMES: GameCard[] = [
   { id: 'history', icon: <span className="text-2xl leading-none">📜</span>, name: 'Session History', desc: 'Browse & search Claude history' },
+  { id: 'skills', icon: <span className="text-2xl leading-none">✨</span>, name: 'Skills', desc: 'Manage Claude & dsh skills' },
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
@@ -33,7 +37,7 @@ const GAMES: GameCard[] = [
   { id: 'vampire', icon: <span className="text-2xl leading-none">🧛</span>, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
-export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onResumeDshHistory, historyNavNonce }: GameLauncherProps) {
+export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onResumeDshHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown }: GameLauncherProps) {
   const [currentGame, setCurrentGame] = useState<GameId>('menu')
   const lastHistoryNonce = useRef(0)
   useEffect(() => {
@@ -52,6 +56,7 @@ export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onR
     const back = () => setCurrentGame('menu')
     switch (currentGame) {
       case 'history': return <HistoryView onBack={back} workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} />
+      case 'skills': return <SkillView onBack={back} workspacePath={workspacePath} onOpenFile={onOpenFileFromExplorer ?? (() => {})} onPreviewFile={onPreviewMarkdown ? (p) => onPreviewMarkdown(p, p.split(/[\\/]/).pop() || p) : undefined} />
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />
       case '2048': return <Game2048 onBack={back} />

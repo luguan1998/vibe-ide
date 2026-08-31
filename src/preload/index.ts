@@ -175,6 +175,7 @@ const api = {
 
   // App
   appVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_VERSION) as Promise<string>,
+  appHome: () => ipcRenderer.invoke(IPC_CHANNELS.APP_HOME) as Promise<string>,
 
   // CSS snippets（exe 同目录 snippets/ 文件夹，snippets.json 控制启用/禁用）
   snippets: {

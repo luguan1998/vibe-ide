@@ -479,6 +479,23 @@ const ZH_MAP: Record<string, string> = {
   // AI Permission Modes
   'Session History': '历史会话',
   'Task Board': '任务看板',
+  // Skills
+  'Skills': '技能',
+  'Manage Claude & dsh skills': '管理 Claude / dsh 技能',
+  'New Skill': '新建技能',
+  'Skill name': '技能名称',
+  'Skill description (optional)': '技能描述（可选）',
+  'Project': '项目',
+  'Global': '全局',
+  'Invalid skill name': '名称仅允许字母、数字、. _ -，且以字母或数字开头',
+  'No skills folder': '技能目录不可用',
+  'Skill already exists': '同名技能已存在',
+  'Edit skill': '编辑 SKILL.md',
+  'Delete skill': '删除技能',
+  'Delete skill confirm': '确定删除该技能目录？此操作不可撤销。',
+  'No skills yet': '暂无技能',
+  'Skills folder': '技能目录',
+  'Skills hint': '在下列目录中创建 <名称>/SKILL.md，即可被 Claude CLI 与 dsh 会话加载',
   'All': '全部',
   'Filter by directory': '按目录筛选',
   // Task Board (session kanban)

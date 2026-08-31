@@ -164,6 +164,7 @@ declare global {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
       }
       appVersion: () => Promise<string>
+      appHome: () => Promise<string>
       perf: { snapshot: () => Promise<any> }
       system: { listFonts: () => Promise<string[]> }
       onFontAdjust: (callback: (delta: number) => void) => any
