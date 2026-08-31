@@ -4,10 +4,11 @@ import { readAiCliConfig } from '../aiStore'
 import { buildHistoryTurns, formatBytes } from '../historyUtils'
 import type { HistoryTurn } from '../historyUtils'
 import type { AiSessionSummary, AiSessionSearchGroup, AiSearchMatch } from '@shared/types'
-import { ArrowLeft, ChevronDown, Filter, FolderOpen, Loader2, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Filter, FolderOpen, Loader2, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { fetchDshSessions, fetchDshHistoryTurns, type DshHistorySession } from '../dsh/history'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
+import { ToolIcon } from './AiTab/tools'
 import { getLastNewMode, toHistoryMode, type HistoryMode } from '../utils/sessionModePrefs'
 
 interface HistoryViewProps {
@@ -104,6 +105,17 @@ function TurnRow({ turn }: { turn: HistoryTurn }) {
   )
 }
 
+// 历史会话数据源下拉选项：tui/gui 同为 claude 历史，dsh 独立
+const HISTORY_MODE_OPTIONS: { value: HistoryMode; label: string; icon: React.ReactNode }[] = [
+  {
+    value: 'tui',
+    label: 'claude tui',
+    icon: <ToolIcon category="command" />,
+  },
+  { value: 'gui', label: 'claude gui', icon: <ClaudeLogoIcon size={13} /> },
+  { value: 'dsh', label: 'dsh', icon: <DeepSeekLogoIcon size={13} /> },
+]
+
 export default function HistoryView({ onBack, workspacePath, onResumeClaudeHistory, onResumeDshHistory }: HistoryViewProps) {
   const { t } = useI18n()
   const [sessions, setSessions] = useState<Summary[]>([])
@@ -125,7 +137,26 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [searchError, setSearchError] = useState('')
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
   const [onlyCurrent, setOnlyCurrent] = useState(false)
+  const [modeOpen, setModeOpen] = useState(false)
+  const modeRef = useRef<HTMLDivElement>(null)
   const fetchReqIdRef = useRef(0)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (modeRef.current && !modeRef.current.contains(e.target as Node)) setModeOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!modeOpen) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setModeOpen(false); e.stopPropagation() }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [modeOpen])
 
   // 非当前项目分组默认收缩（claude 与 dsh 共用；只增不减，用户已展开的保持展开）
   const collapseNonCurrent = (list: Summary[]) => {
@@ -418,30 +449,37 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
             <ArrowLeft size={13} />
           </button>
           <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider truncate">{t('Session History')}</span>
-          <div className="flex items-center rounded bg-ide-sidebar border border-ide-border p-0.5">
+          <div ref={modeRef} className="relative ml-2">
             <button
-              onClick={() => setMode('tui')}
-              className={`w-6 h-5 rounded flex items-center justify-center transition-colors ${mode === 'tui' ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-accent hover:bg-ide-accent/20'}`}
-              title="cc tui"
+              type="button"
+              onClick={() => setModeOpen(v => !v)}
+              className="flex items-center gap-1 h-5 px-2 rounded bg-ide-sidebar border border-ide-border text-ide-text hover:bg-ide-hover transition-colors"
+              title={`${HISTORY_MODE_OPTIONS.find(o => o.value === mode)?.label} mode`}
             >
-              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
-              </svg>
+              <span className="shrink-0 text-ide-accent">{HISTORY_MODE_OPTIONS.find(o => o.value === mode)?.icon}</span>
+              <span className="max-w-[88px] truncate text-[11px] text-ide-text">{HISTORY_MODE_OPTIONS.find(o => o.value === mode)?.label}</span>
+              <ChevronDown size={12} className={`shrink-0 opacity-50 transition-transform ${modeOpen ? 'rotate-180' : ''}`} />
             </button>
-            <button
-              onClick={() => setMode('gui')}
-              className={`w-6 h-5 rounded flex items-center justify-center transition-colors ${mode === 'gui' ? 'bg-ide-accent/15' : 'text-ide-text-muted hover:text-ide-text'}`}
-              title="cc gui"
-            >
-              <ClaudeLogoIcon size={13} />
-            </button>
-            <button
-              onClick={() => setMode('dsh')}
-              className={`w-6 h-5 rounded flex items-center justify-center transition-colors ${mode === 'dsh' ? 'bg-ide-accent/15' : 'text-ide-text-muted hover:text-ide-text'}`}
-              title="dsh"
-            >
-              <DeepSeekLogoIcon size={13} />
-            </button>
+            {modeOpen && (
+              <div className="absolute top-full right-0 mt-1 z-30 bg-ide-sidebar border border-ide-border rounded-lg shadow-lg min-w-[130px] py-0.5 animate-fade-in">
+                {HISTORY_MODE_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => { setMode(opt.value); setModeOpen(false) }}
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors ${
+                      opt.value === mode
+                        ? 'bg-ide-accent/15 text-ide-accent'
+                        : 'text-ide-text hover:bg-ide-hover'
+                    }`}
+                  >
+                    <span className="shrink-0 text-xs">{opt.icon}</span>
+                    <span className="truncate">{opt.label}</span>
+                    {opt.value === mode && <Check size={10} className="ml-auto shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex-1" />
           <button
