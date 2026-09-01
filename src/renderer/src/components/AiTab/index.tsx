@@ -11,7 +11,7 @@ import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plu
 import { StreamingMarkdown } from './markdown'
 import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
-import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard } from './permissions'
+import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard, AiPermErrorBoundary } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, ModeSelector } from './inputArea'
 import type { MentionItem } from './inputArea'
 import { ClaudeLogoIcon } from '../ClaudeLogoIcon'
@@ -1282,19 +1282,26 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
       {/* Permission popup — floats above input, not inside scroll area */}
       {state.pendingPermission && activeSessionId && (
-        state.pendingPermission.tool === 'AskUserQuestion' ? (
-          <AiAskQuestionCard
-            perm={state.pendingPermission}
-            sessionId={activeSessionId}
-            onRespond={aiStore.handleAskResume}
-          />
-        ) : (
-          <AiPermissionCard
-            perm={state.pendingPermission}
-            sessionId={activeSessionId}
-            onRespond={aiStore.handlePermissionResponse}
-          />
-        )
+        <AiPermErrorBoundary
+          key={state.pendingPermission.requestId}
+          perm={state.pendingPermission}
+          sessionId={activeSessionId}
+          onRespond={state.pendingPermission.tool === 'AskUserQuestion' ? aiStore.handleAskResume : aiStore.handlePermissionResponse}
+        >
+          {state.pendingPermission.tool === 'AskUserQuestion' ? (
+            <AiAskQuestionCard
+              perm={state.pendingPermission}
+              sessionId={activeSessionId}
+              onRespond={aiStore.handleAskResume}
+            />
+          ) : (
+            <AiPermissionCard
+              perm={state.pendingPermission}
+              sessionId={activeSessionId}
+              onRespond={aiStore.handlePermissionResponse}
+            />
+          )}
+        </AiPermErrorBoundary>
       )}
 
       {/* Todo list — pins above input so it stays visible */}

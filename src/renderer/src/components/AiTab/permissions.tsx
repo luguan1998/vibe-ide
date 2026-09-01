@@ -12,12 +12,25 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
 }) {
   const { t } = useI18n()
 
-  const questions = asToolArray<{
+  const questions: Array<{
     question: string
     header: string
     multiSelect: boolean
-    options: Array<{ label: string; description?: string; preview?: string }>
-  }>
+    options: Array<{ label: string; description?: string }>
+  }> = asToolArray<unknown>(perm.toolInput?.questions)
+    .filter((q): q is Record<string, any> => !!q && typeof q === 'object')
+    .map(q => ({
+      question: q.question == null ? '' : String(q.question),
+      header: q.header == null ? '' : String(q.header),
+      multiSelect: !!q.multiSelect,
+      options: asToolArray<unknown>(q.options)
+        .filter((o): o is Record<string, any> => !!o && typeof o === 'object')
+        .map(o => ({
+          label: o.label == null ? '' : String(o.label),
+          description: typeof o.description === 'string' ? o.description : undefined,
+        })),
+    }))
+    .filter(q => q.question)
 
   // 单题单选 → 点击选项立即提交；多题或多选 → Submit 统一提交
   const quickSubmit = questions.length === 1 && !questions[0].multiSelect
@@ -29,6 +42,11 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
   })
   const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({})
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
+
+  // 全脏数据（清洗后无可用题目）→ 降级为普通 Approve/Deny 卡,不阻塞会话
+  if (questions.length === 0) {
+    return <AiPermissionCard perm={perm} sessionId={sessionId} onRespond={onRespond} />
+  }
 
   const allAnswered = questions.every(q =>
     (selections[q.question]?.size ?? 0) >= 1 || (customValues[q.question] || '').trim().length > 0
@@ -240,6 +258,23 @@ export const AiPermissionCard = React.memo(function AiPermissionCard({ perm, ses
     </div>
   )
 })
+
+export class AiPermErrorBoundary extends React.Component<{
+  perm: AiPermissionRequest
+  sessionId: string
+  onRespond: (sid: string, rid: string, approved: boolean, tool: string, toolInput?: Record<string, any>) => void
+  children: React.ReactNode
+}, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(error: Error) { console.warn('[AiPermErrorBoundary]', error) }
+  render() {
+    if (this.state.failed) {
+      return <AiPermissionCard perm={this.props.perm} sessionId={this.props.sessionId} onRespond={this.props.onRespond} />
+    }
+    return this.props.children
+  }
+}
 
 function getSectionReference(el: HTMLElement): { heading: string | null; snippet: string } {
   const BLOCK_TAGS = new Set(['P', 'LI', 'TD', 'TH', 'BLOCKQUOTE', 'DD', 'DT', 'FIGCAPTION', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'])
