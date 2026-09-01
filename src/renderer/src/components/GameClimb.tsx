@@ -2,57 +2,65 @@ import React, { useEffect, useRef, useState } from 'react'
 
 const W = 560
 const H = 800
-const WORLD_W = 3200
+const WORLD_W = 2700
 const WORLD_H = 1600
 const G = 1200
 const PLAYER_R = 24
 const HAMMER_LEN = 92
 const TIP_R = 10
 const STEP = 1 / 60
+const SUBS = 3
+const DT = STEP / SUBS
 const TIP_GAIN = 16
 const TIP_MAX = 1500
+const POP_DIST = 62
+const SINK = 3
 
 interface Circle { x: number; y: number; r: number }
-interface Wall { x1: number; y1: number; x2: number; y2: number }
 
-// 世界地形:起点缓坡 → 洞窟(东端封闭,墙角垫石翻出) → 峰坡 → 峰顶
-const WALLS: Wall[] = [
-  { x1: 0, y1: 1420, x2: 310, y2: 1420 },
-  { x1: 310, y1: 1420, x2: 430, y2: 1330 },
-  { x1: 430, y1: 1330, x2: 560, y2: 1295 },
-  { x1: 560, y1: 1295, x2: 700, y2: 1235 },
-  { x1: 700, y1: 1235, x2: 800, y2: 1180 },
-  { x1: 800, y1: 1180, x2: 1100, y2: 1120 },
-  { x1: 1100, y1: 1120, x2: 1380, y2: 1090 },
-  { x1: 789, y1: 950, x2: 1100, y2: 980 },
-  { x1: 1100, y1: 980, x2: 1390, y2: 950 },
-  { x1: 1390, y1: 950, x2: 1620, y2: 760 },
-  { x1: 1620, y1: 760, x2: 1830, y2: 540 },
-  { x1: 1830, y1: 540, x2: 2000, y2: 370 },
-  { x1: 2000, y1: 370, x2: 2130, y2: 255 },
-  { x1: 2130, y1: 255, x2: 2260, y2: 255 },
-  { x1: 2260, y1: 255, x2: 2260, y2: 1300 },
-  { x1: 1380, y1: 1090, x2: 1390, y2: 950 },
+const PROF: [number, number][] = [
+  [0, 1430], [310, 1420], [430, 1330], [560, 1295], [700, 1235],
+  [800, 1180], [1100, 1120], [1380, 1080], [1520, 980], [1620, 780],
+  [1830, 545], [2000, 380], [2130, 262], [2260, 250], [2700, 250],
 ]
-const ROCKS: Circle[] = [
-  { x: 930, y: 1114, r: 52 },
-  { x: 1180, y: 1079, r: 44 },
-  { x: 1348, y: 1000, r: 30 },
-  { x: 1720, y: 702, r: 58 },
-  { x: 1935, y: 478, r: 58 },
-]
-const SPAWN = { x: 150, y: 1392 }
-const GOAL = { x: 2195, y: 205, r: 80 }
+const surfY = (x: number) => {
+  for (let i = 1; i < PROF.length; i++) {
+    if (x <= PROF[i][0]) {
+      const t = (x - PROF[i - 1][0]) / ((PROF[i][0] - PROF[i - 1][0]) || 1)
+      return PROF[i - 1][1] + (PROF[i][1] - PROF[i - 1][1]) * t
+    }
+  }
+  return PROF[PROF.length - 1][1]
+}
+const hash = (n: number) => {
+  const h = Math.sin(n * 127.1 + 311.7) * 43758.5453
+  return h - Math.floor(h)
+}
+// 原版山体 = 一堆大圆石。物理与视觉同一套:碰撞全用圆,不会卡缝
+const BOULDERS: Circle[] = []
+{
+  let x = 10
+  let i = 0
+  while (x < WORLD_W - 10) {
+    const r = 58 + hash(i * 3 + 1) * 46
+    BOULDERS.push({ x, y: surfY(x) + r * 0.38, r })
+    x += 92 + hash(i * 3 + 2) * 30
+    i++
+  }
+}
+const SPAWN = { x: 150, y: surfY(150) - 42 }
+const GOAL = { x: 2178, y: 196, r: 85 }
 
-const STARS = Array.from({ length: 36 }, (_, i) => ({
+const STARS = Array.from({ length: 42 }, (_, i) => ({
   x: (i * 173 + 53) % WORLD_W,
-  y: (i * 191 + 40) % 1300,
-  r: 1 + (i % 3) * 0.5,
+  y: (i * 191 + 40) % 1350,
+  r: 0.8 + hash(i * 7) * 1.6,
 }))
 
 interface Body { x: number; y: number; vx: number; vy: number; radius: number }
 const player: Body = { x: SPAWN.x, y: SPAWN.y, vx: 0, vy: 0, radius: PLAYER_R }
 const tip: Body = { x: player.x + HAMMER_LEN, y: player.y, vx: 0, vy: 0, radius: TIP_R }
+let stuck = false
 
 const resetBodies = () => {
   player.x = SPAWN.x
@@ -63,53 +71,42 @@ const resetBodies = () => {
   tip.y = player.y
   tip.vx = 0
   tip.vy = 0
+  stuck = false
 }
 
-// sink:镐头可楔入岩面,抓住即不脱手
-const collide = (b: Body, c: Circle, fric: number, rest: number, sink = 0) => {
-  const nx = b.x - c.x
-  const ny = b.y - c.y
-  const d = Math.hypot(nx, ny)
-  const min = c.r + b.radius - sink
-  if (d >= min || d === 0) return false
-  const ox = nx / d
-  const oy = ny / d
-  b.x += ox * (min - d)
-  b.y += oy * (min - d)
-  const vn = b.vx * ox + b.vy * oy
+const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v)
+
+// 正确的库仑摩擦:法向速度由恢复系数吸收,摩擦只衰减切向分量,且每子步只作用一次
+const resolvePlayer = (n: Circle) => {
+  const dx = player.x - n.x
+  const dy = player.y - n.y
+  const d = Math.hypot(dx, dy) || 0.001
+  const min = n.r + player.radius
+  if (d < min) {
+    player.x += (dx / d) * (min - d)
+    player.y += (dy / d) * (min - d)
+  }
+  const ox = dx / d
+  const oy = dy / d
+  const vn = player.vx * ox + player.vy * oy
   if (vn < 0) {
-    b.vx -= ox * vn * (1 + rest)
-    b.vy -= oy * vn * (1 + rest)
-    b.vx *= fric
-    b.vy *= fric
+    player.vx -= ox * vn
+    player.vy -= oy * vn
   }
   return { ox, oy }
 }
 
-const collideWall = (b: Body, w: Wall, fric: number, rest: number, sink = 0) => {
-  const abx = w.x2 - w.x1
-  const aby = w.y2 - w.y1
-  const len2 = abx * abx + aby * aby || 1
-  let t = ((b.x - w.x1) * abx + (b.y - w.y1) * aby) / len2
-  t = Math.max(0, Math.min(1, t))
-  const cx = w.x1 + abx * t
-  const cy = w.y1 + aby * t
-  const nx = b.x - cx
-  const ny = b.y - cy
-  const d = Math.hypot(nx, ny)
-  if (d >= b.radius - sink || d === 0) return false
-  const ox = nx / d
-  const oy = ny / d
-  b.x += ox * (b.radius - sink - d)
-  b.y += oy * (b.radius - sink - d)
-  const vn = b.vx * ox + b.vy * oy
-  if (vn < 0) {
-    b.vx -= ox * vn * (1 + rest)
-    b.vy -= oy * vn * (1 + rest)
-    b.vx *= fric
-    b.vy *= fric
+const resolveTip = (n: Circle) => {
+  const dx = tip.x - n.x
+  const dy = tip.y - n.y
+  const d = Math.hypot(dx, dy) || 0.001
+  const min = n.r + tip.radius - SINK
+  if (d < min) {
+    tip.x += (dx / d) * (min - d)
+    tip.y += (dy / d) * (min - d)
+    return true
   }
-  return { ox, oy }
+  return false
 }
 
 export default function GameClimb({ onBack }: { onBack?: () => void }) {
@@ -153,11 +150,140 @@ export default function GameClimb({ onBack }: { onBack?: () => void }) {
     let acc = 0
     let last = performance.now()
     let step = 0
+    let slipT = 0
     const cam = {
-      x: Math.max(0, Math.min(WORLD_W - W, SPAWN.x - W / 2)),
-      y: Math.max(0, Math.min(WORLD_H - H, SPAWN.y - H / 2)),
+      x: clamp(SPAWN.x - W / 2, 0, WORLD_W - W),
+      y: clamp(SPAWN.y - H / 2, 0, WORLD_H - H),
     }
-    let angPrev = Math.atan2(tip.y - player.y, tip.x - player.x)
+
+    const substep = () => {
+      const m = mouseRef.current
+      const mwx = m.x + cam.x
+      const mwy = m.y + cam.y
+      let mdx = mwx - player.x
+      let mdy = mwy - player.y
+      const mdl = Math.hypot(mdx, mdy) || 1
+      mdx /= mdl
+      mdy /= mdl
+
+      if (stuck) {
+        if (!m.down) stuck = false
+      } else if (m.down) {
+        const tx = player.x + mdx * HAMMER_LEN
+        const ty = player.y + mdy * HAMMER_LEN
+        tip.vx = clamp((tx - tip.x) * TIP_GAIN, -TIP_MAX, TIP_MAX)
+        tip.vy = clamp((ty - tip.y) * TIP_GAIN, -TIP_MAX, TIP_MAX)
+      } else {
+        tip.vx *= 0.9
+        tip.vy = tip.vy * 0.9 + G * 0.35 * DT
+      }
+
+      const px0 = player.x
+      const py0 = player.y
+      if (!stuck) {
+        tip.x += tip.vx * DT
+        tip.y += tip.vy * DT
+      }
+      player.vy += G * DT
+      player.vx = clamp(player.vx, -2200, 2200)
+      player.vy = clamp(player.vy, -2200, 2200)
+      player.x += player.vx * DT
+      player.y += player.vy * DT
+
+      let contact = false
+      for (let it = 0; it < 4; it++) {
+        if (stuck) {
+          const want = { x: tip.x - mdx * HAMMER_LEN, y: tip.y - mdy * HAMMER_LEN }
+          const ex = want.x - player.x
+          const ey = want.y - player.y
+          const rx = tip.x - player.x
+          const ry = tip.y - player.y
+          const rl = Math.hypot(rx, ry) || 0.001
+          const perp = Math.abs((ex * ry - ey * rx) / rl)
+          if (perp > POP_DIST) {
+            stuck = false
+          } else {
+            player.x += ex * 0.55
+            player.y += ey * 0.55
+          }
+          if (stuck) {
+            const dr = Math.hypot(tip.x - player.x, tip.y - player.y) || 0.001
+            const k = (dr - HAMMER_LEN) / dr
+            player.x += (tip.x - player.x) * k
+            player.y += (tip.y - player.y) * k
+          }
+        } else {
+          const dx = tip.x - player.x
+          const dy = tip.y - player.y
+          const d = Math.hypot(dx, dy) || 0.001
+          const diff = (d - HAMMER_LEN) / d
+          const wT = m.down ? 0.62 : 0.5
+          tip.x -= dx * diff * wT
+          tip.y -= dy * diff * wT
+          player.x += dx * diff * (1 - wT)
+          player.y += dy * diff * (1 - wT)
+        }
+
+        let nx = 0
+        let ny = 0
+        let flat = 0
+        let tipHit = false
+        for (const b of BOULDERS) {
+          const hp = resolvePlayer(b)
+          const pd = Math.hypot(player.x - b.x, player.y - b.y)
+          if (pd < b.r + player.radius + 1) {
+            contact = true
+            if (Math.abs(hp.oy) > flat) { flat = Math.abs(hp.oy); nx = hp.ox; ny = hp.oy }
+          }
+          if (resolveTip(b)) {
+            tipHit = true
+            if (m.down) stuck = true
+          }
+        }
+        if (stuck) {
+          tip.vx = 0
+          tip.vy = 0
+        } else if (tipHit) {
+          tip.vx *= 0.5
+          tip.vy *= 0.5
+        }
+      }
+
+      if (!stuck) {
+        player.vx = clamp((player.x - px0) / DT * 0.88, -2200, 2200)
+        player.vy = clamp((player.y - py0) / DT * 0.88, -2200, 2200)
+      } else {
+        player.vx *= 0.6
+        player.vy *= 0.6
+      }
+
+      if (contact && (nx !== 0 || ny !== 0)) {
+        const vn = player.vx * nx + player.vy * ny
+        if (vn < 0) {
+          player.vx -= nx * vn
+          player.vy -= ny * vn
+        }
+        const tvx = player.vx - nx * (player.vx * nx + player.vy * ny)
+        const tvy = player.vy - ny * (player.vx * nx + player.vy * ny)
+        const fr = Math.min(1, 2.4 * DT)
+        player.vx -= tvx * fr
+        player.vy -= tvy * fr
+        if (ny < -0.93 && Math.hypot(player.vx, player.vy) < 26 && !stuck) {
+          player.vx = 0
+          player.vy = 0
+        }
+      }
+
+      let touching = false
+      for (const b of BOULDERS) {
+        if (Math.hypot(tip.x - b.x, tip.y - b.y) < b.r + tip.radius + 2) { touching = true; break }
+      }
+      if (stuck && !touching) {
+        slipT++
+        if (slipT > 8) { stuck = false; slipT = 0 }
+      } else slipT = 0
+    }
+
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop)
       acc += Math.min((now - last) / 1000, 0.05)
@@ -165,217 +291,121 @@ export default function GameClimb({ onBack }: { onBack?: () => void }) {
       while (acc >= STEP) {
         acc -= STEP
         step++
-        for (let sub = 0; sub < 4; sub++) {
-          const sdt = STEP / 3
-          const m = mouseRef.current
-          if (m.down) {
-            const mx = m.x + cam.x - player.x
-            const my = m.y + cam.y - player.y
-            const md = Math.hypot(mx, my) || 1
-            const tx = player.x + (mx / md) * HAMMER_LEN
-            const ty = player.y + (my / md) * HAMMER_LEN
-            tip.vx = Math.max(-TIP_MAX, Math.min(TIP_MAX, (tx - tip.x) * TIP_GAIN))
-            tip.vy = Math.max(-TIP_MAX, Math.min(TIP_MAX, (ty - tip.y) * TIP_GAIN))
-          } else {
-            tip.vx *= 0.94
-            tip.vy *= 0.94
-            tip.vy += G * 0.35 * sdt
-          }
-          player.vy += G * sdt
-          player.x += player.vx * sdt
-          player.y += player.vy * sdt
-          tip.x += tip.vx * sdt
-          tip.y += tip.vy * sdt
-
-          let contact = false
-          for (let it = 0; it < 6; it++) {
-            const dx = tip.x - player.x
-            const dy = tip.y - player.y
-            const d = Math.hypot(dx, dy) || 0.001
-            const diff = (d - HAMMER_LEN) / d
-            const wT = contact ? 0.15 : 0.62
-            tip.x -= dx * diff * wT
-            tip.y -= dy * diff * wT
-            player.x += dx * diff * (1 - wT)
-            player.y += dy * diff * (1 - wT)
-            let cNow = false
-            let pNow = false
-            let flat = 0
-            for (const c of ROCKS) {
-              const hp = collide(player, c, 0.94, 0.1)
-              if (hp) { pNow = true; flat = Math.max(flat, Math.abs(hp.oy)) }
-              if (collide(tip, c, 0.9, 0.02, 2)) cNow = true
-            }
-            for (const w of WALLS) {
-              const hp = collideWall(player, w, 0.94, 0.15)
-              if (hp) { pNow = true; flat = Math.max(flat, Math.abs(hp.oy)) }
-              if (collideWall(tip, w, 0.9, 0.05, 2)) cNow = true
-            }
-            if (pNow) {
-              player.vx *= 0.86
-              player.vy *= 0.93
-              if (flat > 0.7 && Math.hypot(player.vx, player.vy) < 42) {
-                player.vx = 0
-                player.vy = 0
-              }
-            }
-            contact = cNow
-          }
-          // 锤头接触时为支点,挥杆角速度把玩家沿切向甩出(原版铰链马达等效)
-          const angNow = Math.atan2(tip.y - player.y, tip.x - player.x)
-          let dA = angNow - angPrev
-          if (dA > Math.PI) dA -= Math.PI * 2
-          if (dA < -Math.PI) dA += Math.PI * 2
-          angPrev = angNow
-          const omega = dA / sdt
-          if (contact && Math.abs(omega) > 2 && Math.abs(omega) < 50) {
-            const kick = omega * HAMMER_LEN * 0.05
-            player.vx += -Math.sin(angNow) * kick
-            player.vy += Math.cos(angNow) * kick
-            player.vx = Math.max(-1000, Math.min(1000, player.vx))
-            player.vy = Math.max(-1000, Math.min(1000, player.vy))
-          }
-        }
-        player.x = Math.max(12, Math.min(WORLD_W - 12, player.x))
-        player.y = Math.max(10, Math.min(WORLD_H + 40, player.y))
-        tip.x = Math.max(6, Math.min(WORLD_W - 6, tip.x))
-        tip.y = Math.max(6, Math.min(WORLD_H + 40, tip.y))
-        if (player.y > WORLD_H - 60 || (player.x > 2268 && player.y > 1330)) {
+        for (let s = 0; s < SUBS; s++) substep()
+        player.x = clamp(player.x, 12, WORLD_W - 12)
+        player.y = clamp(player.y, 10, WORLD_H + 40)
+        tip.x = clamp(tip.x, 6, WORLD_W - 6)
+        tip.y = clamp(tip.y, 6, WORLD_H + 40)
+        if (player.y > WORLD_H - 60) {
           resetBodies()
-          angPrev = Math.atan2(tip.y - player.y, tip.x - player.x)
         }
         if (Math.hypot(player.x - GOAL.x, player.y - GOAL.y) < GOAL.r && !wonRef.current) {
           wonRef.current = true
           setWon(true)
         }
       }
-      cam.x += (Math.max(0, Math.min(WORLD_W - W, player.x - W / 2)) - cam.x) * 0.18
-      cam.y += (Math.max(0, Math.min(WORLD_H - H, player.y - H / 2)) - cam.y) * 0.18
+      cam.x += (clamp(player.x - W / 2, 0, WORLD_W - W) - cam.x) * 0.18
+      cam.y += (clamp(player.y - H / 2, 0, WORLD_H - H) - cam.y) * 0.18
 
       const grad = ctx.createLinearGradient(0, 0, 0, H)
-      grad.addColorStop(0, '#16233f')
-      grad.addColorStop(1, '#2c4468')
+      grad.addColorStop(0, '#0d1730')
+      grad.addColorStop(0.7, '#233a5e')
+      grad.addColorStop(1, '#3a506f')
       ctx.fillStyle = grad
       ctx.fillRect(0, 0, W, H)
+
+      const mg = ctx.createRadialGradient(W * 0.8, 130, 10, W * 0.8, 130, 120)
+      mg.addColorStop(0, 'rgba(236,232,214,0.35)')
+      mg.addColorStop(1, 'rgba(236,232,214,0)')
+      ctx.fillStyle = mg
+      ctx.beginPath()
+      ctx.arc(W * 0.8, 130, 120, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#ece8d6'
+      ctx.beginPath()
+      ctx.arc(W * 0.8, 130, 46, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(180,175,155,0.5)'
+      ctx.beginPath()
+      ctx.arc(W * 0.8 - 14, 122, 8, 0, Math.PI * 2)
+      ctx.arc(W * 0.8 + 10, 142, 6, 0, Math.PI * 2)
+      ctx.arc(W * 0.8 + 16, 116, 4, 0, Math.PI * 2)
+      ctx.fill()
+
+      ctx.save()
+      ctx.translate(-Math.round(cam.x * 0.45), -Math.round(cam.y * 0.3))
+      ctx.fillStyle = 'rgba(13,20,38,0.55)'
+      ctx.beginPath()
+      ctx.moveTo(-200, WORLD_H)
+      for (let x = -200; x < WORLD_W + 400; x += 160) {
+        ctx.lineTo(x, surfY(x * 0.8 + 400) - 130 - Math.sin(x * 0.007) * 46)
+      }
+      ctx.lineTo(WORLD_W + 400, WORLD_H)
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
 
       ctx.save()
       ctx.translate(-Math.round(cam.x), -Math.round(cam.y))
       const tw = Math.sin(step * 0.05) > 0.99 || Math.sin(step * 0.043 + 2) > 0.98 ? 1 : 0.75
       for (const s of STARS) {
-        ctx.globalAlpha = 0.4 + s.r * 0.25 * tw
+        ctx.globalAlpha = 0.3 + s.r * 0.3 * tw
+        ctx.fillStyle = '#cfd8ec'
         ctx.beginPath()
         ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2)
         ctx.fill()
       }
       ctx.globalAlpha = 1
-      ctx.fillStyle = 'rgba(255,255,255,0.04)'
-      for (let i = 0; i < 6; i++) {
-        const cx = ((i * 733 + step * 3) % (WORLD_W + 160)) - 80
-        const cy = 120 + (i % 6) * 240
-        ctx.beginPath()
-        ctx.arc(cx, cy, 24 + (i % 3) * 8, 0, Math.PI * 2)
-        ctx.fill()
-      }
 
       ctx.beginPath()
-      ctx.moveTo(0, 1420)
-      ctx.lineTo(310, 1420)
-      ctx.lineTo(430, 1330)
-      ctx.lineTo(560, 1295)
-      ctx.lineTo(700, 1235)
-      ctx.lineTo(800, 1180)
-      ctx.lineTo(1100, 1120)
-      ctx.lineTo(1380, 1090)
-      ctx.lineTo(1390, 950)
-      ctx.lineTo(1620, 760)
-      ctx.lineTo(1830, 540)
-      ctx.lineTo(2000, 370)
-      ctx.lineTo(2130, 255)
-      ctx.lineTo(2260, 255)
-      ctx.lineTo(2260, 1300)
-      ctx.lineTo(2260, 1600)
-      ctx.lineTo(0, 1600)
+      ctx.moveTo(0, WORLD_H)
+      for (let x = 0; x <= WORLD_W; x += 80) ctx.lineTo(x, surfY(x) + 6)
+      ctx.lineTo(WORLD_W, WORLD_H)
       ctx.closePath()
-      const mGrad = ctx.createLinearGradient(0, 1600, 0, 255)
-      mGrad.addColorStop(0, '#2b333f')
-      mGrad.addColorStop(1, '#414c5c')
+      const mGrad = ctx.createLinearGradient(0, WORLD_H, 0, 250)
+      mGrad.addColorStop(0, '#232a36')
+      mGrad.addColorStop(1, '#39424f')
       ctx.fillStyle = mGrad
       ctx.fill()
-      ctx.strokeStyle = '#5a6578'
-      ctx.lineWidth = 2.5
-      ctx.beginPath()
-      ctx.moveTo(0, 1420)
-      ctx.lineTo(310, 1420)
-      ctx.lineTo(430, 1330)
-      ctx.lineTo(560, 1295)
-      ctx.lineTo(700, 1235)
-      ctx.lineTo(800, 1180)
-      ctx.lineTo(1100, 1120)
-      ctx.lineTo(1380, 1090)
-      ctx.lineTo(1390, 950)
-      ctx.lineTo(1620, 760)
-      ctx.lineTo(1830, 540)
-      ctx.lineTo(2000, 370)
-      ctx.lineTo(2130, 255)
-      ctx.lineTo(2260, 255)
-      ctx.stroke()
-      ctx.strokeStyle = 'rgba(90,101,120,0.35)'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.moveTo(2260, 255)
-      ctx.lineTo(2260, 1300)
-      ctx.stroke()
-
-      ctx.beginPath()
-      ctx.moveTo(800, 1180)
-      ctx.lineTo(789, 950)
-      ctx.lineTo(1100, 980)
-      ctx.lineTo(1390, 950)
-      ctx.lineTo(1380, 1090)
-      ctx.lineTo(1100, 1120)
-      ctx.closePath()
-      ctx.fillStyle = 'rgba(3,5,9,0.92)'
-      ctx.fill()
-      ctx.strokeStyle = '#323b4a'
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.moveTo(789, 950)
-      ctx.lineTo(1100, 980)
-      ctx.lineTo(1390, 950)
-      ctx.moveTo(1380, 1090)
-      ctx.lineTo(1390, 950)
-      ctx.stroke()
-      ctx.strokeStyle = '#0a0d14'
-      ctx.lineWidth = 6
-      ctx.beginPath()
-      ctx.moveTo(789, 945)
-      ctx.lineTo(800, 1185)
-      ctx.stroke()
-
-      for (const c of ROCKS) {
-        const g = ctx.createRadialGradient(c.x - c.r * 0.3, c.y - c.r * 0.35, c.r * 0.2, c.x, c.y, c.r)
-        g.addColorStop(0, '#5d6575')
-        g.addColorStop(1, '#3a4152')
+      for (let i = 0; i < BOULDERS.length; i++) {
+        const c = BOULDERS[i]
+        const g = ctx.createRadialGradient(c.x - c.r * 0.32, c.y - c.r * 0.4, c.r * 0.15, c.x, c.y, c.r)
+        g.addColorStop(0, '#5d6880')
+        g.addColorStop(0.75, '#414b5e')
+        g.addColorStop(1, '#333c4b')
         ctx.fillStyle = g
         ctx.beginPath()
         ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2)
         ctx.fill()
+        ctx.strokeStyle = 'rgba(120,132,158,0.25)'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
       }
 
-      const poleTop = 200
-      ctx.strokeStyle = '#e8c766'
-      ctx.lineWidth = 3
+      ctx.fillStyle = '#e8e3ee'
       ctx.beginPath()
-      ctx.moveTo(2195, 253)
-      ctx.lineTo(2195, poleTop)
-      ctx.stroke()
-      const wave = Math.sin(step * 0.09) * 8
-      ctx.fillStyle = '#e2574c'
+      ctx.arc(GOAL.x, GOAL.y - 18, 8, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#3d2f33'
       ctx.beginPath()
-      ctx.moveTo(2195, poleTop)
-      ctx.lineTo(2195 + 34, poleTop + 8 + wave * 0.3)
-      ctx.lineTo(2195, poleTop + 16)
+      ctx.arc(GOAL.x, GOAL.y - 20, 8.5, Math.PI * 0.95, Math.PI * 2.15)
+      ctx.fill()
+      ctx.fillStyle = '#b8506a'
+      ctx.beginPath()
+      ctx.moveTo(GOAL.x - 7, GOAL.y - 10)
+      ctx.lineTo(GOAL.x + 7, GOAL.y - 10)
+      ctx.lineTo(GOAL.x + 10, GOAL.y + 12)
+      ctx.lineTo(GOAL.x - 10, GOAL.y + 12)
       ctx.closePath()
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255,120,140,0.55)'
+      const hb = Math.sin(step * 0.06) * 2
+      ctx.beginPath()
+      ctx.arc(GOAL.x - 4, GOAL.y - 44 - hb, 3, 0, Math.PI * 2)
+      ctx.arc(GOAL.x + 4, GOAL.y - 44 - hb, 3, 0, Math.PI * 2)
+      ctx.moveTo(GOAL.x - 6.6, GOAL.y - 42.5 - hb)
+      ctx.lineTo(GOAL.x, GOAL.y - 36 - hb)
+      ctx.lineTo(GOAL.x + 6.6, GOAL.y - 42.5 - hb)
       ctx.fill()
 
       ctx.strokeStyle = '#8a5a2b'
@@ -386,7 +416,7 @@ export default function GameClimb({ onBack }: { onBack?: () => void }) {
       ctx.lineTo(tip.x, tip.y)
       ctx.stroke()
       const ang = Math.atan2(tip.y - player.y, tip.x - player.x)
-      ctx.fillStyle = '#8d96ac'
+      ctx.fillStyle = stuck ? '#aeb8cf' : '#8d96ac'
       ctx.beginPath()
       ctx.moveTo(tip.x + Math.cos(ang) * 11, tip.y + Math.sin(ang) * 11)
       ctx.lineTo(tip.x + Math.cos(ang + Math.PI * 0.68) * 8, tip.y + Math.sin(ang + Math.PI * 0.68) * 8)
@@ -415,10 +445,11 @@ export default function GameClimb({ onBack }: { onBack?: () => void }) {
       ctx.beginPath()
       ctx.arc(0, -PLAYER_R + 2, 12, 0, Math.PI * 2)
       ctx.fill()
+      const face = clamp((tip.x - player.x) / 40, -1, 1) * 2.5
       ctx.fillStyle = '#222'
       ctx.beginPath()
-      ctx.arc(-4.5, -PLAYER_R, 1.8, 0, Math.PI * 2)
-      ctx.arc(4.5, -PLAYER_R, 1.8, 0, Math.PI * 2)
+      ctx.arc(-4.5 + face, -PLAYER_R, 1.8, 0, Math.PI * 2)
+      ctx.arc(4.5 + face, -PLAYER_R, 1.8, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
       ctx.restore()
@@ -489,7 +520,7 @@ export default function GameClimb({ onBack }: { onBack?: () => void }) {
         {won && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
             <div className="flex flex-col items-center gap-3 p-6 rounded-xl bg-ide-sidebar border border-ide-border">
-              <div className="text-lg font-bold text-ide-text">登顶成功!</div>
+              <div className="text-lg font-bold text-ide-text">你做到了。就这样。</div>
               <button
                 onClick={() => { resetBodies(); wonRef.current = false; setWon(false) }}
                 className="px-4 py-1.5 rounded bg-ide-accent/90 text-ide-bg text-sm font-medium hover:opacity-90 transition-opacity"
@@ -501,7 +532,7 @@ export default function GameClimb({ onBack }: { onBack?: () => void }) {
         )}
       </div>
       <div className="px-4 py-1.5 border-t border-ide-border text-[11px] text-ide-text-muted select-none">
-        按住鼠标甩动锤子:锤头砸进山岩会卡住,拖动方向把身体拽上去。
+        按住鼠标甩镐:镐头磕进石面就锚死,绕锚点画弧即把身体抡上去;猛地横甩鼠标可把镐头拔出来。
       </div>
     </div>
   )
