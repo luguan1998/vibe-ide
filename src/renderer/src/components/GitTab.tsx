@@ -192,6 +192,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [stashCount, setStashCount] = useState(0)
   const [busy, setBusy] = useState(false)
   const gitRootRef = useRef<string | null>(null)
+  const gitCommonDirRef = useRef<string>('')
   const resolveFullPath = useCallback((filePath: string) => {
     const base = gitRootRef.current || effectiveGitPath
     return base ? `${base.replace(/\\/g, '/')}/${filePath}` : filePath
@@ -339,6 +340,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     setError(null)
     try {
       const result = await window.api.git.status()
+      if (pendingGitPathRef.current !== effectiveGitPath) return
       if (result.error) {
         setError(result.error)
         setStatus(null)
@@ -353,6 +355,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         notGitPathRef.current = null
       }
     } catch (err: any) {
+      if (pendingGitPathRef.current !== effectiveGitPath) return
       setError(err.message)
       setStatus(null)
       const isNotGit = /not a git/i.test(err.message)
@@ -422,6 +425,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       setStashCount(list.length)
     }
   }, [])
+
+  const refreshAll = useCallback(async () => {
+    await refreshStatus()
+    refreshGraph()
+    refreshBranches()
+    refreshStashCount()
+  }, [refreshStatus, refreshGraph, refreshBranches, refreshStashCount])
 
   // Handle file click - show diff
   const handleFileClick = useCallback((file: GitFileStatus) => {
@@ -770,6 +780,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       if (pendingGitPathRef.current !== targetPath) return
       if (result.success) {
         gitRootRef.current = result.gitRoot || targetPath
+        gitCommonDirRef.current = result.gitCommonDir || ''
         await refreshStatus()
         refreshGraph()
         refreshBranches()
@@ -789,6 +800,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
   // Listen for fs:changed events from file watcher
   const statusDirtyRef = useRef(false)
+  const gitMetaDirtyRef = useRef(false)
   useEffect(() => {
     fsChangedHandlerRef.current = window.api.file.onChanged(() => {
       if (!isActiveRef.current) {
@@ -803,13 +815,35 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     }
   }, [refreshStatus])
 
-  // 非活动面板攒下的文件变动，切回时补一次刷新
+  // git 元数据变更(pull/外部 commit/worktree 增删)：commonDir 校验防串仓库，命中则全套刷新
   useEffect(() => {
-    if (isActive && statusDirtyRef.current) {
+    const handler = window.api.git.onMetaChanged((data?: { commonDir?: string }) => {
+      const mine = gitCommonDirRef.current
+      if (data?.commonDir && mine && data.commonDir !== mine) return
+      if (!isActiveRef.current) {
+        gitMetaDirtyRef.current = true
+        return
+      }
+      refreshAll()
+    })
+
+    return () => {
+      window.api.git.removeMetaChangedListener(handler)
+    }
+  }, [refreshAll])
+
+  // 非活动面板攒下的变更，切回时补刷：meta 脏 → 全套，否则仅 status
+  useEffect(() => {
+    if (!isActive) return
+    if (gitMetaDirtyRef.current) {
+      gitMetaDirtyRef.current = false
+      statusDirtyRef.current = false
+      refreshAll()
+    } else if (statusDirtyRef.current) {
       statusDirtyRef.current = false
       refreshStatus()
     }
-  }, [isActive, refreshStatus])
+  }, [isActive, refreshAll, refreshStatus])
 
   // Dismiss context menus on outside click
   useEffect(() => {

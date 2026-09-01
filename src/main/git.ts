@@ -3,8 +3,8 @@ import simpleGit, { SimpleGit } from 'simple-git'
 import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, CommitOptions, AmendOptions, GitShowResult, GitCommitFile, GitLineLogEntry, GitGraphEntry } from '../shared/types'
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
-import path from 'path'
-import { startWatching, updateSkipPatterns } from './watcher'
+import path, { isAbsolute, resolve as resolvePath } from 'path'
+import { startWatching, updateSkipPatterns, watchGitMeta, notifyGitMeta } from './watcher'
 
 let gitInstance: SimpleGit | null = null
 let currentWorkspace: string = process.cwd()
@@ -24,12 +24,21 @@ export function registerGitHandlers(): void {
       currentWorkspace = path
       gitInstance = simpleGit(currentWorkspace)
       let gitRoot = path
+      let gitCommonDir = ''
       try {
         const root = (await gitInstance.raw(['rev-parse', '--show-toplevel'])).trim()
         if (root) gitRoot = root.replace(/\\/g, '/')
       } catch {}
+      try {
+        let cd = (await gitInstance.raw(['rev-parse', '--git-common-dir'])).trim()
+        if (cd) {
+          if (!isAbsolute(cd)) cd = resolvePath(currentWorkspace, cd)
+          gitCommonDir = cd.replace(/\\/g, '/')
+        }
+      } catch {}
       startWatching(path)
-      return { success: true, path: currentWorkspace, gitRoot }
+      watchGitMeta(gitCommonDir)
+      return { success: true, path: currentWorkspace, gitRoot, gitCommonDir }
     } catch (err: any) {
       return { error: err.message || 'Failed to set workspace' }
     }
@@ -40,7 +49,9 @@ export function registerGitHandlers(): void {
     try {
       const git = getGit()
 
-      const statusShort = await git.status(['-s'])
+      // porcelain v2: 一次拿全 分支/upstream/ahead-behind/条目/冲突；--no-optional-locks 必须在子命令前(全局选项)，且防刷新自写 index 触发 meta 回环
+      const rawStatus = await git.raw(['--no-optional-locks', 'status', '--porcelain=v2', '--branch'])
+      const statusShort = parsePorcelainV2(rawStatus)
 
       // 检查是否有非 untracked 的变更，无则跳过两次 diff --numstat
       const hasTrackedChanges = statusShort.files.some(
@@ -113,7 +124,7 @@ export function registerGitHandlers(): void {
         if (indexStatus !== '?' && indexStatus !== ' ') {
           stagedFiles.push({
             path: filePath,
-            status: mapShortStatus(indexStatus, f.from),
+            status: f.conflicted ? 'conflicted' : mapShortStatus(indexStatus, f.from),
             staged: true,
             oldPath: getOldPath(f, indexStatus),
             additions: stagedDiffStat[filePath]?.additions || 0,
@@ -124,7 +135,7 @@ export function registerGitHandlers(): void {
         if (workdirStatus !== ' ' && workdirStatus !== '?') {
           unstagedFiles.push({
             path: filePath,
-            status: mapShortStatus(workdirStatus, f.from),
+            status: f.conflicted ? 'conflicted' : mapShortStatus(workdirStatus, f.from),
             staged: false,
             oldPath: getOldPath(f, workdirStatus),
             additions: diffStat[filePath]?.additions || 0,
@@ -418,6 +429,7 @@ export function registerGitHandlers(): void {
         return { conflict: true, message: applyErr.message }
       }
 
+      notifyGitMeta()
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
@@ -482,6 +494,7 @@ export function registerGitHandlers(): void {
         return { conflict: true, message: applyErr.message }
       }
 
+      notifyGitMeta()
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
@@ -711,6 +724,7 @@ export function registerGitHandlers(): void {
         // prune 清除 stale 引用，然后直接删分支
         await git.raw(['worktree', 'prune'])
         await git.raw(['branch', '-D', branch])
+        notifyGitMeta()
         return { success: true }
       }
 
@@ -732,6 +746,7 @@ export function registerGitHandlers(): void {
       // 3. Delete the branch
       await git.raw(['branch', '-D', branch])
 
+      notifyGitMeta()
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
@@ -803,6 +818,58 @@ function mapShortStatus(code: string, from?: string): GitFileStatus['status'] {
     case '?':
     default: return 'unstaged'
   }
+}
+
+interface V2FileEntry {
+  index: string
+  working_dir: string
+  path: string
+  from?: string
+  conflicted?: boolean
+}
+
+// porcelain v2 条目行字段数经实测：1=8 后为 path，2=9 后为 path<TAB>origPath，u=10 后为 path
+function parsePorcelainV2(output: string): { files: V2FileEntry[]; current: string; ahead: number; behind: number } {
+  const files: V2FileEntry[] = []
+  let current = ''
+  let ahead = 0
+  let behind = 0
+  for (const line of output.split('\n')) {
+    if (!line) continue
+    const type = line[0]
+    if (type === '#') {
+      if (line.startsWith('# branch.head ')) {
+        current = line.slice(14)
+      } else if (line.startsWith('# branch.ab ')) {
+        const m = line.match(/\+(\d+) -(\d+)/)
+        if (m) {
+          ahead = parseInt(m[1], 10)
+          behind = parseInt(m[2], 10)
+        }
+      }
+      continue
+    }
+    if (type === '?') {
+      files.push({ index: '?', working_dir: '?', path: line.slice(2) })
+      continue
+    }
+    if (type === '!') continue
+    const tokens = line.split(' ')
+    const xy = tokens[1] || '..'
+    const index = xy[0] === '.' ? ' ' : xy[0]
+    const workdir = xy[1] === '.' ? ' ' : xy[1]
+    if (type === '1' && tokens.length >= 9) {
+      files.push({ index, working_dir: workdir, path: tokens.slice(8).join(' ') })
+    } else if (type === '2' && tokens.length >= 10) {
+      const tail = tokens.slice(9).join(' ')
+      const tab = tail.indexOf('\t')
+      if (tab >= 0) files.push({ index, working_dir: workdir, path: tail.slice(0, tab), from: tail.slice(tab + 1) })
+      else files.push({ index, working_dir: workdir, path: tail })
+    } else if (type === 'u' && tokens.length >= 11) {
+      files.push({ index, working_dir: workdir, path: tokens.slice(10).join(' '), conflicted: true })
+    }
+  }
+  return { files, current, ahead, behind }
 }
 
 function getOldPath(f: { from?: string }, status: string): string | undefined {

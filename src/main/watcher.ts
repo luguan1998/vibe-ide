@@ -1,8 +1,9 @@
 import { BrowserWindow } from 'electron'
 import { watch, FSWatcher, existsSync } from 'fs'
+import { join } from 'path'
 import { IPC_CHANNELS } from '../shared/types'
 
-const BASE_SKIP_PATTERNS = ['.git', '.vscode', 'node_modules', '.next', 'dist', 'build', 'out', '__pycache__', 'target', '.cache']
+const BASE_SKIP_PATTERNS = ['.git', '.vscode', 'node_modules', '.next', 'dist', 'build', 'out', '__pycache__', 'target', '.cache', '.vibe/worktrees', '.claude/worktrees']
 let userSkipPatterns: string[] = []
 let watcherSkipRegex: RegExp
 let watcher: FSWatcher | null = null
@@ -88,4 +89,75 @@ export function stopWatching() {
 export function updateSkipPatterns(patterns: string[]) {
   userSkipPatterns = patterns || []
   watcherSkipRegex = buildSkipRegex()
+}
+
+// git 元数据监听：common dir 顶层(HEAD/packed-refs/FETCH_HEAD/MERGE_HEAD/ORIG_HEAD) + refs/** + worktrees/**
+// 覆盖 pull/外部 commit/分支增删/worktree add-remove-prune，事件驱动 GitTab 全量刷新
+let metaWatchers: FSWatcher[] = []
+let metaDebounceTimer: NodeJS.Timeout | null = null
+let metaPendingTimer: NodeJS.Timeout | null = null
+let lastMetaNotifyTime = 0
+let currentMetaCommonDir = ''
+
+function scheduleGitMetaFire() {
+  const now = Date.now()
+  const elapsed = now - lastMetaNotifyTime
+
+  const fire = () => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send(IPC_CHANNELS.GIT_META_CHANGED, { commonDir: currentMetaCommonDir })
+    })
+  }
+
+  if (elapsed >= COOLDOWN_MS) {
+    lastMetaNotifyTime = now
+    fire()
+  } else if (!metaPendingTimer) {
+    metaPendingTimer = setTimeout(() => {
+      metaPendingTimer = null
+      lastMetaNotifyTime = Date.now()
+      fire()
+    }, COOLDOWN_MS - elapsed)
+  }
+}
+
+export function notifyGitMeta(): void {
+  scheduleGitMetaFire()
+}
+
+export function stopGitMeta() {
+  for (const w of metaWatchers) {
+    try { w.close() } catch {}
+  }
+  metaWatchers = []
+  if (metaDebounceTimer) { clearTimeout(metaDebounceTimer); metaDebounceTimer = null }
+  if (metaPendingTimer) { clearTimeout(metaPendingTimer); metaPendingTimer = null }
+  currentMetaCommonDir = ''
+}
+
+export function watchGitMeta(commonDir: string) {
+  stopGitMeta()
+  if (!commonDir || !existsSync(commonDir)) return
+  currentMetaCommonDir = commonDir
+
+  const onEvent = (_eventType: string, filename: string | Buffer | null) => {
+    if (!filename) return
+    if (metaDebounceTimer) clearTimeout(metaDebounceTimer)
+    metaDebounceTimer = setTimeout(() => {
+      metaDebounceTimer = null
+      scheduleGitMetaFire()
+    }, 300)
+  }
+
+  const add = (dir: string, recursive: boolean) => {
+    if (!existsSync(dir)) return
+    try {
+      const w = watch(dir, { recursive }, onEvent)
+      w.on('error', () => {})
+      metaWatchers.push(w)
+    } catch {}
+  }
+  add(commonDir, false)
+  add(join(commonDir, 'refs'), true)
+  add(join(commonDir, 'worktrees'), true)
 }

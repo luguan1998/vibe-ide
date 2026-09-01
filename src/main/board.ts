@@ -5,6 +5,7 @@ import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { BoardCreateOptions, BoardMergeResult, BoardOpResult, BoardRecordsResult, IPC_CHANNELS, WorktreeRecord } from '../shared/types'
 import { closeTerminalSession, createTerminalSession } from './pty'
+import { notifyGitMeta } from './watcher'
 
 const gitAsync = promisify(execFile)
 
@@ -202,6 +203,7 @@ async function createBoardSession(options: BoardCreateOptions): Promise<BoardOpR
     return { error: `worktree 检出失败: ${String(err?.message ?? err).split('\n')[0]}` }
   }
   ensureVibeExcluded(repoRoot)
+  notifyGitMeta()
 
   const id = `board-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const record: WorktreeRecord = {
@@ -246,6 +248,7 @@ async function cleanupWorktree(repoRoot: string, rec: WorktreeRecord): Promise<v
   if (removed) {
     try { await gitAsync('git', ['worktree', 'prune'], { cwd: repoRoot, timeout: 15000, windowsHide: true }) } catch {}
     try { await gitAsync('git', ['branch', '-D', rec.branchName], { cwd: repoRoot, timeout: 15000, windowsHide: true }) } catch {}
+    notifyGitMeta()
   } else {
     const records = loadRecords(repoRoot)
     if (!records.some(r => r.id === rec.id)) {
@@ -322,10 +325,12 @@ async function mergeBoardSession(workspacePath: string, recordId: string): Promi
 
   try {
     await gitAsync('git', ['merge', '--no-edit', rec.branchName], { cwd: repoRoot, timeout: 60000, windowsHide: true })
+    notifyGitMeta()
     return { ok: true, message: '', branch: rec.branchName, target: rec.baseBranch }
   } catch (err: any) {
     const msg = String(err?.message ?? err)
     if (/CONFLICT|conflict/i.test(msg)) {
+      notifyGitMeta()
       return { conflict: true, message: msg, branch: rec.branchName, target: rec.baseBranch }
     }
     return { error: msg.split('\n')[0] }
