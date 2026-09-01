@@ -394,17 +394,17 @@ export default function BoardView({
   const [createCwd, setCreateCwd] = useState<string | null>(workspacePath)
   const [createDirMenu, setCreateDirMenu] = useState<{ x: number; y: number } | null>(null)
   const createCwdManualRef = useRef(false)
-  const repoRootsRef = useRef<string[]>([])
 
   useEffect(() => {
     if (!createCwdManualRef.current) setCreateCwd(workspacePath)
   }, [workspacePath])
 
   const reload = useCallback(async () => {
+    // 每次只查「当前 workspace + 现存 session 的 cwd」，不再累积历史 repoRoot：
+    // 切走的仓库不该把它的卡片混进本仓库的 plan
     const cwds = new Set<string>()
     if (workspacePath) cwds.add(workspacePath)
     for (const s of sessions) if (s.cwd) cwds.add(s.cwd)
-    for (const r of repoRootsRef.current) cwds.add(r)
     if (cwds.size === 0) {
       setRepoRoot(null)
       setRecords([])
@@ -416,7 +416,6 @@ export default function BoardView({
         const res = await window.api.board.records(cwd)
         if (res.repoRoot && !repoMap.has(res.repoRoot)) {
           repoMap.set(res.repoRoot, res.records)
-          if (!repoRootsRef.current.includes(res.repoRoot)) repoRootsRef.current.push(res.repoRoot)
         }
       }
       setRepoRoot([...repoMap.keys()][0] ?? null)

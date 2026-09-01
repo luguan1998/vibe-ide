@@ -2221,8 +2221,8 @@ export default function App() {
     await handleCloneWithInit(activeSession.id, activeSession.cwd, activeSession.shell, command)
   }, [activeSessionId, sessions, handleCloneWithInit])
 
-  // Close a terminal session
-  const handleCloseSession = useCallback(async (id: string) => {
+  // Close a terminal session (core, no board prompt — used by finish/clear paths)
+  const closeSessionCore = useCallback(async (id: string) => {
     const twinId = splitTwins[id]
     cancelPipe(id)
     if (twinId) cancelPipe(twinId)
@@ -2275,6 +2275,36 @@ export default function App() {
       setActiveSessionId(remaining.length > 0 ? remaining[0].id : null)
     }
   }, [activeSessionId, sessions, rightTerminalSessions, splitTwins, setSplitTwins, setSplitRatios])
+
+  // 看板任务会话：关标签不再静默遗留记录+worktree，弹确认让用户选"仅关闭"或"关闭并清理"
+  const [boardCloseAsk, setBoardCloseAsk] = useState<{ rec: WorktreeRecord; sessionId: string } | null>(null)
+
+  const handleCloseSession = useCallback(async (id: string) => {
+    const s = sessions.find(x => x.id === id)
+    if (s && s.kind === 'terminal' && s.cwd) {
+      try {
+        const res = await window.api.board.records(s.cwd)
+        const rec = res.records.find(r => r.id === id)
+        if (rec) {
+          setBoardCloseAsk({ rec, sessionId: id })
+          return
+        }
+      } catch {}
+    }
+    await closeSessionCore(id)
+  }, [sessions, closeSessionCore])
+
+  useEffect(() => {
+    if (!boardCloseAsk) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'escape') return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      setBoardCloseAsk(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [boardCloseAsk])
 
   const handleBoardClearWarn = useCallback((id: string) => {
     setWarnSessions(prev => {
@@ -2342,7 +2372,7 @@ export default function App() {
   }, [])
 
   const handleBoardFinishRecord = useCallback(async (rec: WorktreeRecord): Promise<boolean> => {
-    await handleCloseSession(rec.id)
+    await closeSessionCore(rec.id)
     try {
       const res = await window.api.board.finish(rec.repoRoot, rec.id)
       if (res?.error) {
@@ -2354,17 +2384,31 @@ export default function App() {
       console.warn('[board] finish failed:', e?.message)
       return false
     }
-  }, [handleCloseSession])
+  }, [closeSessionCore])
 
   const handleBoardClearRecord = useCallback(async (rec: WorktreeRecord) => {
     // 与 handleBoardFinishRecord 对齐:清记录前先关 pty + 删 tab,否则泄漏 shell 进程 + 孤儿会话
-    await handleCloseSession(rec.id)
+    await closeSessionCore(rec.id)
     try {
       await window.api.board.clear(rec.repoRoot, rec.id)
     } catch (e: any) {
       console.warn('[board] clear failed:', e?.message)
     }
-  }, [handleCloseSession])
+  }, [closeSessionCore])
+
+  const confirmBoardCloseOnly = useCallback(async () => {
+    if (!boardCloseAsk) return
+    const sid = boardCloseAsk.sessionId
+    setBoardCloseAsk(null)
+    await closeSessionCore(sid)
+  }, [boardCloseAsk, closeSessionCore])
+
+  const confirmBoardCloseClean = useCallback(async () => {
+    if (!boardCloseAsk) return
+    const rec = boardCloseAsk.rec
+    setBoardCloseAsk(null)
+    await handleBoardFinishRecord(rec)
+  }, [boardCloseAsk, handleBoardFinishRecord])
 
   const handleBoardMergeRecord = useCallback(async (rec: WorktreeRecord) => {
     try {
@@ -3329,6 +3373,46 @@ export default function App() {
         </div>
         )}
       </div>
+
+      {/* Board session close prompt — plain close keeps the card, clean removes worktree+branch */}
+      {boardCloseAsk && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center"
+          onMouseDown={() => setBoardCloseAsk(null)}
+        >
+          <div
+            className="bg-ide-sidebar border border-ide-border rounded-xl p-4 w-[400px] mx-4 shadow-2xl space-y-3"
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <div className="text-sm text-ide-text font-medium truncate">
+              {t('Board session')} · {boardCloseAsk.rec.title}
+            </div>
+            <div className="text-xs text-ide-text-muted leading-relaxed">
+              {t('Close only keeps the task card; clean deletes the worktree and branch.')} (<span className="font-mono">{boardCloseAsk.rec.branchName}</span>)
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                onClick={() => setBoardCloseAsk(null)}
+                className="px-3 py-1.5 rounded-md text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+              >
+                {t('Cancel')}
+              </button>
+              <button
+                onClick={() => void confirmBoardCloseOnly()}
+                className="px-3 py-1.5 rounded-md text-xs text-ide-text border border-ide-border hover:bg-ide-hover transition-colors"
+              >
+                {t('Close only')}
+              </button>
+              <button
+                onClick={() => void confirmBoardCloseClean()}
+                className="px-3 py-1.5 rounded-md text-xs text-ide-danger bg-ide-danger/15 border border-ide-danger/40 hover:bg-ide-danger/25 transition-colors"
+              >
+                {t('Close & clean worktree')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* History Popup Overlay */}
       {showHistory && activeSessionId && (() => {

@@ -1,6 +1,6 @@
 import { app, ipcMain } from 'electron'
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'fs'
+import { join, isAbsolute, resolve, basename, dirname } from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { BoardCreateOptions, BoardMergeResult, BoardOpResult, BoardRecordsResult, IPC_CHANNELS, WorktreeRecord } from '../shared/types'
@@ -35,10 +35,16 @@ function loadRecords(repoRoot: string): WorktreeRecord[] {
 }
 
 function saveRecords(repoRoot: string, list: WorktreeRecord[]): void {
+  const file = recordsFile(repoRoot)
+  // 最后一条记录被清掉时直接删文件，不留 2 字节的 "[]" 残渣
+  if (list.length === 0) {
+    recordsCache.delete(repoRoot)
+    try { rmSync(file, { force: true }) } catch {}
+    return
+  }
   recordsCache.set(repoRoot, list)
   try {
     mkdirSync(join(app.getPath('userData'), 'vibe-board'), { recursive: true })
-    const file = recordsFile(repoRoot)
     const tmp = `${file}.tmp`
     writeFileSync(tmp, JSON.stringify(list, null, 2), 'utf-8')
     renameSync(tmp, file)
@@ -98,8 +104,73 @@ async function resolveToplevelAsync(entryDir: string): Promise<string | null> {
   }
 }
 
+// linked worktree 里 --show-toplevel 返回的是 worktree 自身，直接当仓库根会导致
+// worktree 套 worktree、记录散落在多个哈希文件里。用 --git-common-dir 归位到主仓库根。
+async function resolveRepoRootAsync(entryDir: string): Promise<string | null> {
+  const top = await resolveToplevelAsync(entryDir)
+  if (!top) return null
+  try {
+    const { stdout } = await gitAsync('git', ['rev-parse', '--git-common-dir'], { cwd: top, timeout: 15000, windowsHide: true })
+    let cd = stdout.trim()
+    if (cd) {
+      if (!isAbsolute(cd)) cd = resolve(top, cd)
+      if (basename(cd) === '.git') return dirname(cd)
+    }
+  } catch {}
+  return top
+}
+
+// 旧版本在 worktree 里建任务时，记录写在了以该 worktree 路径为 key 的文件里。
+// 查询时遇到这种情况就合并回主仓库根的文件，并删除旧文件。
+function migrateLegacyRecords(oldRoot: string, newRoot: string): void {
+  const oldFile = recordsFile(oldRoot)
+  let list: WorktreeRecord[] = []
+  try {
+    const parsed = JSON.parse(readFileSync(oldFile, 'utf-8'))
+    if (Array.isArray(parsed)) {
+      list = parsed.filter((r): r is WorktreeRecord => !!r && typeof r.id === 'string' && typeof r.worktreePath === 'string')
+    }
+  } catch {
+    recordsCache.delete(oldRoot)
+    return
+  }
+  try { rmSync(oldFile, { force: true }) } catch {}
+  recordsCache.delete(oldRoot)
+  if (list.length === 0) return
+  const target = loadRecords(newRoot)
+  for (const rec of list) {
+    if (!target.some(t => t.id === rec.id)) target.push({ ...rec, repoRoot: newRoot })
+  }
+  saveRecords(newRoot, target)
+}
+
+// 启动时清扫垃圾记录文件：空数组 []、repoRoot 目录已不存在的、损坏的 JSON
+function sweepStaleRecords(): void {
+  const dir = join(app.getPath('userData'), 'vibe-board')
+  let files: string[] = []
+  try { files = readdirSync(dir) } catch { return }
+  for (const f of files) {
+    if (!f.endsWith('.json')) continue
+    const fp = join(dir, f)
+    let stale = false
+    try {
+      const parsed = JSON.parse(readFileSync(fp, 'utf-8'))
+      if (!Array.isArray(parsed) || parsed.length === 0) stale = true
+      else {
+        const root = parsed.find((r: any) => typeof r?.repoRoot === 'string')?.repoRoot
+        if (!root || !existsSync(root)) stale = true
+      }
+    } catch {
+      stale = true
+    }
+    if (stale) {
+      try { rmSync(fp, { force: true }) } catch {}
+    }
+  }
+}
+
 async function createBoardSession(options: BoardCreateOptions): Promise<BoardOpResult> {
-  const repoRoot = await resolveToplevelAsync(options.workspacePath)
+  const repoRoot = await resolveRepoRootAsync(options.workspacePath)
   if (!repoRoot) return { error: '当前工作区不是 git 仓库,无法创建 worktree' }
 
   const records = loadRecords(repoRoot)
@@ -171,9 +242,11 @@ async function cleanupWorktree(repoRoot: string, rec: WorktreeRecord): Promise<v
     }
     removed = !existsSync(rec.worktreePath)
   }
-  try { await gitAsync('git', ['worktree', 'prune'], { cwd: repoRoot, timeout: 15000, windowsHide: true }) } catch {}
-  try { await gitAsync('git', ['branch', '-D', rec.branchName], { cwd: repoRoot, timeout: 15000, windowsHide: true }) } catch {}
-  if (!removed) {
+  // 目录确实没了才动 git 元数据；否则保留记录，等下次重试，避免"卡片复活但分支已删"
+  if (removed) {
+    try { await gitAsync('git', ['worktree', 'prune'], { cwd: repoRoot, timeout: 15000, windowsHide: true }) } catch {}
+    try { await gitAsync('git', ['branch', '-D', rec.branchName], { cwd: repoRoot, timeout: 15000, windowsHide: true }) } catch {}
+  } else {
     const records = loadRecords(repoRoot)
     if (!records.some(r => r.id === rec.id)) {
       records.push(rec)
@@ -183,7 +256,7 @@ async function cleanupWorktree(repoRoot: string, rec: WorktreeRecord): Promise<v
 }
 
 async function finishBoardSession(workspacePath: string, recordId: string): Promise<BoardOpResult> {
-  const repoRoot = await resolveToplevelAsync(workspacePath)
+  const repoRoot = await resolveRepoRootAsync(workspacePath)
   if (!repoRoot) return { error: '当前工作区不是 git 仓库' }
   const records = loadRecords(repoRoot)
   const idx = records.findIndex(r => r.id === recordId)
@@ -201,7 +274,7 @@ async function finishBoardSession(workspacePath: string, recordId: string): Prom
 }
 
 async function clearBoardRecord(workspacePath: string, recordId: string): Promise<BoardOpResult> {
-  const repoRoot = await resolveToplevelAsync(workspacePath)
+  const repoRoot = await resolveRepoRootAsync(workspacePath)
   if (!repoRoot) return { error: '当前工作区不是 git 仓库' }
   const records = loadRecords(repoRoot)
   const idx = records.findIndex(r => r.id === recordId)
@@ -218,7 +291,7 @@ async function clearBoardRecord(workspacePath: string, recordId: string): Promis
 // 把 worktree 分支合入创建时的基线分支(baseBranch)。
 // 未提交修改不进 merge(先提示而非自动 commit);冲突时不回滚、不删 worktree/分支,保留冲突状态供用户在 GitTab 解决。
 async function mergeBoardSession(workspacePath: string, recordId: string): Promise<BoardMergeResult> {
-  const repoRoot = await resolveToplevelAsync(workspacePath)
+  const repoRoot = await resolveRepoRootAsync(workspacePath)
   if (!repoRoot) return { error: '当前工作区不是 git 仓库' }
   const records = loadRecords(repoRoot)
   const rec = records.find(r => r.id === recordId)
@@ -271,10 +344,13 @@ async function abortMergeSession(workspacePath: string): Promise<BoardOpResult> 
 }
 
 export function registerBoardHandlers(): void {
+  sweepStaleRecords()
   ipcMain.handle(IPC_CHANNELS.BOARD_RECORDS, async (_e, workspacePath?: string): Promise<BoardRecordsResult> => {
     if (!workspacePath) return { repoRoot: null, records: [] }
-    const repoRoot = await resolveToplevelAsync(workspacePath)
-    if (!repoRoot) return { repoRoot: null, records: [] }
+    const top = await resolveToplevelAsync(workspacePath)
+    if (!top) return { repoRoot: null, records: [] }
+    const repoRoot = (await resolveRepoRootAsync(top)) ?? top
+    if (repoRoot !== top) migrateLegacyRecords(top, repoRoot)
     return { repoRoot, records: loadRecords(repoRoot).map(r => ({ ...r, orphan: !existsSync(r.worktreePath) })) }
   })
 
