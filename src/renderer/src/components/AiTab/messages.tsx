@@ -225,7 +225,7 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
     const st = segStreamRef.current
     const clean = stripCommandTags(text)
     if (!st.segs.length || !clean.startsWith(st.last)) {
-      st.segs = clean ? [{ id: st.seq++, start: 0, end: clean.length, live: true }] : []
+      st.segs = clean ? [{ id: st.seq++, start: 0, end: clean.length, live: false }] : []
       st.win = 0
     } else if (clean.length > st.last.length) {
       st.segs.push({ id: st.seq++, start: st.last.length, end: clean.length, live: true })
