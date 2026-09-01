@@ -1,0 +1,3 @@
+name: 标准模式 (git bash)
+description: Windows 专属的标准模式变体：保留全部能力，但把 PowerShell 整组换成基于 Git Bash 的持久 bash；macOS/Linux 自动回落标准 bash 工具。
+order: 5

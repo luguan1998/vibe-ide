@@ -197,6 +197,17 @@ cp -r presets/minimal-gitbash "$USERPROFILE/.dsh/.agent-presets/"
 复制后即可在 dsh 预设列表中选择；要作为默认，在设置里选为默认（或改
 `~/.dsh/settings.yaml` 的 `agent-presets.default`）。
 
+`presets/standard-gitbash` 是官方 `standard` 预设的 **Windows 专属**变体：保留标准模式的
+全部能力（文件编辑、检索、Skills、计划、目标、子代理、工作流），只换 shell 层 —— 模型
+拿到的是运行在 Git Bash 里的持久 `bash` 工具（`pwsh` 工具停用），不再是 PowerShell。
+macOS/Linux 上本预设自动回落为标准 bash 工具，行为不变。
+
+```bash
+cp -r presets/standard-gitbash "$USERPROFILE/.dsh/.agent-presets/"
+```
+
+复制前同样先改 `shellPath`（见上）。
+
 ### 安装 & 运行（新电脑完整流程）
 
 **前置环境：** Node.js >= 18、Git、Windows、Visual Studio Build Tools（勾选"使用 C++ 的桌面开发"工作负载，node-pty 是原生模块）。

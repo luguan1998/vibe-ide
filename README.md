@@ -206,6 +206,18 @@ machine:
 After copying, the preset shows up in the dsh preset picker; set it as the default preset there
 (or via `~/.dsh/settings.yaml` → `agent-presets.default`).
 
+`presets/standard-gitbash` is a **Windows-only** variant of the official `standard` preset:
+it keeps every standard-mode capability (file editing, search, skills, plan, goals, subagents,
+workflows) but replaces the shell layer — instead of PowerShell, the model gets a persistent
+`bash` tool running in Git Bash, and the `pwsh` tool is disabled. On macOS/Linux the preset
+falls back to the standard bash tool automatically, so it changes nothing there.
+
+```bash
+cp -r presets/standard-gitbash "$USERPROFILE/.dsh/.agent-presets/"
+```
+
+Same `shellPath` edit applies before copying (see above).
+
 ### Install & Run (fresh machine)
 
 **Prerequisites:** Node.js >= 18, Git, Windows, and Visual Studio Build Tools
