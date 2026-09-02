@@ -37,6 +37,8 @@ import { resolveAbsPath } from './utils/filePathUtils'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
 
+const PANEL_TAB_RAIL_MIN_W = 500
+
 // Declare the window API type
 declare global {
   interface Window {
@@ -3361,6 +3363,7 @@ export default function App() {
             onToggleCollapse={handleToggleRightPanel}
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
+            hideTabBar={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W}
             brushActive={brushActive}
             onResumeClaudeHistory={handleResumeClaudeHistory}
             onResumeDshHistory={handleResumeDshHistory}

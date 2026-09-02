@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useI18n } from '../i18n'
 
 import GitTab from './GitTab'
@@ -56,6 +56,7 @@ interface RightPanelProps {
   onBrowserBack?: () => void
   onBrowserAnnotate?: (line: string) => void
   onBrowserToggleDock?: () => void
+  hideTabBar?: boolean
 }
 
 type GitSection = 'git' | 'terminal' | 'file' | 'game'
@@ -386,6 +387,34 @@ function TabBar({
   )
 }
 
+// ── Hover Tab Rail (hideTabBar 模式:右缘垂直居中的图标导航) ──
+
+function TabRail({ activeSection, visibleList, onSelect }: {
+  activeSection: GitSection
+  visibleList: GitSection[]
+  onSelect: (s: GitSection) => void
+}) {
+  return (
+    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 border border-ide-border/80 rounded-lg bg-ide-panel/90 backdrop-blur-md p-1 shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+      {visibleList.map(section => {
+        const active = section === activeSection
+        return (
+          <button
+            key={section}
+            className={`w-9 h-9 flex items-center justify-center rounded transition-colors ${
+              active ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+            }`}
+            onClick={() => onSelect(section)}
+            title={TAB_DEFS[section].label}
+          >
+            <span className="scale-125">{TAB_DEFS[section].icon}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function RightPanel({
   workspacePath, onFileSelect, refreshKey, pollingTick,
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
@@ -415,6 +444,7 @@ function RightPanel({
   onBrowserBack,
   onBrowserAnnotate,
   onBrowserToggleDock,
+  hideTabBar,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('file')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -434,7 +464,7 @@ function RightPanel({
   const activeAuxIdx = activeSessionId && activeAuxIndex ? (activeAuxIndex[activeSessionId] ?? 0) : 0
   const activeRightTerminal = auxArr?.[activeAuxIdx]?.terminals?.[0] ?? null
 
-  const visibleList = tabOrder.filter(s => visibleTabs[s])
+  const visibleList = useMemo(() => tabOrder.filter(s => visibleTabs[s]), [tabOrder, visibleTabs])
 
   // 切 tab 时聚焦到 tab 内容（search tab 需聚焦到输入框）
   const gitContentRef = useRef<HTMLDivElement>(null)
@@ -572,7 +602,8 @@ function RightPanel({
 
   if (!workspacePath) {
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full group relative">
+        {!hideTabBar && (
         <TabBar
           tabs={visibleList}
           activeSection={activeSection}
@@ -584,7 +615,11 @@ function RightPanel({
           capsuleTabs={capsuleTabs}
           onToggleCapsuleTabs={onToggleCapsuleTabs}
         />
-        <div className="flex-1 min-h-0 mx-2 mb-1 mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center right-panel__content">
+        )}
+        {hideTabBar && (
+          <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} />
+        )}
+        <div className={`flex-1 min-h-0 mx-2 ${hideTabBar ? 'mb-0.5' : 'mb-1'} mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center right-panel__content`}>
           <span className="text-ide-text-muted text-xs">No active session</span>
         </div>
       </div>
@@ -592,7 +627,8 @@ function RightPanel({
   }
 
   return (
-    <div className="flex flex-col h-full right-panel">
+    <div className="flex flex-col h-full right-panel group relative">
+      {!hideTabBar && (
       <TabBar
         tabs={visibleList}
         activeSection={activeSection}
@@ -604,8 +640,12 @@ function RightPanel({
         capsuleTabs={capsuleTabs}
         onToggleCapsuleTabs={onToggleCapsuleTabs}
       />
+      )}
+      {hideTabBar && (
+        <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} />
+      )}
 
-      <div className="flex-1 min-h-0 mx-2 mb-2 mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col right-panel__content">
+      <div className={`flex-1 min-h-0 mx-2 ${hideTabBar ? 'mb-0.5' : 'mb-2'} mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col right-panel__content`}>
 
       <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <GitTab
