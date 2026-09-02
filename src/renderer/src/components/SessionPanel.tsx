@@ -579,6 +579,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [emojiMenu, setEmojiMenu] = useState<{ x: number; y: number } & ({ sessionId: string } | { cwd: string }) | null>(null)
+  // 组内置顶反馈：一次性扫描显像动画
+  const [pinnedFlashId, setPinnedFlashId] = useState<string | null>(null)
+  const pinFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const menuSession = contextMenu ? sessions.find(s => s.id === contextMenu.sessionId) : null
   const [newMode, setNewMode] = useState<'term' | 'gui' | 'dsh'>('term')
   // 勾选即记入内存，历史会话打开时按此默认
@@ -1074,6 +1077,14 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     return { running, idle, warn }
   }, [sessions, agentStatus])
 
+  // 触发一次置顶扫描显像动画
+  const flashPinned = (id: string) => {
+    setPinnedFlashId(id)
+    if (pinFlashTimerRef.current) clearTimeout(pinFlashTimerRef.current)
+    pinFlashTimerRef.current = setTimeout(() => setPinnedFlashId(null), 950)
+  }
+  useEffect(() => () => { if (pinFlashTimerRef.current) clearTimeout(pinFlashTimerRef.current) }, [])
+
   const renderSessionItem = (
     session: SessionTab,
     dragIdx: number,
@@ -1182,8 +1193,17 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 session={session}
                 status={agentStatus[session.id]}
                 worktreeNav={sessionWorktreeNav[session.id] ?? null}
+                pinHint={groupSessionsByCwd && !!onReorderSessions}
+                pinned={pinnedFlashId === session.id}
                 onClick={(info) => {
                   if (info.state === 'scheduled') { openSchedModal(session.id); return }
+                  if (groupSessionsByCwd && onReorderSessions) {
+                    const key = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
+                    const srcIdx = sessions.findIndex(s => s.id === session.id)
+                    const firstIdx = sessions.findIndex(s => key(s.cwd) === key(session.cwd))
+                    if (firstIdx >= 0 && firstIdx !== srcIdx) onReorderSessions(srcIdx, firstIdx)
+                    flashPinned(session.id)
+                  }
                   if (sessionEmojis.length === 0) return
                   const candidates = info.curEmoji ? sessionEmojis.filter(em => em !== info.curEmoji) : sessionEmojis
                   if (candidates.length === 0) return

@@ -1,5 +1,5 @@
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ArrowUp } from 'lucide-react'
 import type { SessionTab } from './sessionRestore'
 import { ICON_NONE } from './sessionRestore'
 import { useI18n } from './i18n'
@@ -30,10 +30,12 @@ export interface SessionGlyphInfo {
   blankIcon: boolean
 }
 
-export function SessionGlyph({ session, status, worktreeNav, onClick, onContextMenu }: {
+export function SessionGlyph({ session, status, worktreeNav, pinHint, pinned, onClick, onContextMenu }: {
   session: SessionTab
   status: SessionIconStatus
   worktreeNav?: { worktreePath: string } | null
+  pinHint?: boolean
+  pinned?: boolean
   onClick?: (info: SessionGlyphInfo) => void
   onContextMenu?: (e: ReactMouseEvent) => void
 }) {
@@ -50,7 +52,8 @@ export function SessionGlyph({ session, status, worktreeNav, onClick, onContextM
     : status === 'running' ? 'running' as const
     : status === 'warn' ? 'warn' as const
     : 'idle' as const
-  const clickable = state === 'scheduled' || state === 'idle'
+  const clickable = state === 'scheduled' || state === 'idle' || state === 'running'
+  const showPin = !!pinHint && (state === 'idle' || state === 'running') && !pinned
   const idleGlyph = blankIcon ? '' : (curEmoji ?? renderKindIcon(session.kind))
   const glyph = state === 'scheduled' ? '⏰'
     : state === 'worktree' ? '🌿'
@@ -67,7 +70,7 @@ export function SessionGlyph({ session, status, worktreeNav, onClick, onContextM
     : (blankIcon ? t('Blank') : session.kind === 'terminal' ? t('Terminal') : session.kind === 'gui' ? 'Claude' : 'dsh')
   return (
     <span
-      className={`text-[13px] shrink-0 w-4 h-4 flex items-center justify-center select-none transition-colors session-item__icon${clickable ? ' cursor-pointer hover:bg-ide-hover rounded' : ''}`}
+      className={`group/glyph relative text-[13px] shrink-0 w-4 h-4 flex items-center justify-center select-none transition-colors session-item__icon${clickable ? ' cursor-pointer hover:bg-ide-hover rounded' : ''}`}
       title={title}
       draggable={false}
       onClick={(e) => {
@@ -82,6 +85,13 @@ export function SessionGlyph({ session, status, worktreeNav, onClick, onContextM
         e.stopPropagation()
         onContextMenu(e)
       }}
-    >{glyph}</span>
+    >
+      <span
+        className={`flex items-center justify-center w-full h-full transition-opacity${showPin ? ' group-hover/glyph:opacity-0' : ''}${pinned ? ' session-glyph--reveal' : ''}`}
+      >{glyph}</span>
+      {showPin && (
+        <ArrowUp className="pointer-events-none absolute inset-0 m-auto w-4 h-4 text-ide-accent opacity-0 group-hover/glyph:opacity-100 transition-opacity" />
+      )}
+    </span>
   )
 }

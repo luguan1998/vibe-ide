@@ -378,6 +378,33 @@ html, body, #root {
   animation: colorPulse 2s ease-in-out infinite;
 }
 
+/* 组内置顶反馈：emoji 一次性逐列扫描显像（同 z-session-loading-reveal.css 观感，播一次即停） */
+@keyframes sessionReveal {
+  0%   { clip-path: inset(0 100% 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+@keyframes sessionRevealBeam {
+  0%   { left: -1px; opacity: 1; }
+  85%  { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+.session-glyph--reveal {
+  position: relative;
+  overflow: hidden;
+  animation: sessionReveal 0.9s steps(8) both;
+}
+.session-glyph--reveal::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -1px;
+  width: 1px;
+  background: rgb(var(--ide-accent));
+  box-shadow: 0 0 4px rgb(var(--ide-accent) / 0.9);
+  animation: sessionRevealBeam 0.9s steps(8) both;
+}
+
 @keyframes textWave {
   0%   { background-position: 200% 50%; }
   100% { background-position: -200% 50%; }
