@@ -222,7 +222,7 @@ export function ModelBadge({
   const displayLabel = displayOption?.label || model || 'default'
 
   return (
-    <div ref={ref} className="ai-tab__model relative shrink-0">
+    <div ref={ref} className="ai-tab__model relative min-w-0">
       <button
         type="button"
         onClick={() => sessionId && setOpen(v => !v)}
@@ -236,10 +236,10 @@ export function ModelBadge({
         disabled={!sessionId}
       >
         {displayOption
-          ? <span className="text-sm">{displayOption.icon}</span>
+          ? <span className="text-sm shrink-0">{displayOption.icon}</span>
           : <Bot size={14} strokeWidth={2} className="shrink-0" />}
-        <span className="truncate max-w-[200px]">{displayLabel}</span>
-        {sessionId && <ChevronDown size={12} className={`opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
+        <span className="ai-tab__model-label truncate">{displayLabel}</span>
+        {sessionId && <ChevronDown size={12} className={`shrink-0 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
       </button>
       {open && (
         <div className="ai-tab__model-dropdown absolute bottom-full right-0 mb-1.5 z-30
@@ -303,7 +303,7 @@ export function ModeSelector({
   }, [open])
 
   return (
-    <div ref={ref} className="ai-tab__mode relative">
+    <div ref={ref} className="ai-tab__mode relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}

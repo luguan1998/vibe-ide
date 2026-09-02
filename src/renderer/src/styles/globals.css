@@ -717,6 +717,20 @@ html, body, #root {
 body.panel-dragging webview { pointer-events: none; }
 body.panel-dragging { user-select: none; cursor: col-resize; }
 
+/* ── AiTab input toolbar container query: 空间不足时先隐藏最近文件，模型名逐级收缩 ── */
+.ai-tab__input-toolbar {
+  container-type: inline-size;
+  container-name: ai-tab-toolbar;
+}
+.ai-tab__model-label { max-width: 260px; }
+@container ai-tab-toolbar (max-width: 640px) {
+  .ai-tab__last-file-btn { display: none; }
+  .ai-tab__model-label { max-width: 96px; }
+}
+@container ai-tab-toolbar (max-width: 520px) {
+  .ai-tab__model-label { max-width: 90px; }
+}
+
 /* ── Desktop pet (codex-style webp sprite sheet) ── */
 .desktop-pet__wrapper {
   position: fixed;

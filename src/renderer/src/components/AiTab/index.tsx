@@ -947,8 +947,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             <div className="ai-tab__input-toolbar flex items-center gap-2 px-2 pt-0 pb-1.5
                             border-t border-ide-border/30">
               {/* LEFT: plus + mode selector + last file */}
-              <div className="ai-tab__toolbar-left flex items-center gap-2 shrink-0">
-                <div className="ai-tab__toolbar-controls flex items-center gap-0">
+              <div className="ai-tab__toolbar-left flex items-center gap-2 min-w-0">
+                <div className="ai-tab__toolbar-controls flex items-center gap-0 shrink-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -989,7 +989,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                     }}
                     className="ai-tab__last-file-btn flex items-center gap-1 h-7 px-2 rounded-lg
                                bg-ide-accent/10 hover:bg-ide-accent/20 text-ide-accent
-                               transition-colors text-[11px] max-w-[180px]"
+                               transition-colors text-[11px] min-w-0 max-w-[180px]"
                     title={lastFile.ref}
                   >
                     <Plug size={12} strokeWidth={2} className="shrink-0" />
@@ -1002,7 +1002,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               <div className="flex-1" />
 
               {/* RIGHT: model badge + context bar + Send/Cancel */}
-              <div className="ai-tab__toolbar-right flex items-center gap-1 shrink-0">
+              <div className="ai-tab__toolbar-right flex items-center gap-1 min-w-0">
                 <ModelBadge model={state.model} sessionId={activeSessionId} />
                 <ContextBar key={activeSessionId ?? 'none'} percent={state.contextPercent} sessionId={activeSessionId} />
 
@@ -1017,7 +1017,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                         window.api.ai.cancel(activeSessionId)
                       }
                     }}
-                    className={`ai-tab__stop-btn w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                    className={`ai-tab__stop-btn w-7 h-7 shrink-0 flex items-center justify-center rounded-lg transition-colors ${
                       forceArmed
                         ? 'bg-ide-danger text-white hover:bg-ide-danger/90'
                         : 'bg-ide-danger/20 hover:bg-ide-danger/30 text-ide-danger'
@@ -1031,7 +1031,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                     type="button"
                     onClick={handleSend}
                     disabled={!inputValue.trim() || !state.ready}
-                    className="ai-tab__send-btn w-7 h-7 flex items-center justify-center rounded-lg
+                    className="ai-tab__send-btn w-7 h-7 shrink-0 flex items-center justify-center rounded-lg
                                bg-ide-accent hover:bg-ide-accent-hover text-white
                                transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     title={t('Send')}
