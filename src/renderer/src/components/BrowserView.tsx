@@ -143,7 +143,7 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
     loadURL: (u: string) => {
       const wv = webviewRef.current
       if (!wv) return
-      try { wv.loadURL(u); setUrl(u); setAddress(u); lastBrowserUrl = u } catch {}
+      try { wv.loadURL(u).catch((err: any) => { if (!String(err?.message ?? err ?? '').includes('ERR_ABORTED')) console.warn('loadURL failed:', err) }); setUrl(u); setAddress(u); lastBrowserUrl = u } catch {}
     }
   }), [])
 

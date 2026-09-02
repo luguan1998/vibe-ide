@@ -105,5 +105,7 @@ export function resolveAbsPath(rel: string, cwd?: string): string {
 export function toFileUrl(localPath: string): string {
   const sep = localPath.includes('\\') ? '\\' : '/'
   const parts = localPath.split(sep)
-  return 'file:///' + parts.map(p => encodeURIComponent(p)).join('/')
+  // Windows 盘符段 E: 的冒号必须保留字面，encodeURIComponent 会输出 E%3A 使 file:// 盘符识别失败
+  const encoded = parts.map((p, i) => (i === 0 && /^[A-Za-z]:$/.test(p) ? p : encodeURIComponent(p)))
+  return 'file:///' + encoded.join('/')
 }
