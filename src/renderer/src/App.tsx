@@ -3300,7 +3300,7 @@ export default function App() {
           <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card" style={{ display: centerView === 'board' ? 'flex' : 'none' }}>
             <BoardView
               workspacePath={activeSessionCwd}
-              sessions={sessions}
+              sessions={groupSessionsByCwd ? stableSessions : sessions}
               agentStatus={agentStatus}
               activeSessionId={centerView === 'board' ? null : activeSessionId}
               sessionWorktreeNav={sessionWorktreeNav}
