@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
 import { type SessionTab, ICON_NONE } from '../sessionRestore'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, HelpCircle } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -344,6 +344,15 @@ function cronValid(cron: string): boolean {
     cronFieldValid(parts[2], 1, 31) && cronFieldValid(parts[3], 1, 12) && cronFieldValid(parts[4], 0, 6)
 }
 
+// 常用 cron 示例（分 时 日 月 周）
+const SCHED_EXAMPLES = [
+  { cron: '*/5 * * * *', desc: 'Every 5 minutes' },
+  { cron: '0 * * * *', desc: 'Every hour' },
+  { cron: '0 9 * * *', desc: 'Every day at 09:00' },
+  { cron: '30 8 * * 1-5', desc: 'Weekdays at 08:30' },
+  { cron: '0 0 * * *', desc: 'Every day at 00:00' },
+]
+
 function SessionCmdCopyButton({ cmd }: { cmd: string }) {
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
@@ -664,6 +673,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [schedCronDraft, setSchedCronDraft] = useState('')
   const [schedCmdDraft, setSchedCmdDraft] = useState('')
   const [schedCronError, setSchedCronError] = useState('')
+  const [showSchedExamples, setShowSchedExamples] = useState(false)
 
   const hourglassSvg = (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-text-muted">
@@ -683,6 +693,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setSchedCronDraft(existing?.cron ?? '')
     setSchedCmdDraft(existing?.command ?? '')
     setSchedCronError('')
+    setShowSchedExamples(false)
     setShowSchedModal(true)
   }
   const handleSaveSched = () => {
@@ -727,12 +738,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopImmediatePropagation()
-        setShowSchedModal(false)
+        if (showSchedExamples) setShowSchedExamples(false)
+        else setShowSchedModal(false)
       }
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [showSchedModal])
+  }, [showSchedModal, showSchedExamples])
   const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; cwd: string; left: number; top: number } | null>(null)
   const [hoverTab, setHoverTab] = useState<'cmds' | 'files'>('cmds')
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -2563,7 +2575,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {/* 定时命令 Modal */}
       {showSchedModal && createPortal(
         <ModalOverlay onClose={() => setShowSchedModal(false)} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[380px] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[340px] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
               <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5">⏰ {t('Scheduled Task')}</span>
               <button
@@ -2572,8 +2584,29 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               >×</button>
             </div>
             <div className="p-4 flex flex-col gap-3">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-ide-text-muted">{t('Cron expression')}</span>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-ide-text-muted">{t('Cron expression')}</span>
+                  <button
+                    className="w-4 h-4 rounded-full text-ide-text-muted hover:text-ide-text hover:bg-ide-hover flex items-center justify-center transition-colors"
+                    title={t('Common cron examples')}
+                    onClick={e => { e.preventDefault(); e.stopPropagation(); setShowSchedExamples(v => !v) }}
+                  ><HelpCircle size={13} /></button>
+                </div>
+                {showSchedExamples && (
+                  <div className="bg-ide-sidebar border border-ide-border rounded-md shadow-lg py-1 overflow-hidden">
+                    {SCHED_EXAMPLES.map(ex => (
+                      <button
+                        key={ex.cron}
+                        className="w-full px-3 py-1.5 flex items-center justify-between gap-2 text-left hover:bg-ide-hover transition-colors"
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); setSchedCronDraft(ex.cron); setSchedCronError(''); setShowSchedExamples(false) }}
+                      >
+                        <span className="font-mono text-xs text-ide-text">{ex.cron}</span>
+                        <span className="text-[10px] text-ide-text-muted whitespace-nowrap">{t(ex.desc)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <input
                   type="text"
                   value={schedCronDraft}
@@ -2582,7 +2615,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   className="w-full px-3 py-1.5 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
                 {schedCronError && <span className="text-[10px] text-ide-danger">{schedCronError}</span>}
-              </label>
+              </div>
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-ide-text-muted">{t('Command')}</span>
                 <textarea
