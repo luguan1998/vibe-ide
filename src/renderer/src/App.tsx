@@ -252,10 +252,10 @@ declare global {
 
 type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser' | 'search' | 'board'
 
-// 网页调试停靠位置偏好（中栏 / 右栏覆盖 Nga tab），localStorage 持久化
+// 网页调试停靠位置偏好（中栏 / 右栏覆盖 Nga tab），localStorage 持久化，默认右栏
 function loadBrowserDockPref(): 'center' | 'right' {
-  try { return localStorage.getItem('vibe-ide-browser-dock') === 'right' ? 'right' : 'center' } catch {}
-  return 'center'
+  try { return localStorage.getItem('vibe-ide-browser-dock') === 'center' ? 'center' : 'right' } catch {}
+  return 'right'
 }
 
 function saveBrowserDockPref(pos: 'center' | 'right') {

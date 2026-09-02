@@ -220,7 +220,7 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
 
   return (
     <div className="flex flex-col h-full animate-fade-in" style={{ cursor: pick ? 'crosshair' : 'default' }}>
-      <div className="h-10 px-3 flex items-center gap-1.5 bg-ide-sidebar border-b border-ide-border shrink-0">
+      <div className="h-8 px-3 flex items-center gap-1.5 bg-ide-sidebar border-b border-ide-border shrink-0">
         <button onClick={onBack} className="w-6 h-6 mr-1 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors shrink-0" title="Esc">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3.5 h-3.5"><polyline points="15 4 7 12 15 20" /></svg>
         </button>
