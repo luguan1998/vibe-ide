@@ -98,3 +98,12 @@ export function resolveAbsPath(rel: string, cwd?: string): string {
   const sep = cwd.includes('\\') ? '\\' : '/'
   return cwd + sep + rel.replace(/\//g, sep)
 }
+
+/**
+ * 本地路径 → file:/// URL（空格等字符转义），ImagePreview / 内置浏览器打开本地文件共用
+ */
+export function toFileUrl(localPath: string): string {
+  const sep = localPath.includes('\\') ? '\\' : '/'
+  const parts = localPath.split(sep)
+  return 'file:///' + parts.map(p => encodeURIComponent(p)).join('/')
+}

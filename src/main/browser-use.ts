@@ -43,7 +43,7 @@ function textResult(s: string, isError = false): BrowserToolResult {
 
 function noBrowser(): BrowserToolResult {
   return textResult(
-    'No embedded browser is open. Ask the user to open the built-in browser (AI web preview) on the target page first.',
+    'No embedded browser is open. Ask the user to click the globe "Web Debug" (网页调试) button on the right side of the top title bar (next to the search icon) — the browser opens docked on the right by default — then navigate it to the target page and try again.',
     true,
   )
 }

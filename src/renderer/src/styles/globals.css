@@ -706,6 +706,13 @@ html, body, #root {
 .ft-fname { font-size: var(--ft-fname-size, 13px); }
 .ft-icon  { width: var(--ft-icon-size, 14px); height: var(--ft-icon-size, 14px); }
 
+/* 行内 hover 才显示的操作按钮 — 手写 CSS 不依赖 tailwind group utility（HMR 掉 utility 会致按钮常显） */
+.file-tree-item .row-action,
+[data-recent-idx] .row-action { opacity: 0; transition: opacity 120ms ease-out; }
+.file-tree-item:hover .row-action,
+.file-tree-item:focus-within .row-action,
+[data-recent-idx]:hover .row-action { opacity: 1; }
+
 /* ── Desktop pet (codex-style webp sprite sheet) ── */
 .desktop-pet__wrapper {
   position: fixed;

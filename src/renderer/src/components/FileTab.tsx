@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Lightbulb, Clock, X, Pencil, Search, Filter, FileText, FilePlus, FolderPlus, ClipboardPaste, Scissors, Copy, Check, RotateCw, FolderOpen, GitCompare, Trash2, Route } from 'lucide-react'
+import { Lightbulb, Clock, X, Pencil, Search, Filter, FileText, FilePlus, FolderPlus, ClipboardPaste, Scissors, Copy, Check, RotateCw, FolderOpen, GitCompare, Trash2, Route, Globe } from 'lucide-react'
 import { FileNode, RecentFileEntry, GrepMatch, CodeSymbol } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { ModalOverlay } from './ModalOverlay'
@@ -51,6 +51,7 @@ interface FileTabProps {
   currentEditFilePath?: string | null
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
   onPreviewImage?: (fullPath: string, fileName: string) => void
+  onOpenInBrowser?: (fullPath: string) => void
   refreshKey?: number
   navigateToFile?: { trigger: number; filePath: string } | null
   onRefresh?: () => void
@@ -239,7 +240,7 @@ export function ContextMenuItem({ icon, label, danger, onClick }: { icon: React.
 }
 
 // File tree item component
-function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onSearchInFolder, inlineSearch, onCopyPath, brushActive, workspacePath }: {
+function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, onSearchInFolder, inlineSearch, onCopyPath, brushActive, workspacePath }: {
   node: FileNode
   depth: number
   expandedDirs: Set<string>
@@ -252,6 +253,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   highlightedFilePath: string | null
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
   onPreviewImage?: (fullPath: string, fileName: string) => void
+  onOpenInBrowser?: (fullPath: string) => void
   onSearchInFolder?: (path: string) => void
   inlineSearch?: InlineSearch
   onCopyPath?: (fullPath: string) => void
@@ -423,7 +425,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
               </div>
             ) : isDir && onSearchInFolder ? (
               <button
-                className="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 row-action"
                 onClick={(e) => {
                   e.stopPropagation()
                   onSearchInFolder(node.path)
@@ -431,6 +433,17 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                 title={t('Search in folder')}
               >
                 <Search className="ft-icon" />
+              </button>
+            ) : !isDir && /\.(html?|xhtml)$/i.test(node.name) && onOpenInBrowser ? (
+              <button
+                className="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 row-action"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onOpenInBrowser(node.path)
+                }}
+                title={t('Open in Browser')}
+              >
+                <Globe className="ft-icon" />
               </button>
             ) : null}
           </>
@@ -512,6 +525,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                 highlightedFilePath={highlightedFilePath}
                 onPreviewMarkdown={onPreviewMarkdown}
                 onPreviewImage={onPreviewImage}
+                onOpenInBrowser={onOpenInBrowser}
                 onSearchInFolder={onSearchInFolder}
                 inlineSearch={inlineSearch}
                 onCopyPath={onCopyPath}
@@ -636,7 +650,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, brushActive, onExploreNode }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, brushActive, onExploreNode }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -1442,6 +1456,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 highlightedFilePath={highlightedFilePath}
                 onPreviewMarkdown={onPreviewMarkdown}
                 onPreviewImage={onPreviewImage}
+                onOpenInBrowser={onOpenInBrowser}
                 onSearchInFolder={(p) => openSearch(p)}
                 inlineSearch={inlineSearchPayload}
                 onCopyPath={handleCopyPath}
@@ -1487,7 +1502,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 <span className="truncate text-ide-text min-w-0 flex-1">{baseName}</span>
                 {onEditRecentFile && baseName.toLowerCase().endsWith('.md') && (
                   <button
-                    className="ml-1 shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="ml-1 shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 row-action"
                     onClick={(e) => { e.stopPropagation(); onEditRecentFile(f.path, f.line) }}
                     title={t('Edit')}
                   >
@@ -1497,7 +1512,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 {f.line && <span className="text-ide-accent shrink-0 text-[10px]">:{f.line}</span>}
                 {onRemoveRecentFile && (
                   <button
-                    className="ml-1 shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="ml-1 shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 row-action"
                     onClick={(e) => { e.stopPropagation(); onRemoveRecentFile(f.path); setSelectedRecentIndex(null) }}
                     title={t('Remove')}
                   >

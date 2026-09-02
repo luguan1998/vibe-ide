@@ -32,6 +32,7 @@ interface RightPanelProps {
   currentEditFilePath?: string | null
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
   onPreviewImage?: (fullPath: string, fileName: string) => void
+  onOpenFileInBrowser?: (fullPath: string) => void
   onDiffScroll?: (delta: number) => void
   onToggleCollapse?: () => void
   capsuleTabs?: boolean
@@ -421,7 +422,7 @@ function RightPanel({
   rightTerminalSessions, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
   activeAuxIndex, onCloseAuxTerminal, onSelectAuxTab, onSplitAuxTerminal, onResizeAuxSplit,
-  clearAuxBufferTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage,
+  clearAuxBufferTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenFileInBrowser,
   onDiffScroll,
   onToggleCollapse,
   capsuleTabs = true,
@@ -692,6 +693,7 @@ function RightPanel({
           currentEditFilePath={currentEditFilePath}
           onPreviewMarkdown={onPreviewMarkdown}
           onPreviewImage={onPreviewImage}
+          onOpenInBrowser={onOpenFileInBrowser}
           refreshKey={fileRefreshKey}
           navigateToFile={navigateToFilePayload}
           onRefresh={() => setFileRefreshKey(k => k + 1)}
@@ -715,6 +717,7 @@ function RightPanel({
               onBack={onBrowserBack ?? (() => {})}
               onAnnotate={onBrowserAnnotate ?? (() => {})}
               onToggleDock={onBrowserToggleDock}
+              workspacePath={workspacePath}
             />
           </div>
         )}

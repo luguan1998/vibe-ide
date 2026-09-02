@@ -33,7 +33,7 @@ import { useI18n } from './i18n'
 import { cwdStore } from './cwdStore'
 import type { TerminalViewHandle } from './components/TerminalView'
 import { getMainShellType, getAuxShellType } from './utils/shellPrefs'
-import { resolveAbsPath } from './utils/filePathUtils'
+import { resolveAbsPath, toFileUrl } from './utils/filePathUtils'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
 
@@ -1381,6 +1381,29 @@ export default function App() {
   const activeSessionIdRef = useRef(activeSessionId)
   activeSessionIdRef.current = activeSessionId
 
+  const handleBrowseUrl = useCallback((url: string) => {
+    if (!url) return
+    if (browserDockedRef.current) {
+      setBrowserDockNonce(n => n + 1)
+      browserViewRef.current?.loadURL(url)
+      return
+    }
+    if (centerViewRef.current === 'browser') { browserViewRef.current?.loadURL(url); return }
+    if (loadBrowserDockPref() === 'right' && sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd) {
+      setBrowserStartUrl(url)
+      browserDockedRef.current = true
+      setBrowserDocked(true)
+      setBrowserDockNonce(n => n + 1)
+      return
+    }
+    setBrowserStartUrl(url)
+    setCenterView('browser')
+  }, [])
+
+  const handleOpenFileInBrowser = useCallback((fullPath: string) => {
+    handleBrowseUrl(toFileUrl(fullPath))
+  }, [handleBrowseUrl])
+
   useEffect(() => {
     (window as any).__vibeSendLine = (text: string) => sendDraftLine(activeSessionIdRef.current, text)
     ;(window as any).__vibeAppendInput = (text: string) => {
@@ -1394,24 +1417,8 @@ export default function App() {
         terminalRefs.current[sid]?.focus()
       }
     }
-    ;(window as any).__vibeBrowse = (url: string) => {
-      if (!url) return
-      if (browserDockedRef.current) {
-        setBrowserDockNonce(n => n + 1)
-        browserViewRef.current?.loadURL(url)
-        return
-      }
-      if (centerViewRef.current === 'browser') { browserViewRef.current?.loadURL(url); return }
-      if (loadBrowserDockPref() === 'right' && sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd) {
-        setBrowserStartUrl(url)
-        browserDockedRef.current = true
-        setBrowserDocked(true)
-        setBrowserDockNonce(n => n + 1)
-        return
-      }
-      window.open(url, '_blank')
-    }
-  }, [waitDraftIdle, sendDraftLine])
+    ;(window as any).__vibeBrowse = handleBrowseUrl
+  }, [waitDraftIdle, sendDraftLine, handleBrowseUrl])
 
   const handleAiAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     const v = status === 'running'
@@ -3191,6 +3198,7 @@ export default function App() {
                 onBack={handleCloseBrowser}
                 onAnnotate={(line) => { (window as any).__vibeAppendInput?.(line) }}
                 onToggleDock={activeSessionCwd ? handleToggleBrowserDock : undefined}
+                workspacePath={activeSessionCwd}
               />
             </div>
           )}
@@ -3344,6 +3352,7 @@ export default function App() {
             currentEditFilePath={diffFile?.defaultEdit ? diffFile.fullPath : null}
             onPreviewMarkdown={handlePreviewMarkdown}
             onPreviewImage={handlePreviewImage}
+            onOpenFileInBrowser={handleOpenFileInBrowser}
             rightTerminalSessions={rightTerminalSessions}
             activeAuxIndex={activeAuxIndex}
             onCreateRightTerminal={handleCreateRightTerminal}

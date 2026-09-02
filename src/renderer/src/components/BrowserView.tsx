@@ -2,12 +2,14 @@ import React, { useRef, useState, useEffect, useCallback, useImperativeHandle } 
 import { RotateCw, ArrowLeft, ArrowRight, Feather, PanelRight, PanelLeft } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { InlineAnnotationInput } from './AiTab'
+import { toFileUrl, resolveAbsPath } from '../utils/filePathUtils'
 
 interface BrowserViewProps {
   onBack: () => void
   onAnnotate: (line: string) => void
   docked?: boolean
   onToggleDock?: () => void
+  workspacePath?: string | null
 }
 
 export interface BrowserViewHandle {
@@ -29,6 +31,14 @@ let lastBrowserUrl = 'about:blank'
 // 停靠偏好为右侧时，浏览器尚未挂载就要先定好起始网址（挂载时作为初始 url/address）
 export function setBrowserStartUrl(u: string) {
   if (u) lastBrowserUrl = u
+}
+
+// 地址栏输入的路径判定：盘符/绝对/相对前缀，或以 .html 结尾且首段不像域名（src/a.html 本地、example.com/a.html 域名）
+function looksLikePath(u: string): boolean {
+  if (/^[A-Za-z]:[\\/]/.test(u) || u.startsWith('/') || /^\.\.?[\\/]/.test(u)) return true
+  if (/\s/.test(u) || !/\.(html?|xhtml)$/i.test(u)) return false
+  if (!/[\\/]/.test(u)) return true
+  return !u.split(/[\\/]/)[0].includes('.')
 }
 
 const INJECT_INSTALL = `
@@ -114,7 +124,7 @@ const INJECT_REMOVE = `
 })();
 `
 
-const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(function BrowserView({ onBack, onAnnotate, docked, onToggleDock }: BrowserViewProps, ref) {
+const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(function BrowserView({ onBack, onAnnotate, docked, onToggleDock, workspacePath }: BrowserViewProps, ref) {
   const { t } = useI18n()
   const webviewRef = useRef<any>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -212,11 +222,19 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
   const commitAddress = useCallback(() => {
     const u = address.trim()
     if (!u) return
-    const final = u.includes('://') || u === 'about:blank' ? u : 'https://' + u
+    let final: string
+    if (u.includes('://') || u === 'about:blank') {
+      final = u
+    } else if (looksLikePath(u) && (/^[A-Za-z]:[\\/]/.test(u) || u.startsWith('/') || workspacePath)) {
+      const abs = /^[A-Za-z]:[\\/]/.test(u) || u.startsWith('/') ? u : resolveAbsPath(u, workspacePath || undefined)
+      final = toFileUrl(abs)
+    } else {
+      final = 'https://' + u
+    }
     setUrl(final)
     setAddress(final)
     lastBrowserUrl = final
-  }, [address])
+  }, [address, workspacePath])
 
   return (
     <div className="flex flex-col h-full animate-fade-in" style={{ cursor: pick ? 'crosshair' : 'default' }}>

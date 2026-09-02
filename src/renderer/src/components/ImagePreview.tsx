@@ -1,18 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
 import { ADD_ANNOTATION_EVENT, toRelPath } from './vibeEvents'
+import { toFileUrl } from '../utils/filePathUtils'
 
 interface ImagePreviewProps {
   fullPath: string
   fileName: string
   onBack?: () => void
   brushActive?: boolean
-}
-
-function toFileUrl(localPath: string): string {
-  const sep = localPath.includes('\\') ? '\\' : '/'
-  const parts = localPath.split(sep)
-  return 'file:///' + parts.map(p => encodeURIComponent(p)).join('/')
 }
 
 const ImagePreview = React.memo(function ImagePreview({
