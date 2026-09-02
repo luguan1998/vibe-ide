@@ -3,7 +3,7 @@ import type { AiMessage, AiToolUse, UserTurn } from '@shared/types'
 import { asToolArray } from '@shared/types'
 import { useI18n } from '../../i18n'
 import { cleanMessageContent } from '../../utils/aiConversationFormatter'
-import { ChevronDown, Check, Undo2, MessageSquare, GitFork, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
+import { ChevronDown, Check, Undo2, MessageSquare, GitBranch, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
 import { ToolIcon, AiToolCallCard, CollapsedToolsSummary, isMergeTool, isPureToolMessage } from './tools'
 import { ChatMarkdown } from './markdown'
 interface TodoItem {
@@ -463,7 +463,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
               className="shrink-0 opacity-0 group-hover/meta:opacity-100 transition-opacity hover:text-ide-accent"
               title={t('Fork to new session')}
             >
-              <GitFork size={14} />
+              <GitBranch size={14} />
             </button>
           )}
         </div>
