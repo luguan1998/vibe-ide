@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Browser Agent 验收页</title>
+<!--
+  用法：内置浏览器地址栏输入 file:///D:/test/vibe-ide/test/manual/browser-agent/page1.html
+  本页为 AI browser_* 工具的人工验收台：右侧「事件计数」与「自检面板」会实时变绿，
+  人只需比对 AI 自述与页面痕迹是否一致。iframe 为已知 P2 边界（预期不可见）。
+-->
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; display: flex; }
+  main { flex: 1; padding: 24px 32px; max-width: 640px; }
+  aside { width: 300px; border-left: 1px solid #ddd; padding: 16px; background: #fafafa; position: sticky; top: 0; height: 100vh; overflow: auto; }
+  h1 { font-size: 18px; } h2 { font-size: 14px; margin-top: 20px; }
+  label { display: block; margin-top: 12px; font-size: 13px; color: #444; }
+  input, select, textarea { display: block; width: 240px; padding: 6px; margin-top: 4px; border: 1px solid #bbb; border-radius: 4px; font: inherit; }
+  textarea { height: 60px; }
+  .inline { display: inline-block; width: auto; margin: 4px 6px 0 0; }
+  [contenteditable] { border: 1px dashed #999; border-radius: 4px; padding: 6px; margin-top: 4px; min-height: 32px; }
+  .widget { display: inline-block; padding: 6px 14px; border: 1px solid #666; border-radius: 6px; margin-top: 8px; font-size: 13px; }
+  .row { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 13px; }
+  button { margin-top: 14px; padding: 8px 18px; font-size: 14px; border-radius: 6px; border: 1px solid #333; background: #fff; cursor: pointer; }
+  button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  #evlog div, #selfcheck div { font-size: 12px; font-family: Consolas, monospace; padding: 2px 0; color: #a00; }
+  #evlog div.ok, #selfcheck div.ok { color: #080; }
+  #asyncbox { margin-top: 14px; font-size: 13px; }
+  .spacer { height: 900px; background: repeating-linear-gradient(#fff, #fff 48px, #f4f4f4 48px, #f4f4f4 50px); }
+  iframe { width: 260px; height: 120px; border: 1px solid #ccc; margin-top: 8px; }
+  a { color: #2563eb; }
+</style>
+</head>
+<body>
+<main>
+  <h1>浏览器 AI 操控 · 验收表单</h1>
+  <form onsubmit="return false">
+    <label for="email">邮箱 <span style="color:#c00">*</span></label>
+    <input id="email" type="text" placeholder="you@example.com" required>
+    <label for="pw">密码</label>
+    <input id="pw" type="password">
+    <label for="city">所在城市</label>
+    <select id="city">
+      <option value="">请选择…</option>
+      <option value="bj">北京</option>
+      <option value="sh">上海</option>
+      <option value="gz">广州</option>
+    </select>
+    <div class="row">
+      <input id="sub" type="checkbox" class="inline"><label for="sub" style="margin:0">订阅周报</label>
+    </div>
+    <div class="row">
+      <input id="g1" name="gender" type="radio" class="inline"><label for="g1" style="margin:0">男</label>
+      <input id="g2" name="gender" type="radio" class="inline"><label for="g2" style="margin:0">女</label>
+    </div>
+    <label for="note">备注</label>
+    <textarea id="note" placeholder="多行文本"></textarea>
+    <label>富文本（contenteditable）</label>
+    <div id="ce" contenteditable="true">在这里输入…</div>
+    <div id="cw" class="widget" role="button" tabindex="0">自定义控件：点我计数</div>
+    <div id="cp" style="font-size:12px;color:#888;margin-top:8px;cursor:pointer">cursor-pointer 提示文本（应被启发式发现）</div>
+    <button id="submit" class="primary" type="button">提交</button>
+    <div id="asyncbox" aria-live="polite"></div>
+  </form>
+
+  <h2>导航测试</h2>
+  <a id="to2" href="page2.html">→ 第二页（navigate/extract/back 用）</a>
+
+  <h2>iframe（已知 P2 边界）</h2>
+  <iframe srcdoc="&lt;label&gt;iframe 里的输入框&lt;/label&gt;&lt;input placeholder='iframe 输入框'&gt;"></iframe>
+
+  <div class="spacer"></div>
+  <button id="secret">页尾秘密按钮（视口外，需 scrollIntoView）</button>
+  <div style="height:120px"></div>
+</main>
+
+<aside>
+  <h2 style="margin-top:0">事件计数（input/change 真实派发才算过）</h2>
+  <div id="evlog"></div>
+  <h2>自检面板</h2>
+  <div id="selfcheck"></div>
+</aside>
+
+<div aria-hidden="true" style="position:fixed;left:-9999px"><button>背景弹窗（aria-hidden，快照不可见）</button></div>
+
+<script>
+  const fired = {};
+  const log = {};
+  function bump(el, type) {
+    const key = (el.id || el.tagName) + '.' + type;
+    fired[key] = (fired[key] || 0) + 1;
+    render();
+  }
+  const watched = ['email', 'pw', 'city', 'sub', 'g1', 'g2', 'note', 'ce'];
+  for (const id of watched) {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => bump(el, 'input'));
+    el.addEventListener('change', () => bump(el, 'change'));
+  }
+  document.getElementById('cw').addEventListener('click', () => {
+    bump(document.getElementById('cw'), 'click');
+    document.getElementById('cw').dataset.clicks = (+document.getElementById('cw').dataset.clicks || 0) + 1;
+    document.getElementById('cw').textContent = '自定义控件：已点 ' + document.getElementById('cw').dataset.clicks + ' 次';
+  });
+  document.getElementById('secret').addEventListener('click', () => {
+    bump(document.getElementById('secret'), 'click');
+    document.getElementById('secret').textContent = '秘密按钮已被点到 ✓';
+  });
+  document.getElementById('submit').addEventListener('click', () => {
+    const ok = document.getElementById('email').value && document.getElementById('city').value;
+    const box = document.getElementById('asyncbox');
+    box.textContent = '提交中…';
+    setTimeout(() => { box.textContent = ok ? '提交成功 ✅' : '提交失败：邮箱或城市没填'; }, 1200);
+  });
+  function check(id, cond, label) { log[id] = { cond: !!cond, label: label }; }
+  function render() {
+    const ev = document.getElementById('evlog');
+    ev.innerHTML = Object.keys(fired).map(k => '<div class="ok">● ' + k + ' ×' + fired[k] + '</div>').join('') || '<div>（还没有事件）</div>';
+    check('email', fired['email.input'], '邮箱 input');
+    check('city', fired['city.change'], '城市 change');
+    check('sub', fired['sub.click'] || fired['sub.change'], '订阅勾选');
+    check('ce', fired['ce.input'], '富文本 input');
+    check('cw', fired['cw.click'], '自定义控件 click');
+    check('secret', fired['secret.click'], '秘密按钮 click');
+    check('submit', document.getElementById('asyncbox').textContent.includes('提交成功'), '提交流程');
+    const sc = document.getElementById('selfcheck');
+    sc.innerHTML = Object.values(log).map(c => '<div class="' + (c.cond ? 'ok' : '') + '">' + (c.cond ? '✓' : '✗') + ' ' + c.label + '</div>').join('');
+  }
+  render();
+</script>
+</body>
+</html>

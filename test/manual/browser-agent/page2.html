@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>第二页 · 导航与读取</title>
+<style> body { font-family: system-ui, sans-serif; padding: 24px 32px; max-width: 560px; } table { border-collapse: collapse; font-size: 13px; } td, th { border: 1px solid #ccc; padding: 4px 10px; } </style>
+</head>
+<body>
+  <h1>第二页</h1>
+  <p>这页用来验证 navigate / back / forward / extract / eval / reload。</p>
+  <table>
+    <tr><th>项目</th><th>预算</th></tr>
+    <tr><td>服务器</td><td>12000</td></tr>
+    <tr><td>设计</td><td>8000</td></tr>
+  </table>
+  <label>折扣码 <input id="promo" type="text"></label>
+  <p id="stamp" style="color:#888;font-size:12px">加载时间戳：见 eval 读取</p>
+  <script>document.getElementById('stamp').textContent = '加载时间戳：' + location.href + ' @' + performance.now().toFixed(0) + 'ms'</script>
+</body>
+</html>

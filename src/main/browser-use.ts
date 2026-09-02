@@ -68,6 +68,7 @@ async function settlePage(c: WebContents, budget = 15000): Promise<void> {
 const SNAP_FN = String.raw`(function (base, max, boxes) {
 var NATIVE = { INPUT: 1, SELECT: 1, TEXTAREA: 1 };
 var STRONG = { A: 1, BUTTON: 1, SUMMARY: 1 };
+var STRUC = { FORM:1, MAIN:1, SECTION:1, NAV:1, ASIDE:1, HEADER:1, FOOTER:1, ARTICLE:1, BODY:1, HTML:1, UL:1, OL:1, TABLE:1, THEAD:1, TBODY:1, TR:1, FIELDSET:1 };
 var WROLES = { button:1, link:1, textbox:1, searchbox:1, checkbox:1, radio:1, combobox:1, listbox:1, menuitem:1, menuitemcheckbox:1, menuitemradio:1, option:1, slider:1, spinbutton:1, switch:1, tab:1, treeitem:1 };
 var items = []; var truncated = 0;
 function T(s){ return (s||'').replace(/\s+/g,' ').trim(); }
@@ -130,7 +131,7 @@ function walk(node, inside) {
     var isStrong = STRONG[tag] === 1 && !(tag === 'A' && !el.hasAttribute('href'));
     var isButtonish = isStrong || role==='button' || role==='link' || role==='tab' || role==='menuitem';
     var clickable = 0;
-    if (!isWidget && !isStrong && !inside && tag !== 'LABEL') {
+    if (!isWidget && !isStrong && !inside && tag !== 'LABEL' && !STRUC[tag]) {
       try { if (getComputedStyle(el).cursor === 'pointer') clickable = 1; } catch(e){}
       if (!clickable) { for (var a = 0; a < el.attributes.length; a++) { var an = el.attributes[a].name; if (an.length > 2 && an.slice(0,2) === 'on') { clickable = 1; break; } } }
     }
