@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useImperativeHandle } from 'react'
-import { RotateCw, ArrowLeft, ArrowRight, Feather, PanelRight, PanelLeft } from 'lucide-react'
+import { RotateCw, ArrowLeft, ArrowRight, Feather, PanelRight, PanelLeft, ZoomIn, ZoomOut } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { InlineAnnotationInput } from './AiTab'
 import { toFileUrl, resolveAbsPath } from '../utils/filePathUtils'
@@ -24,9 +24,19 @@ interface PickData {
 }
 
 const PICK_PREFIX = '__vibePick:'
+const CTX_CLOSE_SIG = '__vibeCtxClose'
 
-// webview 搬家（中栏 ↔ 右栏覆盖）必然重挂载，用模块级变量保住当前网址
+// 菜单打开时注入一次性 mousedown，把 webview 内的左键点点击传回宿主用于关闭菜单
+function injectCtxCloseScript(): string {
+  return `(function(){
+    function f(){console.log('${CTX_CLOSE_SIG}');document.removeEventListener('mousedown',f,true);}
+    document.addEventListener('mousedown',f,true);
+  })()`
+}
+
+// webview 搬家（中栏 ↔ 右栏覆盖）必然重挂载，用模块级变量保住当前网址与缩放
 let lastBrowserUrl = 'about:blank'
+let lastBrowserZoom = 1
 
 // 停靠偏好为右侧时，浏览器尚未挂载就要先定好起始网址（挂载时作为初始 url/address）
 export function setBrowserStartUrl(u: string) {
@@ -138,6 +148,9 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
   const pickRef = useRef(false)
   pickRef.current = pick
   const [loading, setLoading] = useState(false)
+  const [zoom, setZoom] = useState(() => lastBrowserZoom)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const ctxMenuRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(ref, () => ({
     loadURL: (u: string) => {
@@ -154,6 +167,7 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
       if (!wrapperRef.current || !wrapperRef.current.offsetParent) return
       e.preventDefault()
       e.stopImmediatePropagation()
+      if (ctxMenuRef.current) { setCtxMenu(null); return }
       if (annotationRef.current) { setAnnotation(null); return }
       if (pickMode) { setPickMode(false); return }
       onBack()
@@ -179,11 +193,14 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
     if (!wv) return
     const onConsole = (e: any) => {
       const msg = e.message ?? e.detail?.message
-      if (typeof msg !== 'string' || !msg.startsWith(PICK_PREFIX)) return
-      try {
-        const d = JSON.parse(msg.slice(PICK_PREFIX.length))
-        setAnnotation({ selector: d.selector, text: d.text, x: d.x, y: d.y })
-      } catch {}
+      if (typeof msg !== 'string') return
+      if (msg === CTX_CLOSE_SIG) { setCtxMenu(null); return }
+      if (msg.startsWith(PICK_PREFIX)) {
+        try {
+          const d = JSON.parse(msg.slice(PICK_PREFIX.length))
+          setAnnotation({ selector: d.selector, text: d.text, x: d.x, y: d.y })
+        } catch {}
+      }
     }
     const onNav = (e: any) => {
       setAddress(e.url ?? '')
@@ -195,12 +212,23 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
     }
     const onStart = () => setLoading(true)
     const onStop = () => setLoading(false)
+    // webview 内部点击宿主 DOM 感知不到，只能靠 webview 的 context-menu 事件
+    const onCtxMenu = (e: any) => {
+      const p = e?.params ?? {}
+      if (pickRef.current) return
+      if (p.menuSourceType && p.menuSourceType !== 'mouse') return
+      setCtxMenu({ x: (p.x ?? 0) - window.screenX, y: (p.y ?? 0) - window.screenY })
+      try { wv.executeJavaScript(injectCtxCloseScript()) } catch {}
+    }
+    const onDomReady = () => { try { wv.setZoomFactor(lastBrowserZoom) } catch {} }
     wv.addEventListener('console-message', onConsole)
     wv.addEventListener('did-navigate', onNav)
     wv.addEventListener('did-navigate-in-page', onNav)
     wv.addEventListener('will-navigate', onWillNav)
     wv.addEventListener('did-start-loading', onStart)
     wv.addEventListener('did-stop-loading', onStop)
+    wv.addEventListener('context-menu', onCtxMenu)
+    wv.addEventListener('dom-ready', onDomReady)
     return () => {
       wv.removeEventListener('console-message', onConsole)
       wv.removeEventListener('did-navigate', onNav)
@@ -208,8 +236,34 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
       wv.removeEventListener('will-navigate', onWillNav)
       wv.removeEventListener('did-start-loading', onStart)
       wv.removeEventListener('did-stop-loading', onStop)
+      wv.removeEventListener('context-menu', onCtxMenu)
+      wv.removeEventListener('dom-ready', onDomReady)
     }
   }, [])
+
+  const applyZoom = useCallback((next: number) => {
+    const v = Math.round(Math.min(2, Math.max(0.5, next)) * 10) / 10
+    setZoom(v)
+    lastBrowserZoom = v
+  }, [])
+
+  // zoom state 变化立即下发；初次挂载/每次导航由 dom-ready 兜底
+  useEffect(() => {
+    try { webviewRef.current?.setZoomFactor(zoom) } catch {}
+  }, [zoom])
+
+  // contextMenu：mousedown 外部关闭（webview 内点击感知不到，由下次右键/ESC/工具栏点击关闭）
+  useEffect(() => {
+    if (!ctxMenu) return
+    const handle = (e: MouseEvent) => {
+      if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target as Node)) setCtxMenu(null)
+    }
+    const timer = setTimeout(() => document.addEventListener('mousedown', handle), 0)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handle)
+    }
+  }, [ctxMenu])
 
   const handleAnnotateSubmit = useCallback((text: string) => {
     const a = annotationRef.current
@@ -273,16 +327,65 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
       </div>
       <div ref={wrapperRef} className="flex-1 relative overflow-hidden bg-white">
         {React.createElement('webview', { ref: webviewRef, src: url, className: 'w-full h-full border-0', allowpopups: 'true' })}
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-ide-bg/20 z-10">
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-ide-sidebar/90 backdrop-blur-sm border border-ide-border rounded-lg text-xs text-ide-text shadow-lg">
-              <div className="w-4 h-4 border-2 border-ide-accent/30 border-t-ide-accent rounded-full animate-spin" />
-              <span>{t('Loading...')}</span>
-            </div>
-          </div>
-        )}
         {annotation && (
           <InlineAnnotationInput top={annotation.y} left={annotation.x} containerRef={wrapperRef} onSubmit={handleAnnotateSubmit} onDismiss={() => setAnnotation(null)} />
+        )}
+        {ctxMenu && (
+          <div
+            ref={ctxMenuRef}
+            style={{ position: 'fixed', left: Math.min(ctxMenu.x, window.innerWidth - 200), top: Math.min(ctxMenu.y, window.innerHeight - 200), zIndex: 100 }}
+            className="bg-ide-sidebar border border-ide-border rounded-md shadow-2xl py-1 min-w-[170px]"
+          >
+            <button
+              disabled={!webviewRef.current?.canGoBack()}
+              onClick={() => { webviewRef.current?.goBack(); setCtxMenu(null) }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              {t('Back')}
+            </button>
+            <button
+              disabled={!webviewRef.current?.canGoForward()}
+              onClick={() => { webviewRef.current?.goForward(); setCtxMenu(null) }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+              {t('Forward')}
+            </button>
+            <button
+              onClick={() => { webviewRef.current?.reload(); setCtxMenu(null) }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover transition-colors"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              {t('Refresh')}
+            </button>
+            <div className="border-t border-ide-border my-1" />
+            <button
+              disabled={zoom <= 0.5}
+              onClick={() => applyZoom(zoom - 0.1)}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+              {t('Zoom Out')}
+            </button>
+            <button
+              disabled={zoom >= 2}
+              onClick={() => applyZoom(zoom + 0.1)}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+              {t('Zoom In')}
+            </button>
+            <button
+              disabled={zoom === 1}
+              onClick={() => applyZoom(1)}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              {t('Reset Zoom')}
+              <span className="ml-auto text-ide-text-muted">{Math.round(zoom * 100)}%</span>
+            </button>
+          </div>
         )}
       </div>
     </div>
