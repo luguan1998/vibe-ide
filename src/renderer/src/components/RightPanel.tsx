@@ -391,27 +391,39 @@ function TabBar({
 
 // ── Hover Tab Rail (hideTabBar 模式:右缘垂直居中的图标导航) ──
 
-function TabRail({ activeSection, visibleList, onSelect, onRestoreWidth }: {
+function TabRail({ activeSection, visibleList, onSelect, onRestoreWidth, onHideRail }: {
   activeSection: GitSection
   visibleList: GitSection[]
   onSelect: (s: GitSection) => void
   onRestoreWidth?: () => void
+  onHideRail?: () => void
 }) {
   const { t } = useI18n()
   return (
-    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 border border-ide-border rounded-lg bg-ide-panel/95 backdrop-blur-md p-1 shadow-xl opacity-0 translate-x-3 pointer-events-none group-hover/rail:opacity-100 group-hover/rail:translate-x-0 group-hover/rail:pointer-events-auto transition-[opacity,transform] duration-150 ease-out">
-      {visibleList.map(section => {
+    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 border border-ide-border rounded-lg bg-ide-panel/95 backdrop-blur-md p-1 shadow-xl opacity-0 translate-x-3 pointer-events-none group-hover/rail:opacity-100 group-hover/rail:translate-x-0 group-hover/rail:pointer-events-auto transition-[opacity,transform] duration-150 ease-out group/rx">
+      {visibleList.map((section, i) => {
         const active = section === activeSection
         return (
           <button
             key={section}
-            className={`w-9 h-9 flex items-center justify-center rounded transition-colors ${
+            className={`relative w-9 h-9 flex items-center justify-center rounded transition-colors ${
               active ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
             }`}
             onClick={() => onSelect(section)}
             title={TAB_DEFS[section].label}
           >
             <span className="scale-125">{TAB_DEFS[section].icon}</span>
+            {i === 0 && onHideRail && (
+              <span
+                onClick={(e) => { e.stopPropagation(); onHideRail() }}
+                title={t('Hide Rail')}
+                className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover bg-ide-panel border border-ide-border shadow-sm cursor-pointer opacity-0 pointer-events-none group-hover/rx:opacity-100 group-hover/rx:pointer-events-auto transition-opacity duration-150"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-2 h-2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </span>
+            )}
           </button>
         )
       })}
@@ -432,6 +444,7 @@ function TabRail({ activeSection, visibleList, onSelect, onRestoreWidth }: {
     </div>
   )
 }
+
 
 function RightPanel({
   workspacePath, onFileSelect, refreshKey, pollingTick,
@@ -469,6 +482,12 @@ function RightPanel({
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
   const [visibleTabs, setVisibleTabs] = useState<Record<GitSection, boolean>>(DEFAULT_VISIBLE_TABS)
   const [fileRefreshKey, setFileRefreshKey] = useState(0)
+  const [railHidden, setRailHidden] = useState(false)
+
+  // 面板回到 tab 栏模式（宽度 <700）时清除竖栏隐藏状态
+  useEffect(() => {
+    if (!hideTabBar) setRailHidden(false)
+  }, [hideTabBar])
 
   // Polling tick triggers file tree refresh
   useEffect(() => {
@@ -635,8 +654,8 @@ function RightPanel({
           onToggleCapsuleTabs={onToggleCapsuleTabs}
         />
         )}
-        {hideTabBar && (
-          <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} onRestoreWidth={onRestoreWidth} />
+        {hideTabBar && !railHidden && (
+          <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} onRestoreWidth={onRestoreWidth} onHideRail={() => setRailHidden(true)} />
         )}
         <div className={`flex-1 min-h-0 mx-2 ${hideTabBar ? 'mb-0.5' : 'mb-1'} mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center right-panel__content`}>
           <span className="text-ide-text-muted text-xs">No active session</span>
@@ -660,8 +679,8 @@ function RightPanel({
         onToggleCapsuleTabs={onToggleCapsuleTabs}
       />
       )}
-      {hideTabBar && (
-        <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} onRestoreWidth={onRestoreWidth} />
+      {hideTabBar && !railHidden && (
+        <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} onRestoreWidth={onRestoreWidth} onHideRail={() => setRailHidden(true)} />
       )}
 
       <div className={`flex-1 min-h-0 mx-2 ${hideTabBar ? 'mb-0.5' : 'mb-2'} mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col right-panel__content`}>

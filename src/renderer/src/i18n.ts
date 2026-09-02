@@ -137,6 +137,7 @@ const ZH_MAP: Record<string, string> = {
   'Reset to defaults': '重置为默认值',
   'Reset Defaults': '恢复默认',
   'Restore Default Width': '恢复默认宽度',
+  'Hide Rail': '隐藏导航栏',
   'Clear': '清除',
   'Disabled': '已禁用',
 
