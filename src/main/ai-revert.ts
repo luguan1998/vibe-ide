@@ -16,6 +16,8 @@ import {
   spawnClaude,
   stopCuForSession,
   startCuForSession,
+  stopBmForSession,
+  startBmForSession,
   resolveProjectDir,
   parseUserTurns,
 } from './ai'
@@ -121,12 +123,14 @@ export function registerRevertHandlers(): void {
     if (prev) {
       killAiProcess(prev.process)
       stopCuForSession(sessionId, prev.computerUse)
+      stopBmForSession(sessionId, prev.browserUse)
       aiSessions.delete(sessionId)
     }
 
     // 4. Spawn new subprocess
     const hasHistory = result.truncated.length > 0
     const mcpConfigPath = startCuForSession(sessionId, prev?.computerUse)
+    const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse)
     const spawnResult = spawnClaude({
       cwd: effectiveCwd,
       permissionMode: prev?.permissionMode || 'bypassPermissions',
@@ -134,11 +138,14 @@ export function registerRevertHandlers(): void {
       cliCommand: prev?.cliCommand,
       configDir: prev?.configDir,
       computerUse: prev?.computerUse,
+      browserUse: prev?.browserUse,
       mcpConfigPath,
+      browserMcpConfigPath,
       ...(hasHistory ? { resumeSessionId: claudeSessionId } : {}),
     })
     if ('error' in spawnResult) {
       stopCuForSession(sessionId, prev?.computerUse)
+      stopBmForSession(sessionId, prev?.browserUse)
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,
         error: spawnResult.error,
@@ -147,7 +154,7 @@ export function registerRevertHandlers(): void {
       return { success: false, error: spawnResult.error, installCmd: spawnResult.installCmd }
     }
 
-    attachAiProcess(sessionId, spawnResult, effectiveCwd, prev?.model, prev?.configDir, prev?.cliCommand, prev?.computerUse)
+    attachAiProcess(sessionId, spawnResult, effectiveCwd, prev?.model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse)
 
     if (prev?.contextWindow || prev?.model) {
       const s = aiSessions.get(sessionId)

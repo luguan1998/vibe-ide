@@ -48,6 +48,10 @@
         "to": "computer-use-mcp.js"
       },
       {
+        "from": "resources/browser-mcp.js",
+        "to": "browser-mcp.js"
+      },
+      {
         "from": "resources/dsh-loader-hook.mjs",
         "to": "dsh-loader-hook.mjs"
       },

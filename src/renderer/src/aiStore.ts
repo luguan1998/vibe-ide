@@ -115,14 +115,14 @@ interface EnsureCreatedOpts {
   model?: string
   persona?: string
   computerUse?: boolean
+  browserUse?: boolean
 }
 
-export function readAiCliConfig(): { cliCommand?: string; configDir?: string; computerUse?: boolean } {
+export function readAiCliConfig(): { cliCommand?: string; configDir?: string } {
   try {
     return {
       cliCommand: localStorage.getItem('vibe-ide-ai-cli-command') || undefined,
       configDir: localStorage.getItem('vibe-ide-ai-config-dir') || undefined,
-      computerUse: localStorage.getItem('vibe-ide-ai-computer-use') === '1' || undefined,
     }
   } catch {
     return {}
@@ -154,7 +154,8 @@ export const aiStore = {
     setStates(prev => {
       if (!(sid in prev)) return prev
       const next = { ...prev }
-      delete next[sid]
+      // destroy+重建（worktree/新会话/GUI 开关切换）保留会话级操控标记
+      next[sid] = { ...EMPTY_SESSION, computerUse: prev[sid].computerUse, browserUse: prev[sid].browserUse }
       return next
     })
   },
@@ -183,7 +184,6 @@ export const aiStore = {
     const fallback = readAiCliConfig()
     const cliCommand = opts.cliCommand ?? fallback.cliCommand
     const configDir = opts.configDir ?? fallback.configDir
-    const computerUse = opts.computerUse ?? fallback.computerUse
     window.api.ai.checkAvailable(cliCommand).then((result: any) => {
       if (!result.available) {
         aiStore.updateSession(sid, () => ({
@@ -211,7 +211,8 @@ export const aiStore = {
           ...(opts.enableWorktree ? { enableWorktree: true } : {}),
           ...(opts.model ? { model: opts.model } : {}),
           ...(opts.persona?.trim() ? { persona: opts.persona } : {}),
-          ...(computerUse ? { computerUse: true } : {}),
+          ...(opts.computerUse ? { computerUse: true } : {}),
+          ...(opts.browserUse ? { browserUse: true } : {}),
         })
         aiStore.updateSession(sid, (s) => ({
           ...EMPTY_SESSION,
@@ -219,6 +220,8 @@ export const aiStore = {
           messages,
           model,
           slashCommands: enrichSlashCommands(slashCommands),
+          computerUse: s.computerUse,
+          browserUse: s.browserUse,
           // resume/fork 后轮次下标域不变（parseUserTurns 全文件域），
           // 保留历史变更数据，否则该会话"回退代码"永远空转
           fileChangesByTurn: s.fileChangesByTurn,
@@ -252,11 +255,11 @@ export const aiStore = {
     cliCommand?: string
     configDir?: string
     computerUse?: boolean
+    browserUse?: boolean
   }): Promise<{ resumed: boolean; cwd?: string }> {
     const fallback = readAiCliConfig()
     const cliCommand = opts.cliCommand ?? fallback.cliCommand
     const configDir = opts.configDir ?? fallback.configDir
-    const computerUse = opts.computerUse ?? fallback.computerUse
     createdSessions.add(sid)
     let messages: any[] = []
     let model = ''
@@ -300,7 +303,8 @@ export const aiStore = {
       ...(resumed ? { resumeSessionId: historySessionId } : {}),
       ...(cliCommand ? { cliCommand } : {}),
       ...(configDir ? { configDir } : {}),
-      ...(computerUse ? { computerUse: true } : {}),
+      ...(opts.computerUse ? { computerUse: true } : {}),
+      ...(opts.browserUse ? { browserUse: true } : {}),
     })
     aiStore.updateSession(sid, (s) => ({
       ...EMPTY_SESSION,
@@ -311,6 +315,8 @@ export const aiStore = {
       cwd: createCwd,
       ready: false,
       fileChangesByTurn: s.fileChangesByTurn,
+      computerUse: s.computerUse,
+      browserUse: s.browserUse,
     }))
     return { resumed, cwd: createCwd }
   },

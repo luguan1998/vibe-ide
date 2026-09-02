@@ -11,7 +11,8 @@ export default defineConfig({
         external: ['node-pty'],
         input: {
           index: resolve('src/main/index.ts'),
-          'computer-use': resolve('src/main/computer-use.ts')
+          'computer-use': resolve('src/main/computer-use.ts'),
+          'browser-use': resolve('src/main/browser-use.ts')
         },
         output: {
           entryFileNames: '[name].js'

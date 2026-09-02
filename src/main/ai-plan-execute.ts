@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { readFile } from 'fs/promises'
 import { IPC_CHANNELS } from '../shared/types'
 import type { AiPlanExecutePayload } from '../shared/types'
-import { aiSessions, attachAiProcess, killAiProcess, send, spawnClaude, stopCuForSession, startCuForSession } from './ai'
+import { aiSessions, attachAiProcess, killAiProcess, send, spawnClaude, stopCuForSession, startCuForSession, stopBmForSession, startBmForSession } from './ai'
 
 // Format the first user message that re-injects the approved plan into a freshly cleared context.
 // Mirrors CLI's native "Approved Plan" tool_result format so the model recognizes the restoration.
@@ -51,13 +51,16 @@ export function registerPlanExecuteHandlers(): void {
       if (prev) {
         killAiProcess(prev.process)
         stopCuForSession(sessionId, prev.computerUse)
+        stopBmForSession(sessionId, prev.browserUse)
         aiSessions.delete(sessionId)
       }
 
       const mcpConfigPath = startCuForSession(sessionId, prev?.computerUse)
-      const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, resumeSessionId: claudeSessionId, persona: prev?.persona, computerUse: prev?.computerUse, mcpConfigPath })
+      const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse)
+      const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, resumeSessionId: claudeSessionId, persona: prev?.persona, computerUse: prev?.computerUse, browserUse: prev?.browserUse, mcpConfigPath, browserMcpConfigPath })
       if ('error' in result) {
         stopCuForSession(sessionId, prev?.computerUse)
+        stopBmForSession(sessionId, prev?.browserUse)
         send(IPC_CHANNELS.AI_ERROR, {
           sessionId,
           error: result.error,
@@ -66,7 +69,7 @@ export function registerPlanExecuteHandlers(): void {
         return { success: false, error: result.error, installCmd: result.installCmd }
       }
 
-      attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand, prev?.computerUse)
+      attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse)
 
       const newSession = aiSessions.get(sessionId)
       if (newSession && prev) {
@@ -99,14 +102,17 @@ export function registerPlanExecuteHandlers(): void {
     if (prev) {
       killAiProcess(prev.process)
       stopCuForSession(sessionId, prev.computerUse)
+      stopBmForSession(sessionId, prev.browserUse)
       aiSessions.delete(sessionId)
     }
 
     // 3. Spawn fresh subprocess in bypassPermissions mode (no --resume = clean context)
     const mcpConfigPath = startCuForSession(sessionId, prev?.computerUse)
-    const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, persona: prev?.persona, computerUse: prev?.computerUse, mcpConfigPath })
+    const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse)
+    const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, persona: prev?.persona, computerUse: prev?.computerUse, browserUse: prev?.browserUse, mcpConfigPath, browserMcpConfigPath })
     if ('error' in result) {
       stopCuForSession(sessionId, prev?.computerUse)
+      stopBmForSession(sessionId, prev?.browserUse)
       send(IPC_CHANNELS.AI_ERROR, {
         sessionId,
         error: result.error,
@@ -116,7 +122,7 @@ export function registerPlanExecuteHandlers(): void {
     }
 
     // 4. Attach stdout/stderr/error/exit handlers
-    attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand, prev?.computerUse)
+    attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse)
 
     if (prev?.contextWindow || prev?.model || prev?.persona) {
       const newSession = aiSessions.get(sessionId)

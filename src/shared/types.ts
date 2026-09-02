@@ -606,6 +606,10 @@ export interface AiSessionState {
   cwd: string
   worktreePath?: string
   pipedPrompt?: string
+  // 会话级 GUI 操控开关，仅对话开始前在 AiTab 头部点亮，不落盘、不恢复；
+  // 切换会 destroy+重 spawn CLI，会话产生消息后按钮隐藏
+  computerUse?: boolean
+  browserUse?: boolean
   // busy 时发消息（插话）打点：isAborted result 至此 5s 内视为"中断切轮"，busy 保持 true
   interjectingAt?: number
   runningTools: Record<string, AiRunningTool>
@@ -624,6 +628,7 @@ export interface AiCreateOptions {
   enableWorktree?: boolean
   persona?: string
   computerUse?: boolean
+  browserUse?: boolean
 }
 
 export interface AiSendPayload {

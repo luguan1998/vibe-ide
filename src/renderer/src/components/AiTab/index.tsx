@@ -7,7 +7,7 @@ import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { loadFilterRules } from '../FileTab'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X, Plus, Pencil, Send } from 'lucide-react'
+import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X, Plus, Pencil, Send, Monitor, Globe } from 'lucide-react'
 import { StreamingMarkdown } from './markdown'
 import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
@@ -294,6 +294,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       cliCommand,
       configDir,
       ...(worktreeEnabled ? { enableWorktree: true } : {}),
+      computerUse: state.computerUse,
+      browserUse: state.browserUse,
     })
   }, [activeSessionId, workspacePath, worktreeEnabled])
 
@@ -308,6 +310,43 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       return next
     })
   }, [onWorktreeNavChange])
+
+  const toggleGuiTool = useCallback((flag: 'computerUse' | 'browserUse') => {
+    if (!activeSessionId || !workspacePath) return
+    const next = !state[flag]
+    aiStore.updateSession(activeSessionId, (s) => ({ ...s, [flag]: next }))
+    handleDestroySession(activeSessionId)
+    const { cliCommand, configDir } = readAiCliConfig()
+    aiStore.ensureCreated(activeSessionId, {
+      cwd: workspacePath,
+      autoApprove,
+      permissionMode,
+      cliCommand,
+      configDir,
+      ...(worktreeEnabled ? { enableWorktree: true } : {}),
+      computerUse: flag === 'computerUse' ? next : state.computerUse,
+      browserUse: flag === 'browserUse' ? next : state.browserUse,
+    })
+  }, [activeSessionId, workspacePath, autoApprove, permissionMode, worktreeEnabled, state.computerUse, state.browserUse, handleDestroySession])
+
+  const toggleWorktreeSession = useCallback(() => {
+    if (!activeSessionId || !workspacePath) return
+    const next = !worktreeEnabled
+    setWorktreeEnabled(next)
+    handleDestroySession(activeSessionId)
+    const { cliCommand, configDir } = readAiCliConfig()
+    aiStore.ensureCreated(activeSessionId, {
+      cwd: workspacePath,
+      autoApprove,
+      permissionMode,
+      cliCommand,
+      configDir,
+      ...(next ? { enableWorktree: true } : {}),
+      computerUse: state.computerUse,
+      browserUse: state.browserUse,
+    })
+    onViewAi()
+  }, [activeSessionId, workspacePath, autoApprove, permissionMode, worktreeEnabled, state.computerUse, state.browserUse, handleDestroySession, onViewAi])
 
   useEffect(() => {
     if (!activeSessionId || !workspacePath || !state.worktreePath || !onWorktreeNavChange) return
@@ -1017,6 +1056,25 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             <span className="ai-tab__session-name text-xs font-medium text-ide-text truncate">{state.name || 'untitled'}</span>
           </div>
         <div className="ai-tab__header-actions flex items-center gap-1">
+          {state.messages.length > 0 && (
+            <>
+              {state.computerUse && (
+                <span className="w-5 h-5 rounded flex items-center justify-center bg-ide-accent/20 text-ide-accent" title={t('Computer Use')}>
+                  <Monitor size={14} />
+                </span>
+              )}
+              {state.browserUse && (
+                <span className="w-5 h-5 rounded flex items-center justify-center bg-ide-accent/20 text-ide-accent" title={t('Browser Control')}>
+                  <Globe size={14} />
+                </span>
+              )}
+              {worktreeEnabled && (
+                <span className="w-5 h-5 rounded flex items-center justify-center bg-ide-accent/20 text-ide-accent" title={t('Isolate in worktree')}>
+                  <GitBranch size={14} />
+                </span>
+              )}
+            </>
+          )}
           {/* Copy conversation */}
           <button
             onClick={handleCopyConversation}
@@ -1051,35 +1109,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
             </svg>
           </button>
-          {/* Worktree isolation toggle — hidden if already navigated from GitTab */}
-          {!worktreeNav?.worktreePath && (
-            <button
-              onClick={() => {
-                if (!activeSessionId || !workspacePath) return
-                const next = !worktreeEnabled
-                setWorktreeEnabled(next)
-                handleDestroySession(activeSessionId)
-                const { cliCommand, configDir } = readAiCliConfig()
-                aiStore.ensureCreated(activeSessionId, {
-                  cwd: workspacePath,
-                  autoApprove,
-                  permissionMode,
-                  cliCommand,
-                  configDir,
-                  ...(next ? { enableWorktree: true } : {}),
-                })
-                onViewAi()
-              }}
-              className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center transition-colors ${
-                worktreeEnabled
-                  ? 'bg-ide-accent/20 text-ide-accent'
-                  : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-              }`}
-              title={t('Isolate in worktree')}
-            >
-              <GitBranch size={14} />
-            </button>
-          )}
           {/* New session */}
           <button
             onClick={() => {
@@ -1093,6 +1122,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 cliCommand,
                 configDir,
                 ...(worktreeEnabled ? { enableWorktree: true } : {}),
+                computerUse: state.computerUse,
+                browserUse: state.browserUse,
               })
               onViewAi()
             }}
@@ -1171,6 +1202,43 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"
                 />
               </svg>
+            </div>
+            <div className="ai-tab__empty-gui flex items-center gap-2">
+              <button
+                onClick={() => toggleGuiTool('computerUse')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-full transition-colors ${
+                  state.computerUse
+                    ? 'border-ide-accent/40 bg-ide-accent/10 text-ide-accent'
+                    : 'border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover hover:border-ide-accent/30'
+                }`}
+              >
+                <Monitor size={13} />
+                <span>{t('Enable Computer Use')}</span>
+              </button>
+              <button
+                onClick={() => toggleGuiTool('browserUse')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-full transition-colors ${
+                  state.browserUse
+                    ? 'border-ide-accent/40 bg-ide-accent/10 text-ide-accent'
+                    : 'border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover hover:border-ide-accent/30'
+                }`}
+              >
+                <Globe size={13} />
+                <span>{t('Enable Browser Use')}</span>
+              </button>
+              {!worktreeNav?.worktreePath && (
+                <button
+                  onClick={toggleWorktreeSession}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-full transition-colors ${
+                    worktreeEnabled
+                      ? 'border-ide-accent/40 bg-ide-accent/10 text-ide-accent'
+                      : 'border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover hover:border-ide-accent/30'
+                  }`}
+                >
+                  <GitBranch size={13} />
+                  <span>{t('Enable Worktree')}</span>
+                </button>
+              )}
             </div>
             {inputArea}
             <div className="ai-tab__empty-prompts flex flex-wrap justify-center gap-1.5 max-w-[928px]">
