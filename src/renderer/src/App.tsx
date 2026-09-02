@@ -37,7 +37,8 @@ import { resolveAbsPath, toFileUrl } from './utils/filePathUtils'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
 
-const PANEL_TAB_RAIL_MIN_W = 500
+const PANEL_TAB_RAIL_MIN_W = 700
+const RIGHT_PANEL_DEFAULT_W = 380
 
 // Declare the window API type
 declare global {
@@ -372,7 +373,7 @@ export default function App() {
   })
   const [rightTerminalSessions, setRightTerminalSessions] = useState<Record<string, AuxTerminalTab[]>>({})  // 每个 session 独立的 aux terminal tabs（每 tab 含 1-3 个 terminal）
   const [activeAuxIndex, setActiveAuxIndex] = useState<Record<string, number>>({})  // 每个 session 当前 active 的 aux terminal 下标
-  const [rightPanelWidth, setRightPanelWidth] = useState(380)
+  const [rightPanelWidth, setRightPanelWidth] = useState(RIGHT_PANEL_DEFAULT_W)
   const rightPanelPrevWidth = useRef(380)
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false)
   const [historyNavNonce, setHistoryNavNonce] = useState(0)
@@ -2524,6 +2525,8 @@ export default function App() {
     document.addEventListener('mouseup', onMouseUp)
   }, [rightPanelWidth])
 
+  const handleRestoreRightWidth = useCallback(() => setRightPanelWidth(RIGHT_PANEL_DEFAULT_W), [])
+
   const handleLeftResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -2545,6 +2548,13 @@ export default function App() {
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
   }, [leftPanelWidth])
+
+  // webview guest 进程会吞掉滑过其区域的 mousemove，拖宽期间冻结指针事件否则分隔条拖不动
+  useEffect(() => {
+    if (isDragging) document.body.classList.add('panel-dragging')
+    else document.body.classList.remove('panel-dragging')
+    return () => document.body.classList.remove('panel-dragging')
+  }, [isDragging])
 
   const handleFileSelect = useCallback((filePath: string, isStaged: boolean, commitHash: string | undefined, resolvedFullPath: string | undefined, gitStats: { additions: number; deletions: number }) => {
     const fullPath = resolvedFullPath || (activeSessionCwd ? `${activeSessionCwd}/${filePath}` : filePath)
@@ -3373,6 +3383,7 @@ export default function App() {
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
             hideTabBar={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W}
+            onRestoreWidth={handleRestoreRightWidth}
             brushActive={brushActive}
             onResumeClaudeHistory={handleResumeClaudeHistory}
             onResumeDshHistory={handleResumeDshHistory}

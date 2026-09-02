@@ -58,6 +58,7 @@ interface RightPanelProps {
   onBrowserAnnotate?: (line: string) => void
   onBrowserToggleDock?: () => void
   hideTabBar?: boolean
+  onRestoreWidth?: () => void
 }
 
 type GitSection = 'git' | 'terminal' | 'file' | 'game'
@@ -390,13 +391,15 @@ function TabBar({
 
 // ── Hover Tab Rail (hideTabBar 模式:右缘垂直居中的图标导航) ──
 
-function TabRail({ activeSection, visibleList, onSelect }: {
+function TabRail({ activeSection, visibleList, onSelect, onRestoreWidth }: {
   activeSection: GitSection
   visibleList: GitSection[]
   onSelect: (s: GitSection) => void
+  onRestoreWidth?: () => void
 }) {
+  const { t } = useI18n()
   return (
-    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 border border-ide-border/80 rounded-lg bg-ide-panel/90 backdrop-blur-md p-1 shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 border border-ide-border rounded-lg bg-ide-panel/95 backdrop-blur-md p-1 shadow-xl opacity-0 translate-x-3 pointer-events-none group-hover/rail:opacity-100 group-hover/rail:translate-x-0 group-hover/rail:pointer-events-auto transition-[opacity,transform] duration-150 ease-out">
       {visibleList.map(section => {
         const active = section === activeSection
         return (
@@ -412,6 +415,20 @@ function TabRail({ activeSection, visibleList, onSelect }: {
           </button>
         )
       })}
+      {onRestoreWidth && (
+        <button
+          className="w-9 h-9 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+          onClick={onRestoreWidth}
+          title={t('Restore Default Width')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <path d="M15 3h6v6" />
+            <path d="M9 21H3v-6" />
+            <path d="M21 3l-7 7" />
+            <path d="M3 21l7-7" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }
@@ -446,6 +463,7 @@ function RightPanel({
   onBrowserAnnotate,
   onBrowserToggleDock,
   hideTabBar,
+  onRestoreWidth,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('file')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -603,7 +621,7 @@ function RightPanel({
 
   if (!workspacePath) {
     return (
-      <div className="flex flex-col h-full group relative">
+      <div className="flex flex-col h-full group/rail relative">
         {!hideTabBar && (
         <TabBar
           tabs={visibleList}
@@ -618,7 +636,7 @@ function RightPanel({
         />
         )}
         {hideTabBar && (
-          <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} />
+          <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} onRestoreWidth={onRestoreWidth} />
         )}
         <div className={`flex-1 min-h-0 mx-2 ${hideTabBar ? 'mb-0.5' : 'mb-1'} mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center right-panel__content`}>
           <span className="text-ide-text-muted text-xs">No active session</span>
@@ -628,7 +646,7 @@ function RightPanel({
   }
 
   return (
-    <div className="flex flex-col h-full right-panel group relative">
+    <div className="flex flex-col h-full right-panel group/rail relative">
       {!hideTabBar && (
       <TabBar
         tabs={visibleList}
@@ -643,7 +661,7 @@ function RightPanel({
       />
       )}
       {hideTabBar && (
-        <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} />
+        <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} onRestoreWidth={onRestoreWidth} />
       )}
 
       <div className={`flex-1 min-h-0 mx-2 ${hideTabBar ? 'mb-0.5' : 'mb-2'} mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col right-panel__content`}>

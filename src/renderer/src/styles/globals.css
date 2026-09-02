@@ -713,6 +713,10 @@ html, body, #root {
 .file-tree-item:focus-within .row-action,
 [data-recent-idx]:hover .row-action { opacity: 1; }
 
+/* 拖面板分隔条期间：webview 冻结指针事件(否则 guest 抢 mousemove 致拖不动)，全窗保持拖拽光标 */
+body.panel-dragging webview { pointer-events: none; }
+body.panel-dragging { user-select: none; cursor: col-resize; }
+
 /* ── Desktop pet (codex-style webp sprite sheet) ── */
 .desktop-pet__wrapper {
   position: fixed;
