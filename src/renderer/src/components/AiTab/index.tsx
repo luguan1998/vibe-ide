@@ -781,11 +781,11 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     let ref = relPath
     if (f.line) {
       label += `:${f.line}`
-      ref += ` around line ${f.line}`
       if (f.endLine && f.endLine !== f.line) {
         label += `:${f.endLine}`
-        ref += `:${f.endLine}`
       }
+      const range = f.endLine && f.endLine !== f.line ? `${f.line}-${f.endLine}` : `${f.line}`
+      ref += `:${range} I accessed nearby`
     }
     return { label, ref }
   }, [lastOpenedFile, workspacePath])
