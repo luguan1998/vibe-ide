@@ -829,9 +829,9 @@ export default function App() {
   const aiTabRefs = useRef<Record<string, AiTabHandle>>({})
   const dshRefs = useRef<Record<string, DshViewHandle>>({})
   const browserViewRef = useRef<BrowserViewHandle | null>(null)
-  const [browserDocked, setBrowserDocked] = useState(() => loadBrowserDockPref() === 'right')
+  const [browserDocked, setBrowserDocked] = useState(false)
   const [browserDockNonce, setBrowserDockNonce] = useState(0)
-  const browserDockedRef = useRef(loadBrowserDockPref() === 'right')
+  const browserDockedRef = useRef(false)
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const centerPanelRef = useRef<HTMLDivElement>(null)
   const sessionPanelRef = useRef<SessionPanelHandle>(null)
@@ -3001,7 +3001,7 @@ export default function App() {
           </svg>
         </button>
         <button
-          className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
+          className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${browserDocked || centerView === 'browser' ? 'text-ide-text bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
           style={{ marginRight: 16 }}
           onClick={handleOpenWebDebug}
           title={t('Web Debug')}
