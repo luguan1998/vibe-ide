@@ -198,11 +198,11 @@ export function ModelBadge({
     setPendingModel(alias)
     setOpen(false)
     window.api.ai.setModel(sessionId, alias)
-    // 在对话内显示一条 /model 切换记录（仅显示用途；revert 索引由主进程 userTurns 定位，不依赖此条）
-    aiStore.updateSession(sessionId, (s) => ({
-      ...s,
-      messages: [...s.messages, { sessionId, type: 'user' as const, role: 'user' as const, content: `/model ${alias}`, timestamp: Date.now() }],
-    }))
+    // 仅当会话已有对话时才留一条 /model 切换记录（显示用途；revert 索引由主进程 userTurns 定位，不依赖此条）。
+    // 空对话时切换只更新 badge 与主进程缓存，不插入消息，避免欢迎屏被孤立的 /model 气泡顶掉
+    aiStore.updateSession(sessionId, (s) => s.messages.length > 0
+      ? { ...s, messages: [...s.messages, { sessionId, type: 'user' as const, role: 'user' as const, content: `/model ${alias}`, timestamp: Date.now() }] }
+      : s)
   }, [sessionId, model])
 
   useEffect(() => {
