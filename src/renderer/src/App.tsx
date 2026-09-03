@@ -433,27 +433,13 @@ export default function App() {
   }
   const overlayOnRight = overlayKind !== null && overlaySnapRef.current.right && !rightPanelCollapsed
   const diffRevisionRef = useRef(0)
-  const [pollingEnabled, setPollingEnabled] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-polling') === '1' } catch { return false }
-  })
   const [dshSidebarShown, setDshSidebarShown] = useState(() => {
     try { return localStorage.getItem('vibe-ide-dsh-sidebar') === '1' } catch { return false }
   })
   const [dshThemeOverride, setDshThemeOverride] = useState(() => {
     try { return localStorage.getItem('vibe-ide-dsh-theme-override') !== '0' } catch { return true }
   })
-  const [pollingTick, setPollingTick] = useState(0)
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
-
-  // Polling timer: auto-refresh git + file every 6s
-  useEffect(() => {
-    if (!pollingEnabled) return
-    const id = setInterval(() => {
-      setGitRefreshKey(k => k + 1)
-      setPollingTick(k => k + 1)
-    }, 6000)
-    return () => clearInterval(id)
-  }, [pollingEnabled])
 
   // dsh sidebar 收起/展开：layout stub toggleSidebar 与 DshView 展开 trigger 都 dispatch 此 event
   useEffect(() => {
@@ -3151,8 +3137,6 @@ export default function App() {
             agentStatus={agentStatus}
             sessionWorktreeNav={sessionWorktreeNav}
             onResetCache={handleResetCache}
-            pollingEnabled={pollingEnabled}
-            onTogglePolling={(v) => { setPollingEnabled(v); try { localStorage.setItem('vibe-ide-polling', v ? '1' : '0') } catch {} }}
             dshSidebarShown={dshSidebarShown}
             onToggleDshSidebar={(v) => { setDshSidebarShown(v); try { localStorage.setItem('vibe-ide-dsh-sidebar', v ? '1' : '0') } catch {} }}
             dshThemeOverride={dshThemeOverride}
@@ -3401,7 +3385,6 @@ export default function App() {
             activeSessionId={activeSessionId}
             onFileSelect={handleFileSelect}
             refreshKey={gitRefreshKey}
-            pollingTick={pollingTick}
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
             onOpenFileFromSearch={handleOpenSearchResult}
             onOpenFileFromExplorer={handleOpenFileFromExplorer}

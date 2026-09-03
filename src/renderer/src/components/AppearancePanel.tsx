@@ -183,8 +183,6 @@ interface AppearancePanelProps {
   onToggleOcrEnabled?: (v: boolean) => void
   forceDomRenderer?: boolean
   onToggleForceDomRenderer?: (v: boolean) => void
-  pollingEnabled?: boolean
-  onTogglePolling?: (v: boolean) => void
   dshSidebarShown?: boolean
   onToggleDshSidebar?: (v: boolean) => void
   dshThemeOverride?: boolean
@@ -214,7 +212,6 @@ const AppearancePanel = function AppearancePanel({
   cgEnabled = true, onToggleCgEnabled,
   ocrEnabled = true, onToggleOcrEnabled,
   forceDomRenderer = false, onToggleForceDomRenderer,
-  pollingEnabled = false, onTogglePolling,
   dshSidebarShown = false, onToggleDshSidebar,
   dshThemeOverride = true, onToggleDshThemeOverride,
   cwdEmojis, sessionEmojis, onSetCwdEmojis, onSetSessionEmojis,
@@ -705,10 +702,6 @@ const AppearancePanel = function AppearancePanel({
                 {onToggleForceDomRenderer && (
                   <ToggleRow labelKey="Force DOM Renderer" descKey="Disable WebGL terminal renderer, fall back to DOM/canvas. Restart terminal session to take effect."
                     checked={forceDomRenderer} onChange={onToggleForceDomRenderer} zone="terminal" />
-                )}
-                {onTogglePolling && (
-                  <ToggleRow labelKey="Polling Refresh Git/File" descKey="Poll git and file tree every 6s. Recommended: off (only for network drives where file watching is unreliable)"
-                    checked={pollingEnabled} onChange={onTogglePolling} zone="global" />
                 )}
                 {onToggleDshSidebar && (
                   <ToggleRow labelKey="Show dsh Sidebar" descKey="Show the dsh sidebar (workspace browser, directory picker). Hidden by default."

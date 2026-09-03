@@ -227,8 +227,6 @@ interface SessionPanelProps {
   onOpenHistoryTab?: () => void
   boardActive?: boolean
   onResetCache?: (sessionId: string) => void
-  pollingEnabled?: boolean
-  onTogglePolling?: (value: boolean) => void
   dshSidebarShown?: boolean
   onToggleDshSidebar?: (value: boolean) => void
   dshThemeOverride?: boolean
@@ -444,8 +442,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onOpenHistoryTab,
   boardActive = false,
   onResetCache,
-  pollingEnabled = false,
-  onTogglePolling,
   dshSidebarShown = false,
   onToggleDshSidebar,
   dshThemeOverride = true,
@@ -2264,8 +2260,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onToggleOcrEnabled={onToggleOcrEnabled}
         forceDomRenderer={forceDomRenderer}
         onToggleForceDomRenderer={onToggleForceDomRenderer}
-        pollingEnabled={pollingEnabled}
-        onTogglePolling={onTogglePolling}
         dshSidebarShown={dshSidebarShown}
         onToggleDshSidebar={onToggleDshSidebar}
         dshThemeOverride={dshThemeOverride}

@@ -13,7 +13,6 @@ interface RightPanelProps {
   workspacePath: string | null
   onFileSelect?: (filePath: string, isStaged: boolean, commitHash: string | undefined, fullPath: string | undefined, gitStats: { additions: number; deletions: number }) => void
   refreshKey?: number
-  pollingTick?: number
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
   onOpenFileFromSearch?: (fullPath: string, lineNumber?: number) => void
   rightTerminalSessions?: Record<string, AuxTerminalTab[]>
@@ -448,7 +447,7 @@ function TabRail({ activeSection, visibleList, onSelect, onRestoreWidth, onHideR
 
 
 function RightPanel({
-  workspacePath, onFileSelect, refreshKey, pollingTick,
+  workspacePath, onFileSelect, refreshKey,
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
   rightTerminalSessions, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
@@ -490,13 +489,6 @@ function RightPanel({
   useEffect(() => {
     if (!hideTabBar) setRailHidden(false)
   }, [hideTabBar])
-
-  // Polling tick triggers file tree refresh
-  useEffect(() => {
-    if (pollingTick !== undefined && pollingTick > 0) {
-      setFileRefreshKey(k => k + 1)
-    }
-  }, [pollingTick])
 
   const worktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
   const effectiveGitPath = worktreeNav?.worktreePath || workspacePath
