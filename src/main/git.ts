@@ -62,43 +62,24 @@ export function registerGitHandlers(): void {
       const stagedDiffStat: Record<string, { additions: number; deletions: number }> = {}
 
       if (hasTrackedChanges) {
-        try {
-          const diffNumstat = await git.diff(['--numstat'])
-          for (const line of diffNumstat.split('\n')) {
-            if (line.includes('\t')) {
-              const parts = line.split('\t')
-              const addPart = parts[0].trim()
-              const delPart = parts[1].trim()
-              const filePath = parts[2]?.trim() || ''
-              if (filePath) {
-                diffStat[filePath] = {
-                  additions: addPart === '-' ? 0 : parseInt(addPart) || 0,
-                  deletions: delPart === '-' ? 0 : parseInt(delPart) || 0
-                }
+        const parseNumstat = (out: string, target: Record<string, { additions: number; deletions: number }>) => {
+          for (const line of out.split('\n')) {
+            if (!line.includes('\t')) continue
+            const [addPart, delPart, filePath] = line.split('\t').map(s => s.trim())
+            if (filePath) {
+              target[filePath] = {
+                additions: addPart === '-' ? 0 : parseInt(addPart) || 0,
+                deletions: delPart === '-' ? 0 : parseInt(delPart) || 0
               }
             }
           }
-        } catch {
         }
-
-        try {
-          const stagedNumstat = await git.diff(['--cached', '--numstat'])
-          for (const line of stagedNumstat.split('\n')) {
-            if (line.includes('\t')) {
-              const parts = line.split('\t')
-              const addPart = parts[0].trim()
-              const delPart = parts[1].trim()
-              const filePath = parts[2]?.trim() || ''
-              if (filePath) {
-                stagedDiffStat[filePath] = {
-                  additions: addPart === '-' ? 0 : parseInt(addPart) || 0,
-                  deletions: delPart === '-' ? 0 : parseInt(delPart) || 0
-                }
-              }
-            }
-          }
-        } catch {
-        }
+        const [diffNumstat, stagedNumstat] = await Promise.all([
+          git.raw(['--no-optional-locks', 'diff', '--numstat']).catch(() => ''),
+          git.raw(['--no-optional-locks', 'diff', '--cached', '--numstat']).catch(() => '')
+        ])
+        parseNumstat(diffNumstat, diffStat)
+        parseNumstat(stagedNumstat, stagedDiffStat)
       }
 
       const stagedFiles: GitFileStatus[] = []

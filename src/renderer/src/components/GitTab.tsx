@@ -798,6 +798,24 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     }
   }, [refreshKey])
 
+  // fs:changed 合并：在飞时记脏、完成后只补刷一次，防 AI 连续改文件时 status 堆积乱序
+  const statusInFlightRef = useRef(false)
+  const statusAgainRef = useRef(false)
+  const refreshStatusCoalesced = useCallback(() => {
+    if (statusInFlightRef.current) {
+      statusAgainRef.current = true
+      return
+    }
+    statusInFlightRef.current = true
+    refreshStatus().finally(() => {
+      statusInFlightRef.current = false
+      if (statusAgainRef.current) {
+        statusAgainRef.current = false
+        refreshStatusCoalesced()
+      }
+    })
+  }, [refreshStatus])
+
   // Listen for fs:changed events from file watcher
   const statusDirtyRef = useRef(false)
   const gitMetaDirtyRef = useRef(false)
@@ -807,13 +825,13 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
         statusDirtyRef.current = true
         return
       }
-      refreshStatus()
+      refreshStatusCoalesced()
     })
 
     return () => {
       window.api.file.removeChangedListener(fsChangedHandlerRef.current)
     }
-  }, [refreshStatus])
+  }, [refreshStatusCoalesced])
 
   // git 元数据变更(pull/外部 commit/worktree 增删)：commonDir 校验防串仓库，命中则全套刷新
   useEffect(() => {
@@ -841,9 +859,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       refreshAll()
     } else if (statusDirtyRef.current) {
       statusDirtyRef.current = false
-      refreshStatus()
+      refreshStatusCoalesced()
     }
-  }, [isActive, refreshAll, refreshStatus])
+  }, [isActive, refreshAll, refreshStatusCoalesced])
 
   // Dismiss context menus on outside click
   useEffect(() => {

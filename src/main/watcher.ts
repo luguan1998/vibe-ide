@@ -3,7 +3,7 @@ import { watch, FSWatcher, existsSync } from 'fs'
 import { join } from 'path'
 import { IPC_CHANNELS } from '../shared/types'
 
-const BASE_SKIP_PATTERNS = ['.git', '.vscode', 'node_modules', '.next', 'dist', 'build', 'out', '__pycache__', 'target', '.cache', '.vibe/worktrees', '.claude/worktrees']
+const BASE_SKIP_PATTERNS = ['.git', '.vscode', '.idea', 'node_modules', '.next', 'dist', 'build', 'out', '__pycache__', 'target', '.cache', '.codegraph', '.venv', 'coverage', '.gradle', '.pytest_cache', '.mypy_cache', '.ruff_cache', '.turbo', '.parcel-cache', '.svelte-kit', '.nuxt', '.astro', '.expo', '.output', '.docusaurus', '.terraform', '.serverless', '.vibe/worktrees', '.claude/worktrees', 'Thumbs.db', 'desktop.ini', '.DS_Store']
 let userSkipPatterns: string[] = []
 let watcherSkipRegex: RegExp
 let watcher: FSWatcher | null = null
@@ -142,6 +142,9 @@ export function watchGitMeta(commonDir: string) {
 
   const onEvent = (_eventType: string, filename: string | Buffer | null) => {
     if (!filename) return
+    const f = String(filename).replace(/\\/g, '/')
+    // 瞬态锁文件/临时件/fsmonitor daemon 管道不算元数据变更，防自激与重复刷新
+    if (/^(index\.lock$|.*\.lock$|.*\.tmp$|\.smbdelete|~HEAD|fsmonitor--daemon)/i.test(f)) return
     if (metaDebounceTimer) clearTimeout(metaDebounceTimer)
     metaDebounceTimer = setTimeout(() => {
       metaDebounceTimer = null
