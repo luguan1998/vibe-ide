@@ -1492,6 +1492,13 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     }
   })
 
+  // Windows: spawn 走 shell:true（cmd.exe 中转），启动恢复会话时 CLI 尚未消费 stdin，
+  // 管道缓冲打满会让异步 write 以 EAGAIN 完成并在 stdin 流上 emit 'error'；无监听器即
+  // 主进程 uncaught exception（"A JavaScript error occurred in the main process"）。
+  proc.stdin?.on('error', (err) => {
+    console.warn(`[ai:${sessionId}] stdin write error:`, err?.message)
+  })
+
   proc.on('error', (err) => {
     // Only handle if this is still the active process for this session
     // (a new process may have been spawned for the same sessionId via resume)
