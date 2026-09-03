@@ -458,12 +458,25 @@ function applyContextWindow(s: ManagedAiSession, parsed?: number): void {
   if (override) s.contextWindow = override
 }
 
+// 与 CLI /context 头部口径一致（cli.js wHo: T=oJt(最后一条带 usage 的 assistant) 的三项和）。
+// bTe 四项(+output)是子代理/auto-compact 计费口径，勿混入。
+// message_start 快照形态 {input, out:0, 无 cache 字段}：魔改网关按 block 拆发时快照=整轮起点
+// 半量估算(实测 31031 vs 真值 56218)，不得覆盖真 usage；纯快照 CLI(npm claude 实测 stdout 只有
+// 快照)则全靠它，ring 不能空转。
+function isRealUsage(u: any): boolean {
+  return !!u && ((u.output_tokens || 0) > 0 || u.cache_creation_input_tokens != null || u.cache_read_input_tokens != null)
+}
+
+function usedContextTokens(usage: any): number {
+  return (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0)
+}
+
 function calcContextPercent(usage: any, contextWindow?: number): number | undefined {
   if (!usage) return undefined
-  const input = (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0)
-  if (input === 0) return undefined
+  const used = usedContextTokens(usage)
+  if (used === 0) return undefined
   const denom = contextWindow || DEFAULT_AI_CONTEXT_WINDOW
-  return (input / denom) * 100
+  return (used / denom) * 100
 }
 
 async function extractFileChange(sessionId: string, block: any, cwd: string): Promise<void> {
@@ -585,8 +598,11 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       // top level (msg.parent_tool_use_id) rather than under msg.message — read both.
       const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
       const session = aiSessions.get(sessionId)
-      // 子代理消息的 usage 是其自身的小上下文，覆盖 lastUsage 会把主会话 ring 拉低
-      if (session && !parentToolUseId && msg.message?.usage) session.lastUsage = msg.message.usage
+      // 子代理消息的 usage 是其自身的小上下文，覆盖 lastUsage 会把主会话 ring 拉低。
+      // 快照 usage 不得覆盖已有真 usage（防 ring 抖低），无真 usage 时才顶上（纯快照 CLI 兜底）。
+      const usage = msg.message?.usage
+      const useUsage = !!usage && !parentToolUseId && (isRealUsage(usage) || !isRealUsage(session?.lastUsage))
+      if (session && useUsage) session.lastUsage = usage
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
         type: 'assistant',
@@ -597,7 +613,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         thinking: thinkingParts.length > 0 ? cleanText(thinkingParts.join('\n')) : undefined,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
         parentToolUseId: parentToolUseId || undefined,
-        contextPercent: calcContextPercent(msg.message?.usage, session?.contextWindow),
+        contextPercent: useUsage ? calcContextPercent(usage, session?.contextWindow) : undefined,
         timestamp: Date.now(),
       })
       break
@@ -623,6 +639,15 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
           }
         }
         // Skip signature_delta, input_json_delta — not for live display
+      }
+      if (innerEvent === 'message_delta') {
+        // --include-partial-messages 下每条 API 调用的最终 usage 在此（真值，与 transcript/
+        // /context 同源）；assistant block 事件带的 input-only 快照是冻结假值，不可信。
+        const du = msg.event?.usage
+        if (du && !msg.parent_tool_use_id && !msg.message?.parent_tool_use_id && isRealUsage(du)) {
+          const s = aiSessions.get(sessionId)
+          if (s) s.lastUsage = du
+        }
       }
       break
     }
@@ -719,29 +744,18 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       const wasCancelled = session?.cancelRequested
       if (wasCancelled) session!.cancelRequested = false
       const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
-      // 主数据源永远是 assistant 逐请求 usage（原生路径）；result.usage 是 session 累加值，
-      // 覆盖它会让 ring 每轮跳高。仅当原生路径无数据（context 为 0）且存在 modelUsage（魔改 CC 上报）
-      // 时，才兜底走 result 路径。contextWindow 是静态分母字段，与累加无关，恒可校正。
-      let percentUsage: any = null
-      if (!parentToolUseId) {
-        const mu = msg.modelUsage
-        const hasModelUsage = !!(mu && typeof mu === 'object' && Object.keys(mu).length > 0)
-        if (hasModelUsage) {
-          const win = Math.max(0, ...Object.values(mu).map((v: any) => v?.contextWindow || 0))
-          if (win) applyContextWindow(session!, win)
-          const cur = session?.lastUsage
-          const nativeCtx = (cur?.input_tokens || 0) + (cur?.cache_read_input_tokens || 0)
-          if (nativeCtx === 0) {
-            const u = msg.usage
-            if (u && ((u.input_tokens || 0) + (u.cache_read_input_tokens || 0) > 0)) {
-              session!.lastUsage = {
-                input_tokens: u.input_tokens || 0,
-                cache_read_input_tokens: u.cache_read_input_tokens || 0,
-              }
-              percentUsage = u
-            }
-          }
-        }
+      // result.usage/modelUsage 的 token 计数为 session 累加值（实测 usage=各桶求和），
+      // 不得用作 ring 分子——renderer 保留最后一条 assistant 的真实上下文。
+      // 但 modelUsage 桶的 contextWindow 是静态分母且最权威（实测 deepseek-v4-flash-0731[1m]
+      // → 1000000，而模型名不带 [1m] 时名字解析会漏、错按 200k 算出 5 倍偏差），恒校正。
+      if (!parentToolUseId && session && msg.modelUsage && typeof msg.modelUsage === 'object') {
+        const buckets = msg.modelUsage as Record<string, any>
+        const keys = Object.keys(buckets)
+        const bucket = (session.model && buckets[session.model])
+          || (keys.length === 1 ? buckets[keys[0]] : null)
+          || (keys.length > 1 ? buckets[keys.reduce((a, b) => ((buckets[a]?.contextWindow || 0) >= (buckets[b]?.contextWindow || 0) ? a : b))] : null)
+        const win = bucket?.contextWindow || 0
+        if (win) applyContextWindow(session, win)
       }
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
@@ -753,8 +767,8 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         durationMs: msg.duration_ms,
         numTurns: msg.num_turns,
         parentToolUseId: parentToolUseId || undefined,
-        // 仅兜底路径透出 percent；否则 renderer 保留最后一条 assistant 的真实上下文
-        contextPercent: calcContextPercent(percentUsage, session?.contextWindow),
+        // 收口：用本轮 message_delta 落库的真值刷 ring（快照事件期间 ring 可能是旧真值）
+        contextPercent: parentToolUseId ? undefined : calcContextPercent(session?.lastUsage, session?.contextWindow),
         timestamp: Date.now(),
       })
       break
@@ -1255,7 +1269,7 @@ function parseTranscriptLines(
         thinking: assistantThinking,
         toolUse: toolUses.length > 0 ? toolUses : undefined,
         parentToolUseId: opts.parentToolUseId,
-        contextPercent: calcContextPercent(msg.message?.usage, getContextWindowForCliSession(sid)),
+        contextPercent: isRealUsage(msg.message?.usage) ? calcContextPercent(msg.message.usage, getContextWindowForCliSession(sid)) : undefined,
         timestamp: ts,
       })
       continue
@@ -1902,9 +1916,7 @@ export function registerAiHandlers(): void {
     const session = aiSessions.get(sessionId)
     if (!session) return null
     const usage = session.lastUsage
-    const usedTokens = usage
-      ? (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0)
-      : null
+    const usedTokens = usage ? usedContextTokens(usage) : null
     return { usedTokens, contextWindow: session.contextWindow ?? null }
   })
 
