@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { readFile, readdir, stat, rm } from 'fs/promises'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join, isAbsolute, relative, basename } from 'path'
+import { setGitMetaPaused } from './watcher'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS, DEFAULT_AI_CONTEXT_WINDOW, asToolArray } from '../shared/types'
 import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, AiSideQuestionPayload, AiSetContextWindowPayload, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
@@ -1681,6 +1682,13 @@ export function registerAiHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.AI_SET_VISIBLE, (_event, visible: boolean) => {
     rendererVisible = !!visible
+  })
+
+  // 任意 agent(running)→ 暂停 .git 元数据监听(AI 每轮裸 git 命令刷 index 会反射成
+  // GitTab 全套刷新风暴);全部非 running → 恢复。renderer 按 App 层 agentStatus
+  // 聚合(AI tab/dsh/主终端输出活动)上报忙闲真值。
+  ipcMain.on(IPC_CHANNELS.AI_SET_BUSY, (_event, busy: boolean) => {
+    setGitMetaPaused(!!busy)
   })
 
   // List available sessions for resume

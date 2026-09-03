@@ -66,7 +66,7 @@ const api = {
     setFilterRules: (rules: string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_FILTER_RULES, rules),
     lineLog: (filePath: string, startLine: number, endLine: number) => ipcRenderer.invoke(IPC_CHANNELS.GIT_LINE_LOG, filePath, startLine, endLine),
     graph: (opts?: { count?: number; skip?: number }) => ipcRenderer.invoke(IPC_CHANNELS.GIT_GRAPH, opts),
-    onMetaChanged: (callback: (data?: { commonDir?: string }) => void) => {
+    onMetaChanged: (callback: (data?: { commonDir?: string; kind?: 'index' | 'refs' }) => void) => {
       const handler = (_event: any, data: any) => callback(data)
       ipcRenderer.on(IPC_CHANNELS.GIT_META_CHANGED, handler)
       return handler
@@ -299,6 +299,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_GET_CONTEXT_INFO, sessionId),
     setVisible: (visible: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_VISIBLE, visible),
+    setBusy: (busy: boolean) =>
+      ipcRenderer.send(IPC_CHANNELS.AI_SET_BUSY, busy),
     revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string; content?: string; occurrence?: number }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_REVERT, payload),
     fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string; content?: string; occurrence?: number }) =>

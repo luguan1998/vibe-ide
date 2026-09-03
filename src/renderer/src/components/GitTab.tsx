@@ -835,9 +835,19 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
   // git 元数据变更(pull/外部 commit/worktree 增删)：commonDir 校验防串仓库，命中则全套刷新
   useEffect(() => {
-    const handler = window.api.git.onMetaChanged((data?: { commonDir?: string }) => {
+    const handler = window.api.git.onMetaChanged((data?: { commonDir?: string; kind?: 'index' | 'refs' }) => {
       const mine = gitCommonDirRef.current
       if (data?.commonDir && mine && data.commonDir !== mine) return
+      // index 写入(裸 git status/diff 刷 stat cache、git add)只影响 staged 列表 → 仅刷 status；
+      // refs/HEAD 变化(pull/commit/checkout/worktree)才全套刷新
+      if (data?.kind === 'index') {
+        if (!isActiveRef.current) {
+          statusDirtyRef.current = true
+          return
+        }
+        refreshStatusCoalesced()
+        return
+      }
       if (!isActiveRef.current) {
         gitMetaDirtyRef.current = true
         return

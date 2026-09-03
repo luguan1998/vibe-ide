@@ -85,7 +85,7 @@ declare global {
         setFilterRules: (rules: string[]) => Promise<any>
         lineLog: (filePath: string, startLine: number, endLine: number) => Promise<any>
         graph: (opts?: { count?: number; skip?: number }) => Promise<any>
-        onMetaChanged: (callback: (data?: { commonDir?: string }) => void) => any
+        onMetaChanged: (callback: (data?: { commonDir?: string; kind?: 'index' | 'refs' }) => void) => any
         removeMetaChangedListener: (handler?: any) => void
       }
       file: {
@@ -194,6 +194,7 @@ declare global {
         setContextWindow: (sessionId: string, contextWindow: number) => Promise<{ success: boolean; contextPercent?: number | null; error?: string }>
         getContextInfo: (sessionId: string) => Promise<{ usedTokens: number | null; contextWindow: number | null } | null>
         setVisible: (visible: boolean) => Promise<void>
+        setBusy: (busy: boolean) => void
         onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => any
         removeModelChangedListener: (handler?: any) => void
         askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
@@ -600,6 +601,13 @@ export default function App() {
     }
     return result
   }, [sessions, terminalBusy, aiBusy, warnSessions])
+  // 任意 session(AI tab / dsh / 主终端输出活动)处于 running → 暂停 git 元数据监听
+  // (AI 每轮裸 git 命令刷 .git/index 会反射成 GitTab 刷新风暴);全部非 running 才恢复。
+  // 主进程 setGitMetaPaused 幂等,重复上报为 no-op。
+  useEffect(() => {
+    const anyRunning = Object.values(agentStatus).some(v => v === 'running')
+    window.api.ai.setBusy(anyRunning)
+  }, [agentStatus])
   useEffect(() => {
     const prev = prevBusyRef.current
     const updates: Record<string, boolean> = {}

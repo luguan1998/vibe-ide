@@ -129,7 +129,7 @@ export function registerGitHandlers(): void {
       const stagedForConflictCheck = stagedFiles.map(f => f.path)
       if (stagedForConflictCheck.length > 0) {
         try {
-          const cachedDiff = await git.raw(['diff', '--cached'])
+          const cachedDiff = await git.raw(['--no-optional-locks', 'diff', '--cached'])
           const conflictPaths = parseConflictFilesFromDiff(cachedDiff)
           for (const f of stagedFiles) {
             if (conflictPaths.has(f.path)) {
