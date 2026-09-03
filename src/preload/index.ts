@@ -66,7 +66,7 @@ const api = {
     setFilterRules: (rules: string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_FILTER_RULES, rules),
     lineLog: (filePath: string, startLine: number, endLine: number) => ipcRenderer.invoke(IPC_CHANNELS.GIT_LINE_LOG, filePath, startLine, endLine),
     graph: (opts?: { count?: number; skip?: number }) => ipcRenderer.invoke(IPC_CHANNELS.GIT_GRAPH, opts),
-    onMetaChanged: (callback: (data?: { commonDir?: string; kind?: 'index' | 'refs' }) => void) => {
+    onMetaChanged: (callback: (data?: { commonDir?: string; kind?: 'status' | 'full' }) => void) => {
       const handler = (_event: any, data: any) => callback(data)
       ipcRenderer.on(IPC_CHANNELS.GIT_META_CHANGED, handler)
       return handler

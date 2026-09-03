@@ -44,6 +44,8 @@ function notifyChanged() {
     for (const cb of changeListeners) {
       cb()
     }
+    // 工作区文件变更同样意味着 git status 可能变化 → 注册统一 git 刷新信号
+    registerGitRefresh('status')
   }
 
   if (elapsed >= COOLDOWN_MS) {
@@ -91,52 +93,43 @@ export function updateSkipPatterns(patterns: string[]) {
   watcherSkipRegex = buildSkipRegex()
 }
 
-// git 元数据监听:common dir 顶层(HEAD/packed-refs/FETCH_HEAD/MERGE_HEAD/ORIG_HEAD) + refs/** + worktrees/**
-// 覆盖 pull/外部 commit/分支增删/worktree add-remove-prune，事件驱动 GitTab 刷新。
-// 事件按 kind 分流:index 写入(裸 git status/diff 刷 stat cache、git add)只刷 status;
-// refs/HEAD 变化才全套刷新。AI busy 期间由 setGitMetaPaused(true) 停掉——AI 每轮跑的裸
-// git status/add/commit 刷新 .git/index 会反射放大成刷新风暴；空闲后延迟恢复，pull 等
-// 元数据变更感知保留。
-type GitMetaKind = 'index' | 'refs'
+// ── 统一 git 状态刷新信号 ──
+// FS_CHANGED(工作区文件变更，FileTab 树刷新用，保留原通道)与 .git 元数据变更(pull/外部
+// commit/分支增删/worktree)在此合流:2s 窗口内去重，窗口结束时按窗口内最高优先级发一次
+// GIT_META_CHANGED(full > status)。保证 GitTab 的 git 刷新硬上限 = 任意 2s 窗口 1 次。
+// AI busy 期间不注册(风暴源是 AI 每轮裸 git 命令刷 index)，恢复监听时补发一次 full。
+const GIT_REFRESH_WINDOW_MS = 2000
+let gitRefreshDirty: 'none' | 'status' | 'full' = 'none'
+let gitRefreshTimer: NodeJS.Timeout | null = null
+let gitRefreshLastFire = 0
+
+function registerGitRefresh(kind: 'status' | 'full') {
+  if (metaPaused) return
+  if (kind === 'full') gitRefreshDirty = 'full'
+  else if (gitRefreshDirty === 'none') gitRefreshDirty = 'status'
+  if (gitRefreshTimer) return
+  const delay = Math.max(0, GIT_REFRESH_WINDOW_MS - (Date.now() - gitRefreshLastFire))
+  gitRefreshTimer = setTimeout(() => {
+    gitRefreshTimer = null
+    gitRefreshLastFire = Date.now()
+    const k = gitRefreshDirty
+    gitRefreshDirty = 'none'
+    if (k === 'none') return
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send(IPC_CHANNELS.GIT_META_CHANGED, { commonDir: currentMetaCommonDir, kind: k })
+    })
+  }, delay)
+}
+
+// .git 元数据监听(common dir 顶层 + refs/** + worktrees/**)，事件按 kind 归类:
+// index 写入(裸 git status/diff 刷 stat cache、git add)只刷 status;refs/HEAD 变化才全套刷新
 let metaWatchers: FSWatcher[] = []
-let metaDebounceTimer: NodeJS.Timeout | null = null
-let metaPendingTimer: NodeJS.Timeout | null = null
-let metaPendingKind: GitMetaKind = 'refs'
-let lastMetaNotifyTime = 0
 let currentMetaCommonDir = ''
 let metaPaused = false
 let metaResumeTimer: NodeJS.Timeout | null = null
 
-function scheduleGitMetaFire(kind: GitMetaKind = 'refs') {
-  const now = Date.now()
-  const elapsed = now - lastMetaNotifyTime
-
-  const fire = (k: GitMetaKind) => {
-    BrowserWindow.getAllWindows().forEach(win => {
-      win.webContents.send(IPC_CHANNELS.GIT_META_CHANGED, { commonDir: currentMetaCommonDir, kind: k })
-    })
-  }
-
-  if (elapsed >= COOLDOWN_MS) {
-    lastMetaNotifyTime = now
-    fire(kind)
-  } else {
-    if (metaPendingTimer) {
-      // 延迟期间攒下更重要的 refs 事件时升级 kind
-      if (kind === 'refs') metaPendingKind = 'refs'
-      return
-    }
-    metaPendingKind = kind
-    metaPendingTimer = setTimeout(() => {
-      metaPendingTimer = null
-      lastMetaNotifyTime = Date.now()
-      fire(metaPendingKind)
-    }, COOLDOWN_MS - elapsed)
-  }
-}
-
 export function notifyGitMeta(): void {
-  scheduleGitMetaFire('refs')
+  registerGitRefresh('full')
 }
 
 export function stopGitMeta() {
@@ -144,14 +137,12 @@ export function stopGitMeta() {
     try { w.close() } catch {}
   }
   metaWatchers = []
-  if (metaDebounceTimer) { clearTimeout(metaDebounceTimer); metaDebounceTimer = null }
-  if (metaPendingTimer) { clearTimeout(metaPendingTimer); metaPendingTimer = null }
 }
 
-// AI 忙闲门控：busy(任意 AI 会话)→ 立即挂起 .git 监听(AI 裸 git 命令刷 index → meta → 刷新风暴)，
-// 空闲 → 延迟恢复。延迟是防 stop hook 尾巴:最后一轮 result 后 stop hook 仍可能跑 stash/status
-// 写 refs/index，立即恢复会再吃一轮刷新。恢复时补发一次 refs 通知，busy 窗口期漏掉的
-// worktree/分支变化(如 --worktree 会话建档)一并补刷。
+// AI 忙闲门控：busy(任意 agent running)→ 立即挂起 .git 监听(AI 裸 git 命令刷 index →
+// refs → 刷新风暴)；空闲 → 延迟恢复。延迟是防 stop hook 尾巴:最后一轮 result 后 stop hook
+// 仍可能跑 stash/status 写 refs/index，立即恢复会再吃一轮刷新。恢复时补发一次 full，
+// busy 窗口期漏掉的 worktree/分支变化(如 --worktree 会话建档)一并补刷。
 export function setGitMetaPaused(paused: boolean): void {
   if (metaResumeTimer) { clearTimeout(metaResumeTimer); metaResumeTimer = null }
   if (paused) {
@@ -166,7 +157,7 @@ export function setGitMetaPaused(paused: boolean): void {
     metaPaused = false
     if (!currentMetaCommonDir) return
     watchGitMeta(currentMetaCommonDir)
-    scheduleGitMetaFire('refs')
+    registerGitRefresh('full')
   }, 2500)
 }
 
@@ -181,12 +172,8 @@ export function watchGitMeta(commonDir: string) {
     const f = String(filename).replace(/\\/g, '/')
     // 瞬态锁文件/临时件/fsmonitor daemon 管道不算元数据变更，防自激与重复刷新
     if (/^(index\.lock$|.*\.lock$|.*\.tmp$|\.smbdelete|~HEAD|fsmonitor--daemon)/i.test(f)) return
-    const kind: GitMetaKind = f === 'index' || f.endsWith('/index') ? 'index' : 'refs'
-    if (metaDebounceTimer) clearTimeout(metaDebounceTimer)
-    metaDebounceTimer = setTimeout(() => {
-      metaDebounceTimer = null
-      scheduleGitMetaFire(kind)
-    }, 300)
+    const kind = f === 'index' || f.endsWith('/index') ? 'status' : 'full'
+    registerGitRefresh(kind)
   }
 
   const add = (dir: string, recursive: boolean) => {

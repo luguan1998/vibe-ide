@@ -178,7 +178,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   const [commitFileCount, setCommitFileCount] = useState(0)
   const [, setCommitDiff] = useState<string>('')
-  const fsChangedHandlerRef = useRef<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
   const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)
   const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; filePath: string; fullPath: string } | null>(null)
@@ -816,31 +815,15 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     })
   }, [refreshStatus])
 
-  // Listen for fs:changed events from file watcher
+  // git 状态统一刷新信号(主进程合流 FS 变更与 .git 元数据变更，2s 窗口去重)：
+  // commonDir 校验防串仓库；kind='status' → status 合并刷新，kind='full' → 全套刷新
   const statusDirtyRef = useRef(false)
   const gitMetaDirtyRef = useRef(false)
   useEffect(() => {
-    fsChangedHandlerRef.current = window.api.file.onChanged(() => {
-      if (!isActiveRef.current) {
-        statusDirtyRef.current = true
-        return
-      }
-      refreshStatusCoalesced()
-    })
-
-    return () => {
-      window.api.file.removeChangedListener(fsChangedHandlerRef.current)
-    }
-  }, [refreshStatusCoalesced])
-
-  // git 元数据变更(pull/外部 commit/worktree 增删)：commonDir 校验防串仓库，命中则全套刷新
-  useEffect(() => {
-    const handler = window.api.git.onMetaChanged((data?: { commonDir?: string; kind?: 'index' | 'refs' }) => {
+    const handler = window.api.git.onMetaChanged((data?: { commonDir?: string; kind?: 'status' | 'full' }) => {
       const mine = gitCommonDirRef.current
       if (data?.commonDir && mine && data.commonDir !== mine) return
-      // index 写入(裸 git status/diff 刷 stat cache、git add)只影响 staged 列表 → 仅刷 status；
-      // refs/HEAD 变化(pull/commit/checkout/worktree)才全套刷新
-      if (data?.kind === 'index') {
+      if (data?.kind === 'status') {
         if (!isActiveRef.current) {
           statusDirtyRef.current = true
           return

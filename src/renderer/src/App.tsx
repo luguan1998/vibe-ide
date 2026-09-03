@@ -85,7 +85,7 @@ declare global {
         setFilterRules: (rules: string[]) => Promise<any>
         lineLog: (filePath: string, startLine: number, endLine: number) => Promise<any>
         graph: (opts?: { count?: number; skip?: number }) => Promise<any>
-        onMetaChanged: (callback: (data?: { commonDir?: string; kind?: 'index' | 'refs' }) => void) => any
+        onMetaChanged: (callback: (data?: { commonDir?: string; kind?: 'status' | 'full' }) => void) => any
         removeMetaChangedListener: (handler?: any) => void
       }
       file: {
