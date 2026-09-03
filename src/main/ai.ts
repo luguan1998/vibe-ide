@@ -422,6 +422,13 @@ function persistContextWindowOverride(claudeSessionId: string, tokens: number): 
   } catch { /* non-fatal */ }
 }
 
+// 应用模型上报的分母；手动 override 最后覆盖，用户意志最高
+function applyContextWindow(s: ManagedAiSession, parsed?: number): void {
+  if (parsed) s.contextWindow = parsed
+  const override = s.claudeSessionId ? loadContextWindowOverrides()[s.claudeSessionId] : undefined
+  if (override) s.contextWindow = override
+}
+
 function calcContextPercent(usage: any, contextWindow?: number): number | undefined {
   if (!usage) return undefined
   const input = (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0)
@@ -484,14 +491,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
           s.claudeSessionId = msg.session_id
           cliSessionToRenderer.set(msg.session_id, sessionId)
         }
-        if (msg.model) {
-          const parsed = parseContextWindowFromModel(msg.model)
-          if (parsed) s.contextWindow = parsed
-        }
-        if (msg.session_id) {
-          const override = loadContextWindowOverrides()[msg.session_id]
-          if (override) s.contextWindow = override
-        }
+        applyContextWindow(s, msg.model ? parseContextWindowFromModel(msg.model) : undefined)
       }
       const payload: any = { sessionId, tools: msg.tools, model: msg.model, slashCommands: msg.slash_commands }
       if (s?.claudeSessionId) payload.session_id = s.claudeSessionId
@@ -555,7 +555,8 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       // top level (msg.parent_tool_use_id) rather than under msg.message — read both.
       const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
       const session = aiSessions.get(sessionId)
-      if (session && msg.message?.usage) session.lastUsage = msg.message.usage
+      // 子代理消息的 usage 是其自身的小上下文，覆盖 lastUsage 会把主会话 ring 拉低
+      if (session && !parentToolUseId && msg.message?.usage) session.lastUsage = msg.message.usage
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
         type: 'assistant',
@@ -688,6 +689,23 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       const wasCancelled = session?.cancelRequested
       if (wasCancelled) session!.cancelRequested = false
       const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
+      // modelUsage 是魔改 CC 专有：{[modelId]: {contextWindow}} 键值对象，取首键拿真实窗口。
+      // 仅当存在才解析——原生 CC 无此字段，result.usage 是 turn 累积值（原注释），维持忽略
+      const m = msg.modelUsage && typeof msg.modelUsage === 'object'
+        ? msg.modelUsage[Object.keys(msg.modelUsage)[0]]
+        : undefined
+      if (m && !parentToolUseId) {
+        const u = msg.usage
+        // 全 0 视为无数据，保留 assistant 源的旧 lastUsage（对齐 calcContextPercent 的 0→undefined）
+        if (u && ((u.input_tokens || 0) + (u.cache_read_input_tokens || 0) > 0)) {
+          session!.lastUsage = {
+            input_tokens: u.input_tokens || 0,
+            cache_read_input_tokens: u.cache_read_input_tokens || 0,
+          }
+        }
+        if (m.contextWindow) applyContextWindow(session!, m.contextWindow)
+      }
+      const percentUsage = m && !parentToolUseId ? msg.usage : null
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
         type: 'result',
@@ -698,7 +716,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         durationMs: msg.duration_ms,
         numTurns: msg.num_turns,
         parentToolUseId: parentToolUseId || undefined,
-        // result.usage is cumulative across the turn — omit so renderer keeps last assistant value
+        contextPercent: calcContextPercent(percentUsage, session?.contextWindow),
         timestamp: Date.now(),
       })
       break
@@ -1770,9 +1788,7 @@ export function registerAiHandlers(): void {
     // Parse context window from model name (e.g. "deepseek-v4-pro[1m]" → 1M) and cache
     // immediately regardless of ready state, since the CLI doesn't echo [1m] in system/init.
     const parsed = parseContextWindowFromModel(payload.model)
-    if (parsed) session.contextWindow = parsed
-    const override = session.claudeSessionId ? loadContextWindowOverrides()[session.claudeSessionId] : undefined
-    if (override) session.contextWindow = override
+    applyContextWindow(session, parsed)
     session.model = payload.model
 
     if (!session.ready) return { success: false, error: 'AI not ready' }

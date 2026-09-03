@@ -529,7 +529,8 @@ function initListeners() {
         streamBuffer: clearText || msg.type === 'result' ? '' : s0.streamBuffer,
         thinkingBuffer: clearThinking || msg.type === 'result' ? '' : s0.thinkingBuffer,
         thinkingStartedAt: clearThinking || msg.type === 'result' ? null : s0.thinkingStartedAt,
-        contextPercent: msg.contextPercent != null ? Math.round(msg.contextPercent) : s0.contextPercent,
+        // 子代理消息（parentToolUseId）的 percent 是子代理自身上下文，勿覆盖 session 级
+        contextPercent: msg.contextPercent != null && !msg.parentToolUseId ? Math.round(msg.contextPercent) : s0.contextPercent,
         runningTools,
         interjectingAt: msg.type === 'result' ? (interjectCutover ? s0.interjectingAt : undefined) : undefined,
       }
