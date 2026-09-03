@@ -59,6 +59,7 @@ interface RightPanelProps {
   onBrowserToggleDock?: () => void
   hideTabBar?: boolean
   onRestoreWidth?: () => void
+  contentOverlay?: React.ReactNode
 }
 
 type GitSection = 'git' | 'terminal' | 'file' | 'game'
@@ -477,6 +478,7 @@ function RightPanel({
   onBrowserToggleDock,
   hideTabBar,
   onRestoreWidth,
+  contentOverlay,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('file')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -683,7 +685,10 @@ function RightPanel({
         <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} onRestoreWidth={onRestoreWidth} onHideRail={() => setRailHidden(true)} />
       )}
 
-      <div className={`flex-1 min-h-0 mx-2 ${hideTabBar ? 'mb-0.5' : 'mb-2'} mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col right-panel__content`}>
+      <div className={`relative flex-1 min-h-0 mx-2 ${hideTabBar ? 'mb-0.5' : 'mb-2'} mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col right-panel__content`}>
+        {contentOverlay && (
+          <div className="absolute inset-0 z-20 flex flex-col bg-ide-sidebar">{contentOverlay}</div>
+        )}
 
       <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <GitTab

@@ -414,6 +414,18 @@ export default function App() {
   }, [])
   const [markdownFile, setMarkdownFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const [imageFile, setImageFile] = useState<{ fullPath: string; fileName: string } | null>(null)
+  const overlayKind =
+    centerView === 'diff' && diffFile ? `diff:${diffFile.fullPath}:${diffFile.commitHash ?? ''}` :
+    centerView === 'markdown' && markdownFile ? `md:${markdownFile.fullPath}` :
+    centerView === 'image' && imageFile ? `img:${imageFile.fullPath}` : null
+  const overlaySnapRef = useRef<{ key: string | null; right: boolean }>({ key: null, right: false })
+  if (overlayKind && overlaySnapRef.current.key !== overlayKind) {
+    overlaySnapRef.current = { key: overlayKind, right: !rightPanelCollapsed && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W }
+  }
+  if (!overlayKind && overlaySnapRef.current.key !== null) {
+    overlaySnapRef.current = { key: null, right: false }
+  }
+  const overlayOnRight = overlayKind !== null && overlaySnapRef.current.right && !rightPanelCollapsed
   const diffRevisionRef = useRef(0)
   const [pollingEnabled, setPollingEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-polling') === '1' } catch { return false }
@@ -2967,6 +2979,68 @@ export default function App() {
 
   const isWelcome = sessions.length === 0
 
+  const markdownNode = markdownFile ? (
+    <MarkdownPreview
+      key={markdownFile.fullPath}
+      fullPath={markdownFile.fullPath}
+      fileName={markdownFile.fileName}
+      onBack={handleBackFromMarkdown}
+      scrollToHeading={mdScrollHeading}
+      brushActive={brushActive}
+      outlineEnabled={outlineOverlayEnabled}
+      onToggleOutline={() => setOutlineOverlayEnabled(prev => !prev)}
+      onOutlineNavigate={handleOutlineNavigate}
+    />
+  ) : null
+
+  const imageNode = imageFile ? (
+    <ImagePreview
+      key={imageFile.fullPath}
+      fullPath={imageFile.fullPath}
+      fileName={imageFile.fileName}
+      onBack={handleBackFromImage}
+      brushActive={brushActive}
+    />
+  ) : null
+
+  const diffViewerNode = diffFile ? (
+    <DiffViewer
+      key={`${diffFile.fullPath}-${diffFile.commitHash || 'working'}`}
+      filePath={diffFile.filePath}
+      fullPath={diffFile.fullPath}
+      gitStats={diffFile.gitStats}
+      isStaged={diffFile.isStaged}
+      commitHash={diffFile.commitHash}
+      lineNumber={diffFile.lineNumber}
+      revision={diffFile.revision}
+      onBack={handleBackToTerminal}
+      onSaved={handleRefreshGit}
+      defaultEdit={diffFile.defaultEdit}
+      fontSize={editorFontSize}
+      wordWrap={wordWrap}
+      inlineDiff={inlineDiff}
+      diffSplitRatio={diffSplitRatio}
+      scrollTrigger={diffScrollTrigger}
+      cursorRef={cursorRef}
+      visibleLineRef={visibleLineRef}
+      onOpenCallGraph={handleOpenCallGraphFromEditor}
+      onViewLineHistory={handleViewLineHistory}
+      jumpCwd={activeSessionCwd ?? undefined}
+      onJumpToFile={handleOpenFileFromSearch}
+      compareOriginalContent={diffFile.compareOriginalContent}
+      compareOriginalPath={diffFile.compareOriginalPath}
+      onAnnotationTrigger={handleAnnotationTrigger}
+      brushActive={brushActive}
+      outlineEnabled={outlineOverlayEnabled}
+      onToggleOutline={() => setOutlineOverlayEnabled(prev => !prev)}
+      onOutlineNavigate={handleOutlineNavigate}
+    />
+  ) : null
+
+  const rightOverlay = overlayOnRight
+    ? (centerView === 'diff' ? diffViewerNode : centerView === 'markdown' ? markdownNode : centerView === 'image' ? imageNode : null)
+    : null
+
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
       {/* Title Bar */}
@@ -3137,67 +3211,21 @@ export default function App() {
           onFocus={handleCenterFocus}
           onBlur={handleCenterBlur}>
           {/* Diff */}
-          {centerView === 'diff' && diffFile && (
+          {centerView === 'diff' && diffFile && !overlayOnRight && (
             <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-card">
-              <DiffViewer
-                key={`${diffFile.fullPath}-${diffFile.commitHash || 'working'}`}
-                filePath={diffFile.filePath}
-                fullPath={diffFile.fullPath}
-                gitStats={diffFile.gitStats}
-                isStaged={diffFile.isStaged}
-                commitHash={diffFile.commitHash}
-                lineNumber={diffFile.lineNumber}
-                revision={diffFile.revision}
-                onBack={handleBackToTerminal}
-                onSaved={handleRefreshGit}
-                defaultEdit={diffFile.defaultEdit}
-                fontSize={editorFontSize}
-                wordWrap={wordWrap}
-                inlineDiff={inlineDiff}
-                diffSplitRatio={diffSplitRatio}
-                scrollTrigger={diffScrollTrigger}
-                cursorRef={cursorRef}
-                visibleLineRef={visibleLineRef}
-                onOpenCallGraph={handleOpenCallGraphFromEditor}
-                onViewLineHistory={handleViewLineHistory}
-                jumpCwd={activeSessionCwd ?? undefined}
-                onJumpToFile={handleOpenFileFromSearch}
-                compareOriginalContent={diffFile.compareOriginalContent}
-                compareOriginalPath={diffFile.compareOriginalPath}
-                onAnnotationTrigger={handleAnnotationTrigger}
-                brushActive={brushActive}
-                outlineEnabled={outlineOverlayEnabled}
-                onToggleOutline={() => setOutlineOverlayEnabled(prev => !prev)}
-                onOutlineNavigate={handleOutlineNavigate}
-              />
+              {diffViewerNode}
             </div>
           )}
           {/* Markdown Preview */}
-          {centerView === 'markdown' && markdownFile && (
+          {centerView === 'markdown' && markdownFile && !overlayOnRight && (
             <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay">
-              <MarkdownPreview
-                key={markdownFile.fullPath}
-                fullPath={markdownFile.fullPath}
-                fileName={markdownFile.fileName}
-                onBack={handleBackFromMarkdown}
-                scrollToHeading={mdScrollHeading}
-                brushActive={brushActive}
-                outlineEnabled={outlineOverlayEnabled}
-                onToggleOutline={() => setOutlineOverlayEnabled(prev => !prev)}
-                onOutlineNavigate={handleOutlineNavigate}
-              />
+              {markdownNode}
             </div>
           )}
           {/* Image Preview */}
-          {centerView === 'image' && imageFile && (
+          {centerView === 'image' && imageFile && !overlayOnRight && (
             <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay">
-              <ImagePreview
-                key={imageFile.fullPath}
-                fullPath={imageFile.fullPath}
-                fileName={imageFile.fileName}
-                onBack={handleBackFromImage}
-                brushActive={brushActive}
-              />
+              {imageNode}
             </div>
           )}
           {/* Browser */}
@@ -3221,7 +3249,7 @@ export default function App() {
             />
           )}
           {/* Terminal sessions / AI GUI mode */}
-          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card" style={{ display: centerView === 'terminal' && sessions.length > 0 ? 'flex' : 'none' }}>
+          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card" style={{ display: (centerView === 'terminal' || overlayOnRight) && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => {
                 const isGui = session.kind === 'gui'
@@ -3384,6 +3412,7 @@ export default function App() {
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
             hideTabBar={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W}
             onRestoreWidth={handleRestoreRightWidth}
+            contentOverlay={rightOverlay}
             brushActive={brushActive}
             onResumeClaudeHistory={handleResumeClaudeHistory}
             onResumeDshHistory={handleResumeDshHistory}
