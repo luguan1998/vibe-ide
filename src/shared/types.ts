@@ -125,6 +125,7 @@ export const IPC_CHANNELS = {
   AI_PLAN_EXECUTE: 'ai:planExecute',
   AI_SET_PERMISSION_MODE: 'ai:setPermissionMode',
   AI_SET_MODEL: 'ai:setModel',
+  AI_SIDE_QUESTION: 'ai:sideQuestion',
   AI_SET_CONTEXT_WINDOW: 'ai:setContextWindow',
   AI_GET_CONTEXT_INFO: 'ai:getContextInfo',
   AI_SET_VISIBLE: 'ai:setVisible',       // invoke: renderer hidden → main drops stream tokens
@@ -667,6 +668,14 @@ export interface AiSetPermissionModePayload {
 export interface AiSetModelPayload {
   sessionId: string
   model: string
+}
+
+// Side question via control_request subtype=side_question (CLI >= 2.1.209).
+// Answers in a forked, tool-less context without interrupting the main turn;
+// response never enters the conversation transcript.
+export interface AiSideQuestionPayload {
+  sessionId: string
+  question: string
 }
 
 // Manually override a session's max context window (tokens), persisted by

@@ -5,9 +5,9 @@ import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
-import { Edit, Send, ClipboardPaste, BookOpenText, Pin } from 'lucide-react'
+import { Edit, Send, ClipboardPaste, BookOpenText, Pin, MessageSquareQuote } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
-import { ADD_ANNOTATION_EVENT } from '../vibeEvents'
+import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
 import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
 import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, getPetListenDsh } from './petSettings'
 import { readAiCliConfig } from '../../aiStore'
@@ -18,7 +18,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   logicalState: PetLogicalState
   activeSessionId: string | null
   activeSessionCwd: string | null
-  sessions: { id: string; cwd: string }[]
+  sessions: { id: string; cwd: string; kind?: string }[]
   dshActive?: boolean
   dshSessionId?: string
 }) {
@@ -37,6 +37,8 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [contextFocused, setContextFocused] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [draftCmd, setDraftCmd] = useState('')
+  const [btwMode, setBtwMode] = useState(false)
+  const activeKind = sessions.find(s => s.id === activeSessionId)?.kind
   const [keypadItems, setKeypadItems] = useState<ReturnType<typeof loadKeypadItems>>([])
   const [, setConfigTick] = useState(0)
   const [frameRate, setFrameRate] = useState(() => getPetFrameRate())
@@ -232,6 +234,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       const pfx = loadBtwPrefix()
       return pfx && !pfx.endsWith(' ') ? pfx + ' ' : pfx
     })
+    setBtwMode(false)
     setContextOpen(true)
   }, [aiBubbleOpen, latestReply, contextOpen])
 
@@ -287,12 +290,30 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const handleSend = useCallback(() => {
     const text = draftCmd.trim()
     if (text) {
-      ;(window as any).__vibeSendLine?.(text)
+      const body = btwMode && !/^\s*\/btw\b/i.test(text) ? `/btw ${text}` : text
+      ;(window as any).__vibeSendLine?.(body)
       triggerTransient('sendMessage')
     }
     setDraftCmd('')
     setContextOpen(false)
-  }, [draftCmd, triggerTransient])
+  }, [draftCmd, btwMode, triggerTransient])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent).detail as { pending?: boolean; text?: string | null; error?: string }
+      const stamp = `btw-${Date.now()}`
+      if (d.pending) {
+        setLatestReply({ messageId: `${stamp}-pending`, text: '旁路提问思考中…' })
+      } else if (d.error) {
+        setLatestReply({ messageId: stamp, text: `⚠️ ${d.error}` })
+      } else {
+        setLatestReply({ messageId: stamp, text: (d.text || '').trim() || '（无回答）' })
+      }
+      setAiBubbleOpen(true)
+    }
+    window.addEventListener(BTW_REPLY_EVENT, handler)
+    return () => window.removeEventListener(BTW_REPLY_EVENT, handler)
+  }, [])
 
   // 手动查看最新一条 AI 回复（不依赖监听开关；监听未开时取完快照即清理游标）。
   // 不要求会话是 dsh 模式：dsh 优先取当前目录最新回复，无则回退 claude jsonl
@@ -501,6 +522,15 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
             onBlur={() => setContextFocused(false)}
           />
           <div className="flex items-center gap-1 self-end">
+            {activeKind === 'gui' && (
+              <button
+                className={`desktop-pet__context-gear${btwMode ? ' desktop-pet__context-gear--active' : ''}`}
+                onClick={() => setBtwMode(v => !v)}
+                title={btwMode ? '旁路提问已开启：不打断当前任务，答案只在气泡显示' : '旁路提问已关闭：普通插话（会打断当前任务）'}
+              >
+                <MessageSquareQuote size={14} />
+              </button>
+            )}
             <button
               className={`desktop-pet__context-gear${contextPinned ? ' desktop-pet__context-gear--active' : ''}`}
               onClick={() => setContextPinned(v => !v)}

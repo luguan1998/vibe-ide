@@ -74,6 +74,7 @@ export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: (
               type="text"
               value={btwPrefix}
               onChange={(e) => setBtwPrefix(e.target.value)}
+              title="预填到右键输入框的前缀。填 /btw 即开启常驻旁路提问模式（GUI 会话下不打断主任务，答案仅在宠物气泡显示）；留空则普通发送"
               className="flex-1 min-w-0 text-xs bg-ide-bg border border-dashed border-ide-border rounded-[4px_8px_5px_7px] px-2 py-1 text-ide-text focus:outline-none focus:border-ide-accent"
             />
           </div>

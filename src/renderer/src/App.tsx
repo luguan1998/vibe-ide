@@ -26,7 +26,7 @@ import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { getFileInfo } from './components/FileIcons'
 import iconPattern from '@renderer/assets/icon-pattern.png?inline'
 import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
-import { ADD_ANNOTATION_EVENT, toRelPath } from './components/vibeEvents'
+import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, toRelPath } from './components/vibeEvents'
 import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
@@ -190,6 +190,7 @@ declare global {
         listUserTurns: (sessionId: string, cwd: string) => Promise<any>
         setPermissionMode: (sessionId: string, mode: string) => Promise<{ success: boolean; error?: string }>
         setModel: (sessionId: string, model: string) => Promise<{ success: boolean; error?: string }>
+        sideQuestion: (sessionId: string, question: string) => Promise<{ success: boolean; response?: string | null; synthetic?: boolean; error?: string }>
         setContextWindow: (sessionId: string, contextWindow: number) => Promise<{ success: boolean; contextPercent?: number | null; error?: string }>
         getContextInfo: (sessionId: string) => Promise<{ usedTokens: number | null; contextWindow: number | null } | null>
         setVisible: (visible: boolean) => Promise<void>
@@ -307,6 +308,11 @@ function HistoryCopyButton({ cmd }: { cmd: string }) {
       )}
     </button>
   )
+}
+
+// /btw side-question result → desktop pet bubble (DesktopPet subscribes BTW_REPLY_EVENT)
+function dispatchBtwReply(detail: { pending?: boolean; text?: string | null; error?: string }): void {
+  window.dispatchEvent(new CustomEvent(BTW_REPLY_EVENT, { detail }))
 }
 
 export default function App() {
@@ -1210,6 +1216,23 @@ export default function App() {
     if (!sessionId) return
     const mode = sessionsRef.current.find(s => s.id === sessionId)?.kind
     if (mode === 'gui') {
+      // /btw prefix → non-interrupting side question. This funnel is the single
+      // entry for keypad / context input / BTW_PREFIX prefill, so detection lives
+      // here once and the pet stays dumb. Answer returns via BTW_REPLY_EVENT.
+      const btw = /^\s*\/btw\b\s*([\s\S]*)$/i.exec(text)
+      if (btw) {
+        const question = btw[1].trim()
+        if (question) {
+          dispatchBtwReply({ pending: true })
+          window.api.ai.sideQuestion(sessionId, question)
+            .then((r) => {
+              if (r?.success) dispatchBtwReply({ text: r.response })
+              else dispatchBtwReply({ error: r?.error || 'Side question failed' })
+            })
+            .catch((e: any) => dispatchBtwReply({ error: e?.message || String(e) }))
+          return
+        }
+      }
       aiTabRefs.current[sessionId]?.sendText(text)
       aiTabRefs.current[sessionId]?.focus()
       return

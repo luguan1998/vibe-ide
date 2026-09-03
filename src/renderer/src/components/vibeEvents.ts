@@ -1,4 +1,5 @@
 export const ADD_ANNOTATION_EVENT = 'vibe-ide-add-annotation'
+export const BTW_REPLY_EVENT = 'vibe-ide-btw-reply'
 
 export function toRelPath(full: string | undefined | null, cwd?: string | null): string {
   const f = (full || '').replace(/\\/g, '/')

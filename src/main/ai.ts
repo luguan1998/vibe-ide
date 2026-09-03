@@ -6,7 +6,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join, isAbsolute, relative, basename } from 'path'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS, DEFAULT_AI_CONTEXT_WINDOW, asToolArray } from '../shared/types'
-import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, AiSetContextWindowPayload, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
+import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, AiSideQuestionPayload, AiSetContextWindowPayload, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
 
 export interface ManagedAiSession {
   process: ChildProcess
@@ -122,6 +122,35 @@ export const aiSessions = new Map<string, ManagedAiSession>()
 // Reverse map: CLI session ID (e.g. "claude-xxx") → renderer session ID ("term-xxxxx")
 // Used by loadSessionMessages to look up contextWindow from the correct aiSessions entry.
 const cliSessionToRenderer = new Map<string, string>()
+
+// ── /btw side questions (control_request subtype=side_question, CLI >= 2.1.209) ──
+// CLI answers in a forked, tool-less, 1-turn context: the main turn keeps running
+// and the JSONL transcript stays clean (skipTranscript). The final answer arrives
+// as control_response {response:{subtype:'success',request_id,response:{response,synthetic}}};
+// started/api_retry progress comes as system/control_request_progress (ignored here —
+// the pet shows its own pending bubble).
+type SideQuestionResult = { success: boolean; response?: string | null; synthetic?: boolean; error?: string }
+interface SideQuestionPending {
+  sessionId: string
+  resolve: (r: SideQuestionResult) => void
+  timer: NodeJS.Timeout
+}
+const sidePending = new Map<string, SideQuestionPending>()
+const SIDE_QUESTION_TIMEOUT_MS = 120_000
+
+function settleSideQuestion(requestId: string, r: SideQuestionResult): void {
+  const p = sidePending.get(requestId)
+  if (!p) return
+  sidePending.delete(requestId)
+  clearTimeout(p.timer)
+  p.resolve(r)
+}
+
+function dropSideQuestionsForSession(sessionId: string, reason: string): void {
+  for (const [reqId, p] of sidePending) {
+    if (p.sessionId === sessionId) settleSideQuestion(reqId, { success: false, error: reason })
+  }
+}
 let mainWindow: BrowserWindow | null = null
 
 // 窗口可能在运行期重建（macOS activate 等），快照引用会失效，
@@ -483,6 +512,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
   switch (msg.type) {
     case 'system': {
       if (msg.subtype === 'status') break
+      if (msg.subtype === 'control_request_progress') break
       const s = aiSessions.get(sessionId)
       if (s) {
         s.ready = true
@@ -689,23 +719,30 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       const wasCancelled = session?.cancelRequested
       if (wasCancelled) session!.cancelRequested = false
       const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
-      // modelUsage 是魔改 CC 专有：{[modelId]: {contextWindow}} 键值对象，取首键拿真实窗口。
-      // 仅当存在才解析——原生 CC 无此字段，result.usage 是 turn 累积值（原注释），维持忽略
-      const m = msg.modelUsage && typeof msg.modelUsage === 'object'
-        ? msg.modelUsage[Object.keys(msg.modelUsage)[0]]
-        : undefined
-      if (m && !parentToolUseId) {
-        const u = msg.usage
-        // 全 0 视为无数据，保留 assistant 源的旧 lastUsage（对齐 calcContextPercent 的 0→undefined）
-        if (u && ((u.input_tokens || 0) + (u.cache_read_input_tokens || 0) > 0)) {
-          session!.lastUsage = {
-            input_tokens: u.input_tokens || 0,
-            cache_read_input_tokens: u.cache_read_input_tokens || 0,
+      // 主数据源永远是 assistant 逐请求 usage（原生路径）；result.usage 是 session 累加值，
+      // 覆盖它会让 ring 每轮跳高。仅当原生路径无数据（context 为 0）且存在 modelUsage（魔改 CC 上报）
+      // 时，才兜底走 result 路径。contextWindow 是静态分母字段，与累加无关，恒可校正。
+      let percentUsage: any = null
+      if (!parentToolUseId) {
+        const mu = msg.modelUsage
+        const hasModelUsage = !!(mu && typeof mu === 'object' && Object.keys(mu).length > 0)
+        if (hasModelUsage) {
+          const win = Math.max(0, ...Object.values(mu).map((v: any) => v?.contextWindow || 0))
+          if (win) applyContextWindow(session!, win)
+          const cur = session?.lastUsage
+          const nativeCtx = (cur?.input_tokens || 0) + (cur?.cache_read_input_tokens || 0)
+          if (nativeCtx === 0) {
+            const u = msg.usage
+            if (u && ((u.input_tokens || 0) + (u.cache_read_input_tokens || 0) > 0)) {
+              session!.lastUsage = {
+                input_tokens: u.input_tokens || 0,
+                cache_read_input_tokens: u.cache_read_input_tokens || 0,
+              }
+              percentUsage = u
+            }
           }
         }
-        if (m.contextWindow) applyContextWindow(session!, m.contextWindow)
       }
-      const percentUsage = m && !parentToolUseId ? msg.usage : null
       send(IPC_CHANNELS.AI_MESSAGE, {
         sessionId,
         type: 'result',
@@ -716,6 +753,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         durationMs: msg.duration_ms,
         numTurns: msg.num_turns,
         parentToolUseId: parentToolUseId || undefined,
+        // 仅兜底路径透出 percent；否则 renderer 保留最后一条 assistant 的真实上下文
         contextPercent: calcContextPercent(percentUsage, session?.contextWindow),
         timestamp: Date.now(),
       })
@@ -756,6 +794,21 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
             }
           }
         }
+      }
+      break
+    }
+
+    case 'control_response': {
+      const resp = msg.response
+      const requestId: string = resp?.request_id || ''
+      if (!requestId || !sidePending.has(requestId)) break
+      if (resp.subtype !== 'success') {
+        settleSideQuestion(requestId, { success: false, error: typeof resp.error === 'string' ? resp.error : 'Side question failed' })
+        break
+      }
+      const payload = resp.response
+      if (payload && typeof payload === 'object' && 'response' in payload) {
+        settleSideQuestion(requestId, { success: true, response: payload.response, synthetic: !!payload.synthetic })
       }
       break
     }
@@ -1432,6 +1485,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     if (current && current.process.pid === proc.pid) {
       if (current.computerUse) { try { require('./computer-use').stopForSession(sessionId) } catch {} }
       if (current.browserUse) { try { require('./browser-use').stopForSession(sessionId) } catch {} }
+      dropSideQuestionsForSession(sessionId, 'AI process error')
       stopSidecarWatchersForSession(sessionId)
       aiSessions.delete(sessionId)
       send(IPC_CHANNELS.AI_ERROR, { sessionId, error: err.message })
@@ -1442,6 +1496,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     // Only handle if this is still the active process for this session
     const current = aiSessions.get(sessionId)
     if (current && current.process.pid === proc.pid) {
+      dropSideQuestionsForSession(sessionId, 'AI process exited')
       // AskUserQuestion proactive kill: keep session (ask-resume needs claudeSessionId),
       // skip AI_ERROR — this exit is intentional, not a crash.
       if (current!.awaitingUserInput === true) {
@@ -1804,6 +1859,31 @@ export function registerAiHandlers(): void {
     session.process.stdin!.write(ndjson)
     send(IPC_CHANNELS.AI_MODEL_CHANGED, { sessionId: payload.sessionId, model: payload.model })
     return { success: true }
+  })
+
+  // /btw side question: non-interrupting forked single-turn answer (CLI >= 2.1.209).
+  // Resolves on the matching control_response; progress frames and main-turn output
+  // are ignored. Old CLIs that don't know the subtype answer error or stay silent —
+  // both settle as a failure so the renderer can fall back to queueing.
+  ipcMain.handle(IPC_CHANNELS.AI_SIDE_QUESTION, (_event, payload: AiSideQuestionPayload) => {
+    const session = aiSessions.get(payload.sessionId)
+    if (!session || !session.ready) return { success: false, error: 'AI not ready' }
+    const requestId = `side-${randomUUID()}`
+    return new Promise<SideQuestionResult>((resolve) => {
+      const timer = setTimeout(() => {
+        settleSideQuestion(requestId, { success: false, error: 'Side question timed out' })
+      }, SIDE_QUESTION_TIMEOUT_MS)
+      sidePending.set(requestId, { sessionId: payload.sessionId, resolve, timer })
+      try {
+        session.process.stdin!.write(JSON.stringify({
+          type: 'control_request',
+          request_id: requestId,
+          request: { subtype: 'side_question', question: payload.question },
+        }) + '\n')
+      } catch {
+        settleSideQuestion(requestId, { success: false, error: 'Side question write failed' })
+      }
+    })
   })
 
   // Manually set max context window (tokens) for a session; persisted by claudeSessionId.

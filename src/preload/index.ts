@@ -291,6 +291,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_RESOLVE_CONFIG_DIR, configDir),
     setModel: (sessionId: string, model: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_MODEL, { sessionId, model }),
+    sideQuestion: (sessionId: string, question: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_SIDE_QUESTION, { sessionId, question }),
     setContextWindow: (sessionId: string, contextWindow: number) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_CONTEXT_WINDOW, { sessionId, contextWindow }),
     getContextInfo: (sessionId: string) =>
