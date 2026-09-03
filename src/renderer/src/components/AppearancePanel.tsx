@@ -397,7 +397,7 @@ const AppearancePanel = function AppearancePanel({
   const zones = NAV_ITEMS.find(n => n.id === activeCategory)!.zones
 
   return (
-    <ModalOverlay onClose={onClose} className="fixed inset-0 z-50 flex items-start justify-start pt-24 pl-12">
+    <ModalOverlay onClose={onClose} className="vibe-ui fixed inset-0 z-50 flex items-start justify-start pt-24 pl-12">
       <div className="bg-ide-bg/50 backdrop-blur-xl border border-ide-border/80 rounded-2xl shadow-2xl w-[760px] max-h-[80vh] flex flex-col" style={{ transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0 cursor-move" onMouseDown={onHeaderMouseDown}>
           <span className="text-base font-semibold text-ide-text flex items-center gap-1.5"><Palette className="size-4" />{t('Appearance')}</span>

@@ -93,6 +93,25 @@ html, body, #root {
   background: transparent;
 }
 
+/* 挂 body 的 vibe portal（如外观菜单）在 #root 外，同规则再钉一遍 */
+.vibe-ui :not(.dsh-view, .dsh-view *)::-webkit-scrollbar {
+  width: 9px;
+  height: 14px;
+}
+.vibe-ui :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-track {
+  background: transparent;
+}
+.vibe-ui :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb {
+  background: rgb(var(--scrollbar-thumb));
+  border-radius: 3px;
+}
+.vibe-ui :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--scrollbar-thumb-hover));
+}
+.vibe-ui :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* reply popover: scrollbar 仅 hover 显示（含内层 markdown 代码块等横向滚动条） */
 #root .board-reply-scroll::-webkit-scrollbar,
 #root .board-reply-scroll *::-webkit-scrollbar {
