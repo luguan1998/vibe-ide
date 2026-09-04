@@ -20,11 +20,11 @@ const SNAP_NOTE = ' Acts return a fresh snapshot automatically (pass quiet:true 
 const TOOLS = [
   {
     name: 'browser_snapshot',
-    description: 'List the interactive elements of the built-in embedded browser page as a text tree — one line per control, e.g. `e12 input[text] v="" name="Email" required`, `e13 [button] v="Sign in"`. Prefer this over screenshots for targeting. Always snapshot before acting.' + SNAP_NOTE,
+    description: 'List the interactive elements of the built-in embedded browser page as a text tree — one line per control, e.g. `e12 input[text] v="" label="Email" required`, `e13 [button] v="Sign in"`. Covers every frame: elements inside iframes (including cross-origin embedded documents like WebOffice/WPS) appear under a `--- frame <url> ---` section and their refs work like any other. Prefer this over screenshots for targeting. Always snapshot before acting.' + SNAP_NOTE,
     inputSchema: {
       type: 'object',
       properties: {
-        boxes: { type: 'boolean', description: 'include viewport rects (only needed for coordinate reasoning)' },
+        boxes: { type: 'boolean', description: 'include viewport rects in top-viewport CSS px (frame offsets already applied; only needed for coordinate reasoning)' },
         max: { type: 'integer', description: 'max lines, default 250; hidden refs remain reachable via browser_find' }
       },
       additionalProperties: false
@@ -32,7 +32,7 @@ const TOOLS = [
   },
   {
     name: 'browser_find',
-    description: 'Search all snapshot elements by text (label/placeholder/value/text), cheaper than a full snapshot. Returns matching refs with snippets. Requires at least one browser_snapshot on the current page.',
+    description: 'Search all snapshot elements by text (label/placeholder/value/text), cheaper than a full snapshot. Searches every frame (main + iframes). Returns matching refs with snippets. Requires at least one browser_snapshot on the current page.',
     inputSchema: {
       type: 'object',
       properties: { text: { type: 'string' } },
@@ -52,6 +52,22 @@ const TOOLS = [
         quiet: { type: 'boolean', default: false }
       },
       required: ['ref'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'browser_click_xy',
+    description: 'Click at top-viewport CSS pixel coordinates (same space as snapshot box= rects). The way to hit canvas-rendered content — spreadsheet grids (WPS/WebOffice), maps, images — which exposes no DOM cells even inside its iframe. Flow for canvas UIs: browser_screenshot → convert screenshot px to CSS px with its VIEWPORT scale line → click here on the cell → browser_type to enter the value → browser_press "Tab"/"Return" to commit. button: left/right. double: true for double-click.' + SNAP_NOTE,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        x: { type: 'integer', description: 'top-viewport CSS px from left' },
+        y: { type: 'integer', description: 'top-viewport CSS px from top' },
+        button: { type: 'string', enum: ['left', 'right'], default: 'left' },
+        double: { type: 'boolean', default: false },
+        quiet: { type: 'boolean', default: false }
+      },
+      required: ['x', 'y'],
       additionalProperties: false
     }
   },
@@ -92,7 +108,7 @@ const TOOLS = [
   },
   {
     name: 'browser_press',
-    description: 'Send a key combination to the focused element (optionally focus ref first): "Return", "Tab", "Escape", "ArrowDown", "Control+a", "Alt+Enter", "F5".' + SNAP_NOTE,
+    description: 'Send a key combination to the focused element (optionally focus ref first): "Return", "Tab", "Escape", "ArrowDown", "Control+a", "Alt+Enter", "F5". Keys go to the globally focused element — this still works after clicking into an iframe or a canvas grid\'s hidden input.' + SNAP_NOTE,
     inputSchema: {
       type: 'object',
       properties: {
@@ -101,6 +117,19 @@ const TOOLS = [
         quiet: { type: 'boolean', default: false }
       },
       required: ['keys'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'browser_type',
+    description: 'Insert text (CJK/emoji safe) into the currently focused element at the browser input layer — reaches elements inside cross-origin iframes and canvas grids (e.g. a WebOffice cell editor focused by browser_click_xy). Prefer browser_fill for plain DOM inputs (it fires React-compatible events); use browser_type for everything not in the DOM.' + SNAP_NOTE,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string' },
+        quiet: { type: 'boolean', default: false }
+      },
+      required: ['text'],
       additionalProperties: false
     }
   },
@@ -145,7 +174,7 @@ const TOOLS = [
   },
   {
     name: 'browser_wait_for',
-    description: 'Wait until text appears in the page (or disappears with gone:true). Use after submitting a form or clicking something that loads asynchronously.',
+    description: 'Wait until text appears in the page or any iframe (or disappears with gone:true). Use after submitting a form or clicking something that loads asynchronously.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -159,12 +188,12 @@ const TOOLS = [
   },
   {
     name: 'browser_screenshot',
-    description: 'PNG screenshot of the embedded browser page — visual verification and canvas/image-only UIs. Do not click by screenshot coordinates; go back to browser_snapshot + refs.',
+    description: 'PNG screenshot of the embedded browser page — visual verification and the primary path for canvas/image-only UIs (spreadsheet grids, maps). The text result carries a VIEWPORT line: convert screenshot pixels to top-viewport CSS px with the reported scale, then drive the UI with browser_click_xy + browser_type + browser_press. For DOM-based UIs prefer browser_snapshot + refs.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false }
   },
   {
     name: 'browser_extract',
-    description: 'Read visible text of the page or a region. selector: CSS selector, or "#eN" for a snapshot ref, or omitted = whole page. max_chars default 8000 (max 50000).',
+    description: 'Read visible text of the page or a region. selector: CSS selector, or "#eN" for a snapshot ref (resolved across frames), or omitted = whole page (falls back to iframes when the main frame is empty). max_chars default 8000 (max 50000).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -181,7 +210,8 @@ const TOOLS = [
       type: 'object',
       properties: {
         code: { type: 'string', description: 'function body, e.g. "return document.title"' },
-        ref: { type: 'string', description: 'optional: pass snapshot element as el' }
+        ref: { type: 'string', description: 'optional: pass snapshot element as el' },
+        in_frame: { type: 'string', description: 'optional: URL substring of the frame to run in (defaults to main frame). Main-process privileged — reaches cross-origin iframes (e.g. "weboffice" to run inside an embedded WPS document and touch its window objects). A ref overrides this routing.' }
       },
       required: ['code'],
       additionalProperties: false

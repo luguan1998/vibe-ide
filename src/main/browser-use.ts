@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import type { WebContents } from 'electron'
+import type { WebContents, WebFrameMain } from 'electron'
 import { createServer } from 'net'
 import { join } from 'path'
 import { unlinkSync, writeFileSync } from 'fs'
@@ -18,6 +18,9 @@ const order: number[] = []
 export function trackWebview(contents: WebContents): void {
   live.set(contents.id, contents)
   order.push(contents.id)
+  contents.on('did-navigate', () => {
+    refFrames.clear()
+  })
   contents.once('destroyed', () => {
     live.delete(contents.id)
     const i = order.indexOf(contents.id)
@@ -63,14 +66,274 @@ async function settlePage(c: WebContents, budget = 15000): Promise<void> {
   await sleep(300)
 }
 
+// ---------- frame plumbing (cross-origin capable) ----------
+
+const refFrames = new Map<string, WebFrameMain>()
+
+function framesOf(c: WebContents): WebFrameMain[] {
+  const out: WebFrameMain[] = []
+  try {
+    const mf = c.mainFrame
+    if (!mf) return out
+    out.push(mf)
+    try {
+      const sub = mf.framesInSubtree
+      if (sub) for (const f of sub) if (!sameFrame(f, mf)) out.push(f)
+    } catch { /* ignore */ }
+  } catch { /* ignore */ }
+  return out
+}
+
+async function safeExec<T = any>(f: WebFrameMain, js: string, ug = false): Promise<{ v?: T; err?: string }> {
+  try {
+    return { v: (await f.executeJavaScript(js, ug)) as T }
+  } catch (e: any) {
+    return { err: String(e?.message || e) }
+  }
+}
+
+function frameUrl(f: WebFrameMain): string {
+  try {
+    return f.url || ''
+  } catch {
+    return ''
+  }
+}
+
+// WebFrameMain 跨 getter 调用不保证同实例，文档背书的可比字段是 routingId
+function sameFrame(a: WebFrameMain, b: WebFrameMain): boolean {
+  if (a === b) return true
+  try {
+    const ra = (a as any).routingId
+    return typeof ra === 'number' && ra === (b as any).routingId
+  } catch {
+    return false
+  }
+}
+
+function refFrame(ref: string): WebFrameMain | null {
+  const f = refFrames.get(ref)
+  if (!f) return null
+  try {
+    if (!f.url) {
+      refFrames.delete(ref)
+      return null
+    }
+  } catch {
+    refFrames.delete(ref)
+    return null
+  }
+  return f
+}
+
+async function execOnRef(c: WebContents, ref: string, job: string): Promise<any> {
+  const f = refFrame(ref)
+  if (f && !sameFrame(f, c.mainFrame)) {
+    const r = await safeExec(f, job)
+    if (r.err) {
+      refFrames.delete(ref)
+      return { lost: 1 }
+    }
+    return r.v
+  }
+  if (f) return await f.executeJavaScript(job)
+  return await c.executeJavaScript(job)
+}
+
+function normUrl(u: string): string {
+  try {
+    const x = new URL(u)
+    x.hash = ''
+    return x.href
+  } catch {
+    return u
+  }
+}
+
+const FRAME_RECTS_FN = String.raw`(function () {
+var out = [];
+function collect(root) {
+  var els = root.querySelectorAll('iframe, frame');
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i];
+    var r = el.getBoundingClientRect();
+    out.push({ src: el.getAttribute('src') || '', href: el.src || '', name: el.getAttribute('name') || '', srcdoc: el.hasAttribute('srcdoc'), x: r.left, y: r.top, w: r.width, h: r.height });
+  }
+  var all = root.querySelectorAll('*');
+  for (var j = 0; j < all.length; j++) { try { if (all[j].shadowRoot) collect(all[j].shadowRoot) } catch(e){} }
+}
+collect(document);
+return out;
+})`
+
+function matchHostRect(rects: any[], want: string, raw: string, name: string, srcdoc: boolean, idx: number, childCount: number): any {
+  if (!rects.length) return null
+  const exact = rects.filter((r) => normUrl(r.href || '') === want)
+  if (exact.length) return exact[0]
+  const bySrc = rects.filter((r) => r.src && (r.src === raw || normUrl(r.src) === want))
+  if (bySrc.length) return bySrc[0]
+  if (srcdoc) {
+    const d = rects.find((r) => r.srcdoc)
+    if (d) return d
+  }
+  if (want === 'about:blank/') {
+    const b = rects.find((r) => !r.src)
+    if (b) return b
+  }
+  if (name) {
+    const n = rects.find((r) => r.name === name)
+    if (n) return n
+  }
+  if (rects.length === childCount && idx >= 0 && idx < rects.length) return rects[idx]
+  const vis = rects.find((r) => r.w || r.h)
+  return vis || rects[0]
+}
+
+async function frameOffsetCss(c: WebContents, f: WebFrameMain): Promise<{ x: number; y: number } | null> {
+  let ox = 0
+  let oy = 0
+  let cur: WebFrameMain = f
+  for (let hops = 0; hops < 16; hops++) {
+    let parent: WebFrameMain | null = null
+    try {
+      parent = cur.parent
+    } catch {
+      return null
+    }
+    if (!parent) return { x: ox, y: oy }
+    const kids: WebFrameMain[] = []
+    try {
+      const sub = parent.frames
+      if (sub) for (const x of sub) kids.push(x)
+    } catch { /* ignore */ }
+    let childName = ''
+    try {
+      childName = (cur as any).name || ''
+    } catch { /* ignore */ }
+    const url = frameUrl(cur)
+    const r = await safeExec<any[]>(parent, FRAME_RECTS_FN + '()')
+    if (!Array.isArray(r.v)) return null
+    let idx = -1
+    for (let i = 0; i < kids.length; i++) if (sameFrame(kids[i], cur)) { idx = i; break }
+    const hit = matchHostRect(r.v, normUrl(url), url.split('#')[0], childName, url.startsWith('about:srcdoc'), idx, kids.length)
+    if (!hit) return null
+    ox += Number(hit.x) || 0
+    oy += Number(hit.y) || 0
+    cur = parent
+  }
+  return { x: ox, y: oy }
+}
+
+async function viewportCss(c: WebContents): Promise<{ w: number; h: number }> {
+  try {
+    const v = await c.executeJavaScript('({ w: innerWidth, h: innerHeight })')
+    if (v && Number(v.w) > 0 && Number(v.h) > 0) return { w: Number(v.w), h: Number(v.h) }
+  } catch { /* ignore */ }
+  return { w: 800, h: 600 }
+}
+
+async function zoomOf(c: WebContents): Promise<number> {
+  try {
+    const z = await (c as any).getZoomFactor()
+    const n = Number(z)
+    return n > 0 ? n : 1
+  } catch {
+    return 1
+  }
+}
+
+const SYNTH_NOTE = 'fell back to synthetic input (CDP unavailable) — events may not reach cross-origin iframes'
+
+async function withCdp<T>(c: WebContents, fn: (dbg: any) => Promise<T>): Promise<{ v?: T; err?: string }> {
+  try {
+    if (c.isDestroyed()) return { err: 'webContents destroyed' }
+  } catch {
+    return { err: 'webContents destroyed' }
+  }
+  const dbg: any = (c as any).debugger
+  if (!dbg) return { err: 'no debugger' }
+  let attachedHere = false
+  try {
+    dbg.attach('1.3')
+    attachedHere = true
+  } catch (e: any) {
+    const msg = String(e?.message || e)
+    if (!/already attached/i.test(msg)) return { err: msg }
+  }
+  if (!attachedHere) return { err: 'debugger attached elsewhere' }
+  try {
+    return { v: await fn(dbg) }
+  } catch (e: any) {
+    return { err: String(e?.message || e) }
+  } finally {
+    try {
+      dbg.detach()
+    } catch { /* ignore */ }
+  }
+}
+
+async function mouseClick(c: WebContents, x: number, y: number, button: string, count: number): Promise<string | null> {
+  const btn = button === 'right' ? 'right' : 'left'
+  const r = await withCdp(c, async (dbg) => {
+    await dbg.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
+    const down = (cc: number) => dbg.sendCommand('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: btn, clickCount: cc })
+    const up = (cc: number) => dbg.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: btn, clickCount: cc })
+    if (count >= 2) {
+      await down(1)
+      await up(1)
+      await sleep(60)
+      await down(2)
+      await up(2)
+    } else {
+      await down(1)
+      await sleep(40)
+      await up(1)
+    }
+  })
+  if (!r.err) return null
+  // CDP 输入坐标是（缩放后）主框架 CSS px；sendInputEvent 是 DIP，须乘 zoomFactor — 反复踩点
+  const z = await zoomOf(c)
+  const sx = Math.round(x * z)
+  const sy = Math.round(y * z)
+  c.sendInputEvent({ type: 'mouseMove', x: sx, y: sy } as any)
+  await sleep(30)
+  if (count >= 2) {
+    c.sendInputEvent({ type: 'mouseDown', x: sx, y: sy, button: btn, clickCount: 1 } as any)
+    c.sendInputEvent({ type: 'mouseUp', x: sx, y: sy, button: btn, clickCount: 1 } as any)
+    await sleep(60)
+    c.sendInputEvent({ type: 'mouseDown', x: sx, y: sy, button: btn, clickCount: 2 } as any)
+    c.sendInputEvent({ type: 'mouseUp', x: sx, y: sy, button: btn, clickCount: 2 } as any)
+  } else {
+    c.sendInputEvent({ type: 'mouseDown', x: sx, y: sy, button: btn, clickCount: 1 } as any)
+    await sleep(40)
+    c.sendInputEvent({ type: 'mouseUp', x: sx, y: sy, button: btn, clickCount: 1 } as any)
+  }
+  return SYNTH_NOTE
+}
+
+async function insertTextViaDebugger(c: WebContents, text: string): Promise<{ ok?: 1; err?: string }> {
+  const r = await withCdp(c, async (dbg) => {
+    await dbg.sendCommand('Input.insertText', { text })
+  })
+  return r.err ? { err: r.err } : { ok: 1 }
+}
+
+async function anyFrameHasText(c: WebContents, needle: string): Promise<boolean> {
+  for (const f of framesOf(c)) {
+    const r = await safeExec<boolean>(f, `(${HAS_TEXT_FN})(${JSON.stringify(needle)})`)
+    if (r.v === true) return true
+  }
+  return false
+}
+
 // ---------- page-side scripts (run in guest main frame) ----------
 
-const SNAP_FN = String.raw`(function (base, max, boxes) {
+const SNAP_FN = String.raw`(function (base, max, boxes, dx, dy) {
 var NATIVE = { INPUT: 1, SELECT: 1, TEXTAREA: 1 };
 var STRONG = { A: 1, BUTTON: 1, SUMMARY: 1 };
 var STRUC = { FORM:1, MAIN:1, SECTION:1, NAV:1, ASIDE:1, HEADER:1, FOOTER:1, ARTICLE:1, BODY:1, HTML:1, UL:1, OL:1, TABLE:1, THEAD:1, TBODY:1, TR:1, FIELDSET:1 };
 var WROLES = { button:1, link:1, textbox:1, searchbox:1, checkbox:1, radio:1, combobox:1, listbox:1, menuitem:1, menuitemcheckbox:1, menuitemradio:1, option:1, slider:1, spinbutton:1, switch:1, tab:1, treeitem:1 };
-var items = []; var truncated = 0;
+var items = []; var truncated = 0; dx = dx || 0; dy = dy || 0;
 function T(s){ return (s||'').replace(/\s+/g,' ').trim(); }
 function clip(s,n){ s=T(s); return s.length>n ? s.slice(0,n)+'~' : s; }
 function attr(el,n){ try { return el.getAttribute(n) || ''; } catch(e){ return ''; } }
@@ -110,11 +373,11 @@ function line(el){
     txtv = clip(el.innerText || el.textContent, 40); p.push(tag.toLowerCase() + ' v=' + JSON.stringify(txtv));
   }
   var nm = nameOf(el);
-  if (nm && nm !== txtv) p.push('name=' + JSON.stringify(nm));
+  if (nm && nm !== txtv) p.push('label=' + JSON.stringify(nm));
   if (el.disabled || attr(el,'aria-disabled') === 'true') p.push('disabled');
   if (el.required) p.push('required');
   if (tag === 'A' && el.href) p.push('href=' + clip(el.href, 80));
-  if (boxes) { var r = el.getBoundingClientRect(); p.push('box=' + Math.round(r.left) + ',' + Math.round(r.top) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height)); }
+  if (boxes) { var r = el.getBoundingClientRect(); p.push('box=' + Math.round(r.left + dx) + ',' + Math.round(r.top + dy) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height)); }
   return p.join(' ');
 }
 function walk(node, inside) {
@@ -324,23 +587,118 @@ function parseKeys(keys: string): { keyCode?: string; mods: string[]; err?: stri
   return { mods, err: `unsupported key: ${k}` }
 }
 
+const CDP_MOD: Record<string, number> = { alt: 1, ctrl: 2, meta: 4, shift: 8 }
+const CDP_KEYS: Record<string, { key: string; code: string; vk: number }> = {
+  Return: { key: 'Enter', code: 'Enter', vk: 13 },
+  Escape: { key: 'Escape', code: 'Escape', vk: 27 },
+  Tab: { key: 'Tab', code: 'Tab', vk: 9 },
+  Space: { key: ' ', code: 'Space', vk: 32 },
+  Backspace: { key: 'Backspace', code: 'Backspace', vk: 8 },
+  Delete: { key: 'Delete', code: 'Delete', vk: 46 },
+  Insert: { key: 'Insert', code: 'Insert', vk: 45 },
+  Up: { key: 'ArrowUp', code: 'ArrowUp', vk: 38 },
+  Down: { key: 'ArrowDown', code: 'ArrowDown', vk: 40 },
+  Left: { key: 'ArrowLeft', code: 'ArrowLeft', vk: 37 },
+  Right: { key: 'ArrowRight', code: 'ArrowRight', vk: 39 },
+  Home: { key: 'Home', code: 'Home', vk: 36 },
+  End: { key: 'End', code: 'End', vk: 35 },
+  PageUp: { key: 'PageUp', code: 'PageUp', vk: 33 },
+  PageDown: { key: 'PageDown', code: 'PageDown', vk: 34 },
+  Plus: { key: '+', code: 'Equal', vk: 187 },
+  '-': { key: '-', code: 'Minus', vk: 189 },
+  ',': { key: ',', code: 'Comma', vk: 188 },
+  '.': { key: '.', code: 'Period', vk: 190 },
+  '/': { key: '/', code: 'Slash', vk: 191 },
+  ';': { key: ';', code: 'Semicolon', vk: 186 },
+  "'": { key: "'", code: 'Quote', vk: 222 },
+  '`': { key: '`', code: 'Backquote', vk: 192 },
+  '\\': { key: '\\', code: 'Backslash', vk: 220 },
+  '[': { key: '[', code: 'BracketLeft', vk: 219 },
+  ']': { key: ']', code: 'BracketRight', vk: 221 },
+}
+
+function cdpKeyEvent(keyCode: string, mods: string[]): any | null {
+  let bits = 0
+  for (const m of mods) bits |= CDP_MOD[m] || 0
+  const shift = !!(bits & 8)
+  let key = keyCode
+  let code = ''
+  let vk = 0
+  const spec = CDP_KEYS[keyCode]
+  if (spec) {
+    key = spec.key
+    code = spec.code
+    vk = spec.vk
+  } else if (/^F([1-9]|1[0-9]|2[0-4])$/.test(keyCode)) {
+    code = keyCode
+    vk = 111 + Number(keyCode.slice(1))
+  } else if (/^[A-Z]$/.test(keyCode)) {
+    key = shift ? keyCode : keyCode.toLowerCase()
+    code = 'Key' + keyCode
+    vk = keyCode.charCodeAt(0)
+  } else if (/^[0-9]$/.test(keyCode)) {
+    code = 'Digit' + keyCode
+    vk = keyCode.charCodeAt(0)
+  } else {
+    return null
+  }
+  const out: any = { key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers: bits }
+  if (key.length === 1) out.text = key
+  return out
+}
+
 // ---------- snapshot / act plumbing ----------
 
 let refBase = 0
 
 async function doSnapshot(c: WebContents, boxes: boolean, max: number): Promise<BrowserToolResult> {
   await settlePageShort(c)
-  const r = await c.executeJavaScript(`(${SNAP_FN})(${refBase},${max},${boxes ? 1 : 0})`)
-  if (!r || !Array.isArray(r.items)) return textResult('snapshot failed: page did not respond (still loading or crashed?)', true)
-  refBase = r.base
-  const head = `URL: ${r.url}\nTITLE: ${r.title || '(none)'}\n`
-  const body = r.items.length
-    ? r.items.join('\n')
-    : '(no interactive elements found — canvas/image UI or page still loading; try browser_screenshot / browser_extract)'
-  const tail = r.truncated
-    ? `\n...truncated at ${max} elements — use browser_find "text" to locate a specific control`
-    : ''
-  return textResult(head + body + tail)
+  const frames = framesOf(c)
+  if (!frames.length) return textResult('snapshot failed: page did not respond (still loading or crashed?)', true)
+  let base = refBase
+  let used = 0
+  let head = ''
+  let mainFailed = false
+  const lines: string[] = []
+  let truncated = false
+  let skipped = 0
+  for (const f of frames) {
+    const isMain = sameFrame(f, frames[0])
+    if (used >= max) {
+      skipped++
+      continue
+    }
+    let off = { x: 0, y: 0 }
+    if (!isMain) {
+      const o = await frameOffsetCss(c, f)
+      if (o) off = o
+    }
+    const r = await safeExec<any>(f, `(${SNAP_FN})(${base},${max - used},${boxes ? 1 : 0},${Math.round(off.x)},${Math.round(off.y)})`)
+    if (!r.v || !Array.isArray(r.v.items)) {
+      if (isMain) mainFailed = true
+      skipped++
+      continue
+    }
+    const from = base
+    base = Number(r.v.base) || base
+    for (let i = from + 1; i <= base; i++) refFrames.set('e' + i, f)
+    used += r.v.items.length
+    if (r.v.truncated) truncated = true
+    if (isMain) {
+      head = `URL: ${r.v.url}\nTITLE: ${r.v.title || '(none)'}\n`
+      lines.push(...r.v.items)
+    } else if (r.v.items.length) {
+      lines.push(`--- frame ${r.v.url || '(blank)'} ---`, ...r.v.items)
+    }
+  }
+  refBase = base
+  if (mainFailed && !lines.length) return textResult('snapshot failed: page did not respond (still loading or crashed?)', true)
+  const body = lines.length
+    ? lines.join('\n')
+    : '(no interactive elements found — canvas/image UI or page still loading; try browser_screenshot / browser_extract, or browser_click_xy for canvas content)'
+  const tail = truncated ? `\n...truncated at ${max} elements — use browser_find "text" to locate a specific control` : ''
+  const skipNote = skipped ? `\n(${skipped} frame(s) skipped: detached, not responding, or over the element cap)` : ''
+  return textResult((head || `URL: ${c.getURL()}\nTITLE: (main frame not responding)\n`) + body + tail + skipNote)
 }
 
 async function settlePageShort(c: WebContents): Promise<void> {
@@ -358,30 +716,41 @@ function combine(head: BrowserToolResult, snaps: BrowserToolResult[]): BrowserTo
   return { content: [...head.content, ...snaps.flatMap((s) => s.content)], isError: head.isError }
 }
 
-async function clickRef(c: WebContents, ref: string, button: string, count: number): Promise<BrowserToolResult | null> {
-  const pos = await c.executeJavaScript(`(${CLICK_FN})(${JSON.stringify(ref)},${JSON.stringify(button || 'left')},${count})`)
-  if (pos?.lost) return lostResult(ref)
-  if (pos?.err) return textResult(pos.err, true)
-  if (!pos || !pos.w || !pos.h) {
-    return textResult(`element ${ref} has zero size (hidden until hover?) — try browser_eval on it, or click a visible parent`, true)
-  }
-  const x = Math.max(0, Math.min(pos.vw - 1, Math.round(pos.x)))
-  const y = Math.max(0, Math.min(pos.vh - 1, Math.round(pos.y)))
-  const btn = button === 'right' ? 'right' : 'left'
-  c.sendInputEvent({ type: 'mouseMove', x, y } as any)
-  await sleep(30)
-  if (count >= 2) {
-    c.sendInputEvent({ type: 'mouseDown', x, y, button: btn, clickCount: 1 } as any)
-    c.sendInputEvent({ type: 'mouseUp', x, y, button: btn, clickCount: 1 } as any)
-    await sleep(60)
-    c.sendInputEvent({ type: 'mouseDown', x, y, button: btn, clickCount: 2 } as any)
-    c.sendInputEvent({ type: 'mouseUp', x, y, button: btn, clickCount: 2 } as any)
+async function clickRef(c: WebContents, ref: string, button: string, count: number): Promise<{ result: BrowserToolResult } | { note: string | null }> {
+  const frame = refFrame(ref)
+  const inSub = !!frame && !sameFrame(frame, c.mainFrame)
+  let pos: any
+  if (inSub) {
+    const r = await safeExec<any>(frame!, `(${CLICK_FN})(${JSON.stringify(ref)},${JSON.stringify(button || 'left')},${count})`)
+    if (r.err) {
+      refFrames.delete(ref)
+      return { result: lostResult(ref) }
+    }
+    pos = r.v
   } else {
-    c.sendInputEvent({ type: 'mouseDown', x, y, button: btn, clickCount: 1 } as any)
-    await sleep(40)
-    c.sendInputEvent({ type: 'mouseUp', x, y, button: btn, clickCount: 1 } as any)
+    const job = `(${CLICK_FN})(${JSON.stringify(ref)},${JSON.stringify(button || 'left')},${count})`
+    pos = frame ? await frame.executeJavaScript(job) : await c.executeJavaScript(job)
   }
-  return null
+  if (pos?.lost) return { result: lostResult(ref) }
+  if (pos?.err) return { result: textResult(pos.err, true) }
+  if (!pos || !pos.w || !pos.h) {
+    return { result: textResult(`element ${ref} has zero size (hidden until hover?) — try browser_eval on it, or click a visible parent`, true) }
+  }
+  let x = Number(pos.x) || 0
+  let y = Number(pos.y) || 0
+  if (inSub) {
+    const off = await frameOffsetCss(c, frame!)
+    if (!off) {
+      return { result: textResult(`cannot locate the iframe hosting ${ref} (closed shadow root?) — take browser_screenshot and use browser_click_xy`, true) }
+    }
+    x += off.x
+    y += off.y
+  }
+  const vp = await viewportCss(c)
+  x = Math.max(0, Math.min(vp.w - 1, Math.round(x)))
+  y = Math.max(0, Math.min(vp.h - 1, Math.round(y)))
+  const note = await mouseClick(c, x, y, button || 'left', count)
+  return { note }
 }
 
 // ---------- tool dispatch ----------
@@ -398,26 +767,50 @@ export async function handleCall(name: string, args: any): Promise<BrowserToolRe
       case 'find': {
         const q = String(args.text ?? '').trim().toLowerCase()
         if (!q) return textResult('text required', true)
-        const out = await c.executeJavaScript(`(${FIND_FN})(${JSON.stringify(q)})`)
-        if (!Array.isArray(out)) return textResult('find failed: page did not respond', true)
-        if (!out.length) return textResult(`no element matches "${args.text}" — take a browser_snapshot to see all refs`)
-        return textResult(out.join('\n'))
+        const frames = framesOf(c)
+        const mainHits: string[] = []
+        const subSections: string[] = []
+        let got = false
+        for (const f of frames) {
+          const out = await safeExec<string[]>(f, `(${FIND_FN})(${JSON.stringify(q)})`)
+          if (!Array.isArray(out.v)) continue
+          got = true
+          if (!out.v.length) continue
+          for (const line of out.v) {
+            const m = String(line).match(/^(e\d+)/)
+            if (m) refFrames.set(m[1], f)
+          }
+          if (sameFrame(f, frames[0])) mainHits.push(...out.v)
+          else subSections.push(`--- frame ${frameUrl(f) || '(blank)'} ---`, ...out.v)
+        }
+        if (!got) return textResult('find failed: page did not respond', true)
+        const all = [...mainHits, ...subSections]
+        if (!all.length) return textResult(`no element matches "${args.text}" — take a browser_snapshot to see all refs`)
+        return textResult(all.join('\n'))
       }
       case 'click': {
         const ref = okRef(args.ref)
         if (!ref) return textResult('ref (like "e12" from a snapshot) required', true)
-        const err = await clickRef(c, ref, args.button || 'left', args.double ? 2 : 1)
-        if (err) {
-          const snaps = await afterAct(c, !!args.quiet)
-          return combine(err, snaps)
-        }
+        const o = await clickRef(c, ref, args.button || 'left', args.double ? 2 : 1)
         const snaps = await afterAct(c, !!args.quiet)
-        return combine(textResult(`clicked ${ref}${args.double ? ' (double)' : ''}${args.button && args.button !== 'left' ? ` ${args.button}` : ''}`), snaps)
+        if ('result' in o) return combine(o.result, snaps)
+        return combine(textResult(`clicked ${ref}${args.double ? ' (double)' : ''}${args.button && args.button !== 'left' ? ` ${args.button}` : ''}${o.note ? ` [${o.note}]` : ''}`), snaps)
+      }
+      case 'click_xy': {
+        let x = Number(args.x)
+        let y = Number(args.y)
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return textResult('x/y required — top-viewport CSS px (convert browser_screenshot pixels with its VIEWPORT scale line)', true)
+        const vp = await viewportCss(c)
+        x = Math.max(0, Math.min(vp.w - 1, Math.round(x)))
+        y = Math.max(0, Math.min(vp.h - 1, Math.round(y)))
+        const note = await mouseClick(c, x, y, String(args.button || 'left'), args.double ? 2 : 1)
+        const snaps = await afterAct(c, !!args.quiet)
+        return combine(textResult(`clicked (${x}, ${y}) top-viewport CSS px${args.double ? ' (double)' : ''}${args.button && args.button !== 'left' ? ` ${args.button}` : ''}${note ? ` [${note}]` : ''}`), snaps)
       }
       case 'fill': {
         const ref = okRef(args.ref)
         if (!ref) return textResult('ref required', true)
-        const r = await c.executeJavaScript(fillJob(ref, String(args.text ?? '')))
+        const r = await execOnRef(c, ref, fillJob(ref, String(args.text ?? '')))
         const snaps = await afterAct(c, !!args.quiet)
         if (r?.lost) return combine(lostResult(ref), [])
         if (r?.skipped) return combine(textResult(`could not set ${r.skipped}`, true), snaps)
@@ -431,7 +824,7 @@ export async function handleCall(name: string, args: any): Promise<BrowserToolRe
         for (const f of fields) {
           const ref = okRef(f?.ref)
           if (!ref) { skipped.push(`bad ref ${JSON.stringify(f?.ref)}`); continue }
-          const r = await c.executeJavaScript(fillJob(ref, String(f.value ?? '')))
+          const r = await execOnRef(c, ref, fillJob(ref, String(f.value ?? '')))
           if (r?.lost) skipped.push(`${ref} not found`)
           else if (r?.skipped) skipped.push(r.skipped)
           else filled++
@@ -446,24 +839,54 @@ export async function handleCall(name: string, args: any): Promise<BrowserToolRe
         if (args.ref) {
           const ref = okRef(args.ref)
           if (!ref) return textResult('ref must be a snapshot ref like "e12"', true)
-          const f = await c.executeJavaScript(`(${FOCUS_FN})(${JSON.stringify(ref)})`)
+          const f = await execOnRef(c, ref, `(${FOCUS_FN})(${JSON.stringify(ref)})`)
           if (f?.lost) return lostResult(ref)
         }
         const parsed = parseKeys(keys)
         if (parsed.err || !parsed.keyCode) return textResult(`bad keys "${keys}": ${parsed.err || 'no main key'}`, true)
-        const ev: any = { type: 'keyDown', keyCode: parsed.keyCode }
-        if (parsed.mods.length) ev.modifiers = parsed.mods
-        c.sendInputEvent(ev)
-        await sleep(30)
-        c.sendInputEvent({ ...ev, type: 'keyUp' })
+        const base = cdpKeyEvent(parsed.keyCode, parsed.mods)
+        let note: string | null = null
+        const r = base
+          ? await withCdp(c, async (dbg) => {
+              await dbg.sendCommand('Input.dispatchKeyEvent', { ...base, type: 'keyDown' })
+              await dbg.sendCommand('Input.dispatchKeyEvent', { ...base, type: 'keyUp', text: undefined })
+            })
+          : { err: 'no CDP mapping' }
+        if (r.err) {
+          const ev: any = { type: 'keyDown', keyCode: parsed.keyCode }
+          if (parsed.mods.length) ev.modifiers = parsed.mods
+          c.sendInputEvent(ev)
+          await sleep(30)
+          c.sendInputEvent({ ...ev, type: 'keyUp' })
+          note = base ? SYNTH_NOTE : 'key sent via synthetic input (no CDP mapping) — may not reach cross-origin iframes'
+        }
         const snaps = await afterAct(c, !!args.quiet)
-        return combine(textResult(`pressed ${keys}${args.ref ? ` on ${args.ref}` : ''}`), snaps)
+        return combine(textResult(`pressed ${keys}${args.ref ? ` on ${args.ref}` : ''}${note ? ` [${note}]` : ''}`), snaps)
+      }
+      case 'type': {
+        const text = String(args.text ?? '')
+        if (!text) return textResult('text required', true)
+        const chars = Array.from(text).length
+        let via = 'Input.insertText'
+        const r = await insertTextViaDebugger(c, text)
+        if (!r.ok) {
+          for (const ch of Array.from(text)) {
+            try {
+              c.sendInputEvent({ type: 'char', keyCode: ch } as any)
+            } catch { /* ignore */ }
+            await sleep(12)
+          }
+          via = `char events — may miss cross-origin frames (insertText: ${r.err || 'unavailable'})`
+        }
+        const snaps = await afterAct(c, !!args.quiet)
+        return combine(textResult(`typed ${chars} char(s) via ${via} into the focused element (if nothing captured it, click the target first)`), snaps)
       }
       case 'scroll': {
+        let note: string | null = null
         if (args.ref) {
           const ref = okRef(args.ref)
           if (!ref) return textResult('ref must be a snapshot ref', true)
-          const r = await c.executeJavaScript(String.raw`(function (ref) {
+          const r = await execOnRef(c, ref, String.raw`(function (ref) {
 var el = document.querySelector('[data-vibe-ref="' + ref + '"]');
 if (!el) return { lost: 1 };
 el.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -474,11 +897,20 @@ return { ok: 1 };
           const dx = Number(args.dx) || 0
           const dy = Number(args.dy) || 0
           if (!dx && !dy) return textResult('dx/dy ticks or ref required', true)
-          const vs = await c.executeJavaScript('({ w: innerWidth, h: innerHeight })')
-          c.sendInputEvent({ type: 'mouseWheel', x: Math.round(vs.w / 2), y: Math.round(vs.h / 2), deltaX: dx * 120, deltaY: dy * 120 } as any)
+          const vs = await viewportCss(c)
+          const cx = Math.round(vs.w / 2)
+          const cy = Math.round(vs.h / 2)
+          const r = await withCdp(c, async (dbg) => {
+            await dbg.sendCommand('Input.dispatchMouseEvent', { type: 'mouseWheel', x: cx, y: cy, deltaX: dx * 120, deltaY: dy * 120 })
+          })
+          if (r.err) {
+            const z = await zoomOf(c)
+            c.sendInputEvent({ type: 'mouseWheel', x: Math.round(cx * z), y: Math.round(cy * z), deltaX: dx * 120, deltaY: dy * 120 } as any)
+            note = SYNTH_NOTE
+          }
         }
         const snaps = await afterAct(c, !!args.quiet)
-        return combine(textResult(args.ref ? `scrolled ${args.ref} into view` : `scrolled dx=${args.dx || 0} dy=${args.dy || 0}`), snaps)
+        return combine(textResult(`${args.ref ? `scrolled ${args.ref} into view` : `scrolled dx=${args.dx || 0} dy=${args.dy || 0}`}${note ? ` [${note}]` : ''}`), snaps)
       }
       case 'navigate': {
         let url = String(args.url ?? '').trim()
@@ -509,7 +941,7 @@ return { ok: 1 };
         const timeout = Math.min(Math.max(Number(args.timeout) || 10000, 500), 60000)
         const t0 = Date.now()
         for (;;) {
-          const has = await c.executeJavaScript(`(${HAS_TEXT_FN})(${JSON.stringify(needle)})`)
+          const has = await anyFrameHasText(c, needle)
           if (gone ? !has : has) return textResult(`text "${needle.slice(0, 60)}" ${gone ? 'disappeared' : 'found'}`)
           if (Date.now() - t0 > timeout) return textResult(`timeout ${timeout}ms waiting for text "${needle.slice(0, 60)}"${gone ? ' to disappear' : ''}`, true)
           await sleep(400)
@@ -517,18 +949,50 @@ return { ok: 1 };
       }
       case 'screenshot': {
         const img = await c.capturePage()
+        let note = `screenshot of ${c.getURL()}`
+        try {
+          const z = await zoomOf(c)
+          const v = await viewportCss(c)
+          const px = img.getSize()
+          if (px.width > 0 && v.w > 0) {
+            const scale = px.width / v.w
+            note += `\nVIEWPORT: ${Math.round(v.w)}x${Math.round(v.h)} CSS px (zoom ${z.toFixed(2)}), image ${px.width}x${px.height} px — for browser_click_xy: cssX = screenshotX / ${scale.toFixed(3)}`
+          }
+        } catch { /* ignore */ }
         return {
           content: [
             { type: 'image', data: img.toPNG().toString('base64'), mimeType: 'image/png' },
-            { type: 'text', text: `screenshot of ${c.getURL()}` },
+            { type: 'text', text: note },
           ],
           isError: false,
         }
       }
       case 'extract': {
         const cap = Math.min(Math.max(Number(args.max_chars) || 8000, 100), 50000)
-        const r = await c.executeJavaScript(`(${EXTRACT_FN})(${JSON.stringify(String(args.selector ?? '').trim())},${cap})`)
+        const sel = String(args.selector ?? '').trim()
+        let r: any
+        if (/^#e\d+$/.test(sel)) {
+          r = await execOnRef(c, sel.slice(1), `(${EXTRACT_FN})(${JSON.stringify(sel)},${cap})`)
+          if (r?.lost) return lostResult(sel.slice(1))
+        } else {
+          r = await c.executeJavaScript(`(${EXTRACT_FN})(${JSON.stringify(sel)},${cap})`)
+        }
         if (r?.err) return textResult(r.err, true)
+        if (!sel && !(String(r.v || '').trim())) {
+          const parts: string[] = []
+          let more = 0
+          for (const f of framesOf(c)) {
+            if (sameFrame(f, c.mainFrame)) continue
+            const fr = await safeExec<string>(f, `(${EXTRACT_FN})('',${cap})`)
+            const t = String(fr.v || '')
+            if (!t.trim()) continue
+            parts.push(`--- frame ${frameUrl(f) || '(blank)'} ---\n` + t.slice(0, cap))
+            more += Math.max(0, t.length - cap)
+          }
+          if (parts.length) {
+            return textResult(parts.join('\n') + (more > 0 ? `\n...[+${more} more chars across frames — raise max_chars or scope with selector]` : ''))
+          }
+        }
         return textResult(r.v + (r.more > 0 ? `\n...[+${r.more} more chars — raise max_chars or scope with selector]` : ''))
       }
       case 'eval': {
@@ -536,9 +1000,28 @@ return { ok: 1 };
         if (!code.trim()) return textResult('code required', true)
         const ref = args.ref ? okRef(args.ref) : null
         if (args.ref && !ref) return textResult('ref must be a snapshot ref like "e12"', true)
-        const r = await c.executeJavaScript(buildEvalJs(ref, code), true)
+        let target: WebFrameMain | null = ref ? refFrame(ref) : null
+        if (!target && args.in_frame) {
+          const sub = String(args.in_frame)
+          target = framesOf(c).find((x) => frameUrl(x).includes(sub)) || null
+          if (!target) {
+            const urls = framesOf(c).map(frameUrl).filter(Boolean)
+            return textResult(`no frame URL contains "${sub}" — current frames: ${urls.join(', ') || '(none)'}`, true)
+          }
+        }
+        const inSub = !!target && !sameFrame(target, c.mainFrame)
+        const js = buildEvalJs(ref, code)
+        let r: any
+        if (inSub) {
+          const rr = await safeExec(target!, js, true)
+          if (rr.err) return textResult(`eval error: ${rr.err}`, true)
+          r = rr.v
+        } else {
+          r = await c.executeJavaScript(js, true)
+        }
         if (r?.err) return textResult(`eval error: ${r.err}`, true)
-        return textResult(`(async function(el){...}) returned:\n${r?.v ?? 'undefined'}`)
+        const label = inSub ? `\n(evaluated in frame ${frameUrl(target!)})` : ''
+        return textResult(`(async function(el){...}) returned:\n${r?.v ?? 'undefined'}` + label)
       }
       default:
         return textResult(`unknown browser tool: ${name}`, true)
