@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>canvas grid fixture</title>
+<style>
+body{margin:0;font-family:sans-serif;background:#fafafa}
+.app{padding:8px}
+.head{height:32px;line-height:32px;font-weight:bold;color:#333}
+.toolbar{height:28px;line-height:28px;background:#eee;border:1px solid #ddd;margin-bottom:4px;color:#555;font-size:12px;padding:0 8px}
+#bar{height:22px;line-height:22px;font-size:12px;color:#333;margin:2px 0}
+canvas{background:#fff;border:1px solid #bbb;display:block}
+#ghost{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;border:0;padding:0;outline:none}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="head">CanvasGrid Fixture (fake WebOffice)</div>
+<div class="toolbar">Sheet1 | toolbar rendered on canvas, no DOM cells</div>
+<div id="bar"><span id="cellref">A1</span> = <span id="cellval"></span></div>
+<canvas id="cv" width="756" height="382"></canvas>
+<input id="ghost" autocomplete="off">
+</div>
+<script>
+const COLW=90,ROWH=24,OFFX=36,OFFY=22,NCOL=8,NROW=15;
+const data={},sel={r:0,c:0},editing={v:false,t:''};
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const ghost=document.getElementById('ghost');
+const cellref=document.getElementById('cellref'),cellval=document.getElementById('cellval');
+const L=n=>String.fromCharCode(65+n);
+function render(){
+ ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
+ ctx.fillStyle='#f0f0f0';ctx.fillRect(0,0,cv.width,OFFY);ctx.fillRect(0,0,OFFX,cv.height);
+ ctx.strokeStyle='#bbb';ctx.lineWidth=1;
+ ctx.beginPath();
+ for(let c=0;c<=NCOL;c++){const x=OFFX+c*COLW+.5;ctx.moveTo(x,0);ctx.lineTo(x,OFFY+NROW*ROWH)}
+ for(let r=0;r<=NROW;r++){const y=OFFY+r*ROWH+.5;ctx.moveTo(0,y);ctx.lineTo(OFFX+NCOL*COLW,y)}
+ ctx.stroke();
+ ctx.fillStyle='#666';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+ for(let c=0;c<NCOL;c++)ctx.fillText(L(c),OFFX+c*COLW+COLW/2,OFFY/2);
+ for(let r=0;r<NROW;r++)ctx.fillText(String(r+1),OFFX/2,OFFY+r*ROWH+ROWH/2);
+ ctx.textAlign='left';
+ for(let r=0;r<NROW;r++)for(let c=0;c<NCOL;c++){const k=r+','+c;if(data[k]!=null)ctx.fillText(data[k],OFFX+c*COLW+4,OFFY+r*ROWH+ROWH/2)}
+ const sx=OFFX+sel.c*COLW,sy=OFFY+sel.r*ROWH;
+ ctx.strokeStyle='#1a73e8';ctx.lineWidth=2;ctx.strokeRect(sx+1,sy+1,COLW-2,ROWH-2);
+ if(editing.v){
+  ctx.fillStyle='#fff';ctx.fillRect(sx+2,sy+2,COLW-4,ROWH-4);
+  ctx.fillStyle='#000';ctx.fillText(editing.t,sx+4,sy+ROWH/2);
+ }
+ const cur=editing.v?editing.t:(data[sel.r+','+sel.c]||'');
+ cellref.textContent=L(sel.c)+(sel.r+1);cellval.textContent=cur;
+}
+function commit(){if(editing.v){data[sel.r+','+sel.c]=editing.t;editing.v=false;editing.t='';ghost.value=''}}
+cv.addEventListener('mousedown',e=>{
+ const b=cv.getBoundingClientRect();const x=e.clientX-b.left,y=e.clientY-b.top;
+ const c=Math.floor((x-OFFX)/COLW),r=Math.floor((y-OFFY)/ROWH);
+ if(c<0||c>=NCOL||r<0||r>=NROW)return;
+ commit();sel.r=r;sel.c=c;render();ghost.focus();
+});
+ghost.addEventListener('input',()=>{editing.v=true;editing.t=ghost.value;render()});
+ghost.addEventListener('keydown',e=>{
+ if(e.key==='Tab'){e.preventDefault();commit();sel.c=(sel.c+1)%NCOL;render();ghost.focus();}
+ else if(e.key==='Enter'){e.preventDefault();commit();sel.r=(sel.r+1)%NROW;render();ghost.focus();}
+});
+render();
+</script>
+</body>
+</html>
