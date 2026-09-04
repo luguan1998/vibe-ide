@@ -163,8 +163,8 @@ export function setGitMetaPaused(paused: boolean): void {
 
 export function watchGitMeta(commonDir: string) {
   stopGitMeta()
-  if (!commonDir || !existsSync(commonDir)) return
   currentMetaCommonDir = commonDir
+  if (!commonDir || !existsSync(commonDir)) return
   if (metaPaused) return
 
   const onEvent = (_eventType: string, filename: string | Buffer | null) => {
