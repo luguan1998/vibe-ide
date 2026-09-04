@@ -4,7 +4,7 @@ import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, C
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import path, { isAbsolute, resolve as resolvePath } from 'path'
-import { startWatching, updateSkipPatterns, watchGitMeta, notifyGitMeta } from './watcher'
+import { startWatching, updateSkipPatterns, watchGitMeta, notifyGitMeta, beginGitSelfOp, endGitSelfOp } from './watcher'
 
 let gitInstance: SimpleGit | null = null
 let currentWorkspace: string = process.cwd()
@@ -14,6 +14,16 @@ function getGit(): SimpleGit {
     gitInstance = simpleGit(currentWorkspace)
   }
   return gitInstance
+}
+
+// GUI 自操 mutation 命令统一包一层：写 .git 期间 + 结束后宽限内抑制监听回声(见 watcher.ts)
+async function gitOp<T>(fn: () => Promise<T>): Promise<T> {
+  beginGitSelfOp()
+  try {
+    return await fn()
+  } finally {
+    endGitSelfOp()
+  }
 }
 
 export function registerGitHandlers(): void {
@@ -249,13 +259,13 @@ export function registerGitHandlers(): void {
     try {
       const git = getGit()
       if (files === '.') {
-        await git.raw(['add', '.'])
+        await gitOp(() => git.raw(['add', '.']))
       } else if (files === '-u') {
-        await git.raw(['add', '-u'])
+        await gitOp(() => git.raw(['add', '-u']))
       } else if (Array.isArray(files) && files.length > 0) {
-        await git.raw(['add', '--', ...files])
+        await gitOp(() => git.raw(['add', '--', ...files]))
       } else if (typeof files === 'string') {
-        await git.raw(['add', '--', files])
+        await gitOp(() => git.raw(['add', '--', files]))
       }
       return { success: true }
     } catch (err: any) {
@@ -278,7 +288,7 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_DISCARD, async (_event, filePath: string) => {
     try {
       const git = getGit()
-      await git.checkout(['--', filePath])
+      await gitOp(() => git.checkout(['--', filePath]))
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
@@ -290,7 +300,7 @@ export function registerGitHandlers(): void {
     try {
       const git = getGit()
       const fileList = Array.isArray(files) ? files : [files]
-      await git.reset(['HEAD', '--', ...fileList])
+      await gitOp(() => git.reset(['HEAD', '--', ...fileList]))
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
@@ -302,9 +312,9 @@ export function registerGitHandlers(): void {
     try {
       const git = getGit()
       if (options.files) {
-        await git.add(options.files)
+        await gitOp(() => git.add(options.files))
       }
-      await git.commit(options.message)
+      await gitOp(() => git.commit(options.message))
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
@@ -317,9 +327,9 @@ export function registerGitHandlers(): void {
       const git = getGit()
       const msg = options?.message?.trim()
       if (msg) {
-        await git.raw(['commit', '--amend', '-m', msg])
+        await gitOp(() => git.raw(['commit', '--amend', '-m', msg]))
       } else {
-        await git.raw(['commit', '--amend', '--no-edit'])
+        await gitOp(() => git.raw(['commit', '--amend', '--no-edit']))
       }
       return { success: true }
     } catch (err: any) {
@@ -348,7 +358,7 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_CHECKOUT, async (_event, branch: string) => {
     try {
       const git = getGit()
-      await git.checkout(branch)
+      await gitOp(() => git.checkout(branch))
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
@@ -402,9 +412,9 @@ export function registerGitHandlers(): void {
       await writeFile(patchFile, fullPatch, 'utf-8')
 
       try {
-        await git.raw(['apply', '--3way', patchFile])
+        await gitOp(() => git.raw(['apply', '--3way', patchFile]))
         await unlink(patchFile).catch(() => {})
-        await git.raw(['reset', 'HEAD']).catch(() => {})
+        await gitOp(() => git.raw(['reset', 'HEAD'])).catch(() => {})
       } catch (applyErr: any) {
         await unlink(patchFile).catch(() => {})
         return { conflict: true, message: applyErr.message }
@@ -422,7 +432,7 @@ export function registerGitHandlers(): void {
     const git = getGit()
     try {
       // 同步 index 与 worktree，消除 "does not match index" 错误
-      await git.raw(['add', '-A'])
+      await gitOp(() => git.raw(['add', '-A']))
 
       let mergeBase = ''
       try {
@@ -467,9 +477,9 @@ export function registerGitHandlers(): void {
       await writeFile(patchFile, fullPatch, 'utf-8')
 
       try {
-        await git.raw(['apply', '--3way', patchFile])
+        await gitOp(() => git.raw(['apply', '--3way', patchFile]))
         await unlink(patchFile).catch(() => {})
-        await git.raw(['reset', 'HEAD']).catch(() => {})
+        await gitOp(() => git.raw(['reset', 'HEAD'])).catch(() => {})
       } catch (applyErr: any) {
         await unlink(patchFile).catch(() => {})
         return { conflict: true, message: applyErr.message }
@@ -499,9 +509,9 @@ export function registerGitHandlers(): void {
       const git = getGit()
       const opts = force ? ['--force'] : []
       if (remote && branch) {
-        await git.push(remote, branch, opts)
+        await gitOp(() => git.push(remote, branch, opts))
       } else {
-        await git.push(opts)
+        await gitOp(() => git.push(opts))
       }
       return { success: true }
     } catch (err: any) {
@@ -592,7 +602,7 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_INIT, async () => {
     try {
       const git = getGit()
-      await git.init()
+      await gitOp(() => git.init())
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
@@ -703,8 +713,8 @@ export function registerGitHandlers(): void {
       if (!worktreePath) {
         // worktree 目录已被删除（手动删除 / 崩溃清理），git 仍留有引用
         // prune 清除 stale 引用，然后直接删分支
-        await git.raw(['worktree', 'prune'])
-        await git.raw(['branch', '-D', branch])
+        await gitOp(() => git.raw(['worktree', 'prune']))
+        await gitOp(() => git.raw(['branch', '-D', branch]))
         notifyGitMeta()
         return { success: true }
       }
@@ -714,7 +724,7 @@ export function registerGitHandlers(): void {
         const removeArgs = force
           ? ['worktree', 'remove', worktreePath, '--force', '--force']
           : ['worktree', 'remove', worktreePath, '--force']
-        await git.raw(removeArgs)
+        await gitOp(() => git.raw(removeArgs))
       } catch (removeErr: any) {
         const msg = removeErr.message || ''
         if (!force && /locked working tree/i.test(msg)) {
@@ -725,7 +735,7 @@ export function registerGitHandlers(): void {
       }
 
       // 3. Delete the branch
-      await git.raw(['branch', '-D', branch])
+      await gitOp(() => git.raw(['branch', '-D', branch]))
 
       notifyGitMeta()
       return { success: true }
@@ -738,7 +748,7 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_DELETE_BRANCH, async (_event, branch: string) => {
     const git = getGit()
     try {
-      await git.raw(['branch', '-D', branch])
+      await gitOp(() => git.raw(['branch', '-D', branch]))
       return { success: true }
     } catch (err: any) {
       return { error: err.message }

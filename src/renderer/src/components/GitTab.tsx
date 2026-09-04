@@ -332,8 +332,16 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     return item?.type === 'commit'
   }, [focusedIndex, navigableItems])
 
-  // Refresh git status
-  const refreshStatus = useCallback(async () => {
+  // 所有 status 刷新共享一条 FIFO 互斥链：点击刷新与 meta/fs 回声刷新不再并发，
+  // 防大仓库多份全量 status + numstat 同时跑打满 CPU
+  const statusChainRef = useRef<Promise<void>>(Promise.resolve())
+  function runStatusExclusive(task: () => Promise<void>): Promise<void> {
+    const next = statusChainRef.current.then(task, task)
+    statusChainRef.current = next.then(() => undefined, () => undefined)
+    return next
+  }
+
+  const loadStatus = useCallback(async () => {
     if (notGitRef.current && notGitPathRef.current === effectiveGitPath) return
     setLoading(true)
     setError(null)
@@ -363,6 +371,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     }
     setLoading(false)
   }, [effectiveGitPath])
+
+  const refreshStatus = useCallback(() => runStatusExclusive(loadStatus), [loadStatus])
 
   const refreshGraph = useCallback(async () => {
     try {
@@ -581,8 +591,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       await window.api.git.checkout(branch)
       await refreshBranches()
       await refreshStatus()
+      await refreshGraph()
     } finally { setBusy(false) }
-  }, [refreshBranches, refreshStatus])
+  }, [refreshBranches, refreshStatus, refreshGraph])
 
   // Navigate to worktree
   const handleNavigateToWorktree = useCallback(async (branch: string) => {
@@ -662,11 +673,12 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       } else {
         await refreshBranches()
         await refreshStatus()
+        await refreshGraph()
       }
     } catch (err: any) {
       setError(err.message)
     } finally { setBusy(false) }
-  }, [refreshBranches, refreshStatus])
+  }, [refreshBranches, refreshStatus, refreshGraph])
 
   // Apply worktree branch changes
   const handleApplyBranch = useCallback(async (branch: string) => {
@@ -797,22 +809,12 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     }
   }, [refreshKey])
 
-  // fs:changed 合并：在飞时记脏、完成后只补刷一次，防 AI 连续改文件时 status 堆积乱序
-  const statusInFlightRef = useRef(false)
-  const statusAgainRef = useRef(false)
+  // meta/fs 回声合并：任意时刻最多排一次，防 AI 连续改文件时 status 堆积乱序
+  const statusQueuedRef = useRef(false)
   const refreshStatusCoalesced = useCallback(() => {
-    if (statusInFlightRef.current) {
-      statusAgainRef.current = true
-      return
-    }
-    statusInFlightRef.current = true
-    refreshStatus().finally(() => {
-      statusInFlightRef.current = false
-      if (statusAgainRef.current) {
-        statusAgainRef.current = false
-        refreshStatusCoalesced()
-      }
-    })
+    if (statusQueuedRef.current) return
+    statusQueuedRef.current = true
+    refreshStatus().finally(() => { statusQueuedRef.current = false })
   }, [refreshStatus])
 
   // git 状态统一刷新信号(主进程合流 FS 变更与 .git 元数据变更，2s 窗口去重)：

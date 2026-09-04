@@ -36,6 +36,9 @@ export function onChanged(listener: ChangeListener): () => void {
 function notifyChanged() {
   const now = Date.now()
   const elapsed = now - lastNotifyTime
+  // self-op 期间(含宽限)的 FS 事件大概率是 GUI 变更命令在改工作文件(checkout/discard/
+  // stash pop)，git 回声抑制到 registerGitRefresh 一层，FS_CHANGED 树刷新通道不受影响
+  const suppressGitRefresh = inGitSelfOp()
 
   const fire = () => {
     BrowserWindow.getAllWindows().forEach(win => {
@@ -45,7 +48,7 @@ function notifyChanged() {
       cb()
     }
     // 工作区文件变更同样意味着 git status 可能变化 → 注册统一 git 刷新信号
-    registerGitRefresh('status')
+    if (!suppressGitRefresh) registerGitRefresh('status')
   }
 
   if (elapsed >= COOLDOWN_MS) {
@@ -121,6 +124,29 @@ function registerGitRefresh(kind: 'status' | 'full') {
   }, delay)
 }
 
+// ── GUI 自操抑制 ──
+// GUI 自己的 mutation 命令(git add/reset/discard/commit...)写完 .git 的 index/refs，
+// 会被 watchGitMeta 当外部变更抓到 → 2s 后多一次纯冗余回声刷新(renderer 点击路径已在
+// 命令完成后同步刷新过)。self-op 在飞 + 结束后短宽限内，meta 事件与 FS 路径的 git 刷新
+// 信号直接丢弃；FS_CHANGED 树刷新通道与显式 notifyGitMeta(applyBranch/worktree 的 full)
+// 不受影响。命令本身改工作区文件触发的 FileTab 刷新照常。
+const SELF_OP_GRACE_MS = 800
+let selfOpDepth = 0
+let selfOpGraceUntil = 0
+
+export function beginGitSelfOp(): void {
+  selfOpDepth++
+}
+
+export function endGitSelfOp(): void {
+  if (selfOpDepth > 0) selfOpDepth--
+  selfOpGraceUntil = Date.now() + SELF_OP_GRACE_MS
+}
+
+function inGitSelfOp(): boolean {
+  return selfOpDepth > 0 || Date.now() < selfOpGraceUntil
+}
+
 // .git 元数据监听(common dir 顶层 + refs/** + worktrees/**)，事件按 kind 归类:
 // index 写入(裸 git status/diff 刷 stat cache、git add)只刷 status;refs/HEAD 变化才全套刷新
 let metaWatchers: FSWatcher[] = []
@@ -172,6 +198,7 @@ export function watchGitMeta(commonDir: string) {
     const f = String(filename).replace(/\\/g, '/')
     // 瞬态锁文件/临时件/fsmonitor daemon 管道不算元数据变更，防自激与重复刷新
     if (/^(index\.lock$|.*\.lock$|.*\.tmp$|\.smbdelete|~HEAD|fsmonitor--daemon)/i.test(f)) return
+    if (inGitSelfOp()) return
     const kind = f === 'index' || f.endsWith('/index') ? 'status' : 'full'
     registerGitRefresh(kind)
   }
