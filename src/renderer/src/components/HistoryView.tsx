@@ -5,7 +5,7 @@ import { buildHistoryTurns, formatBytes } from '../historyUtils'
 import type { HistoryTurn } from '../historyUtils'
 import type { AiSessionSummary, AiSessionSearchGroup, AiSearchMatch } from '@shared/types'
 import { ArrowLeft, Check, ChevronDown, Filter, FolderOpen, Loader2, RotateCcw, Search, Trash2, X } from 'lucide-react'
-import { fetchDshSessions, fetchDshHistoryTurns, type DshHistorySession } from '../dsh/history'
+import { fetchDshSessions, fetchDshHistoryTurns, archiveDshSession, type DshHistorySession } from '../dsh/history'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 import { ToolIcon } from './AiTab/tools'
@@ -318,6 +318,10 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     }
     try {
       if (mode === 'dsh') {
+        // attached(host 内存里还挂着)的会话 rm 文件后 session.list 仍从内存返回该行，
+        // 且后续事件会把 jsonl 写回。先 archive 进 registry 归档集：GUI 行同隐，
+        // 本列表侧靠 fetchDshSessions 的归档过滤挡住幽灵，再删文件清磁盘。
+        try { await archiveDshSession(id, s.cwd || undefined) } catch {}
         const r = await window.api.dsh.deleteSession(id, s.cwd || undefined)
         if (r?.ok) { removeState(); return }
         setListError(r?.error || '删除失败')

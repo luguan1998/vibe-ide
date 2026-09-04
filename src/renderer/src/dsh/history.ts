@@ -37,6 +37,13 @@ export async function fetchDshSessions(cwd?: string): Promise<DshHistorySession[
   } catch {
     // refresh 内部将失败折叠进 listState，不回抛；这里兜底走快照
   }
+  // dsh GUI 的「删除」= workspace.archiveSession(只进 registry 归档集，jsonl 留盘)，
+  // session.list 服务端不过滤归档集，须在列表侧排除，否则 GUI 删过的会话会一直显示
+  const workspaces = h.ctx.get('workspaces') as any
+  try {
+    await workspaces.refresh()
+  } catch {}
+  const archived = new Set<string>((workspaces.list.getSnapshot()?.archivedSessionIds ?? []) as string[])
   const deadline = Date.now() + 1500
   let byId: Record<string, any> = {}
   for (;;) {
@@ -46,7 +53,7 @@ export async function fetchDshSessions(cwd?: string): Promise<DshHistorySession[
     await new Promise((r) => setTimeout(r, 100))
   }
   return (Object.values(byId) as any[])
-    .filter((s: any) => !s.blank)
+    .filter((s: any) => !s.blank && !archived.has(s.id))
     .map((s: any) => ({
       id: s.id,
       // wire 层 sessions.list 不带 title 字段，用 client runtime 快照：
@@ -57,6 +64,11 @@ export async function fetchDshSessions(cwd?: string): Promise<DshHistorySession[
       running: !!s.running,
     }))
     .sort((a: any, b: any) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+}
+
+export async function archiveDshSession(sessionId: string, cwd?: string): Promise<void> {
+  const h = await getDshHandle(cwd)
+  await (h.ctx.get('workspaces') as any).archiveSession(sessionId)
 }
 
 export async function fetchDshHistoryTurns(
