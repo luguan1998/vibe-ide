@@ -3088,6 +3088,9 @@ export default function App() {
     ? (centerView === 'diff' ? diffViewerNode : centerView === 'markdown' ? markdownNode : centerView === 'image' ? imageNode : null)
     : null
 
+  // 右面板宽到出现 TabRail 导航（>= PANEL_TAB_RAIL_MIN_W）时收紧中间卡片与右面板的间隙，原始宽度保持对称
+  const centerGapX = !isWelcome && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'ml-1 mr-0' : 'mx-1'
+
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
       {/* Title Bar */}
@@ -3257,25 +3260,25 @@ export default function App() {
           onBlur={handleCenterBlur}>
           {/* Diff */}
           {centerView === 'diff' && diffFile && !overlayOnRight && (
-            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-card">
+            <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-card`}>
               {diffViewerNode}
             </div>
           )}
           {/* Markdown Preview */}
           {centerView === 'markdown' && markdownFile && !overlayOnRight && (
-            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay">
+            <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay`}>
               {markdownNode}
             </div>
           )}
           {/* Image Preview */}
           {centerView === 'image' && imageFile && !overlayOnRight && (
-            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay">
+            <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay`}>
               {imageNode}
             </div>
           )}
           {/* Browser */}
           {centerView === 'browser' && !browserDocked && (
-            <div className="flex-1 mx-1 mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-card">
+            <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-card`}>
               <BrowserView
                 ref={browserViewRef}
                 onBack={handleCloseBrowser}
@@ -3294,7 +3297,7 @@ export default function App() {
             />
           )}
           {/* Terminal sessions / AI GUI mode */}
-          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card" style={{ display: (centerView === 'terminal' || overlayOnRight) && sessions.length > 0 ? 'flex' : 'none' }}>
+          <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`} style={{ display: (centerView === 'terminal' || overlayOnRight) && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => {
                 const isGui = session.kind === 'gui'
@@ -3370,7 +3373,7 @@ export default function App() {
             </Suspense>
           </div>
           {/* session board — display-toggle so terminals keep their buffers while the board is shown */}
-          <div className="flex-1 mx-1 mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card" style={{ display: centerView === 'board' ? 'flex' : 'none' }}>
+          <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`} style={{ display: centerView === 'board' ? 'flex' : 'none' }}>
             <BoardView
               workspacePath={activeSessionCwd}
               sessions={groupSessionsByCwd ? stableSessions : sessions}
@@ -3404,10 +3407,10 @@ export default function App() {
         {/* Right Panel Resize Handle */}
         {!rightPanelCollapsed && !isWelcome && (
           <div
-            className="relative z-30 w-1 hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
+            className={`relative z-30 ${rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'w-px' : 'w-1 hover:bg-ide-accent'} cursor-col-resize shrink-0 transition-colors`}
             onMouseDown={handleRightResizeStart}
           >
-            <div className="absolute inset-y-0 -left-2 -right-2" />
+            <div className={`absolute inset-y-0 -left-2 -right-2 ${rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'hover:bg-ide-accent/25' : ''}`} />
           </div>
         )}
 
