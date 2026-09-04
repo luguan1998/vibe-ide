@@ -1217,6 +1217,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               </button>
               <button
                 onClick={() => toggleGuiTool('browserUse')}
+                title={t('Requires manually opening the "Web Debug" (globe) button on the top-right title bar before controlling the page')}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-full transition-colors ${
                   state.browserUse
                     ? 'border-ide-accent/40 bg-ide-accent/10 text-ide-accent'

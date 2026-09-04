@@ -80,6 +80,7 @@ const ZH_MAP: Record<string, string> = {
   'Enable Worktree': '启用 Worktree',
   'Isolate in worktree': 'Worktree 隔离',
   'Browser Control': '浏览器操控',
+  'Requires manually opening the "Web Debug" (globe) button on the top-right title bar before controlling the page': '需先手动打开右上角顶栏「网页调试」（地球）按钮，AI 才能接管页面操作',
   'Enable computer use MCP (screenshot/click/type). GUI mode only. Applies to new sessions.': '启用电脑操控 MCP（截屏/点击/输入）。仅支持 GUI 模式，且只对新会话生效。',
   'Other Options…': '其他选项…',
   'Auto-wrap long lines in diff/editor': 'diff/edit 界面是否自动换行',
