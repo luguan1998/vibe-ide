@@ -2320,8 +2320,10 @@ export default function App() {
 
   // 看板任务会话：关标签不再静默遗留记录+worktree，弹确认让用户选"仅关闭"或"关闭并清理"
   const [boardCloseAsk, setBoardCloseAsk] = useState<{ rec: WorktreeRecord; sessionId: string } | null>(null)
+  // busy 会话关闭需二次确认
+  const [busyCloseAsk, setBusyCloseAsk] = useState<string | null>(null)
 
-  const handleCloseSession = useCallback(async (id: string) => {
+  const proceedCloseSession = useCallback(async (id: string) => {
     const s = sessions.find(x => x.id === id)
     if (s && s.kind === 'terminal' && s.cwd) {
       try {
@@ -2335,6 +2337,33 @@ export default function App() {
     }
     await closeSessionCore(id)
   }, [sessions, closeSessionCore])
+
+  const handleCloseSession = useCallback(async (id: string) => {
+    if (terminalBusyRef.current[id] || aiBusyRef.current[id]) {
+      setBusyCloseAsk(id)
+      return
+    }
+    await proceedCloseSession(id)
+  }, [proceedCloseSession])
+
+  const confirmBusyClose = useCallback(async () => {
+    if (!busyCloseAsk) return
+    const sid = busyCloseAsk
+    setBusyCloseAsk(null)
+    await proceedCloseSession(sid)
+  }, [busyCloseAsk, proceedCloseSession])
+
+  useEffect(() => {
+    if (!busyCloseAsk) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'escape') return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      setBusyCloseAsk(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [busyCloseAsk])
 
   useEffect(() => {
     if (!boardCloseAsk) return
@@ -3444,6 +3473,43 @@ export default function App() {
         </div>
         )}
       </div>
+
+      {/* Busy session close confirm — running task will be terminated */}
+      {busyCloseAsk && (() => {
+        const name = sessions.find(s => s.id === busyCloseAsk)?.name || busyCloseAsk
+        return (
+          <div
+            className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center"
+            onMouseDown={() => setBusyCloseAsk(null)}
+          >
+            <div
+              className="bg-ide-sidebar border border-ide-border rounded-xl p-4 w-[400px] mx-4 shadow-2xl space-y-3"
+              onMouseDown={e => e.stopPropagation()}
+            >
+              <div className="text-sm text-ide-text font-medium truncate">
+                {t('Close running session?')} · {name}
+              </div>
+              <div className="text-xs text-ide-text-muted leading-relaxed">
+                {t('The session is still running. Closing will terminate its process and in-flight task.')}
+              </div>
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  onClick={() => setBusyCloseAsk(null)}
+                  className="px-3 py-1.5 rounded-md text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                >
+                  {t('Cancel')}
+                </button>
+                <button
+                  onClick={() => void confirmBusyClose()}
+                  className="px-3 py-1.5 rounded-md text-xs text-ide-danger bg-ide-danger/15 border border-ide-danger/40 hover:bg-ide-danger/25 transition-colors"
+                >
+                  {t('Close anyway')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Board session close prompt — plain close keeps the card, clean removes worktree+branch */}
       {boardCloseAsk && (
