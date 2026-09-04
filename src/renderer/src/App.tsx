@@ -3374,9 +3374,11 @@ export default function App() {
         {/* Right Panel Resize Handle */}
         {!rightPanelCollapsed && !isWelcome && (
           <div
-            className="w-1 hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
+            className="relative z-30 w-1 hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
             onMouseDown={handleRightResizeStart}
-          />
+          >
+            <div className="absolute inset-y-0 -left-2 -right-2" />
+          </div>
         )}
 
         {/* Right Panel */}
