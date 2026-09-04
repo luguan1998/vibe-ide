@@ -1890,6 +1890,27 @@ export function registerAiHandlers(): void {
     return { success: true }
   })
 
+  ipcMain.handle(IPC_CHANNELS.AI_RESOLVE_MODELS, async (_event, sessionId?: string) => {
+    const session = sessionId ? aiSessions.get(sessionId) : undefined
+    let fileEnv: Record<string, unknown> = {}
+    let fileModel = ''
+    try {
+      const parsed = JSON.parse(await readFile(join(resolveConfigDir(session?.configDir), 'settings.json'), 'utf-8'))
+      if (parsed && typeof parsed.env === 'object' && parsed.env) fileEnv = parsed.env
+      if (parsed && typeof parsed.model === 'string') fileModel = parsed.model.trim()
+    } catch { /* settings.json missing or invalid — fall through to shell env */ }
+    const out: Record<string, string> = {}
+    for (const alias of ['opus', 'sonnet', 'haiku']) {
+      const key = `ANTHROPIC_DEFAULT_${alias.toUpperCase()}_MODEL`
+      const fromFile = typeof fileEnv[key] === 'string' ? (fileEnv[key] as string).trim() : ''
+      const fromShell = (process.env[key] || '').trim()
+      out[alias] = fromFile || fromShell || alias
+    }
+    const fileDefault = typeof fileEnv.ANTHROPIC_MODEL === 'string' ? (fileEnv.ANTHROPIC_MODEL as string).trim() : ''
+    out.default = fileDefault || (process.env.ANTHROPIC_MODEL || '').trim() || fileModel || 'default'
+    return out
+  })
+
   // /btw side question: non-interrupting forked single-turn answer (CLI >= 2.1.209).
   // Resolves on the matching control_response; progress frames and main-turn output
   // are ignored. Old CLIs that don't know the subtype answer error or stay silent —

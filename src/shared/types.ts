@@ -125,6 +125,7 @@ export const IPC_CHANNELS = {
   AI_PLAN_EXECUTE: 'ai:planExecute',
   AI_SET_PERMISSION_MODE: 'ai:setPermissionMode',
   AI_SET_MODEL: 'ai:setModel',
+  AI_RESOLVE_MODELS: 'ai:resolveModels',
   AI_SIDE_QUESTION: 'ai:sideQuestion',
   AI_SET_CONTEXT_WINDOW: 'ai:setContextWindow',
   AI_GET_CONTEXT_INFO: 'ai:getContextInfo',
@@ -669,6 +670,16 @@ export interface AiSetPermissionModePayload {
 export interface AiSetModelPayload {
   sessionId: string
   model: string
+}
+
+// Actual names the default/opus/sonnet/haiku aliases resolve to, read from the session
+// configDir's settings.json env block, then shell env, falling back to the alias.
+// default resolves via ANTHROPIC_MODEL > settings "model" > literal "default".
+export interface AiResolvedModels {
+  default: string
+  opus: string
+  sonnet: string
+  haiku: string
 }
 
 // Side question via control_request subtype=side_question (CLI >= 2.1.209).

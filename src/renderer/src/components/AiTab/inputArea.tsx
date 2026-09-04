@@ -3,7 +3,7 @@ import type { AiPermissionMode, AiSlashCommand } from '@shared/types'
 import { DEFAULT_AI_CONTEXT_WINDOW } from '@shared/types'
 import { getFileInfo, FILE_ICON_PATHS } from '../FileIcons'
 import { aiStore } from '../../aiStore'
-import { Bot, ChevronDown, Check, Folder, Pencil } from 'lucide-react'
+import { Bot, ChevronDown, Check, Folder, Pencil, Plus, X } from 'lucide-react'
 const MODE_OPTIONS: { value: AiPermissionMode; label: string; icon: string }[] = [
   { value: 'plan', label: 'Plan', icon: '📋' },
   { value: 'acceptEdits', label: 'Edit', icon: '🖌️' },
@@ -157,11 +157,27 @@ export function ContextBar({ percent, sessionId }: { percent: number | null; ses
 }
 
 // ── ModelBadge ──────────────────────────────────────────────────────
-const MODEL_OPTIONS = [
+type ModelAlias = 'default' | 'opus' | 'sonnet' | 'haiku'
+interface ModelRow { alias: ModelAlias; label: string; icon: string; desc: string }
+
+const MODEL_OPTIONS: ModelRow[] = [
   { alias: 'opus', label: 'Opus', icon: '🧠', desc: '最强推理' },
   { alias: 'sonnet', label: 'Sonnet', icon: '⚖️', desc: '均衡' },
   { alias: 'haiku', label: 'Haiku', icon: '⚡', desc: '最快' },
-] as const
+]
+const DEFAULT_ROW: ModelRow = { alias: 'default', label: 'Default', icon: '✨', desc: '' }
+
+const CUSTOM_MODELS_KEY = 'vibe.ai.customModels'
+const MAX_CUSTOM_MODELS = 3
+
+function loadCustomModels(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CUSTOM_MODELS_KEY) || '[]')
+    return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string' && !!x.trim()).slice(0, MAX_CUSTOM_MODELS) : []
+  } catch { return [] }
+}
+
+const resolvedModelsCache = new Map<string, Record<ModelAlias, string>>()
 
 export function ModelBadge({
   model,
@@ -211,15 +227,82 @@ export function ModelBadge({
     }
   }, [model, pendingModel])
 
+  const [customModels, setCustomModels] = useState<string[]>(loadCustomModels)
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  useEffect(() => {
+    if (!open) { setAdding(false); setDraft('') }
+  }, [open])
+
+  const persistCustom = useCallback((list: string[]) => {
+    setCustomModels(list)
+    localStorage.setItem(CUSTOM_MODELS_KEY, JSON.stringify(list))
+  }, [])
+
+  const handleAddCustom = useCallback(() => {
+    const name = draft.trim()
+    setAdding(false)
+    setDraft('')
+    if (!name) return
+    if (!customModels.includes(name)) persistCustom([...customModels, name].slice(-MAX_CUSTOM_MODELS))
+    handleSelect(name)
+  }, [draft, customModels, persistCustom, handleSelect])
+
+  const handleRemoveCustom = useCallback((name: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    persistCustom(customModels.filter(x => x !== name))
+  }, [customModels, persistCustom])
+
+  const sessionIdRef = useRef(sessionId)
+  sessionIdRef.current = sessionId
+
+  const [resolved, setResolved] = useState<Record<ModelAlias, string> | null>(
+    () => resolvedModelsCache.get(sessionId ?? '') ?? null
+  )
+
+  const refreshResolved = useCallback((key: string) => {
+    window.api.ai.resolveModels(key || undefined).then(r => {
+      if ((sessionIdRef.current ?? '') !== key) return
+      resolvedModelsCache.set(key, r)
+      setResolved(r)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const key = sessionId ?? ''
+    setResolved(resolvedModelsCache.get(key) ?? null)
+    if (!resolvedModelsCache.has(key)) refreshResolved(key)
+  }, [sessionId, refreshResolved])
+
+  useEffect(() => {
+    if (!open) return
+    refreshResolved(sessionId ?? '')
+  }, [open, sessionId, refreshResolved])
+
+  const resolveAlias = useCallback((alias: ModelAlias) => resolved?.[alias] || alias, [resolved])
+
   // 直接按 alias 子串匹配档位；勿加 pro/flash 映射，否则 opus 与 sonnet 共享 pro 会误判
+  // 档位行（opus/sonnet/haiku）优先：alias 子串 + 实际名精确；default 仅在实际名精确命中或模型为空时用于 badge 显示，不进下拉
   const currentOption = (() => {
-    if (!model) return undefined
+    if (!model) return DEFAULT_ROW
     const m = model.toLowerCase()
-    return MODEL_OPTIONS.find(o => m.includes(o.alias))
+    const tier = MODEL_OPTIONS.find(o => m === resolveAlias(o.alias).toLowerCase() || m.includes(o.alias))
+    if (tier) return tier
+    return m === resolveAlias('default').toLowerCase() ? DEFAULT_ROW : undefined
   })()
-  const pendingOption = pendingModel ? MODEL_OPTIONS.find(o => o.alias === pendingModel) : undefined
+  const pendingOption = (() => {
+    if (!pendingModel) return undefined
+    const tier = MODEL_OPTIONS.find(o => pendingModel === o.alias || pendingModel === resolveAlias(o.alias))
+    if (tier) return tier
+    return pendingModel === 'default' || pendingModel === resolveAlias('default') ? DEFAULT_ROW : undefined
+  })()
   const displayOption = pendingOption || currentOption
-  const displayLabel = displayOption?.label || model || 'default'
+  const displayLabel = (() => {
+    if (pendingModel) return resolved?.[pendingModel as ModelAlias] || pendingModel
+    if (displayOption && resolved) return resolved[displayOption.alias]
+    return displayOption?.label || model || 'default'
+  })()
 
   return (
     <div ref={ref} className="ai-tab__model relative min-w-0">
@@ -235,25 +318,25 @@ export function ModelBadge({
         title={model || 'Model'}
         disabled={!sessionId}
       >
-        {displayOption
-          ? <span className="text-sm shrink-0">{displayOption.icon}</span>
-          : <Bot size={14} strokeWidth={2} className="shrink-0" />}
+        <Bot size={14} strokeWidth={2} className="shrink-0" />
         <span className="ai-tab__model-label truncate">{displayLabel}</span>
         {sessionId && <ChevronDown size={12} className={`shrink-0 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
       </button>
       {open && (
         <div className="ai-tab__model-dropdown absolute bottom-full right-0 mb-1.5 z-30
           bg-ide-sidebar border border-ide-border rounded-lg
-          shadow-lg min-w-[170px] py-0.5 animate-fade-in">
+          shadow-lg min-w-[170px] max-w-[280px] w-max py-0.5 animate-fade-in">
           {MODEL_OPTIONS.map(opt => {
+            const name = resolveAlias(opt.alias)
             const isCurrent = !pendingModel && opt.alias === currentOption?.alias
-            const isPending = pendingModel === opt.alias
+            const isPending = pendingModel === opt.alias || pendingModel === name
             const marked = isCurrent || isPending
+            const desc = resolved && resolved[opt.alias] !== opt.alias ? opt.alias : opt.desc
             return (
               <button
                 key={opt.alias}
                 type="button"
-                onClick={() => handleSelect(opt.alias)}
+                onClick={() => handleSelect(name)}
                 className={`ai-tab__model-option w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors ${
                   marked
                     ? 'ai-tab__model-option--selected bg-ide-accent/15 text-ide-accent'
@@ -261,12 +344,72 @@ export function ModelBadge({
                 }`}
               >
                 <span className="text-xs leading-none shrink-0">{opt.icon}</span>
-                <span className="truncate shrink-0">{opt.label}</span>
-                <span className={`text-[10px] truncate ${marked ? 'text-ide-accent/60' : 'text-ide-text-muted/50'}`}>{opt.desc}</span>
-                {marked && <Check size={10} className="ml-auto shrink-0" />}
+                <span className="truncate min-w-0">{resolved ? name : opt.label}</span>
+                <span className={`text-[10px] truncate shrink-0 ${marked ? 'text-ide-accent/60' : 'text-ide-text-muted/50'}`}>{desc}</span>
               </button>
             )
           })}
+          {customModels.length > 0 && (
+            <>
+              <div className="my-0.5 border-t border-ide-border" />
+              {customModels.map(name => {
+                const marked = pendingModel ? pendingModel === name : model === name
+                return (
+                  <div
+                    key={name}
+                    className={`ai-tab__model-option group w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] cursor-pointer transition-colors ${
+                      marked ? 'ai-tab__model-option--selected bg-ide-accent/15 text-ide-accent' : 'text-ide-text hover:bg-ide-hover'
+                    }`}
+                    onClick={() => handleSelect(name)}
+                    title={name}
+                  >
+                    <Pencil size={11} strokeWidth={2} className="shrink-0 opacity-60" />
+                    <span className="truncate min-w-0">{name}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleRemoveCustom(name, e)}
+                      className="ml-auto shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-ide-border/40"
+                      title="删除"
+                    >
+                      <X size={11} strokeWidth={2} className="text-ide-text-muted hover:text-ide-text" />
+                    </button>
+                  </div>
+                )
+              })}
+            </>
+          )}
+          <div className="my-0.5 border-t border-ide-border" />
+          {adding ? (
+            <div className="px-2 py-1">
+              <input
+                autoFocus
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); handleAddCustom() }
+                  if (e.key === 'Escape') { e.stopPropagation(); setAdding(false); setDraft('') }
+                }}
+                placeholder="输入模型名，回车确认"
+                className="ai-tab__model-custom-input w-full bg-transparent text-[11px] text-ide-text border-b border-ide-accent/60
+                           focus:outline-none focus:border-ide-accent placeholder:text-ide-text-muted/40"
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              disabled={customModels.length >= MAX_CUSTOM_MODELS}
+              className={`ai-tab__model-option w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors ${
+                customModels.length >= MAX_CUSTOM_MODELS
+                  ? 'text-ide-text-muted/40 cursor-default'
+                  : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+              }`}
+              title={customModels.length >= MAX_CUSTOM_MODELS ? `最多 ${MAX_CUSTOM_MODELS} 个自定义模型` : '自定义模型'}
+            >
+              <Plus size={11} strokeWidth={2} className="shrink-0" />
+              <span>自定义模型 ({customModels.length}/{MAX_CUSTOM_MODELS})</span>
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -190,6 +190,7 @@ declare global {
         listUserTurns: (sessionId: string, cwd: string) => Promise<any>
         setPermissionMode: (sessionId: string, mode: string) => Promise<{ success: boolean; error?: string }>
         setModel: (sessionId: string, model: string) => Promise<{ success: boolean; error?: string }>
+        resolveModels: (sessionId?: string) => Promise<{ default: string; opus: string; sonnet: string; haiku: string }>
         sideQuestion: (sessionId: string, question: string) => Promise<{ success: boolean; response?: string | null; synthetic?: boolean; error?: string }>
         setContextWindow: (sessionId: string, contextWindow: number) => Promise<{ success: boolean; contextPercent?: number | null; error?: string }>
         getContextInfo: (sessionId: string) => Promise<{ usedTokens: number | null; contextWindow: number | null } | null>
