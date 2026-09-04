@@ -56,10 +56,8 @@ html, body, #root {
 .right-panel__tab svg { width: 16px !important; height: 16px !important; }
 
 /* ════════════════════════════════════════════════════
-   全局 — 直角世界
+   全局 — 放开元素自带圆角（需直角的 NES 元素各自显式 border-radius: 0）
    ════════════════════════════════════════════════════ */
-* { border-radius: 0 !important; }
-.monaco-editor * { border-radius: revert !important; }
 
 
 /* ════════════════════════════════════════════════════
@@ -160,12 +158,13 @@ html, body, #root {
   box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
 }
 
-/* Session 分组容器 — NES 4px 粗框像素容器 */
+/* Session 分组容器 — NES 4px 粗框像素容器（直角） */
 .session-group {
   border: 2px solid rgb(var(--ide-border)) !important;
   background: #fff !important;
   overflow: visible !important;
   position: relative !important;
+  border-radius: 0 !important;
 }
 .session-group:first-child {
   margin-top: 0.5rem !important;
@@ -198,6 +197,7 @@ html, body, #root {
   padding: 0 0.4rem !important;
   background: #fff !important;
   border-bottom: none !important;
+  border-radius: 0 !important;
 }
 /* 标题右侧按钮（历史会话/新建终端）— hover 才显示；隐藏时 absolute 脱流 + 透明 + 点击穿透，标题保持窄，不挡边框线 */
 .session-group__header { position: relative !important; }
@@ -228,9 +228,8 @@ html, body, #root {
   background: transparent !important;
   margin: 0 !important;
 }
-/* Session 行 — 选中：蓝左色条 + 浅蓝底 */
+/* Session 行 — 选中：浅蓝底（无左色条） */
 .session-item--active {
-  box-shadow: inset 3px 0 0 rgb(var(--ide-accent)) !important;
   background: rgb(var(--ide-accent) / 0.1) !important;
 }
 .session-item--active .session-item__name {
@@ -448,11 +447,11 @@ html, body, #root {
   box-shadow: 4px 4px 0 rgba(33, 37, 41, 0.35), inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
 }
 
-/* 中间栏卡片（终端/Diff/Browser/Board）— 与右侧内容卡片同款圆角像素风 */
+/* 中间栏卡片（终端/Diff/Browser/Board）— 与右侧内容卡片同款圆角像素风（无外投影） */
 .center-card {
   border: 2px solid rgb(var(--ide-border)) !important;
   border-radius: 12px !important;
-  box-shadow: 4px 4px 0 rgba(33, 37, 41, 0.35), inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
+  box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
 }
 
 
