@@ -422,18 +422,30 @@ export default function App() {
   }, [])
   const [markdownFile, setMarkdownFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   const [imageFile, setImageFile] = useState<{ fullPath: string; fileName: string } | null>(null)
+  // useEffect 延迟同步,渲染帧内读到的是打开 overlay 前的 centerView(用于定侧/回落判断)
+  const centerViewRef = React.useRef<CenterView>('terminal')
   const overlayKind =
     centerView === 'diff' && diffFile ? `diff:${diffFile.fullPath}:${diffFile.commitHash ?? ''}` :
     centerView === 'markdown' && markdownFile ? `md:${markdownFile.fullPath}` :
     centerView === 'image' && imageFile ? `img:${imageFile.fullPath}` : null
-  const overlaySnapRef = useRef<{ key: string | null; right: boolean }>({ key: null, right: false })
+  const overlaySnapRef = useRef<{ key: string | null; right: boolean; base: 'terminal' | 'board' }>({ key: null, right: false, base: 'terminal' })
   if (overlayKind && overlaySnapRef.current.key !== overlayKind) {
-    overlaySnapRef.current = { key: overlayKind, right: !rightPanelCollapsed && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W }
+    const firstOpen = overlaySnapRef.current.key === null
+    const base = firstOpen && centerViewRef.current === 'board' ? 'board' : overlaySnapRef.current.base
+    overlaySnapRef.current = {
+      key: overlayKind,
+      right: !rightPanelCollapsed && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W,
+      base,
+    }
   }
   if (!overlayKind && overlaySnapRef.current.key !== null) {
-    overlaySnapRef.current = { key: null, right: false }
+    overlaySnapRef.current = { key: null, right: false, base: 'terminal' }
   }
   const overlayOnRight = overlayKind !== null && overlaySnapRef.current.right && !rightPanelCollapsed
+  // 左栏「看板激活」随 base 保持(overlay 期间不回落 session)
+  const boardActive = overlayKind !== null ? overlaySnapRef.current.base === 'board' : centerView === 'board'
+  // 中栏看板卡片:仅无 overlay 或 overlay 落右栏时显示(覆盖中栏时让位给文件)
+  const boardCenterShown = boardActive && (overlayKind === null || overlayOnRight)
   const diffRevisionRef = useRef(0)
   const [dshSidebarShown, setDshSidebarShown] = useState(() => {
     try { return localStorage.getItem('vibe-ide-dsh-sidebar') === '1' } catch { return false }
@@ -614,7 +626,7 @@ export default function App() {
     const updates: Record<string, boolean> = {}
     let changed = false
     // 看板开启时没有"选中的session"（effSel=null）：所有 running→idle 一视同仁记 warn
-    const effSel = centerView === 'board' ? null : activeSessionId
+    const effSel = boardActive ? null : activeSessionId
     for (const s of sessions) {
       const sid = s.id
       const busy = !!(terminalBusy[sid] || aiBusy[sid])
@@ -736,8 +748,6 @@ export default function App() {
       return localStorage.getItem('vibe-ide-term-font') || 'Consolas'
     } catch { return 'Consolas' }
   })
-  const centerViewRef = React.useRef<CenterView>('terminal')
-
   // Keep ref in sync so IPC listener always sees latest centerView
   React.useEffect(() => {
     centerViewRef.current = centerView
@@ -2630,7 +2640,7 @@ export default function App() {
   }, [])
 
   const handleBackToTerminal = useCallback(() => {
-    setCenterView('terminal')
+    setCenterView(overlaySnapRef.current.base === 'board' ? 'board' : 'terminal')
     setDiffFile(null)
   }, [])
 
@@ -3009,7 +3019,7 @@ export default function App() {
   }, [recordRecentFile])
 
   const handleBackFromMarkdown = useCallback(() => {
-    setCenterView('terminal')
+    setCenterView(overlaySnapRef.current.base === 'board' ? 'board' : 'terminal')
     setMarkdownFile(null)
   }, [])
 
@@ -3020,7 +3030,7 @@ export default function App() {
   }, [recordRecentFile])
 
   const handleBackFromImage = useCallback(() => {
-    setCenterView('terminal')
+    setCenterView(overlaySnapRef.current.base === 'board' ? 'board' : 'terminal')
     setImageFile(null)
   }, [])
 
@@ -3163,7 +3173,7 @@ export default function App() {
             <SessionPanel
               ref={sessionPanelRef}
               sessions={groupSessionsByCwd ? stableSessions : sessions}
-              activeSessionId={centerView === 'board' ? null : activeSessionId}
+              activeSessionId={boardActive ? null : activeSessionId}
               onCreateSession={handleCreateSession}
             onCreateSessionAt={handleCreateSessionAt}
             onCloneSession={handleCloneSession}
@@ -3235,7 +3245,7 @@ export default function App() {
             onCloneWithInit={handleCloneWithInit}
             onNewSessionHere={handleNewSessionHere}
             onOpenHistoryTab={handleOpenHistoryTab}
-            boardActive={centerView === 'board'}
+            boardActive={boardActive}
             recentFiles={recentFiles}
             onOpenRecentFile={handleOpenRecentFile}
             onRemoveRecentFile={removeRecentFile}
@@ -3296,8 +3306,8 @@ export default function App() {
               onOpenPath={(path) => handleCreateSessionAt(path)}
             />
           )}
-          {/* Terminal sessions / AI GUI mode */}
-          <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`} style={{ display: (centerView === 'terminal' || overlayOnRight) && sessions.length > 0 ? 'flex' : 'none' }}>
+          {/* Terminal sessions / AI GUI mode — overlayOnRight 时回落 base 视图(terminal/board)而非恒显示 terminal */}
+          <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`} style={{ display: (centerView === 'terminal' || (overlayOnRight && overlaySnapRef.current.base === 'terminal')) && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => {
                 const isGui = session.kind === 'gui'
@@ -3373,12 +3383,12 @@ export default function App() {
             </Suspense>
           </div>
           {/* session board — display-toggle so terminals keep their buffers while the board is shown */}
-          <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`} style={{ display: centerView === 'board' ? 'flex' : 'none' }}>
+          <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`} style={{ display: boardCenterShown ? 'flex' : 'none' }}>
             <BoardView
               workspacePath={activeSessionCwd}
               sessions={groupSessionsByCwd ? stableSessions : sessions}
               agentStatus={agentStatus}
-              activeSessionId={centerView === 'board' ? null : activeSessionId}
+              activeSessionId={boardCenterShown ? null : activeSessionId}
               sessionWorktreeNav={sessionWorktreeNav}
               onCreateRecord={handleBoardCreate}
               onFocusSession={handleBoardFocusSession}
