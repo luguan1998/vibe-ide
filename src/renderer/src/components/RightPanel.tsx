@@ -417,9 +417,9 @@ function TabRail({ activeSection, visibleList, onSelect, onRestoreWidth, onHideR
               <span
                 onClick={(e) => { e.stopPropagation(); onHideRail() }}
                 title={t('Hide Rail')}
-                className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover bg-ide-panel border border-ide-border shadow-sm cursor-pointer opacity-0 pointer-events-none group-hover/rx:opacity-100 group-hover/rx:pointer-events-auto transition-opacity duration-150"
+                className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover bg-ide-panel border border-ide-border shadow-sm cursor-pointer opacity-0 pointer-events-none group-hover/rx:opacity-100 group-hover/rx:pointer-events-auto transition-opacity duration-150"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-2 h-2">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5">
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
               </span>
