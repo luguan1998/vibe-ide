@@ -39,6 +39,7 @@ const TerminalView = lazy(() => import('./components/TerminalView'))
 
 const PANEL_TAB_RAIL_MIN_W = 700
 const RIGHT_PANEL_DEFAULT_W = 380
+const BROWSER_DOCK_W = 860
 
 // Declare the window API type
 declare global {
@@ -856,6 +857,7 @@ export default function App() {
   const [browserDocked, setBrowserDocked] = useState(false)
   const [browserDockNonce, setBrowserDockNonce] = useState(0)
   const browserDockedRef = useRef(false)
+  const browserDockPrevWidth = useRef<number | null>(null)
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const centerPanelRef = useRef<HTMLDivElement>(null)
   const sessionPanelRef = useRef<SessionPanelHandle>(null)
@@ -2645,11 +2647,20 @@ export default function App() {
     setDiffFile(null)
   }, [])
 
+  // 浏览器停靠期间临时加宽的右栏，关闭/移回中栏时还原本来的宽度
+  const restoreBrowserDockWidth = useCallback(() => {
+    if (browserDockPrevWidth.current !== null) {
+      setRightPanelWidth(browserDockPrevWidth.current)
+      browserDockPrevWidth.current = null
+    }
+  }, [])
+
   const handleCloseBrowser = useCallback(() => {
     browserDockedRef.current = false
     setBrowserDocked(false)
+    restoreBrowserDockWidth()
     setCenterView('terminal')
-  }, [])
+  }, [restoreBrowserDockWidth])
 
   const handleToggleBrowserDock = useCallback(() => {
     const next = !browserDockedRef.current
@@ -2660,9 +2671,10 @@ export default function App() {
       if (centerViewRef.current === 'browser') setCenterView('terminal')
       setBrowserDockNonce(n => n + 1)
     } else {
+      restoreBrowserDockWidth()
       setCenterView('browser')
     }
-  }, [])
+  }, [restoreBrowserDockWidth])
 
   // 打开网页调试：按停靠偏好决定落点（右侧时直接覆盖 Nga tab）
   const handleOpenWebDebug = useCallback(() => {
@@ -2679,14 +2691,18 @@ export default function App() {
     setCenterView('browser')
   }, [activeSessionCwd])
 
-  // Nga 内置浏览器入口：不受停靠偏好影响，直接停靠右栏
+  // Nga 内置浏览器入口：不受停靠偏好影响，直接停靠右栏并加宽右栏
   const handleOpenBrowserRight = useCallback(() => {
     if (centerViewRef.current === 'browser') setCenterView('terminal')
     browserDockedRef.current = true
     setBrowserDocked(true)
     saveBrowserDockPref('right')
+    if (browserDockPrevWidth.current === null) {
+      browserDockPrevWidth.current = rightPanelWidth
+      setRightPanelWidth(BROWSER_DOCK_W)
+    }
     setBrowserDockNonce(n => n + 1)
-  }, [])
+  }, [rightPanelWidth])
 
   const handleRefreshGit = useCallback(async () => {
     setGitRefreshKey(k => k + 1)

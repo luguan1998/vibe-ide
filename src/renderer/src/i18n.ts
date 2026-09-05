@@ -487,7 +487,7 @@ const ZH_MAP: Record<string, string> = {
   'Write tests': '编写测试',
   'Web Search': '联网调研',
   'Web Debug': '网页调试',
-  'Built-in browser — docked right': '内置浏览器 —— 停靠右侧',
+  'Built-in browser — docked right, panel widened': '内置浏览器 —— 停靠右侧、面板加宽',
   'Open in Browser': '内置浏览器打开',
   'Move to Right': '移到右侧',
   'Move to Center': '移回中间',

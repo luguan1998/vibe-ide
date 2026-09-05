@@ -31,7 +31,7 @@ interface GameCard {
 const GAMES: GameCard[] = [
   { id: 'history', icon: <span className="text-2xl leading-none">📜</span>, name: 'Session History', desc: 'Browse & search Claude history' },
   { id: 'skills', icon: <span className="text-2xl leading-none">✨</span>, name: 'Skills', desc: 'Manage Claude & dsh skills' },
-  { id: 'browser', icon: <span className="text-2xl leading-none">🌐</span>, name: 'Web Debug', desc: 'Built-in browser — docked right' },
+  { id: 'browser', icon: <span className="text-2xl leading-none">🌐</span>, name: 'Web Debug', desc: 'Built-in browser — docked right, panel widened' },
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
