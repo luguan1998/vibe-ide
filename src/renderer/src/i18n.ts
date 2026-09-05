@@ -234,6 +234,7 @@ const ZH_MAP: Record<string, string> = {
   'Discard All': '全部撤销',
   'Delete All': '全部删除',
   'Refresh': '刷新',
+  'Pull': '拉取',
   'Zoom In': '放大',
   'Zoom Out': '缩小',
   'Reset Zoom': '重置缩放',

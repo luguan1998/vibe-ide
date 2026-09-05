@@ -519,6 +519,21 @@ export function registerGitHandlers(): void {
     }
   })
 
+  // Git pull — http/ssh 凭据走 git 自身配置，冲突等异常由 gitOp/git 抛出
+  ipcMain.handle(IPC_CHANNELS.GIT_PULL, async (_event, remote?: string, branch?: string) => {
+    try {
+      const git = getGit()
+      if (remote && branch) {
+        await gitOp(() => git.pull(remote, branch))
+      } else {
+        await gitOp(() => git.pull())
+      }
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
   // Git remote branches
   ipcMain.handle(IPC_CHANNELS.GIT_REMOTE_BRANCHES, async () => {
     try {

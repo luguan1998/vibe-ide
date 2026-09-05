@@ -682,7 +682,7 @@ function RightPanel({
           <div className="absolute inset-0 z-20 flex flex-col bg-ide-sidebar">{contentOverlay}</div>
         )}
 
-      <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
+      <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="group flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <GitTab
           workspacePath={workspacePath}
           effectiveGitPath={effectiveGitPath}

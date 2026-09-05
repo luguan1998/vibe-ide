@@ -754,6 +754,18 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     } finally { setBusy(false) }
   }, [refreshStatus, refreshGraph, refreshBranches, selectedRemote])
 
+  // Pull
+  const handlePull = useCallback(async () => {
+    setBusy(true)
+    try {
+      const result = await window.api.git.pull()
+      if (!result.success) setError(result.error ?? '')
+      await refreshStatus()
+      await refreshGraph()
+      await refreshBranches()
+    } finally { setBusy(false) }
+  }, [refreshStatus, refreshGraph, refreshBranches])
+
   // Init git repo
   const handleInit = useCallback(async () => {
     setBusy(true)
@@ -1143,6 +1155,18 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             {status.ahead > 0 && <span className="text-ide-success text-[11px]">↑{status.ahead}</span>}
             {status.behind > 0 && <span className="text-ide-warning text-[11px]">↓{status.behind}</span>}
           </div>
+          {status.behind > 0 && (
+            <button
+              onClick={() => handlePull()}
+              disabled={busy}
+              className="text-ide-warning hover:text-ide-accent opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity shrink-0 w-5 flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none"
+              title={`${t('Pull')} (${status.behind})`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <path d="M12 2v11M7 8l5 5 5-5M4 19h16" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={() => setTreeView(v => !v)}
             className={`transition-colors shrink-0 w-5 flex items-center justify-center ${treeView ? 'text-ide-accent' : 'text-ide-text-muted hover:text-ide-text'}`}
@@ -1640,7 +1664,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           {/* Branches */}
           <div className="border-b border-ide-border">
             <div
-              className="pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between group"
+              className="pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between group/branch"
               onClick={() => setBranchesExpanded(!branchesExpanded)}
             >
               <div className="flex items-center gap-1">
@@ -1656,7 +1680,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               <button
                 onClick={(e) => { e.stopPropagation(); setShowRemoteBranches(v => !v) }}
                 title={t('Show remote')}
-                className={`shrink-0 w-4 h-4 flex items-center justify-center rounded transition-opacity ${showRemoteBranches ? 'opacity-100 text-ide-accent' : 'opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10'}`}
+                className={`shrink-0 w-4 h-4 flex items-center justify-center rounded transition-opacity ${showRemoteBranches ? 'opacity-100 text-ide-accent' : 'opacity-0 group-hover/branch:opacity-100 text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10'}`}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
                   <circle cx="12" cy="12" r="10" />
@@ -1737,7 +1761,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             >
               Stash
             </button>
-            <div className="relative inline-flex group">
+            <div className="relative inline-flex group/chip">
               <button
                 onClick={handleStashPop}
                 disabled={busy || stashCount === 0}
@@ -1751,7 +1775,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   onClick={() => setConfirmAction({ type: 'stashDrop' })}
                   disabled={busy}
                   title={t('Drop stash')}
-                  className="absolute -top-1.5 -right-1.5 text-[10px] leading-none text-ide-text-muted hover:text-ide-danger bg-ide-bg border border-ide-border rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0 disabled:cursor-not-allowed"
+                  className="absolute -top-1.5 -right-1.5 text-[10px] leading-none text-ide-text-muted hover:text-ide-danger bg-ide-bg border border-ide-border rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/chip:opacity-100 transition-opacity disabled:opacity-0 disabled:cursor-not-allowed"
                 >
                   ✕
                 </button>
