@@ -489,13 +489,13 @@ html, body, #root {
   animation: slideUp 0.15s ease-out;
 }
 
-/* Claude 旋转雪花标记：✻ 连续 360° 旋转（CC 状态指示器同款），取代原来的呼吸缩放闪烁 */
-@keyframes spin-snowflake {
+/* Claude 像素卡帧旋转：steps(8) 每帧跳 45°，取代 ✻ 平滑旋转 */
+@keyframes spin-pixel {
   to { transform: rotate(360deg); }
 }
 
-.animate-spin-snowflake {
-  animation: spin-snowflake 1.2s linear infinite;
+.animate-spin-pixel {
+  animation: spin-pixel 1.2s steps(8, end) infinite;
   display: inline-block;
   will-change: transform;
   color: rgb(var(--ide-accent));

@@ -1355,13 +1355,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             {state.streamBuffer ? (
               <div>
                 <StreamingMarkdown text={state.streamBuffer} workspacePath={workspacePath} onOpenFile={onOpenFile} />
-                <span className="ai-tab__busy-sparkle animate-spin-snowflake ml-0.5 text-sm leading-none align-middle select-none">✻</span>
-                <span className="ai-tab__busy-quip ml-0.5 text-[13px] leading-none align-middle select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
+                <ClaudeLogoIcon className="ai-tab__busy-sparkle animate-spin-pixel ml-0.5 text-sm leading-none align-middle select-none" fill="currentColor" />
+                <span className="ai-tab__busy-quip ml-1 text-[13px] leading-none align-middle select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
               </div>
             ) : (
               <div>
-                <span className="animate-spin-snowflake text-sm leading-none select-none">✻</span>
-                <span className="ml-0.5 text-[13px] leading-none select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
+                <ClaudeLogoIcon className="animate-spin-pixel text-sm leading-none select-none" fill="currentColor" />
+                <span className="ml-1 text-[13px] leading-none select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
               </div>
             )}
           </div>
