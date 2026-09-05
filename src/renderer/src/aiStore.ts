@@ -113,7 +113,6 @@ interface EnsureCreatedOpts {
   configDir?: string
   enableWorktree?: boolean
   model?: string
-  persona?: string
   computerUse?: boolean
   browserUse?: boolean
 }
@@ -210,7 +209,6 @@ export const aiStore = {
           ...(configDir ? { configDir } : {}),
           ...(opts.enableWorktree ? { enableWorktree: true } : {}),
           ...(opts.model ? { model: opts.model } : {}),
-          ...(opts.persona?.trim() ? { persona: opts.persona } : {}),
           ...(opts.computerUse ? { computerUse: true } : {}),
           ...(opts.browserUse ? { browserUse: true } : {}),
         })

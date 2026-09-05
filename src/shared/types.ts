@@ -629,7 +629,6 @@ export interface AiCreateOptions {
   cliCommand?: string
   configDir?: string
   enableWorktree?: boolean
-  persona?: string
   computerUse?: boolean
   browserUse?: boolean
 }

@@ -36,7 +36,6 @@ export interface ManagedAiSession {
   enableWorktree?: boolean
   worktreePath?: string
   preWorktreeSnapshot?: Set<string>
-  persona?: string
   computerUse?: boolean
   browserUse?: boolean
 }
@@ -212,7 +211,6 @@ function buildClaudeArgs(opts: {
   resumeSessionId?: string
   model?: string
   enableWorktree?: boolean
-  persona?: string
   mcpConfigPath?: string
   browserMcpConfigPath?: string
 }): string[] {
@@ -240,9 +238,6 @@ function buildClaudeArgs(opts: {
   }
   if (opts.enableWorktree) {
     args.push('--worktree')
-  }
-  if (opts.persona?.trim()) {
-    args.push('--append-system-prompt', opts.persona.trim())
   }
   if (opts.mcpConfigPath) {
     args.push('--mcp-config', opts.mcpConfigPath)
@@ -378,7 +373,6 @@ export function spawnClaude(opts: {
   configDir?: string
   model?: string
   enableWorktree?: boolean
-  persona?: string
   computerUse?: boolean
   browserUse?: boolean
   mcpConfigPath?: string
@@ -532,8 +526,16 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         s.ready = true
         s.revertAwaitingReady = false
         if (msg.session_id) {
-          s.claudeSessionId = msg.session_id
-          cliSessionToRenderer.set(msg.session_id, sessionId)
+          // claudeSessionId 已知(attach 预置的 --resume 目标 / 旧值)时,init 上报的
+          // session_id 不可信:实测 CLI 2.1.152 resume 后写盘 id 恒为 resume 目标,
+          // init 字段可能给出一个全新"本地运行 id"(如 enqueue 行仍用旧 id 写盘)。
+          // 覆盖会让 revert/listUserTurns 指向不存在的 JSONL,保持旧值并把差异留痕
+          if (s.claudeSessionId && s.claudeSessionId !== msg.session_id) {
+            console.error(`[ai:${sessionId}] init session_id ${msg.session_id} differs from known ${s.claudeSessionId} (kept known; CLI writes transcript as ${s.claudeSessionId})`)
+          } else {
+            s.claudeSessionId = msg.session_id
+            cliSessionToRenderer.set(msg.session_id, sessionId)
+          }
         }
         applyContextWindow(s, msg.model ? parseContextWindowFromModel(msg.model) : undefined)
       }
@@ -1451,7 +1453,7 @@ export function startBmForSession(sessionId: string, enabled: boolean | undefine
 // Attach all process event handlers (stdout/stderr/error/exit) to a spawned Claude CLI process.
 // Shared between initial AI_CREATE spawn and plan-execute restart — extracted so
 // the restart path reuses identical NDJSON parsing / error reporting / lifecycle logic.
-export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: string, model?: string, configDir?: string, cliCommand?: string, computerUse?: boolean, browserUse?: boolean): void {
+export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: string, model?: string, configDir?: string, cliCommand?: string, computerUse?: boolean, browserUse?: boolean, resumeSessionId?: string): void {
   const session: ManagedAiSession = {
     process: proc,
     sessionId,
@@ -1463,6 +1465,12 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     cliCommand,
     computerUse,
     browserUse,
+    // spawn 侧已知 resume 目标时就预置 claudeSessionId:CLI 2.1.152 要收到首条用户消息
+    // 才输出 system(init)(实测),若依赖 init 落位,revert/resume 后的新进程在用户下次
+    // 发送前 claudeSessionId 为空,AI_REVERT/AI_LIST_USER_TURNS 会静默失败——
+    // resume 后立即回退或同 tab 连续回退必挂。且 init 上报的 session_id 可能是本地
+    // 运行 id(写盘 id 恒为 resume 目标),预置值才是唯一可靠的转录 id(见 system case)
+    claudeSessionId: resumeSessionId,
   }
   aiSessions.set(sessionId, session)
 
@@ -1542,7 +1550,6 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
           model: current.model,
           cliCommand: current.cliCommand,
           configDir: current.configDir,
-          persona: current.persona,
           computerUse: current.computerUse,
           browserUse: current.browserUse,
           mcpConfigPath,
@@ -1558,7 +1565,6 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
         const fresh = aiSessions.get(sessionId)
         if (fresh) {
           fresh.permissionMode = current.permissionMode || 'bypassPermissions'
-          fresh.persona = current.persona
           if (current.model) fresh.model = current.model
           if (current.contextWindow) fresh.contextWindow = current.contextWindow
         }
@@ -1641,7 +1647,7 @@ export function resumeAfterAsk(sessionId: string, answers: Record<string, string
 
   const mcpConfigPath = startCuForSession(sessionId, session.computerUse)
   const browserMcpConfigPath = startBmForSession(sessionId, session.browserUse)
-  const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, persona: session.persona, computerUse: session.computerUse, browserUse: session.browserUse, mcpConfigPath, browserMcpConfigPath })
+  const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, computerUse: session.computerUse, browserUse: session.browserUse, mcpConfigPath, browserMcpConfigPath })
   if ('error' in result) {
     stopCuForSession(sessionId, session.computerUse)
     stopBmForSession(sessionId, session.browserUse)
@@ -1653,14 +1659,12 @@ export function resumeAfterAsk(sessionId: string, answers: Record<string, string
     return { success: false, error: result.error, installCmd: result.installCmd }
   }
 
-  attachAiProcess(sessionId, result, cwd, session.model, session.configDir, session.cliCommand, session.computerUse, session.browserUse)
+  attachAiProcess(sessionId, result, cwd, session.model, session.configDir, session.cliCommand, session.computerUse, session.browserUse, claudeSessionId)
 
   const newSession = aiSessions.get(sessionId)
   if (newSession) {
-    newSession.claudeSessionId = claudeSessionId
     newSession.permissionMode = permissionMode
     newSession.contextWindow = session.contextWindow
-    newSession.persona = session.persona
     if (session.model) newSession.model = session.model
     // Preserve worktree tracking so destroy() still removes the original worktree
     newSession.enableWorktree = session.enableWorktree
@@ -1746,7 +1750,7 @@ export function registerAiHandlers(): void {
 
   // Spawn claude/openclaude/opencc subprocess
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
-    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, configDir, enableWorktree, persona, computerUse, browserUse } = options
+    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, configDir, enableWorktree, computerUse, browserUse } = options
 
     const existing = aiSessions.get(sessionId)
     if (existing) {
@@ -1763,7 +1767,7 @@ export function registerAiHandlers(): void {
     const mcpConfigPath = startCuForSession(sessionId, computerUse)
     const browserMcpConfigPath = startBmForSession(sessionId, browserUse)
 
-    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId, cliCommand, configDir, enableWorktree, persona, computerUse, browserUse, mcpConfigPath, browserMcpConfigPath })
+    const result = spawnClaude({ cwd, permissionMode: permMode, resumeSessionId, cliCommand, configDir, enableWorktree, computerUse, browserUse, mcpConfigPath, browserMcpConfigPath })
     if ('error' in result) {
       stopCuForSession(sessionId, computerUse)
       stopBmForSession(sessionId, browserUse)
@@ -1775,12 +1779,11 @@ export function registerAiHandlers(): void {
       return { success: false, error: result.error, installCmd: result.installCmd }
     }
 
-    attachAiProcess(sessionId, result, cwd, undefined, configDir, cliCommand, computerUse, browserUse)
+    attachAiProcess(sessionId, result, cwd, undefined, configDir, cliCommand, computerUse, browserUse, resumeSessionId)
 
     const created = aiSessions.get(sessionId)
     if (created) {
       created.permissionMode = permMode
-      created.persona = persona?.trim() || undefined
       if (enableWorktree && preSnapshot) {
         created.enableWorktree = true
         created.preWorktreeSnapshot = preSnapshot
@@ -1987,7 +1990,7 @@ export function registerAiHandlers(): void {
 
     const mcpConfigPath = startCuForSession(sessionId, session.computerUse)
     const browserMcpConfigPath = startBmForSession(sessionId, session.browserUse)
-    const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, persona: session.persona, computerUse: session.computerUse, browserUse: session.browserUse, mcpConfigPath, browserMcpConfigPath })
+    const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, computerUse: session.computerUse, browserUse: session.browserUse, mcpConfigPath, browserMcpConfigPath })
     if ('error' in result) {
       stopCuForSession(sessionId, session.computerUse)
       stopBmForSession(sessionId, session.browserUse)
@@ -1999,14 +2002,12 @@ export function registerAiHandlers(): void {
       return { success: false, error: result.error, installCmd: result.installCmd }
     }
 
-    attachAiProcess(sessionId, result, cwd, session.model, session.configDir, session.cliCommand, session.computerUse, session.browserUse)
+    attachAiProcess(sessionId, result, cwd, session.model, session.configDir, session.cliCommand, session.computerUse, session.browserUse, claudeSessionId)
 
     const newSession = aiSessions.get(sessionId)
     if (newSession) {
-      newSession.claudeSessionId = claudeSessionId
       newSession.permissionMode = permissionMode
       newSession.contextWindow = session.contextWindow
-      newSession.persona = session.persona
       if (session.model) newSession.model = session.model
       newSession.enableWorktree = session.enableWorktree
       newSession.worktreePath = session.worktreePath

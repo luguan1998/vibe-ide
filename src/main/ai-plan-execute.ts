@@ -57,7 +57,7 @@ export function registerPlanExecuteHandlers(): void {
 
       const mcpConfigPath = startCuForSession(sessionId, prev?.computerUse)
       const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse)
-      const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, resumeSessionId: claudeSessionId, persona: prev?.persona, computerUse: prev?.computerUse, browserUse: prev?.browserUse, mcpConfigPath, browserMcpConfigPath })
+      const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, resumeSessionId: claudeSessionId, computerUse: prev?.computerUse, browserUse: prev?.browserUse, mcpConfigPath, browserMcpConfigPath })
       if ('error' in result) {
         stopCuForSession(sessionId, prev?.computerUse)
         stopBmForSession(sessionId, prev?.browserUse)
@@ -69,13 +69,11 @@ export function registerPlanExecuteHandlers(): void {
         return { success: false, error: result.error, installCmd: result.installCmd }
       }
 
-      attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse)
+      attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse, claudeSessionId)
 
       const newSession = aiSessions.get(sessionId)
       if (newSession && prev) {
-        newSession.claudeSessionId = claudeSessionId
         newSession.permissionMode = 'bypassPermissions'
-        newSession.persona = prev.persona
         if (prev.contextWindow) newSession.contextWindow = prev.contextWindow
       }
 
@@ -109,7 +107,7 @@ export function registerPlanExecuteHandlers(): void {
     // 3. Spawn fresh subprocess in bypassPermissions mode (no --resume = clean context)
     const mcpConfigPath = startCuForSession(sessionId, prev?.computerUse)
     const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse)
-    const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, persona: prev?.persona, computerUse: prev?.computerUse, browserUse: prev?.browserUse, mcpConfigPath, browserMcpConfigPath })
+    const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, computerUse: prev?.computerUse, browserUse: prev?.browserUse, mcpConfigPath, browserMcpConfigPath })
     if ('error' in result) {
       stopCuForSession(sessionId, prev?.computerUse)
       stopBmForSession(sessionId, prev?.browserUse)
@@ -124,12 +122,11 @@ export function registerPlanExecuteHandlers(): void {
     // 4. Attach stdout/stderr/error/exit handlers
     attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse)
 
-    if (prev?.contextWindow || prev?.model || prev?.persona) {
+    if (prev?.contextWindow || prev?.model) {
       const newSession = aiSessions.get(sessionId)
       if (newSession) {
         if (prev.contextWindow) newSession.contextWindow = prev.contextWindow
         if (prev.model) newSession.model = prev.model
-        if (prev.persona) newSession.persona = prev.persona
       }
     }
 

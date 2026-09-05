@@ -85,6 +85,13 @@ async function truncateJsonlAtUserMessage(
     ? []
     : (keepTarget ? lines.slice(0, endIdx + 1) : lines.slice(0, targetLineIdx))
 
+  // 截断后仅剩 hook/queue 等辅助行（无 user turn）时同样要清空：CLI 会把这种"残档"
+  // 当作无可加载会话，静默开新会话并换 session_id（实测 2.1.152），
+  // 留下非空残档只会让下一次 revert 指向不存在的文件
+  if (!keepTarget && truncated.length > 0 && parseUserTurns(truncated).length === 0) {
+    return { truncated: [] }
+  }
+
   return { truncated }
 }
 
@@ -99,6 +106,7 @@ export function registerRevertHandlers(): void {
     const prev = aiSessions.get(sessionId)
     const claudeSessionId = prev?.claudeSessionId
     if (!claudeSessionId) {
+      console.error(`[ai:${sessionId}] revert blocked: claudeSessionId empty, prev=${JSON.stringify(prev ? { ready: prev.ready, pid: prev.process.pid } : null)}`)
       return { success: false, error: 'No active Claude session' }
     }
 
@@ -107,6 +115,7 @@ export function registerRevertHandlers(): void {
     // 1. Truncate JSONL
     const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, false, prev?.configDir, payload.content, payload.occurrence)
     if ('error' in result) {
+      console.error(`[ai:${sessionId}] revert failed: ${result.error} (userMessageIndex=${userMessageIndex}, content=${JSON.stringify(payload.content)}, occurrence=${payload.occurrence})`)
       return { success: false, error: result.error }
     }
 
@@ -116,6 +125,7 @@ export function registerRevertHandlers(): void {
     try {
       await writeFile(jsonlPath, result.truncated.join('\n') + '\n', 'utf-8')
     } catch (err) {
+      console.error(`[ai:${sessionId}] revert write failed: ${(err as Error).message} (jsonlPath=${jsonlPath})`)
       return { success: false, error: `Failed to write truncated session: ${(err as Error).message}` }
     }
 
@@ -129,6 +139,9 @@ export function registerRevertHandlers(): void {
 
     // 4. Spawn new subprocess
     const hasHistory = result.truncated.length > 0
+    // 已进入 worktree 的会话直接 resume 进 worktree cwd,不能再传 --worktree
+    // (CLI 会在 worktree 内再嵌套新建一个);从未进入的才让 CLI 重建
+    const needsFreshWorktree = !!(prev?.enableWorktree && !prev?.worktreePath)
     const mcpConfigPath = startCuForSession(sessionId, prev?.computerUse)
     const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse)
     const spawnResult = spawnClaude({
@@ -141,6 +154,7 @@ export function registerRevertHandlers(): void {
       browserUse: prev?.browserUse,
       mcpConfigPath,
       browserMcpConfigPath,
+      ...(needsFreshWorktree ? { enableWorktree: true } : {}),
       ...(hasHistory ? { resumeSessionId: claudeSessionId } : {}),
     })
     if ('error' in spawnResult) {
@@ -154,13 +168,17 @@ export function registerRevertHandlers(): void {
       return { success: false, error: spawnResult.error, installCmd: spawnResult.installCmd }
     }
 
-    attachAiProcess(sessionId, spawnResult, effectiveCwd, prev?.model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse)
+    attachAiProcess(sessionId, spawnResult, effectiveCwd, prev?.model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse, hasHistory ? claudeSessionId : undefined)
 
-    if (prev?.contextWindow || prev?.model) {
+    if (prev) {
       const s = aiSessions.get(sessionId)
       if (s) {
         if (prev.contextWindow) s.contextWindow = prev.contextWindow
         if (prev.model) s.model = prev.model
+        // worktree 跟踪状态随会话保留:destroy 清理与后续 resume/forceStop 需要它
+        s.enableWorktree = prev.enableWorktree
+        s.worktreePath = prev.worktreePath
+        s.preWorktreeSnapshot = prev.preWorktreeSnapshot
       }
     }
 
