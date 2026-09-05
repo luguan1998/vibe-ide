@@ -456,11 +456,11 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
             <span>Churned for {(() => { const sec = (message.durationMs || 0) / 1000; if (sec < 60) return `${sec.toFixed(1)}s`; const m = Math.floor(sec / 60); const s = Math.round(sec % 60); return `${m}m ${s}s`; })()}</span>
             {message.isAborted && <span className="text-ide-text-muted/40"> · paused by user</span>}
           </span>
-          {copyText && <CopyButton text={copyText} />}
+          {copyText && <CopyButton text={copyText} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-accent opacity-0 group-hover/meta:opacity-100 transition" />}
           {forkIdx >= 0 && (
             <button
               onClick={() => onFork(forkIdx)}
-              className="shrink-0 opacity-0 group-hover/meta:opacity-100 transition-opacity hover:text-ide-accent"
+              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-accent opacity-0 group-hover/meta:opacity-100 transition"
               title={t('Fork to new session')}
             >
               <GitBranch size={14} />
