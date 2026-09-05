@@ -71,13 +71,13 @@ function layoutGraph(nodes: Map<string, GraphNode>, edges: GraphEdge[]) {
   const g1 = graph(new Map())
   const rankW = new Map<number, number>()
   for (const [id, gn] of nodes) {
-    const r = g1.node(id)?.rank ?? 0
+    const r = (g1.node(id) as { rank?: number } | undefined)?.rank ?? 0
     const w = Math.min(gn.name.length, 30) * 6.5 + 44
     rankW.set(r, Math.max(rankW.get(r) ?? 0, w))
   }
   const widths = new Map<string, number>()
   for (const [id, gn] of nodes) {
-    const r = g1.node(id)?.rank ?? 0
+    const r = (g1.node(id) as { rank?: number } | undefined)?.rank ?? 0
     widths.set(id, Math.max(140, Math.min(260, rankW.get(r) ?? 140)))
   }
   // 第二遍：用逐列宽度重布局

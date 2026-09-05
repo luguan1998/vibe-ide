@@ -1433,7 +1433,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           <span className="text-[13px] text-ide-text/80 truncate flex-1 min-w-0" title={state.pipedPrompt}>{state.pipedPrompt}</span>
           <button
             type="button"
-            onClick={() => setEditingPiped(state.pipedPrompt)}
+            onClick={() => setEditingPiped(state.pipedPrompt ?? '')}
             className="ai-tab__piped-edit shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
             title={t('Edit')}
           >

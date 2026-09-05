@@ -366,7 +366,7 @@ export default function BoardView({
     setTailDepth(next)
     const lines = onReadSessionTail(s.id, next)
     setTailEnded(lines.length < next)
-    setReplyText(shortenHrLines(truncateReply(lines.join('\n').slice(-12000), truncate)))
+    setReplyText(shortenHrLines(truncateReply(lines.join('\n').slice(-12000), truncate) ?? ''))
   }, [onReadSessionTail, tailDepth, truncate])
   const [draft, setDraft] = useState('')
   const [defaultCmd, setDefaultCmd] = useState(readDefaultCmd)
@@ -631,7 +631,7 @@ export default function BoardView({
       if (s.kind === 'terminal') {
         const lines = onReadSessionTail(s.id, 60)
         setTailEnded(lines.length < 60)
-        setReplyText(shortenHrLines(truncateReply(lines.join('\n').slice(-12000), truncate)))
+        setReplyText(shortenHrLines(truncateReply(lines.join('\n').slice(-12000), truncate) ?? ''))
         return
       }
       if (s.kind === 'dsh') {

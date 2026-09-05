@@ -949,7 +949,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         setClaudeApplyMsg(t('Refreshed {n} environment variables').replace('{n}', String(result.count)))
         window.setTimeout(() => setClaudeApplyMsg(''), 3000)
       } else {
-        setClaudeApplyMsg(t('Refresh failed: {err}').replace('{err}', result.error))
+        setClaudeApplyMsg(t('Refresh failed: {err}').replace('{err}', result.error ?? ''))
       }
     } catch (e: any) {
       setClaudeApplyMsg(t('Refresh failed: {err}').replace('{err}', e?.message || e))
@@ -1884,7 +1884,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {emojiMenu && (() => {
         const isCwdMenu = !('sessionId' in emojiMenu)
         const pickSession = 'sessionId' in emojiMenu ? sessions.find(s => s.id === emojiMenu.sessionId) : null
-        const ov = pickSession?.emoji ?? cwdEmojiOverrides[emojiMenu.cwd]
+        const ov = pickSession?.emoji ?? ('sessionId' in emojiMenu ? undefined : cwdEmojiOverrides[emojiMenu.cwd])
         const pool = isCwdMenu ? cwdEmojis : sessionEmojis
         const pick = (v: string | undefined) => {
           if ('sessionId' in emojiMenu) onSetSessionEmoji?.(emojiMenu.sessionId, v)

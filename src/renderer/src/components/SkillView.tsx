@@ -295,7 +295,7 @@ export default function SkillView({ workspacePath, onOpenFile, onPreviewFile, on
               onChange={e => { setNewName(e.target.value); setFormError(null) }}
               onKeyDown={e => {
                 if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); void createSkill() }
-                if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); setShowForm(false) }
+                if (e.key === 'Escape') { e.preventDefault(); e.nativeEvent.stopImmediatePropagation(); setShowForm(false) }
               }}
               placeholder={t('Skill name')}
               className="flex-1 min-w-0 px-2 py-1.5 text-sm bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
@@ -317,7 +317,7 @@ export default function SkillView({ workspacePath, onOpenFile, onPreviewFile, on
             onChange={e => setNewDesc(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); void createSkill() }
-              if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); setShowForm(false) }
+              if (e.key === 'Escape') { e.preventDefault(); e.nativeEvent.stopImmediatePropagation(); setShowForm(false) }
             }}
             placeholder={t('Skill description (optional)')}
             className="w-full px-2 py-1.5 text-sm bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"

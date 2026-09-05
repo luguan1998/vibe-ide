@@ -312,7 +312,7 @@ export function registerGitHandlers(): void {
     try {
       const git = getGit()
       if (options.files) {
-        await gitOp(() => git.add(options.files))
+        await gitOp(() => git.add(options.files!))
       }
       await gitOp(() => git.commit(options.message))
       return { success: true }
