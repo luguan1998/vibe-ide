@@ -896,8 +896,12 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   // ── in-tree search handlers (被调先于主调:定义在 return 之前) ──
   const openSearch = useCallback((scope: string | null) => {
     setSearchScope(scope)
-    if (scope) setExpandedDirs(prev => { const next = new Set(prev); next.add(norm(scope)); return next })
-  }, [])
+    if (scope) {
+      setExpandedDirs(prev => { const next = new Set(prev); next.add(norm(scope)); return next })
+      // 未展开过的目录 children 未加载，仅加 expandedDirs 会渲染成空，须同步懒加载
+      ensureChildrenLoaded(scope)
+    }
+  }, [ensureChildrenLoaded])
 
   // Focus the in-place search input once it renders (display:none can't focus → wait for scope→render).
   useEffect(() => {
