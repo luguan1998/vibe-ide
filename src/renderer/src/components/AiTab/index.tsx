@@ -174,6 +174,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     if (!sid) return
     setInputValues(prev => ({ ...prev, [sid]: v }))
   }, [])
+  const [dragOverInput, setDragOverInput] = useState(false)
   const [slashMenuOpen, setSlashMenuOpen] = useState(false)
   const [slashFilter, setSlashFilter] = useState('')
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
@@ -208,6 +209,39 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     }
     closeMention()
   }, [closeMention])
+
+  // 拖拽文件 → @path 插入：workspace 内用相对路径(与 mention 一致)，外部/跨盘兜底绝对路径
+  const toAtPath = useCallback((absPath: string): string => {
+    const ws = workspacePath ? workspacePath.replace(/\\/g, '/').replace(/\/+$/, '') : ''
+    const norm = absPath.replace(/\\/g, '/')
+    if (ws && norm.startsWith(ws + '/')) return '@' + norm.slice(ws.length + 1)
+    return '@' + absPath
+  }, [workspacePath])
+
+  const insertDroppedPaths = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverInput(false)
+    const files = e.dataTransfer?.files
+    if (!files || files.length === 0) return
+    const parts: string[] = []
+    for (const f of Array.from(files)) {
+      const p = window.api.file.getPathForFile(f) || ((f as any).path as string | undefined)
+      if (p) parts.push(toAtPath(p))
+    }
+    if (parts.length === 0) return
+    const insert = parts.join(' ') + ' '
+    const el = inputRef.current
+    if (el) {
+      el.focus({ preventScroll: true })
+      const start = el.selectionStart ?? el.value.length
+      const end = el.selectionEnd ?? el.value.length
+      el.setRangeText(insert, start, end, 'end')
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    } else {
+      setInputValue(inputValue ? inputValue + ' ' + insert : insert)
+    }
+  }, [toAtPath, setInputValue, inputValue])
 
   useEffect(() => {
     if (!mentionMenuOpen || !workspacePath) { setMentionResults([]); return }
@@ -827,9 +861,23 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           )}
 
           {/* Pill container */}
-          <div className="ai-tab__input-pill rounded-2xl border border-ide-accent/60
-                          bg-ide-sidebar shadow-sm
-                          transition-colors focus-within:border-ide-accent">
+          <div
+            className={`ai-tab__input-pill rounded-2xl border bg-ide-sidebar shadow-sm
+                        transition-colors ${
+                          dragOverInput
+                            ? 'border-ide-accent'
+                            : 'border-ide-accent/60 focus-within:border-ide-accent'
+                        }`}
+            onDragOver={(e) => {
+              if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return
+              e.preventDefault()
+              e.stopPropagation()
+              e.dataTransfer.dropEffect = 'copy'
+              setDragOverInput(true)
+            }}
+            onDragLeave={() => setDragOverInput(false)}
+            onDrop={insertDroppedPaths}
+          >
 
             {/* Textarea zone */}
             <div className="ai-tab__input-zone px-3 pt-1.5 pb-0">
