@@ -2679,6 +2679,15 @@ export default function App() {
     setCenterView('browser')
   }, [activeSessionCwd])
 
+  // Nga 内置浏览器入口：不受停靠偏好影响，直接停靠右栏
+  const handleOpenBrowserRight = useCallback(() => {
+    if (centerViewRef.current === 'browser') setCenterView('terminal')
+    browserDockedRef.current = true
+    setBrowserDocked(true)
+    saveBrowserDockPref('right')
+    setBrowserDockNonce(n => n + 1)
+  }, [])
+
   const handleRefreshGit = useCallback(async () => {
     setGitRefreshKey(k => k + 1)
   }, [])
@@ -3483,6 +3492,7 @@ export default function App() {
             onBrowserBack={handleCloseBrowser}
             onBrowserAnnotate={(line) => { (window as any).__vibeAppendInput?.(line) }}
             onBrowserToggleDock={handleToggleBrowserDock}
+            onOpenBrowser={handleOpenBrowserRight}
           />
         </div>
         )}

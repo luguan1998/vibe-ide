@@ -8,7 +8,7 @@ import GameVampire from './GameVampire'
 import HistoryView from './HistoryView'
 import SkillView from './SkillView'
 
-type GameId = 'menu' | 'history' | 'skills' | '2048' | 'sandspiel' | 'balatro' | 'fruitninja' | 'vampire'
+type GameId = 'menu' | 'history' | 'skills' | 'browser' | '2048' | 'sandspiel' | 'balatro' | 'fruitninja' | 'vampire'
 
 interface GameLauncherProps {
   workspacePath: string | null
@@ -17,6 +17,7 @@ interface GameLauncherProps {
   historyNavNonce?: number
   onOpenFileFromExplorer?: (fullPath: string) => void
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
+  onOpenBrowser?: () => void
 }
 
 interface GameCard {
@@ -30,6 +31,7 @@ interface GameCard {
 const GAMES: GameCard[] = [
   { id: 'history', icon: <span className="text-2xl leading-none">📜</span>, name: 'Session History', desc: 'Browse & search Claude history' },
   { id: 'skills', icon: <span className="text-2xl leading-none">✨</span>, name: 'Skills', desc: 'Manage Claude & dsh skills' },
+  { id: 'browser', icon: <span className="text-2xl leading-none">🌐</span>, name: 'Web Debug', desc: 'Built-in browser — docked right' },
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
@@ -37,7 +39,7 @@ const GAMES: GameCard[] = [
   { id: 'vampire', icon: <span className="text-2xl leading-none">🧛</span>, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
-export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onResumeDshHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown }: GameLauncherProps) {
+export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onResumeDshHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown, onOpenBrowser }: GameLauncherProps) {
   const [currentGame, setCurrentGame] = useState<GameId>('menu')
   const lastHistoryNonce = useRef(0)
   useEffect(() => {
@@ -74,7 +76,7 @@ export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onR
         {GAMES.map(game => (
           <button
             key={game.id}
-            onClick={() => launch(game.id)}
+            onClick={() => (game.id === 'browser' ? onOpenBrowser?.() : launch(game.id))}
             className="w-full flex items-center gap-3 p-3 rounded-lg bg-ide-sidebar border border-ide-border hover:border-ide-accent/50 hover:bg-ide-hover transition-colors text-left group"
           >
             <div className="shrink-0 w-7 h-7 flex items-center justify-center">{game.icon}</div>

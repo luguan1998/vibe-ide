@@ -59,6 +59,7 @@ interface RightPanelProps {
   hideTabBar?: boolean
   onRestoreWidth?: () => void
   contentOverlay?: React.ReactNode
+  onOpenBrowser?: () => void
 }
 
 type GitSection = 'git' | 'terminal' | 'file' | 'game'
@@ -478,6 +479,7 @@ function RightPanel({
   hideTabBar,
   onRestoreWidth,
   contentOverlay,
+  onOpenBrowser,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('file')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -742,7 +744,7 @@ function RightPanel({
       </div>
 
       <div ref={gameContentRef} tabIndex={-1} style={{ display: activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden relative">
-        <GameLauncher workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} historyNavNonce={historyNavNonce} onOpenFileFromExplorer={onOpenFileFromExplorer} onPreviewMarkdown={onPreviewMarkdown} />
+        <GameLauncher workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} historyNavNonce={historyNavNonce} onOpenFileFromExplorer={onOpenFileFromExplorer} onPreviewMarkdown={onPreviewMarkdown} onOpenBrowser={onOpenBrowser} />
         {browserDocked && (
           <div className="absolute inset-0 z-10 flex flex-col bg-ide-bg">
             <BrowserView
