@@ -390,7 +390,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     const lv = evo ? 5 : (weaponsRef.current.wand || 0)
     const dmg = (evo ? 26 : 10 + 4 * lv) * (1 + 0.15 * (passivesRef.current.rage || 0))
     let target: Enemy | null = null
-    let bestD = 520
+    let bestD = 240
     for (const e of enemiesRef.current) {
       if (e.burrow > 0) continue
       const d = Math.hypot(e.x - p.x, e.y - p.y)
@@ -411,7 +411,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     const p = playerRef.current
     const evo = !!weaponsRef.current.daggerx
     const lv = evo ? 5 : (weaponsRef.current.dagger || 0)
-    const dmg = (evo ? 22 : 8 + 3 * lv) * (1 + 0.15 * (passivesRef.current.rage || 0))
+    const dmg = (evo ? 24 : 9 + 3.5 * lv) * (1 + 0.15 * (passivesRef.current.rage || 0))
     const n = evo ? 12 : 2 + lv
     for (let i = 0; i < n; i++) {
       const a = p.facing + (Math.random() - 0.5) * (evo ? 2 : 1.4)
@@ -446,8 +446,8 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     const p = playerRef.current
     const evo = !!weaponsRef.current.orbx
     const lv = evo ? 5 : (weaponsRef.current.orb || 0)
-    const dmg = (evo ? 42 : 12 + 5 * lv) * (1 + 0.15 * (passivesRef.current.rage || 0))
-    const radius = evo ? 99999 : 150 + 25 * lv
+    const dmg = (evo ? 40 : 12 + 4.5 * lv) * (1 + 0.15 * (passivesRef.current.rage || 0))
+    const radius = evo ? 99999 : 150 + 22 * lv
     const hits: Enemy[] = []
     for (const e of enemiesRef.current) {
       if (Math.hypot(e.x - p.x, e.y - p.y) < radius + e.r) hits.push(e)
@@ -619,8 +619,8 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       if (wv <= 2) type = 'bat'
       else if (wv <= 4) type = r < 0.55 ? 'bat' : 'zombie'
       else if (wv <= 6) type = r < 0.3 ? 'bat' : r < 0.6 ? 'zombie' : r < 0.85 ? 'wolf' : 'ghost'
-      else if (wv <= 9) type = r < 0.25 ? 'bat' : r < 0.5 ? 'zombie' : r < 0.65 ? 'skel' : r < 0.8 ? 'wolf' : r < 0.93 ? 'snake' : 'ghost'
-      else type = r < 0.18 ? 'bat' : r < 0.35 ? 'zombie' : r < 0.5 ? 'skel' : r < 0.62 ? 'wolf' : r < 0.74 ? 'snake' : r < 0.84 ? 'ghost' : r < 0.9 ? 'spider' : r < 0.97 ? 'golem' : 'elite'
+      else if (wv <= 9) type = r < 0.25 ? 'bat' : r < 0.5 ? 'zombie' : r < 0.65 ? 'skel' : r < 0.8 ? 'wolf' : r < 0.92 ? 'snake' : r < 0.98 ? 'spider' : 'ghost'
+      else type = r < 0.18 ? 'bat' : r < 0.35 ? 'zombie' : r < 0.5 ? 'skel' : r < 0.62 ? 'wolf' : r < 0.72 ? 'snake' : r < 0.82 ? 'ghost' : r < 0.9 ? 'spider' : r < 0.97 ? 'golem' : 'elite'
       spawnEnemy(type)
       if (wv >= 5 && Math.random() < 0.3) {
         const extra = Math.random()
@@ -679,7 +679,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     if (weaponsRef.current.orb || orbEvo) {
       timers.orb = (timers.orb || 0) - dt
       if (timers.orb <= 0) {
-        timers.orb = orbEvo ? 0.85 : Math.max(0.7, 1.9 - 0.16 * (weaponsRef.current.orb || 0))
+        timers.orb = orbEvo ? 0.95 : Math.max(0.7, 2.1 - 0.16 * (weaponsRef.current.orb || 0))
         zapOrb()
       }
     }
