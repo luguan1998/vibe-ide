@@ -100,14 +100,14 @@ export function updateSkipPatterns(patterns: string[]) {
 // FS_CHANGED(工作区文件变更，FileTab 树刷新用，保留原通道)与 .git 元数据变更(pull/外部
 // commit/分支增删/worktree)在此合流:2s 窗口内去重，窗口结束时按窗口内最高优先级发一次
 // GIT_META_CHANGED(full > status)。保证 GitTab 的 git 刷新硬上限 = 任意 2s 窗口 1 次。
-// AI busy 期间不注册(风暴源是 AI 每轮裸 git 命令刷 index)，恢复监听时补发一次 full。
+// AI busy 期间仅 meta 事件路径不注册(风暴源是 AI 每轮裸 git 命令刷 index，且监听已物理
+// stop)；FS 路径 status 照常注册，AI 改代码时 GitTab 也能跟进。解除挂起时立即补一次 full。
 const GIT_REFRESH_WINDOW_MS = 2000
 let gitRefreshDirty: 'none' | 'status' | 'full' = 'none'
 let gitRefreshTimer: NodeJS.Timeout | null = null
 let gitRefreshLastFire = 0
 
 function registerGitRefresh(kind: 'status' | 'full') {
-  if (metaPaused) return
   if (kind === 'full') gitRefreshDirty = 'full'
   else if (gitRefreshDirty === 'none') gitRefreshDirty = 'status'
   if (gitRefreshTimer) return
@@ -167,8 +167,8 @@ export function stopGitMeta() {
 
 // AI 忙闲门控：busy(任意 agent running)→ 立即挂起 .git 监听(AI 裸 git 命令刷 index →
 // refs → 刷新风暴)；空闲 → 延迟恢复。延迟是防 stop hook 尾巴:最后一轮 result 后 stop hook
-// 仍可能跑 stash/status 写 refs/index，立即恢复会再吃一轮刷新。恢复时补发一次 full，
-// busy 窗口期漏掉的 worktree/分支变化(如 --worktree 会话建档)一并补刷。
+// 仍可能跑 stash/status 写 refs/index，立即恢复会再吃一轮刷新。解除挂起与恢复计时器落地
+// 时各补一次 full，busy 窗口期漏掉的 worktree/分支变化(如 --worktree 会话建档)一并补刷。
 export function setGitMetaPaused(paused: boolean): void {
   if (metaResumeTimer) { clearTimeout(metaResumeTimer); metaResumeTimer = null }
   if (paused) {
@@ -178,6 +178,9 @@ export function setGitMetaPaused(paused: boolean): void {
     return
   }
   if (!metaPaused) return
+  // busy 窗口内 FS 路径的 status 信号曾被门控丢弃，解除挂起时立即补一次 full，
+  // 不等到 2500ms 恢复计时器（那里再补一次，吸收 stop hook 尾巴的 refs/index 变化）
+  registerGitRefresh('full')
   metaResumeTimer = setTimeout(() => {
     metaResumeTimer = null
     metaPaused = false
@@ -199,6 +202,8 @@ export function watchGitMeta(commonDir: string) {
     // 瞬态锁文件/临时件/fsmonitor daemon 管道不算元数据变更，防自激与重复刷新
     if (/^(index\.lock$|.*\.lock$|.*\.tmp$|\.smbdelete|~HEAD|fsmonitor--daemon)/i.test(f)) return
     if (inGitSelfOp()) return
+    // 防御性检查：暂停期间 watcher 已物理 stop，此拦截防未来不规范的直接调用
+    if (metaPaused) return
     const kind = f === 'index' || f.endsWith('/index') ? 'status' : 'full'
     registerGitRefresh(kind)
   }
