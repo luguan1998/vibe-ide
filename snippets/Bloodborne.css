@@ -21,37 +21,34 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 }
 
 /* ==========================================================================
-   1. SESSION-PANEL （左侧：还原游戏“菜单装备栏”条目）
+   1. SESSION-PANEL （左侧：只改配色/字体/背景贴图，默认布局结构不动）
    ========================================================================== */
 
-/* 侧边栏容器：做旧的暗石壁垒 */
+/* 侧边栏容器：做旧的暗石垒（保留默认 rounded-lg 结构） */
 .session-panel__list-wrapper {
   background: rgb(14 14 16) !important;
-  border-right: 2px solid rgb(32 28 26) !important;
-  border-radius: 0px !important;
 }
 
-/* 会话分组卡片：风化暗石壁垒(无轮廓线) */
+/* 会话分组卡片：风化暗石渐变（默认无边框无圆角，不重定义结构） */
 .session-group {
   background: linear-gradient(180deg, rgba(26,24,21,0.92) 0%, rgba(16,15,14,0.96) 100%) !important;
-  border: none !important;
-  border-radius: 0px !important;
 }
 .session-group__header {
   background: rgb(17 16 15) !important;
-  border-bottom: 1px solid rgba(50, 44, 38, 0.35) !important;
 }
 
-/* 组内条目：紧凑铁板行，悬停点亮 */
+/* 组头 cwd 目录名：压回与 emoji(13px)/标题同级别，避免比二者大一圈 */
+.session-group__path {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* 组内条目：透明底，透出分组卡片的风化渐变（配色；默认结构不动） */
 .session-item {
   background: transparent !important;
-  border-radius: 0px !important;
-  margin: 0 !important;
-  box-shadow: none !important;
-  border: none !important;
-  border-bottom: 1px solid rgba(50, 44, 38, 0.35) !important;
-  border-left: 3px solid transparent !important;
 }
+
+/* 组内条目：hover 点亮暗铁暖灰（默认 32px 高/8px 圆角/无边框结构不动） */
 .session-item:not(.session-item--active):hover {
   background: rgba(46, 39, 33, 0.6) !important;
 }
@@ -59,53 +56,42 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   color: rgb(205 188 160) !important;
 }
 
-/* 游戏激活态：还原选中时”暗金框边缘拉丝 + 爪痕鲜血浸润效应” */
+/* 激活态：方形暗金框（inset 描边不占布局，文本不错位）+ 血红浸润渐变 + 古董金文字 */
 .session-item--active {
+  border-radius: 0px !important;
   background: linear-gradient(90deg, rgba(140, 20, 20, 0.28) 0%, rgba(24, 18, 18, 0.9) 100%) !important;
-  border: 1px solid rgb(185 145 85) !important;
-  border-left: 3px solid rgb(140 20 20) !important;
-  box-shadow: inset 0 0 10px rgba(140, 20, 20, 0.28) !important;
+  box-shadow: inset 3px 0 0 rgb(140 20 20), inset 0 0 0 1px rgb(185 145 85), inset 0 0 10px rgba(140, 20, 20, 0.28) !important;
 }
-
-/* 选中项文本：变成亮起的古董金 */
 .session-item--active .session-item__name {
   color: rgb(225 200 160) !important;
   text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.9);
 }
 
-/* Pipe 运行中：复刻提灯的冷冽青蓝色幽光 */
+/* Pipe 运行中：复刻提灯的冷冽青蓝幽光（配色） */
 .session-item--pipe-running {
-  border-left: 3px solid rgb(75 130 120) !important;
   background: linear-gradient(90deg, rgba(40, 65, 60, 0.25) 0%, rgba(14, 16, 16, 0.6) 100%) !important;
 }
 
-/* 未分组平铺列表：同样铁板打底 */
+/* 未分组平铺列表：铁板打底（默认边框/圆角结构不动） */
 .session-panel__flat-list {
   background: rgb(15 14 13) !important;
-  border: 1px solid rgb(48 42 38) !important;
-  border-radius: 0px !important;
 }
 
-/* 三态所在横栏：旧铁板材质打底 */
+/* 三态所在横栏：贴图打底（配色） */
 .session-panel__header {
   background: url('assets/button_black2.png') center/92% 66px no-repeat rgb(14 14 16) !important;
   background-position-y: calc(50% + 0.5px) !important;
-  border-bottom: none !important;
 }
-/* 三态药丸：去掉默认左右径向极光渐变（右端 warning 泛黄），背景透明露出横栏贴图，收窄段间距 */
+/* 三态药丸：透明露横栏贴图、分隔线渐变（配色） */
 .status-badge {
   background: transparent !important;
   box-shadow: none !important;
 }
-.status-badge__segment {
-  background: transparent !important;
-}
 .status-badge__divider {
   background: linear-gradient(180deg, transparent 15%, rgb(90 78 66) 50%, transparent 85%) !important;
-  width: 2px !important;
 }
 .status-badge__segment {
-  padding: 4px 14px !important;
+  background: transparent !important;
 }
 
 
