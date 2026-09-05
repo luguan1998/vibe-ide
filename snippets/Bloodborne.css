@@ -29,9 +29,9 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   background: rgb(14 14 16) !important;
 }
 
-/* 会话分组卡片：风化暗石渐变（默认无边框无圆角，不重定义结构） */
+/* 会话分组卡片：左侧浅血红浸润（约选中态的一半强度）+ 风化暗石渐变（不重定义结构） */
 .session-group {
-  background: linear-gradient(180deg, rgba(26,24,21,0.92) 0%, rgba(16,15,14,0.96) 100%) !important;
+  background: linear-gradient(90deg, rgba(140, 20, 20, 0.18) 0%, rgba(26, 24, 21, 0.92) 30%, rgba(16, 15, 14, 0.96) 100%) !important;
 }
 .session-group__header {
   background: rgb(17 16 15) !important;
@@ -72,9 +72,9 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   background: linear-gradient(90deg, rgba(40, 65, 60, 0.25) 0%, rgba(14, 16, 16, 0.6) 100%) !important;
 }
 
-/* 未分组平铺列表：铁板打底（默认边框/圆角结构不动） */
+/* 未分组平铺列表：同款浅血红浸润打底（默认边框/圆角结构不动） */
 .session-panel__flat-list {
-  background: rgb(15 14 13) !important;
+  background: linear-gradient(90deg, rgba(140, 20, 20, 0.18) 0%, rgb(15 14 13) 100%) !important;
 }
 
 /* 三态所在横栏：贴图打底（配色） */
