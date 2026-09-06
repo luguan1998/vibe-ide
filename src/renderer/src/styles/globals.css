@@ -895,6 +895,26 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   z-index: 35;
   cursor: default;
 }
+.desktop-pet__ai-reply--with-close { padding-right: 28px; }
+.desktop-pet__ai-reply-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(var(--ide-sidebar));
+  border: 1px solid rgb(var(--ide-border));
+  color: rgb(var(--ide-text-muted));
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.desktop-pet__ai-reply-close:hover {
+  color: rgb(var(--ide-text));
+}
 .desktop-pet__ai-reply--left { left: 8px; transform: none; }
 .desktop-pet__ai-reply--right { left: auto; right: 8px; transform: none; }
 .desktop-pet__ai-reply .md-preview { font-size: 14px; }

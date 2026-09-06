@@ -47,6 +47,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [listenDsh, setListenDsh] = useState(() => getPetListenDsh())
   const [aiBubbleOpen, setAiBubbleOpen] = useState(false)
   const [latestReply, setLatestReply] = useState<{ messageId: string; text: string } | null>(null)
+  const [replyBtw, setReplyBtw] = useState(false)
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const contextInputRef = useRef<HTMLTextAreaElement>(null)
@@ -138,6 +139,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       if (!r?.text || r.messageId === lastShownReplyIdRef.current) return
       lastShownReplyIdRef.current = r.messageId
       setLatestReply({ messageId: r.messageId, text: r.text })
+      setReplyBtw(false)
       setPopupOpen(false)
       setAiBubbleOpen(true)
     })
@@ -153,6 +155,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       if (cancelled || !r || r.messageId === lastShownReplyIdRef.current) return
       lastShownReplyIdRef.current = r.messageId
       setLatestReply(r)
+      setReplyBtw(false)
       setPopupOpen(false)
       setAiBubbleOpen(true)
     })()
@@ -234,7 +237,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       const pfx = loadBtwPrefix()
       return pfx && !pfx.endsWith(' ') ? pfx + ' ' : pfx
     })
-    setBtwMode(false)
     setContextOpen(true)
   }, [aiBubbleOpen, latestReply, contextOpen])
 
@@ -309,6 +311,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       } else {
         setLatestReply({ messageId: stamp, text: (d.text || '').trim() || '（无回答）' })
       }
+      setReplyBtw(true)
       setAiBubbleOpen(true)
     }
     window.addEventListener(BTW_REPLY_EVENT, handler)
@@ -325,6 +328,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       if (r) {
         lastShownReplyIdRef.current = r.messageId
         setLatestReply(r)
+        setReplyBtw(false)
         setAiBubbleOpen(true)
         return
       }
@@ -333,6 +337,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         if (cr?.text) {
           lastShownReplyIdRef.current = cr.messageId
           setLatestReply({ messageId: cr.messageId, text: cr.text })
+          setReplyBtw(false)
           setAiBubbleOpen(true)
         }
         if (!listenAi) window.api.ai.stopReplyCursor(activeSessionId)
@@ -357,6 +362,20 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     return () => cancelAnimationFrame(id)
   }, [contextOpen])
 
+  // 点面板外关闭 popup/context；旁路气泡只能叉号/ESC 关，其余来源气泡点外仍关
+  useEffect(() => {
+    if (!popupOpen && !contextOpen && !aiBubbleOpen) return
+    const onDown = (ev: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(ev.target as Node)) {
+        setPopupOpen(false)
+        if (!contextPinned) setContextOpen(false)
+        if (!replyBtw) setAiBubbleOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [popupOpen, contextOpen, aiBubbleOpen, contextPinned, replyBtw])
+
   useLayoutEffect(() => {
     if (!contextOpen && !configOpen && !aiBubbleOpen) return
     const handler = (e: KeyboardEvent) => {
@@ -364,7 +383,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       e.preventDefault()
       e.stopImmediatePropagation()
       if (configOpen) setConfigOpen(false)
-      else if (contextOpen) { setContextOpen(false); setContextPinned(false) }
+      else if (contextOpen) setContextOpen(false)
       else setAiBubbleOpen(false)
     }
     window.addEventListener('keydown', handler, true)
@@ -408,20 +427,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     el.style.height = Math.min(h, maxH) + 'px'
     el.style.overflowY = h > maxH ? '' : 'hidden'
   }, [draftCmd, contextOpen])
-
-  // 气泡面板打开时：点面板外关闭；context 面板点外只隐藏不清空内容
-  useEffect(() => {
-    if (!popupOpen && !contextOpen && !aiBubbleOpen) return
-    const onDown = (ev: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(ev.target as Node)) {
-        setPopupOpen(false)
-        if (!contextPinned) setContextOpen(false)
-        setAiBubbleOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [popupOpen, contextOpen, aiBubbleOpen, contextPinned])
 
   if (!manifest) return null
 
@@ -503,7 +508,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         </div>
       )}
       {visible && activeSessionId && aiBubbleOpen && latestReply && (
-        <AiReplyBubble text={latestReply.text} align={aiBubbleAlign} />
+        <AiReplyBubble text={latestReply.text} align={aiBubbleAlign} closable={replyBtw} onClose={() => setAiBubbleOpen(false)} />
       )}
       {contextOpen && (
         <div className={`desktop-pet__context desktop-pet__context--${contextDir}${contextAlign !== 'default' ? ` desktop-pet__context--align-${contextAlign}` : ''}`}>
