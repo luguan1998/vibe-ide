@@ -397,7 +397,7 @@ html, body, #root {
   animation: colorPulse 2s ease-in-out infinite;
 }
 
-/* 组内置顶反馈：emoji 一次性逐列扫描显像（同 z-session-loading-reveal.css 观感，播一次即停） */
+/* 会话 emoji 切换反馈：新 emoji 一次性逐列扫描显像（同 z-session-loading-reveal.css 观感，播一次即停） */
 @keyframes sessionReveal {
   0%   { clip-path: inset(0 100% 0 0); }
   100% { clip-path: inset(0 0 0 0); }

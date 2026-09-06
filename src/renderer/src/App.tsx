@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
 import { getDshApi } from './dsh/history'
-import { loadSessionWorkspace, saveSessionWorkspace, type Session, type SessionTab } from './sessionRestore'
+import { loadSessionWorkspace, saveSessionWorkspace, randomTermEmoji, type Session, type SessionTab } from './sessionRestore'
 const DshView = lazy(() => import('./components/DshView'))
 import type { DshViewHandle } from './components/DshView'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
@@ -803,7 +803,7 @@ export default function App() {
             autoUtf8,
             initCommand: readDefaultAgent(),
           })
-          const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true }
+          const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true, emoji: tab.emoji }
           if (cancelled) {
             await window.api.terminal.close(real.id)
             break
@@ -1938,13 +1938,17 @@ export default function App() {
   }
 
   const addSessionRecord = useCallback((session: SessionTab, parentId?: string | null, activate = true) => {
+    // term 会话默认随机 emoji（落到具体 emoji 而非类型 SVG），克隆时父 emoji 优先
+    const rec = session.kind === 'terminal' && session.emoji === undefined
+      ? { ...session, emoji: randomTermEmoji() }
+      : session
     setSessions(prev => {
-      if (prev.some(s => s.id === session.id)) return prev
-      if (parentId == null) return [...prev, session]
+      if (prev.some(s => s.id === rec.id)) return prev
+      if (parentId == null) return [...prev, rec]
       const parentIndex = prev.findIndex(s => s.id === parentId)
-      if (parentIndex === -1) return [...prev, session]
+      if (parentIndex === -1) return [...prev, rec]
       const next = [...prev]
-      next.splice(parentIndex + 1, 0, session)
+      next.splice(parentIndex + 1, 0, rec)
       return next
     })
     if (!activate) return
@@ -2186,7 +2190,7 @@ export default function App() {
             autoUtf8,
             initCommand: readDefaultAgent(),
           })
-          const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true }
+          const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true, emoji: session.emoji }
           setSessions(prev => {
             const idx = prev.findIndex(s => s.id === id)
             if (idx === -1) return prev
@@ -2254,7 +2258,8 @@ export default function App() {
   const handleCloneWithInit = useCallback(async (sessionId: string, cwd: string, shell: string | undefined, command: string) => {
     try {
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: command })
-      const tab: SessionTab = { ...session, kind: 'terminal', loaded: true }
+      const parentEmoji = sessionsRef.current.find(s => s.id === sessionId)?.emoji
+      const tab: SessionTab = { ...session, kind: 'terminal', loaded: true, emoji: parentEmoji ?? randomTermEmoji() }
       setSessions(prev => {
         const parentIndex = prev.findIndex(s => s.id === sessionId)
         if (parentIndex === -1) return [...prev, tab]

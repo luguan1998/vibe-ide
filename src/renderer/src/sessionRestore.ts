@@ -2,6 +2,13 @@ export type TabKind = 'terminal' | 'gui' | 'dsh'
 
 // 行首图标哨兵：空白图标（emoji === undefined 表示类型图标位）
 export const ICON_NONE = ''
+// 会话/目录默认 emoji 池（AppearancePanel 重置按钮共用；term 新建默认随机也取自 session 池）
+export const DEFAULT_CWD_EMOJIS = ['🧩', '📌', '📁', '🚀', '🏷️', '🎯', '🗺️', '🔗']
+export const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '👻', '🤣', '👾', '⚡', '🌟', '🐉', '🤗', '🙏', '🥷']
+
+export function randomTermEmoji(): string {
+  return DEFAULT_SESSION_EMOJIS[Math.floor(Math.random() * DEFAULT_SESSION_EMOJIS.length)]
+}
 
 export interface SessionTab {
   id: string
@@ -52,7 +59,7 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           kind: t.kind,
           name: t.name,
           cwd: t.cwd,
-          emoji: typeof t.emoji === 'string' ? t.emoji : undefined,
+          emoji: typeof t.emoji === 'string' ? t.emoji : (t.kind === 'terminal' ? randomTermEmoji() : undefined),
           active: true,
           createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
           shell: typeof t.shell === 'string' ? t.shell : undefined,
@@ -68,6 +75,7 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           kind: 'terminal',
           name: 'Terminal',
           cwd: s.cwd,
+          emoji: randomTermEmoji(),
           active: true,
           createdAt: Date.now(),
           loaded: false,

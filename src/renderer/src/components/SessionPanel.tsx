@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
-import { type SessionTab, ICON_NONE } from '../sessionRestore'
+import { type SessionTab, ICON_NONE, DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
 import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, HelpCircle } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
@@ -111,10 +111,6 @@ async function applyClaudeGroup(group: ClaudeConfigGroup): Promise<void> {
 }
 
 // CWD 图标：按目录分配（标题行）
-export const DEFAULT_CWD_EMOJIS = ['🧩', '📌', '📁', '🚀', '🏷️', '🎯', '🗺️', '🔗']
-// Session 图标：按会话分配（列表行）
-export const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '👻', '🤣', '👾', '⚡', '🌟', '🐉', '🤗', '🙏']
-
 function midTruncatePath(path: string, maxLen: number = 28): string {
   if (path.length <= maxLen) return path
   const sep = path.includes('\\') ? '\\' : '/'
@@ -591,10 +587,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const { t, lang, setLang } = useI18n()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [emojiMenu, setEmojiMenu] = useState<{ x: number; y: number } & ({ sessionId: string } | { cwd: string }) | null>(null)
-  // 组内置顶反馈：一次性扫描显像动画
-  const [pinnedFlashId, setPinnedFlashId] = useState<string | null>(null)
-  const pinFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const menuSession = contextMenu ? sessions.find(s => s.id === contextMenu.sessionId) : null
+  // 换 emoji 反馈：一次性扫描显像动画
+  const [revealSessionId, setRevealSessionId] = useState<string | null>(null)
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [newMode, setNewMode] = useState<'term' | 'gui' | 'dsh'>('term')
   // 勾选即记入内存，历史会话打开时按此默认
   const pickNewMode = (mode: 'term' | 'gui' | 'dsh') => {
@@ -1098,13 +1094,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     return { running, idle, warn }
   }, [sessions, agentStatus])
 
-  // 触发一次置顶扫描显像动画
-  const flashPinned = (id: string) => {
-    setPinnedFlashId(id)
-    if (pinFlashTimerRef.current) clearTimeout(pinFlashTimerRef.current)
-    pinFlashTimerRef.current = setTimeout(() => setPinnedFlashId(null), 950)
+  // 触发一次换 emoji 显像动画
+  const flashEmoji = (id: string) => {
+    setRevealSessionId(id)
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current)
+    revealTimerRef.current = setTimeout(() => setRevealSessionId(null), 1400)
   }
-  useEffect(() => () => { if (pinFlashTimerRef.current) clearTimeout(pinFlashTimerRef.current) }, [])
+  useEffect(() => () => { if (revealTimerRef.current) clearTimeout(revealTimerRef.current) }, [])
 
   const clearDragState = () => {
     setDragIndex(null)
@@ -1260,20 +1256,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 session={session}
                 status={agentStatus[session.id]}
                 worktreeNav={sessionWorktreeNav[session.id] ?? null}
-                pinHint={groupSessionsByCwd && !!onReorderSessions}
-                pinned={pinnedFlashId === session.id}
+                reveal={revealSessionId === session.id}
                 onClick={(info) => {
                   if (info.state === 'scheduled') { openSchedModal(session.id); return }
-                  if (groupSessionsByCwd && onReorderSessionInGroup) {
-                    const firstOther = sessions.find(s => s.id !== session.id && normCwdKey(s.cwd) === normCwdKey(session.cwd))
-                    if (firstOther) onReorderSessionInGroup(session.id, firstOther.id, true)
-                    flashPinned(session.id)
-                  }
                   if (sessionEmojis.length === 0) return
                   const candidates = info.curEmoji ? sessionEmojis.filter(em => em !== info.curEmoji) : sessionEmojis
                   if (candidates.length === 0) return
                   const next = candidates[Math.floor(Math.random() * candidates.length)]
                   onSetSessionEmoji?.(session.id, next)
+                  flashEmoji(session.id)
                 }}
                 onContextMenu={(e) => {
                   setContextMenu(null)
