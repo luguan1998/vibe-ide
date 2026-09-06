@@ -766,6 +766,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [dragSessionId, setDragSessionId] = useState<string | null>(null)
   const [dropSessionId, setDropSessionId] = useState<string | null>(null)
   const [dropBefore, setDropBefore] = useState(false)
+  // 整组拖动插入标记 top：absolute overlay 定位，clamp 到列表容器内侧防顶部被裁
+  const [groupMarkerTop, setGroupMarkerTop] = useState<number | null>(null)
 
   useImperativeHandle(ref, () => ({
     toggleConfig: (rect: DOMRect) => {
@@ -1112,6 +1114,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setDragSessionId(null)
     setDropSessionId(null)
     setDropBefore(false)
+    setGroupMarkerTop(null)
   }
 
   const renderSessionItem = (
@@ -1140,11 +1143,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             : agentStatus[session.id] === 'warn'
               ? 'text-ide-warning hover:bg-ide-hover border-l-[3px] border-ide-warning/60'
               : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-      } ${dragIndex === dragIdx ? 'opacity-40' : ''} ${dropIndex === dragIdx && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}${
+      } ${dragIndex === dragIdx ? 'opacity-40' : ''} ${
+        dropIndex === dragIdx && dropIndex !== dragIndex ? ' session-item__drop-marker session-item__drop-marker--before' : ''
+      }${
         dragSessionId === session.id ? ' opacity-40' : ''
       }${
         dropSessionId === session.id
-          ? dropBefore ? ' border-t-2 border-ide-accent' : ' border-b-2 border-ide-accent'
+          ? dropBefore
+            ? ' session-item__drop-marker session-item__drop-marker--before'
+            : ' session-item__drop-marker session-item__drop-marker--after'
           : ''
       }`}
       onClick={() => onSwitchSession(session.id)}
@@ -1572,12 +1579,22 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
       {/* Session List */}
       <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 overflow-hidden flex flex-col rounded-lg session-panel__list-wrapper">
-        <div className="flex-1 min-h-0 overflow-y-auto pb-2 session-panel__list"
+        <div className="flex-1 min-h-0 overflow-y-auto pb-2 relative session-panel__list"
           onDragOver={(e) => {
             if (dragGroupIndex !== null && sessionGroups.length > 0) {
               e.preventDefault()
               e.stopPropagation()
-              setDropGroupIndex(computeGroupDropIndex(e.clientY))
+              const idx = computeGroupDropIndex(e.clientY)
+              setDropGroupIndex(idx)
+              if (idx < sessionGroups.length) {
+                const el = groupRefs.current[idx]
+                if (el) {
+                  const listRect = e.currentTarget.getBoundingClientRect()
+                  setGroupMarkerTop(Math.max(2, el.getBoundingClientRect().top - listRect.top - 7))
+                }
+              } else {
+                setGroupMarkerTop(null)
+              }
             } else if (dragIndex !== null && sessions.length > 0) {
               setDropIndex(sessions.length)
             }
@@ -1608,7 +1625,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 key={group.cwd}
                 ref={el => { groupRefs.current[gi] = el }}
                 className={`bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-group ${gi > 0 ? 'mt-3' : ''}`}
-                style={dropGroupIndex === gi && dropGroupIndex !== dragGroupIndex ? { borderTop: '2px solid rgb(var(--ide-accent))' } : undefined}
                 onDragOver={(e) => {
                   if (dragGroupIndex !== null || dragSessionId === null || group.sessions.length === 0) return
                   const dragged = sessions.find(s => s.id === dragSessionId)
@@ -1764,10 +1780,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           </div>
         )}
         {dropGroupIndex !== null && dropGroupIndex === sessionGroups.length && dropGroupIndex !== dragGroupIndex && (
-          <div className="mx-1 border-t-2 border-ide-accent mt-1" />
+          <div className="session-drop-tail mt-1" />
+        )}
+        {dropGroupIndex !== null && dropGroupIndex < sessionGroups.length && dropGroupIndex !== dragGroupIndex && groupMarkerTop !== null && (
+          <div className="group-drop-overlay" style={{ top: groupMarkerTop }} />
         )}
         {dropIndex === sessions.length && dropIndex !== dragIndex && dragIndex !== sessions.length - 1 && (
-          <div className="mx-1 border-t-2 border-ide-accent" />
+          <div className="session-drop-tail" />
         )}
         {sessions.length === 1 && (
           <div className="text-center text-[11px] text-ide-text-muted/50 py-3 select-none">

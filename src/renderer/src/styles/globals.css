@@ -1231,6 +1231,91 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
   padding-right: 32px;
 }
 
+/* 拖拽插入标记：树杈式 >— 折线（仿 dsh workspace rows 的 drop marker），
+   absolute 定位不改变布局也不像行边框；session-item 用于组内/扁平行拖动 */
+.session-item__drop-marker {
+  position: relative;
+}
+.session-item__drop-marker--before::before,
+.session-item__drop-marker--after::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 4px;
+  height: 12px;
+  background:
+    linear-gradient(
+      55deg,
+      transparent calc(50% - 1px),
+      rgb(var(--ide-accent)) calc(50% - 1px) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ) 0 0 / 5px 7px no-repeat,
+    linear-gradient(
+      125deg,
+      transparent calc(50% - 1px),
+      rgb(var(--ide-accent)) calc(50% - 1px) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ) 0 5px / 5px 7px no-repeat,
+    linear-gradient(
+      rgb(var(--ide-accent)) 0 0
+    ) 4px 5px / calc(100% - 4px) 2px no-repeat;
+  pointer-events: none;
+}
+.session-item__drop-marker--before::before {
+  top: -7px;
+}
+.session-item__drop-marker--after::after {
+  bottom: -7px;
+}
+/* 整组拖动插入标记：absolute overlay（定位祖先为列表容器），top 由 JS clamp，
+   顶部时贴容器内侧显示，不被滚动容器裁掉 */
+.group-drop-overlay {
+  position: absolute;
+  left: 0;
+  right: 4px;
+  height: 12px;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      55deg,
+      transparent calc(50% - 1px),
+      rgb(var(--ide-accent)) calc(50% - 1px) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ) 0 0 / 5px 7px no-repeat,
+    linear-gradient(
+      125deg,
+      transparent calc(50% - 1px),
+      rgb(var(--ide-accent)) calc(50% - 1px) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ) 0 5px / 5px 7px no-repeat,
+    linear-gradient(
+      rgb(var(--ide-accent)) 0 0
+    ) 4px 5px / calc(100% - 4px) 2px no-repeat;
+}
+/* 扁平列表拖到列表尾的插入线（flow 元素，占 12px 高） */
+.session-drop-tail {
+  height: 12px;
+  margin: 0 4px;
+  background:
+    linear-gradient(
+      55deg,
+      transparent calc(50% - 1px),
+      rgb(var(--ide-accent)) calc(50% - 1px) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ) 0 0 / 5px 7px no-repeat,
+    linear-gradient(
+      125deg,
+      transparent calc(50% - 1px),
+      rgb(var(--ide-accent)) calc(50% - 1px) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ) 0 5px / 5px 7px no-repeat,
+    linear-gradient(
+      rgb(var(--ide-accent)) 0 0
+    ) 4px 5px / calc(100% - 4px) 2px no-repeat;
+}
+
 /* 流式渲染打字光标：只贴「最后一行可见文本」末尾，不落在块级容器后。
    ul/ol/table 容器的 ::after 会成新行，故精确到 li/p/标题/code 等文本流元素 */
 .ai-tab__markdown--streaming > pre:last-child::after,
