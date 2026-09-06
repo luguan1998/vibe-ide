@@ -52,7 +52,8 @@ function noBrowser(): BrowserToolResult {
 }
 
 function okRef(ref: unknown): string | null {
-  return typeof ref === 'string' && /^e\d+$/.test(ref) ? ref : null
+  // f 前缀 = browser_find 全文兜底注入的 ref（针对无语义 div 按钮），与 snapshot 的 e 前缀并存
+  return typeof ref === 'string' && /^[ef]\d+$/.test(ref) ? ref : null
 }
 
 function lostResult(ref: string): BrowserToolResult {
@@ -483,6 +484,9 @@ function walk(node, inside) {
     if (!isWidget && !isStrong && !inside && tag !== 'LABEL' && !STRUC[tag]) {
       try { if (getComputedStyle(el).cursor === 'pointer') clickable = 1; } catch(e){}
       if (!clickable) { for (var a = 0; a < el.attributes.length; a++) { var an = el.attributes[a].name; if (an.length > 2 && an.slice(0,2) === 'on') { clickable = 1; break; } } }
+      if (!clickable) { var ti = attr(el,'tabindex'); if (ti && ti !== '-1') clickable = 1; }
+      if (!clickable) { if (attr(el,'aria-expanded') || attr(el,'aria-haspopup')) clickable = 1; }
+      if (!clickable) { try { if (el.onclick) clickable = 1; } catch(e){} }
     }
     var rec = (isWidget || isStrong || clickable) && (isNative || !inside);
     if (rec && vis(el)) {
@@ -595,7 +599,7 @@ const EXTRACT_FN = String.raw`(function (q, cap) {
 function T(s){ return (s||'').replace(/\s+/g,' ').trim(); }
 var el;
 if (q) {
-  if (/^#e\d+$/.test(q)) el = document.querySelector('[data-vibe-ref="' + q.slice(1) + '"]');
+  if (/^#(e|f)\d+$/.test(q)) el = document.querySelector('[data-vibe-ref="' + q.slice(1) + '"]');
   else { try { el = document.querySelector(q); } catch(e) { return { err: 'invalid selector: ' + q }; } }
   if (!el) return { err: 'not found: ' + q };
 } else { el = document.body; }
@@ -603,8 +607,25 @@ var t = T(el ? (el.innerText || el.textContent || '') : '');
 return { v: t.slice(0, cap), more: Math.max(0, t.length - cap) };
 })`
 
-const FIND_FN = String.raw`(function (needle) {
+// 两段：ref 段命中直接返回；无命中才全文兜底（TreeWalker 扫文本→上溯可点击候选→注入 f 前缀 ref）。
+// 覆盖无任何语义信号的 div 风格按钮（.enter 类）：主进程在 select/press/click 后须按 ref 正常使用，
+// 注意注入的 ref 在页面 rerender 后会失效（有 lost 兜底）。
+const FIND_FN = String.raw`(function (needle, refBase) {
 function T(s){ return (s||'').replace(/\s+/g,' ').trim(); }
+function clicky(el){
+  try { var tag = el.tagName; if (tag === 'A' || tag === 'BUTTON' || tag === 'SUMMARY' || tag === 'INPUT' || tag === 'TEXTAREA') return 1; } catch(e){}
+  var role = ''; try { role = el.getAttribute('role') || ''; } catch(e){}
+  if (role === 'button' || role === 'link' || role === 'tab' || role === 'menuitem') return 1;
+  try { if (getComputedStyle(el).cursor === 'pointer') return 1; } catch(e){}
+  try { var ti = el.getAttribute('tabindex'); if (ti && ti !== '-1') return 1; } catch(e){}
+  try { if (el.onclick) return 1; } catch(e){}
+  var r = el.getBoundingClientRect();
+  var txt = ''; try { txt = T(el.innerText || ''); } catch(e){}
+  // 弱信号按真实字号校准：chatglm 20px 字号下 5 个汉字即 117px 宽，原 97px 上限捕不到真实按钮
+  //（回归实测）——主判据为高度 12~70 + 文本 1~20 字，宽度放宽到 281 仅防超宽横幅
+  if (r.width > 11 && r.width < 281 && r.height > 11 && r.height < 71 && txt.length > 0 && txt.length <= 20) return 2;
+  return 0;
+}
 var out = [];
 var els = document.querySelectorAll('[data-vibe-ref]');
 for (var i = 0; i < els.length; i++) {
@@ -618,7 +639,42 @@ for (var i = 0; i < els.length; i++) {
   if (blob.toLowerCase().indexOf(needle) >= 0) out.push(el.getAttribute('data-vibe-ref') + ' | ' + blob.slice(0, 100));
   if (out.length >= 25) break;
 }
-return out;
+if (out.length) return { hits: out, full: [], maxId: refBase };
+var full = []; var maxId = Number(refBase) || 0;
+try {
+  if (!document.body || document.body.innerText.toLowerCase().indexOf(needle) < 0) return { hits: [], full: [], maxId: maxId };
+} catch(e){ return { hits: [], full: [], maxId: maxId }; }
+var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+var seen = []; var count = 0; var n;
+while ((n = walker.nextNode()) && count < 120000) {
+  count++;
+  var txt = n.nodeValue || '';
+  if (txt.toLowerCase().indexOf(needle) < 0) continue;
+  var el2 = n.parentElement;
+  if (!el2 || seen.indexOf(el2) >= 0) continue;
+  var cand = el2; var sig = 0;
+  for (var h = 0; h < 8 && cand; h++) {
+    sig = clicky(cand);
+    if (sig) break;
+    cand = cand.parentElement;
+  }
+  if (!cand || !sig) continue;
+  if (!cand.getAttribute('data-vibe-ref')) {
+    maxId++;
+    try { cand.setAttribute('data-vibe-ref', 'f' + maxId); } catch(e){ continue; }
+  }
+  var cr = cand.getBoundingClientRect();
+  if (!cr.width && !cr.height) continue;
+  try { var ccs = getComputedStyle(cand); if (ccs.display === 'none' || ccs.visibility === 'hidden') continue; } catch(e){}
+  var ref = cand.getAttribute('data-vibe-ref');
+  if (seen.indexOf(ref) >= 0) continue;
+  seen.push(ref);
+  var ttt = T(cand.innerText || cand.textContent || '').slice(0, 40);
+  var ccls = cand.getAttribute('class') || '';
+  full.push(ref + ' <' + cand.tagName.toLowerCase() + (ccls ? '.' + ccls.split(/\s+/).slice(0,2).join('.') : '') + '> ' + Math.round(cr.width) + 'x' + Math.round(cr.height) + ' @' + Math.round(cr.left) + ',' + Math.round(cr.top) + (ttt ? ' "' + ttt + '"' : '') + (sig === 2 ? ' [possibly clickable]' : ''));
+  if (full.length >= 8) break;
+}
+return { hits: out, full: full, maxId: maxId };
 })`
 
 const HAS_TEXT_FN = String.raw`(function (n) {
@@ -783,7 +839,7 @@ async function doSnapshot(c: WebContents, boxes: boolean, max: number): Promise<
   if (mainFailed && !lines.length) return textResult('snapshot failed: page did not respond (still loading or crashed?)', true)
   const body = lines.length
     ? lines.join('\n')
-    : '(no interactive elements found — canvas/image UI or page still loading; try browser_screenshot / browser_extract, or browser_click_xy for canvas content)'
+    : '(no interactive elements found — canvas/image UI or div-only UI; try browser_screenshot / browser_extract for content, browser_find "页面上的可见文本" if this is a div-style page (find 会全文扫文本并注入可点击 ref), or browser_click_xy + browser_eval for canvas)'
   const tail = truncated ? `\n...truncated at ${max} elements — use browser_find "text" to locate a specific control` : ''
   const skipNote = skipped ? `\n(${skipped} frame(s) skipped: detached, not responding, or over the element cap)` : ''
   return textResult((head || `URL: ${c.getURL()}\nTITLE: (main frame not responding)\n`) + body + tail + skipNote)
@@ -862,17 +918,20 @@ export async function handleCall(name: string, args: any): Promise<BrowserToolRe
         const mainHits: string[] = []
         const subSections: string[] = []
         let got = false
+        let refBase = 0
         for (const f of frames) {
-          const out = await safeExec<string[]>(f, `(${FIND_FN})(${JSON.stringify(q)})`)
-          if (!Array.isArray(out.v)) continue
+          const res = await safeExec<any>(f, `(${FIND_FN})(${JSON.stringify(q)},${refBase})`)
+          if (!res.v || !Array.isArray(res.v.hits)) continue
           got = true
-          if (!out.v.length) continue
-          for (const line of out.v) {
-            const m = String(line).match(/^(e\d+)/)
+          refBase = Math.max(refBase, Number(res.v.maxId) || refBase)
+          const both = [...res.v.hits, ...res.v.full]
+          if (!both.length) continue
+          for (const line of both) {
+            const m = String(line).match(/^([ef]\d+)/)
             if (m) refFrames.set(m[1], f)
           }
-          if (sameFrame(f, frames[0])) mainHits.push(...out.v)
-          else subSections.push(`--- frame ${frameUrl(f) || '(blank)'} ---`, ...out.v)
+          if (sameFrame(f, frames[0])) mainHits.push(...both)
+          else subSections.push(`--- frame ${frameUrl(f) || '(blank)'} ---`, ...both)
         }
         if (!got) return textResult('find failed: page did not respond', true)
         const all = [...mainHits, ...subSections]
@@ -1071,7 +1130,7 @@ return { ok: 1 };
         const cap = Math.min(Math.max(Number(args.max_chars) || 8000, 100), 50000)
         const sel = String(args.selector ?? '').trim()
         let r: any
-        if (/^#e\d+$/.test(sel)) {
+        if (/^#(e|f)\d+$/.test(sel)) {
           r = await execOnRef(c, sel.slice(1), `(${EXTRACT_FN})(${JSON.stringify(sel)},${cap})`)
           if (r?.lost) return lostResult(sel.slice(1))
         } else {
