@@ -3,12 +3,12 @@ import { useI18n } from '../i18n'
 import Game2048 from './Game2048'
 import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
-import GameFruitNinja from './GameFruitNinja'
 import GameVampire from './GameVampire'
+import GameBeads from './GameBeads'
 import HistoryView from './HistoryView'
 import SkillView from './SkillView'
 
-type GameId = 'menu' | 'history' | 'skills' | 'browser' | '2048' | 'sandspiel' | 'balatro' | 'fruitninja' | 'vampire'
+type GameId = 'menu' | 'history' | 'skills' | 'browser' | '2048' | 'sandspiel' | 'balatro' | 'vampire' | 'beads'
 
 interface GameLauncherProps {
   workspacePath: string | null
@@ -32,10 +32,10 @@ const GAMES: GameCard[] = [
   { id: 'history', icon: <span className="text-2xl leading-none">📜</span>, name: 'Session History', desc: 'Browse & search Claude history' },
   { id: 'skills', icon: <span className="text-2xl leading-none">✨</span>, name: 'Skills', desc: 'Manage Claude & dsh skills' },
   { id: 'browser', icon: <span className="text-2xl leading-none">🌐</span>, name: 'Web Debug', desc: 'Built-in browser — docked right, panel widened' },
+  { id: 'beads', icon: <span className="text-2xl leading-none">📿</span>, name: 'Beads', desc: 'Turn any photo into perler bead pixel art' },
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
-  { id: 'fruitninja', icon: <span className="text-2xl leading-none">🍉</span>, name: 'Fruit Ninja', desc: 'Slice fruits with your swipe — dodge the bombs' },
   { id: 'vampire', icon: <span className="text-2xl leading-none">🧛</span>, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
@@ -62,15 +62,15 @@ export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onR
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />
       case '2048': return <Game2048 onBack={back} />
-      case 'fruitninja': return <GameFruitNinja onBack={back} />
       case 'vampire': return <GameVampire onBack={back} />
+      case 'beads': return <GameBeads onBack={back} />
     }
   }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none">
       <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean">
-        <span className="text-sm text-ide-text font-medium truncate">NGA</span>
+        <span className="text-sm text-ide-text font-medium truncate">{t('NGA')}</span>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {GAMES.map(game => (

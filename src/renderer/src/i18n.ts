@@ -494,6 +494,18 @@ const ZH_MAP: Record<string, string> = {
   'Diagnose Bug': '定位bug',
   'Grill My Requirements': '拷问我需求',
   'Refactor': '重构',
+  'NGA': 'NGA',
+  // Beads game
+  'Beads': '像素图',
+  'Turn any photo into perler bead pixel art': '把任意照片转成像素艺术',
+  'Copy ANSI': '复制 ANSI',
+  '✓ Copied': '✓ 已复制',
+  'Export PNG': '导出 PNG',
+  'How to print in terminal': '如何在终端打印',
+  'Print pixel art in terminal': '终端里打印像素图',
+  'PowerShell': 'PowerShell',
+  'Copy ANSI first, then run the command in the terminal': '先点「复制 ANSI」，再到终端执行上面命令',
+  'Pixel aspect follows the terminal font. Recommended: Cascadia Mono (8×16, 2:1 cells). Other fonts may look slightly narrow.': '像素比例取决于终端字体。推荐 Cascadia Mono（8×16，2:1 单元格）；其他字体会略显窄长。',
   // AI Permission Modes
   'Session History': '历史会话',
   'Task Board': '任务看板',
