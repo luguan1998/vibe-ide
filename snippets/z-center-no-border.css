@@ -1,0 +1,15 @@
+/*
+  中间栏卡片去掉最外边框 — center-card 覆盖 terminal/AiTab/dsh/browser/diff/board，center-overlay 覆盖 markdown/image
+*/
+
+.center-card,
+.center-overlay {
+  border: none !important;
+}
+
+/* AiTab 标题栏：去掉毛玻璃背景，保留底部横杠与标题/图标按钮 */
+.ai-tab__header {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
