@@ -249,18 +249,27 @@
   text-shadow: 0 0 8px rgba(242,140,245,0.3) !important;
 }
 
-/* 非活跃运行中 session — 右侧 Nyan Cat */
-.session-item:not(.session-item--active).border-ide-accent\/60 {
-  background: rgb(22 36 62) url('assets/nyan.gif') right 6px center / auto 24px no-repeat !important;
+/* 覆盖其它主题 ::after 金币副作用 */
+.session-item--pipe-running::after,
+.session-item.border-ide-accent\/60::after,
+.session-item:has(.animate-text-wave)::after {
+  content: none !important;
 }
 
-.session-item:not(.session-item--active).border-ide-accent\/60:hover {
-  background: rgb(32 46 78) url('assets/nyan.gif') right 6px center / auto 24px no-repeat !important;
+/* 非活跃运行中 session — 背景 GIF 在右侧（长写法保留背景色，hover 简写不丢图） */
+.session-item:not(.session-item--active).border-ide-accent\/60 {
+  background-image: url('assets/nyan.gif') !important;
+  background-repeat: no-repeat !important;
+  background-position: right 6px center !important;
+  background-size: auto 24px !important;
 }
 
 /* ════════════════════════════════════
    Nyan Cat — 活跃+运行中 session 右侧
    ════════════════════════════════════ */
+.session-item--active:has(.animate-text-wave) {
+  position: relative !important;
+}
 .session-item--active:has(.animate-text-wave)::before {
   content: '' !important;
   position: absolute !important;
@@ -277,12 +286,16 @@
   background-position: right center !important;
 }
 
-/* 彩虹猫在文字之下：文字与操作按钮提升层级，避免遮挡 */
+/* 彩虹猫在文字之下：名称/操作按钮/cwd 提升层级，避免遮挡文字 */
 .session-item--active:has(.animate-text-wave) .session-item__name {
   position: relative !important;
   z-index: 1 !important;
 }
 .session-item--active:has(.animate-text-wave) .session-item__actions {
+  z-index: 1 !important;
+}
+.session-item--active:has(.animate-text-wave) .session-item__cwd {
+  position: relative !important;
   z-index: 1 !important;
 }
 

@@ -1494,6 +1494,24 @@ export default function App() {
     })
   }, [])
 
+  // md 预览 → 编辑模式（diff/edit 视图）：与 Ctrl+L togglePreview 的 markdown 分支共用
+  const openMarkdownInEditor = useCallback((fullPath: string) => {
+    let filePath = fullPath
+    const cwd = sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd ?? null
+    if (cwd && fullPath.startsWith(cwd)) {
+      filePath = fullPath.slice(cwd.length).replace(/^[\\\/]+/, '')
+    }
+    setDiffFile({
+      filePath,
+      fullPath,
+      isStaged: false,
+      defaultEdit: true,
+      revision: ++diffRevisionRef.current
+    })
+    setCenterView('diff')
+    setMarkdownFile(null)
+  }, [])
+
   // OSC 标题变更回调：仅当用户未手动改过名时自动替换
   const handleOscTitleChange = useCallback(async (sessionId: string, title: string) => {
     if (manuallyRenamedRef.current.has(sessionId)) return
@@ -1764,20 +1782,7 @@ export default function App() {
         if (centerView === 'markdown' && markdownFile) {
           e.preventDefault()
           e.stopImmediatePropagation()
-          const fp = markdownFile.fullPath
-          let filePath = fp
-          if (activeSessionCwd && fp.startsWith(activeSessionCwd)) {
-            filePath = fp.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
-          }
-          setDiffFile({
-            filePath,
-            fullPath: fp,
-            isStaged: false,
-            defaultEdit: true,
-            revision: ++diffRevisionRef.current
-          })
-          setCenterView('diff')
-          setMarkdownFile(null)
+          openMarkdownInEditor(markdownFile.fullPath)
           return
         } else if (centerView === 'diff' && diffFile) {
           if (isMarkdownFile(diffFile.fullPath)) {
@@ -3098,6 +3103,7 @@ export default function App() {
       fullPath={markdownFile.fullPath}
       fileName={markdownFile.fileName}
       onBack={handleBackFromMarkdown}
+      onToggleEdit={() => openMarkdownInEditor(markdownFile.fullPath)}
       scrollToHeading={mdScrollHeading}
       brushActive={brushActive}
       outlineEnabled={outlineOverlayEnabled}
