@@ -2552,6 +2552,31 @@ export default function App() {
     })
   }, [])
 
+  // 分组模式组内拖动：按 id 定位，组序沿用当前稳定组序（与面板视觉一致），新组追加尾部；
+  // 避免全局 splice 使组序被首现序推导而跳变
+  const handleReorderSessionInGroup = useCallback((sessionId: string, targetSessionId: string, before: boolean) => {
+    setSessions(prev => {
+      const moved = prev.find(s => s.id === sessionId)
+      const target = prev.find(s => s.id === targetSessionId)
+      if (!moved || !target || normCwdKey(moved.cwd) !== normCwdKey(target.cwd)) return prev
+      const gKey = normCwdKey(moved.cwd)
+      const map = new Map<string, SessionTab[]>()
+      const order: string[] = []
+      for (const s of prev) {
+        const key = normCwdKey(s.cwd)
+        if (!map.has(key)) { map.set(key, []); order.push(key) }
+        map.get(key)!.push(s)
+      }
+      const rest = map.get(gKey)!.filter(s => s.id !== sessionId)
+      const ti = rest.findIndex(s => s.id === targetSessionId)
+      if (ti < 0) return prev
+      rest.splice(before ? ti : ti + 1, 0, moved)
+      map.set(gKey, rest)
+      const groupOrder = stableGroupOrder.filter(k => map.has(k)).concat(order.filter(k => !stableGroupOrder.includes(k)))
+      return groupOrder.flatMap(k => map.get(k)!)
+    })
+  }, [stableGroupOrder])
+
   // Set session row-icon emoji (undefined = type icon), stored on SessionTab
   const handleSetSessionEmoji = useCallback((id: string, emoji?: string) => {
     setSessions(prev => prev.some(s => s.id === id) ? prev.map(s => s.id === id ? { ...s, emoji: emoji || undefined } : s) : prev)
@@ -3210,6 +3235,7 @@ export default function App() {
             onSetSessionEmoji={handleSetSessionEmoji}
             onReorderSessions={handleReorderSessions}
             onReorderGroup={handleReorderGroup}
+            onReorderSessionInGroup={handleReorderSessionInGroup}
             commandHistory={commandHistory}
             agentStatus={agentStatus}
             sessionWorktreeNav={sessionWorktreeNav}

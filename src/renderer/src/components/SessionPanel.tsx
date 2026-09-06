@@ -134,6 +134,11 @@ function dirNameOf(path: string): string {
   return parts[parts.length - 1] ?? path
 }
 
+// cwd 归一化 key（组判定共用）：Windows 反斜杠 → 正斜杠、去尾部斜杠
+function normCwdKey(p: string): string {
+  return p.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
 // 旧版「一个合并数组按 1/3 split」迁移到两个独立池
 function migrateLegacyEmojis(): void {
   try {
@@ -221,6 +226,7 @@ interface SessionPanelProps {
   onSetSessionEmoji?: (id: string, emoji?: string) => void
   onReorderSessions?: (fromIndex: number, toIndex: number) => void
   onReorderGroup?: (fromGroupIndex: number, toGroupIndex: number) => void
+  onReorderSessionInGroup?: (sessionId: string, targetSessionId: string, before: boolean) => void
   commandHistory?: Record<string, string[]>
   agentStatus?: Record<string, 'running' | 'idle' | 'warn'>
   sessionWorktreeNav?: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
@@ -436,6 +442,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onSetSessionEmoji,
   onReorderSessions,
   onReorderGroup,
+  onReorderSessionInGroup,
   commandHistory = {},
   agentStatus = {},
   sessionWorktreeNav = {},
@@ -755,6 +762,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [dragGroupIndex, setDragGroupIndex] = useState<number | null>(null)
   const [dropGroupIndex, setDropGroupIndex] = useState<number | null>(null)
+  // 分组模式 session 拖动：按 session id 定位拖投目标（组内拖动不跨组）
+  const [dragSessionId, setDragSessionId] = useState<string | null>(null)
+  const [dropSessionId, setDropSessionId] = useState<string | null>(null)
+  const [dropBefore, setDropBefore] = useState(false)
 
   useImperativeHandle(ref, () => ({
     toggleConfig: (rect: DOMRect) => {
@@ -815,7 +826,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     const map = new Map<string, SessionTab[]>()
     const order: string[] = []
     for (const s of sessions) {
-      const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
+      const key = normCwdKey(s.cwd)
       if (!map.has(key)) {
         map.set(key, [])
         order.push(key)
@@ -1093,6 +1104,16 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }
   useEffect(() => () => { if (pinFlashTimerRef.current) clearTimeout(pinFlashTimerRef.current) }, [])
 
+  const clearDragState = () => {
+    setDragIndex(null)
+    setDropIndex(null)
+    setDragGroupIndex(null)
+    setDropGroupIndex(null)
+    setDragSessionId(null)
+    setDropSessionId(null)
+    setDropBefore(false)
+  }
+
   const renderSessionItem = (
     session: SessionTab,
     dragIdx: number,
@@ -1100,7 +1121,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   ) => (
     <div
       key={session.id}
-      draggable={!!onReorderSessions && !groupSessionsByCwd}
+      draggable={groupSessionsByCwd ? !!onReorderSessionInGroup : !!onReorderSessions}
       className={`group ${opts.outerClass} session-item${
         session.id === activeSessionId ? ' session-item--active' : ''
       }${pipeRunning?.[session.id] ? ' session-item--pipe-running' : ''}${
@@ -1119,7 +1140,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             : agentStatus[session.id] === 'warn'
               ? 'text-ide-warning hover:bg-ide-hover border-l-[3px] border-ide-warning/60'
               : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-      } ${dragIndex === dragIdx ? 'opacity-40' : ''} ${dropIndex === dragIdx && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}`}
+      } ${dragIndex === dragIdx ? 'opacity-40' : ''} ${dropIndex === dragIdx && dropIndex !== dragIndex ? 'border-t-2 border-ide-accent' : ''}${
+        dragSessionId === session.id ? ' opacity-40' : ''
+      }${
+        dropSessionId === session.id
+          ? dropBefore ? ' border-t-2 border-ide-accent' : ' border-b-2 border-ide-accent'
+          : ''
+      }`}
       onClick={() => onSwitchSession(session.id)}
       onContextMenu={(e) => handleContextMenu(e, session.id)}
       // mouseEnter 驱动 + 真实移动校验：display:none→visible 或 item 插入鼠标下会派发幽灵 mouseover（无 mousemove 伴随），
@@ -1143,9 +1170,38 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         clearTimer(hoverTimerRef)
         hoverTimerRef.current = setTimeout(() => setHoverPreview(null), 200)
       }}
-      onDragStart={() => { setDragIndex(dragIdx); setDragGroupIndex(null); setDropGroupIndex(null) }}
+      onDragStart={() => {
+        if (groupSessionsByCwd) {
+          setDragSessionId(session.id)
+          setDropSessionId(null)
+          setDropBefore(false)
+          setDragIndex(null)
+          setDropIndex(null)
+          setDragGroupIndex(null)
+          setDropGroupIndex(null)
+        } else {
+          setDragIndex(dragIdx)
+          setDragGroupIndex(null)
+          setDropGroupIndex(null)
+        }
+      }}
       onDragOver={(e) => {
         if (dragGroupIndex !== null) return
+        if (groupSessionsByCwd) {
+          if (dragSessionId === null) return
+          const dragged = sessions.find(s => s.id === dragSessionId)
+          if (!dragged || dragSessionId === session.id || normCwdKey(dragged.cwd) !== normCwdKey(session.cwd)) {
+            setDropSessionId(null)
+            return
+          }
+          e.preventDefault()
+          e.stopPropagation()
+          const rect = e.currentTarget.getBoundingClientRect()
+          const midY = rect.top + rect.height / 2
+          setDropSessionId(session.id)
+          setDropBefore(e.clientY < midY)
+          return
+        }
         e.preventDefault()
         e.stopPropagation()
         if (dragIndex === null || dragIndex === dragIdx) {
@@ -1160,21 +1216,17 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         if (dragGroupIndex !== null) return
         e.preventDefault()
         e.stopPropagation()
-        if (dragIndex !== null && dragIndex !== dragIdx) {
+        if (groupSessionsByCwd) {
+          if (dragSessionId !== null && dropSessionId !== null && dragSessionId !== dropSessionId && dropSessionId === session.id) {
+            onReorderSessionInGroup?.(dragSessionId, dropSessionId, dropBefore)
+          }
+        } else if (dragIndex !== null && dragIndex !== dragIdx) {
           const toIndex = dropIndex !== null && dropIndex > dragIndex ? dropIndex - 1 : dropIndex ?? dragIdx
           onReorderSessions?.(dragIndex, toIndex)
         }
-        setDragIndex(null)
-        setDropIndex(null)
-        setDragGroupIndex(null)
-        setDropGroupIndex(null)
+        clearDragState()
       }}
-      onDragEnd={() => {
-        setDragIndex(null)
-        setDropIndex(null)
-        setDragGroupIndex(null)
-        setDropGroupIndex(null)
-      }}
+      onDragEnd={() => { clearDragState() }}
     >
       <div className={`flex items-center justify-between ${opts.minHeightClass}`}>
         <div className={`flex items-center gap-1.5 min-w-0 flex-1 ${opts.showCwd ? 'pr-12' : ''}`}>
@@ -1205,11 +1257,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 pinned={pinnedFlashId === session.id}
                 onClick={(info) => {
                   if (info.state === 'scheduled') { openSchedModal(session.id); return }
-                  if (groupSessionsByCwd && onReorderSessions) {
-                    const key = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
-                    const srcIdx = sessions.findIndex(s => s.id === session.id)
-                    const firstIdx = sessions.findIndex(s => key(s.cwd) === key(session.cwd))
-                    if (firstIdx >= 0 && firstIdx !== srcIdx) onReorderSessions(srcIdx, firstIdx)
+                  if (groupSessionsByCwd && onReorderSessionInGroup) {
+                    const firstOther = sessions.find(s => s.id !== session.id && normCwdKey(s.cwd) === normCwdKey(session.cwd))
+                    if (firstOther) onReorderSessionInGroup(session.id, firstOther.id, true)
                     flashPinned(session.id)
                   }
                   if (sessionEmojis.length === 0) return
@@ -1540,10 +1590,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               const toIdx = targetIdx > dragGroupIndex ? targetIdx - 1 : targetIdx
               onReorderGroup?.(dragGroupIndex, toIdx)
             }
-            setDragGroupIndex(null)
-            setDropGroupIndex(null)
-            setDragIndex(null)
-            setDropIndex(null)
+            clearDragState()
           }}
           onContextMenu={handleEmptyAreaContextMenu}
         >
@@ -1562,6 +1609,35 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 ref={el => { groupRefs.current[gi] = el }}
                 className={`bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-group ${gi > 0 ? 'mt-3' : ''}`}
                 style={dropGroupIndex === gi && dropGroupIndex !== dragGroupIndex ? { borderTop: '2px solid rgb(var(--ide-accent))' } : undefined}
+                onDragOver={(e) => {
+                  if (dragGroupIndex !== null || dragSessionId === null || group.sessions.length === 0) return
+                  const dragged = sessions.find(s => s.id === dragSessionId)
+                  if (!dragged || normCwdKey(dragged.cwd) !== normCwdKey(group.cwd)) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const first = group.sessions[0]
+                  const last = group.sessions[group.sessions.length - 1]
+                  // 拖到组头部区域 → 插到第一项前；其余空白 → 插到组尾；目标即被拖项时视为无效
+                  if (e.clientY < rect.top + 28) {
+                    if (first.id === dragSessionId) { setDropSessionId(null); return }
+                    setDropSessionId(first.id)
+                    setDropBefore(true)
+                  } else {
+                    if (last.id === dragSessionId) { setDropSessionId(null); return }
+                    setDropSessionId(last.id)
+                    setDropBefore(false)
+                  }
+                }}
+                onDrop={(e) => {
+                  if (dragGroupIndex !== null || dragSessionId === null) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (dropSessionId !== null && dropSessionId !== dragSessionId) {
+                    onReorderSessionInGroup?.(dragSessionId, dropSessionId, dropBefore)
+                  }
+                  clearDragState()
+                }}
               >
                 {/* Folder header */}
                 <div
