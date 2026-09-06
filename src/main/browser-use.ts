@@ -326,6 +326,55 @@ async function anyFrameHasText(c: WebContents, needle: string): Promise<boolean>
   return false
 }
 
+// ---- input activation ----
+// JS focus()（fill/FOCUS_FN）设置的活动元素 CDP 键盘事件不派发：填充后直接 press Enter 页面无响应，
+// 真实鼠标点过一次输入框后同一次 press 立即生效（智谱清言 double 验证）。故键盘派发前对文本输入类
+// 元素先做一次真实点击激活，点击后再把 caret 恢复到文末（点击中心会移动 caret）。
+// 非文本输入控件（按钮/链接/checkbox）不激活——多余 click 会先触发一次 click，与 Enter 双触发。
+async function activateTypingInput(c: WebContents, ref: string | null, frame: WebFrameMain | null): Promise<string | null> {
+  const q = ref
+    ? `document.querySelector('[data-vibe-ref="${ref}"]')`
+    : 'document.activeElement'
+  const js = `(function(){
+var el = ${q};
+if (!el) return { gone: 1 };
+var tag = el.tagName;
+if (tag === 'INPUT') {
+  var ty = (el.type || 'text').toLowerCase();
+  if (ty === 'checkbox' || ty === 'radio' || ty === 'button' || ty === 'submit' || ty === 'reset' || ty === 'file' || ty === 'hidden') return { gone: 1 };
+}
+var isEd = false; try { isEd = !!el.isContentEditable; } catch (e) {}
+if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !isEd) return { gone: 1 };
+var r = el.getBoundingClientRect();
+if (!r.width || !r.height) return { gone: 1 };
+return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+})()`
+  let r: { v?: any; err?: string }
+  if (frame && !sameFrame(frame, c.mainFrame)) r = await safeExec<any>(frame, js)
+  else r = await safeExec<any>(frame || c.mainFrame, js)
+  if (r.err || !r.v || r.v.gone) return null
+  let x = Number(r.v.cx) || 0
+  let y = Number(r.v.cy) || 0
+  if (frame && !sameFrame(frame, c.mainFrame)) {
+    const off = await frameOffsetCss(c, frame)
+    if (!off) return null
+    x += off.x
+    y += off.y
+  }
+  const vp = await viewportCss(c)
+  x = Math.max(0, Math.min(vp.w - 1, Math.round(x)))
+  y = Math.max(0, Math.min(vp.h - 1, Math.round(y)))
+  const note = await mouseClick(c, x, y, 'left', 1)
+  await safeExec(frame || c.mainFrame, `(function(){
+var el = document.activeElement;
+try {
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) { var n = el.value.length; el.setSelectionRange(n, n); }
+  else if (el && el.isContentEditable) { var sel = window.getSelection(); var rg = document.createRange(); rg.selectNodeContents(el); rg.collapse(false); sel.removeAllRanges(); sel.addRange(rg); }
+} catch (e) {}
+})()`)
+  return note
+}
+
 // ---------- page-side scripts (run in guest main frame) ----------
 
 const SNAP_FN = String.raw`(function (base, max, boxes, dx, dy) {
@@ -836,16 +885,21 @@ export async function handleCall(name: string, args: any): Promise<BrowserToolRe
       case 'press': {
         const keys = String(args.keys ?? '').trim()
         if (!keys) return textResult('keys required, e.g. "Return", "Tab", "Control+a"', true)
+        let focusRef: string | null = null
+        let focusFrame: WebFrameMain | null = null
         if (args.ref) {
           const ref = okRef(args.ref)
           if (!ref) return textResult('ref must be a snapshot ref like "e12"', true)
           const f = await execOnRef(c, ref, `(${FOCUS_FN})(${JSON.stringify(ref)})`)
           if (f?.lost) return lostResult(ref)
+          focusRef = ref
+          focusFrame = refFrame(ref)
         }
         const parsed = parseKeys(keys)
         if (parsed.err || !parsed.keyCode) return textResult(`bad keys "${keys}": ${parsed.err || 'no main key'}`, true)
         const base = cdpKeyEvent(parsed.keyCode, parsed.mods)
         let note: string | null = null
+        const act = await activateTypingInput(c, focusRef, focusFrame)
         const r = base
           ? await withCdp(c, async (dbg) => {
               await dbg.sendCommand('Input.dispatchKeyEvent', { ...base, type: 'keyDown' })
@@ -859,6 +913,8 @@ export async function handleCall(name: string, args: any): Promise<BrowserToolRe
           await sleep(30)
           c.sendInputEvent({ ...ev, type: 'keyUp' })
           note = base ? SYNTH_NOTE : 'key sent via synthetic input (no CDP mapping) — may not reach cross-origin iframes'
+        } else if (act) {
+          note = act
         }
         const snaps = await afterAct(c, !!args.quiet)
         return combine(textResult(`pressed ${keys}${args.ref ? ` on ${args.ref}` : ''}${note ? ` [${note}]` : ''}`), snaps)
