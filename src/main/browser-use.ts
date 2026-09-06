@@ -375,6 +375,43 @@ try {
   return note
 }
 
+// ---- hit test (click feedback) ----
+// click_xy 点完无反馈，"没报错=成功"是静默失败的根源：点击前用 elementFromPoint 报出命中元素，
+// 无标注的 div/svg 图标按钮（.enter / .think-mode-trigger 类）靠 cls 一目了然。
+// 坐标与 CDP 一致（layout CSS px）；须点击前查——点击后页面 rerender，报的是点击后的元素。
+const HIT_FN = String.raw`(function (x, y) {
+function T(s){ return (s||'').replace(/\s+/g,' ').trim(); }
+var el = document.elementFromPoint(x, y);
+if (!el) return { tag: 'NULL' };
+var n = el, res = null;
+for (var i = 0; i < 6 && n; i++) {
+  // SVG 的 className 是 SVGAnimatedString，直接字符串化会变 "[object SVGAnimatedString]" 非空坏串，
+  // 会让 svg 自己被当成"带 class 的可报元素"提前 break——一律走 getAttribute('class') 取字符串
+  var cls = n.getAttribute('class') || '';
+  var tag = n.tagName;
+  if (tag !== 'SVG' && tag !== 'PATH' && tag !== 'G' && (cls.length > 0 || n.getAttribute('role'))) {
+    var r = n.getBoundingClientRect();
+    res = { tag: tag, cls: cls.slice(0, 56), x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), t: T(n.innerText || n.textContent || '').slice(0, 40) };
+    break;
+  }
+  n = n.parentElement;
+}
+if (!res) { var r0 = el.getBoundingClientRect(); res = { tag: el.tagName, cls: '', x: Math.round(r0.left), y: Math.round(r0.top), w: Math.round(r0.width), h: Math.round(r0.height), t: T(el.innerText || '').slice(0, 40) }; }
+return res;
+})`
+
+function fmtHit(v: { tag: string; cls: string; w: number; h: number; x: number; y: number; t: string }): string {
+  const bits = v.cls ? v.cls.split(/\s+/).slice(0, 4).join('.') : ''
+  const head = `hit=<${String(v.tag).toLowerCase()}${bits ? '.' + bits : ''}> ${v.w}x${v.h} @${v.x},${v.y}`
+  return v.t ? `${head} "${v.t}"` : head
+}
+
+async function hitTestInfo(c: WebContents, x: number, y: number): Promise<string | null> {
+  const r = await safeExec<any>(c.mainFrame, `(${HIT_FN})(${Math.round(x)},${Math.round(y)})`)
+  if (r.err || !r.v || r.v.tag === 'NULL') return null
+  return fmtHit(r.v)
+}
+
 // ---------- page-side scripts (run in guest main frame) ----------
 
 const SNAP_FN = String.raw`(function (base, max, boxes, dx, dy) {
@@ -471,7 +508,9 @@ try { if (el.disabled || el.getAttribute('aria-disabled') === 'true') return { e
 el.scrollIntoView({ block: 'center', inline: 'center' });
 await new Promise(function (r) { requestAnimationFrame(function () { setTimeout(r, 90); }); });
 var r = el.getBoundingClientRect();
-return { x: r.left + r.width/2, y: r.top + r.height/2, w: r.width, h: r.height, vw: innerWidth, vh: innerHeight };
+var tx = ''; try { tx = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40); } catch (e) {}
+var cls = el.getAttribute('class') || '';
+return { x: r.left + r.width/2, y: r.top + r.height/2, w: r.width, h: r.height, vw: innerWidth, vh: innerHeight, tag: el.tagName, cls: cls.slice(0, 56), tx: tx };
 })`
 
 const FOCUS_FN = String.raw`(function (ref) {
@@ -765,7 +804,7 @@ function combine(head: BrowserToolResult, snaps: BrowserToolResult[]): BrowserTo
   return { content: [...head.content, ...snaps.flatMap((s) => s.content)], isError: head.isError }
 }
 
-async function clickRef(c: WebContents, ref: string, button: string, count: number): Promise<{ result: BrowserToolResult } | { note: string | null }> {
+async function clickRef(c: WebContents, ref: string, button: string, count: number): Promise<{ result: BrowserToolResult } | { note: string | null; hit: string | null }> {
   const frame = refFrame(ref)
   const inSub = !!frame && !sameFrame(frame, c.mainFrame)
   let pos: any
@@ -799,7 +838,10 @@ async function clickRef(c: WebContents, ref: string, button: string, count: numb
   x = Math.max(0, Math.min(vp.w - 1, Math.round(x)))
   y = Math.max(0, Math.min(vp.h - 1, Math.round(y)))
   const note = await mouseClick(c, x, y, button || 'left', count)
-  return { note }
+  const hit = pos.tag
+    ? fmtHit({ tag: pos.tag, cls: pos.cls || '', x: Math.round(pos.x - pos.w / 2), y: Math.round(pos.y - pos.h / 2), w: Math.round(pos.w), h: Math.round(pos.h), t: pos.tx || '' })
+    : null
+  return { note, hit }
 }
 
 // ---------- tool dispatch ----------
@@ -843,7 +885,8 @@ export async function handleCall(name: string, args: any): Promise<BrowserToolRe
         const o = await clickRef(c, ref, args.button || 'left', args.double ? 2 : 1)
         const snaps = await afterAct(c, !!args.quiet)
         if ('result' in o) return combine(o.result, snaps)
-        return combine(textResult(`clicked ${ref}${args.double ? ' (double)' : ''}${args.button && args.button !== 'left' ? ` ${args.button}` : ''}${o.note ? ` [${o.note}]` : ''}`), snaps)
+        const hitTxt = o.hit ? ` ${o.hit}` : ''
+        return combine(textResult(`clicked ${ref}${args.double ? ' (double)' : ''}${args.button && args.button !== 'left' ? ` ${args.button}` : ''}${hitTxt}${o.note ? ` [${o.note}]` : ''}`), snaps)
       }
       case 'click_xy': {
         let x = Number(args.x)
@@ -852,9 +895,10 @@ export async function handleCall(name: string, args: any): Promise<BrowserToolRe
         const vp = await viewportCss(c)
         x = Math.max(0, Math.min(vp.w - 1, Math.round(x)))
         y = Math.max(0, Math.min(vp.h - 1, Math.round(y)))
+        const hit = await hitTestInfo(c, x, y)
         const note = await mouseClick(c, x, y, String(args.button || 'left'), args.double ? 2 : 1)
         const snaps = await afterAct(c, !!args.quiet)
-        return combine(textResult(`clicked (${x}, ${y}) top-viewport CSS px${args.double ? ' (double)' : ''}${args.button && args.button !== 'left' ? ` ${args.button}` : ''}${note ? ` [${note}]` : ''}`), snaps)
+        return combine(textResult(`clicked (${x}, ${y}) top-viewport CSS px${hit ? ` ${hit}` : ''}${args.double ? ' (double)' : ''}${args.button && args.button !== 'left' ? ` ${args.button}` : ''}${note ? ` [${note}]` : ''}`), snaps)
       }
       case 'fill': {
         const ref = okRef(args.ref)
