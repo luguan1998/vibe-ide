@@ -499,6 +499,8 @@ const ZH_MAP: Record<string, string> = {
   'Beads': '像素图',
   'Turn any photo into perler bead pixel art': '把任意照片转成像素艺术',
   'Copy ANSI': '复制 ANSI',
+  'ANSI preview': 'ANSI 预览',
+  'What Copy ANSI looks like in a truecolor terminal': '即「复制 ANSI」在真彩终端里的效果',
   '✓ Copied': '✓ 已复制',
   'Export PNG': '导出 PNG',
   'How to print in terminal': '如何在终端打印',

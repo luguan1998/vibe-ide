@@ -582,6 +582,32 @@ function buildAnsiArt(grid: PaletteColor[][], rep = 1): string {
   return lines.join('')
 }
 
+function AnsiArtPreview({ grid, rep }: { grid: PaletteColor[][]; rep: number }) {
+  const n = grid.length
+  const rows: number[] = []
+  for (let y = 0; y < n; y += 2) rows.push(y)
+  return (
+    <pre
+      className="font-mono leading-none whitespace-pre overflow-auto max-w-full select-text bg-ide-hover/40 border border-ide-border rounded-lg p-3"
+      style={{ fontSize: rep > 1 ? 6 : 8 }}
+    >
+      {rows.map(y => (
+        <div key={y}>
+          {grid[y].map((top, x) => {
+            const bot = y + 1 < n ? grid[y + 1][x] : null
+            const ch = '▀'.repeat(rep)
+            return (
+              <span key={x} style={bot ? { color: top.hex, backgroundColor: bot.hex } : { color: top.hex }}>
+                {ch}
+              </span>
+            )
+          })}
+        </div>
+      ))}
+    </pre>
+  )
+}
+
 function drawSampleCanvas(kind: 'sunset' | 'night'): HTMLCanvasElement {
   const c = document.createElement('canvas')
   c.width = 300
@@ -894,6 +920,13 @@ export default function GameBeads({ onBack }: { onBack?: () => void }) {
                   </span>
                 ))}
               </div>
+            </div>
+            <div className="space-y-2 min-w-0">
+              <div className="text-[10px] uppercase tracking-wider text-ide-text-muted/70">
+                {t('ANSI preview')} {grid.length}×{Math.ceil(grid.length / 2)}
+              </div>
+              <AnsiArtPreview grid={grid} rep={ansiWide ? 2 : 1} />
+              <div className="text-[10px] text-ide-text-muted/60">{t('What Copy ANSI looks like in a truecolor terminal')}</div>
             </div>
           </div>
         )}
