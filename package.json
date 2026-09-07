@@ -1,6 +1,6 @@
 {
   "name": "vibe-ide",
-  "version": "0.11.6",
+  "version": "0.11.7",
   "author": "luguan",
   "license": "MIT",
   "description": "A vibe coding IDE with terminal session management, native terminal, and git management",
