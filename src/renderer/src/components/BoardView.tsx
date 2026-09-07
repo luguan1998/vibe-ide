@@ -399,12 +399,15 @@ export default function BoardView({
     if (!createCwdManualRef.current) setCreateCwd(workspacePath)
   }, [workspacePath])
 
+  const sessionsRef = useRef(sessions)
+  sessionsRef.current = sessions
+
   const reload = useCallback(async () => {
     // 每次只查「当前 workspace + 现存 session 的 cwd」，不再累积历史 repoRoot：
     // 切走的仓库不该把它的卡片混进本仓库的 plan
     const cwds = new Set<string>()
     if (workspacePath) cwds.add(workspacePath)
-    for (const s of sessions) if (s.cwd) cwds.add(s.cwd)
+    for (const s of sessionsRef.current) if (s.cwd) cwds.add(s.cwd)
     if (cwds.size === 0) {
       setRepoRoot(null)
       setRecords([])
@@ -424,7 +427,7 @@ export default function BoardView({
       setRepoRoot(null)
       setRecords([])
     }
-  }, [workspacePath, sessions])
+  }, [workspacePath])
 
   useEffect(() => {
     void reload()

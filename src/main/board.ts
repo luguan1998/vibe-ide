@@ -107,9 +107,7 @@ async function resolveToplevelAsync(entryDir: string): Promise<string | null> {
 
 // linked worktree 里 --show-toplevel 返回的是 worktree 自身，直接当仓库根会导致
 // worktree 套 worktree、记录散落在多个哈希文件里。用 --git-common-dir 归位到主仓库根。
-async function resolveRepoRootAsync(entryDir: string): Promise<string | null> {
-  const top = await resolveToplevelAsync(entryDir)
-  if (!top) return null
+async function repoRootFromToplevel(top: string): Promise<string> {
   try {
     const { stdout } = await gitAsync('git', ['rev-parse', '--git-common-dir'], { cwd: top, timeout: 15000, windowsHide: true })
     let cd = stdout.trim()
@@ -119,6 +117,12 @@ async function resolveRepoRootAsync(entryDir: string): Promise<string | null> {
     }
   } catch {}
   return top
+}
+
+async function resolveRepoRootAsync(entryDir: string): Promise<string | null> {
+  const top = await resolveToplevelAsync(entryDir)
+  if (!top) return null
+  return repoRootFromToplevel(top)
 }
 
 // 旧版本在 worktree 里建任务时，记录写在了以该 worktree 路径为 key 的文件里。
@@ -354,7 +358,7 @@ export function registerBoardHandlers(): void {
     if (!workspacePath) return { repoRoot: null, records: [] }
     const top = await resolveToplevelAsync(workspacePath)
     if (!top) return { repoRoot: null, records: [] }
-    const repoRoot = (await resolveRepoRootAsync(top)) ?? top
+    const repoRoot = await repoRootFromToplevel(top)
     if (repoRoot !== top) migrateLegacyRecords(top, repoRoot)
     return { repoRoot, records: loadRecords(repoRoot).map(r => ({ ...r, orphan: !existsSync(r.worktreePath) })) }
   })

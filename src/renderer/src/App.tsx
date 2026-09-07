@@ -3445,13 +3445,14 @@ export default function App() {
               })}
             </Suspense>
           </div>
-          {/* session board — display-toggle so terminals keep their buffers while the board is shown */}
-          <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`} style={{ display: boardCenterShown ? 'flex' : 'none' }}>
+          {/* 看板仅可见时挂载：隐藏后常驻的 reload 会随 sessions 抖动反复 spawn git rev-parse（board.records），切走 session 直接关闭 */}
+          {boardCenterShown && (
+          <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`}>
             <BoardView
               workspacePath={activeSessionCwd}
               sessions={groupSessionsByCwd ? stableSessions : sessions}
               agentStatus={agentStatus}
-              activeSessionId={boardCenterShown ? null : activeSessionId}
+              activeSessionId={null}
               sessionWorktreeNav={sessionWorktreeNav}
               onCreateRecord={handleBoardCreate}
               onFocusSession={handleBoardFocusSession}
@@ -3467,6 +3468,7 @@ export default function App() {
               onCloseSession={handleCloseSession}
             />
           </div>
+          )}
           {/* Drag-over overlay for file compare */}
           {isDragOverEdit && (
             <div className="absolute inset-0 z-50 bg-ide-accent/20 border-2 border-dashed border-ide-accent rounded-lg flex items-center justify-center pointer-events-none">
