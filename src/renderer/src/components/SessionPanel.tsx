@@ -4,7 +4,7 @@ import { RecentFileEntry } from '@shared/types'
 import { type SessionTab, ICON_NONE, DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
 import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, HelpCircle } from 'lucide-react'
 import { useI18n } from '../i18n'
-import { cwdStore, useRecentDirs, useFavCwds } from '../cwdStore'
+import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import { getMainShellType, setMainShellType, getAuxShellType, setAuxShellType } from '@renderer/utils/shellPrefs'
 import { setLastNewMode } from '@renderer/utils/sessionModePrefs'
@@ -819,7 +819,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     if (Object.keys(stamps).length) setIdleSinceMap(m => ({ ...m, ...stamps }))
   }, [agentStatus, sessions])
 
-  // Group sessions by normalized cwd
+  // Group sessions by normalized cwd（空组保留位按记录下标插回，最后一个 session 关闭后分组不消失）
+  const keptGroups = useKeptGroups()
   const sessionGroups = useMemo(() => {
     const map = new Map<string, SessionTab[]>()
     const order: string[] = []
@@ -831,8 +832,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       }
       map.get(key)!.push(s)
     }
-    return order.map(cwd => ({ cwd, sessions: map.get(cwd)! }))
-  }, [sessions])
+    return mergeGroupOrder(order, keptGroups).map(cwd => ({ cwd, sessions: map.get(cwd) ?? [] }))
+  }, [sessions, keptGroups])
 
   // Flat index map for drag reorder: visual position → session index in original array
   const flatIndexMap = useMemo(() => {
@@ -846,14 +847,16 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }, [sessionGroups, sessions])
 
   const groupRefs = useRef<(HTMLDivElement | null)[]>([])
+  // 边界用当前组数而非 groupRefs.length：组被删除后数组尾部残留旧条目（React 置 null 不截断），
+  // 用残留长度会使"拖到底部"返回的下标对不上 sessionGroups.length，尾部树杈标记不显示
   const computeGroupDropIndex = (clientY: number) => {
-    for (let i = 0; i < groupRefs.current.length; i++) {
+    for (let i = 0; i < sessionGroups.length; i++) {
       const el = groupRefs.current[i]
       if (!el) continue
       const rect = el.getBoundingClientRect()
       if (clientY < rect.top + rect.height / 2) return i
     }
-    return groupRefs.current.length
+    return sessionGroups.length
   }
 
   useEffect(() => {
@@ -1602,7 +1605,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           }}
           onContextMenu={handleEmptyAreaContextMenu}
         >
-        {sessions.length === 0 ? (
+        {(groupSessionsByCwd ? sessionGroups.length === 0 : sessions.length === 0) ? (
           <div className="h-full flex items-center justify-center text-ide-text-muted text-sm">
             No sessions yet
           </div>
@@ -1662,7 +1665,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span
-                      className="text-[13px] shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-ide-hover rounded select-none transition-colors"
+                      className={`relative text-[13px] shrink-0 w-4 h-4 flex items-center justify-center rounded select-none transition-colors ${
+                        group.sessions.length === 0 ? '' : 'cursor-pointer hover:bg-ide-hover'
+                      }`}
                       title={t('Click for another emoji')}
                       draggable={false}
                       onClick={(e) => {
@@ -1686,7 +1691,18 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         setGroupQuickNewSubmenu(null)
                         setEmojiMenu({ x: e.clientX, y: e.clientY, cwd: group.cwd })
                       }}
-                    >{cwdEmoji}</span>
+                    >
+                      <span className={group.sessions.length === 0 ? 'transition-opacity group-hover:opacity-0' : ''}>{cwdEmoji}</span>
+                      {group.sessions.length === 0 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); cwdStore.removeKeptGroup(group.cwd) }}
+                          className="absolute inset-0 opacity-0 group-hover:opacity-100 rounded text-ide-text-muted hover:bg-ide-danger hover:text-white transition-all flex items-center justify-center"
+                          title={t('Remove Group')}
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </span>
                     <span
                       className={`text-xs font-medium truncate min-w-0 cursor-pointer transition-all session-group__path ${
                         groupHasActive || cwdLinkSession === group.cwd ? 'text-ide-text' : 'text-ide-text-muted'

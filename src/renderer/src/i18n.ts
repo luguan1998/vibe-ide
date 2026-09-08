@@ -224,6 +224,7 @@ const ZH_MAP: Record<string, string> = {
   'Recently': '最近',
   'Recently Opened': '最近打开的文件',
   'Remove': '移除',
+  'Remove Group': '移除分组',
   'Queued': '待发送',
   'Interject': '插话发送',
 
