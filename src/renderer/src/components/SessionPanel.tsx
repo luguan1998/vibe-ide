@@ -787,6 +787,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }, [renaming])
 
   useEffect(() => () => { clearTimer(hoverTimerRef) }, [])
+  // session 关闭时其行整体卸载，mouseleave 不触发 → hover 预览窗格残留，随 session 消失主动清理
+  useEffect(() => {
+    if (hoverPreview && !sessions.some(s => s.id === hoverPreview.sessionId)) {
+      clearTimer(hoverTimerRef)
+      setHoverPreview(null)
+    }
+  }, [sessions, hoverPreview])
   useEffect(() => {
     const handler = () => { lastMouseMoveAtRef.current = Date.now() }
     window.addEventListener('mousemove', handler)
