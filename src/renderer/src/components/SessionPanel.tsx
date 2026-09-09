@@ -636,8 +636,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     else onCreateSession(termType)
   }
   const [cloneSubmenu, setCloneSubmenu] = useState<{ x: number; y: number; sessionId: string; cwd: string; shell?: string; initCommands: CustomCommand[] } | null>(null)
-  const [termMenu, setTermMenu] = useState<{ cwd: string; x: number; y: number } | null>(null)
-  const termMenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cloneSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [emptyAreaMenu, setEmptyAreaMenu] = useState<{ x: number; y: number } | null>(null)
   const ctxMenuPos = useAdaptiveMenuPos(!!contextMenu, contextMenu?.x ?? 0, contextMenu?.y ?? 0)
@@ -646,7 +644,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const cloneSubmenuPos = useAdaptiveMenuPos(!!cloneSubmenu, cloneSubmenu?.x ?? 0, cloneSubmenu?.y ?? 0)
   const quickNewSubmenuPos = useAdaptiveMenuPos(!!quickNewSubmenu, quickNewSubmenu?.x ?? 0, quickNewSubmenu?.y ?? 0)
   const groupQuickNewSubmenuPos = useAdaptiveMenuPos(!!groupQuickNewSubmenu, groupQuickNewSubmenu?.x ?? 0, groupQuickNewSubmenu?.y ?? 0)
-  const termMenuPos = useAdaptiveMenuPos(!!termMenu, termMenu?.x ?? 0, termMenu?.y ?? 0)
   const recentDirs = useRecentDirs()
   const favCwds = useFavCwds()
   const prevSessionIdsRef = useRef<Set<string>>(new Set())
@@ -859,18 +856,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     return sessionGroups.length
   }
 
-  const openTermMenu = (e: React.MouseEvent<HTMLButtonElement>, cwd: string) => {
-    if (termMenuTimerRef.current) { clearTimeout(termMenuTimerRef.current); termMenuTimerRef.current = null }
-    const r = e.currentTarget.getBoundingClientRect()
-    setTermMenu({ cwd, x: r.left, y: r.bottom + 4 })
-  }
-
-  const runTermCommand = (command: string) => {
-    if (!termMenu) return
-    onNewTermCommand?.(termMenu.cwd, command)
-    setTermMenu(null)
-  }
-
   useEffect(() => {
     const handleClick = () => {
       setContextMenu(null)
@@ -878,8 +863,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       setEmojiMenu(null)
       setCloneSubmenu(null)
       setQuickNewSubmenu(null)
-      setTermMenu(null)
-      if (termMenuTimerRef.current) { clearTimeout(termMenuTimerRef.current); termMenuTimerRef.current = null }
       if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
       if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
     }
@@ -1744,53 +1727,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (termMenuTimerRef.current) { clearTimeout(termMenuTimerRef.current); termMenuTimerRef.current = null }
-                        setTermMenu(null)
-                        onNewSessionHere?.(group.cwd, 'term')
-                      }}
-                      onMouseEnter={(e) => { openTermMenu(e, group.cwd) }}
-                      onMouseLeave={() => { termMenuTimerRef.current = setTimeout(() => setTermMenu(null), 150) }}
-                      className={`w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center ${
-                        termMenu?.cwd === group.cwd ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      }`}
-                      title={t('New Terminal')}
-                    >
-                      <Terminal size={13} />
-                    </button>
-                    {termMenu?.cwd === group.cwd && (
-                      <div
-                        ref={termMenuPos.ref}
-                        className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[160px] max-h-60 overflow-y-auto"
-                        style={termMenuPos.style}
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseEnter={() => {
-                          if (termMenuTimerRef.current) { clearTimeout(termMenuTimerRef.current); termMenuTimerRef.current = null }
-                        }}
-                        onMouseLeave={() => setTermMenu(null)}
-                      >
-                        <button
-                          className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                          onClick={() => { runTermCommand('git pull') }}
-                        >
-                          <ArrowDownToLine size={14} className="text-ide-accent shrink-0" />
-                          <span className="font-mono truncate max-w-[220px]">git pull</span>
-                        </button>
-                        {loadCustomCommands().filter(c => c.type === 'init').map(cmd => (
-                          <button
-                            key={cmd.id}
-                            title={cmd.command}
-                            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                            onClick={() => { runTermCommand(cmd.command) }}
-                          >
-                            <Terminal size={14} className="text-ide-accent shrink-0" />
-                            <span className="truncate max-w-[220px]">{cmd.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
                         if (groupQuickNewSubmenuTimerRef.current) { clearTimeout(groupQuickNewSubmenuTimerRef.current); groupQuickNewSubmenuTimerRef.current = null }
                         setGroupQuickNewSubmenu(null)
                         onNewSessionHere?.(group.cwd, newMode)
@@ -1822,6 +1758,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                           if (onNewSessionHere) onNewSessionHere(group.cwd, m)
                           setGroupQuickNewSubmenu(null)
                         }))}
+                        <div className="border-t border-ide-border my-1" />
+                        <button
+                          className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                          onClick={() => { onNewTermCommand?.(group.cwd, 'git pull'); setGroupQuickNewSubmenu(null) }}
+                        >
+                          <ArrowDownToLine size={14} className="text-ide-accent shrink-0" />
+                          <span className="font-mono truncate">git pull</span>
+                          <span className="ml-auto w-3.5 h-3.5 shrink-0" />
+                        </button>
                       </div>
                     )}
                   </div>
