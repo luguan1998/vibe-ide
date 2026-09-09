@@ -519,15 +519,16 @@ export function registerGitHandlers(): void {
     }
   })
 
-  // Git pull — http/ssh 凭据走 git 自身配置，冲突等异常由 gitOp/git 抛出
-  ipcMain.handle(IPC_CHANNELS.GIT_PULL, async (_event, remote?: string, branch?: string) => {
+  // Git pull — http/ssh 凭据走 git 自身配置，冲突等异常由 gitOp/git 抛出；cwd 显式传入时不走全局实例(会话组按目录 pull)
+  ipcMain.handle(IPC_CHANNELS.GIT_PULL, async (_event, remote?: string, branch?: string, cwd?: string) => {
     try {
-      const git = getGit()
+      const git = cwd ? simpleGit(cwd) : getGit()
       if (remote && branch) {
         await gitOp(() => git.pull(remote, branch))
       } else {
         await gitOp(() => git.pull())
       }
+      if (cwd) notifyGitMeta()
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
@@ -535,9 +536,9 @@ export function registerGitHandlers(): void {
   })
 
   // Git remote branches
-  ipcMain.handle(IPC_CHANNELS.GIT_REMOTE_BRANCHES, async () => {
+  ipcMain.handle(IPC_CHANNELS.GIT_REMOTE_BRANCHES, async (_event, cwd?: string) => {
     try {
-      const git = getGit()
+      const git = cwd ? simpleGit(cwd) : getGit()
       const result = await git.branch(['-r'])
       return result.all
         .filter((name: string) => !name.includes('HEAD'))

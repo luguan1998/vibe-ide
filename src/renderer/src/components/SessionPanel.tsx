@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
 import { type SessionTab, ICON_NONE, DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, HelpCircle } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, HelpCircle, ArrowDownToLine } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -645,6 +645,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     else onCreateSession(termType)
   }
   const [cloneSubmenu, setCloneSubmenu] = useState<{ x: number; y: number; sessionId: string; cwd: string; shell?: string; initCommands: CustomCommand[] } | null>(null)
+  const [pullMenu, setPullMenu] = useState<{ cwd: string; x: number; y: number } | null>(null)
+  const [pullBranches, setPullBranches] = useState<{ name: string; remote: string; branch: string }[]>([])
+  const [pullLoading, setPullLoading] = useState(false)
+  const [pullBusy, setPullBusy] = useState(false)
+  const [pullError, setPullError] = useState('')
+  const pullReqRef = useRef(0)
   const cloneSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [emptyAreaMenu, setEmptyAreaMenu] = useState<{ x: number; y: number } | null>(null)
   const ctxMenuPos = useAdaptiveMenuPos(!!contextMenu, contextMenu?.x ?? 0, contextMenu?.y ?? 0)
@@ -654,6 +660,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const cloneSubmenuPos = useAdaptiveMenuPos(!!cloneSubmenu, cloneSubmenu?.x ?? 0, cloneSubmenu?.y ?? 0)
   const quickNewSubmenuPos = useAdaptiveMenuPos(!!quickNewSubmenu, quickNewSubmenu?.x ?? 0, quickNewSubmenu?.y ?? 0)
   const groupQuickNewSubmenuPos = useAdaptiveMenuPos(!!groupQuickNewSubmenu, groupQuickNewSubmenu?.x ?? 0, groupQuickNewSubmenu?.y ?? 0)
+  const pullMenuPos = useAdaptiveMenuPos(!!pullMenu, pullMenu?.x ?? 0, pullMenu?.y ?? 0)
   const recentDirs = useRecentDirs()
   const favCwds = useFavCwds()
   const prevSessionIdsRef = useRef<Set<string>>(new Set())
@@ -866,6 +873,41 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     return sessionGroups.length
   }
 
+  const openPullMenu = async (e: React.MouseEvent<HTMLButtonElement>, cwd: string) => {
+    e.stopPropagation()
+    if (pullMenu?.cwd === cwd) { setPullMenu(null); return }
+    const r = e.currentTarget.getBoundingClientRect()
+    const reqId = ++pullReqRef.current
+    setPullError('')
+    setPullBranches([])
+    setPullLoading(true)
+    setPullMenu({ cwd, x: r.left, y: r.bottom + 4 })
+    try {
+      const result = await window.api.git.remoteBranches(cwd)
+      if (pullReqRef.current !== reqId) return
+      if (Array.isArray(result)) setPullBranches(result)
+      else setPullError(result?.error || 'git remote branches failed')
+    } catch (err: any) {
+      if (pullReqRef.current === reqId) setPullError(err?.message || 'git remote branches failed')
+    } finally {
+      if (pullReqRef.current === reqId) setPullLoading(false)
+    }
+  }
+
+  const runGroupPull = async (remote?: string, branch?: string) => {
+    if (pullBusy || !pullMenu) return
+    const cwd = pullMenu.cwd
+    setPullBusy(true)
+    setPullError('')
+    try {
+      const result = await window.api.git.pull(remote, branch, cwd)
+      if (result?.error) setPullError(result.error)
+      else setPullMenu(null)
+    } finally {
+      setPullBusy(false)
+    }
+  }
+
   useEffect(() => {
     const handleClick = () => {
       setContextMenu(null)
@@ -873,6 +915,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       setEmojiMenu(null)
       setCloneSubmenu(null)
       setQuickNewSubmenu(null)
+      setPullMenu(null)
       if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
       if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
     }
@@ -1740,6 +1783,53 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     >{dirName}</span>
                   </div>
                   <div className="flex items-center">
+                    <button
+                      onClick={(e) => { void openPullMenu(e, group.cwd) }}
+                      className={`w-5 h-5 rounded text-ide-text-muted hover:bg-ide-accent hover:text-white transition-all shrink-0 flex items-center justify-center ${
+                        pullMenu?.cwd === group.cwd ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                      title={t('Pull')}
+                    >
+                      {pullBusy && pullMenu?.cwd === group.cwd ? <Loader2 size={13} className="animate-spin" /> : <ArrowDownToLine size={13} />}
+                    </button>
+                    {pullMenu?.cwd === group.cwd && (
+                      <div
+                        ref={pullMenuPos.ref}
+                        className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[200px] max-h-60 overflow-y-auto"
+                        style={pullMenuPos.style}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={() => { void runGroupPull() }}
+                          disabled={pullLoading || pullBusy}
+                          className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover transition-colors disabled:opacity-40"
+                        >
+                          {t('Default (upstream)')}
+                        </button>
+                        <div className="border-t border-ide-border my-1" />
+                        {pullLoading && (
+                          <div className="px-3 py-1.5 flex items-center">
+                            <Loader2 size={11} className="animate-spin text-ide-text-muted" />
+                          </div>
+                        )}
+                        {!pullLoading && pullBranches.map(rb => (
+                          <button
+                            key={rb.name}
+                            onClick={() => { void runGroupPull(rb.remote, rb.branch) }}
+                            disabled={pullBusy}
+                            className="w-full px-3 py-1.5 text-left text-xs text-ide-text hover:bg-ide-hover transition-colors disabled:opacity-40"
+                          >
+                            <span className="text-ide-text-muted">{rb.remote}/</span>{rb.branch}
+                          </button>
+                        ))}
+                        {!pullLoading && !pullError && pullBranches.length === 0 && (
+                          <div className="px-3 py-1.5 text-xs text-ide-text-muted">{t('No remote branches')}</div>
+                        )}
+                        {pullError && (
+                          <div className="px-3 py-1.5 text-xs text-ide-danger break-all whitespace-normal max-w-[260px]">{pullError}</div>
+                        )}
+                      </div>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation()

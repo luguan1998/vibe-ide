@@ -754,18 +754,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     } finally { setBusy(false) }
   }, [refreshStatus, refreshGraph, refreshBranches, selectedRemote])
 
-  // Pull
-  const handlePull = useCallback(async () => {
-    setBusy(true)
-    try {
-      const result = await window.api.git.pull()
-      if (!result.success) setError(result.error ?? '')
-      await refreshStatus()
-      await refreshGraph()
-      await refreshBranches()
-    } finally { setBusy(false) }
-  }, [refreshStatus, refreshGraph, refreshBranches])
-
   // Init git repo
   const handleInit = useCallback(async () => {
     setBusy(true)
@@ -1153,20 +1141,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             </svg>
             <span className="text-sm text-ide-text font-medium truncate git-tab__branch-name">{status.branch}</span>
             {status.ahead > 0 && <span className="text-ide-success text-[11px]">↑{status.ahead}</span>}
-            {status.behind > 0 && <span className="text-ide-warning text-[11px]">↓{status.behind}</span>}
           </div>
-          {status.behind > 0 && (
-            <button
-              onClick={() => handlePull()}
-              disabled={busy}
-              className="text-ide-warning hover:text-ide-accent opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity shrink-0 w-5 flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none"
-              title={`${t('Pull')} (${status.behind})`}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <path d="M12 2v11M7 8l5 5 5-5M4 19h16" />
-              </svg>
-            </button>
-          )}
           <button
             onClick={() => setTreeView(v => !v)}
             className={`transition-colors shrink-0 w-5 flex items-center justify-center ${treeView ? 'text-ide-accent' : 'text-ide-text-muted hover:text-ide-text'}`}

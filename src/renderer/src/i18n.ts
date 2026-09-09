@@ -236,6 +236,8 @@ const ZH_MAP: Record<string, string> = {
   'Delete All': '全部删除',
   'Refresh': '刷新',
   'Pull': '拉取',
+  'Default (upstream)': '默认 (上游分支)',
+  'No remote branches': '无远程分支',
   'Zoom In': '放大',
   'Zoom Out': '缩小',
   'Reset Zoom': '重置缩放',
