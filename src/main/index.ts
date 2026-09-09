@@ -12,6 +12,7 @@ import { registerAskResumeHandlers } from './ai-ask-resume'
 import { registerRevertHandlers } from './ai-revert'
 import { registerHistoryHandlers } from './ai-history'
 import { registerGitHandlers } from './git'
+import { registerPrHandlers } from './pr'
 import { registerBoardHandlers } from './board'
 import { stopWatching } from './watcher'
 import { registerFileHandlers } from './file'
@@ -223,6 +224,7 @@ app.whenReady().then(() => {
 
   // Register IPC handlers (git, file, search don't need mainWindow)
   registerGitHandlers()
+  registerPrHandlers()
   registerFileHandlers()
   registerSearchHandlers()
   registerCodeGraphHandlers()

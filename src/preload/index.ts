@@ -67,6 +67,14 @@ const api = {
     setFilterRules: (rules: string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_FILTER_RULES, rules),
     lineLog: (filePath: string, startLine: number, endLine: number) => ipcRenderer.invoke(IPC_CHANNELS.GIT_LINE_LOG, filePath, startLine, endLine),
     graph: (opts?: { count?: number; skip?: number }) => ipcRenderer.invoke(IPC_CHANNELS.GIT_GRAPH, opts),
+    prProviders: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_PROVIDERS) as Promise<import('../shared/types').PrProviderView[]>,
+    prProviderSave: (input: import('../shared/types').PrProviderInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_PROVIDER_SAVE, input) as Promise<import('../shared/types').PrProviderView[]>,
+    prProviderDelete: (id: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_PROVIDER_DELETE, id) as Promise<import('../shared/types').PrProviderView[]>,
+    prRemoteInfo: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_REMOTE_INFO) as Promise<import('../shared/types').PrRemoteInfo>,
+    createPr: (payload: import('../shared/types').CreatePrPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_CREATE, payload) as Promise<import('../shared/types').PrResult>,
     onMetaChanged: (callback: (data?: { commonDir?: string; kind?: 'status' | 'full' }) => void) => {
       const handler = (_event: any, data: any) => callback(data)
       ipcRenderer.on(IPC_CHANNELS.GIT_META_CHANGED, handler)

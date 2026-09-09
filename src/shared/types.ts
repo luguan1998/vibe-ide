@@ -43,6 +43,13 @@ export const IPC_CHANNELS = {
   GIT_LINE_LOG: 'git:lineLog',
   GIT_GRAPH: 'git:graph',
 
+  // Git PR (multi-host: github / gitlab / intranet codehub)
+  GIT_PR_PROVIDERS: 'git:prProviders',
+  GIT_PR_PROVIDER_SAVE: 'git:prProviderSave',
+  GIT_PR_PROVIDER_DELETE: 'git:prProviderDelete',
+  GIT_PR_REMOTE_INFO: 'git:prRemoteInfo',
+  GIT_PR_CREATE: 'git:prCreate',
+
   // File
   FILE_READ: 'file:read',
   FILE_WRITE: 'file:write',
@@ -375,6 +382,56 @@ export interface GitLineLogEntry {
   message: string
   author: string
   date: string
+}
+
+// PR 托管平台配置（github / gitlab / 内网 codehub）。
+// token 只存在主进程（safeStorage 加密落 userData/pr-providers.json），renderer 只见 tokenSet
+export type PrProviderType = 'github' | 'gitlab' | 'codehub'
+
+export interface PrProvider {
+  id: string
+  type: PrProviderType
+  host: string              // 匹配 remote 主机名（不含端口），如 github.com / codehub.xxx.cn
+  baseUrl: string           // Web 根地址，如 https://codehub.xxx.cn（API 前缀按方言派生）
+  trustSelfSigned: boolean  // 内网自签/内部 CA 证书
+  token?: string            // 加密存储的 PAT / OAuth token
+}
+
+export interface PrProviderView extends Omit<PrProvider, 'token'> {
+  tokenSet: boolean
+}
+
+export interface PrProviderInput {
+  id?: string               // 缺省 = 新建
+  type: PrProviderType
+  host: string
+  baseUrl: string
+  trustSelfSigned: boolean
+  token?: string            // 空串/缺省 = 保持原 token
+}
+
+export interface PrRemoteInfo {
+  ok: boolean
+  error?: string
+  host?: string
+  repoPath?: string         // group/sub/repo
+  branch?: string           // 当前 HEAD = PR 源分支
+  base?: string             // 推测的默认分支 = PR 目标
+  provider?: PrProviderView | null
+}
+
+export interface CreatePrPayload {
+  title: string
+  body?: string
+  base?: string
+}
+
+export interface PrResult {
+  ok?: boolean
+  url?: string
+  number?: number
+  error?: string
+  needProvider?: boolean    // renderer 据此弹托管配置
 }
 
 // File types

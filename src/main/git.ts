@@ -16,6 +16,10 @@ function getGit(): SimpleGit {
   return gitInstance
 }
 
+export function getGitWorkspace(): { git: SimpleGit; workspace: string } {
+  return { git: getGit(), workspace: currentWorkspace }
+}
+
 // GUI 自操 mutation 命令统一包一层：写 .git 期间 + 结束后宽限内抑制监听回声(见 watcher.ts)
 async function gitOp<T>(fn: () => Promise<T>): Promise<T> {
   beginGitSelfOp()

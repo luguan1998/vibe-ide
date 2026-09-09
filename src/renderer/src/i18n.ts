@@ -636,6 +636,26 @@ const ZH_MAP: Record<string, string> = {
   'Revert conversation & code': '回退对话和代码',
   'Revert conversation only': '仅回退对话',
   'Fork to new session': 'fork 到新会话',
+  // PR hosting (github / gitlab / codehub)
+  'Code Hosting': '代码托管',
+  'No hosting platform. Click "+ New" to add': '暂无托管平台 · 点「+ 新建」添加',
+  'No token': '未填 Token',
+  'Trust self-signed': '信任自签证书',
+  'Provider Type': '平台类型',
+  'Host': '主机名',
+  'Base URL': '站点地址',
+  'API Token': 'API Token',
+  'Leave blank to keep current': '留空保持不变',
+  'Personal access token': '个人访问令牌',
+  'Create Pull Request': '创建 PR',
+  'Source branch': '源分支',
+  'Target branch': '目标分支',
+  'Title': '标题',
+  'Description': '描述',
+  'Create failed': '创建失败',
+  'Push and create PR': 'Push 并创建 PR',
+  'Hosting settings...': '托管设置…',
+  'PR created': 'PR 已创建',
 }
 
 // ── context ────────────────────────────────────────────────────────

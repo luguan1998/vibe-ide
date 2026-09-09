@@ -3,8 +3,10 @@ import { useI18n } from '../i18n'
 import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
 import { ModalOverlay } from './ModalOverlay'
 import GitGraph from './GitGraph'
+import PrProvidersModal from './PrProvidersModal'
+import CreatePrModal from './CreatePrModal'
 import { ContextMenuItem } from './FileTab'
-import { FolderOpen, Route, Check, FileText } from 'lucide-react'
+import { FolderOpen, Route, Check, FileText, GitPullRequest } from 'lucide-react'
 
 interface GitTabProps {
   workspacePath: string | null
@@ -188,6 +190,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [remoteBranches, setRemoteBranches] = useState<{ name: string; remote: string; branch: string }[]>([])
   const [selectedRemote, setSelectedRemote] = useState<string>('')
   const [showPushDropdown, setShowPushDropdown] = useState(false)
+  const [showPrProviders, setShowPrProviders] = useState(false)
+  const [prDraft, setPrDraft] = useState<{ host: string; head: string; base: string; title: string } | null>(null)
+  const [prResult, setPrResult] = useState<{ url: string } | null>(null)
   const [stashCount, setStashCount] = useState(0)
   const [busy, setBusy] = useState(false)
   const gitRootRef = useRef<string | null>(null)
@@ -753,6 +758,31 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       setShowPushDropdown(false)
     } finally { setBusy(false) }
   }, [refreshStatus, refreshGraph, refreshBranches, selectedRemote])
+
+  const openPrModal = useCallback(async () => {
+    const info = await window.api.git.prRemoteInfo()
+    if (!info.ok) {
+      setError(info.error || t('Create failed'))
+      return
+    }
+    if (!info.provider || !info.provider.tokenSet) {
+      setShowPrProviders(true)
+      return
+    }
+    let title = ''
+    try {
+      const log: any = await window.api.git.log({ count: 1 })
+      const first = Array.isArray(log) ? log[0] : (log?.latest || log?.all?.[0])
+      title = first?.message || ''
+    } catch {}
+    setPrDraft({ host: info.host || '', head: info.branch || '', base: info.base || 'main', title })
+  }, [t])
+
+  const handlePushAndPr = useCallback(async () => {
+    setShowPushDropdown(false)
+    try { await handlePush() } catch {}
+    await openPrModal()
+  }, [handlePush, openPrModal])
 
   // Init git repo
   const handleInit = useCallback(async () => {
@@ -1854,6 +1884,21 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
                   >
                     Force Push (-f)
                   </button>
+                  <div className="border-t border-ide-border my-1" />
+                  <button
+                    onClick={handlePushAndPr}
+                    disabled={busy}
+                    className="w-full px-3 py-1.5 text-left text-xs transition-colors text-ide-text hover:bg-ide-hover flex items-center gap-2 disabled:opacity-40"
+                  >
+                    <GitPullRequest size={12} className="text-ide-accent shrink-0" />
+                    {t('Push and create PR')}
+                  </button>
+                  <button
+                    onClick={() => { setShowPushDropdown(false); setShowPrProviders(true) }}
+                    className="w-full px-3 py-1.5 text-left text-xs transition-colors text-ide-text-muted hover:text-ide-text hover:bg-ide-hover"
+                  >
+                    {t('Hosting settings...')}
+                  </button>
                 </div>
               )}
             </div>
@@ -1865,6 +1910,24 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
             >
               {t('Commit (Ctrl+Enter)')}
             </button>
+          )}
+          {prResult && (
+            <div className="mt-2 px-2 py-1.5 text-[11px] rounded bg-ide-accent/10 text-ide-accent flex items-center gap-1.5 animate-fade-in">
+              <GitPullRequest size={12} className="shrink-0" />
+              <span className="truncate flex-1" title={prResult.url}>{t('PR created')}</span>
+              <button
+                className="underline hover:text-ide-accent-hover shrink-0"
+                onClick={() => window.open(prResult.url)}
+              >
+                {t('Open')}
+              </button>
+              <button
+                className="text-ide-text-muted hover:text-ide-text shrink-0 leading-none"
+                onClick={() => setPrResult(null)}
+              >
+                ×
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -2048,6 +2111,21 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           </div>
         </ModalOverlay>
       )}
+
+      {prDraft && (
+        <CreatePrModal
+          host={prDraft.host}
+          head={prDraft.head}
+          base={prDraft.base}
+          title={prDraft.title}
+          onClose={() => setPrDraft(null)}
+          onCreated={(url) => {
+            setPrDraft(null)
+            setPrResult({ url })
+          }}
+        />
+      )}
+      {showPrProviders && <PrProvidersModal onClose={() => setShowPrProviders(false)} />}
     </>
   )
 }

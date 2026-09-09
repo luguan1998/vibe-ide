@@ -27,7 +27,7 @@ import { getFileInfo } from './components/FileIcons'
 import iconPattern from '@renderer/assets/icon-pattern.png?inline'
 import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, toRelPath } from './components/vibeEvents'
-import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord } from '@shared/types'
+import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
 import { cwdStore, useKeptGroups, mergeGroupOrder } from './cwdStore'
@@ -87,6 +87,11 @@ declare global {
         setFilterRules: (rules: string[]) => Promise<any>
         lineLog: (filePath: string, startLine: number, endLine: number) => Promise<any>
         graph: (opts?: { count?: number; skip?: number }) => Promise<any>
+        prProviders: () => Promise<PrProviderView[]>
+        prProviderSave: (input: PrProviderInput) => Promise<PrProviderView[]>
+        prProviderDelete: (id: string) => Promise<PrProviderView[]>
+        prRemoteInfo: () => Promise<PrRemoteInfo>
+        createPr: (payload: CreatePrPayload) => Promise<PrResult>
         onMetaChanged: (callback: (data?: { commonDir?: string; kind?: 'status' | 'full' }) => void) => any
         removeMetaChangedListener: (handler?: any) => void
       }
