@@ -481,6 +481,7 @@ const ZH_MAP: Record<string, string> = {
   'Focus AI Chat': '聚焦 AI 聊天',
   'Connecting...': '连接中...',
   'Streaming...': '生成中...',
+  'Jump to Bottom': '跳到最下',
   'Explain this codebase': '解释代码库',
 
   'Write tests': '编写测试',

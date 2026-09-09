@@ -7,7 +7,7 @@ import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { loadFilterRules } from '../FileTab'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X, Plus, Pencil, Send, Monitor, Globe } from 'lucide-react'
+import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown } from 'lucide-react'
 import { StreamingMarkdown } from './markdown'
 import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
@@ -431,6 +431,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   const [activeTurn, setActiveTurn] = useState(-1)
   const [turnNavHover, setTurnNavHover] = useState(false)
+  const [atBottom, setAtBottom] = useState(true)
   const turnNavHoverRef = useRef(false)
   // mouse 距滚动区右缘 < 48px 即浮现面包屑;检测挂在 wrap 上,面包屑自身不吞
   // mousedown 消息区不受遮挡(悬浮层 pointer-events-none,仅按钮区接收点击)
@@ -480,6 +481,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
   }, [lastTurnIdx])
 
+  // 跳到底部:瞬时滚动（平滑滚动中途 scroll 事件会把 atBottom 翻回 false 致按钮闪跳），并恢复流式跟随
+  const jumpToBottom = useCallback(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    userScrolledUpRef.current = false
+    setAtBottom(true)
+    el.scrollTop = el.scrollHeight
+  }, [])
+
   useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
@@ -487,6 +497,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     const onScroll = () => {
       const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
       userScrolledUpRef.current = distFromBottom > 40
+      setAtBottom(distFromBottom <= 40)
       if (raf || !turnNavHoverRef.current) return
       raf = requestAnimationFrame(() => {
         raf = 0
@@ -1369,30 +1380,42 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         <div ref={messagesEndRef} />
         </div>
 
-        {/* 右侧面包屑:用户输入轮次指示器(JS 检测距右缘距离浮现,不拦截消息区点击) */}
+        {/* 右侧面包屑:用户输入轮次指示器(JS 检测距右缘距离浮现,不拦截消息区点击);列底附跳到底部快捷钮 */}
         {userTurnList.length > 0 && (
-          <div className={`ai-tab__turn-zone pointer-events-none absolute inset-y-1 right-0 z-10 w-8 flex items-center justify-center
+          <div className={`ai-tab__turn-zone pointer-events-none absolute inset-y-1 right-0 z-10 w-8 flex flex-col items-center
                           transition-opacity duration-150 ${turnNavHover ? 'opacity-100' : 'opacity-0'}`}>
-            <div className="ai-tab__turn-nav pointer-events-auto flex flex-col items-center gap-0.5
-                            max-h-full overflow-y-auto overflow-x-hidden w-full py-0.5">
-              {userTurnList.map((turn) => (
-                <button
-                  key={turn.turnIdx}
-                  type="button"
-                  onClick={() => jumpToUserTurn(turn.turnIdx)}
-                  title={`#${turn.turnIdx + 1} ${turn.content.slice(0, 60)}`}
-                  className={`ai-tab__turn-btn shrink-0 w-6 h-5 flex items-center justify-center rounded-md transition-colors ${
-                    activeTurn === turn.turnIdx ? 'bg-ide-accent/15' : 'hover:bg-ide-hover'
-                  }`}
-                >
-                  <span className={`ai-tab__turn-bar rounded-full transition-all duration-200 ${
-                    activeTurn === turn.turnIdx
-                      ? 'w-[3px] h-4 bg-ide-accent'
-                      : 'w-[3px] h-1.5 bg-ide-text-muted/30'
-                  }`} />
-                </button>
-              ))}
+            <div className="ai-tab__turn-nav flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
+              <div className="pointer-events-auto flex flex-col items-center gap-0.5
+                              max-h-full overflow-y-auto overflow-x-hidden w-full py-0.5">
+                {userTurnList.map((turn) => (
+                  <button
+                    key={turn.turnIdx}
+                    type="button"
+                    onClick={() => jumpToUserTurn(turn.turnIdx)}
+                    title={`#${turn.turnIdx + 1} ${turn.content.slice(0, 60)}`}
+                    className={`ai-tab__turn-btn shrink-0 w-6 h-5 flex items-center justify-center rounded-md transition-colors ${
+                      activeTurn === turn.turnIdx ? 'bg-ide-accent/15' : 'hover:bg-ide-hover'
+                    }`}
+                  >
+                    <span className={`ai-tab__turn-bar rounded-full transition-all duration-200 ${
+                      activeTurn === turn.turnIdx
+                        ? 'w-[3px] h-4 bg-ide-accent'
+                        : 'w-[3px] h-1.5 bg-ide-text-muted/30'
+                    }`} />
+                  </button>
+                ))}
+              </div>
             </div>
+            {!atBottom && (
+              <button
+                type="button"
+                onClick={jumpToBottom}
+                title={t('Jump to Bottom')}
+                className="ai-tab__to-bottom pointer-events-auto shrink-0 mt-1 mb-0.5 h-6 w-6 flex items-center justify-center rounded-full border border-ide-border bg-ide-sidebar text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+              >
+                <ChevronDown size={14} />
+              </button>
+            )}
           </div>
         )}
         </div>
