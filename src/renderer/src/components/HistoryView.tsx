@@ -4,7 +4,7 @@ import { readAiCliConfig } from '../aiStore'
 import { buildHistoryTurns, formatBytes } from '../historyUtils'
 import type { HistoryTurn } from '../historyUtils'
 import type { AiSessionSummary, AiSessionSearchGroup, AiSearchMatch } from '@shared/types'
-import { ArrowLeft, Check, ChevronDown, Filter, FolderOpen, Loader2, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Filter, FolderOpen, History, Loader2, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { fetchDshSessions, fetchDshHistoryTurns, archiveDshSession, type DshHistorySession } from '../dsh/history'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
@@ -452,12 +452,51 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           >
             <ArrowLeft size={13} />
           </button>
-          <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider truncate">{t('Session History')}</span>
-          <div ref={modeRef} className="relative ml-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <History size={13} className="shrink-0 text-ide-accent/70" />
+            <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider truncate">{t('Session History')}</span>
+          </div>
+          <div className="flex-1" />
+          <button
+            onClick={mode === 'dsh' ? fetchDshList : fetchSessions}
+            disabled={listLoading}
+            className="w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title={t('Refresh')}
+          >
+            <RotateCcw size={13} className={listLoading ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={() => setOnlyCurrent(v => !v)}
+            className={`flex items-center gap-1.5 h-5 px-2 rounded text-xs transition-colors ${onlyCurrent ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+            title={t('Current project only')}
+          >
+            <Filter size={13} />
+            <span>{t('Current only')}</span>
+          </button>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1 min-w-0">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-ide-text-muted/50" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={mode === 'dsh' ? t('Search dsh sessions...') : t('Search Claude sessions...')}
+              className="w-full bg-ide-sidebar border border-ide-border rounded pl-7 pr-6 py-1.5 text-xs text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/50"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded text-ide-text-muted hover:text-ide-text flex items-center justify-center transition-colors"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+          <div ref={modeRef} className="relative shrink-0 self-stretch">
             <button
               type="button"
               onClick={() => setModeOpen(v => !v)}
-              className="flex items-center gap-1 h-5 px-2 rounded bg-ide-sidebar border border-ide-border text-ide-text hover:bg-ide-hover transition-colors"
+              className="flex items-center gap-1 h-full px-2 rounded bg-ide-sidebar border border-ide-border text-ide-text hover:bg-ide-hover transition-colors"
               title={`${HISTORY_MODE_OPTIONS.find(o => o.value === mode)?.label} mode`}
             >
               <span className="shrink-0 text-ide-accent">{HISTORY_MODE_OPTIONS.find(o => o.value === mode)?.icon}</span>
@@ -485,40 +524,6 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
               </div>
             )}
           </div>
-          <div className="flex-1" />
-          <button
-            onClick={mode === 'dsh' ? fetchDshList : fetchSessions}
-            disabled={listLoading}
-            className="w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title={t('Refresh')}
-          >
-            <RotateCcw size={13} className={listLoading ? 'animate-spin' : ''} />
-          </button>
-          <button
-            onClick={() => setOnlyCurrent(v => !v)}
-            className={`flex items-center gap-1 h-5 px-2 rounded text-[11px] transition-colors ${onlyCurrent ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-            title={t('Current project only')}
-          >
-            <Filter size={11} />
-            <span>{t('Current only')}</span>
-          </button>
-        </div>
-        <div className="relative">
-          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-ide-text-muted/50" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={mode === 'dsh' ? t('Search dsh sessions...') : t('Search Claude sessions...')}
-            className="w-full bg-ide-sidebar border border-ide-border rounded pl-7 pr-6 py-1.5 text-xs text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/50"
-          />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded text-ide-text-muted hover:text-ide-text flex items-center justify-center transition-colors"
-            >
-              <X size={11} />
-            </button>
-          )}
         </div>
       </div>
 
