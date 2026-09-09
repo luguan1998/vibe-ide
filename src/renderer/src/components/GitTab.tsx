@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react'
 import { useI18n } from '../i18n'
-import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitCommitFile, GitLineLogEntry, TerminalSession, PrRemoteInfo, PrListItem } from '@shared/types'
+import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
 import { ModalOverlay } from './ModalOverlay'
 import GitGraph from './GitGraph'
 import PrProvidersModal from './PrProvidersModal'
 import CreatePrModal from './CreatePrModal'
 import { ContextMenuItem } from './FileTab'
-import { FolderOpen, Route, Check, FileText, GitPullRequest, Loader2 } from 'lucide-react'
+import { FolderOpen, Route, Check, FileText, GitPullRequest } from 'lucide-react'
 
 interface GitTabProps {
   workspacePath: string | null
@@ -193,10 +193,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const [showPrProviders, setShowPrProviders] = useState(false)
   const [prDraft, setPrDraft] = useState<{ host: string; repoPath: string; head: string; base: string; title: string } | null>(null)
   const [prResult, setPrResult] = useState<{ url: string } | null>(null)
-  const [prInfo, setPrInfo] = useState<PrRemoteInfo | null>(null)
-  const [showPrMenu, setShowPrMenu] = useState(false)
-  const [prList, setPrList] = useState<{ loading: boolean; items: PrListItem[]; error?: string } | null>(null)
-  const prPendingPathRef = useRef<string | null>(null)
+  const prPathRef = useRef<string | null>(null)
   const [stashCount, setStashCount] = useState(0)
   const [busy, setBusy] = useState(false)
   const gitRootRef = useRef<string | null>(null)
@@ -782,16 +779,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     setPrDraft({ host: info.host || '', repoPath: info.repoPath || '', head: info.branch || '', base: info.base || 'main', title })
   }, [t])
 
-  const loadPrList = useCallback(async () => {
-    setPrList({ loading: true, items: [] })
-    try {
-      const res = await window.api.git.prList()
-      setPrList({ loading: false, items: res.items || [], error: res.error })
-    } catch (err: any) {
-      setPrList({ loading: false, items: [], error: err.message || String(err) })
-    }
-  }, [])
-
   const handlePushAndPr = useCallback(async () => {
     setShowPushDropdown(false)
     try { await handlePush() } catch {}
@@ -920,27 +907,16 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     }
   }, [status, workspacePath])
 
-  // PR 入口状态：host/provider/base 随 workspace 与 status 刷新；workspace 切换即复位浮层残留
+  // 切换 workspace 即复位 PR 浮层残留（同组件跨 session 复用）
   useEffect(() => {
     const target = effectiveGitPath || null
-    if (prPendingPathRef.current !== target) {
-      prPendingPathRef.current = target
+    if (prPathRef.current !== target) {
+      prPathRef.current = target
       setPrResult(null)
-      setShowPrMenu(false)
       setPrDraft(null)
-      setPrList(null)
+      setShowPrProviders(false)
     }
-    if (!target) {
-      setPrInfo(null)
-      return
-    }
-    window.api.git.prRemoteInfo().then(info => {
-      if (prPendingPathRef.current !== target) return
-      setPrInfo(info.ok ? info : null)
-    }).catch(() => {
-      if (prPendingPathRef.current === target) setPrInfo(null)
-    })
-  }, [effectiveGitPath, status])
+  }, [effectiveGitPath])
 
   const originBranchNames = useMemo(
     () => Array.from(new Set(remoteBranches.filter(rb => rb.remote === 'origin').map(rb => rb.branch))),
@@ -949,11 +925,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
   // Dismiss push dropdown on outside click
   useEffect(() => {
-    if (!showPushDropdown && !showPrMenu) return
-    const handleClick = () => { setShowPushDropdown(false); setShowPrMenu(false) }
+    if (!showPushDropdown) return
+    const handleClick = () => setShowPushDropdown(false)
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
-  }, [showPushDropdown, showPrMenu])
+  }, [showPushDropdown])
 
   // Keyboard navigation: ArrowUp/Down 遍历标题栏+文件行，文件行自动打开 diff；Enter 触发标题栏批量操作
   useEffect(() => {
@@ -1872,161 +1848,86 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
               {t('Conflicted files in staged area. Please resolve conflicts before committing.')}
             </div>
           )}
-          <div className="relative mt-2">
-            <div className="flex items-stretch gap-1.5">
-              <div className="flex-1 min-w-0">
-                {!hasStaged && status.ahead > 0 ? (
-                  <div className="flex git-tab__push-group">
-                    <button
-                      onClick={() => handlePush()}
-                      disabled={busy}
-                      className="flex-1 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-l transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-                      </svg>
-                      Push{status.ahead > 0 ? ` (${status.ahead})` : ''}
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setShowPushDropdown(!showPushDropdown) }}
-                      disabled={busy}
-                      className="py-1.5 px-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-r border-l border-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                        <path d="M4 6l4 4 4-4" />
-                      </svg>
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={handleCommit}
-                    disabled={commitDisabled}
-                    className="w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed git-tab__commit-btn"
-                  >
-                    {t('Commit (Ctrl+Enter)')}
-                  </button>
-                )}
-              </div>
-              {prInfo && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    const next = !showPrMenu
-                    setShowPrMenu(next)
-                    setShowPushDropdown(false)
-                    if (next) loadPrList()
-                  }}
-                  title={prInfo.provider?.tokenSet ? t('Pull Request menu') : t('Hosting not configured')}
-                  className={`relative shrink-0 px-2 rounded border flex items-center transition-colors ${
-                    prResult
-                      ? 'border-ide-accent/60 text-ide-accent bg-ide-accent/10'
-                      : prInfo.provider?.tokenSet
-                      ? 'border-ide-border text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50'
-                      : 'border-ide-warning/50 text-ide-warning hover:bg-ide-warning/10'
-                  }`}
-                >
-                  <GitPullRequest size={14} className="shrink-0" />
-                  {!prInfo.provider?.tokenSet && (
-                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-ide-warning" />
-                  )}
-                </button>
-              )}
-            </div>
-            {showPushDropdown && (
-              <div
-                className="absolute bottom-full left-0 right-0 mb-1 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 max-h-40 overflow-y-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
+          {!hasStaged && status.ahead > 0 ? (
+            <div className="relative mt-2">
+              <div className="flex git-tab__push-group">
                 <button
                   onClick={() => handlePush()}
                   disabled={busy}
-                  className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${!selectedRemote ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text hover:bg-ide-hover'} disabled:opacity-40`}
+                  className="flex-1 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-l transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  origin (default)
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                  </svg>
+                  Push{status.ahead > 0 ? ` (${status.ahead})` : ''}
                 </button>
-                {remoteBranches.map(rb => (
-                  <button
-                    key={rb.name}
-                    onClick={() => { setSelectedRemote(rb.name); handlePush() }}
-                    disabled={busy}
-                    className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${selectedRemote === rb.name ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text hover:bg-ide-hover'} disabled:opacity-40`}
-                  >
-                    <span className="text-ide-text-muted">{rb.remote}/</span>{rb.branch}
-                  </button>
-                ))}
-                <div className="border-t border-ide-border my-1" />
                 <button
-                  onClick={() => { setShowPushDropdown(false); setConfirmAction({ type: 'forcePush' }) }}
+                  onClick={(e) => { e.stopPropagation(); setShowPushDropdown(!showPushDropdown) }}
                   disabled={busy}
-                  className="w-full px-3 py-1.5 text-left text-xs transition-colors text-ide-danger hover:bg-ide-danger/10 disabled:opacity-40"
+                  className="py-1.5 px-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded-r border-l border-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Force Push (-f)
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                    <path d="M4 6l4 4 4-4" />
+                  </svg>
                 </button>
               </div>
-            )}
-            {showPrMenu && prInfo && (
-              <div
-                className="absolute bottom-full left-0 right-0 mb-1 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 max-h-64 overflow-y-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="px-3 py-1 text-[11px] text-ide-text-muted truncate" title={`${prInfo.host}/${prInfo.repoPath}`}>
-                  <span className="font-mono">{prInfo.repoPath}</span> · <span className="font-mono">{prInfo.branch}</span> → <span className="font-mono">{prInfo.base}</span>
-                </div>
-                <div className="border-t border-ide-border my-1" />
-                <button
-                  onClick={() => { setShowPrMenu(false); openPrModal() }}
-                  disabled={busy}
-                  className="w-full px-3 py-1.5 text-left text-xs transition-colors text-ide-text hover:bg-ide-hover flex items-center gap-2 disabled:opacity-40"
+              {showPushDropdown && (
+                <div
+                  className="absolute bottom-full left-0 right-0 mb-1 bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 max-h-40 overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <GitPullRequest size={12} className="text-ide-accent shrink-0" />
-                  {t('Create PR')}
-                </button>
-                {status.ahead > 0 && (
                   <button
-                    onClick={() => { setShowPrMenu(false); handlePushAndPr() }}
+                    onClick={() => handlePush()}
+                    disabled={busy}
+                    className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${!selectedRemote ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text hover:bg-ide-hover'} disabled:opacity-40`}
+                  >
+                    origin (default)
+                  </button>
+                  {remoteBranches.map(rb => (
+                    <button
+                      key={rb.name}
+                      onClick={() => { setSelectedRemote(rb.name); handlePush() }}
+                      disabled={busy}
+                      className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${selectedRemote === rb.name ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text hover:bg-ide-hover'} disabled:opacity-40`}
+                    >
+                      <span className="text-ide-text-muted">{rb.remote}/</span>{rb.branch}
+                    </button>
+                  ))}
+                  <div className="border-t border-ide-border my-1" />
+                  <button
+                    onClick={() => { setShowPushDropdown(false); setConfirmAction({ type: 'forcePush' }) }}
+                    disabled={busy}
+                    className="w-full px-3 py-1.5 text-left text-xs transition-colors text-ide-danger hover:bg-ide-danger/10 disabled:opacity-40"
+                  >
+                    Force Push (-f)
+                  </button>
+                  <div className="border-t border-ide-border my-1" />
+                  <button
+                    onClick={handlePushAndPr}
                     disabled={busy}
                     className="w-full px-3 py-1.5 text-left text-xs transition-colors text-ide-text hover:bg-ide-hover flex items-center gap-2 disabled:opacity-40"
                   >
                     <GitPullRequest size={12} className="text-ide-accent shrink-0" />
                     {t('Push and create PR')}
                   </button>
-                )}
-                <div className="border-t border-ide-border my-1" />
-                <div className="px-3 py-1 text-[11px] text-ide-text-muted">{t('This branch PRs')}</div>
-                {prList?.loading && (
-                  <div className="px-3 py-1.5 text-[11px] text-ide-text-muted flex items-center gap-1.5">
-                    <Loader2 size={11} className="animate-spin shrink-0" />
-                    {t('Loading...')}
-                  </div>
-                )}
-                {prList && !prList.loading && prList.error && (
-                  <div className="px-3 py-1.5 text-[11px] text-ide-danger break-all">{prList.error}</div>
-                )}
-                {prList && !prList.loading && !prList.error && prList.items.length === 0 && (
-                  <div className="px-3 py-1.5 text-[11px] text-ide-text-muted">{t('No PRs for this branch')}</div>
-                )}
-                {prList && !prList.loading && prList.items.map(it => (
                   <button
-                    key={it.number}
-                    onClick={() => window.open(it.url)}
-                    className="w-full px-3 py-1.5 text-left text-xs transition-colors text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                    title={it.title}
+                    onClick={() => { setShowPushDropdown(false); setShowPrProviders(true) }}
+                    className="w-full px-3 py-1.5 text-left text-xs transition-colors text-ide-text-muted hover:text-ide-text hover:bg-ide-hover"
                   >
-                    <span className="text-ide-text-muted font-mono shrink-0">#{it.number}</span>
-                    <span className="truncate flex-1">{it.title}</span>
-                    <span className="text-[11px] text-ide-text-muted shrink-0">→ {it.base}</span>
+                    {t('Hosting settings...')}
                   </button>
-                ))}
-                <div className="border-t border-ide-border my-1" />
-                <button
-                  onClick={() => { setShowPrMenu(false); setShowPrProviders(true) }}
-                  className="w-full px-3 py-1.5 text-left text-xs transition-colors text-ide-text-muted hover:text-ide-text hover:bg-ide-hover"
-                >
-                  {t('Hosting settings...')}
-                </button>
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={handleCommit}
+              disabled={commitDisabled}
+              className="mt-2 w-full py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed git-tab__commit-btn"
+            >
+              {t('Commit (Ctrl+Enter)')}
+            </button>
+          )}
           {prResult && (
             <div className="mt-2 px-2 py-1.5 text-[11px] rounded bg-ide-accent/10 text-ide-accent flex items-center gap-1.5 animate-fade-in">
               <GitPullRequest size={12} className="shrink-0" />
@@ -2240,7 +2141,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
           onCreated={(url) => {
             setPrDraft(null)
             setPrResult({ url })
-            loadPrList()
           }}
         />
       )}

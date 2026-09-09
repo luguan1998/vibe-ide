@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useI18n } from '../i18n'
 import { ModalOverlay } from './ModalOverlay'
+import { PrListItem } from '@shared/types'
 import { Check, AlertTriangle, Loader2 } from 'lucide-react'
 
 interface CreatePrModalProps {
@@ -29,6 +30,17 @@ export default function CreatePrModal({ host, repoPath, head, base, title, branc
   const [error, setError] = useState<string | null>(null)
   const [conn, setConn] = useState<ConnState | null>(null)
   const [conflict, setConflict] = useState<boolean | null>(null)
+  const [existing, setExisting] = useState<PrListItem[] | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    window.api.git.prList().then(res => {
+      if (!cancelled) setExisting(res.items || [])
+    }).catch(() => {
+      if (!cancelled) setExisting([])
+    })
+    return () => { cancelled = true }
+  }, [])
 
   const refreshChecks = useCallback(async () => {
     if (!targetBranch.trim()) { setConn(null); setConflict(null); return }
@@ -90,6 +102,22 @@ export default function CreatePrModal({ host, repoPath, head, base, title, branc
             <span className={labelCls}>{t('Source branch')}</span>
             <div className="px-2 py-1.5 text-xs font-mono text-ide-text-muted border border-ide-border/50 rounded bg-ide-hover/30 truncate">{head}</div>
           </div>
+          {existing && existing.length > 0 && (
+            <div className="rounded border border-ide-warning/40 bg-ide-warning/10 px-2 py-1.5 space-y-1">
+              <div className="text-[11px] text-ide-warning">{t('This branch PRs')}</div>
+              {existing.map(it => (
+                <button
+                  key={it.number}
+                  onClick={() => window.open(it.url)}
+                  className="w-full text-left text-xs text-ide-text hover:text-ide-accent flex items-center gap-2"
+                  title={it.url}
+                >
+                  <span className="font-mono text-ide-text-muted shrink-0">#{it.number}</span>
+                  <span className="truncate">{it.title}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div>
             <span className={labelCls}>{t('Target branch')}</span>
             {branchOptions.length > 0 ? (
