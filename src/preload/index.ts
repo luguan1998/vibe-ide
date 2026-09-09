@@ -75,6 +75,13 @@ const api = {
     prRemoteInfo: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_REMOTE_INFO) as Promise<import('../shared/types').PrRemoteInfo>,
     createPr: (payload: import('../shared/types').CreatePrPayload) =>
       ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_CREATE, payload) as Promise<import('../shared/types').PrResult>,
+    prTest: (input: import('../shared/types').PrTestInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_TEST, input) as Promise<import('../shared/types').PrTestResult>,
+    prList: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_LIST) as Promise<import('../shared/types').PrListResult>,
+    prTemplate: (base?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_TEMPLATE, base) as Promise<{ content: string }>,
+    prCheckConflict: (base: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_CHECK_CONFLICT, base) as Promise<import('../shared/types').PrConflictResult>,
     onMetaChanged: (callback: (data?: { commonDir?: string; kind?: 'status' | 'full' }) => void) => {
       const handler = (_event: any, data: any) => callback(data)
       ipcRenderer.on(IPC_CHANNELS.GIT_META_CHANGED, handler)

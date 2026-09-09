@@ -656,6 +656,20 @@ const ZH_MAP: Record<string, string> = {
   'Push and create PR': 'Push 并创建 PR',
   'Hosting settings...': '托管设置…',
   'PR created': 'PR 已创建',
+  'Pull Request menu': 'PR 菜单',
+  'Hosting not configured': '未配置托管平台',
+  'Create PR': '创建 PR',
+  'This branch PRs': '此分支的 PR',
+  'No PRs for this branch': '该分支暂无 PR',
+  'Test': '测试',
+  'Testing...': '测试中…',
+  'Authenticated as': '已认证：',
+  'repo accessible': '仓库可读',
+  'Auth check failed': '认证检查失败',
+  'Checking connection...': '检查连接…',
+  'Merge conflict with target branch': '与目标分支存在冲突',
+  'Can merge cleanly': '可干净合并',
+  'Retry': '重试',
 }
 
 // ── context ────────────────────────────────────────────────────────

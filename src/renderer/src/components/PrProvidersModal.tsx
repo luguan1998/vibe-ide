@@ -17,6 +17,8 @@ export default function PrProvidersModal({ onClose }: PrProvidersModalProps) {
   const [providers, setProviders] = useState<PrProviderView[]>([])
   const [editing, setEditing] = useState<PrProviderInput | null>(null)
   const [saving, setSaving] = useState(false)
+  const [testingId, setTestingId] = useState<string | null>(null)
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; text: string }>>({})
 
   const refresh = useCallback(async () => {
     setProviders(await window.api.git.prProviders())
@@ -33,6 +35,7 @@ export default function PrProvidersModal({ onClose }: PrProvidersModalProps) {
     setSaving(true)
     try {
       setProviders(await window.api.git.prProviderSave(editing))
+      setTestResults({})
       setEditing(null)
     } finally {
       setSaving(false)
@@ -42,6 +45,25 @@ export default function PrProvidersModal({ onClose }: PrProvidersModalProps) {
   const handleDelete = async (id: string) => {
     setProviders(await window.api.git.prProviderDelete(id))
     if (editing?.id === id) setEditing(null)
+  }
+
+  const handleTest = async (id: string) => {
+    const p = providers.find(x => x.id === id)
+    if (!p) return
+    setTestingId(id)
+    try {
+      const info = await window.api.git.prRemoteInfo().catch(() => null)
+      const repoPath = info?.ok && info.host === p.host ? info.repoPath : undefined
+      const res = await window.api.git.prTest({ id, repoPath })
+      setTestResults(prev => ({
+        ...prev,
+        [id]: res.ok
+          ? { ok: true, text: `${t('Authenticated as')} ${res.login || '-'}${repoPath ? ` · ${t('repo accessible')}` : ''}` }
+          : { ok: false, text: res.error || t('Auth check failed') }
+      }))
+    } finally {
+      setTestingId(null)
+    }
   }
 
   return (
@@ -63,27 +85,43 @@ export default function PrProvidersModal({ onClose }: PrProvidersModalProps) {
             </div>
           )}
           {providers.map(p => (
-            <div key={p.id} className={`flex items-center gap-2 px-3 py-2 border rounded ${editing?.id === p.id ? 'border-ide-accent/60' : 'border-ide-border'}`}>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs text-ide-text truncate font-mono">{p.host}</div>
-                <div className="text-[11px] text-ide-text-muted truncate">
-                  {p.type}
-                  {p.tokenSet ? '' : ` · ${t('No token')}`}
-                  {p.trustSelfSigned ? ` · ${t('Trust self-signed')}` : ''}
+            <div key={p.id} className={`border rounded overflow-hidden ${editing?.id === p.id ? 'border-ide-accent/60' : 'border-ide-border'}`}>
+              <div className="flex items-center gap-2 px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-ide-text truncate font-mono">{p.host}</div>
+                  <div className="text-[11px] text-ide-text-muted truncate">
+                    {p.type}
+                    {p.tokenSet ? '' : ` · ${t('No token')}`}
+                    {p.trustSelfSigned ? ` · ${t('Trust self-signed')}` : ''}
+                  </div>
                 </div>
+                <button
+                  className="px-2 py-1 text-[11px] text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors disabled:opacity-40"
+                  disabled={testingId === p.id || !p.tokenSet}
+                  onClick={() => handleTest(p.id)}
+                >
+                  {testingId === p.id ? t('Testing...') : t('Test')}
+                </button>
+                <button
+                  className="px-2 py-1 text-[11px] text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
+                  onClick={() => startEdit(p)}
+                >
+                  {t('Edit')}
+                </button>
+                <button
+                  className="px-2 py-1 text-[11px] text-ide-danger hover:bg-ide-danger/10 rounded transition-colors"
+                  onClick={() => handleDelete(p.id)}
+                >
+                  {t('Delete')}
+                </button>
               </div>
-              <button
-                className="px-2 py-1 text-[11px] text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
-                onClick={() => startEdit(p)}
-              >
-                {t('Edit')}
-              </button>
-              <button
-                className="px-2 py-1 text-[11px] text-ide-danger hover:bg-ide-danger/10 rounded transition-colors"
-                onClick={() => handleDelete(p.id)}
-              >
-                {t('Delete')}
-              </button>
+              {testResults[p.id] && (
+                <div className={`px-3 py-1.5 text-[11px] border-t border-ide-border/50 break-all animate-fade-in ${
+                  testResults[p.id].ok ? 'text-ide-success bg-ide-success/5' : 'text-ide-danger bg-ide-danger/10'
+                }`}>
+                  {testResults[p.id].text}
+                </div>
+              )}
             </div>
           ))}
           {editing && (

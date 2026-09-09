@@ -2,11 +2,13 @@ import { app, ipcMain, safeStorage } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { randomUUID } from 'crypto'
+import { execFileSync } from 'child_process'
 import https from 'https'
 import http from 'http'
 import {
   IPC_CHANNELS,
-  PrProvider, PrProviderView, PrProviderInput, PrResult, CreatePrPayload, PrRemoteInfo
+  PrProvider, PrProviderView, PrProviderInput, PrResult, CreatePrPayload, PrRemoteInfo,
+  PrTestInput, PrTestResult, PrListResult, PrListItem, PrConflictResult
 } from '../shared/types'
 import { getGitWorkspace } from './git'
 
@@ -158,6 +160,27 @@ async function detectBaseBranch(): Promise<string> {
   return 'main'
 }
 
+function friendlyErr(err: any): string {
+  const code = err?.code || ''
+  const msg = err?.message || ''
+  if (code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' || /self.signed|unable to verify/i.test(msg)) {
+    return '证书校验失败：内网自签平台请勾选「信任自签证书」'
+  }
+  return msg || String(err)
+}
+
+// 用户选的目标分支名先解析成可用 rev（origin/main 优先，本地同名兜底）
+async function resolveRev(ref: string): Promise<string> {
+  const { git } = getGitWorkspace()
+  for (const cand of [`refs/remotes/origin/${ref}`, `refs/heads/${ref}`, ref]) {
+    try {
+      const ok = (await git.raw(['rev-parse', '--verify', '--quiet', cand])).trim()
+      if (ok) return cand
+    } catch {}
+  }
+  return ref
+}
+
 async function readRepoContext(): Promise<PrRemoteInfo> {
   const { git } = getGitWorkspace()
   let remoteUrl = ''
@@ -258,10 +281,145 @@ export function registerPrHandlers(): void {
       const detail = json.message || json.error || json.error_description || json.errorMsg || res.text.slice(0, 200)
       return { error: `HTTP ${res.status} ${String(detail).slice(0, 300)}` }
     } catch (err: any) {
-      const msg = err?.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || /self.signed|unable to verify/i.test(err?.message || '')
-        ? '证书校验失败：内网自签平台请勾选「信任自签证书」'
-        : err?.message || String(err)
-      return { error: msg }
+      return { error: friendlyErr(err) }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GIT_PR_TEST, async (_event, input: PrTestInput): Promise<PrTestResult> => {
+    try {
+      const list = loadProviders()
+      const provider = input.id
+        ? list.find(x => x.id === input.id)
+        : matchProvider((input.host || '').toLowerCase())
+      if (!provider) return { error: '未找到对应的平台配置' }
+      const token = decryptToken(provider.token)
+      if (!token) return { error: '缺少 API Token' }
+      const api = providerApiBase(provider)
+      const headers = authHeaders(provider, token)
+      let login = ''
+      let authChecked = false
+      const userRes = await httpJson('GET', `${api}/user`, headers, null, provider.trustSelfSigned)
+      if (userRes.status >= 200 && userRes.status < 300) {
+        authChecked = true
+        try {
+          const j = JSON.parse(userRes.text)
+          login = j.login || j.username || ''
+        } catch {}
+      } else if (!input.repoPath && !(provider.type === 'github' && (userRes.status === 401 || userRes.status === 403))) {
+        // /user 403：GitHub fine-grained PAT / GitLab 项目级 Token 都属正常，带仓库探针时交给探针判定
+        return { error: `Token 无效或被拒绝 (HTTP ${userRes.status})` }
+      }
+      if (input.repoPath) {
+        const repoUrl = provider.type === 'github'
+          ? `${api}/repos/${input.repoPath}`
+          : `${api}/projects/${encodeURIComponent(input.repoPath)}`
+        const rr = await httpJson('GET', repoUrl, headers, null, provider.trustSelfSigned)
+        if (rr.status >= 200 && rr.status < 300) {
+          try {
+            const j = JSON.parse(rr.text)
+            if (!login) login = j.owner?.login || j.namespace?.full_path || ''
+          } catch {}
+          return { ok: true, login }
+        }
+        if (rr.status === 401 || rr.status === 403) return { error: `Token 无效或无仓库权限 (HTTP ${rr.status})` }
+        if (rr.status === 404) return { error: `找不到仓库 ${input.repoPath}（核对主机名/路径，或 token 无该仓库权限）` }
+        return { error: `仓库检查失败 (HTTP ${rr.status})` }
+      }
+      if (authChecked) return { ok: true, login }
+      return { error: '该 Token 无法访问 /user（GitHub fine-grained / GitLab 项目级 Token 属正常），请在功能分支仓库的创建 PR 弹窗中测试' }
+    } catch (err: any) {
+      return { error: friendlyErr(err) }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GIT_PR_LIST, async (): Promise<PrListResult> => {
+    try {
+      const info = await readRepoContext()
+      if (!info.ok || !info.host || !info.repoPath) return { error: info.error || '无法读取 remote' }
+      const provider = matchProvider(info.host)
+      if (!provider) return { error: `未配置 ${info.host} 的托管平台` }
+      const token = decryptToken(provider.token)
+      if (!token) return { error: `平台「${provider.host}」缺少 API Token` }
+      const head = info.branch || ''
+      if (!head || head === 'HEAD') return { error: '无法确定当前分支' }
+      const api = providerApiBase(provider)
+      const headers = authHeaders(provider, token)
+      const url = provider.type === 'github'
+        ? `${api}/repos/${info.repoPath}/pulls?state=open&per_page=20&head=${encodeURIComponent(`${info.repoPath.split('/')[0]}:${head}`)}`
+        : `${api}/projects/${encodeURIComponent(info.repoPath)}/merge_requests?state=opened&per_page=20&source_branch=${encodeURIComponent(head)}`
+      const res = await httpJson('GET', url, headers, null, provider.trustSelfSigned)
+      if (res.status < 200 || res.status >= 300) return { error: `HTTP ${res.status}` }
+      let arr: any[] = []
+      try {
+        const j = JSON.parse(res.text)
+        arr = Array.isArray(j) ? j : []
+      } catch {}
+      const items: PrListItem[] = arr.map(x => ({
+        number: x.number || x.iid || 0,
+        title: x.title || '',
+        url: x.html_url || x.web_url || '',
+        base: x.base?.ref || x.target_branch || ''
+      }))
+      return { ok: true, items }
+    } catch (err: any) {
+      return { error: friendlyErr(err) }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GIT_PR_TEMPLATE, async (_event, base?: string): Promise<{ content: string }> => {
+    try {
+      const { git, workspace } = getGitWorkspace()
+      let root = workspace
+      try {
+        const toplevel = (await git.raw(['rev-parse', '--show-toplevel'])).trim()
+        if (toplevel) root = toplevel
+      } catch {}
+      const b = (base || '').trim()
+      const cands: string[] = []
+      if (b) {
+        cands.push(join('.github', 'PULL_REQUEST_TEMPLATE', `${b}.md`))
+        cands.push(join('docs', 'PULL_REQUEST_TEMPLATE', `${b}.md`))
+      }
+      cands.push(join('.github', 'PULL_REQUEST_TEMPLATE.md'))
+      cands.push('PULL_REQUEST_TEMPLATE.md')
+      for (const c of cands) {
+        const fp = join(root, c)
+        try {
+          if (existsSync(fp)) return { content: readFileSync(fp, 'utf8') }
+        } catch {}
+      }
+      return { content: '' }
+    } catch {
+      return { content: '' }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GIT_PR_CHECK_CONFLICT, async (_event, base: string): Promise<PrConflictResult> => {
+    const { git, workspace } = getGitWorkspace()
+    const b = (base || '').trim()
+    if (!b) return { ok: false, error: '缺少目标分支' }
+    let head = ''
+    try {
+      head = (await git.revparse(['--abbrev-ref', 'HEAD'])).trim()
+    } catch {}
+    if (!head || head === 'HEAD') return { ok: false, error: '无法确定当前分支' }
+    const baseRev = await resolveRev(b)
+    try {
+      const out = execFileSync('git', ['merge-tree', '--write-tree', '--name-only', baseRev, head], {
+        cwd: workspace, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 10000
+      })
+      const lines = out.trim().split('\n').filter(Boolean)
+      return { ok: true, conflict: lines.length > 1 }
+    } catch (err: any) {
+      if (err?.status === 1) {
+        const out = String(err?.stdout || '')
+        const lines = out.trim().split('\n').filter(Boolean)
+        return { ok: true, conflict: lines.length > 1 || /CONFLICT/i.test(out) }
+      }
+      if (/unknown option|usage/i.test(String(err?.stderr || '') + String(err?.message || ''))) {
+        return { ok: false, error: '当前 git 不支持 merge-tree 预检（需 ≥2.38）' }
+      }
+      return { ok: false, error: friendlyErr(err) }
     }
   })
 }

@@ -49,6 +49,10 @@ export const IPC_CHANNELS = {
   GIT_PR_PROVIDER_DELETE: 'git:prProviderDelete',
   GIT_PR_REMOTE_INFO: 'git:prRemoteInfo',
   GIT_PR_CREATE: 'git:prCreate',
+  GIT_PR_TEST: 'git:prTest',
+  GIT_PR_LIST: 'git:prList',
+  GIT_PR_TEMPLATE: 'git:prTemplate',
+  GIT_PR_CHECK_CONFLICT: 'git:prCheckConflict',
 
   // File
   FILE_READ: 'file:read',
@@ -432,6 +436,37 @@ export interface PrResult {
   number?: number
   error?: string
   needProvider?: boolean    // renderer 据此弹托管配置
+}
+
+export interface PrTestInput {
+  id?: string
+  host?: string
+  repoPath?: string         // 传入则连带校验仓库可读
+}
+
+export interface PrTestResult {
+  ok?: boolean
+  login?: string
+  error?: string
+}
+
+export interface PrListItem {
+  number: number
+  title: string
+  url: string
+  base: string
+}
+
+export interface PrListResult {
+  ok?: boolean
+  items?: PrListItem[]
+  error?: string
+}
+
+export interface PrConflictResult {
+  ok?: boolean
+  conflict?: boolean
+  error?: string
 }
 
 // File types
