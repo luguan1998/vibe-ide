@@ -271,6 +271,11 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
     return () => cancelAnimationFrame(id)
   }, [autoFold])
 
+  // 清洗后为空（纯空白/纯标签，如 buffer 只累计了换行、历史恢复的标签态 thinking）→ 整块不渲染，
+  // 只留一个空的 "Thinking" 折叠条没有意义。hooks 已在上方无条件执行，此处早退不破坏顺序
+  const shown = stripCommandTags(text)
+  if (!shown) return null
+
   return (
     <div className={`ai-tab__thinking max-w-full ${autoFold || noAnimate ? '' : 'animate-fade-in'}`}>
       <button
@@ -294,7 +299,7 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
                 ))}
               </pre>
             ) : (
-              <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">{cleanMessageContent(text)}</pre>
+              <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">{shown}</pre>
             )}
           </div>
         </div>

@@ -435,14 +435,17 @@ function initListeners() {
       const coveredByMergedThinking = isSameMessageId && !!lastMsg?.thinking && lastMsg.thinking.includes(s0.thinkingBuffer.trim())
       const coveredByMergedText = isSameMessageId && !!lastMsg?.content && lastMsg.content.includes(s0.streamBuffer.trim())
       // 差分而非整段补发:streamBuffer 是 token 累积,msg.content/thinking 是 cleanText 后的最终版,
-      // 正常应为 buffer 前缀(trim 差异);只补 content 未覆盖的尾部,避免整段重复常驻一条历史
+      // 正常应为 buffer 前缀(trim 差异);先 trim 再比对，否则 buffer 首尾换行会让前缀对不上 →
+      // 整段补发 → 正文重复；整段已含于 target 时也判覆盖，只补真正的增量尾部
       const tailNotCovered = (buf: string, covered: string | undefined): string => {
-        if (!buf) return ''
+        const b = buf.trim()
+        if (!b) return ''
         const target = covered ?? ''
+        if (target.includes(b)) return ''
         let i = 0
-        const max = Math.min(buf.length, target.length)
-        while (i < max && buf[i] === target[i]) i++
-        return i >= buf.length ? '' : buf.slice(i)
+        const max = Math.min(b.length, target.length)
+        while (i < max && b[i] === target[i]) i++
+        return i >= b.length ? '' : b.slice(i)
       }
       const extraThinking = coveredByMergedThinking ? '' : tailNotCovered(s0.thinkingBuffer, msg.thinking)
       const extraText = coveredByMergedText ? '' : tailNotCovered(s0.streamBuffer, msg.content)
@@ -462,19 +465,27 @@ function initListeners() {
 
       let messages: AiMessage[]
       if (isSameMessageId && lastMsg) {
+        // 去重:new 已含于 old（CLI 重发/前缀清洗差异）则不追加；old 已含于 new 则直接取 new，
+        // 防 o+n 拼出重复正文；空白 new 视为无更新
         const mergeContent = (oldC: string | undefined, newC: string | undefined): string | undefined => {
           const o = oldC || ''
           const n = newC || ''
-          if (!n) return oldC
-          if (!o) return newC
-          return n.startsWith(o) ? n : o + n
+          if (!n.trim()) return oldC
+          if (!o.trim()) return newC
+          if (n.startsWith(o)) return n
+          if (o.includes(n)) return oldC
+          if (n.includes(o)) return n
+          return o + n
         }
         const mergeThinking = (oldT: string | undefined, newT: string | undefined): string | undefined => {
           const o = oldT || ''
           const n = newT || ''
-          if (!n) return oldT
-          if (!o) return newT
-          return n.startsWith(o) ? n : o + '\n\n' + n
+          if (!n.trim()) return oldT
+          if (!o.trim()) return newT
+          if (n.startsWith(o)) return n
+          if (o.includes(n)) return oldT
+          if (n.includes(o)) return n
+          return o + '\n\n' + n
         }
         const merged: AiMessage = {
           ...lastMsg,
