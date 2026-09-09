@@ -1816,7 +1816,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       onMouseEnter={(e) => {
                         if (groupQuickNewSubmenuTimerRef.current) { clearTimeout(groupQuickNewSubmenuTimerRef.current); groupQuickNewSubmenuTimerRef.current = null }
                         const r = e.currentTarget.getBoundingClientRect()
-                        setGroupQuickNewSubmenu({ x: r.left, y: r.bottom + 4, cwd: group.cwd })
+                        setGroupQuickNewSubmenu({ x: r.right + 4, y: r.top, cwd: group.cwd })
                       }}
                       onMouseLeave={() => {
                         groupQuickNewSubmenuTimerRef.current = setTimeout(() => setGroupQuickNewSubmenu(null), 150)
