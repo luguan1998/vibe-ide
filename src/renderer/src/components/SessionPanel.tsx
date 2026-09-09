@@ -626,21 +626,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     </button>
   )
 
-  const [newSubmenu, setNewSubmenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
-  const newSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [quickNewSubmenu, setQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const quickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [groupQuickNewSubmenu, setGroupQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const groupQuickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // 新建：按模式在当前会话 cwd 创建并关菜单（勾选模式为当次启动内的用户偏好）
-  const handleNewFromSubmenu = (mode: 'term' | 'gui' | 'dsh') => {
-    pickNewMode(mode)
-    const session = sessions.find(s => s.id === contextMenu?.sessionId)
-    if (session && onNewSessionHere) onNewSessionHere(session.cwd, mode)
-    setContextMenu(null)
-    setNewSubmenu(null)
-  }
   const quickNewCwd = sessions.find(s => s.id === activeSessionId)?.cwd
   const handleQuickNewSession = (mode: 'term' | 'gui' | 'dsh') => {
     if (quickNewCwd && onNewSessionHere) onNewSessionHere(quickNewCwd, mode)
@@ -654,7 +643,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const ctxMenuPos = useAdaptiveMenuPos(!!contextMenu, contextMenu?.x ?? 0, contextMenu?.y ?? 0)
   const emptyMenuPos = useAdaptiveMenuPos(!!emptyAreaMenu, emptyAreaMenu?.x ?? 0, emptyAreaMenu?.y ?? 0)
   const emojiMenuPos = useAdaptiveMenuPos(!!emojiMenu, emojiMenu?.x ?? 0, emojiMenu?.y ?? 0)
-  const newSubmenuPos = useAdaptiveMenuPos(!!newSubmenu, newSubmenu?.x ?? 0, newSubmenu?.y ?? 0)
   const cloneSubmenuPos = useAdaptiveMenuPos(!!cloneSubmenu, cloneSubmenu?.x ?? 0, cloneSubmenu?.y ?? 0)
   const quickNewSubmenuPos = useAdaptiveMenuPos(!!quickNewSubmenu, quickNewSubmenu?.x ?? 0, quickNewSubmenu?.y ?? 0)
   const groupQuickNewSubmenuPos = useAdaptiveMenuPos(!!groupQuickNewSubmenu, groupQuickNewSubmenu?.x ?? 0, groupQuickNewSubmenu?.y ?? 0)
@@ -1051,10 +1039,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setEmptyAreaMenu(null)
     setEmojiMenu(null)
     setCloneSubmenu(null)
-    setNewSubmenu(null)
     setQuickNewSubmenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
-    if (newSubmenuTimerRef.current) { clearTimeout(newSubmenuTimerRef.current); newSubmenuTimerRef.current = null }
     if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
     setContextMenu({ x: e.clientX, y: e.clientY, sessionId })
   }
@@ -1064,10 +1050,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setContextMenu(null)
     setEmojiMenu(null)
     setCloneSubmenu(null)
-    setNewSubmenu(null)
     setQuickNewSubmenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
-    if (newSubmenuTimerRef.current) { clearTimeout(newSubmenuTimerRef.current); newSubmenuTimerRef.current = null }
     if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
     setEmptyAreaMenu({ x: e.clientX, y: e.clientY })
   }
@@ -1299,7 +1283,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   setContextMenu(null)
                   setEmptyAreaMenu(null)
                   setCloneSubmenu(null)
-                  setNewSubmenu(null)
                   setQuickNewSubmenu(null)
                   setGroupQuickNewSubmenu(null)
                   setEmojiMenu({ x: e.clientX, y: e.clientY, sessionId: session.id })
@@ -1712,7 +1695,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         setContextMenu(null)
                         setEmptyAreaMenu(null)
                         setCloneSubmenu(null)
-                        setNewSubmenu(null)
                         setQuickNewSubmenu(null)
                         setGroupQuickNewSubmenu(null)
                         setEmojiMenu({ x: e.clientX, y: e.clientY, cwd: group.cwd })
@@ -1951,43 +1933,17 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               </div>
             )}
           </div>
-          {onNewSessionHere && (
-            <>
-              <div
-                className="relative"
-                onMouseEnter={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect()
-                  setNewSubmenu({ x: r.right + 4, y: r.top, sessionId: contextMenu.sessionId })
-                }}
-                onMouseLeave={() => {
-                  newSubmenuTimerRef.current = setTimeout(() => setNewSubmenu(null), 150)
-                }}
-              >
-                <button
-                  className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                  onClick={() => handleNewFromSubmenu(newMode)}
-                >
-                  <MessageSquarePlus size={14} className="text-ide-text-muted" />
-                  <span>{t('New')}</span>
-                  <ChevronRight size={14} className="ml-auto text-ide-text-muted" />
-                </button>
-                {newSubmenu && newSubmenu.sessionId === contextMenu.sessionId && (
-                  <div
-                    className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[140px]"
-                    ref={newSubmenuPos.ref}
-                    style={newSubmenuPos.style}
-                    onMouseEnter={() => {
-                      if (newSubmenuTimerRef.current) { clearTimeout(newSubmenuTimerRef.current); newSubmenuTimerRef.current = null }
-                    }}
-                    onMouseLeave={() => setNewSubmenu(null)}
-                  >
-                    {newModesSorted.map(mode => renderNewModeItem(mode, handleNewFromSubmenu))}
-                  </div>
-                )}
-              </div>
-              <div className="border-t border-ide-border my-1" />
-            </>
-          )}
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+            onClick={() => {
+              const session = sessions.find(s => s.id === contextMenu.sessionId)
+              if (session) startRename(session)
+            }}
+          >
+            <Pencil size={14} className="text-ide-text-muted" />
+            <span>{t('Rename')}</span>
+          </button>
+          <div className="border-t border-ide-border my-1" />
           {menuSession?.kind === 'terminal' && (
             <button
               className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
