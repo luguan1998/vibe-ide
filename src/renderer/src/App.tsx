@@ -75,8 +75,8 @@ declare global {
         stashPop: () => Promise<any>
         stashDrop: () => Promise<any>
         push: (remote?: string, branch?: string, force?: boolean) => Promise<any>
-        pull: (remote?: string, branch?: string, cwd?: string) => Promise<any>
-        remoteBranches: (cwd?: string) => Promise<any>
+        pull: (remote?: string, branch?: string) => Promise<any>
+        remoteBranches: () => Promise<any>
         init: () => Promise<any>
         show: (hash: string) => Promise<any>
         showFile: (ref: string, filePath: string) => Promise<any>
@@ -2004,6 +2004,18 @@ export default function App() {
     }
   }, [createTermSession, addSessionRecord])
 
+  // 组头终端下拉：在指定 cwd 新建终端并执行命令（initOverride 顶掉默认 agent 命令）
+  const handleNewTermCommand = useCallback(async (cwd: string, command: string) => {
+    try {
+      setIsOpening(true)
+      await createTermSession(cwd, getMainShellType(), command)
+    } catch (err) {
+      console.error('Failed to run command in new terminal:', err)
+    } finally {
+      setIsOpening(false)
+    }
+  }, [createTermSession])
+
   const handleDirPickerConfirm = useCallback(async (cwd: string, mode: 'term' | 'gui' | 'dsh') => {
     setDirPicker(null)
     try { localStorage.setItem('vibe-ide-dirpicker-last-dir', cwd) } catch {}
@@ -3328,6 +3340,7 @@ export default function App() {
             pipeProgress={pipeProgress}
             onCancelPipe={cancelPipe}
             onCloneWithInit={handleCloneWithInit}
+            onNewTermCommand={handleNewTermCommand}
             onNewSessionHere={handleNewSessionHere}
             onOpenHistoryTab={handleOpenHistoryTab}
             boardActive={boardActive}
