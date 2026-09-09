@@ -2142,16 +2142,16 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             <>
               <div className="border-t border-ide-border my-1" />
               <div className="flex items-center justify-between px-3 py-1">
-                <span className="text-[10px] text-ide-text-muted uppercase tracking-wider">{t('Recent Directories')}</span>
+                <span className="text-[11px] text-ide-text-muted uppercase tracking-wider">{t('Recent Directories')}</span>
                 <button
                   onClick={() => {
                     for (const d of favCwds) onCloneSession(null, d, termType)
                     setEmptyAreaMenu(null)
                   }}
                   disabled={favCwds.length === 0}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded text-[10px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded text-[11px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <RotateCcw className="size-2.5" />
+                  <RotateCcw className="size-3" />
                   {t('Restore Selected')}
                 </button>
               </div>
