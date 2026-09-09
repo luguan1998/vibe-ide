@@ -121,13 +121,15 @@ function httpJson(
     }
     const mod = target.protocol === 'http:' ? http : https
     const payload = body ? JSON.stringify(body) : null
+    // GitHub 对缺 User-Agent 的请求直接 403（administrative rules），Node 默认不发
+    const baseHeaders: Record<string, string> = { 'User-Agent': 'vibe-ide', ...headers }
     const req = mod.request(
       target,
       {
         method,
         headers: payload
-          ? { ...headers, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
-          : headers,
+          ? { ...baseHeaders, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
+          : baseHeaders,
         timeout: 15000,
         rejectUnauthorized: target.protocol === 'https:' ? !trustSelfSigned : undefined
       },
@@ -215,7 +217,8 @@ export function registerPrHandlers(): void {
       existing.host = host
       existing.baseUrl = (input.baseUrl || '').trim() || existing.baseUrl
       existing.trustSelfSigned = !!input.trustSelfSigned
-      if (input.token) existing.token = encryptToken(input.token)
+      const trimmed = (input.token || '').trim()
+      if (trimmed) existing.token = encryptToken(trimmed)
       saveProviders(list)
       return list.map(toView)
     }
@@ -225,7 +228,7 @@ export function registerPrHandlers(): void {
       host,
       baseUrl: (input.baseUrl || '').trim() || `https://${host}`,
       trustSelfSigned: !!input.trustSelfSigned,
-      token: input.token ? encryptToken(input.token) : undefined
+      token: (input.token || '').trim() ? encryptToken((input.token || '').trim()) : undefined
     }
     list.push(created)
     saveProviders(list)
