@@ -43,9 +43,11 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   font-weight: 500;
 }
 
-/* 组内条目：透明底，透出分组卡片的风化渐变（配色；默认结构不动） */
+/* 组内条目：透明底，透出分组卡片的风化渐变（配色；默认结构不动）；inset 描边与组头 cwd 拉开层次，零布局位移 */
 .session-item {
   background: transparent !important;
+  box-shadow: inset 0 0 0 1px rgba(105 88 66 / 0.5);
+  border-radius: 0px !important;
 }
 
 /* 组内条目：hover 点亮暗铁暖灰（默认 32px 高/8px 圆角/无边框结构不动） */
