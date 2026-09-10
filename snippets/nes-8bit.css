@@ -189,11 +189,12 @@ html, body, #root {
   background-repeat: no-repeat !important;
 }
 
-/* 分组标题栏 — 嵌在上边框上（仿 nes-container with-title） */
+/* 分组标题栏 — 嵌在上边框上（仿 nes-container with-title）
+   左沿对齐组内会话行图标：标题 x = 2px 边框 + margin-left + 6.4px padding，须 = 行内 2px 边框 + 18px padding（改一处必须同改 .session-item 的 padding-left） */
 .session-group__header {
   width: fit-content !important;
   height: auto !important;
-  margin: -0.6rem 0 0.4rem 0.75rem !important;
+  margin: -0.6rem 0 0.4rem 11.6px !important;
   padding: 0 0.4rem !important;
   background: #fff !important;
   border-bottom: none !important;
@@ -227,6 +228,10 @@ html, body, #root {
   box-shadow: none !important;
   background: transparent !important;
   margin: 0 !important;
+}
+/* 组内行左缩进（与 .session-group__header 的 margin-left 配套，见上） */
+.session-group .session-item {
+  padding-left: 18px !important;
 }
 /* Session 行 — 选中：浅蓝底（无左色条） */
 .session-item--active {
