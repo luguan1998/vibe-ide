@@ -735,6 +735,25 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     return () => window.removeEventListener('keydown', handler, true)
   }, [showSchedModal, showSchedExamples])
   const [hoverPreview, setHoverPreview] = useState<{ sessionId: string | null; cwd: string; mode: 'cmds' | 'files'; left: number; top: number; pinned?: boolean } | null>(null)
+  const onPreviewHeaderMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0 || !hoverPreview?.pinned) return
+    e.preventDefault()
+    const startX = e.clientX
+    const startY = e.clientY
+    const origLeft = hoverPreview.left
+    const origTop = hoverPreview.top
+    const onMove = (ev: MouseEvent) => {
+      const left = Math.max(0, Math.min(window.innerWidth - 320, origLeft + (ev.clientX - startX)))
+      const top = Math.max(0, Math.min(window.innerHeight - 40, origTop + (ev.clientY - startY)))
+      setHoverPreview(prev => prev ? { ...prev, left, top } : prev)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
   const filesUnderCwd = (cwd: string) => {
     const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
     const key = norm(cwd)
@@ -2149,15 +2168,17 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               hoverTimerRef.current = setTimeout(() => setHoverPreview(prev => prev?.pinned ? prev : null), 300)
             }}
           >
-            <div className="flex items-center gap-1.5 px-3 py-1 border-b border-ide-border shrink-0 bg-ide-sidebar min-w-0">
-              {hoverPreview.mode === 'cmds'
-                ? <Terminal size={12} className="text-ide-text-muted shrink-0" />
-                : <FolderOpen size={12} className="text-ide-accent/70 shrink-0" />}
+            <div
+              className={`flex items-center gap-1.5 px-3 py-1 border-b border-ide-border shrink-0 bg-ide-sidebar min-w-0 ${hoverPreview.pinned ? 'cursor-move' : ''}`}
+              onMouseDown={onPreviewHeaderMouseDown}
+            >
+              {hoverPreview.mode === 'files' && <FolderOpen size={12} className="text-ide-accent/70 shrink-0" />}
               <span
                 className={`text-xs font-medium text-ide-text min-w-0 ${hoverPreview.mode === 'cmds' ? 'line-clamp-2' : 'truncate'}`}
-              >{previewTitle}</span>
+              >{hoverPreview.mode === 'cmds' && <span className="text-ide-text-muted mr-1">{'>_'}</span>}{previewTitle}</span>
               {hoverPreview.mode === 'files' && (
                 <button
+                  onMouseDown={(e) => e.stopPropagation()}
                   onClick={() => setHoverPreview(prev => prev ? { ...prev, pinned: !prev.pinned } : prev)}
                   className={`ml-auto shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors ${
                     hoverPreview.pinned ? 'text-ide-accent' : 'text-ide-text-muted hover:text-ide-accent hover:bg-ide-hover'
