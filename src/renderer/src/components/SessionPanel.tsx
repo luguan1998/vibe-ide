@@ -606,11 +606,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }, [newMode])
   const renderModeIcon = (mode: 'term' | 'gui' | 'dsh') =>
     mode === 'term' ? (
-      <ToolIcon category="command" className="text-ide-text" />
+      <ToolIcon category="command" className="text-ide-text-muted" />
     ) : mode === 'gui' ? (
-      <ClaudeLogoIcon size={14} className="shrink-0 text-ide-text" fill="currentColor" />
+      <ClaudeLogoIcon size={14} className="shrink-0 text-ide-text-muted" fill="currentColor" />
     ) : (
-      <DeepSeekLogoIcon size={14} className="shrink-0 text-ide-text" fill="currentColor" />
+      <DeepSeekLogoIcon size={14} className="shrink-0 text-ide-text-muted" fill="currentColor" />
     )
   const renderNewModeItem = (mode: 'term' | 'gui' | 'dsh', onPick: (mode: 'term' | 'gui' | 'dsh') => void) => (
     <button
