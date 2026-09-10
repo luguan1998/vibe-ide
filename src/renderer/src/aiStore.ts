@@ -169,6 +169,27 @@ export const aiStore = {
       aiStore.updateSession(sid, (s) => ({ ...s, userTurns: turns || [] }))
     }).catch(() => { /* ignore */ })
   },
+  // 斜杠/+ 菜单打开时按需扫盘（CLI 空会话不发 init，slash_commands 拿不到）。
+  // 空表 = 内置表 + 自定义；已有权威表 = 只并入缺的自定义项（新建 skill 免重启可见）
+  async fetchSlashCommands(sid: string) {
+    if (!sid) return
+    try {
+      const cwd = sessionStates[sid]?.cwd || ''
+      const custom = (await window.api.ai.resolveSkills(sid, cwd)) || []
+      aiStore.updateSession(sid, (s) => {
+        const known = new Set(s.slashCommands.map(c => c.name))
+        const extra = custom
+          .filter(c => c.name && !known.has(c.name))
+          .map(c => ({ name: c.name, description: c.description || c.name }))
+        if (s.slashCommands.length > 0) {
+          return extra.length > 0 ? { ...s, slashCommands: [...s.slashCommands, ...extra] } : s
+        }
+        const builtin = enrichSlashCommands(Object.keys(SLASH_COMMAND_DESCRIPTIONS))
+        const bnames = new Set(Object.keys(SLASH_COMMAND_DESCRIPTIONS))
+        return { ...s, slashCommands: [...builtin, ...extra.filter(c => !bnames.has(c.name))] }
+      })
+    } catch { /* ignore */ }
+  },
   destroyAll() {
     for (const sid of createdSessions) window.api.ai.destroy(sid)
     createdSessions.clear()
@@ -637,7 +658,8 @@ function initListeners() {
   window.api.ai.onReady(({ sessionId, slashCommands, model, worktreePath }: any) => {
     const commands = enrichSlashCommands(slashCommands || [])
     aiStore.updateSession(sessionId, (s) => ({
-      ...s, ready: true, busy: s.busy, slashCommands: commands,
+      // spawn 时的空壳 ready（及 revert 的 slashCommands:[]）不得清空已扫出的命令表
+      ...s, ready: true, busy: s.busy, slashCommands: commands.length > 0 ? commands : s.slashCommands,
       model: model || s.model || '',
       worktreePath: worktreePath || s.worktreePath,
     }))

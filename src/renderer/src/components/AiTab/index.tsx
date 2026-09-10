@@ -183,6 +183,11 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const userScrolledUpRef = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
+  // 触发式扫描：/ 或 + 打开命令菜单时才扫 skill/command 目录（与模型下拉展开即刷新同型）
+  useEffect(() => {
+    if (slashMenuOpen) aiStore.fetchSlashCommands(activeSessionId ?? '')
+  }, [slashMenuOpen, activeSessionId])
+
   const [mentionMenuOpen, setMentionMenuOpen] = useState(false)
   const [mentionFilter, setMentionFilter] = useState('')
   const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0)

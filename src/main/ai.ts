@@ -7,7 +7,7 @@ import { join, isAbsolute, relative, basename } from 'path'
 import { setGitMetaPaused } from './watcher'
 import { homedir } from 'os'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS, DEFAULT_AI_CONTEXT_WINDOW, asToolArray } from '../shared/types'
-import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, AiSideQuestionPayload, AiSetContextWindowPayload, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
+import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, AiSideQuestionPayload, AiSetContextWindowPayload, AiSlashCommand, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
 
 export interface ManagedAiSession {
   process: ChildProcess
@@ -1092,6 +1092,63 @@ export function resolveProjectDir(cwd: string, configDir?: string): string | nul
   } catch { return null }
 }
 
+// ── 自定义 skill/command 目录扫描 ────────────────────────────────
+// CLI 2.x 收到首条用户消息才输出 system(init)，空会话拿不到 slash_commands，
+// 斜杠菜单只能靠这里扫盘兜底。来源与 CLI 一致：configDir 与项目 .claude 下的
+// skills/（目录+SKILL.md）与 commands/（顶层 *.md），项目级覆盖用户级。
+
+function frontmatterDescription(content: string): string {
+  const lines = content.split(/\r?\n/)
+  if (lines[0]?.trim() !== '---') return ''
+  for (let i = 1; i < lines.length; i++) {
+    const t = lines[i].trim()
+    if (t === '---') break
+    const m = lines[i].match(/^description:\s*(.*)$/)
+    if (m) {
+      let v = m[1].trim()
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1)
+      return v
+    }
+  }
+  return ''
+}
+
+async function scanSkillRoot(dir: string, byName: Map<string, AiSlashCommand>): Promise<void> {
+  let entries
+  try { entries = await readdir(dir, { withFileTypes: true }) } catch { return }
+  for (const e of entries) {
+    if (!e.isDirectory()) continue
+    try {
+      const md = await readFile(join(dir, e.name, 'SKILL.md'), 'utf-8')
+      byName.set(e.name, { name: e.name, description: frontmatterDescription(md) })
+    } catch { /* 无 SKILL.md 不算 skill */ }
+  }
+}
+
+async function scanCommandRoot(dir: string, byName: Map<string, AiSlashCommand>): Promise<void> {
+  let entries
+  try { entries = await readdir(dir, { withFileTypes: true }) } catch { return }
+  for (const e of entries) {
+    if (!e.isFile() || !e.name.endsWith('.md')) continue
+    const name = e.name.slice(0, -3)
+    let desc = ''
+    try { desc = frontmatterDescription(await readFile(join(dir, e.name), 'utf-8')) } catch { /* ignore */ }
+    byName.set(name, { name, description: desc })
+  }
+}
+
+async function scanCustomSlashCommands(cwd: string, configDir?: string): Promise<AiSlashCommand[]> {
+  const cfgRoot = resolveConfigDir(configDir)
+  const byName = new Map<string, AiSlashCommand>()
+  await scanSkillRoot(join(cfgRoot, 'skills'), byName)
+  await scanCommandRoot(join(cfgRoot, 'commands'), byName)
+  if (cwd) {
+    await scanSkillRoot(join(cwd, '.claude', 'skills'), byName)
+    await scanCommandRoot(join(cwd, '.claude', 'commands'), byName)
+  }
+  return [...byName.values()]
+}
+
 // ── Pet AI-reply cursor ─────────────────────────────────────────
 // 宠物气泡的统一数据源：TUI（终端里直接跑 claude）与 AI tab 都会把会话写入
 // <configDir>/projects/<normalized-cwd>/ 下的 <uuid>.jsonl。渲染进程检测到后台会话
@@ -1912,6 +1969,11 @@ export function registerAiHandlers(): void {
     const fileDefault = typeof fileEnv.ANTHROPIC_MODEL === 'string' ? (fileEnv.ANTHROPIC_MODEL as string).trim() : ''
     out.default = fileDefault || (process.env.ANTHROPIC_MODEL || '').trim() || fileModel || 'default'
     return out
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AI_RESOLVE_SKILLS, async (_event, sessionId?: string, cwdArg?: string) => {
+    const session = sessionId ? aiSessions.get(sessionId) : undefined
+    return scanCustomSlashCommands(session?.cwd || cwdArg || '', session?.configDir)
   })
 
   // /btw side question: non-interrupting forked single-turn answer (CLI >= 2.1.209).

@@ -137,6 +137,7 @@ export const IPC_CHANNELS = {
   AI_SET_PERMISSION_MODE: 'ai:setPermissionMode',
   AI_SET_MODEL: 'ai:setModel',
   AI_RESOLVE_MODELS: 'ai:resolveModels',
+  AI_RESOLVE_SKILLS: 'ai:resolveSkills',
   AI_SIDE_QUESTION: 'ai:sideQuestion',
   AI_SET_CONTEXT_WINDOW: 'ai:setContextWindow',
   AI_GET_CONTEXT_INFO: 'ai:getContextInfo',
