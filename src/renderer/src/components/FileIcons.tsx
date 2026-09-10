@@ -177,11 +177,15 @@ function FileIcon({ name, className = '' }: { name: string; className?: string }
   )
 }
 
+const FOLDER_PATHS: Record<'closed' | 'open', string> = {
+  closed: "M140-160q-24 0-42-18.5T80-220v-520q0-23 18-41.5t42-18.5h256q12 0 23.5 5t19.5 13l42 42h339q23 0 41.5 18.5T880-680v460q0 23-18.5 41.5T820-160H140Z",
+  open: "M140-160q-23 0-41.5-18.5T80-220v-520q0-23 18.5-41.5T140-800h256q12 0 23.5 5t19.5 13l42 42h369q13 0 21.5 8.5T880-710q0 13-8.5 21.5T850-680H289q-57 0-103 28t-46 79v353l90-355q5-20 22-32.5t37-12.5h574q29 0 47.5 23t10.5 52l-88 339q-6 24-22 35t-41 11H140Z",
+}
+
 function FolderIcon({ expanded = false, className = '' }: { expanded?: boolean; className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`shrink-0 ${className}`}>
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-      {expanded && <path d="M2 10h12l2 4h6" />}
+    <svg viewBox="0 -960 960 960" fill="currentColor" className={`shrink-0 ${className}`}>
+      <path d={FOLDER_PATHS[expanded ? 'open' : 'closed']} />
     </svg>
   )
 }
