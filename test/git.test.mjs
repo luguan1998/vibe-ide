@@ -23,21 +23,28 @@ function getOldPath(f, status) {
   return undefined
 }
 
-const CONFLICT_MARKER_RE = /^\+<{7}(?: |$)|^\+={7}$|^\+>{7}(?: |$)/
-function parseConflictFilesFromDiff(diff) {
+function parseConflictPathsFromCheck(output) {
   const conflictPaths = new Set()
-  let currentFile = ''
-  for (const line of diff.split('\n')) {
-    const fileMatch = line.match(/^\+\+\+ b\/(.+)/)
-    if (fileMatch) {
-      currentFile = fileMatch[1]
-      continue
-    }
-    if (CONFLICT_MARKER_RE.test(line)) {
-      if (currentFile) conflictPaths.add(currentFile)
-    }
+  for (const line of output.split('\n')) {
+    const m = /^(.*):\d+: /.exec(line)
+    if (m) conflictPaths.add(m[1])
   }
   return conflictPaths
+}
+
+// 与 src/main/git.ts 的 GIT_STATUS 冲突标记检查保持一致
+const CHECK_ARGS = [
+  '--no-optional-locks',
+  '-c', 'core.whitespace=-trailing-space,-space-before-tab,-blank-at-eol,-blank-at-eof,-indent-with-non-tab,-tab-in-indent',
+  'diff', '--cached', '--check', '--no-ext-diff'
+]
+// --check 命中时退出码为 2，输出在 stdout，必须从 error.stdout 取
+function gitCheck() {
+  try {
+    return execSync(`git ${CHECK_ARGS.map(a => `"${a}"`).join(' ')}`, { encoding: 'utf-8', cwd: gitDir, stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch (e) {
+    return e.stdout || ''
+  }
 }
 
 // === Tests ===
@@ -238,54 +245,77 @@ describe('applyBranch diff baseline', () => {
   })
 })
 
-describe('parseConflictFilesFromDiff', () => {
+describe('parseConflictPathsFromCheck', () => {
   it('finds file with conflict markers', () => {
-    const diff = [
-      'diff --git a/src/app.ts b/src/app.ts',
-      'index 123..456 100644',
-      '--- a/src/app.ts',
-      '+++ b/src/app.ts',
-      '+<<<<<<< HEAD',
-      '+ours',
-      '+=======',
-      '+theirs',
-      '+>>>>>>> branch',
+    const out = [
+      'src/app.ts:3: leftover conflict marker',
+      'src/app.ts:5: leftover conflict marker',
+      'src/app.ts:7: leftover conflict marker',
     ].join('\n')
-    const result = parseConflictFilesFromDiff(diff)
+    const result = parseConflictPathsFromCheck(out)
     assert.ok(result.has('src/app.ts'))
     assert.equal(result.size, 1)
   })
 
-  it('returns empty for clean diff', () => {
-    const diff = [
-      'diff --git a/src/app.ts b/src/app.ts',
-      '--- a/src/app.ts',
-      '+++ b/src/app.ts',
-      '+added line',
-    ].join('\n')
-    assert.equal(parseConflictFilesFromDiff(diff).size, 0)
-  })
-
-  it('returns empty for empty string', () => {
-    assert.equal(parseConflictFilesFromDiff('').size, 0)
-  })
-
   it('tracks multiple conflicted files', () => {
-    const diff = [
-      'diff --git a/a.ts b/a.ts',
-      '+++ b/a.ts',
-      '+<<<<<<< HEAD',
-      '+=======',
-      '+>>>>>>>',
-      'diff --git a/b.ts b/b.ts',
-      '+++ b/b.ts',
-      '+<<<<<<< HEAD',
-      '+=======',
-      '+>>>>>>>',
+    const out = [
+      'a.ts:1: leftover conflict marker',
+      'b.ts:2: leftover conflict marker',
     ].join('\n')
-    const result = parseConflictFilesFromDiff(diff)
+    const result = parseConflictPathsFromCheck(out)
     assert.ok(result.has('a.ts'))
     assert.ok(result.has('b.ts'))
     assert.equal(result.size, 2)
+  })
+
+  it('keeps colon inside path out of the line-number split', () => {
+    const result = parseConflictPathsFromCheck('src/a:b.ts:12: leftover conflict marker')
+    assert.ok(result.has('src/a:b.ts'))
+  })
+
+  it('returns empty for empty string', () => {
+    assert.equal(parseConflictPathsFromCheck('').size, 0)
+  })
+})
+
+describe('staged conflict marker check (real git)', () => {
+  before(() => {
+    gitDir = mkdtempSync(join(tmpdir(), 'vibe-conflict-'))
+    git('init')
+    git('config', 'user.email', 'test@test')
+    git('config', 'user.name', 'test')
+    git('config', 'core.autocrlf', 'false')
+    writeFile('base.txt', 'base\n')
+    git('add', '.')
+    git('commit', '-m', 'init')
+  })
+
+  after(() => {
+    rmSync(gitDir, { recursive: true, force: true })
+  })
+
+  it('flags staged conflict markers, ignores whitespace noise and context lines', () => {
+    // 已提交内容里就含标记，本次只改最后一行 → 标记行属上下文，不应报
+    writeFile('ctx.txt', 'head\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> b\ntail\n')
+    git('add', 'ctx.txt')
+    git('commit', '-m', 'ctx')
+    writeFile('ctx.txt', 'head\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> b\ntail-changed\n')
+    // 新暂存的冲突标记
+    writeFile('conflict.txt', 'a\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> b\nb\n')
+    // 只有尾部空白：git 默认空白规则会报 trailing whitespace，必须被 -c core.whitespace 关掉
+    writeFile('noise.txt', 'clean line\nlined with spaces   \n')
+    git('add', '.')
+
+    const result = parseConflictPathsFromCheck(gitCheck())
+    assert.ok(result.has('conflict.txt'), 'staged conflict markers are flagged')
+    assert.ok(!result.has('noise.txt'), 'whitespace-only noise is not flagged')
+    assert.ok(!result.has('ctx.txt'), 'markers in unchanged context lines are not flagged')
+    assert.equal(result.size, 1)
+  })
+
+  it('returns empty when nothing is staged', () => {
+    gitIgnoreError('reset', 'HEAD')
+    gitIgnoreError('checkout', '-f', '.')
+    assert.equal(parseConflictPathsFromCheck(gitCheck()).size, 0)
   })
 })

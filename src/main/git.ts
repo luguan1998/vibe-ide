@@ -139,12 +139,17 @@ export function registerGitHandlers(): void {
         }
       }
 
-      // Check staged files for conflict markers via cached diff (not disk read)
-      const stagedForConflictCheck = stagedFiles.map(f => f.path)
-      if (stagedForConflictCheck.length > 0) {
+      // 冲突标记走 git 自检(--check)：只回错误行，不再把全量补丁搬过 IPC + 主进程逐行正则
+      // (大暂存区下同步阻塞主进程会卡住全部终端输出)。关掉全部空白规则后输出只剩冲突标记，
+      // 不匹配消息文案，因此不受 git locale 影响；--no-ext-diff 防 diff.external 输出污染
+      if (stagedFiles.length > 0) {
         try {
-          const cachedDiff = await git.raw(['--no-optional-locks', 'diff', '--cached'])
-          const conflictPaths = parseConflictFilesFromDiff(cachedDiff)
+          const checkOutput = await git.raw([
+            '--no-optional-locks',
+            '-c', 'core.whitespace=-trailing-space,-space-before-tab,-blank-at-eol,-blank-at-eof,-indent-with-non-tab,-tab-in-indent',
+            'diff', '--cached', '--check', '--no-ext-diff'
+          ])
+          const conflictPaths = parseConflictPathsFromCheck(checkOutput)
           for (const f of stagedFiles) {
             if (conflictPaths.has(f.path)) {
               f.status = 'conflicted'
@@ -874,20 +879,13 @@ function getOldPath(f: { from?: string }, status: string): string | undefined {
   return undefined
 }
 
-// 从 git diff --cached 输出中扫描冲突标记，返回包含冲突的文件路径集合
-const CONFLICT_MARKER_RE = /^\+<{7}(?: |$)|^\+={7}$|^\+>{7}(?: |$)/
-function parseConflictFilesFromDiff(diff: string): Set<string> {
+// git diff --cached --check 输出 "<路径>:<行号>: <消息>"，一行一个冲突标记
+// 路径含冒号时贪婪匹配取最后一个 ":数字: " 分隔，避免把路径里的冒号当行号分隔符
+function parseConflictPathsFromCheck(output: string): Set<string> {
   const conflictPaths = new Set<string>()
-  let currentFile = ''
-  for (const line of diff.split('\n')) {
-    const fileMatch = line.match(/^\+\+\+ b\/(.+)/)
-    if (fileMatch) {
-      currentFile = fileMatch[1]
-      continue
-    }
-    if (CONFLICT_MARKER_RE.test(line)) {
-      if (currentFile) conflictPaths.add(currentFile)
-    }
+  for (const line of output.split('\n')) {
+    const m = /^(.*):\d+: /.exec(line)
+    if (m) conflictPaths.add(m[1])
   }
   return conflictPaths
 }
