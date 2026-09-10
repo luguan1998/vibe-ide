@@ -1,9 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { AiPermissionMode, AiSlashCommand } from '@shared/types'
 import { DEFAULT_AI_CONTEXT_WINDOW } from '@shared/types'
-import { getFileInfo, FILE_ICON_PATHS } from '../FileIcons'
+import { FileIcon, FolderIcon } from '../FileIcons'
 import { aiStore } from '../../aiStore'
-import { Bot, ChevronDown, Check, Folder, Pencil, Plus, X } from 'lucide-react'
+import { Bot, ChevronDown, Check, Pencil, Plus, X } from 'lucide-react'
 const MODE_OPTIONS: { value: AiPermissionMode; label: string; icon: string }[] = [
   { value: 'plan', label: 'Plan', icon: '📋' },
   { value: 'acceptEdits', label: 'Edit', icon: '🖌️' },
@@ -541,14 +541,6 @@ export interface MentionItem {
   relativePath: string
 }
 
-function FileMentionIcon({ name }: { name: string }) {
-  const info = getFileInfo(name)
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3 h-3 shrink-0 ${info.color}`}
-         dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
-  )
-}
-
 export function MentionAutocomplete({
   items,
   selectedIndex,
@@ -577,8 +569,8 @@ export function MentionAutocomplete({
           }`}
         >
           {item.type === 'directory'
-            ? <Folder size={12} strokeWidth={2} className="shrink-0 text-ide-accent" />
-            : <FileMentionIcon name={item.name} />}
+            ? <FolderIcon className="w-3 h-3 text-ide-accent" />
+            : <FileIcon name={item.name} className="w-3 h-3" />}
           <span className="truncate font-mono">{item.relativePath}</span>
         </button>
       ))}

@@ -13,7 +13,7 @@ import { ModalOverlay } from './ModalOverlay'
 import AppearancePanel from './AppearancePanel'
 import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand } from './CustomCommands'
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
-import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
+import { FileIcon } from './FileIcons'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { BOARD_FOCUS } from './BoardView'
 import { SessionGlyph, renderKindIcon } from '../sessionIcon'
@@ -2194,7 +2194,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 ) : null}
                 {cwdFiles.map(f => {
                   const baseName = f.path.split(/[\\/]/).pop() || f.path
-                  const info = getFileInfo(baseName)
                   return (
                     <div
                       key={f.path}
@@ -2209,8 +2208,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       >
                         <Pin size={12} className={f.pinned ? 'fill-current' : ''} />
                       </button>
-                      <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ml-2 ${info.color}`}
-                        dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+                      <FileIcon name={baseName} className="ft-icon ml-2" />
                       <span className="truncate min-w-0 text-xs text-ide-text flex-1">{baseName}</span>
                       <button
                         onClick={(e) => { e.stopPropagation(); onRemoveRecentFile?.(f.path) }}

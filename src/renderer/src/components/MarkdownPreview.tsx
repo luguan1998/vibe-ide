@@ -5,7 +5,7 @@ import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import { FileDown } from 'lucide-react'
 import { useStableCodeOverrides } from './MarkdownCodeBlock'
-import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
+import { FileIcon } from './FileIcons'
 import { type Frontmatter } from '@renderer/utils/frontmatter'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import { ADD_ANNOTATION_EVENT } from './vibeEvents'
@@ -753,7 +753,7 @@ ${clone.innerHTML}
                       </svg>
                     </button>
                   )}
-                  {(() => { const info = getFileInfo(namePart); return <svg viewBox="0 0 16 16" fill="currentColor" className={`w-4 h-4 shrink-0 ${info.color}`} dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />; })()}
+                  <FileIcon name={namePart} className="w-4 h-4 shrink-0" />
                   <span className="text-ide-text font-medium">{namePart}</span>{dirPart && <span className="text-[11px] text-ide-text-muted/50"> {dirPart}</span>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

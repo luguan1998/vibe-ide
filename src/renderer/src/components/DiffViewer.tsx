@@ -3,7 +3,7 @@ import { Editor, DiffEditor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
 import { ENCODING_GROUPS, DEFAULT_ENCODING } from '@shared/encodings'
 import { useI18n } from '../i18n'
-import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
+import { FileIcon } from './FileIcons'
 import OutlineTrigger from './OutlineTrigger'
 import { ADD_ANNOTATION_EVENT } from './vibeEvents'
 import { resolveAbsPath } from '../utils/filePathUtils'
@@ -208,11 +208,9 @@ function FilePathDisplay({ filePath }: { filePath: string }) {
   const lastSep = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
   const dirPart = lastSep >= 0 ? filePath.substring(0, lastSep + 1) : ''
   const namePart = lastSep >= 0 ? filePath.substring(lastSep + 1) : filePath
-  const info = getFileInfo(namePart)
   return (
     <span className="truncate flex items-center gap-1.5">
-      <svg viewBox="0 0 16 16" fill="currentColor" className={`w-4 h-4 shrink-0 ${info.color}`}
-        dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+      <FileIcon name={namePart} className="w-4 h-4" />
       <span className="text-ide-text font-medium">{namePart}</span>
       {dirPart && <span className="text-[11px] text-ide-text-muted/50">{dirPart}</span>}
     </span>

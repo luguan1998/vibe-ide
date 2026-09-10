@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Folder } from 'lucide-react'
-import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
+import { FileIcon, FolderIcon } from './FileIcons'
 import { loadFilterRules } from './FileTab'
 import { useI18n } from '../i18n'
 import { ModalOverlay } from './ModalOverlay'
@@ -17,14 +16,6 @@ interface QuickOpenProps {
   cwd: string | null
   onSelect: (fullPath: string, relativePath: string) => void
   onClose: () => void
-}
-
-function FileQuickIcon({ name }: { name: string }) {
-  const info = getFileInfo(name)
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" className={`w-4 h-4 shrink-0 ${info.color}`}
-         dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
-  )
 }
 
 export default function QuickOpen({ open, cwd, onSelect, onClose }: QuickOpenProps) {
@@ -130,8 +121,8 @@ export default function QuickOpen({ open, cwd, onSelect, onClose }: QuickOpenPro
                 }`}
               >
                 {item.type === 'directory'
-                  ? <Folder size={14} strokeWidth={2} className="shrink-0 text-ide-accent" />
-                  : <FileQuickIcon name={item.name} />}
+                  ? <FolderIcon className="w-3.5 h-3.5 text-ide-accent" />
+                  : <FileIcon name={item.name} className="w-4 h-4" />}
                 <span className="truncate font-mono">{item.relativePath}</span>
               </button>
             ))

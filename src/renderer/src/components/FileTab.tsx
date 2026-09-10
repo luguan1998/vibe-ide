@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Lightbulb, Clock, X, Pencil, Search, Filter, FileText, FilePlus, FolderPlus, ClipboardPaste, Scissors, Copy, Check, RotateCw, FolderOpen, GitCompare, Trash2, Route, Globe } from 'lucide-react'
 import { FileNode, RecentFileEntry, GrepMatch, CodeSymbol } from '@shared/types'
-import { getFileInfo, FILE_ICON_PATHS } from './FileIcons'
+import { getFileInfo, FileIcon, FolderIcon } from './FileIcons'
 import { ModalOverlay } from './ModalOverlay'
 import { trimToMatch, highlightMatches } from './SearchPanel'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
@@ -93,12 +93,9 @@ function RootInput({ editingState, onEditSubmit, onEditCancel, t }: {
       <div className="pr-2 py-0.5 text-xs flex items-center gap-0.5 bg-ide-accent/10" style={{ paddingLeft: 16 }}>
         <span className="w-3 shrink-0" />
         {editingState.type === 'newFolder' ? (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
+          <FolderIcon className="ft-icon text-ide-warning" />
         ) : (
-          <svg viewBox="0 0 16 16" fill="currentColor" className="ft-icon shrink-0 text-ide-text-muted"
-            dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS.default }} />
+          <FileIcon name="" className="ft-icon" />
         )}
         <input
           ref={inputRef}
@@ -337,45 +334,15 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
         )}
         {isRenaming ? (
           isDir ? (
-            isExpanded ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                <path d="M2 10h12l2 4h6" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
-            )
+            <FolderIcon expanded={isExpanded} className="ft-icon text-ide-warning" />
           ) : (
-            (() => {
-              const info = getFileInfo(node.name)
-              return (
-                <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
-                  dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
-              )
-            })()
+            <FileIcon name={node.name} className="ft-icon" />
           )
         ) : (
           isDir ? (
-            isExpanded ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                <path d="M2 10h12l2 4h6" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
-            )
+            <FolderIcon expanded={isExpanded} className="ft-icon text-ide-warning" />
           ) : (
-            (() => {
-              const info = getFileInfo(node.name)
-              return (
-                <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
-                  dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
-              )
-            })()
+            <FileIcon name={node.name} className="ft-icon" />
           )
         )}
         {isRenaming ? (
@@ -463,12 +430,9 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
             >
               <span className="w-3 shrink-0" />
               {editingState!.type === 'newFolder' ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                </svg>
+                <FolderIcon className="ft-icon text-ide-warning" />
               ) : (
-                <svg viewBox="0 0 16 16" fill="currentColor" className="ft-icon shrink-0 text-ide-text-muted"
-                  dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS.default }} />
+                <FileIcon name="" className="ft-icon" />
               )}
               <input
                 ref={inputRef}
@@ -591,24 +555,9 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
           <path d="M4 6l4 4 4-4" />
         </svg>
         {isDir ? (
-          expanded ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              <path d="M2 10h12l2 4h6" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon text-ide-warning shrink-0">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-          )
+          <FolderIcon expanded={expanded} className="ft-icon text-ide-warning" />
         ) : (
-          (() => {
-            const info = getFileInfo(node.name)
-            return (
-              <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
-                dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
-            )
-          })()
+          <FileIcon name={node.name} className="ft-icon" />
         )}
         <span className="truncate text-ide-text">{node.name}</span>
         <span className="ml-auto shrink-0 px-1.5 rounded-full text-[10px] bg-ide-border/40 text-ide-text-muted">{node.matchCount}</span>
@@ -1483,7 +1432,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           </div>
           {recentExpanded && wsRecent.map((f, i) => {
             const baseName = f.path.split(/[\\/]/).pop() || f.path
-            const info = getFileInfo(baseName)
             return (
               <div
                 key={f.path}
@@ -1501,8 +1449,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                   onOpenRecentFile?.(f.path, f.line)
                 }}
               >
-                <svg viewBox="0 0 16 16" fill="currentColor" className={`ft-icon shrink-0 ${info.color}`}
-                  dangerouslySetInnerHTML={{ __html: FILE_ICON_PATHS[info.kind] }} />
+                <FileIcon name={baseName} className="ft-icon" />
                 <span className="truncate text-ide-text min-w-0 flex-1">{baseName}</span>
                 {onEditRecentFile && baseName.toLowerCase().endsWith('.md') && (
                   <button
