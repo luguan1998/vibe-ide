@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
 import { type SessionTab, ICON_NONE, DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, File, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, HelpCircle, ArrowDownToLine } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, HelpCircle, ArrowDownToLine } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -606,11 +606,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }, [newMode])
   const renderModeIcon = (mode: 'term' | 'gui' | 'dsh') =>
     mode === 'term' ? (
-      <ToolIcon category="command" className="text-ide-accent" />
+      <ToolIcon category="command" className="text-ide-text" />
     ) : mode === 'gui' ? (
-      <ClaudeLogoIcon size={14} className="shrink-0" />
+      <ClaudeLogoIcon size={14} className="shrink-0 text-ide-text" fill="currentColor" />
     ) : (
-      <DeepSeekLogoIcon size={14} className="shrink-0" />
+      <DeepSeekLogoIcon size={14} className="shrink-0 text-ide-text" fill="currentColor" />
     )
   const renderNewModeItem = (mode: 'term' | 'gui' | 'dsh', onPick: (mode: 'term' | 'gui' | 'dsh') => void) => (
     <button
@@ -734,8 +734,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
   }, [showSchedModal, showSchedExamples])
-  const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; cwd: string; left: number; top: number } | null>(null)
-  const [hoverTab, setHoverTab] = useState<'cmds' | 'files'>('cmds')
+  const [hoverPreview, setHoverPreview] = useState<{ sessionId: string | null; cwd: string; mode: 'cmds' | 'files'; left: number; top: number; pinned?: boolean } | null>(null)
+  const filesUnderCwd = (cwd: string) => {
+    const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
+    const key = norm(cwd)
+    const all = recentFiles.filter(f => { const fp = norm(f.path); return fp === key || fp.startsWith(key + '/') })
+    const pinned = all.filter(f => f.pinned)
+    // 固定的不占名额，其余按最近优先补足 7 个（与全局最近文件上限一致）
+    return [...pinned, ...all.filter(f => !f.pinned)].slice(0, Math.max(7, pinned.length))
+  }
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastMouseMoveAtRef = useRef(0)
   const cwdHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -779,7 +786,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   useEffect(() => () => { clearTimer(hoverTimerRef) }, [])
   // session 关闭时其行整体卸载，mouseleave 不触发 → hover 预览窗格残留，随 session 消失主动清理
   useEffect(() => {
-    if (hoverPreview && !sessions.some(s => s.id === hoverPreview.sessionId)) {
+    if (hoverPreview && hoverPreview.sessionId && !sessions.some(s => s.id === hoverPreview.sessionId)) {
       clearTimer(hoverTimerRef)
       setHoverPreview(null)
     }
@@ -1161,13 +1168,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           if (lastMouseMoveAtRef.current < enterAt - 300) return
           const el = document.elementFromPoint(mx, my)
           if (el && itemEl.contains(el)) {
-            setHoverPreview({ sessionId: session.id, cwd: session.cwd, left: rect.right + 2, top: rect.top })
+            setHoverPreview(prev => prev?.pinned ? prev : { sessionId: session.id, cwd: session.cwd, mode: 'cmds', left: rect.right + 2, top: rect.top })
           }
         }, 500)
       }}
       onMouseLeave={() => {
         clearTimer(hoverTimerRef)
-        hoverTimerRef.current = setTimeout(() => setHoverPreview(null), 200)
+        hoverTimerRef.current = setTimeout(() => setHoverPreview(prev => prev?.pinned ? prev : null), 200)
       }}
       onDragStart={() => {
         if (groupSessionsByCwd) {
@@ -1272,7 +1279,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 }}
               />
               <span
-                className={`text-sm min-w-0 ${opts.nameClass} session-item__name ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`} title={session.name}
+                className={`text-sm min-w-0 cursor-pointer ${opts.nameClass} session-item__name ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}
                 onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
               >{session.name}</span>
             </>
@@ -1644,7 +1651,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 {/* Folder header */}
                 <div
                   draggable={!!onReorderGroup}
-                  className={`group h-7 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted acrylic-titlebar rounded-t-lg session-group__header ${
+                  className={`group h-7 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted cursor-grab active:cursor-grabbing session-group__header ${
                     dragGroupIndex === gi ? 'opacity-40' : ''
                   }`}
                   onDragStart={() => { setDragGroupIndex(gi); setDragIndex(null); setDropIndex(null) }}
@@ -1653,6 +1660,25 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     setDropGroupIndex(null)
                     setDragIndex(null)
                     setDropIndex(null)
+                  }}
+                  onMouseEnter={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const headerEl = e.currentTarget
+                    const enterAt = Date.now()
+                    const mx = e.clientX
+                    const my = e.clientY
+                    clearTimer(hoverTimerRef)
+                    hoverTimerRef.current = setTimeout(() => {
+                      if (lastMouseMoveAtRef.current < enterAt - 300) return
+                      const el = document.elementFromPoint(mx, my)
+                      if (el && headerEl.contains(el) && filesUnderCwd(group.cwd).length > 0) {
+                        setHoverPreview(prev => prev?.pinned ? prev : { sessionId: null, cwd: group.cwd, mode: 'files', left: rect.right + 2, top: rect.top })
+                      }
+                    }, 500)
+                  }}
+                  onMouseLeave={() => {
+                    clearTimer(hoverTimerRef)
+                    hoverTimerRef.current = setTimeout(() => setHoverPreview(prev => prev?.pinned ? prev : null), 200)
                   }}
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
@@ -1687,7 +1713,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       {group.sessions.length === 0 && (
                         <button
                           onClick={(e) => { e.stopPropagation(); cwdStore.removeKeptGroup(group.cwd) }}
-                          className="absolute inset-0 opacity-0 group-hover:opacity-100 rounded text-ide-text-muted hover:bg-ide-danger hover:text-white transition-all flex items-center justify-center"
+                          className="absolute inset-0 opacity-0 group-hover:opacity-100 group-hover:bg-ide-danger group-hover:text-white rounded transition-all flex items-center justify-center"
                           title={t('Remove Group')}
                         >
                           <X size={12} />
@@ -1732,6 +1758,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         onNewSessionHere?.(group.cwd, newMode)
                       }}
                       onMouseEnter={(e) => {
+                        clearTimer(hoverTimerRef)
+                        setHoverPreview(prev => prev?.pinned ? prev : null)
                         if (groupQuickNewSubmenuTimerRef.current) { clearTimeout(groupQuickNewSubmenuTimerRef.current); groupQuickNewSubmenuTimerRef.current = null }
                         const r = e.currentTarget.getBoundingClientRect()
                         setGroupQuickNewSubmenu({ x: r.right + 4, y: r.top, cwd: group.cwd })
@@ -1775,7 +1803,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 <div>
                 {group.sessions.map((session) => {
                   const flatIdx = flatIndexMap.indexOf(sessions.findIndex(si => si.id === session.id))
-                  return renderSessionItem(session, flatIdx, { showCwd: false, outerClass: 'pl-4 pr-3 py-1 cursor-pointer transition-colors min-h-[44px] h-auto', nameClass: 'line-clamp-2 break-all', minHeightClass: 'min-h-[44px]' })
+                  return renderSessionItem(session, flatIdx, { showCwd: false, outerClass: 'pl-4 pr-3 py-1 cursor-grab active:cursor-grabbing transition-colors min-h-[44px] h-auto', nameClass: 'line-clamp-2 break-all', minHeightClass: 'min-h-[44px]' })
                 })}
                 </div>
               </div>
@@ -1783,7 +1811,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           })
         ) : (
           <div className="bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-panel__flat-list">
-            {sessions.map((session, index) => renderSessionItem(session, index, { showCwd: true, outerClass: 'px-3 py-1 cursor-pointer transition-colors relative', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[24px]' }))}
+            {sessions.map((session, index) => renderSessionItem(session, index, { showCwd: true, outerClass: 'px-3 py-1 cursor-grab active:cursor-grabbing transition-colors relative', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[24px]' }))}
           </div>
         )}
         {dropGroupIndex !== null && dropGroupIndex === sessionGroups.length && dropGroupIndex !== dragGroupIndex && (
@@ -2106,53 +2134,41 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
       {/* History Hover Popover */}
       {hoverPreview && (() => {
-        const cmds = commandHistory[hoverPreview.sessionId] || []
+        const cmds = (hoverPreview.sessionId ? commandHistory[hoverPreview.sessionId] : undefined) || []
         const displayed = cmds.slice(-30)
-        const normPath = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
-        const cwdKey = normPath(hoverPreview.cwd)
-        const cwdAll = recentFiles.filter(f => {
-          const fp = normPath(f.path)
-          return fp === cwdKey || fp.startsWith(cwdKey + '/')
-        })
-        const cwdPinned = cwdAll.filter(f => f.pinned)
-        const cwdUnpinned = cwdAll.filter(f => !f.pinned)
-        // 固定的不占名额，其余按最近优先补足 7 个（与全局最近文件上限一致）
-        const cwdFiles = [...cwdPinned, ...cwdUnpinned].slice(0, Math.max(7, cwdPinned.length))
+        const cwdFiles = filesUnderCwd(hoverPreview.cwd)
+        const hoverSess = hoverPreview.sessionId ? sessions.find(s => s.id === hoverPreview.sessionId) : undefined
+        const previewTitle = hoverPreview.mode === 'cmds' ? (hoverSess?.name || t('Cmd')) : dirNameOf(hoverPreview.cwd)
         return (
           <div
-            className="fixed z-50 bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-80 max-h-64 flex flex-col"
+            className={`fixed z-50 bg-ide-bg rounded-lg overflow-hidden shadow-2xl w-80 max-h-64 flex flex-col border ${hoverPreview.pinned ? 'border-ide-accent/60' : 'border-ide-border'}`}
             style={{ left: hoverPreview.left, top: hoverPreview.top }}
             onMouseEnter={() => { clearTimer(hoverTimerRef) }}
             onMouseLeave={() => {
               clearTimer(hoverTimerRef)
-              hoverTimerRef.current = setTimeout(() => setHoverPreview(null), 300)
+              hoverTimerRef.current = setTimeout(() => setHoverPreview(prev => prev?.pinned ? prev : null), 300)
             }}
           >
-            <div className="flex items-center px-3 py-1 border-b border-ide-border shrink-0 bg-ide-sidebar">
-              <div
-                className="relative w-[7.25rem] h-6 rounded-full bg-ide-bg cursor-pointer select-none shrink-0 transition-colors"
-                onClick={() => setHoverTab(hoverTab === 'cmds' ? 'files' : 'cmds')}
-                title={t(hoverTab === 'cmds' ? 'File' : 'Cmd')}
-              >
-                <div className="absolute inset-0 flex items-center text-[11px] text-ide-text-muted/50">
-                  <div className="flex-1 flex items-center justify-center gap-1">
-                    <Terminal size={11} />
-                    {t('Cmd')}
-                  </div>
-                  <div className="flex-1 flex items-center justify-center gap-1">
-                    <File size={11} />
-                    {t('File')}
-                  </div>
-                </div>
-                <div
-                  className={`absolute top-0.5 left-0.5 w-14 h-5 rounded-full bg-ide-accent flex items-center justify-center gap-1 text-[11px] text-white transition-transform duration-150 ease-out ${hoverTab === 'files' ? 'translate-x-full' : ''}`}
+            <div className="flex items-center gap-1.5 px-3 py-1 border-b border-ide-border shrink-0 bg-ide-sidebar min-w-0">
+              {hoverPreview.mode === 'cmds'
+                ? <Terminal size={12} className="text-ide-text-muted shrink-0" />
+                : <FolderOpen size={12} className="text-ide-accent/70 shrink-0" />}
+              <span
+                className={`text-xs font-medium text-ide-text min-w-0 ${hoverPreview.mode === 'cmds' ? 'line-clamp-2' : 'truncate'}`}
+              >{previewTitle}</span>
+              {hoverPreview.mode === 'files' && (
+                <button
+                  onClick={() => setHoverPreview(prev => prev ? { ...prev, pinned: !prev.pinned } : prev)}
+                  className={`ml-auto shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                    hoverPreview.pinned ? 'text-ide-accent' : 'text-ide-text-muted hover:text-ide-accent hover:bg-ide-hover'
+                  }`}
+                  title={t(hoverPreview.pinned ? 'Unpin' : 'Pin')}
                 >
-                  {hoverTab === 'cmds' ? <Terminal size={11} /> : <File size={11} />}
-                  {hoverTab === 'cmds' ? t('Cmd') : t('File')}
-                </div>
-              </div>
+                  <Pin size={12} className={hoverPreview.pinned ? 'fill-current' : ''} />
+                </button>
+              )}
             </div>
-            {hoverTab === 'cmds' ? (
+            {hoverPreview.mode === 'cmds' ? (
               <div className="flex-1 overflow-y-auto py-1">
                 {cmds.length === 0 ? (
                   <div className="px-3 py-4 text-xs text-ide-text-muted text-center">

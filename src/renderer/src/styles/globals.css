@@ -1171,10 +1171,14 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
   height: 34px;
   padding: 0 8px;
   border-bottom: none;
-  border-radius: 0;
+  border-radius: 12px;
   background: transparent;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+  transition: background-color .15s;
+}
+.session-group__header:hover {
+  background: rgb(var(--ide-hover) / 0.55);
 }
 .session-group__path {
   font-size: 14px;
