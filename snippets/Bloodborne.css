@@ -77,22 +77,42 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   background: linear-gradient(90deg, rgba(140, 20, 20, 0.18) 0%, rgb(15 14 13) 100%) !important;
 }
 
-/* 三态所在横栏：贴图打底（配色） */
+/* 三态所在横栏：贴图打底；暖色罩染与贴图同尺寸同位置，只染图形内部不外溢 */
 .session-panel__header {
   background: url('assets/button_black2.png') center/92% 66px no-repeat rgb(14 14 16) !important;
   background-position-y: calc(50% + 0.5px) !important;
 }
-/* 三态药丸：透明露横栏贴图、分隔线渐变（配色） */
+/* 三态药丸：透明露横栏贴图、分隔线渐变（配色）；直接钉死宽度，绕开 JS 拉伸封顶公式 */
 .status-badge {
   background: transparent !important;
   box-shadow: none !important;
+  width: 150px !important;
 }
 .status-badge__divider {
   background: linear-gradient(180deg, transparent 15%, rgb(90 78 66) 50%, transparent 85%) !important;
 }
 .status-badge__segment {
   background: transparent !important;
+  padding: 4px 6px !important;
+  gap: 2px !important;
 }
+/* 去掉三态 svg 图标，只留数字 */
+.status-badge__icon {
+  display: none !important;
+}
+.status-badge__count {
+  font-size: 13px !important;
+}
+/* emoji 恒显，数字并排 */
+.status-badge__segment::before {
+  width: 15px !important;
+  height: 15px !important;
+  font-size: 13px !important;
+  line-height: 1;
+}
+.status-badge__segment--running::before { content: '🩸' !important; }
+.status-badge__segment--idle::before { content: '🌙' !important; font-size: 11px !important; width: 12px !important; }
+.status-badge__segment--warn::before { content: '🐺' !important; }
 
 
 /* ==========================================================================
