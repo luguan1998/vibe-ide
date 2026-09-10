@@ -417,6 +417,8 @@ export default function App() {
     }
   }, [rightPanelCollapsed, rightPanelWidth])
   const [leftPanelWidth, setLeftPanelWidth] = useState(240)
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false)
+  const handleToggleLeftPanel = useCallback(() => setLeftPanelCollapsed(v => !v), [])
   const [isDragging, setIsDragging] = useState(false)
   const [isDragOverEdit, setIsDragOverEdit] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
@@ -2660,7 +2662,8 @@ export default function App() {
 
     const onMouseMove = (ev: MouseEvent) => {
       const delta = startX - ev.clientX
-      const newWidth = Math.max(280, Math.min(1200, startWidth + delta))
+      const maxWidth = Math.max(280, window.innerWidth - 240)
+      const newWidth = Math.max(280, Math.min(maxWidth, startWidth + delta))
       setRightPanelWidth(newWidth)
     }
 
@@ -3227,6 +3230,17 @@ export default function App() {
             <path d="M12 3 L19 8 L19 15 L12 20 L5 15 L5 8 Z M5 8 L12 13 L19 8 M12 13 L12 20" />
           </svg>
         </button>
+        {leftPanelCollapsed && !isWelcome && (
+        <button
+          className="no-drag w-6 h-6 ml-1 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
+          onClick={handleToggleLeftPanel}
+          title={t('Restore Sessions')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+        )}
         <div className="flex-1" />
         <button
           className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${showSearchDropdown ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
@@ -3272,7 +3286,7 @@ export default function App() {
       {/* Main Content - 3 Panels */}
       <div className="flex flex-1 overflow-hidden" style={{ cursor: isDragging ? 'col-resize' : 'default' }}>
         {/* Left Panel: Session + Outline */}
-        <div className="shrink-0 flex flex-col relative" data-panel="left" style={{ width: leftPanelWidth, display: isWelcome ? 'none' : undefined }}>
+        <div className="shrink-0 flex flex-col relative" data-panel="left" style={{ width: leftPanelWidth, display: isWelcome || leftPanelCollapsed ? 'none' : undefined }}>
           {/* SessionPanel: always full height */}
           <div className="flex-1 overflow-hidden">
             <SessionPanel
@@ -3362,11 +3376,23 @@ export default function App() {
         </div>
 
         {/* Left Panel Resize Handle */}
-        {!isWelcome && (
+        {!isWelcome && !leftPanelCollapsed && (
         <div
-          className="w-1 hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
+          className="group relative z-30 w-1 hover:bg-ide-accent cursor-col-resize shrink-0 transition-colors"
           onMouseDown={handleLeftResizeStart}
-        />
+        >
+          <div className="absolute inset-y-0 -left-2 -right-2" />
+          <button
+            className="no-drag absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-[18px] h-8 rounded-full bg-ide-accent hover:bg-ide-accent-hover text-white flex items-center justify-center cursor-pointer opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
+            onMouseDown={e => e.stopPropagation()}
+            onClick={handleToggleLeftPanel}
+            title={t('Collapse Sessions')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+        </div>
         )}
 
         {/* Center Panel: Terminal or Diff — all three blocks always mounted, toggled via display */}

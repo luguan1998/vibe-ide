@@ -1680,6 +1680,17 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     setDragIndex(null)
                     setDropIndex(null)
                   }}
+                  onClick={(e) => {
+                    if (e.target !== e.currentTarget) return
+                    if (hoverPreview?.pinned && hoverPreview.mode === 'files' && hoverPreview.cwd === group.cwd) {
+                      setHoverPreview(null)
+                      return
+                    }
+                    if (filesUnderCwd(group.cwd).length === 0) return
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    clearTimer(hoverTimerRef)
+                    setHoverPreview({ sessionId: null, cwd: group.cwd, mode: 'files', left: rect.right + 2, top: rect.top, pinned: true })
+                  }}
                   onMouseEnter={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect()
                     const headerEl = e.currentTarget
