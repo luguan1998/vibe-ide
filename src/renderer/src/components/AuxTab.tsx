@@ -3,6 +3,7 @@ const TerminalView = React.lazy(() => import('./TerminalView'))
 import type { TerminalViewHandle } from './TerminalView'
 import { AuxTerminalTab } from '@shared/types'
 import { parseCommands } from './DocTree'
+import { ToolIcon } from './AiTab/tools'
 import { useI18n } from '../i18n'
 
 interface AuxTabProps {
@@ -335,29 +336,29 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
         )}
       </div>
       {showTabBar && (
-        <div className="shrink-0 flex items-end h-7 bg-ide-border/20 aux-tab__bar">
+        <div className="shrink-0 flex items-end gap-0.5 h-6 px-1 bg-ide-border/20 aux-tab__bar">
           {canLeft && (
             <button
               onClick={() => scrollRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
-              className="shrink-0 w-5 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text transition-colors"
+              className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
               title={t('Scroll Left')}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
           )}
-          <div ref={scrollRef} onScroll={updateArrows} className="flex-1 flex items-end overflow-x-auto aux-tab__scroll">
+          <div ref={scrollRef} onScroll={updateArrows} className="flex-1 flex items-end gap-1 overflow-x-auto aux-tab__scroll">
             {activeArr!.map((tab, i) => {
               const active = i === activeIdx
               const primary = tab.terminals[0]
               return (
                 <div
                   key={tab.id}
-                  className={`group relative flex items-center gap-1 pl-2.5 pr-1.5 text-xs cursor-pointer shrink-0 transition-colors aux-tab__term ${
+                  className={`group relative flex items-center gap-1 pl-2 pr-1 rounded-t-md text-xs cursor-pointer shrink-0 transition-colors aux-tab__term ${
                     active
-                      ? 'bg-ide-sidebar rounded-t-md border-t border-x border-ide-border border-b-2 border-b-ide-accent h-7 text-ide-text'
-                      : 'bg-ide-hover/30 rounded-t-md h-6 text-ide-text-muted hover:bg-ide-hover/50 hover:text-ide-text'
+                      ? 'bg-ide-sidebar border-t border-x border-ide-border border-b-2 border-b-ide-accent h-6 text-ide-text'
+                      : 'bg-ide-hover/25 h-5 text-ide-text-muted hover:bg-ide-hover/45 hover:text-ide-text'
                   }`}
                   onClick={() => activeSessionId && onSelectAuxTab?.(activeSessionId, i)}
                   onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tabIndex: i, tab }) }}
@@ -369,10 +370,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
                       <rect x="2" y="9" width="12" height="5" rx="1" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0">
-                      <polyline points="3.5,4 7,8 3.5,12" />
-                      <line x1="9" y1="12" x2="13" y2="12" />
-                    </svg>
+                    <ToolIcon category="command" />
                   )}
                   <span className="font-mono truncate max-w-[80px]">{(primary?.cwd.split(/[\\/]/).filter(Boolean).pop() || primary?.cwd || '')} {i + 1}</span>
                   <button
@@ -394,7 +392,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
           {canRight && (
             <button
               onClick={() => scrollRef.current?.scrollBy({ left: 120, behavior: 'smooth' })}
-              className="shrink-0 w-5 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text transition-colors"
+              className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
               title={t('Scroll Right')}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
@@ -404,7 +402,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
           )}
           <button
             onClick={handleLaunchOrAdd}
-            className="w-5 h-6 flex items-center justify-center text-ide-text-muted hover:text-ide-text transition-colors shrink-0 aux-tab__add-btn"
+            className="w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0 aux-tab__add-btn"
             title={t('New Terminal')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">

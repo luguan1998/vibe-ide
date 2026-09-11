@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react'
-import { Folder, FolderUp, HardDrive } from 'lucide-react'
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { Folder, FolderPlus, FolderUp, HardDrive } from 'lucide-react'
 import { ModalOverlay } from './ModalOverlay'
 import { useI18n } from '../i18n'
 import { useRecentDirs } from '../cwdStore'
@@ -72,6 +72,9 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
   const [drives, setDrives] = useState<string[] | null>(null)
   const [editingPath, setEditingPath] = useState(false)
   const [pathText, setPathText] = useState(initialDir)
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [newFolderError, setNewFolderError] = useState<string | null>(null)
+  const [launchMenuOpen, setLaunchMenuOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -87,11 +90,11 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
     return () => { cancelled = true }
   }, [initialDir])
 
-  useEffect(() => {
+  const loadDir = useCallback((dir: string) => {
     let cancelled = false
     setEntries(null)
     setError(null)
-    window.api.file.list(cwd).then((res: any) => {
+    window.api.file.list(dir).then((res: any) => {
       if (cancelled) return
       if (res?.error) { setError(res.error); setEntries([]); return }
       const dirs = ((res as DirEntry[]) || [])
@@ -102,7 +105,9 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
       if (!cancelled) { setError(e?.message ?? String(e)); setEntries([]) }
     })
     return () => { cancelled = true }
-  }, [cwd])
+  }, [])
+
+  useEffect(() => loadDir(cwd), [cwd, loadDir])
 
   const isRoot = /^[A-Za-z]:[\\/]$/.test(cwd) || /^[\\/]$/.test(cwd) || /^[\\/]{2}[^\\/]+[\\/][^\\/]+[\\/]$/.test(cwd)
   const parent = cwd.replace(/[\\/][^\\/]+[\\/]?$/, '')
@@ -114,14 +119,37 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
     crumbs.push({ label: p, path: accPath })
   }
 
-  // 盘符/列表导航时同步路径文本
-  useEffect(() => { setPathText(cwd) }, [cwd])
+  // 盘符/列表导航时同步路径文本，并取消未完成的新建
+  useEffect(() => { setPathText(cwd); setCreatingFolder(false); setNewFolderError(null) }, [cwd])
 
   const startEdit = () => { setPathText(cwd); setEditingPath(true) }
   const commitPath = () => {
     const p = pathText.trim()
     setEditingPath(false)
     if (p && p !== cwd) setCwd(p)
+  }
+
+  const cancelCreateFolder = () => { setCreatingFolder(false); setNewFolderError(null) }
+
+  useEffect(() => {
+    if (!launchMenuOpen) return
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.dir-picker__launch')) setLaunchMenuOpen(false)
+    }
+    document.addEventListener('click', handleClick, true)
+    return () => document.removeEventListener('click', handleClick, true)
+  }, [launchMenuOpen])
+
+  const handleCreateFolder = async (name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) { cancelCreateFolder(); return }
+    const sep = cwd.includes('\\') ? '\\' : '/'
+    const newPath = cwd.replace(/[\\/]+$/, '') + sep + trimmed
+    const res = await window.api.file.createDir(newPath)
+    if (res?.error) { setNewFolderError(res.error); return }
+    cancelCreateFolder()
+    loadDir(cwd)
   }
 
   const modes: { key: SessionMode; label: string; icon: React.ReactNode }[] = [
@@ -133,6 +161,8 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
     { key: 'gui', label: 'Claude', icon: <ClaudeLogoIcon size={14} /> },
     { key: 'dsh', label: 'dsh', icon: <DeepSeekLogoIcon size={14} /> },
   ]
+
+  const currentMode = modes.find(m => m.key === selectedMode) ?? modes[0]
 
   return (
     <ModalOverlay onClose={onCancel}>
@@ -177,7 +207,17 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
           </div>
           <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center gap-1 px-3 py-2 border-b border-ide-border shrink-0">
-          <div className={`flex-1 min-w-0 px-2 py-1 rounded bg-ide-sidebar border font-mono text-xs ${error ? 'border-ide-danger' : 'border-ide-border'}`}>
+          <div className={`flex-1 min-w-0 flex items-center gap-0.5 pl-0.5 pr-2 py-1 rounded bg-ide-sidebar border font-mono text-xs ${error ? 'border-ide-danger' : 'border-ide-border'}`}>
+            <button
+              onClick={() => setCwd(parent)}
+              disabled={isRoot}
+              title="上级"
+              className={`shrink-0 w-3.5 h-3.5 rounded flex items-center justify-center transition-colors ${
+                isRoot ? 'text-ide-text-muted opacity-40 cursor-not-allowed' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+              }`}
+            >
+              <FolderUp size={12} />
+            </button>
             {editingPath ? (
               <input
                 autoFocus
@@ -186,12 +226,12 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
                 onKeyDown={e => { if (e.key === 'Enter') commitPath(); else if (e.key === 'Escape') setEditingPath(false) }}
                 onBlur={() => setEditingPath(false)}
                 spellCheck={false}
-                className="w-full bg-transparent text-ide-text outline-none placeholder:text-ide-text-muted"
+                className="flex-1 min-w-0 bg-transparent text-ide-text outline-none placeholder:text-ide-text-muted"
               />
             ) : (
               <div
                 onClick={startEdit}
-                className="w-full flex items-center gap-0.5 cursor-text"
+                className="flex-1 min-w-0 flex items-center gap-0.5 cursor-text overflow-hidden"
                 title={cwd}
               >
                 {crumbs.map((c, i) => (
@@ -210,20 +250,36 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
             )}
           </div>
           <button
-            onClick={() => setCwd(parent)}
-            disabled={isRoot}
-            title="上级"
-            className={`shrink-0 w-6 h-6 rounded flex items-center justify-center transition-colors ${
-              isRoot ? 'text-ide-text-muted opacity-40 cursor-not-allowed' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-            }`}
+            onClick={() => { setNewFolderError(null); setCreatingFolder(true) }}
+            title={t('New Folder')}
+            className="shrink-0 w-6 h-6 rounded flex items-center justify-center transition-colors text-ide-text-muted hover:text-ide-text hover:bg-ide-hover"
           >
-            <FolderUp size={14} />
+            <FolderPlus size={14} />
           </button>
         </div>
         <div className="px-3 pt-1.5 pb-0.5 shrink-0">
           <span className="text-[10px] text-ide-text-muted uppercase tracking-wider">{t('Folder Selection')}</span>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto py-0.5">
+          {creatingFolder && (
+            <div className="flex flex-col">
+              <div className="px-3 py-1 flex items-center gap-2 bg-ide-accent/10">
+                <Folder size={14} className="text-ide-warning shrink-0" />
+                <input
+                  autoFocus
+                  placeholder={t('Folder name')}
+                  spellCheck={false}
+                  className="flex-1 min-w-0 bg-ide-bg border border-ide-accent rounded px-1 py-px text-xs text-ide-text outline-none placeholder:text-ide-text-muted"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); handleCreateFolder(e.currentTarget.value) }
+                    else if (e.key === 'Escape') { e.preventDefault(); cancelCreateFolder() }
+                  }}
+                  onBlur={cancelCreateFolder}
+                />
+              </div>
+              {newFolderError && <div className="px-3 py-0.5 text-[11px] text-ide-danger">{newFolderError}</div>}
+            </div>
+          )}
           {error ? (
             <div className="px-3 py-4 text-sm text-ide-danger text-center">{error}</div>
           ) : entries === null ? (
@@ -246,28 +302,49 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
         </div>
         </div>
         <div className="flex items-center gap-1 px-3 py-2 border-t border-ide-border shrink-0">
-          <div className="flex items-center rounded-md border border-ide-border overflow-hidden mr-auto">
-            {modes.map((m, i) => (
-              <button
-                key={m.key}
-                onClick={() => setSelectedMode(m.key)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium transition-colors ${i > 0 ? 'border-l border-ide-border' : ''} ${
-                  selectedMode === m.key
-                    ? 'bg-ide-accent/20 text-ide-accent'
-                    : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-                }`}
-              >
-                {m.icon}
-                <span>{m.label}</span>
-              </button>
-            ))}
-          </div>
-          <button onClick={onCancel} className="px-3 py-1.5 text-sm text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors">
+          <button onClick={onCancel} className="ml-auto px-3 py-1.5 text-sm text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors">
             {t('Cancel')}
           </button>
-          <button onClick={() => onConfirm(cwd, selectedMode)} className="px-4 py-1.5 text-sm bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors">
-            {t('Confirm')}
-          </button>
+          <div className="dir-picker__launch relative">
+            <div className="flex items-stretch rounded-md border border-ide-border overflow-hidden">
+              <button
+                onClick={() => onConfirm(cwd, selectedMode)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-ide-text hover:bg-ide-hover transition-colors whitespace-nowrap"
+              >
+                <span>{t('Launch')}</span>
+                {currentMode.icon}
+                <span>{currentMode.label}</span>
+              </button>
+              <button
+                onClick={() => setLaunchMenuOpen(v => !v)}
+                title={t('Session mode')}
+                className="flex items-center justify-center px-2 text-ide-text-muted border-l border-ide-border hover:text-ide-text hover:bg-ide-hover transition-colors"
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                  <path d="M4 6l4 4 4-4" />
+                </svg>
+              </button>
+            </div>
+            {launchMenuOpen && (
+              <div
+                className="absolute bottom-full right-0 mb-1 min-w-full bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {modes.map(m => (
+                  <button
+                    key={m.key}
+                    onClick={() => { setSelectedMode(m.key); setLaunchMenuOpen(false) }}
+                    className={`w-full px-3 py-1.5 text-left text-xs transition-colors flex items-center gap-2 whitespace-nowrap ${
+                      selectedMode === m.key ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text hover:bg-ide-hover'
+                    }`}
+                  >
+                    {m.icon}
+                    <span>{m.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </ModalOverlay>

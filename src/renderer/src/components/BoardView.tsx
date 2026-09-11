@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { KanbanSquare, X, Send, CornerDownLeft, ChevronDown, Filter, Check, Folder, ArrowUp, Merge, MousePointer2, SquareCheck, Plus } from 'lucide-react'
+import { KanbanSquare, X, Send, CornerDownLeft, ChevronDown, Filter, Check, ArrowUp, Merge, MousePointer2, SquareCheck } from 'lucide-react'
 import type { SessionTab } from '../sessionRestore'
 import type { WorktreeRecord, WorktreeRecordView } from '@shared/types'
 import { useI18n } from '../i18n'
@@ -7,6 +7,7 @@ import { aiStore } from '../aiStore'
 import { getDshApi } from '../dsh/history'
 import { ChatMarkdown } from './AiTab'
 import { SessionGlyph } from '../sessionIcon'
+import { FolderIcon } from './FileIcons'
 
 export const BOARD_FOCUS = 'board-focus'
 
@@ -884,11 +885,11 @@ export default function BoardView({
             <button
               onClick={(e) => openCreateDirMenu(e)}
               title={createCwd}
-              className="px-1.5 py-0.5 rounded-full text-[10px] border flex items-center gap-1 max-w-[150px] text-ide-text-muted border-ide-border bg-ide-hover transition-colors hover:text-ide-text hover:border-ide-accent/50"
+              className="px-1 py-0.5 rounded text-xs flex items-center gap-1 max-w-[160px] text-ide-text-muted transition-colors hover:text-ide-text hover:bg-ide-hover"
             >
-              <Folder size={10} className="shrink-0" />
+              <FolderIcon className="w-3 h-3 text-ide-warning" />
               <span className="truncate min-w-0">{pathTail(createCwd)}</span>
-              <ChevronDown size={10} className="shrink-0 opacity-70" />
+              <ChevronDown size={11} className="shrink-0 opacity-70" />
             </button>
           )}
           <button
@@ -984,18 +985,60 @@ export default function BoardView({
                     onClick={() => void quickCreate()}
                     disabled={!createCwd || !repoRoot || creating}
                     title={!createCwd ? t('No active workspace') : repoRoot === null ? t('Not a git repo — worktree unavailable') : t('New worktree session')}
-                    className="w-full py-1.5 rounded-lg border border-dashed border-ide-border text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-dashed border-ide-border text-left text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
-                    {creating ? t('Creating...') : `+ ${t('New worktree session')}`}
+                    {creating ? t('Creating...') : `🌿 ${t('New worktree session')}`}
                   </button>
                   <button
                     onClick={() => void quickCreatePlain()}
                     disabled={!createCwd || creatingPlain}
                     title={!createCwd ? t('No active workspace') : t('New terminal session')}
-                    className="w-full py-1.5 rounded-lg border border-dashed border-ide-border text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-dashed border-ide-border text-left text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
-                    {creatingPlain ? t('Creating...') : `+ ${t('New terminal')}`}
+                    {creatingPlain ? t('Creating...') : `💻 ${t('New terminal')}`}
                   </button>
+                  <button
+                    onClick={addTodo}
+                    title={t('New todo')}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-dashed border-ide-border text-left text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors"
+                  >
+                    ✅ {t('New todo')}
+                  </button>
+                  {todos.length > 0 && (
+                    <>
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <SquareCheck size={12} className="text-ide-accent shrink-0" />
+                        <span className="text-xs font-medium text-ide-text-muted">{t('Todos')}</span>
+                        <span className="text-[10px] px-1 rounded-full bg-ide-hover text-ide-text-muted">{todos.length}</span>
+                      </div>
+                      {todos.map(td => (
+                        <div
+                          key={td.id}
+                          draggable
+                          onDragStart={e => {
+                            e.dataTransfer.setData('text/plain', td.text)
+                            e.dataTransfer.effectAllowed = 'copy'
+                          }}
+                          onClick={() => setTodoModal({ id: td.id, draft: td.text })}
+                          title={td.text}
+                          className="group w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-ide-border bg-ide-sidebar hover:bg-ide-hover transition-colors cursor-grab select-none"
+                        >
+                          <span className="text-xs text-ide-text truncate flex-1">{td.text.split('\n')[0]}</span>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation()
+                              deleteTodo(td.id)
+                            }}
+                            title={t('Delete todo')}
+                            className="shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted/0 group-hover:text-ide-text-muted hover:!text-ide-danger hover:bg-ide-danger/10 transition-colors"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="px-1 text-[10px] text-ide-text-muted/60 leading-relaxed">{t('Todo drag hint')}</div>
+                    </>
+                  )}
                 </>
               )}
               {col.key !== 'plan' &&
@@ -1035,57 +1078,6 @@ export default function BoardView({
                   ))
                 ))}
             </div>
-            {col.key === 'plan' && (
-              <div className="shrink-0 border-t border-ide-border max-h-[45%] flex flex-col bg-ide-sidebar/50">
-                <div className="h-7 px-3 flex items-center gap-1.5 border-b border-ide-border shrink-0">
-                  <SquareCheck size={12} className="text-ide-accent shrink-0" />
-                  <span className="text-xs font-medium text-ide-text-muted">{t('Todos')}</span>
-                  {todos.length > 0 && (
-                    <span className="text-[10px] px-1 rounded-full bg-ide-hover text-ide-text-muted">{todos.length}</span>
-                  )}
-                  <button
-                    onClick={addTodo}
-                    title={t('New todo')}
-                    className="ml-auto w-6 h-6 flex items-center justify-center rounded transition-colors text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/15"
-                  >
-                    <Plus size={13} className="shrink-0" />
-                  </button>
-                </div>
-                <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
-                  {todos.length === 0 && (
-                    <div className="py-3 text-center text-[11px] text-ide-text-muted/50">{t('No todos')}</div>
-                  )}
-                  {todos.map(td => (
-                    <div
-                      key={td.id}
-                      draggable
-                      onDragStart={e => {
-                        e.dataTransfer.setData('text/plain', td.text)
-                        e.dataTransfer.effectAllowed = 'copy'
-                      }}
-                      onClick={() => setTodoModal({ id: td.id, draft: td.text })}
-                      title={td.text}
-                      className="group w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-ide-border bg-ide-sidebar hover:bg-ide-hover transition-colors cursor-grab select-none"
-                    >
-                      <span className="text-xs text-ide-text truncate flex-1">{td.text.split('\n')[0]}</span>
-                      <button
-                        onClick={e => {
-                          e.stopPropagation()
-                          deleteTodo(td.id)
-                        }}
-                        title={t('Delete todo')}
-                        className="shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted/0 group-hover:text-ide-text-muted hover:!text-ide-danger hover:bg-ide-danger/10 transition-colors"
-                      >
-                        <X size={11} />
-                      </button>
-                    </div>
-                  ))}
-                  {todos.length > 0 && (
-                    <div className="px-1 text-[10px] text-ide-text-muted/60 leading-relaxed">{t('Todo drag hint')}</div>
-                  )}
-                </div>
-              </div>
-            )}
             {col.key === 'plan' && (
               <div className="shrink-0 border-t border-ide-border px-2 py-1.5 flex flex-col gap-1.5 bg-ide-sidebar/50">
                 <div className="flex items-center gap-1.5">
