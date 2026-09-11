@@ -784,6 +784,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
     renderOverviewRuler: true,
     ignoreTrimWhitespace: false,
     diffAlgorithm: 'advanced' as const,
+    // inline 模式下 gutter（Monaco 硬编码 35px）会跑到最左侧成一条空带 + 分隔线；其内置撤销按钮
+    // 由本文自带的 React 回退浮钮替代，故 inline 时不渲染；并排模式的中间 gutter（撤销按钮常显）保留
+    renderGutterMenu: !inlineDiff,
     automaticLayout: true,
     scrollbar: { verticalScrollbarSize: 0, horizontalScrollbarSize: 16, useShadows: false }
   }), [inlineDiff, commitHash, fontSize, wordWrap, diffSplitRatio])
@@ -801,6 +804,19 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
     padding: { top: 8 },
     scrollbar: { verticalScrollbarSize: 14, horizontalScrollbarSize: 16, useShadows: false }
   }), [fontSize, wordWrap])
+
+  // diff 两侧的 gutter 瘦身：左（原文件）行号两种模式都不显示；glyph 栏本 app 无任何装饰、只归 Monaco 内置回退箭头用，一并关掉让位。
+  // Monaco 无分侧 options，且 widget 随 options 重推（本 app 传整个 options 对象）会盖回来，故 diffOptions 变化时重放；child effect 先于本 effect 执行
+  const applyDiffPerSideOptions = useCallback((editor: any) => {
+    if (!editor) return
+    try {
+      editor.getOriginalEditor?.().updateOptions({ lineNumbers: 'off' })
+      editor.getModifiedEditor?.().updateOptions({ glyphMargin: false })
+    } catch {}
+  }, [])
+  useEffect(() => {
+    applyDiffPerSideOptions(diffEditorRef.current)
+  }, [applyDiffPerSideOptions, diffOptions])
 
   // 单行回退浮钮：延迟隐藏（从行移到按钮不闪）
   const scheduleHide = useCallback(() => {
@@ -945,7 +961,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
         </div>
       </div>
 
-      <div className="relative flex-1 min-h-0 overflow-hidden">
+      <div className={`relative flex-1 min-h-0 overflow-hidden${inlineDiff ? ' diff-inline' : ''}`}>
         {diffLoading && (
           <div className="absolute inset-0 z-10 flex items-center justify-center text-ide-text-muted text-sm bg-ide-bg/60">
             Loading...
@@ -963,6 +979,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
             onMount={(editor, monaco) => {
               diffEditorRef.current = editor
               monacoRef.current = monaco
+              applyDiffPerSideOptions(editor)
               const modifiedEditor = editor.getModifiedEditor()
               modifiedEditor.onMouseDown((e: any) => {
                 const ctrlClick = !!(e.event?.ctrlKey || e.event?.metaKey)

@@ -252,6 +252,12 @@ html, body, #root {
   display: none !important;
 }
 
+/* inline diff：原文件编辑器只是个 gutter 壳（行号已命令式关闭，删除行文本画在 modified 侧 view zone），
+   整条隐藏 —— 否则残留壳的底色会在行号左侧亮出一条高亮带 */
+.diff-inline .monaco-diff-editor .editor.original {
+  display: none !important;
+}
+
 /* 禁用 Monaco 所有 hover tooltip */
 .monaco-hover,
 .workbench-hover,
@@ -713,11 +719,12 @@ html, body, #root {
   container-type: inline-size;
   container-name: git-tab;
 }
-@container git-tab (max-width: 289px) {
+@container git-tab (max-width: 230px) {
   .git-stats { display: none; }
 }
-/* ── 窄面板下批量按钮（全部暂存/全部取消）回退为纯 svg ── */
-@container git-tab (max-width: 340px) {
+/* ── 窄面板下批量按钮（全部暂存/全部取消）回退为纯 svg ──
+   290px 实测：中文界面 Untracked 行 + 标签文字需 289px；英文需 314px（英文在 290~313 会略挤标题） */
+@container git-tab (max-width: 290px) {
   .git-tab__bulk-label { display: none; }
 }
 /* ── 窄面板下 Pop Stash 回退为 Pop（commit area 在 git-tab-container 之外，单建容器） ── */

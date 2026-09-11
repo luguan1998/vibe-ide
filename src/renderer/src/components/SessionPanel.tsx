@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
 import { type SessionTab, ICON_NONE, DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Terminal, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, HelpCircle, ArrowDownToLine } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -2119,7 +2119,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               setEmptyAreaMenu(null)
             }}
           >
-            <Terminal size={14} className="text-ide-text-muted" />
+            {renderModeIcon('term')}
             {t('New Terminal')}
           </button>
           <button
@@ -2139,10 +2139,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               setEmptyAreaMenu(null)
             }}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
-              <polyline points="4 17 10 11 4 5" />
-              <line x1="12" y1="19" x2="20" y2="19" />
-            </svg>
+            <ScrollText size={14} className="text-ide-text-muted" />
             {t('Custom Command')}
           </button>
           {recentDirs.length > 0 && (
