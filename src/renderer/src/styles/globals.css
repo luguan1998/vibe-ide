@@ -258,6 +258,12 @@ html, body, #root {
   display: none !important;
 }
 
+/* inline diff：行号贴到最左太挤，左侧留 8px 呼吸位。
+   加在 Monaco 包裹层而非编辑器上 —— Monaco 自己的布局/鼠标坐标全不受影响（加在编辑器上会让点击列号偏 ~1 字符） */
+.diff-inline {
+  padding-left: 8px;
+}
+
 /* 禁用 Monaco 所有 hover tooltip */
 .monaco-hover,
 .workbench-hover,

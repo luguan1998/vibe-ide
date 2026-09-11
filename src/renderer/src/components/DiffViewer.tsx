@@ -798,7 +798,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
     fontSize,
     lineNumbers: 'on' as const,
     lineNumbersMinChars: 3,
-    glyphMargin: true,
+    glyphMargin: false,
     wordWrap: (wordWrap ? 'on' : 'off') as 'on' | 'off',
     automaticLayout: true,
     padding: { top: 8 },
@@ -810,7 +810,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
   const applyDiffPerSideOptions = useCallback((editor: any) => {
     if (!editor) return
     try {
-      editor.getOriginalEditor?.().updateOptions({ lineNumbers: 'off' })
+      editor.getOriginalEditor?.().updateOptions({ lineNumbers: 'off', glyphMargin: false })
       editor.getModifiedEditor?.().updateOptions({ glyphMargin: false })
     } catch {}
   }, [])
