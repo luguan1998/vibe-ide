@@ -1451,7 +1451,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <button
             onClick={() => window.dispatchEvent(new CustomEvent(BOARD_FOCUS))}
             className={`w-full h-9 flex items-center justify-start pl-2 pr-3 gap-2 rounded-xl border text-sm font-medium transition-colors session-panel__quick-action ${boardActive
-              ? 'border-ide-accent/50 bg-ide-accent/15 text-ide-accent'
+              ? 'border-transparent bg-ide-accent/15 text-ide-accent'
               : 'border-transparent bg-ide-sidebar text-ide-text hover:border-ide-border hover:bg-ide-hover'}`}
           >
             <KanbanSquare size={14} className={boardActive ? 'text-ide-accent' : 'text-ide-text-muted'} />

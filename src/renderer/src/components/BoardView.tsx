@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { KanbanSquare, X, Send, CornerDownLeft, ChevronDown, Filter, Check, Folder, ArrowUp, Merge, MousePointer2, SquareCheck } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { KanbanSquare, X, Send, CornerDownLeft, ChevronDown, Filter, Check, Folder, ArrowUp, Merge, MousePointer2, SquareCheck, Plus } from 'lucide-react'
 import type { SessionTab } from '../sessionRestore'
 import type { WorktreeRecord, WorktreeRecordView } from '@shared/types'
 import { useI18n } from '../i18n'
@@ -423,6 +423,15 @@ export default function BoardView({
       setTodos(prev => prev.flatMap(t => (t.id === id ? (text ? [{ id, text }] : []) : [t])))
     }
     setTodoModal(null)
+  }, [todoModal])
+
+  const todoTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useLayoutEffect(() => {
+    const el = todoTextareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, Math.round(window.innerHeight * 0.45))}px`
   }, [todoModal])
 
   const loadTailMore = useCallback((s: SessionTab) => {
@@ -1027,41 +1036,54 @@ export default function BoardView({
                 ))}
             </div>
             {col.key === 'plan' && (
-              <div className="shrink-0 border-t border-ide-border p-2 space-y-2 max-h-[45%] overflow-y-auto bg-ide-sidebar/50">
-                {todos.map(td => (
-                  <div
-                    key={td.id}
-                    draggable
-                    onDragStart={e => {
-                      e.dataTransfer.setData('text/plain', td.text)
-                      e.dataTransfer.effectAllowed = 'copy'
-                    }}
-                    onClick={() => setTodoModal({ id: td.id, draft: td.text })}
-                    title={td.text}
-                    className="group w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-ide-border bg-ide-sidebar hover:bg-ide-hover transition-colors cursor-grab select-none"
+              <div className="shrink-0 border-t border-ide-border max-h-[45%] flex flex-col bg-ide-sidebar/50">
+                <div className="h-7 px-3 flex items-center gap-1.5 border-b border-ide-border shrink-0">
+                  <SquareCheck size={12} className="text-ide-accent shrink-0" />
+                  <span className="text-xs font-medium text-ide-text-muted">{t('Todos')}</span>
+                  {todos.length > 0 && (
+                    <span className="text-[10px] px-1 rounded-full bg-ide-hover text-ide-text-muted">{todos.length}</span>
+                  )}
+                  <button
+                    onClick={addTodo}
+                    title={t('New todo')}
+                    className="ml-auto w-6 h-6 flex items-center justify-center rounded transition-colors text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/15"
                   >
-                    <span className="text-xs text-ide-text truncate flex-1">{td.text.split('\n')[0]}</span>
-                    <button
-                      onClick={e => {
-                        e.stopPropagation()
-                        deleteTodo(td.id)
+                    <Plus size={13} className="shrink-0" />
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
+                  {todos.length === 0 && (
+                    <div className="py-3 text-center text-[11px] text-ide-text-muted/50">{t('No todos')}</div>
+                  )}
+                  {todos.map(td => (
+                    <div
+                      key={td.id}
+                      draggable
+                      onDragStart={e => {
+                        e.dataTransfer.setData('text/plain', td.text)
+                        e.dataTransfer.effectAllowed = 'copy'
                       }}
-                      title={t('Delete todo')}
-                      className="shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted/0 group-hover:text-ide-text-muted hover:!text-ide-danger hover:bg-ide-danger/10 transition-colors"
+                      onClick={() => setTodoModal({ id: td.id, draft: td.text })}
+                      title={td.text}
+                      className="group w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-ide-border bg-ide-sidebar hover:bg-ide-hover transition-colors cursor-grab select-none"
                     >
-                      <X size={11} />
-                    </button>
-                  </div>
-                ))}
-                <button
-                  onClick={addTodo}
-                  className="w-full py-1.5 rounded-lg border border-dashed border-ide-border text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors"
-                >
-                  + {t('New todo')}
-                </button>
-                {todos.length > 0 && (
-                  <div className="px-1 text-[10px] text-ide-text-muted/60 leading-relaxed">{t('Todo drag hint')}</div>
-                )}
+                      <span className="text-xs text-ide-text truncate flex-1">{td.text.split('\n')[0]}</span>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation()
+                          deleteTodo(td.id)
+                        }}
+                        title={t('Delete todo')}
+                        className="shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted/0 group-hover:text-ide-text-muted hover:!text-ide-danger hover:bg-ide-danger/10 transition-colors"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                  {todos.length > 0 && (
+                    <div className="px-1 text-[10px] text-ide-text-muted/60 leading-relaxed">{t('Todo drag hint')}</div>
+                  )}
+                </div>
               </div>
             )}
             {col.key === 'plan' && (
@@ -1302,23 +1324,24 @@ export default function BoardView({
           onMouseDown={() => commitTodoModal()}
         >
           <div
-            className="bg-ide-sidebar border border-ide-border rounded-xl p-4 w-[520px] max-w-[90vw] mx-4 shadow-2xl space-y-3"
+            className="bg-ide-sidebar border border-ide-border rounded-lg p-2 w-[480px] max-w-[90vw] mx-4 shadow-2xl space-y-1.5"
             onMouseDown={e => e.stopPropagation()}
           >
             <div className="flex items-center gap-1.5">
-              <SquareCheck size={14} className="text-ide-accent shrink-0" />
-              <span className="text-sm text-ide-text font-medium flex-1 truncate">{todoModal.id === null ? t('New todo') : t('Edit todo')}</span>
+              <SquareCheck size={13} className="text-ide-accent shrink-0" />
+              <span className="text-xs text-ide-text font-medium flex-1 truncate">{todoModal.id === null ? t('New todo') : t('Edit todo')}</span>
               <button
                 onClick={commitTodoModal}
-                title={t('Save')}
-                className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                title={t('Save (Ctrl+Enter)')}
+                className="shrink-0 px-2.5 py-1 rounded-md text-[11px] text-ide-accent bg-ide-accent/15 border border-ide-accent/40 hover:bg-ide-accent/25 transition-colors"
               >
-                <X size={13} />
+                {t('Save')}
               </button>
             </div>
             <textarea
               autoFocus
-              rows={8}
+              ref={todoTextareaRef}
+              rows={1}
               value={todoModal.draft}
               onChange={e => setTodoModal(m => (m ? { ...m, draft: e.target.value } : m))}
               onKeyDown={e => {
@@ -1328,16 +1351,8 @@ export default function BoardView({
                 }
               }}
               placeholder={t('Write a todo…')}
-              className="block w-full resize-y px-2.5 py-2 text-xs leading-relaxed bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+              className="block w-full resize-none min-h-[120px] max-h-[45vh] overflow-y-auto px-2.5 py-2 text-xs leading-relaxed bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
             />
-            <div className="flex gap-2 justify-end pt-1">
-              <button
-                onClick={commitTodoModal}
-                className="px-3 py-1.5 rounded-md text-xs text-ide-accent bg-ide-accent/15 border border-ide-accent/40 hover:bg-ide-accent/25 transition-colors"
-              >
-                {t('Save (Ctrl+Enter)')}
-              </button>
-            </div>
           </div>
         </div>
       )}
