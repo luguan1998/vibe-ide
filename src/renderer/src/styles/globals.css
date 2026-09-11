@@ -716,6 +716,18 @@ html, body, #root {
 @container git-tab (max-width: 289px) {
   .git-stats { display: none; }
 }
+/* ── 窄面板下批量按钮（全部暂存/全部取消）回退为纯 svg ── */
+@container git-tab (max-width: 340px) {
+  .git-tab__bulk-label { display: none; }
+}
+/* ── 窄面板下 Pop Stash 回退为 Pop（commit area 在 git-tab-container 之外，单建容器） ── */
+.git-tab__commit-area {
+  container-type: inline-size;
+  container-name: git-tab-commit;
+}
+@container git-tab-commit (max-width: 260px) {
+  .git-tab__pop-suffix { display: none; }
+}
 
 /* ── Git 文件名继承父级 .git-tab__file-item；目录比文件名略小 ── */
 .git-fname { font-size: var(--git-fname-size, 12px); }
@@ -996,9 +1008,10 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
 .aux-tab__scroll { scrollbar-width: none; }
 .aux-tab__scroll::-webkit-scrollbar { display: none; }
 
-/* ── status-badge：agent 三态合并药丸（三段紧贴一体，参考 niji；snippets 可覆盖，选择器优先级低无需 !important） ── */
+/* ── status-badge：agent 三态合并药丸（三段紧贴一体，参考 niji；hover 覆盖会话/Dir/Git 视图切换面；snippets 可覆盖，选择器优先级低无需 !important） ── */
 .status-badge {
   display: inline-flex;
+  position: relative;
   align-items: center;
   gap: 0;
   background:
@@ -1060,6 +1073,41 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   color: rgb(var(--ide-warning));
   background: radial-gradient(150% 170% at 50% -30%, rgb(var(--ide-warning) / 0.42), rgb(var(--ide-warning) / 0.12) 58%, transparent 80%);
 }
+/* 计数面：只有宽度职责 + 纯展示。opacity 淡出后它会插到切换面之上吃掉指针事件（实测），
+   故 pointer-events: none 一刀切——反正 tooltip 也被切换面盖住了 */
+.status-badge__stats {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  align-items: stretch;
+  pointer-events: none;
+  transition: opacity .12s ease;
+}
+/* hover 面：会话列表 / 右栏 Dir、Git 面板切换（覆盖在计数面之上，宽随计数面不抖动）
+   z-index 显式压过计数面；:focus-visible 而非 :focus-within — 鼠标点击后的聚焦不得让切换面赖着不退 */
+.status-badge__switch {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: stretch;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.status-badge:hover .status-badge__switch,
+.status-badge:has(:focus-visible) .status-badge__switch { opacity: 1; }
+.status-badge:hover .status-badge__stats,
+.status-badge:has(:focus-visible) .status-badge__stats { opacity: 0; }
+.status-badge__segment--mode { cursor: pointer; }
+.status-badge__segment--mode:hover {
+  color: rgb(var(--ide-text));
+  background: rgb(var(--ide-text-muted) / 0.15);
+}
+.status-badge__segment--mode.is-active {
+  color: rgb(var(--ide-accent));
+  background: radial-gradient(150% 170% at 50% -30%, rgb(var(--ide-accent) / 0.42), rgb(var(--ide-accent) / 0.12) 58%, transparent 80%);
+}
+.status-badge__mode-icon { flex: none; width: 15px; height: 15px; }
 
 
 /* dsh 正文 md 渲染对齐 vibe md-preview（锚定 dsh 的 CSS Modules 类 _markdown_*，主题色跟随） */

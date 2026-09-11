@@ -17,6 +17,7 @@ import { FileIcon } from './FileIcons'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { BOARD_FOCUS } from './BoardView'
 import { SessionGlyph, renderKindIcon } from '../sessionIcon'
+import { PanelGitIcon, PanelDirIcon, PanelSessionsIcon } from '../panelIcons'
 import { useSchedTasks, setSchedTask, deleteSchedTask, markSchedFired, pruneSchedTasks } from '../schedStore'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 import { ToolIcon } from './AiTab/tools'
@@ -229,6 +230,9 @@ interface SessionPanelProps {
   sessionWorktreeNav?: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onOpenHistoryTab?: () => void
   boardActive?: boolean
+  panelView?: 'session' | 'dir' | 'git'
+  onPanelViewChange?: (view: 'session' | 'dir' | 'git') => void
+  panelContent?: React.ReactNode
   onResetCache?: (sessionId: string) => void
   dshSidebarShown?: boolean
   onToggleDshSidebar?: (value: boolean) => void
@@ -446,6 +450,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   sessionWorktreeNav = {},
   onOpenHistoryTab,
   boardActive = false,
+  panelView = 'session',
+  onPanelViewChange,
+  panelContent,
   onResetCache,
   dshSidebarShown = false,
   onToggleDshSidebar,
@@ -1485,31 +1492,61 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {/* 三态 status badge — moved below Session History */}
       <div ref={statusBadgeAreaRef} className="px-5 py-1.5 mt-1.5 flex items-center justify-center shrink-0 session-panel__header">
         <div ref={statusBadgeRef} className="status-badge">
-          <span
-            className={`status-badge__segment status-badge__segment--running${stats.running > 0 ? ' is-active' : ''}`}
-            title={t('running')}
-          >
-            <Zap size={13} className={`status-badge__icon${stats.running > 0 ? ' animate-zap-glow' : ''}`} />
-            <span className="status-badge__count">{stats.running}</span>
-          </span>
-          <span className="status-badge__divider" />
-          <span
-            className="status-badge__segment status-badge__segment--idle"
-            title={t('Idle')}
-          >
-            <Coffee size={13} className="status-badge__icon" />
-            <span className="status-badge__count">{stats.idle}</span>
-          </span>
-          <span className="status-badge__divider" />
-          <span
-            className={`status-badge__segment status-badge__segment--warn${stats.warn > 0 ? ' is-active' : ''}`}
-            title={t('warn')}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="currentColor" strokeWidth="0.4" strokeLinejoin="round" strokeLinecap="round" style={{ paintOrder: 'stroke fill' }} className="status-badge__icon">
-              <path d="M12.5 2.00002H3.5C2.119 2.00002 1 3.11902 1 4.50002V9.50002C1 10.881 2.119 12 3.5 12H4V13.942C4 14.784 4.992 15.234 5.625 14.679L8.688 11.999H12.5C13.881 11.999 15 10.88 15 9.49902V4.49902C15 3.11802 13.881 1.99902 12.5 1.99902V2.00002ZM14 9.50002C14 10.328 13.328 11 12.5 11H8.312L5 13.898V11H3.5C2.672 11 2 10.328 2 9.50002V4.50002C2 3.67202 2.672 3.00002 3.5 3.00002H12.5C13.328 3.00002 14 3.67202 14 4.50002V9.50002ZM7.508 7.09002L7.5 7.00002V4.50002L7.508 4.41002C7.55 4.17702 7.754 4.00002 8 4.00002C8.246 4.00002 8.45 4.17702 8.492 4.41002L8.5 4.50002V7.00002L8.492 7.09002C8.45 7.32302 8.246 7.50002 8 7.50002C7.754 7.50002 7.55 7.32302 7.508 7.09002ZM8.75 9.25002C8.75 9.66402 8.414 10 8 10C7.586 10 7.25 9.66402 7.25 9.25002C7.25 8.83602 7.586 8.50002 8 8.50002C8.414 8.50002 8.75 8.83602 8.75 9.25002Z" />
-            </svg>
-            <span className="status-badge__count">{stats.warn}</span>
-          </span>
+          <div className="status-badge__switch">
+            <button
+              type="button"
+              className={`status-badge__segment status-badge__segment--mode${panelView === 'session' ? ' is-active' : ''}`}
+              title={t('Session List')}
+              onClick={() => onPanelViewChange?.('session')}
+            >
+              <PanelSessionsIcon className="status-badge__mode-icon" />
+            </button>
+            <span className="status-badge__divider" />
+            <button
+              type="button"
+              className={`status-badge__segment status-badge__segment--mode${panelView === 'dir' ? ' is-active' : ''}`}
+              title={t('Dir')}
+              onClick={() => onPanelViewChange?.('dir')}
+            >
+              <PanelDirIcon className="status-badge__mode-icon" />
+            </button>
+            <span className="status-badge__divider" />
+            <button
+              type="button"
+              className={`status-badge__segment status-badge__segment--mode${panelView === 'git' ? ' is-active' : ''}`}
+              title={t('Git')}
+              onClick={() => onPanelViewChange?.('git')}
+            >
+              <PanelGitIcon className="status-badge__mode-icon" />
+            </button>
+          </div>
+          <div className="status-badge__stats">
+            <span
+              className={`status-badge__segment status-badge__segment--running${stats.running > 0 ? ' is-active' : ''}`}
+              title={t('running')}
+            >
+              <Zap size={13} className={`status-badge__icon${stats.running > 0 ? ' animate-zap-glow' : ''}`} />
+              <span className="status-badge__count">{stats.running}</span>
+            </span>
+            <span className="status-badge__divider" />
+            <span
+              className="status-badge__segment status-badge__segment--idle"
+              title={t('Idle')}
+            >
+              <Coffee size={13} className="status-badge__icon" />
+              <span className="status-badge__count">{stats.idle}</span>
+            </span>
+            <span className="status-badge__divider" />
+            <span
+              className={`status-badge__segment status-badge__segment--warn${stats.warn > 0 ? ' is-active' : ''}`}
+              title={t('warn')}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="currentColor" strokeWidth="0.4" strokeLinejoin="round" strokeLinecap="round" style={{ paintOrder: 'stroke fill' }} className="status-badge__icon">
+                <path d="M12.5 2.00002H3.5C2.119 2.00002 1 3.11902 1 4.50002V9.50002C1 10.881 2.119 12 3.5 12H4V13.942C4 14.784 4.992 15.234 5.625 14.679L8.688 11.999H12.5C13.881 11.999 15 10.88 15 9.49902V4.49902C15 3.11802 13.881 1.99902 12.5 1.99902V2.00002ZM14 9.50002C14 10.328 13.328 11 12.5 11H8.312L5 13.898V11H3.5C2.672 11 2 10.328 2 9.50002V4.50002C2 3.67202 2.672 3.00002 3.5 3.00002H12.5C13.328 3.00002 14 3.67202 14 4.50002V9.50002ZM7.508 7.09002L7.5 7.00002V4.50002L7.508 4.41002C7.55 4.17702 7.754 4.00002 8 4.00002C8.246 4.00002 8.45 4.17702 8.492 4.41002L8.5 4.50002V7.00002L8.492 7.09002C8.45 7.32302 8.246 7.50002 8 7.50002C7.754 7.50002 7.55 7.32302 7.508 7.09002ZM8.75 9.25002C8.75 9.66402 8.414 10 8 10C7.586 10 7.25 9.66402 7.25 9.25002C7.25 8.83602 7.586 8.50002 8 8.50002C8.414 8.50002 8.75 8.83602 8.75 9.25002Z" />
+              </svg>
+              <span className="status-badge__count">{stats.warn}</span>
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="relative config-menu-area session-panel__settings">
@@ -1589,8 +1626,19 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         </div>
       </div>
 
+      {/* 三态之下：Dir / Git 面板（复用右栏组件；返回会话时 display 隐藏，保留面板内部状态） */}
+      {panelContent && (
+        <div
+          className="flex-1 min-h-0 mx-2 mb-2 mt-1 overflow-hidden flex flex-col rounded-lg bg-ide-sidebar border border-ide-border session-panel__panel-wrapper"
+          style={{ display: panelView !== 'session' ? 'flex' : 'none' }}
+        >{panelContent}</div>
+      )}
+
       {/* Session List */}
-      <div className="flex-1 min-h-0 mx-2 mb-2 mt-1 overflow-hidden flex flex-col rounded-lg session-panel__list-wrapper">
+      <div
+        className="flex-1 min-h-0 mx-2 mb-2 mt-1 overflow-hidden flex flex-col rounded-lg session-panel__list-wrapper"
+        style={panelView !== 'session' ? { display: 'none' } : undefined}
+      >
         <div className="flex-1 min-h-0 overflow-y-auto pb-2 relative session-panel__list"
           onDragOver={(e) => {
             if (dragGroupIndex !== null && sessionGroups.length > 0) {

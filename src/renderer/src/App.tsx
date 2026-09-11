@@ -6,6 +6,8 @@ const DshView = lazy(() => import('./components/DshView'))
 import type { DshViewHandle } from './components/DshView'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
+import GitTab from './components/GitTab'
+import FileTab from './components/FileTab'
 import DiffViewer from './components/DiffViewer'
 import MarkdownPreview, { MD_SEARCH_OPEN } from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
@@ -419,6 +421,13 @@ export default function App() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(240)
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false)
   const handleToggleLeftPanel = useCallback(() => setLeftPanelCollapsed(v => !v), [])
+  // 左栏三态切换：三态之下显示右栏同款 Dir/Git 面板；进过一次后保持挂载（切回会话用 display 隐藏，保留面板内部状态）
+  const [leftPanelView, setLeftPanelView] = useState<'session' | 'dir' | 'git'>('session')
+  const [leftPanelsReady, setLeftPanelsReady] = useState(false)
+  const handleLeftPanelViewChange = useCallback((view: 'session' | 'dir' | 'git') => {
+    setLeftPanelView(view)
+    if (view !== 'session') setLeftPanelsReady(true)
+  }, [])
   const [isDragging, setIsDragging] = useState(false)
   const [isDragOverEdit, setIsDragOverEdit] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
@@ -1939,6 +1948,8 @@ export default function App() {
 
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
+  const leftWorktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
+  const leftEffectiveGitPath = leftWorktreeNav?.worktreePath || activeSessionCwd
 
   // 本地构造 gui/dsh session 记录（不建 PTY，三者互斥省内存）
   function makeLocalSession(cwd: string, opts?: { name?: string; id?: string }): SessionTab {
@@ -3367,6 +3378,47 @@ export default function App() {
             onNewSessionHere={handleNewSessionHere}
             onOpenHistoryTab={handleOpenHistoryTab}
             boardActive={boardActive}
+            panelView={leftPanelView}
+            onPanelViewChange={handleLeftPanelViewChange}
+            panelContent={leftPanelsReady ? (
+              <>
+                <div style={{ display: leftPanelView === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col">
+                  <GitTab
+                    workspacePath={activeSessionCwd}
+                    effectiveGitPath={leftEffectiveGitPath}
+                    worktreeNav={leftWorktreeNav}
+                    onFileSelect={handleFileSelect}
+                    refreshKey={gitRefreshKey}
+                    activeSessionId={activeSessionId}
+                    isActive={leftPanelView === 'git'}
+                    onWorktreeNavChange={setSessionWorktreeNav}
+                    onDiffScroll={handleDiffScroll}
+                    onNavigateToFile={handleNavigateToFile}
+                    lineHistoryPayload={lineHistoryPayload}
+                  />
+                </div>
+                <div style={{ display: leftPanelView === 'dir' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                  <FileTab
+                    workspacePath={activeSessionCwd}
+                    onOpenFileFromExplorer={handleOpenFileFromExplorer}
+                    onOpenFileAtLine={handleOpenSearchResult}
+                    onCompareWithCurrent={handleCompareWithCurrent}
+                    currentEditFilePath={diffFile?.defaultEdit ? diffFile.fullPath : null}
+                    onPreviewMarkdown={handlePreviewMarkdown}
+                    onPreviewImage={handlePreviewImage}
+                    onOpenInBrowser={handleOpenFileInBrowser}
+                    navigateToFile={navigateToFilePayload}
+                    recentFiles={recentFiles}
+                    onOpenRecentFile={handleOpenRecentFile}
+                    onRemoveRecentFile={removeRecentFile}
+                    onEditRecentFile={handleOpenFileFromExplorer}
+                    isActive={leftPanelView === 'dir'}
+                    brushActive={brushActive}
+                    onExploreNode={(node: any) => setCallGraphFocalNode(node)}
+                  />
+                </div>
+              </>
+            ) : undefined}
             recentFiles={recentFiles}
             onOpenRecentFile={handleOpenRecentFile}
             onRemoveRecentFile={removeRecentFile}

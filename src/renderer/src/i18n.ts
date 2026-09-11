@@ -40,6 +40,8 @@ const ZH_MAP: Record<string, string> = {
   'running': '正在运行',
   'Idle': '空闲',
   'warn': '待审批',
+  'Session List': '会话列表',
+  'Dir': '目录',
   'Settings': '设置',
   'Theme': '主题',
   'Shell Type': '命令行类型',

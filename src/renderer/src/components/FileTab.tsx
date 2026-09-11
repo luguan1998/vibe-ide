@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Lightbulb, Clock, X, Pencil, Search, Filter, FileText, FilePlus, FolderPlus, ClipboardPaste, Scissors, Copy, Check, RotateCw, FolderOpen, GitCompare, Trash2, Route, Globe } from 'lucide-react'
 import { FileNode, RecentFileEntry, GrepMatch, CodeSymbol } from '@shared/types'
 import { getFileInfo, FileIcon, FolderIcon } from './FileIcons'
+import { PanelDirIcon } from '../panelIcons'
 import { ModalOverlay } from './ModalOverlay'
 import { trimToMatch, highlightMatches } from './SearchPanel'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
@@ -1274,10 +1275,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           onMouseLeave={() => setSearchJustClosed(false)}
         >
           <div className="group flex items-center gap-1 min-w-0 flex-1">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-accent shrink-0">
-              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-              <line x1="6" y1="12" x2="18" y2="12" />
-            </svg>
+            <PanelDirIcon className="w-3.5 h-3.5 text-ide-accent shrink-0" />
             <span className="text-sm text-ide-text font-medium truncate">
               {workspacePath.split(/[\\/]/).pop()}
             </span>
