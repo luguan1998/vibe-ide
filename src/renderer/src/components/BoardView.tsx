@@ -12,6 +12,7 @@ export const BOARD_FOCUS = 'board-focus'
 
 const BOARD_DEFAULT_CMD_KEY = 'vibe-ide-board-default-cmd'
 const BOARD_FILTER_KEY = 'vibe-ide-board-cwd-exclude'
+const BOARD_TODOS_KEY = 'vibe-ide-board-todos'
 
 function readDefaultCmd(): string {
   try {
@@ -105,6 +106,11 @@ interface LiveCard {
   status: CardStatus
 }
 
+interface TodoItem {
+  id: number
+  text: string
+}
+
 const FINISH_BTN_CLS =
   'px-1.5 py-0.5 rounded text-[10px] text-ide-text-muted hover:text-ide-danger hover:border-ide-danger/50 border border-transparent transition-colors shrink-0'
 
@@ -156,14 +162,28 @@ interface LiveCardProps {
   onMerge: (record: WorktreeRecord) => void
   onToggleSelect: () => void
   onContextMenu: (e: ReactMouseEvent) => void
+  onDropText?: (text: string) => void
 }
 
-function LiveCardView({ card, active, finishable, finishLabel, mergeLabel, selectable, selectMode, selected, worktreeNav, onReply, onFinish, onMerge, onToggleSelect, onContextMenu }: LiveCardProps) {
+function LiveCardView({ card, active, finishable, finishLabel, mergeLabel, selectable, selectMode, selected, worktreeNav, onReply, onFinish, onMerge, onToggleSelect, onContextMenu, onDropText }: LiveCardProps) {
+  const [dropHover, setDropHover] = useState(false)
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={selectable ? onToggleSelect : (selectMode ? undefined : onReply)}
+      onDragOver={onDropText ? (e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        setDropHover(true)
+      } : undefined}
+      onDragLeave={onDropText ? () => setDropHover(false) : undefined}
+      onDrop={onDropText ? (e) => {
+        e.preventDefault()
+        setDropHover(false)
+        const text = e.dataTransfer.getData('text/plain').trim()
+        if (text) onDropText(text)
+      } : undefined}
       onKeyDown={(e) => {
         if (e.key !== 'Enter') return
         if (selectable) onToggleSelect()
@@ -178,11 +198,13 @@ function LiveCardView({ card, active, finishable, finishLabel, mergeLabel, selec
         onContextMenu(e)
       }}
       className={`w-full text-left px-2.5 py-2 rounded-lg border transition-colors select-none ${
-        selected
-          ? 'border-ide-accent bg-ide-accent/10 cursor-pointer'
-          : selectable
-            ? 'bg-ide-sidebar hover:bg-ide-hover hover:border-ide-accent/60 cursor-pointer'
-            : `bg-ide-sidebar hover:bg-ide-hover cursor-pointer ${active ? 'border-ide-accent/60' : 'border-ide-border hover:border-ide-accent/50'}`
+        dropHover
+          ? 'border-ide-accent bg-ide-accent/15 cursor-copy'
+          : selected
+            ? 'border-ide-accent bg-ide-accent/10 cursor-pointer'
+            : selectable
+              ? 'bg-ide-sidebar hover:bg-ide-hover hover:border-ide-accent/60 cursor-pointer'
+              : `bg-ide-sidebar hover:bg-ide-hover cursor-pointer ${active ? 'border-ide-accent/60' : 'border-ide-border hover:border-ide-accent/50'}`
       }`}
     >
       <div className="flex items-center gap-1.5 min-w-0">
@@ -338,7 +360,7 @@ export default function BoardView({
 }: BoardViewProps) {
   const { t } = useI18n()
   const [records, setRecords] = useState<WorktreeRecordView[]>([])
-  const [repoRoot, setRepoRoot] = useState<string | null>(null)
+  const [repoRoot, setRepoRoot] = useState<string | null | undefined>(undefined)
   const [creating, setCreating] = useState(false)
   const [creatingPlain, setCreatingPlain] = useState(false)
   const [finishTarget, setFinishTarget] = useState<WorktreeRecord | null>(null)
@@ -360,6 +382,48 @@ export default function BoardView({
   const [multiSelect, setMultiSelect] = useState(false)
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set())
   const [multiDraft, setMultiDraft] = useState('')
+  const [todos, setTodos] = useState<TodoItem[]>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(BOARD_TODOS_KEY) || '[]')
+      return Array.isArray(v)
+        ? v.filter((x: any) => typeof x === 'string' && x.trim()).map((text: string, i: number) => ({ id: i + 1, text }))
+        : []
+    } catch {
+      return []
+    }
+  })
+  const nextTodoId = useRef(todos.reduce((m, t) => Math.max(m, t.id), 0) + 1)
+  const [todoModal, setTodoModal] = useState<{ id: number | null; draft: string } | null>(null)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(BOARD_TODOS_KEY, JSON.stringify(todos.map(x => x.text)))
+    } catch {}
+  }, [todos])
+
+  const addTodo = useCallback(() => {
+    setTodoModal({ id: null, draft: '' })
+  }, [])
+
+  const deleteTodo = useCallback((id: number) => {
+    setTodos(prev => prev.filter(t => t.id !== id))
+    setTodoModal(cur => (cur && cur.id === id ? null : cur))
+  }, [])
+
+  const commitTodoModal = useCallback(() => {
+    if (!todoModal) return
+    const text = todoModal.draft.trim()
+    if (todoModal.id === null) {
+      if (text) {
+        const id = nextTodoId.current++
+        setTodos(prev => [...prev, { id, text }])
+      }
+    } else {
+      const id = todoModal.id
+      setTodos(prev => prev.flatMap(t => (t.id === id ? (text ? [{ id, text }] : []) : [t])))
+    }
+    setTodoModal(null)
+  }, [todoModal])
 
   const loadTailMore = useCallback((s: SessionTab) => {
     const next = tailDepth + 60
@@ -567,7 +631,11 @@ export default function BoardView({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (cwdMenu) {
+      if (todoModal) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        commitTodoModal()
+      } else if (cwdMenu) {
         e.preventDefault()
         e.stopImmediatePropagation()
         setCwdMenu(null)
@@ -599,7 +667,7 @@ export default function BoardView({
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [cwdMenu, createDirMenu, ctxMenu, replyFor, finishTarget, mergeTarget, mergeBusy, mergePhase, multiSelect, closeOverlays, closeReply, closeMerge, exitMultiSelect])
+  }, [todoModal, commitTodoModal, cwdMenu, createDirMenu, ctxMenu, replyFor, finishTarget, mergeTarget, mergeBusy, mergePhase, multiSelect, closeOverlays, closeReply, closeMerge, exitMultiSelect])
 
   const loadReply = useCallback(async (s: SessionTab) => {
     setReplyFor(s)
@@ -788,9 +856,7 @@ export default function BoardView({
 
   const emptyHint: Record<string, string> = {
     plan: workspacePath
-      ? repoRoot === null
-        ? t('Not a git repo — worktree unavailable')
-        : t('No worktree tasks yet')
+      ? t('Not a git repo — worktree unavailable')
       : t('No active workspace'),
     running: t('No running sessions'),
     idle: t('No idle sessions'),
@@ -881,7 +947,7 @@ export default function BoardView({
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
               {col.key === 'plan' && (
                 <>
-                  {!workspacePath || repoRoot === null ? (
+                  {repoRoot === undefined ? null : !workspacePath || repoRoot === null ? (
                     <div className="py-6 text-center text-[11px] text-ide-text-muted px-2">{emptyHint.plan}</div>
                   ) : null}
                   {planCards.map(r => (
@@ -905,9 +971,6 @@ export default function BoardView({
                       onClear={() => void clearOne(r)}
                     />
                   ))}
-                  {planCards.length === 0 && workspacePath && repoRoot && (
-                    <div className="py-4 text-center text-[11px] text-ide-text-muted/50">{t('No worktree tasks yet')}</div>
-                  )}
                   <button
                     onClick={() => void quickCreate()}
                     disabled={!createCwd || !repoRoot || creating}
@@ -949,6 +1012,7 @@ export default function BoardView({
                       onFinish={setFinishTarget}
                       onMerge={openMerge}
                       onToggleSelect={() => toggleMultiSelect(card.session.id)}
+                      onDropText={col.key === 'idle' ? (text: string) => onSendToSession(card.session.id, text) : undefined}
                       onContextMenu={(e) => {
                         e.preventDefault()
                         setCtxMenu({
@@ -962,6 +1026,44 @@ export default function BoardView({
                   ))
                 ))}
             </div>
+            {col.key === 'plan' && (
+              <div className="shrink-0 border-t border-ide-border p-2 space-y-2 max-h-[45%] overflow-y-auto bg-ide-sidebar/50">
+                {todos.map(td => (
+                  <div
+                    key={td.id}
+                    draggable
+                    onDragStart={e => {
+                      e.dataTransfer.setData('text/plain', td.text)
+                      e.dataTransfer.effectAllowed = 'copy'
+                    }}
+                    onClick={() => setTodoModal({ id: td.id, draft: td.text })}
+                    title={td.text}
+                    className="group w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-ide-border bg-ide-sidebar hover:bg-ide-hover transition-colors cursor-grab select-none"
+                  >
+                    <span className="text-xs text-ide-text truncate flex-1">{td.text.split('\n')[0]}</span>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation()
+                        deleteTodo(td.id)
+                      }}
+                      title={t('Delete todo')}
+                      className="shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted/0 group-hover:text-ide-text-muted hover:!text-ide-danger hover:bg-ide-danger/10 transition-colors"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={addTodo}
+                  className="w-full py-1.5 rounded-lg border border-dashed border-ide-border text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors"
+                >
+                  + {t('New todo')}
+                </button>
+                {todos.length > 0 && (
+                  <div className="px-1 text-[10px] text-ide-text-muted/60 leading-relaxed">{t('Todo drag hint')}</div>
+                )}
+              </div>
+            )}
             {col.key === 'plan' && (
               <div className="shrink-0 border-t border-ide-border px-2 py-1.5 flex flex-col gap-1.5 bg-ide-sidebar/50">
                 <div className="flex items-center gap-1.5">
@@ -1188,6 +1290,52 @@ export default function BoardView({
               >
                 <Send size={10} className="-scale-x-100" />
                 {t('Send')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {todoModal && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center"
+          onMouseDown={() => commitTodoModal()}
+        >
+          <div
+            className="bg-ide-sidebar border border-ide-border rounded-xl p-4 w-[520px] max-w-[90vw] mx-4 shadow-2xl space-y-3"
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-1.5">
+              <SquareCheck size={14} className="text-ide-accent shrink-0" />
+              <span className="text-sm text-ide-text font-medium flex-1 truncate">{todoModal.id === null ? t('New todo') : t('Edit todo')}</span>
+              <button
+                onClick={commitTodoModal}
+                title={t('Save')}
+                className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+              >
+                <X size={13} />
+              </button>
+            </div>
+            <textarea
+              autoFocus
+              rows={8}
+              value={todoModal.draft}
+              onChange={e => setTodoModal(m => (m ? { ...m, draft: e.target.value } : m))}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+                  e.preventDefault()
+                  commitTodoModal()
+                }
+              }}
+              placeholder={t('Write a todo…')}
+              className="block w-full resize-y px-2.5 py-2 text-xs leading-relaxed bg-ide-panel border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+            />
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                onClick={commitTodoModal}
+                className="px-3 py-1.5 rounded-md text-xs text-ide-accent bg-ide-accent/15 border border-ide-accent/40 hover:bg-ide-accent/25 transition-colors"
+              >
+                {t('Save (Ctrl+Enter)')}
               </button>
             </div>
           </div>
