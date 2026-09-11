@@ -334,13 +334,13 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
         )}
         {isRenaming ? (
           isDir ? (
-            <FolderIcon expanded={isExpanded} className="ft-icon text-ide-warning" />
+            <FolderIcon name={node.name} expanded={isExpanded} className="ft-icon" />
           ) : (
             <FileIcon name={node.name} className="ft-icon" />
           )
         ) : (
           isDir ? (
-            <FolderIcon expanded={isExpanded} className="ft-icon text-ide-warning" />
+            <FolderIcon name={node.name} expanded={isExpanded} className="ft-icon" />
           ) : (
             <FileIcon name={node.name} className="ft-icon" />
           )
@@ -555,7 +555,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
           <path d="M4 6l4 4 4-4" />
         </svg>
         {isDir ? (
-          <FolderIcon expanded={expanded} className="ft-icon text-ide-warning" />
+          <FolderIcon name={node.name} expanded={expanded} className="ft-icon" />
         ) : (
           <FileIcon name={node.name} className="ft-icon" />
         )}

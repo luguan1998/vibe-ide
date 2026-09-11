@@ -182,10 +182,36 @@ const FOLDER_PATHS: Record<'closed' | 'open', string> = {
   open: "M140-160q-23 0-41.5-18.5T80-220v-520q0-23 18.5-41.5T140-800h256q12 0 23.5 5t19.5 13l42 42h369q13 0 21.5 8.5T880-710q0 13-8.5 21.5T850-680H289q-57 0-103 28t-46 79v353l90-355q5-20 22-32.5t37-12.5h574q29 0 47.5 23t10.5 52l-88 339q-6 24-22 35t-41 11H140Z",
 }
 
-function FolderIcon({ expanded = false, className = '' }: { expanded?: boolean; className?: string }) {
+interface FolderGlyph { path: string; scale: number }
+interface FolderSpec { color: string; glyph?: FolderGlyph }
+
+const SRC_STYLE: FolderSpec = { color: 'text-ide-accent', glyph: { path: KIND_ICON_PATHS['code'], scale: 21 } }
+const TEST_STYLE: FolderSpec = { color: 'text-ide-success' }
+const DOCS_STYLE: FolderSpec = { color: 'text-[#00add8]', glyph: { path: KIND_ICON_PATHS['docs'], scale: 21 } }
+const MEDIA_STYLE: FolderSpec = { color: 'text-[#a855f7]', glyph: { path: KIND_ICON_PATHS['image'], scale: 21 } }
+const GIT_STYLE: FolderSpec = { color: 'text-[#F03C2E]', glyph: { path: BRAND_ICON_PATHS['git'], scale: 14 } }
+const BUILD_MUTED: FolderSpec = { color: 'text-ide-text-muted' }
+
+const FOLDER_BASE: FolderSpec = { color: 'text-ide-warning' }
+
+const FOLDER_STYLES: Record<string, FolderSpec> = {
+  src: SRC_STYLE, source: SRC_STYLE, app: SRC_STYLE, lib: SRC_STYLE,
+  test: TEST_STYLE, tests: TEST_STYLE, __tests__: TEST_STYLE, spec: TEST_STYLE, specs: TEST_STYLE, e2e: TEST_STYLE,
+  docs: DOCS_STYLE, doc: DOCS_STYLE, wiki: DOCS_STYLE, website: DOCS_STYLE,
+  assets: MEDIA_STYLE, public: MEDIA_STYLE, static: MEDIA_STYLE, images: MEDIA_STYLE, img: MEDIA_STYLE, media: MEDIA_STYLE, fonts: MEDIA_STYLE, icons: MEDIA_STYLE,
+  '.git': GIT_STYLE,
+  build: BUILD_MUTED, dist: BUILD_MUTED, out: BUILD_MUTED, target: BUILD_MUTED, bin: BUILD_MUTED, obj: BUILD_MUTED, coverage: BUILD_MUTED, node_modules: BUILD_MUTED, '.cache': BUILD_MUTED, tmp: BUILD_MUTED, temp: BUILD_MUTED,
+}
+
+function FolderIcon({ name = '', expanded = false, className = '' }: { name?: string; expanded?: boolean; className?: string }) {
+  const spec = name ? FOLDER_STYLES[name.toLowerCase()] || FOLDER_BASE : undefined
+  const glyph = spec?.glyph
   return (
-    <svg viewBox="0 -960 960 960" fill="currentColor" className={`shrink-0 ${className}`}>
+    <svg viewBox="0 -960 960 960" fill="currentColor" className={`shrink-0 ${spec ? spec.color : ''} ${className}`}>
       <path d={FOLDER_PATHS[expanded ? 'open' : 'closed']} />
+      {glyph && (
+        <g className="text-ide-bg" fill="currentColor" transform={`translate(505 -535) scale(${glyph.scale})`} dangerouslySetInnerHTML={{ __html: glyph.path }} />
+      )}
     </svg>
   )
 }
