@@ -312,6 +312,7 @@ export default function GitGraph({
                 isExpanded ? 'bg-ide-accent/10' : ''
               }`}
               style={{ height: ROW_HEIGHT }}
+              title={row.entry.message}
               onClick={() => onCommitClick(row.entry.hash)}
               onContextMenu={(e) => {
                 e.preventDefault()
