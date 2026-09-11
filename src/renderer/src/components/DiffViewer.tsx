@@ -186,6 +186,30 @@ function computeRevertBtnLeft(editorDom: HTMLElement | null, containerDom: HTMLE
   return editorDom.getBoundingClientRect().left - containerDom.getBoundingClientRect().left
 }
 
+// 中缝 gutter（内置撤销按钮所在竖框）宽度 Monaco 硬编码 35px（gutterFeature.js const width），无 options 可调：
+// 取内部实例同时改写 width 可观测值（布局）与 DOM 宽度，两处必须同源；sash 拖拽条仍按 35px 定位需补差
+const MONACO_DIFF_GUTTER_WIDTH = 35
+const DIFF_GUTTER_WIDTH = 24
+
+function applyNarrowDiffGutter(editor: any) {
+  try {
+    const gutter = editor?._gutter?.get?.()
+    const width = gutter?.width
+    const dom: HTMLElement | undefined = gutter?.elements?.gutter
+    if (!width?.read || !dom) return
+    if (!gutter.__narrowed) {
+      gutter.__narrowed = true
+      gutter.width = {
+        get: () => (width.get() ? DIFF_GUTTER_WIDTH : 0),
+        read: (r: any) => (width.read(r) ? DIFF_GUTTER_WIDTH : 0)
+      }
+    }
+    dom.style.width = DIFF_GUTTER_WIDTH + 'px'
+    const sash = editor.getDomNode?.()?.querySelector(':scope > .monaco-sash') as HTMLElement | null
+    if (sash) sash.style.marginLeft = MONACO_DIFF_GUTTER_WIDTH - DIFF_GUTTER_WIDTH + 'px'
+  } catch {}
+}
+
 // Ctrl+Click 跳转：D 兜底定义正则（行首强定义模式，避开调用点）
 // 三分支：关键字定义（function/class/def/fn/const…）/ 裸赋值定义（foo = / foo:）/ 类型前置定义（int foo( / pub fn foo(）
 // 否定前瞻排除控制流（return foo( 是调用不是定义）
@@ -816,6 +840,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
   }, [])
   useEffect(() => {
     applyDiffPerSideOptions(diffEditorRef.current)
+    applyNarrowDiffGutter(diffEditorRef.current)
+    // gutter 随 renderGutterMenu 重建，重建若发生在 options 提交后一帧，此处补一次
+    const raf = requestAnimationFrame(() => applyNarrowDiffGutter(diffEditorRef.current))
+    return () => cancelAnimationFrame(raf)
   }, [applyDiffPerSideOptions, diffOptions])
 
   // 单行回退浮钮：延迟隐藏（从行移到按钮不闪）
@@ -980,6 +1008,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
               diffEditorRef.current = editor
               monacoRef.current = monaco
               applyDiffPerSideOptions(editor)
+              applyNarrowDiffGutter(editor)
               const modifiedEditor = editor.getModifiedEditor()
               modifiedEditor.onMouseDown((e: any) => {
                 const ctrlClick = !!(e.event?.ctrlKey || e.event?.metaKey)

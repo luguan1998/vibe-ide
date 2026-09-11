@@ -2,8 +2,7 @@ export type TabKind = 'terminal' | 'gui' | 'dsh'
 
 // 行首图标哨兵：空白图标（emoji === undefined 表示类型图标位）
 export const ICON_NONE = ''
-// 会话/目录默认 emoji 池（AppearancePanel 重置按钮共用；term 新建默认随机也取自 session 池）
-export const DEFAULT_CWD_EMOJIS = ['🧩', '📌', '📁', '🚀', '🏷️', '🎯', '🗺️', '🔗']
+// 会话默认 emoji 池（AppearancePanel 重置按钮共用；term 新建默认随机也取自此池）
 export const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '👻', '🤣', '👾', '⚡', '🌟', '🐉', '🤗', '🙏', '🥷']
 
 export function randomTermEmoji(): string {

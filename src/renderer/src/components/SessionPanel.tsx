@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
-import { type SessionTab, ICON_NONE, DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
+import { type SessionTab, ICON_NONE, DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
+import { PIXEL_MASCOTS, randomPixelMascotName, pixelMascot } from '../pixelMascots'
+import { PixelMascot } from './PixelMascot'
 import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
@@ -136,43 +138,28 @@ function normCwdKey(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
-// 旧版「一个合并数组按 1/3 split」迁移到两个独立池
-function migrateLegacyEmojis(): void {
+function loadCwdMascots(): Record<string, string> {
   try {
-    if (localStorage.getItem('vibe-ide-cwd-emojis')) return
-    const legacyRaw = localStorage.getItem('vibe-ide-session-emojis')
-    if (!legacyRaw) return
-    const arr = JSON.parse(legacyRaw)
-    if (!Array.isArray(arr)) return
-    const valid = arr.filter((v: unknown) => typeof v === 'string')
-    if (valid.length === 0) return
-    const cwdEnd = Math.ceil(valid.length / 3)
-    localStorage.setItem('vibe-ide-cwd-emojis', JSON.stringify(valid.slice(0, cwdEnd)))
-    localStorage.setItem('vibe-ide-session-emojis', JSON.stringify(valid.slice(cwdEnd)))
-  } catch {}
-}
-
-function loadCwdEmojis(): string[] {
-  migrateLegacyEmojis()
-  try {
-    const raw = localStorage.getItem('vibe-ide-cwd-emojis')
+    const raw = localStorage.getItem('vibe-ide-cwd-mascots')
     if (raw) {
-      const arr = JSON.parse(raw)
-      if (Array.isArray(arr)) {
-        const valid = arr.filter((v: unknown) => typeof v === 'string')
-        if (valid.length > 0) return valid
+      const obj = JSON.parse(raw)
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+        const next: Record<string, string> = {}
+        for (const [k, v] of Object.entries(obj)) {
+          if (typeof v === 'string') next[k] = v
+        }
+        return next
       }
     }
   } catch {}
-  return [...DEFAULT_CWD_EMOJIS]
+  return {}
 }
 
-function saveCwdEmojis(emojis: string[]): void {
-  try { localStorage.setItem('vibe-ide-cwd-emojis', JSON.stringify(emojis)) } catch {}
+function saveCwdMascots(mascots: Record<string, string>): void {
+  try { localStorage.setItem('vibe-ide-cwd-mascots', JSON.stringify(mascots)) } catch {}
 }
 
 function loadSessionEmojis(): string[] {
-  migrateLegacyEmojis()
   try {
     const raw = localStorage.getItem('vibe-ide-session-emojis')
     if (raw) {
@@ -195,16 +182,6 @@ const FALLBACK_SHELLS = [
   { value: 'pwsh', label: 'PowerShell 7' },
   { value: 'powershell', label: 'PowerShell 5' },
 ]
-
-function pickEmoji(index: number, pool: string[], override?: string): string {
-  if (pool.length === 0) return ''
-  if (override && pool.includes(override)) return override
-  return pool[index % pool.length]
-}
-
-function getCwdEmoji(index: number, pool: string[], override?: string): string {
-  return pickEmoji(index, pool, override)
-}
 
 // 行首图标状态机见 sessionIcon.tsx（SessionPanel 与 BoardView 共用）
 
@@ -544,19 +521,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [termType, setTermType] = useState(() => getMainShellType())
   const [auxTermType, setAuxTermType] = useState(() => getAuxShellType())
   const [shellOptions, setShellOptions] = useState(FALLBACK_SHELLS)
-  const [cwdEmojis, setCwdEmojis] = useState<string[]>(() => loadCwdEmojis())
   const [sessionEmojis, setSessionEmojis] = useState<string[]>(() => loadSessionEmojis())
-  const [cwdEmojiOverrides, setCwdEmojiOverrides] = useState<Record<string, string>>({})
+  const [cwdMascots, setCwdMascots] = useState<Record<string, string>>(() => loadCwdMascots())
   const [showAppearance, setShowAppearance] = useState(false)
 
-  // 池变更时清理失效 override（用户在 modal 删了被 override 引用的 emoji 时）
-  useEffect(() => {
-    setCwdEmojiOverrides(prev => {
-      const next: Record<string, string> = {}
-      for (const [k, v] of Object.entries(prev)) if (cwdEmojis.includes(v)) next[k] = v
-      return Object.keys(next).length === Object.keys(prev).length ? prev : next
-    })
-  }, [cwdEmojis])
+  const setCwdMascot = (cwd: string, name: string) => {
+    const next = { ...cwdMascots, [cwd]: name }
+    setCwdMascots(next)
+    saveCwdMascots(next)
+  }
   // 会话 emoji 已收进 SessionTab.emoji（随 session 持久化）；池变更时把引用失效 emoji 的会话复位为类型图标
   useEffect(() => {
     for (const s of sessions) {
@@ -1678,8 +1651,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         ) : groupSessionsByCwd ? (
           sessionGroups.map((group, gi) => {
             const dirName = dirNameOf(group.cwd)
-            const cwdEmoji = getCwdEmoji(gi, cwdEmojis, cwdEmojiOverrides[group.cwd])
             const groupHasActive = activeSessionId && group.sessions.some(s => s.id === activeSessionId)
+            const groupMascotRunning = group.sessions.some(s => agentStatus[s.id] === 'running')
             return (
               <div
                 key={group.cwd}
@@ -1761,24 +1734,19 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span
-                      className={`relative text-[13px] shrink-0 w-4 h-4 flex items-center justify-center rounded select-none transition-colors ${
+                      className={`relative shrink-0 w-4 h-4 flex items-center justify-center rounded select-none transition-colors ${
                         group.sessions.length === 0 ? '' : 'cursor-pointer hover:bg-ide-hover'
                       }`}
-                      title={t('Click for another emoji')}
+                      title={t('Click to change pixel icon')}
                       draggable={false}
                       onClick={(e) => {
                         e.stopPropagation()
                         e.preventDefault()
-                        if (cwdEmojis.length === 0) return
-                        const candidates = cwdEmojis.filter(em => em !== cwdEmoji)
-                        if (candidates.length === 0) return
-                        const next = candidates[Math.floor(Math.random() * candidates.length)]
-                        setCwdEmojiOverrides(prev => ({ ...prev, [group.cwd]: next }))
+                        setCwdMascot(group.cwd, randomPixelMascotName(group.cwd, cwdMascots[group.cwd]))
                       }}
                       onContextMenu={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        if (cwdEmojis.length === 0) return
                         setContextMenu(null)
                         setEmptyAreaMenu(null)
                         setCloneSubmenu(null)
@@ -1787,7 +1755,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         setEmojiMenu({ x: e.clientX, y: e.clientY, cwd: group.cwd })
                       }}
                     >
-                      <span className={group.sessions.length === 0 ? 'transition-opacity group-hover:opacity-0' : ''}>{cwdEmoji}</span>
+                      <PixelMascot
+                        seed={group.cwd}
+                        name={cwdMascots[group.cwd]}
+                        active={groupMascotRunning}
+                        className={`size-3.5 transition-opacity ${group.sessions.length === 0 ? 'group-hover:opacity-0' : ''}`}
+                      />
                       {group.sessions.length === 0 && (
                         <button
                           onClick={(e) => { e.stopPropagation(); cwdStore.removeKeptGroup(group.cwd) }}
@@ -2062,15 +2035,38 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         </div>
       )}
 
-      {/* Emoji Picker Menu */}
+      {/* Emoji Picker Menu（session）/ Pixel Sprite Picker（cwd） */}
       {emojiMenu && (() => {
-        const isCwdMenu = !('sessionId' in emojiMenu)
-        const pickSession = 'sessionId' in emojiMenu ? sessions.find(s => s.id === emojiMenu.sessionId) : null
-        const ov = pickSession?.emoji ?? ('sessionId' in emojiMenu ? undefined : cwdEmojiOverrides[emojiMenu.cwd])
-        const pool = isCwdMenu ? cwdEmojis : sessionEmojis
+        if (!('sessionId' in emojiMenu)) {
+          const cwd = emojiMenu.cwd
+          const current = pixelMascot(cwd, cwdMascots[cwd]).name
+          return (
+            <div
+              ref={emojiMenuPos.ref}
+              className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1.5 px-1.5 z-50 max-h-[260px] overflow-y-auto"
+              style={emojiMenuPos.style}
+              onClick={(e) => e.stopPropagation()}
+              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
+            >
+              <div className="flex items-center gap-0.5">
+                {PIXEL_MASCOTS.map(mascot => (
+                  <button
+                    key={mascot.name}
+                    title={mascot.name}
+                    className={`grid size-6 place-items-center rounded hover:bg-ide-hover transition-colors${current === mascot.name ? ' bg-ide-accent/20 ring-1 ring-ide-accent' : ''}`}
+                    onClick={() => { setCwdMascot(cwd, mascot.name); setEmojiMenu(null) }}
+                  >
+                    <PixelMascot seed={cwd} name={mascot.name} className="size-3.5" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        }
+        const pickSession = sessions.find(s => s.id === emojiMenu.sessionId)
+        const ov = pickSession?.emoji
         const pick = (v: string | undefined) => {
-          if ('sessionId' in emojiMenu) onSetSessionEmoji?.(emojiMenu.sessionId, v)
-          else if (v) setCwdEmojiOverrides(prev => ({ ...prev, [emojiMenu.cwd]: v }))
+          onSetSessionEmoji?.(emojiMenu.sessionId, v)
           setEmojiMenu(null)
         }
         const cellCls = (active: boolean) => `w-8 h-8 rounded flex items-center justify-center text-base hover:bg-ide-hover transition-colors${active ? ' bg-ide-accent/20 ring-1 ring-ide-accent' : ''}`
@@ -2083,17 +2079,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
           >
             <div className="grid grid-cols-7 gap-0.5">
-              {!isCwdMenu && (
-                <>
-                  <button title={t('Type Icon')} className={cellCls(ov === undefined)} onClick={() => pick(undefined)}>
-                    {pickSession ? renderKindIcon(pickSession.kind) : null}
-                  </button>
-                  <button title={t('Blank')} className={cellCls(ov === ICON_NONE)} onClick={() => pick(ICON_NONE)}>
-                    <span className="w-3.5 h-3.5 rounded-sm border border-dashed border-ide-text-muted" />
-                  </button>
-                </>
-              )}
-              {pool.map(em => (
+              <button title={t('Type Icon')} className={cellCls(ov === undefined)} onClick={() => pick(undefined)}>
+                {pickSession ? renderKindIcon(pickSession.kind) : null}
+              </button>
+              <button title={t('Blank')} className={cellCls(ov === ICON_NONE)} onClick={() => pick(ICON_NONE)}>
+                <span className="w-3.5 h-3.5 rounded-sm border border-dashed border-ide-text-muted" />
+              </button>
+              {sessionEmojis.map(em => (
                 <button key={em} title={em} className={cellCls(ov === em)} onClick={() => pick(em)}>{em}</button>
               ))}
             </div>
@@ -2431,9 +2423,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onToggleDshSidebar={onToggleDshSidebar}
         dshThemeOverride={dshThemeOverride}
         onToggleDshThemeOverride={onToggleDshThemeOverride}
-        cwdEmojis={cwdEmojis}
         sessionEmojis={sessionEmojis}
-        onSetCwdEmojis={(arr) => { setCwdEmojis(arr); saveCwdEmojis(arr) }}
         onSetSessionEmojis={(arr) => { setSessionEmojis(arr); saveSessionEmojis(arr) }}
         onResetUiStyle={onResetUiStyle}
         onCreateSessionAt={onCreateSessionAt}

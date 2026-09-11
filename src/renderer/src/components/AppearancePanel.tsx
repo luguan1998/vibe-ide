@@ -5,7 +5,7 @@ import { useI18n } from '../i18n'
 import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, PanelRightClose, SlidersHorizontal, SwatchBook, Info, PawPrint, Trash2 } from 'lucide-react'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { ModalOverlay } from './ModalOverlay'
-import { DEFAULT_CWD_EMOJIS, DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
+import { DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
 import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, setPetLogicalState, setPetLogicalFrames, getPetFrameRate, setPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, setPetListenAi, getPetListenDsh, setPetListenDsh, PET_SCALE_MIN, PET_SCALE_MAX, PET_FRAME_RATE_MIN, PET_FRAME_RATE_MAX } from './DesktopPet/petSettings'
 import { resolveStateName, PET_LOGICAL_STATES, PET_LOGICAL_LABEL, DEFAULT_PET_LOGICAL_STATE } from './DesktopPet/stateMap'
 
@@ -187,9 +187,7 @@ interface AppearancePanelProps {
   onToggleDshSidebar?: (v: boolean) => void
   dshThemeOverride?: boolean
   onToggleDshThemeOverride?: (v: boolean) => void
-  cwdEmojis: string[]
   sessionEmojis: string[]
-  onSetCwdEmojis: (arr: string[]) => void
   onSetSessionEmojis: (arr: string[]) => void
   onResetUiStyle?: () => void
   onCreateSessionAt?: (cwd: string, shell?: string) => void
@@ -214,7 +212,7 @@ const AppearancePanel = function AppearancePanel({
   forceDomRenderer = false, onToggleForceDomRenderer,
   dshSidebarShown = false, onToggleDshSidebar,
   dshThemeOverride = true, onToggleDshThemeOverride,
-  cwdEmojis, sessionEmojis, onSetCwdEmojis, onSetSessionEmojis,
+  sessionEmojis, onSetSessionEmojis,
   onResetUiStyle, onCreateSessionAt,
 }: AppearancePanelProps) {
   const { themes, currentThemeId, setTheme } = useTheme()
@@ -272,7 +270,6 @@ const AppearancePanel = function AppearancePanel({
   const fontsLoadedRef = useRef(false)
   const fontsLoadingRef = useRef(false)
   const pendingFontsRef = useRef(0)
-  const [cwdEmojiDraft, setCwdEmojiDraft] = useState('')
   const [sessionEmojiDraft, setSessionEmojiDraft] = useState('')
 
   const contentRef = useRef<HTMLDivElement>(null)
@@ -286,7 +283,7 @@ const AppearancePanel = function AppearancePanel({
       const h = Math.min(el.scrollHeight, cap)
       setContentMinH(prev => h > prev ? h : prev)
     }
-  }, [activeCategory, snippetsList, cwdEmojiDraft, sessionEmojiDraft, systemFonts])
+  }, [activeCategory, snippetsList, sessionEmojiDraft, systemFonts])
 
   useEffect(() => {
     if (!open) return
@@ -306,7 +303,6 @@ const AppearancePanel = function AppearancePanel({
       setDragOffset({ x: 24, y: -24 })
       window.api.snippets.load().then(r => { setSnippetsList(r.snippets); setSnippetsDir(r.dir) }).catch(() => {})
       window.api.pet.list().then((r: PetListResult) => { setPetsList(r.pets); setActivePetId(r.activeId); setPetsDir(r.dir) }).catch(() => {})
-      setCwdEmojiDraft(cwdEmojis.join('\n'))
       setSessionEmojiDraft(sessionEmojis.join('\n'))
     }
   }, [open])
@@ -568,28 +564,12 @@ const AppearancePanel = function AppearancePanel({
                     <button
                       className="px-3 py-1.5 text-sm text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors flex items-center gap-1"
                       onClick={() => {
-                        setCwdEmojiDraft(DEFAULT_CWD_EMOJIS.join('\n'))
                         setSessionEmojiDraft(DEFAULT_SESSION_EMOJIS.join('\n'))
-                        onSetCwdEmojis([...DEFAULT_CWD_EMOJIS])
                         onSetSessionEmojis([...DEFAULT_SESSION_EMOJIS])
                       }}
                     ><RotateCcw className="size-3" />{t('Reset Defaults')}</button>
                   </div>
                   <p className="text-[12px] text-ide-text-muted">{t('Click any emoji in the sidebar to cycle.')}</p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-ide-text-muted whitespace-nowrap">{t('Folder Icons (per cwd)')}</span>
-                    <input
-                      className="flex-1 bg-ide-bg border border-ide-border rounded px-2 py-1 text-sm text-ide-text font-mono focus:border-ide-accent focus:outline-none"
-                      value={cwdEmojiDraft.split('\n').join(' ')}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setCwdEmojiDraft(v)
-                        const arr = v.split(/\s+/).filter(Boolean)
-                        onSetCwdEmojis(arr)
-                      }}
-                      placeholder={'📁 📂 📍 🏷️'}
-                    />
-                  </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-ide-text-muted whitespace-nowrap">{t('Session Icons')}</span>
                     <input

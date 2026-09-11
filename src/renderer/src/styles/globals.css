@@ -181,15 +181,21 @@ html, body, #root {
   outline: none !important;
 }
 
-/* Monaco diff: 撤销按钮常显，不依赖 hover */
+/* Monaco diff: 撤销按钮常显，不依赖 hover；item 宽硬编码 34px，gutter 窄化后改 100% 随之居中 */
 .monaco-diff-editor .gutter .gutterItem {
   opacity: 1 !important;
+  width: 100% !important;
 }
 
-/* Monaco diff: gutter 分隔线 */
+/* Monaco diff: gutter 分隔线（宽度由 DiffViewer applyNarrowDiffGutter 运行时收窄） */
 .monaco-diff-editor .gutter {
   outline: 1px solid rgb(var(--ide-border));
   outline-offset: -1px;
+}
+
+/* Monaco diff: 承载 gutterItem 的绝对定位包裹层默认收缩为 34px，撑满 gutter 才能居中 */
+.monaco-diff-editor .gutter > div {
+  width: 100%;
 }
 
 /* Monaco diff: 撤销箭头 absolute 定位，参考 VS Code #213584 */
@@ -407,6 +413,52 @@ html, body, #root {
 
 .animate-color-pulse {
   animation: colorPulse 2s ease-in-out infinite;
+}
+
+/* cwd 像素 sprite 两帧循环：硬切帧 + 一像素跳，arcade 风格 */
+.pixel-mascot-active {
+  animation: pixelMascotHop var(--mascot-beat, 460ms) infinite;
+}
+
+.pixel-mascot-rest {
+  animation: pixelMascotRest var(--mascot-beat, 460ms) infinite;
+}
+
+.pixel-mascot-talk {
+  animation: pixelMascotTalk var(--mascot-beat, 460ms) infinite;
+}
+
+@keyframes pixelMascotHop {
+  0%,
+  49.99% {
+    transform: translateY(0);
+  }
+  50%,
+  100% {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes pixelMascotRest {
+  0%,
+  49.99% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes pixelMascotTalk {
+  0%,
+  49.99% {
+    opacity: 0;
+  }
+  50%,
+  100% {
+    opacity: 1;
+  }
 }
 
 /* 会话 emoji 切换反馈：新 emoji 一次性逐列扫描显像（同 z-session-loading-reveal.css 观感，播一次即停） */
