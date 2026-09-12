@@ -1163,7 +1163,8 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   transition: opacity .12s ease;
 }
 /* hover 面：会话列表 / 右栏 Dir、Git 面板切换（覆盖在计数面之上，宽随计数面不抖动）
-   z-index 显式压过计数面；:focus-visible 而非 :focus-within — 鼠标点击后的聚焦不得让切换面赖着不退 */
+   z-index 显式压过计数面；:focus-visible 而非 :focus-within — 鼠标点击后的聚焦不得让切换面赖着不退
+   触发面为整个 session-panel（整栏任意位置 hover 即切换），非仅徽章本体 */
 .status-badge__switch {
   position: absolute;
   inset: 0;
@@ -1173,9 +1174,9 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   opacity: 0;
   transition: opacity .12s ease;
 }
-.status-badge:hover .status-badge__switch,
+.session-panel:hover .status-badge__switch,
 .status-badge:has(:focus-visible) .status-badge__switch { opacity: 1; }
-.status-badge:hover .status-badge__stats,
+.session-panel:hover .status-badge__stats,
 .status-badge:has(:focus-visible) .status-badge__stats { opacity: 0; }
 .status-badge__segment--mode { cursor: pointer; }
 .status-badge__segment--mode:hover {
