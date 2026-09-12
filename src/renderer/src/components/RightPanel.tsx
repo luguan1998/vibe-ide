@@ -58,6 +58,7 @@ interface RightPanelProps {
   onBrowserAnnotate?: (line: string) => void
   onBrowserToggleDock?: () => void
   hideTabBar?: boolean
+  panelWide?: boolean
   onRestoreWidth?: () => void
   contentOverlay?: React.ReactNode
   onOpenBrowser?: () => void
@@ -469,6 +470,7 @@ function RightPanel({
   onBrowserAnnotate,
   onBrowserToggleDock,
   hideTabBar,
+  panelWide,
   onRestoreWidth,
   contentOverlay,
   onOpenBrowser,
@@ -736,7 +738,7 @@ function RightPanel({
       </div>
 
       <div ref={gameContentRef} tabIndex={-1} style={{ display: activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden relative">
-        <GameLauncher workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} historyNavNonce={historyNavNonce} onOpenFileFromExplorer={onOpenFileFromExplorer} onPreviewMarkdown={onPreviewMarkdown} onOpenBrowser={onOpenBrowser} />
+        <GameLauncher workspacePath={workspacePath} panelWide={panelWide} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} historyNavNonce={historyNavNonce} onOpenFileFromExplorer={onOpenFileFromExplorer} onPreviewMarkdown={onPreviewMarkdown} onOpenBrowser={onOpenBrowser} />
         {browserDocked && (
           <div className="absolute inset-0 z-10 flex flex-col bg-ide-bg">
             <BrowserView

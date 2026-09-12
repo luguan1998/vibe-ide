@@ -3666,6 +3666,7 @@ export default function App() {
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
             hideTabBar={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W}
+            panelWide={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W}
             onRestoreWidth={handleRestoreRightWidth}
             contentOverlay={rightOverlay}
             brushActive={brushActive}

@@ -12,6 +12,7 @@ type GameId = 'menu' | 'history' | 'skills' | 'browser' | '2048' | 'sandspiel' |
 
 interface GameLauncherProps {
   workspacePath: string | null
+  panelWide?: boolean
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
   historyNavNonce?: number
@@ -39,7 +40,7 @@ const GAMES: GameCard[] = [
   { id: 'vampire', icon: <span className="text-2xl leading-none">🧛</span>, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
-export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onResumeDshHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown, onOpenBrowser }: GameLauncherProps) {
+export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeHistory, onResumeDshHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown, onOpenBrowser }: GameLauncherProps) {
   const [currentGame, setCurrentGame] = useState<GameId>('menu')
   const lastHistoryNonce = useRef(0)
   useEffect(() => {
@@ -72,26 +73,28 @@ export default function GameLauncher({ workspacePath, onResumeClaudeHistory, onR
       <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean">
         <span className="text-sm text-ide-text font-medium truncate">{t('NGA')}</span>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {GAMES.map(game => (
-          <button
-            key={game.id}
-            onClick={() => (game.id === 'browser' ? onOpenBrowser?.() : launch(game.id))}
-            className="w-full flex items-center gap-3 p-3 rounded-lg bg-ide-sidebar border border-ide-border hover:border-ide-accent/50 hover:bg-ide-hover transition-colors text-left group"
-          >
-            <div className="shrink-0 w-7 h-7 flex items-center justify-center">{game.icon}</div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="text-sm font-medium text-ide-text group-hover:text-ide-accent transition-colors">{t(game.name)}</div>
-                {game.duration && <span className="text-[10px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted whitespace-nowrap">{game.duration}</span>}
+      <div className={`flex-1 overflow-y-auto p-3 ${panelWide ? 'flex flex-col' : ''}`}>
+        <div className={`w-full max-w-lg mx-auto space-y-2 ${panelWide ? 'my-auto shrink-0' : ''}`}>
+          {GAMES.map(game => (
+            <button
+              key={game.id}
+              onClick={() => (game.id === 'browser' ? onOpenBrowser?.() : launch(game.id))}
+              className="w-full flex items-center gap-3 p-3 rounded-lg bg-ide-sidebar border border-ide-border hover:border-ide-accent/50 hover:bg-ide-hover transition-colors text-left group"
+            >
+              <div className="shrink-0 w-7 h-7 flex items-center justify-center">{game.icon}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-medium text-ide-text group-hover:text-ide-accent transition-colors">{t(game.name)}</div>
+                  {game.duration && <span className="text-[10px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted whitespace-nowrap">{game.duration}</span>}
+                </div>
+                <div className="text-xs text-ide-text-muted truncate">{t(game.desc)}</div>
               </div>
-              <div className="text-xs text-ide-text-muted truncate">{t(game.desc)}</div>
-            </div>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-text-muted/50">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </button>
-        ))}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-text-muted/50">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
