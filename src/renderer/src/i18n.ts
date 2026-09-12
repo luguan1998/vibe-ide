@@ -205,6 +205,7 @@ const ZH_MAP: Record<string, string> = {
 
   // RightPanel Aux
   'Launch Terminal': '启动终端',
+  'Open a shell in this workspace': '下方直接点击输入命令',
   'Please select a workspace first': '请先选择工作目录',
   'Commands': '命令',
   'Cmd': '命令',

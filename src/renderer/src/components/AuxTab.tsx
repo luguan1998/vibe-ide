@@ -397,12 +397,21 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
         )}
         {(!activeArr || activeArr.length === 0) && (
           effectiveGitPath ? (
-            <div className="h-full flex items-center justify-center">
+            <div className="h-full flex items-center justify-center p-3">
               <button
                 onClick={handleLaunchOrAdd}
-                className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors aux-tab__launch-btn"
+                className="w-full max-w-xs flex items-center gap-3 p-3 rounded-lg bg-ide-sidebar border border-ide-border hover:border-ide-accent/50 hover:bg-ide-hover transition-colors text-left group aux-tab__launch-btn"
               >
-                {t('Launch Terminal')}
+                <div className="shrink-0 w-7 h-7 flex items-center justify-center">
+                  <ToolIcon category="command" className="w-5 h-5 text-ide-text-muted group-hover:text-ide-accent transition-colors" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-ide-text group-hover:text-ide-accent transition-colors">{t('Launch Terminal')}</div>
+                  <div className="text-xs text-ide-text-muted truncate">{t('Open a shell in this workspace')}</div>
+                </div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-ide-text-muted/50">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
               </button>
             </div>
           ) : (
