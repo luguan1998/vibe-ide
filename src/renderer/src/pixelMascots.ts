@@ -111,6 +111,106 @@ const REST: Record<string, SpriteRows> = {
     '##....##',
     '........',
   ],
+  pacman: [
+    '..####..',
+    '.######.',
+    '#######.',
+    '####....',
+    '####....',
+    '#######.',
+    '.######.',
+    '..####..',
+  ],
+  creeper: [
+    '########',
+    '#..##..#',
+    '#..##..#',
+    '########',
+    '###..###',
+    '#.#..#.#',
+    '#.#..#.#',
+    '########',
+  ],
+  metroid: [
+    '.#....#.',
+    '.######.',
+    '########',
+    '#.####.#',
+    '#.####.#',
+    '########',
+    '.#.##.#.',
+    '#.#..#.#',
+  ],
+  goomba: [
+    '........',
+    '..####..',
+    '.######.',
+    '########',
+    '##.##.##',
+    '########',
+    '.######.',
+    '.##..##.',
+  ],
+  slime: [
+    '...##...',
+    '..####..',
+    '.######.',
+    '########',
+    '##.##.##',
+    '########',
+    '########',
+    '########',
+  ],
+  star: [
+    '...##...',
+    '...##...',
+    '########',
+    '########',
+    '.######.',
+    '..####..',
+    '.##..##.',
+    '##....##',
+  ],
+  heart: [
+    '........',
+    '.##..##.',
+    '########',
+    '########',
+    '########',
+    '.######.',
+    '..####..',
+    '...##...',
+  ],
+  rupee: [
+    '........',
+    '...##...',
+    '..####..',
+    '.#.##.#.',
+    '########',
+    '########',
+    '.######.',
+    '..####..',
+  ],
+  kirby: [
+    '..####..',
+    '.######.',
+    '########',
+    '##.##.##',
+    '########',
+    '########',
+    '########',
+    '.##..##.',
+  ],
+  junimo: [
+    '.#....#.',
+    '.#....#.',
+    '..####..',
+    '.######.',
+    '########',
+    '##.##.##',
+    '########',
+    '..#..#..',
+  ],
 }
 
 const TALK: Record<string, SpriteRows> = {
@@ -214,6 +314,106 @@ const TALK: Record<string, SpriteRows> = {
     '#......#',
     '........',
   ],
+  pacman: [
+    '..####..',
+    '.######.',
+    '#######.',
+    '#####...',
+    '#####...',
+    '#######.',
+    '.######.',
+    '..####..',
+  ],
+  creeper: [
+    '########',
+    '#..##..#',
+    '#..##..#',
+    '########',
+    '###..###',
+    '#.####.#',
+    '#.####.#',
+    '########',
+  ],
+  metroid: [
+    '.#....#.',
+    '.######.',
+    '########',
+    '#.####.#',
+    '########',
+    '########',
+    '.#.##.#.',
+    '#.#..#.#',
+  ],
+  goomba: [
+    '........',
+    '..####..',
+    '.######.',
+    '#.#..#.#',
+    '########',
+    '########',
+    '.######.',
+    '.##..##.',
+  ],
+  slime: [
+    '...##...',
+    '..####..',
+    '.######.',
+    '########',
+    '##.##.##',
+    '###..###',
+    '########',
+    '########',
+  ],
+  star: [
+    '...##...',
+    '...##...',
+    '########',
+    '########',
+    '.######.',
+    '..####..',
+    '##....##',
+    '#......#',
+  ],
+  heart: [
+    '.##..##.',
+    '########',
+    '########',
+    '########',
+    '########',
+    '.######.',
+    '..####..',
+    '...##...',
+  ],
+  rupee: [
+    '...##...',
+    '..####..',
+    '.#.##.#.',
+    '########',
+    '########',
+    '.######.',
+    '..####..',
+    '........',
+  ],
+  kirby: [
+    '..####..',
+    '.######.',
+    '########',
+    '##.##.##',
+    '########',
+    '###..###',
+    '########',
+    '.##..##.',
+  ],
+  junimo: [
+    '#......#',
+    '.#....#.',
+    '..####..',
+    '.######.',
+    '##.##.##',
+    '########',
+    '########',
+    '..#..#..',
+  ],
 }
 
 // 每行连续 '#' 合并为一条 rect path，保持 path 数据短小
@@ -236,17 +436,61 @@ function spritePath(rows: SpriteRows): string {
 }
 
 // 颜色跟 sprite 绑定，手工打散映射（非 index 循环，避免一眼看出规律）
+const THEME_COLOR = {
+  accent: 'rgb(var(--ide-accent))',
+  success: 'rgb(var(--ide-success))',
+  warning: 'rgb(var(--ide-warning))',
+  danger: 'rgb(var(--ide-danger))',
+  muted: 'rgb(var(--ide-text-muted))',
+} as const
+
+// 固定色不随主题变化，供 cwd 图标自选加色板
+const FIXED_COLOR = {
+  red: '#e5484d',
+  orange: '#f0883e',
+  yellow: '#e3b341',
+  green: '#3fb950',
+  cyan: '#39c5cf',
+  blue: '#4493f8',
+  purple: '#a371f7',
+} as const
+
+const COLOR = { ...THEME_COLOR, ...FIXED_COLOR }
+
+export type PixelMascotColorName = keyof typeof COLOR
+
+function toColorEntries<T extends Record<string, string>>(map: T) {
+  return Object.entries(map).map(([name, value]) => ({ name: name as PixelMascotColorName, value }))
+}
+
+export const PIXEL_MASCOT_THEME_COLORS = toColorEntries(THEME_COLOR)
+export const PIXEL_MASCOT_FIXED_COLORS = toColorEntries(FIXED_COLOR)
+
+export function mascotColorValue(name: string | null | undefined): string | undefined {
+  return name && name in COLOR ? COLOR[name as PixelMascotColorName] : undefined
+}
+
 const SPRITE_COLORS: Record<string, string> = {
-  invader: 'rgb(var(--ide-accent))',
-  ghost: 'rgb(var(--ide-accent))',
-  robot: 'rgb(var(--ide-success))',
-  cat: 'rgb(var(--ide-warning))',
-  skull: 'rgb(var(--ide-danger))',
-  crab: 'rgb(var(--ide-warning))',
-  mushroom: 'rgb(var(--ide-danger))',
-  rocket: 'rgb(var(--ide-success))',
-  dino: 'rgb(var(--ide-accent))',
-  frog: 'rgb(var(--ide-danger))',
+  invader: COLOR.accent,
+  ghost: COLOR.accent,
+  robot: COLOR.success,
+  cat: COLOR.warning,
+  skull: COLOR.danger,
+  crab: COLOR.warning,
+  mushroom: COLOR.danger,
+  rocket: COLOR.success,
+  dino: COLOR.accent,
+  frog: COLOR.danger,
+  pacman: COLOR.warning,
+  creeper: COLOR.success,
+  metroid: COLOR.danger,
+  goomba: COLOR.warning,
+  slime: COLOR.accent,
+  star: COLOR.warning,
+  heart: COLOR.danger,
+  rupee: COLOR.success,
+  kirby: COLOR.danger,
+  junimo: COLOR.success,
 }
 
 export const PIXEL_MASCOTS: readonly PixelMascot[] = Object.entries(REST).map(

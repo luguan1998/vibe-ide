@@ -3,11 +3,12 @@ import { PIXEL_MASCOT_GRID, pixelMascot } from '../pixelMascots'
 type Props = {
   seed: string
   name?: string | null
+  color?: string
   className?: string
   active?: boolean
 }
 
-export function PixelMascot({ seed, name, className = 'size-3.5 shrink-0', active = false }: Props) {
+export function PixelMascot({ seed, name, color, className = 'size-3.5 shrink-0', active = false }: Props) {
   const mascot = pixelMascot(seed, name)
   return (
     <svg
@@ -16,7 +17,7 @@ export function PixelMascot({ seed, name, className = 'size-3.5 shrink-0', activ
       shapeRendering="crispEdges"
       className={`${className}${active ? ' pixel-mascot-active' : ''}`}
       fill="currentColor"
-      style={{ color: mascot.color }}
+      style={{ color: color ?? mascot.color }}
     >
       {active ? (
         <>

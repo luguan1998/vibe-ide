@@ -722,7 +722,7 @@ export default function App() {
     try { return localStorage.getItem('vibe-ide-auto-utf8') !== 'false' } catch { return true }
   })
   const [inlineDiff, setInlineDiff] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-inline-diff') === 'true' } catch { return false }
+    try { return localStorage.getItem('vibe-ide-inline-diff') !== 'false' } catch { return true }
   })
   const [diffSplitRatio, setDiffSplitRatio] = useState(() => {
     const v = Number(localStorage.getItem('vibe-ide-diff-split-ratio'))
@@ -3380,7 +3380,7 @@ export default function App() {
               setCapsuleTabs(true)
               setGroupSessionsByCwd(true)
               setShowSessionButtons(true)
-              setInlineDiff(false)
+              setInlineDiff(true)
               setDiffSplitRatio(0.3)
               setSessionFontFamily('Consolas')
               setFontFamily('Consolas')

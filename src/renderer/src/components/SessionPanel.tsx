@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
 import { type SessionTab, ICON_NONE, DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
-import { PIXEL_MASCOTS, randomPixelMascotName, pixelMascot } from '../pixelMascots'
+import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, mascotColorValue, randomPixelMascotName, pixelMascot } from '../pixelMascots'
 import { PixelMascot } from './PixelMascot'
 import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine } from 'lucide-react'
 import { useI18n } from '../i18n'
@@ -157,6 +157,27 @@ function loadCwdMascots(): Record<string, string> {
 
 function saveCwdMascots(mascots: Record<string, string>): void {
   try { localStorage.setItem('vibe-ide-cwd-mascots', JSON.stringify(mascots)) } catch {}
+}
+
+function loadCwdMascotColors(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem('vibe-ide-cwd-mascot-colors')
+    if (raw) {
+      const obj = JSON.parse(raw)
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+        const next: Record<string, string> = {}
+        for (const [k, v] of Object.entries(obj)) {
+          if (typeof v === 'string' && v) next[k] = v
+        }
+        return next
+      }
+    }
+  } catch {}
+  return {}
+}
+
+function saveCwdMascotColors(colors: Record<string, string>): void {
+  try { localStorage.setItem('vibe-ide-cwd-mascot-colors', JSON.stringify(colors)) } catch {}
 }
 
 function loadSessionEmojis(): string[] {
@@ -523,12 +544,21 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [shellOptions, setShellOptions] = useState(FALLBACK_SHELLS)
   const [sessionEmojis, setSessionEmojis] = useState<string[]>(() => loadSessionEmojis())
   const [cwdMascots, setCwdMascots] = useState<Record<string, string>>(() => loadCwdMascots())
+  const [cwdMascotColors, setCwdMascotColors] = useState<Record<string, string>>(() => loadCwdMascotColors())
   const [showAppearance, setShowAppearance] = useState(false)
 
   const setCwdMascot = (cwd: string, name: string) => {
     const next = { ...cwdMascots, [cwd]: name }
     setCwdMascots(next)
     saveCwdMascots(next)
+  }
+
+  const setCwdMascotColor = (cwd: string, colorName: string) => {
+    const next = { ...cwdMascotColors }
+    if (colorName) next[cwd] = colorName
+    else delete next[cwd]
+    setCwdMascotColors(next)
+    saveCwdMascotColors(next)
   }
   // 会话 emoji 已收进 SessionTab.emoji（随 session 持久化）；池变更时把引用失效 emoji 的会话复位为类型图标
   useEffect(() => {
@@ -1758,6 +1788,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       <PixelMascot
                         seed={group.cwd}
                         name={cwdMascots[group.cwd]}
+                        color={mascotColorValue(cwdMascotColors[group.cwd])}
                         active={groupMascotRunning}
                         className={`size-3.5 transition-opacity ${group.sessions.length === 0 ? 'group-hover:opacity-0' : ''}`}
                       />
@@ -2039,7 +2070,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {emojiMenu && (() => {
         if (!('sessionId' in emojiMenu)) {
           const cwd = emojiMenu.cwd
-          const current = pixelMascot(cwd, cwdMascots[cwd]).name
+          const activeSprite = pixelMascot(cwd, cwdMascots[cwd])
+          const current = activeSprite.name
+          const currentColor = cwdMascotColors[cwd] ?? ''
+          const overrideColor = mascotColorValue(currentColor)
           return (
             <div
               ref={emojiMenuPos.ref}
@@ -2048,7 +2082,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               onClick={(e) => e.stopPropagation()}
               onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
             >
-              <div className="flex items-center gap-0.5">
+              <div className="flex flex-wrap items-center gap-0.5 max-w-[280px]">
                 {PIXEL_MASCOTS.map(mascot => (
                   <button
                     key={mascot.name}
@@ -2056,9 +2090,40 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     className={`grid size-6 place-items-center rounded hover:bg-ide-hover transition-colors${current === mascot.name ? ' bg-ide-accent/20 ring-1 ring-ide-accent' : ''}`}
                     onClick={() => { setCwdMascot(cwd, mascot.name); setEmojiMenu(null) }}
                   >
-                    <PixelMascot seed={cwd} name={mascot.name} className="size-3.5" />
+                    <PixelMascot seed={cwd} name={mascot.name} color={overrideColor} className="size-3.5" />
                   </button>
                 ))}
+              </div>
+              <div className="border-t border-ide-border mt-1 pt-1">
+                {(() => {
+                  const colorSwatch = (color: { name: string; value: string }) => (
+                    <button
+                      key={color.name}
+                      title={color.name}
+                      className={`grid size-6 place-items-center rounded hover:bg-ide-hover transition-colors${currentColor === color.name ? ' bg-ide-accent/20 ring-1 ring-ide-accent' : ''}`}
+                      onClick={() => setCwdMascotColor(cwd, currentColor === color.name ? '' : color.name)}
+                    >
+                      <span className="size-3 rounded-sm" style={{ background: color.value }} />
+                    </button>
+                  )
+                  return (
+                    <>
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          title={t('Default color')}
+                          className={`grid size-6 place-items-center rounded hover:bg-ide-hover transition-colors${currentColor === '' ? ' bg-ide-accent/20 ring-1 ring-ide-accent' : ''}`}
+                          onClick={() => setCwdMascotColor(cwd, '')}
+                        >
+                          <span className="grid size-3.5 place-items-center rounded-full border border-dashed border-ide-text-muted">
+                            <span className="size-2 rounded-full" style={{ background: activeSprite.color }} />
+                          </span>
+                        </button>
+                        {PIXEL_MASCOT_THEME_COLORS.map(colorSwatch)}
+                      </div>
+                      <div className="flex items-center gap-0.5 mt-0.5">{PIXEL_MASCOT_FIXED_COLORS.map(colorSwatch)}</div>
+                    </>
+                  )
+                })()}
               </div>
             </div>
           )

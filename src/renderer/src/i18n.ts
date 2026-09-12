@@ -184,6 +184,7 @@ const ZH_MAP: Record<string, string> = {
   'One per line': '每行一个',
   'No emojis': '无表情',
   'Click to change pixel icon': '点击换像素图标',
+  'Default color': '默认配色',
   'Type Icon': '类型图标',
   'Blank': '空',
   'Scheduled Task': '定时任务',
