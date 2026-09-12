@@ -279,6 +279,83 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
 
   return (
     <div ref={containerRef} tabIndex={-1} className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
+      {showTabBar && (
+        <div className="shrink-0 h-7 px-2 flex items-center gap-1.5 bg-ide-sidebar border-b border-ide-border aux-tab__bar">
+          {canLeft && (
+            <button
+              onClick={() => scrollRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
+              className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+              title={t('Scroll Left')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          )}
+          <div ref={scrollRef} onScroll={updateArrows} className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto aux-tab__scroll">
+            {activeArr!.map((tab, i) => {
+              const active = i === activeIdx
+              const primary = tab.terminals[0]
+              return (
+                <div
+                  key={tab.id}
+                  className={`group flex items-center gap-1.5 pl-2 pr-1 py-1 border-b-2 text-xs font-medium cursor-pointer shrink-0 transition-colors aux-tab__term ${
+                    active
+                      ? 'border-b-ide-accent text-ide-text'
+                      : 'border-b-transparent text-ide-text-muted hover:text-ide-text'
+                  }`}
+                  onClick={() => activeSessionId && onSelectAuxTab?.(activeSessionId, i)}
+                  onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tabIndex: i, tab }) }}
+                  title={`${primary?.name ?? ''} — ${primary?.cwd ?? ''}`}
+                >
+                  {tab.terminals.length > 1 ? (
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 opacity-70">
+                      <rect x="2" y="2" width="12" height="5" rx="1" />
+                      <rect x="2" y="9" width="12" height="5" rx="1" />
+                    </svg>
+                  ) : (
+                    <ToolIcon category="command" />
+                  )}
+                  <span className="font-mono truncate max-w-[80px]">{(primary?.cwd.split(/[\\/]/).filter(Boolean).pop() || primary?.cwd || '')} {i + 1}</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); activeSessionId && onCloseAuxTerminal?.(activeSessionId, tab.id) }}
+                    className={`w-4 h-4 rounded flex items-center justify-center transition-colors shrink-0 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text ${
+                      active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}
+                    title={t('Close')}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+          {canRight && (
+            <button
+              onClick={() => scrollRef.current?.scrollBy({ left: 120, behavior: 'smooth' })}
+              className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+              title={t('Scroll Right')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={handleLaunchOrAdd}
+            className="w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0 aux-tab__add-btn"
+            title={t('New Terminal')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
+      )}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {Object.entries(rightTerminalSessions).flatMap(([sid, tabs]) =>
           tabs.map((tab, tabIndex) => {
@@ -335,106 +412,27 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
           )
         )}
       </div>
-      {showTabBar && (
-        <div className="shrink-0 flex items-end gap-0.5 h-6 px-1 bg-ide-border/20 aux-tab__bar">
-          {canLeft && (
-            <button
-              onClick={() => scrollRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
-              className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
-              title={t('Scroll Left')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </button>
-          )}
-          <div ref={scrollRef} onScroll={updateArrows} className="flex-1 flex items-end gap-1 overflow-x-auto aux-tab__scroll">
-            {activeArr!.map((tab, i) => {
-              const active = i === activeIdx
-              const primary = tab.terminals[0]
-              return (
-                <div
-                  key={tab.id}
-                  className={`group relative flex items-center gap-1 pl-2 pr-1 rounded-t-md text-xs cursor-pointer shrink-0 transition-colors aux-tab__term ${
-                    active
-                      ? 'bg-ide-sidebar border-t border-x border-ide-border border-b-2 border-b-ide-accent h-6 text-ide-text'
-                      : 'bg-ide-hover/25 h-5 text-ide-text-muted hover:bg-ide-hover/45 hover:text-ide-text'
-                  }`}
-                  onClick={() => activeSessionId && onSelectAuxTab?.(activeSessionId, i)}
-                  onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tabIndex: i, tab }) }}
-                  title={`${primary?.name ?? ''} — ${primary?.cwd ?? ''}`}
-                >
-                  {tab.terminals.length > 1 ? (
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-ide-accent/70">
-                      <rect x="2" y="2" width="12" height="5" rx="1" />
-                      <rect x="2" y="9" width="12" height="5" rx="1" />
-                    </svg>
-                  ) : (
-                    <ToolIcon category="command" />
-                  )}
-                  <span className="font-mono truncate max-w-[80px]">{(primary?.cwd.split(/[\\/]/).filter(Boolean).pop() || primary?.cwd || '')} {i + 1}</span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); activeSessionId && onCloseAuxTerminal?.(activeSessionId, tab.id) }}
-                    className={`w-4 h-4 rounded flex items-center justify-center transition-colors shrink-0 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text ${
-                      active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}
-                    title={t('Close')}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-          {canRight && (
-            <button
-              onClick={() => scrollRef.current?.scrollBy({ left: 120, behavior: 'smooth' })}
-              className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
-              title={t('Scroll Right')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </button>
-          )}
-          <button
-            onClick={handleLaunchOrAdd}
-            className="w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0 aux-tab__add-btn"
-            title={t('New Terminal')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-        </div>
-      )}
       {commands.length > 0 && (
         <div className="shrink-0 border-t border-ide-border" style={{ maxHeight: '32%', overflowY: 'auto' }}>
-          {!showTabBar && (
-            <div className="px-2 py-1 group flex items-center justify-between sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm border-b border-ide-border">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-[10px] uppercase tracking-wider text-ide-accent shrink-0">Commands</span>
-                {commandsSource && (
-                  <span className="text-[10px] text-ide-text-muted opacity-0 group-hover:opacity-100 transition-opacity truncate min-w-0">from {commandsSource}</span>
-                )}
-              </div>
-              <button
-                onClick={handleRefreshCommands}
-                className="w-4 h-4 mr-1 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-all"
-                title={t('Refresh')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
-                  <polyline points="23 4 23 10 17 10" />
-                  <polyline points="1 20 1 14 7 14" />
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                </svg>
-              </button>
+          <div className="px-2 py-1 group flex items-center justify-between sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm border-b border-ide-border">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-[11px] uppercase tracking-wider text-ide-accent shrink-0">Commands</span>
+              {commandsSource && (
+                <span className="text-[11px] text-ide-text-muted opacity-0 group-hover:opacity-100 transition-opacity truncate min-w-0">from {commandsSource}</span>
+              )}
             </div>
-          )}
+            <button
+              onClick={handleRefreshCommands}
+              className="w-4 h-4 mr-1 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-all"
+              title={t('Refresh')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+            </button>
+          </div>
           {commands.map((cmd, i) => (
             <div
               key={i}
@@ -451,8 +449,8 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
                   <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
                 </svg>
               </button>
-              <span className={`text-xs font-mono font-semibold shrink-0 w-[8.5rem] truncate ${/^https?:\/\//i.test(cmd.command.trim()) ? 'text-ide-accent underline' : 'text-ide-text'}`}>{cmd.command}</span>
-              <span className="text-xs text-ide-text-muted/70 truncate">{cmd.comment}</span>
+              <span className={`text-[13px] font-mono font-semibold shrink-0 w-[9.25rem] truncate ${/^https?:\/\//i.test(cmd.command.trim()) ? 'text-ide-accent underline' : 'text-ide-text'}`}>{cmd.command}</span>
+              <span className="text-[13px] text-ide-text-muted/70 truncate">{cmd.comment}</span>
             </div>
           ))}
         </div>
