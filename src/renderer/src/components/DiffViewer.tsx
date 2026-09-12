@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import { Editor, DiffEditor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
 import { ENCODING_GROUPS, DEFAULT_ENCODING } from '@shared/encodings'
@@ -7,6 +8,8 @@ import { FileIcon } from './FileIcons'
 import OutlineTrigger from './OutlineTrigger'
 import { ADD_ANNOTATION_EVENT } from './vibeEvents'
 import { resolveAbsPath } from '../utils/filePathUtils'
+import { baseName } from '../fileTabs'
+import type { TabSnapshot, TabRuntime } from '../fileTabs'
 
 let _monacoConfigured = false
 function configureMonacoBase(monaco: any) {
@@ -70,7 +73,6 @@ function getLanguageFromFile(path: string): string {
 interface DiffViewerProps {
   filePath: string          // 相对路径（用于 git 操作）
   fullPath: string          // 完整路径（用于 file read/write）
-  gitStats?: { additions: number; deletions: number }
   isStaged: boolean
   commitHash?: string       // 查看历史 commit 时的 commit hash
   lineNumber?: number       // 跳转到指定行
@@ -78,7 +80,7 @@ interface DiffViewerProps {
   wordWrap?: boolean        // 是否自动换行
   scrollTrigger?: number    // PageUp/PageDown 触发滚动，变化时滚动一页
   revision?: number         // 递增以强制重新加载内容
-  onBack?: () => void
+  onDismiss?: () => void  // 收起文件区回终端（ESC / 标题栏返回钮），tab 保活不关闭
   onSaved?: (path: string) => Promise<void>
   defaultEdit?: boolean
   inlineDiff?: boolean      // 强制内联 diff 模式
@@ -96,6 +98,13 @@ interface DiffViewerProps {
   outlineEnabled?: boolean
   onToggleOutline?: () => void
   onOutlineNavigate?: (line: number, headingName?: string) => void
+  headerLeading?: ReactNode   // 容器注入的标题栏左组（tab 条等），null 时非激活 tab
+  isActive?: boolean          // display 可见性（多 tab 保活）
+  tabId?: string
+  jumpNonce?: number          // 递增以强制重复跳转到同一行
+  getSnapshot?: () => TabSnapshot | null
+  onPushSnapshot?: (s: TabSnapshot) => void
+  onRuntimeChange?: (rt: TabRuntime | null) => void
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -228,29 +237,25 @@ interface JumpItem {
   detail?: string
 }
 
-function FilePathDisplay({ filePath }: { filePath: string }) {
-  const lastSep = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
-  const dirPart = lastSep >= 0 ? filePath.substring(0, lastSep + 1) : ''
-  const namePart = lastSep >= 0 ? filePath.substring(lastSep + 1) : filePath
-  return (
-    <span className="truncate flex items-center gap-1.5">
-      <FileIcon name={namePart} className="w-4 h-4" />
-      <span className="text-ide-text font-medium">{namePart}</span>
-      {dirPart && <span className="text-[11px] text-ide-text-muted/50">{dirPart}</span>}
-    </span>
-  )
-}
-
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onBack, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, outlineEnabled = false, onToggleOutline, onOutlineNavigate = () => {} }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, outlineEnabled = false, onToggleOutline, onOutlineNavigate = () => {}, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
-  const [viewMode, setViewMode] = useState<ViewMode>(defaultEdit ? 'edit' : 'diff')
+  // 从容器持续快照读取（仅右栏收起导致 remount 时非空）：恢复 dirty buffer / viewMode / encoding / 滚动行
+  const restoreSnapRef = useRef<TabSnapshot | null | undefined>(undefined)
+  if (restoreSnapRef.current === undefined) restoreSnapRef.current = getSnapshot ? getSnapshot() : null
+  const restoreSnap = restoreSnapRef.current
+  const restorePendingRef = useRef(!!restoreSnap)
+
+  const [viewMode, setViewMode] = useState<ViewMode>(restoreSnap?.viewMode ?? (defaultEdit ? 'edit' : 'diff'))
   const viewModeRef = useRef(viewMode)
   viewModeRef.current = viewMode
 
   // Reset viewMode when file changes
+  const prevFullPathRef = useRef(fullPath)
   useEffect(() => {
+    if (prevFullPathRef.current === fullPath) return
+    prevFullPathRef.current = fullPath
     setViewMode(defaultEdit ? 'edit' : 'diff')
   }, [fullPath, defaultEdit])
   const [originalContent, setOriginalContent] = useState<string>('')
@@ -259,7 +264,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
   const [editLoading, setEditLoading] = useState(false)
   const [diffLoading, setDiffLoading] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
-  const [diffStats, setDiffStats] = useState<{ additions: number; deletions: number }>({ additions: 0, deletions: 0 })
+  const isDirtyRef = useRef(isDirty)
+  isDirtyRef.current = isDirty
   const savedContentRef = useRef('')
   const justLoadedRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -357,12 +363,14 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
 
   // Jump to lineNumber whenever it changes (handles both mount and prop updates)
   useEffect(() => {
-    if (!lineNumber || lineNumber <= 0) return
+    const targetLn = (lineNumber && lineNumber > 0) ? lineNumber : (restorePendingRef.current ? restoreSnapRef.current?.line : undefined)
+    if (!targetLn || targetLn <= 0) return
+    if (!containerRef.current?.offsetParent) return
     try {
       if (viewMode === 'diff' && diffEditorRef.current) {
         const modifiedEditor = diffEditorRef.current.getModifiedEditor()
         const count = modifiedEditor.getModel()?.getLineCount() || 0
-        const ln = Math.min(lineNumber, count)
+        const ln = Math.min(targetLn, count)
         if (ln > 0) {
           modifiedEditor.revealLineInCenter(ln)
           modifiedEditor.setPosition({ lineNumber: ln, column: 1 })
@@ -371,7 +379,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
         }
       } else if (viewMode === 'edit' && editEditorRef.current) {
         const count = editEditorRef.current.getModel()?.getLineCount() || 0
-        const ln = Math.min(lineNumber, count)
+        const ln = Math.min(targetLn, count)
         if (ln > 0) {
           editEditorRef.current.revealLineInCenter(ln)
           editEditorRef.current.setPosition({ lineNumber: ln, column: 1 })
@@ -380,12 +388,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
         }
       }
     } catch {}
-  }, [lineNumber, viewMode])
+  }, [lineNumber, jumpNonce, viewMode])
 
   // PageUp/PageDown: 滚动 diff 编辑器一页
   const prevScrollTrigger = useRef(scrollTrigger)
   useEffect(() => {
     if (scrollTrigger === undefined || prevScrollTrigger.current === undefined || prevScrollTrigger.current === scrollTrigger) return
+    if (!containerRef.current?.offsetParent) return
     const delta = scrollTrigger - prevScrollTrigger.current
     prevScrollTrigger.current = scrollTrigger
     try {
@@ -434,24 +443,33 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
         modified = currResult.error ? '' : (currResult.content || '')
       }
 
-      const stats = gitStats || { additions: 0, deletions: 0 }
+      const rs = restoreSnapRef.current
+      const useRestore = restorePendingRef.current && !!rs?.dirty && rs.buffer !== undefined
+      const restoreLine = restorePendingRef.current ? rs?.line : undefined
+      restorePendingRef.current = false
       setOriginalContent(original)
-      setModifiedContent(modified)
-      setDiffStats(stats)
-      savedContentRef.current = modified
-      setIsDirty(false)
+      if (useRestore) {
+        setModifiedContent(rs!.buffer!)
+        savedContentRef.current = modified
+        setIsDirty(true)
+      } else {
+        setModifiedContent(modified)
+        savedContentRef.current = modified
+        setIsDirty(false)
+      }
       // Jump to line after content loads (onMount fires too early)
-      if (lineNumber && lineNumber > 0) {
+      const jumpLn = (lineNumber && lineNumber > 0) ? lineNumber : restoreLine
+      if (jumpLn && jumpLn > 0) {
         setTimeout(() => {
           try {
             if (viewMode === 'diff' && diffEditorRef.current) {
               const e = diffEditorRef.current.getModifiedEditor()
               const c = e.getModel()?.getLineCount() || 0
-              const ln = Math.min(lineNumber, c)
+              const ln = Math.min(jumpLn, c)
               if (ln > 0) { e.revealLineInCenter(ln); e.setPosition({ lineNumber: ln, column: 1 }) }
             } else if (viewMode === 'edit' && editEditorRef.current) {
               const c = editEditorRef.current.getModel()?.getLineCount() || 0
-              const ln = Math.min(lineNumber, c)
+              const ln = Math.min(jumpLn, c)
               if (ln > 0) { editEditorRef.current.revealLineInCenter(ln); editEditorRef.current.setPosition({ lineNumber: ln, column: 1 }) }
             }
           } catch {}
@@ -461,11 +479,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
     } catch {
       setOriginalContent('')
       setModifiedContent('')
-      setDiffStats({ additions: 0, deletions: 0 })
     } finally {
       setDiffLoading(false)
     }
-  }, [filePath, fullPath, isStaged, commitHash, gitStats, revision, compareOriginalContent])
+  }, [filePath, fullPath, isStaged, commitHash, revision, compareOriginalContent])
 
   useEffect(() => {
     // edit 模式内容由 loadForEdit 负责，切回 diff 时再重新拉取
@@ -473,7 +490,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
     loadContents()
   }, [loadContents, viewMode])
 
-  const loadForEdit = useCallback(async (encoding?: string, forceOpen?: boolean) => {
+  const loadForEdit = useCallback(async (encoding?: string, forceOpen?: boolean, keepBuffer?: boolean) => {
+    const restoreLine = restorePendingRef.current ? restoreSnapRef.current?.line : undefined
+    restorePendingRef.current = false
     try {
       const result = await window.api.file.readWithEncoding(fullPath, encoding, forceOpen)
       if (result.error) {
@@ -485,10 +504,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
           setUnreadableReason(result.error)
         }
       } else {
-        setModifiedContent(result.content)
+        if (!keepBuffer) setModifiedContent(result.content)
         savedContentRef.current = result.content
         setUnreadableReason('')
-        if (!encoding) {
+        if (!encoding && !keepBuffer) {
           setCurrentEncoding(result.encoding)
           if (result.bom) {
             setEncodingInfo(`BOM ${result.encoding.toUpperCase()}`)
@@ -498,13 +517,14 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
             setEncodingInfo('')
           }
         }
-        setIsDirty(false)
-        if (lineNumber && lineNumber > 0) {
+        setIsDirty(keepBuffer ? true : false)
+        const jumpLn = (lineNumber && lineNumber > 0) ? lineNumber : restoreLine
+        if (jumpLn && jumpLn > 0) {
           setTimeout(() => {
             try {
               if (editEditorRef.current) {
                 const c = editEditorRef.current.getModel()?.getLineCount() || 0
-                const ln = Math.min(lineNumber, c)
+                const ln = Math.min(jumpLn, c)
                 if (ln > 0) { editEditorRef.current.revealLineInCenter(ln); editEditorRef.current.setPosition({ lineNumber: ln, column: 1 }) }
               }
             } catch {}
@@ -520,8 +540,15 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
 
   useEffect(() => {
     if (viewMode === 'edit') {
+      const rs = restoreSnapRef.current
+      const keep = restorePendingRef.current && !!rs?.dirty && rs.buffer !== undefined
+      if (keep) {
+        setModifiedContent(rs!.buffer!)
+        setIsDirty(true)
+        if (rs!.encoding) setCurrentEncoding(rs!.encoding)
+      }
       setEditLoading(true)
-      loadForEdit()
+      loadForEdit(undefined, undefined, keep)
     }
   }, [viewMode, loadForEdit])
 
@@ -545,6 +572,58 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
   onOpenCallGraphRef.current = onOpenCallGraph
   const onViewLineHistoryRef = useRef(onViewLineHistory)
   onViewLineHistoryRef.current = onViewLineHistory
+
+  // 运行态注册（容器关 tab 时取 dirty / save）
+  const onRuntimeChangeRef = useRef(onRuntimeChange)
+  onRuntimeChangeRef.current = onRuntimeChange
+  useEffect(() => {
+    onRuntimeChangeRef.current?.({ dirty: isDirty, save: () => handleSaveRef.current() })
+    return () => onRuntimeChangeRef.current?.(null)
+  }, [isDirty])
+
+  // 持续快照推送（ref 写，0 re-render）：右栏收起导致 remount 时供新实例恢复
+  const onPushSnapshotRef = useRef(onPushSnapshot)
+  onPushSnapshotRef.current = onPushSnapshot
+  const buildSnapshot = useCallback((): TabSnapshot => {
+    const v = visibleLineRef?.current
+    return {
+      buffer: isDirtyRef.current ? modifiedContent : undefined,
+      dirty: isDirtyRef.current,
+      viewMode: viewModeRef.current,
+      encoding: currentEncoding,
+      line: v && v.fullPath === fullPath ? v.line : undefined,
+    }
+  }, [modifiedContent, currentEncoding, fullPath, visibleLineRef])
+  const buildSnapshotRef = useRef(buildSnapshot)
+  buildSnapshotRef.current = buildSnapshot
+  const scrollPushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pushSnapshot = useCallback(() => {
+    if (!tabId) return
+    onPushSnapshotRef.current?.(buildSnapshotRef.current())
+  }, [tabId])
+  const scheduleScrollPush = useCallback(() => {
+    if (scrollPushTimerRef.current) clearTimeout(scrollPushTimerRef.current)
+    scrollPushTimerRef.current = setTimeout(() => {
+      scrollPushTimerRef.current = null
+      pushSnapshot()
+    }, 250)
+  }, [pushSnapshot])
+  useEffect(() => {
+    pushSnapshot()
+  }, [isDirty, modifiedContent, viewMode, currentEncoding, pushSnapshot])
+  useEffect(() => () => {
+    if (scrollPushTimerRef.current) clearTimeout(scrollPushTimerRef.current)
+  }, [])
+
+  // 切回 tab 时 display:none → flex，显式 layout + gutter 重算
+  useEffect(() => {
+    if (!isActive) return
+    try {
+      diffEditorRef.current?.layout?.()
+      editEditorRef.current?.layout?.()
+      if (diffEditorRef.current) applyNarrowDiffGutter(diffEditorRef.current)
+    } catch {}
+  }, [isActive])
 
   // Ctrl+Click 跳转：C=codegraph 索引 → D=grep 定义正则兜底
   const jumpCwdRef = useRef(jumpCwd); jumpCwdRef.current = jumpCwd
@@ -636,12 +715,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onBack, commitHash])
+  }, [onDismiss, commitHash])
 
   // Escape 必须在 capture 阶段拦截，否则 Monaco 会先清掉选区
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || !onBack) return
+      if (e.key !== 'Escape' || !onDismiss) return
       if (!containerRef.current?.offsetParent) return
       if (jumpCandidatesRef.current) {
         closeJump()
@@ -651,11 +730,11 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
       }
       e.preventDefault()
       e.stopImmediatePropagation()
-      onBack()
+      onDismiss()
     }
     window.addEventListener('keydown', handleEsc, true)
     return () => window.removeEventListener('keydown', handleEsc, true)
-  }, [onBack, closeJump])
+  }, [onDismiss, closeJump])
 
   // 跳转候选浮层：↑↓ 选择 + Enter 跳转（浮层开着时拦截）
   useEffect(() => {
@@ -743,7 +822,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
   }, [encodingContextMenu])
 
   // Reset encoding state when file changes
+  const prevEncFullPathRef = useRef(fullPath)
   useEffect(() => {
+    if (prevEncFullPathRef.current === fullPath) return
+    prevEncFullPathRef.current = fullPath
     setCurrentEncoding(DEFAULT_ENCODING)
     setEncodingInfo('')
     setUnreadableReason('')
@@ -912,70 +994,56 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
 
   return (
     <div ref={containerRef} className={`flex flex-col h-full animate-fade-in center-overlay${brushActive ? ' diff-brush-mode diff-brush-code' : ''}`}>
-      <div
-        className="diff-titlebar h-8 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0"
-        onContextMenu={!commitHash ? (e) => { e.preventDefault(); setEncodingContextMenu({ x: e.clientX, y: e.clientY }) } : undefined}
-        onClick={(e) => {
-          if (!brushActive || !fullPath) return
-          e.preventDefault()
-          e.stopPropagation()
-          window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: filePath } }))
-        }}
-      >
-        <div className="flex items-center gap-2 text-sm">
-          {onBack && (
-            <button
-              onClick={() => { onBack() }}
-              className="w-6 h-6 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors"
-              title="Esc"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3.5 h-3.5">
-                <polyline points="15 4 7 12 15 20" />
-              </svg>
-            </button>
-          )}
-          {compareOriginalPath ? (
-            <div className="flex items-center gap-1.5 text-sm min-w-0">
-              <FilePathDisplay filePath={compareOriginalPath} />
-              <span className="text-ide-accent shrink-0 font-medium">vs</span>
-              <FilePathDisplay filePath={filePath} />
-            </div>
-          ) : (
-            <FilePathDisplay filePath={filePath} />
-          )}
-          {viewMode === 'diff' && (diffStats.additions > 0 || diffStats.deletions > 0) && (
-            <div className="flex items-center gap-1 text-xs shrink-0">
-              {diffStats.additions > 0 && <span className="text-ide-success font-mono">+{diffStats.additions}</span>}
-              {diffStats.deletions > 0 && <span className="text-ide-danger font-mono">-{diffStats.deletions}</span>}
-            </div>
-          )}
-        </div>
+      <div className="diff-titlebar h-8 px-3 flex items-center justify-between gap-2 bg-ide-sidebar border-b border-ide-border shrink-0">
+        {headerLeading}
 
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2 shrink-0"
+          onContextMenu={!commitHash ? (e) => { e.preventDefault(); setEncodingContextMenu({ x: e.clientX, y: e.clientY }) } : undefined}
+          onClick={(e) => {
+            if (!brushActive || !fullPath) return
+            e.preventDefault()
+            e.stopPropagation()
+            window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: filePath } }))
+          }}
+        >
+          {compareOriginalPath && (
+            <div className="flex items-center gap-1 text-xs min-w-0" title={`${compareOriginalPath} vs ${fullPath}`}>
+              <FileIcon name={baseName(compareOriginalPath)} className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate max-w-[100px] text-ide-text-muted">{baseName(compareOriginalPath)}</span>
+              <span className="text-ide-accent shrink-0">↔</span>
+              <FileIcon name={baseName(fullPath)} className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate max-w-[100px]">{baseName(fullPath)}</span>
+            </div>
+          )}
           {isDirty && <span className="text-[11px] text-ide-warning font-medium">● 未保存</span>}
           {currentEncoding !== DEFAULT_ENCODING && (
             <span className="text-[10px] text-ide-accent font-mono" title={encodingInfo || undefined}>{currentEncoding.toUpperCase()}</span>
           )}
-        {!unreadableReason && (
-        <div className="flex items-center rounded-md bg-ide-hover overflow-hidden">
-          <button
-            onClick={() => setViewMode('diff')}
-            className={`px-2.5 py-1 text-xs transition-colors ${
-              viewMode === 'diff' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'
-            }`}
-          >
-            Diff
-          </button>
-          <button
-            onClick={switchToEdit}
-            className={`px-2.5 py-1 text-xs transition-colors ${
-              viewMode === 'edit' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'
-            }`}
-          >
-            Edit
-          </button>
-        </div>
-        )}
+          {!unreadableReason && (
+            viewMode === 'diff' ? (
+              <button
+                onClick={switchToEdit}
+                className="w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
+                title="编辑"
+              >
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                  <path d="M9.94076 1.34942C10.7047 0.90231 11.6503 0.902415 12.4143 1.34942C12.7061 1.52015 12.9688 1.79118 13.3104 2.13284C13.6521 2.47448 13.9231 2.73721 14.0939 3.02894C14.5408 3.79294 14.5409 4.73856 14.0939 5.50251C13.9231 5.79415 13.652 6.05704 13.3104 6.39861L6.65932 13.0497C6.28068 13.4284 6.00695 13.7108 5.66543 13.9097C5.32391 14.1085 4.94315 14.2074 4.42705 14.3498L3.24394 14.6761C2.77527 14.8054 2.34538 14.9262 2.00131 14.9684C1.65196 15.0112 1.17964 15.0013 0.810764 14.6325C0.441921 14.2637 0.432107 13.7913 0.47486 13.442C0.517035 13.0979 0.6379 12.668 0.767181 12.1993L1.09352 11.0162C1.23588 10.5001 1.33481 10.1193 1.5336 9.77784C1.7325 9.43632 2.0149 9.1626 2.39355 8.78395L9.04466 2.13284C9.38625 1.79126 9.64911 1.52016 9.94076 1.34942ZM15.5427 14.8398H7.55223L8.96707 13.425H15.5427V14.8398ZM3.39382 9.78422C2.965 10.213 2.84244 10.3436 2.75709 10.49C2.67183 10.6366 2.61862 10.8079 2.45733 11.3925L2.13099 12.5756C2.00183 13.0439 1.92194 13.3419 1.88863 13.5536C2.10041 13.5204 2.39872 13.4416 2.86764 13.3123L4.05075 12.9859C4.63544 12.8246 4.80669 12.7715 4.95323 12.6862C5.09968 12.6008 5.23022 12.4783 5.65905 12.0494L10.721 6.98644L8.45577 4.72121L3.39382 9.78422ZM11.7 2.57079C11.3774 2.38198 10.9777 2.38198 10.6551 2.57079C10.5602 2.62647 10.4487 2.72931 10.0449 3.13311L9.45604 3.72094L11.7213 5.98617L12.3102 5.39833C12.7139 4.99457 12.8168 4.88307 12.8725 4.78818C13.0613 4.46561 13.0612 4.06585 12.8725 3.74326C12.8169 3.64827 12.7146 3.53752 12.3102 3.13311C11.9057 2.72863 11.795 2.6264 11.7 2.57079Z" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                onClick={() => setViewMode('diff')}
+                className="w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
+                title="Diff"
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+                  <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" />
+                  <line x1="8" y1="2.75" x2="8" y2="13.25" />
+                </svg>
+              </button>
+            )
+          )}
           {onToggleOutline && (
             <OutlineTrigger
               outlineEnabled={outlineEnabled}
@@ -1032,10 +1100,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
                 if (ctrlClick) handleJumpMouseDown(modifiedEditor, e)
               })
               modifiedEditor.onDidChangeCursorPosition((e: any) => {
+                if (!containerRef.current?.offsetParent) return
                 if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
               })
               // 滚动时回写视口顶部可见行（用户眼睛实际看到的位置）→ 最近文件行号
               modifiedEditor.onDidScrollChange(() => {
+                if (!containerRef.current?.offsetParent) return
+                scheduleScrollPush()
                 if (!visibleLineRef) return
                 const r = modifiedEditor.getVisibleRanges()
                 const v = r && r.length ? r[0] : null
@@ -1222,10 +1293,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, gitStats
                 if (ctrlClick) handleJumpMouseDown(editor, e)
               })
               editor.onDidChangeCursorPosition((e: any) => {
+                if (!containerRef.current?.offsetParent) return
                 if (cursorRef) cursorRef.current = { fullPath, line: e.position.lineNumber, column: e.position.column }
               })
               // 滚动时回写视口顶部可见行（用户眼睛实际看到的位置）→ 最近文件行号
               editor.onDidScrollChange(() => {
+                if (!containerRef.current?.offsetParent) return
+                scheduleScrollPush()
                 if (!visibleLineRef) return
                 const r = editor.getVisibleRanges()
                 const v = r && r.length ? r[0] : null

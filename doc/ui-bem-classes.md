@@ -38,6 +38,10 @@
   .git-tab__commit-area / .git-tab__commit-input / .git-tab__commit-btn
 
 .file-tab                           # 文件树
+
+.file-tabs                          # 多 Tab 文件视图（FileTabsView）
+  .file-tabs__strip / .file-tabs__tab
+  .file-tabs__recent-item / .file-tabs__overflow-btn
   .file-tab__header / .file-tab__tree / .file-tab__section
     .file-tree-item--folder / .file-tree-item--file / .file-tree-item--active
       .file-tree-item__toggle / .file-tree-item__name
@@ -164,6 +168,17 @@ MarkdownPreview / ImagePreview / DiffViewer 三个面板统一使用 `.center-ov
 | 类名 | 说明 |
 |------|------|
 | `center-overlay` | 覆盖在终端中栏上的预览面板根容器 |
+
+---
+
+## FileTabs — 多 Tab 文件视图（中栏/右栏 overlay）
+
+| 类名 | 说明 |
+|------|------|
+| `file-tabs__strip` | Tab 条（横向滚动，复用 `.aux-tab__scroll` 隐藏滚动条） |
+| `file-tabs__tab` | 单个文件 Tab（激活态含 `border-b-2 border-b-ide-accent`） |
+| `file-tabs__recent-item` | 右侧最近文件平铺 chip |
+| `file-tabs__overflow-btn` | 最近文件下拉按钮（时钟图标） |
 
 ---
 

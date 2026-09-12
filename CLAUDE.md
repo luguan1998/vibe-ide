@@ -16,8 +16,9 @@ Vibe IDE — Electron-based desktop IDE with native terminal, git, file diff/edi
 8. **被调先于主调** — `const` 声明（含 `useCallback`）不提升，被调函数必须在调用方之前定义。违反会触发 `ReferenceError: Cannot access 'xxx' before initialization`
 9. **ESC 按注册顺序分层**（均为 window capture）：
    - App.tsx 最先：NavBar → history → callGraph → codeSearch → exploreResult → focus return(`centerView === 'terminal'`)
-   - DiffViewer：关 diff（capture 因 Monaco 会抢清选区）
-   - MarkdownPreview / ImagePreview：关预览
+   - DiffViewer：收起文件区回终端（`onDismiss`，tab 保活不关闭；capture 因 Monaco 会抢清选区）
+   - MarkdownPreview / ImagePreview：内部浮层（导出菜单/页内搜索）→ `onDismiss` 收起
+   - 三者均以 `containerRef.current?.offsetParent` 判定自身可见（多 tab display:none 保活，隐藏实例不响应）
    上层命中即 `stopImmediatePropagation()`，下层不再执行
 10. **Modal/Overlay 按键拦截用 capture + stopImmediatePropagation** — xterm.js 冒泡阶段会消费按键，capture 阶段拦截方可阻止泄漏。参考 `TerminalView.tsx` filePicker handler
 11. **Caps Lock 安全** — 字母键判断必须 `.toLowerCase()`：`e.key.toLowerCase() === 's'`，不得直接 `e.key === 's'`。Caps Lock 时 `e.key` 为大写，直接比较会漏匹配
@@ -124,6 +125,7 @@ Each terminal session owns its RightPanel/GitTab state independently — **no gl
 - The main-process `git.ts` uses a global `gitInstance` + `currentWorkspace`. The renderer compensates via `git.setWorkspace()` in `useEffect` on the per-session effective path.
 - Do NOT rely on `workspacePath` prop changes alone to detect session switches — two sessions can share the same cwd.
 - **`pendingPathRef` 防 stale 模式**：异步加载路径相关数据（git status、CLAUDE.md commands）时，`await` 后必须对比 `pendingPathRef.current !== targetPath`，路径已变则丢弃结果。参考 `GitTab.tsx:513-539`、`AuxTab.tsx:47-67`。
+- **例外：文件 Tab 系统（FileTabsView / useFileTabs）全局共享一份**，不按 session keyed。ESC / 标题栏 ← 为 `returnToBaseView()` 收起（tab 保活）；切会话按规则清理：diff 在中栏显示 → 关闭全部回终端（有未保存 tab 时先弹确认），在右栏 overlay 且 cwd 未变 → 保留。入口统一走 `App.tsx` 的 `openFileView()` / `applySessionTabPolicy()` / `returnToBaseView()`，不要在 tab 内散写 session 判断。
 
 ## Navigation & Focus Design
 

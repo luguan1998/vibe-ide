@@ -1,43 +1,44 @@
-import React, { useState, useEffect } from 'react'
-import { FileIcon } from './FileIcons'
+import React, { useState, useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { ADD_ANNOTATION_EVENT, toRelPath } from './vibeEvents'
 import { toFileUrl } from '../utils/filePathUtils'
 
 interface ImagePreviewProps {
   fullPath: string
   fileName: string
-  onBack?: () => void
+  onDismiss?: () => void
   brushActive?: boolean
+  headerLeading?: ReactNode
 }
 
 const ImagePreview = React.memo(function ImagePreview({
   fullPath,
   fileName,
-  onBack,
-  brushActive = false
+  onDismiss,
+  brushActive = false,
+  headerLeading
 }: ImagePreviewProps) {
   const [imgSrc] = useState(() => toFileUrl(fullPath))
   const [error, setError] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!onBack) return
+    if (!onDismiss) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (!containerRef.current?.offsetParent) return
         e.preventDefault()
         e.stopImmediatePropagation()
-        onBack()
+        onDismiss()
       }
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onBack])
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [onDismiss])
 
-  const lastSep = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'))
-      const dirPart = lastSep >= 0 ? fullPath.substring(0, lastSep + 1) : ''
-      const namePart = lastSep >= 0 ? fullPath.substring(lastSep + 1) : fullPath
-      return (
-        <div className={`flex flex-col h-full animate-fade-in center-overlay image-preview${brushActive ? ' diff-brush-mode' : ''}`}>
-          <div className="h-8 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0"
+  return (
+        <div ref={containerRef} className={`flex flex-col h-full animate-fade-in center-overlay image-preview${brushActive ? ' diff-brush-mode' : ''}`}>
+          <div className="h-8 px-3 flex items-center justify-between gap-2 bg-ide-sidebar border-b border-ide-border shrink-0"
             onClick={(e) => {
               if (!brushActive) return
               e.preventDefault()
@@ -45,21 +46,7 @@ const ImagePreview = React.memo(function ImagePreview({
               const rel = toRelPath(fullPath, null)
               window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: rel || fileName } }))
             }}>
-            <div className="flex items-center gap-1.5 text-sm min-w-0">
-              {onBack && (
-                <button
-                  onClick={onBack}
-                  className="w-6 h-6 mr-1 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors shrink-0"
-                  title="Esc"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3.5 h-3.5">
-                    <polyline points="15 4 7 12 15 20" />
-                  </svg>
-                </button>
-              )}
-              <FileIcon name={namePart} className="w-4 h-4 shrink-0" />
-              <span className="text-ide-text font-medium">{namePart}</span>{dirPart && <span className="text-[11px] text-ide-text-muted/50"> {dirPart}</span>}
-            </div>
+            {headerLeading}
             <div className="flex items-center rounded-md bg-ide-hover overflow-hidden shrink-0">
               <span className="px-2.5 py-1 text-xs bg-ide-accent/15 text-ide-accent">View</span>
             </div>

@@ -94,6 +94,15 @@
 .right-panel__tab { color: rgb(var(--ide-text-muted)) !important; }
 ```
 
+### 7.5 文件 Tab 条 — 多 Tab 文件视图
+
+```css
+/* 激活 tab 底边色 */
+.file-tabs__tab { color: rgb(var(--ide-text-muted)) !important; }
+/* 最近文件平铺 chip */
+.file-tabs__recent-item { background: rgb(var(--ide-hover) / 0.5) !important; }
+```
+
 ### 8. File Tab — 文件树
 
 ```css

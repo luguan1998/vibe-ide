@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { getDshApi } from './dsh/history'
 import { loadSessionWorkspace, saveSessionWorkspace, randomTermEmoji, type Session, type SessionTab } from './sessionRestore'
 const DshView = lazy(() => import('./components/DshView'))
@@ -9,6 +10,10 @@ import RightPanel from './components/RightPanel'
 import GitTab from './components/GitTab'
 import FileTab from './components/FileTab'
 import DiffViewer from './components/DiffViewer'
+import { FileTabsView } from './components/FileTabsView'
+import { useFileTabs } from './utils/useFileTabs'
+import { FileTab as FileTabState, DiffFileTab, baseName, makeTabId, autoViewKind } from './fileTabs'
+import type { TabSnapshot, TabRuntime } from './fileTabs'
 import MarkdownPreview, { MD_SEARCH_OPEN } from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
 import BrowserView, { BrowserViewHandle, setBrowserStartUrl } from './components/BrowserView'
@@ -25,7 +30,6 @@ import BoardView, { BOARD_FOCUS } from './components/BoardView'
 import { aiStore, readAiCliConfig } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
-import { getFileInfo } from './components/FileIcons'
 import iconPattern from '@renderer/assets/icon-pattern.png?inline'
 import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, toRelPath } from './components/vibeEvents'
@@ -267,7 +271,7 @@ declare global {
   }
 }
 
-type CenterView = 'terminal' | 'diff' | 'markdown' | 'image' | 'browser' | 'search' | 'board'
+type CenterView = 'terminal' | 'files' | 'browser' | 'search' | 'board'
 
 // 网页调试停靠位置偏好（中栏 / 右栏覆盖 Nga tab），localStorage 持久化，默认右栏
 function loadBrowserDockPref(): 'center' | 'right' {
@@ -279,17 +283,15 @@ function saveBrowserDockPref(pos: 'center' | 'right') {
   try { localStorage.setItem('vibe-ide-browser-dock', pos) } catch {}
 }
 
-interface DiffFileState {
-  defaultEdit?: boolean
-  filePath: string          // 相对路径（用于 git diff）
-  fullPath: string          // 完整路径（用于 file read/write）
-  gitStats?: { additions: number; deletions: number }  // git 来源：+N -N 徽章数字
-  isStaged: boolean
-  commitHash?: string       // 查看历史 commit 时的 commit hash
-  lineNumber?: number       // 跳转到指定行
-  revision: number          // 递增以强制 DiffViewer 重新加载内容
-  compareOriginalContent?: string  // 文件对比模式：左侧文件内容
-  compareOriginalPath?: string     // 文件对比模式：左侧文件路径
+type OpenFileMode = 'auto' | 'edit' | 'diff'
+
+interface OpenFileOpts {
+  mode?: OpenFileMode
+  lineNumber?: number
+  record?: boolean
+  relPath?: string
+  git?: { isStaged?: boolean; commitHash?: string; gitStats?: { additions: number; deletions: number } }
+  compare?: { content: string; path: string }
 }
 
 function readDefaultAgent(): string {
@@ -431,7 +433,19 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [isDragOverEdit, setIsDragOverEdit] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
-  const [diffFile, setDiffFile] = useState<DiffFileState | null>(null)
+  // ── 文件 Tab 系统（全局共享一份，见 doc/file-tabs）──
+  const [tabDirtyMap, setTabDirtyMap] = useState<Record<string, boolean>>({})
+  const tabRuntimeRef = useRef(new Map<string, TabRuntime>())
+  const tabSnapshotsRef = useRef<Record<string, TabSnapshot>>({})
+  const [closeAsk, setCloseAsk] = useState<{ tabId: string } | null>(null)
+  const closeAskRef = useRef(false); closeAskRef.current = closeAsk !== null
+  const [sessionSwitchAsk, setSessionSwitchAsk] = useState<{ count: number } | null>(null)
+  const sessionSwitchAskRef = useRef(false); sessionSwitchAskRef.current = sessionSwitchAsk !== null
+  const tabPopoverGuardRef = useRef<null | (() => boolean)>(null)
+  const fileTabs = useFileTabs(useCallback((id: string) => !tabRuntimeRef.current.get(id)?.dirty, []))
+  const { tabs, activeTab, activeTabId, tabsRef, openTab, activateTab, closeTab, closeAll, updateTab } = fileTabs
+  const activeTabRef = useRef<FileTabState | null>(null); activeTabRef.current = activeTab
+
   const [quickOpenOpen, setQuickOpenOpen] = useState(false)
   const quickOpenOpenRef = useRef(false)
   const openQuickOpen = useCallback((v: boolean) => {
@@ -442,14 +456,9 @@ export default function App() {
     quickOpenOpenRef.current = false
     setQuickOpenOpen(false)
   }, [])
-  const [markdownFile, setMarkdownFile] = useState<{ fullPath: string; fileName: string } | null>(null)
-  const [imageFile, setImageFile] = useState<{ fullPath: string; fileName: string } | null>(null)
   // useEffect 延迟同步,渲染帧内读到的是打开 overlay 前的 centerView(用于定侧/回落判断)
   const centerViewRef = React.useRef<CenterView>('terminal')
-  const overlayKind =
-    centerView === 'diff' && diffFile ? `diff:${diffFile.fullPath}:${diffFile.commitHash ?? ''}` :
-    centerView === 'markdown' && markdownFile ? `md:${markdownFile.fullPath}` :
-    centerView === 'image' && imageFile ? `img:${imageFile.fullPath}` : null
+  const overlayKind = centerView === 'files' && tabs.length > 0 ? 'files' : null
   const overlaySnapRef = useRef<{ key: string | null; right: boolean; base: 'terminal' | 'board' }>({ key: null, right: false, base: 'terminal' })
   if (overlayKind && overlaySnapRef.current.key !== overlayKind) {
     const firstOpen = overlaySnapRef.current.key === null
@@ -464,11 +473,11 @@ export default function App() {
     overlaySnapRef.current = { key: null, right: false, base: 'terminal' }
   }
   const overlayOnRight = overlayKind !== null && overlaySnapRef.current.right && !rightPanelCollapsed
+  const overlayOnRightRef = useRef(false); overlayOnRightRef.current = overlayOnRight
   // 左栏「看板激活」随 base 保持(overlay 期间不回落 session)
   const boardActive = overlayKind !== null ? overlaySnapRef.current.base === 'board' : centerView === 'board'
   // 中栏看板卡片:仅无 overlay 或 overlay 落右栏时显示(覆盖中栏时让位给文件)
   const boardCenterShown = boardActive && (overlayKind === null || overlayOnRight)
-  const diffRevisionRef = useRef(0)
   const [dshSidebarShown, setDshSidebarShown] = useState(() => {
     try { return localStorage.getItem('vibe-ide-dsh-sidebar') === '1' } catch { return false }
   })
@@ -887,21 +896,6 @@ export default function App() {
   // 视口中间可见行（居中还原用）— DiffViewer 的 onDidScrollChange 实时回写，供最近文件行号
   interface VisibleLineEntry { fullPath: string; line: number }
   const visibleLineRef = useRef<VisibleLineEntry | null>(null)
-  const diffFileRef = useRef(diffFile)
-  diffFileRef.current = diffFile
-
-  // ── 最近文件行号落盘：切换/关闭 diff 文件时，回写上一个文件的视口可见行号 ──
-  // visibleLineRef 切文件瞬间仍是旧值（新 DiffViewer 尚未 mount 写入），故可安全存上一个文件
-  const prevDiffPathRef = useRef<string | null>(null)
-  useEffect(() => {
-    const prevPath = prevDiffPathRef.current
-    const cur = visibleLineRef.current
-    // 校验 visibleLineRef 仍归属上一个文件，避免误存新文件行号
-    if (prevPath && cur && cur.fullPath === prevPath && cur.line > 0) {
-      recordRecentFile(prevPath, cur.line)
-    }
-    prevDiffPathRef.current = diffFile?.fullPath ?? null
-  }, [diffFile?.fullPath, recordRecentFile])
 
 
   // ── NavBar 数据源：当前 session cwd 下的最近打开文件（复用 recentFiles）──
@@ -1105,7 +1099,8 @@ export default function App() {
       const panel = centerPanelRef.current
       if (!panel || !panel.contains(e.target as Node)) return
       // md 预览自身处理图片拖入，diff 对比不拦截
-      if (!diffFileRef.current?.defaultEdit || centerViewRef.current === 'markdown') return
+      const at = activeTabRef.current
+      if (!(at?.kind === 'diff' && at.defaultEdit && !at.compareOriginalPath)) return
       e.preventDefault()
       e.stopImmediatePropagation()
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
@@ -1116,7 +1111,7 @@ export default function App() {
     const onDragLeave = (e: DragEvent) => {
       const panel = centerPanelRef.current
       if (!panel) return
-      if (centerViewRef.current === 'markdown') return
+      if (activeTabRef.current?.kind === 'markdown') return
       // 仅当鼠标离开中心面板区域时隐藏 overlay
       if (e.target === panel || !panel.contains(e.relatedTarget as Node)) {
         e.preventDefault()
@@ -1130,7 +1125,8 @@ export default function App() {
 
     const onDrop = async (e: DragEvent) => {
       if (!isFileDrag(e)) return
-      if (!diffFileRef.current?.defaultEdit || centerViewRef.current === 'markdown') return
+      const baseTab = activeTabRef.current
+      if (!(baseTab?.kind === 'diff' && baseTab.defaultEdit && !baseTab.compareOriginalPath)) return
       e.preventDefault()
       e.stopImmediatePropagation()
       if (dragHideTimer) { clearTimeout(dragHideTimer); dragHideTimer = null }
@@ -1140,40 +1136,19 @@ export default function App() {
       if (!files || files.length === 0) return
 
       const droppedPath = (files[0] as any).path as string | undefined
-      const currentEditPath = diffFileRef.current?.fullPath
-      if (!currentEditPath) return
-
-
-      let compareContent: string
-      let comparePath: string
-
       if (droppedPath) {
-        if (droppedPath === currentEditPath) return
-        try {
-          const compareResult = await window.api.file.read(droppedPath)
-          compareContent = compareResult.error ? '' : (compareResult.content || '')
-          comparePath = droppedPath
-        } catch {
-          return
-        }
+        if (droppedPath === baseTab.fullPath) return
+        await openCompareTab(baseTab, droppedPath)
       } else {
         const file = files[0]
         try {
           const buffer = await file.arrayBuffer()
-          compareContent = new TextDecoder().decode(buffer)
-          comparePath = file.name
+          const compareContent = new TextDecoder().decode(buffer)
+          await openCompareTab(baseTab, file.name, compareContent)
         } catch {
           return
         }
       }
-
-      setDiffFile(prev => prev ? {
-        ...prev,
-        defaultEdit: false,
-        compareOriginalContent: compareContent,
-        compareOriginalPath: comparePath,
-        revision: ++diffRevisionRef.current
-      } : null)
     }
 
     window.addEventListener('dragover', onDragOver, true)
@@ -1514,23 +1489,195 @@ export default function App() {
     })
   }, [])
 
+  // ═══ 文件 Tab 系统核心操作 ═══
+  const relFromCwd = useCallback((fullPath: string) => {
+    const cwd = sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd
+    if (!cwd) return fullPath
+    const c = cwd.replace(/\\/g, '/').replace(/\/$/, '')
+    const p = fullPath.replace(/\\/g, '/')
+    if (p.toLowerCase().startsWith(c.toLowerCase() + '/')) return p.slice(c.length + 1)
+    return fullPath
+  }, [])
+
+  const openFileView = useCallback((fullPath: string, opts: OpenFileOpts = {}) => {
+    const mode: OpenFileMode = opts.mode ?? 'auto'
+    const kind = (mode === 'diff' || mode === 'edit') ? 'diff' as const : autoViewKind(fullPath)
+    const name = baseName(fullPath)
+    const buildTab = (): FileTabState => kind === 'diff' ? {
+      id: makeTabId('diff'),
+      kind: 'diff',
+      fullPath,
+      fileName: name,
+      filePath: opts.relPath ?? relFromCwd(fullPath),
+      isStaged: !!opts.git?.isStaged,
+      commitHash: opts.git?.commitHash,
+      gitStats: opts.git?.gitStats,
+      defaultEdit: mode !== 'diff',
+      lineNumber: opts.lineNumber,
+      jumpNonce: 1,
+      revision: 1,
+      compareOriginalContent: opts.compare?.content,
+      compareOriginalPath: opts.compare?.path,
+    } : {
+      id: makeTabId(kind),
+      kind,
+      fullPath,
+      fileName: name,
+      lineNumber: opts.lineNumber,
+    }
+    const { tab: opened, existed, evicted } = openTab(buildTab)
+    if (evicted) {
+      delete tabSnapshotsRef.current[evicted.id]
+      tabRuntimeRef.current.delete(evicted.id)
+      setTabDirtyMap(prev => {
+        if (!(evicted.id in prev)) return prev
+        const n = { ...prev }
+        delete n[evicted.id]
+        return n
+      })
+    }
+    if (existed) {
+      const patch: Record<string, unknown> = {}
+      if (opts.lineNumber && opts.lineNumber > 0) {
+        patch.lineNumber = opts.lineNumber
+        patch.jumpNonce = (opened.jumpNonce ?? 0) + 1
+      }
+      // 未保存的 tab 不重拉内容，避免覆盖内存 buffer
+      if (opened.kind === 'diff' && !tabRuntimeRef.current.get(opened.id)?.dirty) {
+        if (opts.git) {
+          patch.gitStats = opts.git.gitStats
+          patch.isStaged = !!opts.git.isStaged
+          patch.revision = opened.revision + 1
+        }
+        if (opts.compare) {
+          patch.compareOriginalContent = opts.compare.content
+          patch.revision = ((patch.revision as number | undefined) ?? opened.revision) + 1
+        }
+      }
+      if (Object.keys(patch).length) updateTab(opened.id, patch as Partial<FileTabState>)
+    }
+    if (opts.record !== false) recordRecentFile(fullPath, opts.lineNumber)
+    setCenterView('files')
+  }, [openTab, updateTab, recordRecentFile, relFromCwd])
+
+  const flushTabVisibleLine = useCallback((tab: FileTabState | null | undefined) => {
+    if (!tab || tab.kind !== 'diff') return
+    const v = visibleLineRef.current
+    if (v && v.fullPath === tab.fullPath && v.line > 0) recordRecentFile(tab.fullPath, v.line)
+  }, [recordRecentFile])
+
+  const returnToBaseView = useCallback(() => {
+    setCenterView(overlaySnapRef.current.base === 'board' ? 'board' : 'terminal')
+  }, [])
+
+  const getTabSnapshot = useCallback((tabId: string): TabSnapshot | null => tabSnapshotsRef.current[tabId] ?? null, [])
+  const pushTabSnapshot = useCallback((tabId: string, s: TabSnapshot) => { tabSnapshotsRef.current[tabId] = s }, [])
+  const handleTabRuntime = useCallback((tabId: string, rt: TabRuntime | null) => {
+    if (rt) tabRuntimeRef.current.set(tabId, rt)
+    else tabRuntimeRef.current.delete(tabId)
+    setTabDirtyMap(prev => {
+      const cur = !!rt?.dirty
+      if (!!prev[tabId] === cur) return prev
+      const n = { ...prev }
+      if (cur) n[tabId] = true
+      else delete n[tabId]
+      return n
+    })
+  }, [])
+
+  const closeAllTabs = useCallback(() => {
+    closeAll()
+    tabSnapshotsRef.current = {}
+    tabRuntimeRef.current.clear()
+    setTabDirtyMap({})
+  }, [closeAll])
+
+  const closeTabNow = useCallback((tabId: string) => {
+    const tab = tabsRef.current.find(t => t.id === tabId)
+    flushTabVisibleLine(tab)
+    const nextId = closeTab(tabId)
+    delete tabSnapshotsRef.current[tabId]
+    tabRuntimeRef.current.delete(tabId)
+    setTabDirtyMap(prev => {
+      if (!(tabId in prev)) return prev
+      const n = { ...prev }
+      delete n[tabId]
+      return n
+    })
+    if (!nextId) returnToBaseView()
+  }, [closeTab, flushTabVisibleLine, returnToBaseView])
+
+  const requestCloseTabById = useCallback((tabId: string) => {
+    if (closeAskRef.current) return
+    if (tabPopoverGuardRef.current?.()) return
+    const rt = tabRuntimeRef.current.get(tabId)
+    if (rt?.dirty) { activateTab(tabId); setCloseAsk({ tabId }); return }
+    closeTabNow(tabId)
+  }, [activateTab, closeTabNow])
+
+  const confirmCloseTab = useCallback(async (mode: 'save' | 'discard') => {
+    const ask = closeAsk
+    if (!ask) return
+    setCloseAsk(null)
+    if (mode === 'save') {
+      try { await tabRuntimeRef.current.get(ask.tabId)?.save() } catch {}
+    }
+    closeTabNow(ask.tabId)
+  }, [closeAsk, closeTabNow])
+
+  const closeAllTabsAndReturn = useCallback(() => {
+    for (const tb of tabsRef.current) flushTabVisibleLine(tb)
+    closeAllTabs()
+    setCenterView('terminal')
+  }, [flushTabVisibleLine, closeAllTabs])
+
+  // 切会话时的 tab 处置：中栏显示 → 全关回终端；右栏 overlay 且 cwd 不变 → 保留；
+  // 有关闭前有未保存 → 先收起并发确认（保存/不保存/取消，取消则保留在后台）
+  const applySessionTabPolicy = useCallback((nextSessionId: string) => {
+    if (tabsRef.current.length === 0) { setCenterView('terminal'); return }
+    const prevCwd = sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd
+    const nextCwd = sessionsRef.current.find(s => s.id === nextSessionId)?.cwd
+    const norm = (p?: string) => (p ?? '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+    if (overlayOnRightRef.current && norm(prevCwd) === norm(nextCwd)) return
+    if (sessionSwitchAskRef.current) return
+    const dirtyCount = tabsRef.current.filter(t => tabRuntimeRef.current.get(t.id)?.dirty).length
+    if (dirtyCount > 0) {
+      setCenterView('terminal')
+      setSessionSwitchAsk({ count: dirtyCount })
+      return
+    }
+    closeAllTabsAndReturn()
+  }, [closeAllTabsAndReturn])
+
+  const confirmSessionSwitch = useCallback(async (mode: 'save' | 'discard') => {
+    setSessionSwitchAsk(null)
+    if (mode === 'save') {
+      for (const t of tabsRef.current) {
+        const rt = tabRuntimeRef.current.get(t.id)
+        if (rt?.dirty) { try { await rt.save() } catch {} }
+      }
+    }
+    closeAllTabsAndReturn()
+  }, [closeAllTabsAndReturn])
+
+  // 未保存确认弹窗 ESC 取消
+  useEffect(() => {
+    if (!closeAsk && !sessionSwitchAsk) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'escape') return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      if (closeAskRef.current) setCloseAsk(null)
+      else setSessionSwitchAsk(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [closeAsk, sessionSwitchAsk])
+
   // md 预览 → 编辑模式（diff/edit 视图）：与 Ctrl+L togglePreview 的 markdown 分支共用
   const openMarkdownInEditor = useCallback((fullPath: string) => {
-    let filePath = fullPath
-    const cwd = sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd ?? null
-    if (cwd && fullPath.startsWith(cwd)) {
-      filePath = fullPath.slice(cwd.length).replace(/^[\\\/]+/, '')
-    }
-    setDiffFile({
-      filePath,
-      fullPath,
-      isStaged: false,
-      defaultEdit: true,
-      revision: ++diffRevisionRef.current
-    })
-    setCenterView('diff')
-    setMarkdownFile(null)
-  }, [])
+    openFileView(fullPath, { mode: 'edit' })
+  }, [openFileView])
 
   // OSC 标题变更回调：仅当用户未手动改过名时自动替换
   const handleOscTitleChange = useCallback(async (sessionId: string, title: string) => {
@@ -1652,11 +1799,11 @@ export default function App() {
 
       // search.focus → open search dropdown (md preview: route to in-page search)
       if (eventMatchesBinding(e, bindings['search.focus'])) {
-        if (centerView === 'markdown') {
+        if (centerView === 'files' && activeTabRef.current?.kind === 'markdown') {
           e.preventDefault()
           e.stopImmediatePropagation()
           window.dispatchEvent(new CustomEvent(MD_SEARCH_OPEN))
-        } else if (centerView !== 'diff') {
+        } else if (centerView !== 'files') {
           e.preventDefault()
           e.stopImmediatePropagation()
           setShowSearchDropdown(true)
@@ -1679,8 +1826,7 @@ export default function App() {
           const nextId = visualOrder[next].id
           const nextMode = sessionsRef.current.find(s => s.id === nextId)?.kind
           setActiveSessionId(nextId)
-          setCenterView('terminal')
-          setDiffFile(null)
+          applySessionTabPolicy(nextId)
           setTimeout(() => {
             if (nextMode === 'gui') {
               aiTabRefs.current[nextId]?.focus()
@@ -1700,8 +1846,7 @@ export default function App() {
           const nextId = visualOrder[next].id
           const nextMode = sessionsRef.current.find(s => s.id === nextId)?.kind
           setActiveSessionId(nextId)
-          setCenterView('terminal')
-          setDiffFile(null)
+          applySessionTabPolicy(nextId)
           setTimeout(() => {
             if (nextMode === 'gui') {
               aiTabRefs.current[nextId]?.focus()
@@ -1755,7 +1900,7 @@ export default function App() {
         const delta = decreaseMatch ? -1 : 1
         if (centerView === 'terminal') {
           setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
-        } else if (centerView === 'diff' || centerView === 'markdown' || centerView === 'image') {
+        } else if (centerView === 'files') {
           setEditorFontSize(prev => Math.max(8, Math.min(30, prev + delta)))
         }
       }
@@ -1799,19 +1944,17 @@ export default function App() {
 
       // view.togglePreview — Ctrl+L: toggle diff/edit ↔ markdown preview
       if (eventMatchesBinding(e, bindings['view.togglePreview'])) {
-        if (centerView === 'markdown' && markdownFile) {
+        const at = activeTabRef.current
+        if (at?.kind === 'markdown') {
           e.preventDefault()
           e.stopImmediatePropagation()
-          openMarkdownInEditor(markdownFile.fullPath)
+          openMarkdownInEditor(at.fullPath)
           return
-        } else if (centerView === 'diff' && diffFile) {
-          if (isMarkdownFile(diffFile.fullPath)) {
+        } else if (at?.kind === 'diff') {
+          if (autoViewKind(at.fullPath) === 'markdown') {
             e.preventDefault()
             e.stopImmediatePropagation()
-            const fileName = diffFile.fullPath.replace(/[\\/]/g, '/').split('/').pop() || diffFile.filePath
-            setMarkdownFile({ fullPath: diffFile.fullPath, fileName })
-            setCenterView('markdown')
-            setDiffFile(null)
+            openFileView(at.fullPath, { mode: 'auto' })
             return
           }
         }
@@ -1889,20 +2032,7 @@ export default function App() {
       const hist = navBarEntriesRef.current
       if (idx >= 0 && idx < hist.length) {
         const entry = hist[idx]
-        const cwd = navBarCwdRef.current
-        let filePath = entry.fullPath
-        if (cwd && entry.fullPath.startsWith(cwd)) {
-          filePath = entry.fullPath.slice(cwd.length).replace(/^[\\\/]+/, '')
-        }
-        setDiffFile({
-          filePath,
-          fullPath: entry.fullPath,
-          isStaged: false,
-          defaultEdit: true,
-          lineNumber: entry.line,
-          revision: ++diffRevisionRef.current
-        })
-        setCenterView('diff')
+        openFileView(entry.fullPath, { mode: 'edit', lineNumber: entry.line, record: false })
       }
       setNavBarVisible(false)
     }
@@ -1917,34 +2047,14 @@ export default function App() {
     const hist = navBarEntriesRef.current
     if (idx >= 0 && idx < hist.length) {
       const entry = hist[idx]
-      const cwd = navBarCwdRef.current
-      let filePath = entry.fullPath
-      if (cwd && entry.fullPath.startsWith(cwd)) {
-        filePath = entry.fullPath.slice(cwd.length).replace(/^[\\\/]+/, '')
-      }
-      setDiffFile({
-        filePath,
-        fullPath: entry.fullPath,
-        isStaged: false,
-        defaultEdit: true,
-        lineNumber: entry.line,
-        revision: ++diffRevisionRef.current
-      })
-      setCenterView('diff')
+      openFileView(entry.fullPath, { mode: 'edit', lineNumber: entry.line, record: false })
     }
-  }, [])
+  }, [openFileView])
 
   const handleQuickOpenSelect = useCallback((fullPath: string, relativePath: string) => {
-    setDiffFile({
-      filePath: relativePath,
-      fullPath,
-      isStaged: false,
-      defaultEdit: true,
-      revision: ++diffRevisionRef.current,
-    })
-    setCenterView('diff')
+    openFileView(fullPath, { mode: 'edit', relPath: relativePath, record: false })
     closeQuickOpen()
-  }, [closeQuickOpen])
+  }, [openFileView, closeQuickOpen])
 
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
@@ -1980,9 +2090,8 @@ export default function App() {
     })
     if (!activate) return
     setActiveSessionId(session.id)
-    setCenterView('terminal')
-    setDiffFile(null)
-  }, [])
+    applySessionTabPolicy(session.id)
+  }, [applySessionTabPolicy])
 
   const createTermSession = useCallback(async (cwd: string, shell: string = getMainShellType(), initOverride?: string, activate = true) => {
     const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: initOverride ?? readDefaultAgent() })
@@ -2083,21 +2192,14 @@ export default function App() {
           if (parentDir && data.path.startsWith(parentDir)) {
             filePath = data.path.slice(parentDir.length).replace(/^[\\/]+/, '')
           }
-          setDiffFile({
-            filePath,
-            fullPath: data.path,
-            isStaged: false,
-            defaultEdit: true,
-            revision: ++diffRevisionRef.current
-          })
-          setCenterView('diff')
+          openFileView(data.path, { mode: 'edit', relPath: filePath, record: false })
         }
       }
     })
     return () => {
       window.api.removeStartupOpenPathListener(handler)
     }
-  }, [handleCreateSessionAt])
+  }, [handleCreateSessionAt, openFileView])
 
   // Clone a terminal session (same cwd), insert below parent
   const handleCloneSession = useCallback(async (parentId: string | null, cwd: string, shell?: string, name?: string) => {
@@ -2154,12 +2256,11 @@ export default function App() {
     try {
       const twin = await window.api.terminal.create({ cwd: session.cwd, shell: session.shell, autoUtf8, initCommand: readDefaultAgent() })
       setSplitTwins(prev => ({ ...prev, [sessionId]: twin.id }))
-      setCenterView('terminal')
-      setDiffFile(null)
+      applySessionTabPolicy(sessionId)
     } catch (err) {
       console.error('Failed to split terminal session:', err)
     }
-  }, [autoUtf8, splitTwins])
+  }, [autoUtf8, splitTwins, applySessionTabPolicy])
 
   // Fork AI conversation at a specific user message
   const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number, content?: string, occurrence?: number) => {
@@ -2238,8 +2339,7 @@ export default function App() {
             return next
           })
           setActiveSessionId(real.id)
-          setCenterView('terminal')
-          setDiffFile(null)
+          applySessionTabPolicy(real.id)
           return
         } catch (err) {
           console.error('Failed to restore terminal session:', err)
@@ -2274,9 +2374,8 @@ export default function App() {
       }
     }
     setActiveSessionId(id)
-    setCenterView('terminal')
-    setDiffFile(null)
-  }, [autoUtf8])
+    applySessionTabPolicy(id)
+  }, [autoUtf8, applySessionTabPolicy])
 
   // Execute a custom command — sends to AI input in GUI mode, terminal otherwise
   const handleExecuteCommand = useCallback((command: string) => {
@@ -2288,11 +2387,10 @@ export default function App() {
       aiTabRefs.current[activeSessionId]?.focus()
     } else {
       window.api.terminal.write(activeSessionId, normalized.replace(/\n/g, '\r'))
-      setCenterView('terminal')
-      setDiffFile(null)
+      applySessionTabPolicy(activeSessionId)
       setTimeout(() => terminalRefs.current[activeSessionId]?.focus(), 0)
     }
-  }, [activeSessionId, sessions])
+  }, [activeSessionId, sessions, applySessionTabPolicy])
 
   const handleCloneWithInit = useCallback(async (sessionId: string, cwd: string, shell: string | undefined, command: string) => {
     try {
@@ -2307,12 +2405,11 @@ export default function App() {
         return next
       })
       setActiveSessionId(session.id)
-      setCenterView('terminal')
-      setDiffFile(null)
+      applySessionTabPolicy(session.id)
     } catch (err) {
       console.error('Failed to clone with init:', err)
     }
-  }, [autoUtf8])
+  }, [autoUtf8, applySessionTabPolicy])
 
   const handleInitCommand = useCallback(async (command: string) => {
     const activeSession = sessions.find(s => s.id === activeSessionId)
@@ -2453,8 +2550,8 @@ export default function App() {
 
   const handleBoardFocusSession = useCallback((id: string) => {
     setActiveSessionId(id)
-    setCenterView('terminal')
-  }, [])
+    applySessionTabPolicy(id)
+  }, [applySessionTabPolicy])
 
   const handleBoardCreate = useCallback(async (title: string, launchCommand?: string, createCwd?: string | null): Promise<{ ok: boolean; record?: WorktreeRecord; error?: string }> => {
     const targetCwd = createCwd || activeSessionCwd
@@ -2504,8 +2601,8 @@ export default function App() {
       }])
     }
     setActiveSessionId(rec.id)
-    setCenterView('terminal')
-  }, [])
+    applySessionTabPolicy(rec.id)
+  }, [applySessionTabPolicy])
 
   const handleBoardFinishRecord = useCallback(async (rec: WorktreeRecord): Promise<boolean> => {
     await closeSessionCore(rec.id)
@@ -2721,9 +2818,8 @@ export default function App() {
 
   const handleFileSelect = useCallback((filePath: string, isStaged: boolean, commitHash: string | undefined, resolvedFullPath: string | undefined, gitStats: { additions: number; deletions: number }) => {
     const fullPath = resolvedFullPath || (activeSessionCwd ? `${activeSessionCwd}/${filePath}` : filePath)
-    setDiffFile({ filePath, fullPath, gitStats, isStaged, commitHash, revision: ++diffRevisionRef.current })
-    setCenterView('diff')
-  }, [activeSessionCwd])
+    openFileView(fullPath, { mode: 'diff', relPath: filePath, git: { isStaged, commitHash, gitStats } })
+  }, [activeSessionCwd, openFileView])
 
   const handleDiffScroll = useCallback((delta: number) => {
     setDiffScrollTrigger(prev => prev + delta)
@@ -2731,11 +2827,6 @@ export default function App() {
 
   const handleNavigateToFile = useCallback((filePath: string) => {
     setNavigateToFilePayload({ trigger: Date.now(), filePath })
-  }, [])
-
-  const handleBackToTerminal = useCallback(() => {
-    setCenterView(overlaySnapRef.current.base === 'board' ? 'board' : 'terminal')
-    setDiffFile(null)
   }, [])
 
   // 浏览器停靠期间临时加宽的右栏，关闭/移回中栏时还原本来的宽度
@@ -2800,70 +2891,32 @@ export default function App() {
   }, [])
 
   const handleOutlineNavigate = useCallback((line: number, headingName?: string) => {
-    if (centerView === 'diff' && diffFile) {
-      setDiffFile(prev => prev ? { ...prev, lineNumber: line } : prev)
-      setOutlineScrollTrigger(prev => prev + 1) // force lineNumber effect re-fire
-    }
-    if (centerView === 'markdown' && headingName) {
+    const at = activeTabRef.current
+    if (at?.kind === 'diff') {
+      updateTab(at.id, { lineNumber: line, jumpNonce: (at.jumpNonce ?? 0) + 1 } as Partial<FileTabState>)
+    } else if (at?.kind === 'markdown' && headingName) {
       setMdScrollHeading(headingName)
     }
-  }, [centerView, diffFile])
+  }, [updateTab])
 
   const handleAnnotationTrigger = useCallback((start: number, end: number) => {
-    const fp = diffFile?.fullPath
+    const fp = activeTabRef.current?.fullPath
     if (!fp) return
     const rel = toRelPath(fp, activeSessionCwd)
     window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel, start, end } }))
-  }, [diffFile?.fullPath, activeSessionCwd])
+  }, [activeSessionCwd])
 
   const [mdScrollHeading, setMdScrollHeading] = useState<string | undefined>(undefined)
-  const [, setOutlineScrollTrigger] = useState(0)
 
   // 处理从中间终端点击文件路径打开文件
   const handleOpenFileFromTerminal = useCallback((fullPath: string, lineNumber?: number) => {
-    recordRecentFile(fullPath, lineNumber)
-    if (isMarkdownFile(fullPath)) {
-      setMarkdownFile({ fullPath, fileName: fullPath.split(/[\\/]/).pop() || fullPath })
-      setCenterView('markdown')
-      return
-    }
-    let filePath = fullPath
-    if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
-      filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
-    }
-    setDiffFile({
-      filePath,
-      fullPath,
-      isStaged: false,
-      lineNumber,
-      defaultEdit: true,
-      revision: ++diffRevisionRef.current
-    })
-    setCenterView('diff')
-  }, [activeSessionCwd])
+    openFileView(fullPath, { lineNumber })
+  }, [openFileView])
 
-  // 处理从右侧终端点击文件路径打开文件 - 直接切换到 edit 模式
+  // 处理从右侧终端点击文件路径打开文件
   const handleOpenFileFromRightTerminal = useCallback((fullPath: string, lineNumber?: number) => {
-    recordRecentFile(fullPath, lineNumber)
-    if (isMarkdownFile(fullPath)) {
-      setMarkdownFile({ fullPath, fileName: fullPath.split(/[\\/]/).pop() || fullPath })
-      setCenterView('markdown')
-      return
-    }
-    const rightCwd = activeSessionCwd
-    let filePath = fullPath
-    if (rightCwd && fullPath.startsWith(rightCwd)) {
-      filePath = fullPath.slice(rightCwd.length).replace(/^[\\\/]+/, '')
-    }
-    setDiffFile({
-      filePath,
-      fullPath,
-      isStaged: false,
-      lineNumber,
-      revision: ++diffRevisionRef.current
-    })
-    setCenterView('diff')
-  }, [activeSessionCwd])
+    openFileView(fullPath, { lineNumber })
+  }, [openFileView])
 
   // 创建右侧终端（每个 session 独立，可多个 tab，append 后自动切到新 tab）
   const handleCreateRightTerminal = useCallback(async (sessionId: string, cwdOverride?: string) => {
@@ -2969,59 +3022,16 @@ export default function App() {
     setActiveAuxIndex(prev => ({ ...prev, [sessionId]: index }))
   }, [])
 
-  // 处理从搜索面板打开文件
-  const isMarkdownFile = (path: string) => {
-    const ext = path.split('.').pop()?.toLowerCase() || ''
-    return ['md', 'mdx', 'markdown'].includes(ext)
-  }
-
+  // 处理从搜索面板打开文件（md/image 预览，其余编辑）
   const handleOpenFileFromSearch = useCallback((fullPath: string, lineNumber?: number) => {
-    recordRecentFile(fullPath, lineNumber)
-    const name = fullPath.split(/[\\/]/).pop() || fullPath
-    if (isMarkdownFile(fullPath)) {
-      setMarkdownFile({ fullPath, fileName: name })
-      setCenterView('markdown')
-      return
-    }
-    if (getFileInfo(name).kind === 'image') {
-      setImageFile({ fullPath, fileName: name })
-      setCenterView('image')
-      return
-    }
-    let filePath = fullPath
-    if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
-      filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
-    }
-    setDiffFile({
-      filePath,
-      fullPath,
-      isStaged: false,
-      defaultEdit: true,
-      lineNumber,
-      revision: ++diffRevisionRef.current
-    })
-    setCenterView('diff')
-  }, [activeSessionCwd])
+    openFileView(fullPath, { lineNumber })
+  }, [openFileView])
 
-  // 搜索结果点击打开：即使 md 也默认进编辑模式（defaultEdit），区别于
-  // 最近文件 / AI 链接 / callgraph（走 handleOpenFileFromSearch 的 md 预览）。
+  // 搜索结果点击打开：即使 md 也默认进编辑模式，区别于最近文件 / AI 链接 / callgraph（md 预览）。
   // 想看渲染预览可按 Ctrl+L（view.togglePreview：diff(md) ↔ markdown）。
   const handleOpenSearchResult = useCallback((fullPath: string, lineNumber?: number) => {
-    recordRecentFile(fullPath, lineNumber)
-    let filePath = fullPath
-    if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
-      filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
-    }
-    setDiffFile({
-      filePath,
-      fullPath,
-      isStaged: false,
-      defaultEdit: true,
-      lineNumber,
-      revision: ++diffRevisionRef.current
-    })
-    setCenterView('diff')
-  }, [activeSessionCwd])
+    openFileView(fullPath, { mode: 'edit', lineNumber })
+  }, [openFileView])
 
   // 处理从「最近文件」栏点击打开文件 — 复用 search 打开逻辑（含 markdown 预览 + 行号定位 + 记录）
   const handleOpenRecentFile = useCallback((fullPath: string, lineNumber?: number) => {
@@ -3030,21 +3040,8 @@ export default function App() {
 
   // 处理从文件浏览器打开文件 — 默认 edit 模式（铅笔入口可带行号定位）
   const handleOpenFileFromExplorer = useCallback((fullPath: string, lineNumber?: number) => {
-    recordRecentFile(fullPath, lineNumber)
-    let filePath = fullPath
-    if (activeSessionCwd && fullPath.startsWith(activeSessionCwd)) {
-      filePath = fullPath.slice(activeSessionCwd.length).replace(/^[\\\/]+/, '')
-    }
-    setDiffFile({
-      filePath,
-      fullPath,
-      isStaged: false,
-      defaultEdit: true,
-      lineNumber,
-      revision: ++diffRevisionRef.current
-    })
-    setCenterView('diff')
-  }, [activeSessionCwd])
+    openFileView(fullPath, { mode: 'edit', lineNumber })
+  }, [openFileView])
 
   // dsh 会话内点击文件（tool 行/产物）：dsh context 把 host.openPath 重定向为本事件，
   // 这里用编辑器打开，替代 OS 默认应用的「打开方式」弹窗
@@ -3057,20 +3054,27 @@ export default function App() {
     return () => window.removeEventListener('vibe:dsh-open-file', onDshOpenFile)
   }, [handleOpenFileFromSearch])
 
+  const openCompareTab = useCallback(async (baseTab: DiffFileTab, compareFullPath: string, contentOverride?: string) => {
+    let compareContent: string
+    if (contentOverride !== undefined) {
+      compareContent = contentOverride
+    } else {
+      const compareResult = await window.api.file.read(compareFullPath)
+      compareContent = compareResult.error ? '' : (compareResult.content || '')
+    }
+    openFileView(baseTab.fullPath, {
+      mode: 'diff',
+      relPath: baseTab.filePath,
+      compare: { content: compareContent, path: compareFullPath },
+      record: false,
+    })
+  }, [openFileView])
+
   const handleCompareWithCurrent = useCallback(async (compareFullPath: string) => {
-    if (!diffFile?.defaultEdit) return
-    const [compareResult] = await Promise.all([
-      window.api.file.read(compareFullPath)
-    ])
-    const compareContent = compareResult.error ? '' : (compareResult.content || '')
-    setDiffFile(prev => prev ? {
-      ...prev,
-      defaultEdit: false,
-      compareOriginalContent: compareContent,
-      compareOriginalPath: compareFullPath,
-      revision: ++diffRevisionRef.current
-    } : null)
-  }, [diffFile])
+    const at = activeTabRef.current
+    if (!(at?.kind === 'diff' && at.defaultEdit && !at.compareOriginalPath)) return
+    await openCompareTab(at, compareFullPath)
+  }, [openCompareTab])
 
   const handleResumeDshHistory = useCallback(async (dshSessionId: string, cwd: string, name: string) => {
     try {
@@ -3129,93 +3133,110 @@ export default function App() {
     }
   }, [autoUtf8, addSessionRecord])
 
-  const handlePreviewMarkdown = useCallback((fullPath: string, fileName: string) => {
-    recordRecentFile(fullPath)
-    setMarkdownFile({ fullPath, fileName })
-    setCenterView('markdown')
-  }, [recordRecentFile])
+  const handlePreviewMarkdown = useCallback((fullPath: string, _fileName: string) => {
+    openFileView(fullPath, { mode: 'auto' })
+  }, [openFileView])
 
-  const handleBackFromMarkdown = useCallback(() => {
-    setCenterView(overlaySnapRef.current.base === 'board' ? 'board' : 'terminal')
-    setMarkdownFile(null)
-  }, [])
-
-  const handlePreviewImage = useCallback((fullPath: string, fileName: string) => {
-    recordRecentFile(fullPath)
-    setImageFile({ fullPath, fileName })
-    setCenterView('image')
-  }, [recordRecentFile])
-
-  const handleBackFromImage = useCallback(() => {
-    setCenterView(overlaySnapRef.current.base === 'board' ? 'board' : 'terminal')
-    setImageFile(null)
-  }, [])
+  const handlePreviewImage = useCallback((fullPath: string, _fileName: string) => {
+    openFileView(fullPath, { mode: 'auto' })
+  }, [openFileView])
 
   // 无任何 cwd（含空组保留位）才视为空应用，空组存在时左侧面板可见、可直接在该组新建
   const isWelcome = sessions.length === 0 && keptGroups.length === 0
 
-  const markdownNode = markdownFile ? (
-    <MarkdownPreview
-      key={markdownFile.fullPath}
-      fullPath={markdownFile.fullPath}
-      fileName={markdownFile.fileName}
-      onBack={handleBackFromMarkdown}
-      onToggleEdit={() => openMarkdownInEditor(markdownFile.fullPath)}
-      scrollToHeading={mdScrollHeading}
-      brushActive={brushActive}
-      outlineEnabled={outlineOverlayEnabled}
-      onToggleOutline={() => setOutlineOverlayEnabled(prev => !prev)}
-      onOutlineNavigate={handleOutlineNavigate}
-    />
-  ) : null
+  const currentEditFilePath = activeTab?.kind === 'diff' && activeTab.defaultEdit && !activeTab.compareOriginalPath ? activeTab.fullPath : null
 
-  const imageNode = imageFile ? (
-    <ImagePreview
-      key={imageFile.fullPath}
-      fullPath={imageFile.fullPath}
-      fileName={imageFile.fileName}
-      onBack={handleBackFromImage}
-      brushActive={brushActive}
-    />
-  ) : null
+  const toggleOutline = useCallback(() => setOutlineOverlayEnabled(prev => !prev), [])
 
-  const diffViewerNode = diffFile ? (
-    <DiffViewer
-      key={`${diffFile.fullPath}-${diffFile.commitHash || 'working'}`}
-      filePath={diffFile.filePath}
-      fullPath={diffFile.fullPath}
-      gitStats={diffFile.gitStats}
-      isStaged={diffFile.isStaged}
-      commitHash={diffFile.commitHash}
-      lineNumber={diffFile.lineNumber}
-      revision={diffFile.revision}
-      onBack={handleBackToTerminal}
-      onSaved={handleRefreshGit}
-      defaultEdit={diffFile.defaultEdit}
-      fontSize={editorFontSize}
-      wordWrap={wordWrap}
-      inlineDiff={inlineDiff}
-      diffSplitRatio={diffSplitRatio}
-      scrollTrigger={diffScrollTrigger}
-      cursorRef={cursorRef}
-      visibleLineRef={visibleLineRef}
-      onOpenCallGraph={handleOpenCallGraphFromEditor}
-      onViewLineHistory={handleViewLineHistory}
-      jumpCwd={activeSessionCwd ?? undefined}
-      onJumpToFile={handleOpenFileFromSearch}
-      compareOriginalContent={diffFile.compareOriginalContent}
-      compareOriginalPath={diffFile.compareOriginalPath}
-      onAnnotationTrigger={handleAnnotationTrigger}
-      brushActive={brushActive}
-      outlineEnabled={outlineOverlayEnabled}
-      onToggleOutline={() => setOutlineOverlayEnabled(prev => !prev)}
-      onOutlineNavigate={handleOutlineNavigate}
-    />
-  ) : null
+  const renderTab = useCallback((tab: FileTabState, isActive: boolean, headerLeading: ReactNode) => {
+    if (tab.kind === 'diff') {
+      return (
+        <DiffViewer
+          headerLeading={headerLeading}
+          isActive={isActive}
+          tabId={tab.id}
+          getSnapshot={() => getTabSnapshot(tab.id)}
+          onPushSnapshot={(s) => pushTabSnapshot(tab.id, s)}
+          onRuntimeChange={(rt) => handleTabRuntime(tab.id, rt)}
+          filePath={tab.filePath}
+          fullPath={tab.fullPath}
+          isStaged={tab.isStaged}
+          commitHash={tab.commitHash}
+          lineNumber={tab.lineNumber}
+          jumpNonce={tab.jumpNonce}
+          revision={tab.revision}
+          onDismiss={returnToBaseView}
+          onSaved={handleRefreshGit}
+          defaultEdit={tab.defaultEdit}
+          fontSize={editorFontSize}
+          wordWrap={wordWrap}
+          inlineDiff={inlineDiff}
+          diffSplitRatio={diffSplitRatio}
+          scrollTrigger={diffScrollTrigger}
+          cursorRef={cursorRef}
+          visibleLineRef={visibleLineRef}
+          onOpenCallGraph={handleOpenCallGraphFromEditor}
+          onViewLineHistory={handleViewLineHistory}
+          jumpCwd={activeSessionCwd ?? undefined}
+          onJumpToFile={handleOpenFileFromSearch}
+          compareOriginalContent={tab.compareOriginalContent}
+          compareOriginalPath={tab.compareOriginalPath}
+          onAnnotationTrigger={handleAnnotationTrigger}
+          brushActive={brushActive}
+          outlineEnabled={outlineOverlayEnabled}
+          onToggleOutline={toggleOutline}
+          onOutlineNavigate={handleOutlineNavigate}
+        />
+      )
+    }
+    if (tab.kind === 'markdown') {
+      return (
+        <MarkdownPreview
+          headerLeading={headerLeading}
+          tabId={tab.id}
+          getSnapshot={() => getTabSnapshot(tab.id)}
+          onPushSnapshot={(s) => pushTabSnapshot(tab.id, s)}
+          onRuntimeChange={(rt) => handleTabRuntime(tab.id, rt)}
+          fullPath={tab.fullPath}
+          fileName={tab.fileName}
+          onDismiss={returnToBaseView}
+          onToggleEdit={() => openMarkdownInEditor(tab.fullPath)}
+          scrollToHeading={mdScrollHeading}
+          brushActive={brushActive}
+          outlineEnabled={outlineOverlayEnabled}
+          onToggleOutline={toggleOutline}
+          onOutlineNavigate={handleOutlineNavigate}
+        />
+      )
+    }
+    return (
+      <ImagePreview
+        headerLeading={headerLeading}
+        fullPath={tab.fullPath}
+        fileName={tab.fileName}
+        onDismiss={returnToBaseView}
+        brushActive={brushActive}
+      />
+    )
+  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, activeSessionCwd, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, outlineOverlayEnabled, toggleOutline, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading])
 
-  const rightOverlay = overlayOnRight
-    ? (centerView === 'diff' ? diffViewerNode : centerView === 'markdown' ? markdownNode : centerView === 'image' ? imageNode : null)
-    : null
+  const fileTabsNode = (
+    <FileTabsView
+      tabs={tabs}
+      activeTabId={activeTabId}
+      dirtyMap={tabDirtyMap}
+      recentFiles={recentFiles}
+      onActivate={activateTab}
+      onRequestClose={requestCloseTabById}
+      onDismissView={returnToBaseView}
+      onOpenRecent={handleOpenRecentFile}
+      popoverGuardRef={tabPopoverGuardRef}
+      renderTab={renderTab}
+      t={t}
+    />
+  )
+
+  const rightOverlay = overlayOnRight ? fileTabsNode : null
 
   // 右面板宽到出现 TabRail 导航（>= PANEL_TAB_RAIL_MIN_W）时收紧中间卡片与右面板的间隙，原始宽度保持对称
   const centerGapX = !isWelcome && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'ml-1 mr-0' : 'mx-1'
@@ -3403,7 +3424,7 @@ export default function App() {
                     onOpenFileFromExplorer={handleOpenFileFromExplorer}
                     onOpenFileAtLine={handleOpenSearchResult}
                     onCompareWithCurrent={handleCompareWithCurrent}
-                    currentEditFilePath={diffFile?.defaultEdit ? diffFile.fullPath : null}
+                    currentEditFilePath={currentEditFilePath}
                     onPreviewMarkdown={handlePreviewMarkdown}
                     onPreviewImage={handlePreviewImage}
                     onOpenInBrowser={handleOpenFileInBrowser}
@@ -3453,22 +3474,10 @@ export default function App() {
           data-focused={focusedPanel === 'term' ? 'true' : undefined}
           onFocus={handleCenterFocus}
           onBlur={handleCenterBlur}>
-          {/* Diff */}
-          {centerView === 'diff' && diffFile && !overlayOnRight && (
-            <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-card`}>
-              {diffViewerNode}
-            </div>
-          )}
-          {/* Markdown Preview */}
-          {centerView === 'markdown' && markdownFile && !overlayOnRight && (
+          {/* File Tabs (diff / edit / markdown / image) */}
+          {centerView === 'files' && tabs.length > 0 && !overlayOnRight && (
             <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay`}>
-              {markdownNode}
-            </div>
-          )}
-          {/* Image Preview */}
-          {centerView === 'image' && imageFile && !overlayOnRight && (
-            <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay`}>
-              {imageNode}
+              {fileTabsNode}
             </div>
           )}
           {/* Browser */}
@@ -3633,7 +3642,7 @@ export default function App() {
             onRemoveRecentFile={removeRecentFile}
             onEditRecentFile={handleOpenFileFromExplorer}
             onCompareWithCurrent={handleCompareWithCurrent}
-            currentEditFilePath={diffFile?.defaultEdit ? diffFile.fullPath : null}
+            currentEditFilePath={currentEditFilePath}
             onPreviewMarkdown={handlePreviewMarkdown}
             onPreviewImage={handlePreviewImage}
             onOpenFileInBrowser={handleOpenFileInBrowser}
@@ -3674,6 +3683,89 @@ export default function App() {
         </div>
         )}
       </div>
+
+      {/* File tab close confirm — unsaved changes */}
+      {closeAsk && (() => {
+        const tab = tabs.find(t => t.id === closeAsk.tabId)
+        return (
+          <div
+            className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center"
+            onMouseDown={() => setCloseAsk(null)}
+          >
+            <div
+              className="bg-ide-sidebar border border-ide-border rounded-xl p-4 w-[400px] mx-4 shadow-2xl space-y-3"
+              onMouseDown={e => e.stopPropagation()}
+            >
+              <div className="text-sm text-ide-text font-medium truncate">
+                {t('File has unsaved changes')} · {tab?.fileName ?? ''}
+              </div>
+              <div className="text-xs text-ide-text-muted leading-relaxed">
+                {t('Closing will discard unsaved changes. Save first?')}
+              </div>
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  onClick={() => setCloseAsk(null)}
+                  className="px-3 py-1.5 rounded-md text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                >
+                  {t('Cancel')}
+                </button>
+                <button
+                  onClick={() => void confirmCloseTab('discard')}
+                  className="px-3 py-1.5 rounded-md text-xs text-ide-danger bg-ide-danger/15 border border-ide-danger/40 hover:bg-ide-danger/25 transition-colors"
+                >
+                  {t("Don't Save")}
+                </button>
+                <button
+                  onClick={() => void confirmCloseTab('save')}
+                  className="px-3 py-1.5 rounded-md text-xs bg-ide-accent text-white hover:brightness-110 transition-colors"
+                >
+                  {t('Save')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Session switch confirm — dirty file tabs will be closed */}
+      {sessionSwitchAsk && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center"
+          onMouseDown={() => setSessionSwitchAsk(null)}
+        >
+          <div
+            className="bg-ide-sidebar border border-ide-border rounded-xl p-4 w-[400px] mx-4 shadow-2xl space-y-3"
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <div className="text-sm text-ide-text font-medium truncate">
+              {t('Files have unsaved changes')} · {sessionSwitchAsk.count}
+            </div>
+            <div className="text-xs text-ide-text-muted leading-relaxed">
+              {t('Switching session closes open tabs. Unsaved changes will be lost.')}
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                onClick={() => setSessionSwitchAsk(null)}
+                className="px-3 py-1.5 rounded-md text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+              >
+                {t('Cancel')}
+              </button>
+              <button
+                onClick={() => void confirmSessionSwitch('discard')}
+                className="px-3 py-1.5 rounded-md text-xs text-ide-danger bg-ide-danger/15 border border-ide-danger/40 hover:bg-ide-danger/25 transition-colors"
+              >
+                {t("Don't Save")}
+              </button>
+              <button
+                onClick={() => void confirmSessionSwitch('save')}
+                className="px-3 py-1.5 rounded-md text-xs bg-ide-accent text-white hover:brightness-110 transition-colors"
+              >
+                {t('Save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Busy session close confirm — running task will be terminated */}
       {busyCloseAsk && (() => {

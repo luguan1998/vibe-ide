@@ -1,28 +1,34 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import { FileDown } from 'lucide-react'
 import { useStableCodeOverrides } from './MarkdownCodeBlock'
-import { FileIcon } from './FileIcons'
 import { type Frontmatter } from '@renderer/utils/frontmatter'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import { ADD_ANNOTATION_EVENT } from './vibeEvents'
 import OutlineTrigger from './OutlineTrigger'
+import type { TabSnapshot, TabRuntime } from '../fileTabs'
 
 export const MD_SEARCH_OPEN = 'md-search-open'
 
 interface MarkdownPreviewProps {
   fullPath: string
   fileName: string
-  onBack?: () => void
+  onDismiss?: () => void
   onToggleEdit?: () => void
   scrollToHeading?: string
   brushActive?: boolean
   outlineEnabled?: boolean
   onToggleOutline?: () => void
   onOutlineNavigate?: (line: number, headingName?: string) => void
+  headerLeading?: ReactNode
+  tabId?: string
+  getSnapshot?: () => TabSnapshot | null
+  onPushSnapshot?: (s: TabSnapshot) => void
+  onRuntimeChange?: (rt: TabRuntime | null) => void
 }
 
 function slugify(text: string): string {
@@ -180,14 +186,24 @@ function applyMarks(matches: TextMatch[], currentIdx: number): HTMLElement[] {
 const MarkdownPreview = React.memo(function MarkdownPreview({
   fullPath,
   fileName,
-  onBack,
+  onDismiss,
   onToggleEdit,
   scrollToHeading,
   brushActive = false,
   outlineEnabled = false,
   onToggleOutline,
-  onOutlineNavigate = () => {}
+  onOutlineNavigate = () => {},
+  headerLeading,
+  tabId,
+  getSnapshot,
+  onPushSnapshot,
+  onRuntimeChange
 }: MarkdownPreviewProps) {
+  const restoreSnapRef = useRef<TabSnapshot | null | undefined>(undefined)
+  if (restoreSnapRef.current === undefined) restoreSnapRef.current = getSnapshot ? getSnapshot() : null
+  const restoreSnap = restoreSnapRef.current
+  const restorePendingRef = useRef(!!restoreSnap)
+
   const [rawContent, setRawContent] = useState('')
   const [bodyStart, setBodyStart] = useState(0)
   const [frontmatter, setFrontmatter] = useState<Frontmatter | null>(null)
@@ -337,6 +353,25 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
 
   const handleSaveFileRef = useRef(handleSaveFile)
   handleSaveFileRef.current = handleSaveFile
+
+  // 运行态注册（容器关 tab 时取 dirty / save）
+  const onRuntimeChangeRef = useRef(onRuntimeChange)
+  onRuntimeChangeRef.current = onRuntimeChange
+  useEffect(() => {
+    onRuntimeChangeRef.current?.({ dirty: isDirty, save: () => handleSaveFileRef.current() })
+    return () => onRuntimeChangeRef.current?.(null)
+  }, [isDirty])
+
+  // 持续快照推送（ref 写，0 re-render）：右栏收起导致 remount 时供新实例恢复
+  const onPushSnapshotRef = useRef(onPushSnapshot)
+  onPushSnapshotRef.current = onPushSnapshot
+  useEffect(() => {
+    if (!tabId) return
+    onPushSnapshotRef.current?.({
+      buffer: isDirty ? rawContent : undefined,
+      dirty: isDirty,
+    })
+  }, [isDirty, rawContent, tabId])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -633,6 +668,7 @@ ${clone.innerHTML}
   // 靠下面 [searchOpen] effect 兜底聚焦。
   useEffect(() => {
     const open = () => {
+      if (!containerRef.current?.offsetParent) return
       setSearchOpen(true)
       const el = searchInputRef.current
       if (el) { el.focus(); el.select() }
@@ -676,11 +712,21 @@ ${clone.innerHTML}
       } else {
         const raw = typeof result === 'string' ? result : result.content || ''
         const { meta, bodyStart: bs } = locateBody(raw)
-        setFrontmatter(meta)
-        setRawContent(raw)
-        setBodyStart(bs)
-        setSavedRawContent(raw)
+        const rs = restoreSnapRef.current
+        if (restorePendingRef.current && rs?.dirty && rs.buffer !== undefined) {
+          setRawContent(rs.buffer)
+          const { meta: rmeta, bodyStart: rbs } = locateBody(rs.buffer)
+          setFrontmatter(rmeta)
+          setBodyStart(rbs)
+          setSavedRawContent(raw)
+        } else {
+          setFrontmatter(meta)
+          setRawContent(raw)
+          setBodyStart(bs)
+          setSavedRawContent(raw)
+        }
       }
+      restorePendingRef.current = false
       setLoading(false)
     }).catch((err: any) => {
       if (!cancelled) {
@@ -695,6 +741,7 @@ ${clone.innerHTML}
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      if (!containerRef.current?.offsetParent) return
       if (exportMenuRef.current) {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -708,15 +755,15 @@ ${clone.innerHTML}
         closeSearch()
         return
       }
-      // ② otherwise → close preview (existing behavior)
-      if (!onBack) return
+      // ② otherwise → close current tab
+      if (!onDismiss) return
       e.preventDefault()
       e.stopImmediatePropagation()
-      onBack()
+      onDismiss()
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onBack, closeSearch])
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [onDismiss, closeSearch])
 
   useEffect(() => {
     if (!exportMenu) return
@@ -729,63 +776,39 @@ ${clone.innerHTML}
     if (exportStatusTimerRef.current) clearTimeout(exportStatusTimerRef.current)
   }, [])
 
-  const lastSep = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'))
-          const dirPart = lastSep >= 0 ? fullPath.substring(0, lastSep + 1) : ''
-          const namePart = lastSep >= 0 ? fullPath.substring(lastSep + 1) : fullPath
-          return (
+  return (
             <div className={`flex flex-col h-full animate-fade-in relative center-overlay${brushActive ? ' diff-brush-mode' : ''}`} ref={containerRef}>
-              <div className="h-8 px-3 flex items-center justify-between bg-ide-sidebar border-b border-ide-border shrink-0" title="Ctrl+L 切换编辑模式 · 双击段落进入编辑"
+              <div className="h-8 px-3 flex items-center justify-between gap-2 bg-ide-sidebar border-b border-ide-border shrink-0" title="Ctrl+L 切换编辑模式 · 双击段落进入编辑"
                 onClick={(e) => {
                   if (!brushActive) return
                   e.preventDefault()
                   e.stopPropagation()
                   window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: fileName } }))
                 }}>
-                <div className="flex items-center gap-1.5 text-sm min-w-0">
-                  {onBack && (
-                    <button
-                      onClick={onBack}
-                      className="w-6 h-6 mr-1 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors shrink-0"
-                      title="Esc"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3.5 h-3.5">
-                        <polyline points="15 4 7 12 15 20" />
-                      </svg>
-                    </button>
-                  )}
-                  <FileIcon name={namePart} className="w-4 h-4 shrink-0" />
-                  <span className="text-ide-text font-medium">{namePart}</span>{dirPart && <span className="text-[11px] text-ide-text-muted/50"> {dirPart}</span>}
-                </div>
+                {headerLeading}
                 <div className="flex items-center gap-2 shrink-0">
                   {isDirty && (
                     <span className="text-[10px] text-ide-warning font-medium">● 未保存</span>
                   )}
-                  <div
-                    className="group flex items-center rounded-md bg-ide-hover overflow-hidden shrink-0 cursor-context-menu select-none"
-                    onContextMenu={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setExportMenu({ x: e.clientX, y: e.clientY })
-                    }}
-                  >
-                    {onToggleEdit ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onToggleEdit()
-                        }}
-                        className="px-2.5 py-1 text-xs bg-ide-accent/15 text-ide-accent flex items-center justify-center transition-all min-w-[48px]"
-                        title="编辑 (Ctrl+L)"
-                      >
-                        <span className="group-hover:hidden">View</span>
-                        <svg className="hidden group-hover:block w-4 h-4" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M9.94076 1.34942C10.7047 0.90231 11.6503 0.902415 12.4143 1.34942C12.7061 1.52015 12.9688 1.79118 13.3104 2.13284C13.6521 2.47448 13.9231 2.73721 14.0939 3.02894C14.5408 3.79294 14.5409 4.73856 14.0939 5.50251C13.9231 5.79415 13.652 6.05704 13.3104 6.39861L6.65932 13.0497C6.28068 13.4284 6.00695 13.7108 5.66543 13.9097C5.32391 14.1085 4.94315 14.2074 4.42705 14.3498L3.24394 14.6761C2.77527 14.8054 2.34538 14.9262 2.00131 14.9684C1.65196 15.0112 1.17964 15.0013 0.810764 14.6325C0.441921 14.2637 0.432107 13.7913 0.47486 13.442C0.517035 13.0979 0.6379 12.668 0.767181 12.1993L1.09352 11.0162C1.23588 10.5001 1.33481 10.1193 1.5336 9.77784C1.7325 9.43632 2.0149 9.1626 2.39355 8.78395L9.04466 2.13284C9.38625 1.79126 9.64911 1.52016 9.94076 1.34942ZM15.5427 14.8398H7.55223L8.96707 13.425H15.5427V14.8398ZM3.39382 9.78422C2.965 10.213 2.84244 10.3436 2.75709 10.49C2.67183 10.6366 2.61862 10.8079 2.45733 11.3925L2.13099 12.5756C2.00183 13.0439 1.92194 13.3419 1.88863 13.5536C2.10041 13.5204 2.39872 13.4416 2.86764 13.3123L4.05075 12.9859C4.63544 12.8246 4.80669 12.7715 4.95323 12.6862C5.09968 12.6008 5.23022 12.4783 5.65905 12.0494L10.721 6.98644L8.45577 4.72121L3.39382 9.78422ZM11.7 2.57079C11.3774 2.38198 10.9777 2.38198 10.6551 2.57079C10.5602 2.62647 10.4487 2.72931 10.0449 3.13311L9.45604 3.72094L11.7213 5.98617L12.3102 5.39833C12.7139 4.99457 12.8168 4.88307 12.8725 4.78818C13.0613 4.46561 13.0612 4.06585 12.8725 3.74326C12.8169 3.64827 12.7146 3.53752 12.3102 3.13311C11.9057 2.72863 11.795 2.6264 11.7 2.57079Z" fill="currentColor" />
-                        </svg>
-                      </button>
-                    ) : (
-                      <span className="px-2.5 py-1 text-xs bg-ide-accent/15 text-ide-accent">View</span>
-                    )}
-                  </div>
+                  {onToggleEdit && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onToggleEdit()
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setExportMenu({ x: e.clientX, y: e.clientY })
+                      }}
+                      className="w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
+                      title="编辑 (Ctrl+L)"
+                    >
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                        <path d="M9.94076 1.34942C10.7047 0.90231 11.6503 0.902415 12.4143 1.34942C12.7061 1.52015 12.9688 1.79118 13.3104 2.13284C13.6521 2.47448 13.9231 2.73721 14.0939 3.02894C14.5408 3.79294 14.5409 4.73856 14.0939 5.50251C13.9231 5.79415 13.652 6.05704 13.3104 6.39861L6.65932 13.0497C6.28068 13.4284 6.00695 13.7108 5.66543 13.9097C5.32391 14.1085 4.94315 14.2074 4.42705 14.3498L3.24394 14.6761C2.77527 14.8054 2.34538 14.9262 2.00131 14.9684C1.65196 15.0112 1.17964 15.0013 0.810764 14.6325C0.441921 14.2637 0.432107 13.7913 0.47486 13.442C0.517035 13.0979 0.6379 12.668 0.767181 12.1993L1.09352 11.0162C1.23588 10.5001 1.33481 10.1193 1.5336 9.77784C1.7325 9.43632 2.0149 9.1626 2.39355 8.78395L9.04466 2.13284C9.38625 1.79126 9.64911 1.52016 9.94076 1.34942ZM15.5427 14.8398H7.55223L8.96707 13.425H15.5427V14.8398ZM3.39382 9.78422C2.965 10.213 2.84244 10.3436 2.75709 10.49C2.67183 10.6366 2.61862 10.8079 2.45733 11.3925L2.13099 12.5756C2.00183 13.0439 1.92194 13.3419 1.88863 13.5536C2.10041 13.5204 2.39872 13.4416 2.86764 13.3123L4.05075 12.9859C4.63544 12.8246 4.80669 12.7715 4.95323 12.6862C5.09968 12.6008 5.23022 12.4783 5.65905 12.0494L10.721 6.98644L8.45577 4.72121L3.39382 9.78422ZM11.7 2.57079C11.3774 2.38198 10.9777 2.38198 10.6551 2.57079C10.5602 2.62647 10.4487 2.72931 10.0449 3.13311L9.45604 3.72094L11.7213 5.98617L12.3102 5.39833C12.7139 4.99457 12.8168 4.88307 12.8725 4.78818C13.0613 4.46561 13.0612 4.06585 12.8725 3.74326C12.8169 3.64827 12.7146 3.53752 12.3102 3.13311C11.9057 2.72863 11.795 2.6264 11.7 2.57079Z" />
+                      </svg>
+                    </button>
+                  )}
                   {onToggleOutline && (
                     <OutlineTrigger
                       outlineEnabled={outlineEnabled}
