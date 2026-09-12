@@ -8,6 +8,8 @@ import { startWatching, updateSkipPatterns, watchGitMeta, notifyGitMeta, beginGi
 
 let gitInstance: SimpleGit | null = null
 let currentWorkspace: string = process.cwd()
+// 同路径 setWorkspace 结果缓存：左(GitTab/Dir)右两侧面板各持一个 GitTab，切会话时会对同一路径各调一次
+let workspaceInfo: { path: string; gitRoot: string; gitCommonDir: string } | null = null
 
 function getGit(): SimpleGit {
   if (!gitInstance) {
@@ -35,6 +37,12 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_SET_WORKSPACE, async (_event, path: string) => {
     if (typeof path !== 'string' || !path) return { error: 'Invalid workspace path' }
     try {
+      if (workspaceInfo && workspaceInfo.path === path) {
+        // 幂等回放：不重跑 rev-parse，只确保 watcher 就位(同路径自身也是 no-op)
+        startWatching(path)
+        watchGitMeta(workspaceInfo.gitCommonDir)
+        return { success: true, path, gitRoot: workspaceInfo.gitRoot, gitCommonDir: workspaceInfo.gitCommonDir }
+      }
       currentWorkspace = path
       gitInstance = simpleGit(currentWorkspace)
       let gitRoot = path
@@ -52,6 +60,7 @@ export function registerGitHandlers(): void {
       } catch {}
       startWatching(path)
       watchGitMeta(gitCommonDir)
+      workspaceInfo = { path, gitRoot, gitCommonDir }
       return { success: true, path: currentWorkspace, gitRoot, gitCommonDir }
     } catch (err: any) {
       return { error: err.message || 'Failed to set workspace' }
@@ -612,6 +621,7 @@ export function registerGitHandlers(): void {
     try {
       const git = getGit()
       await gitOp(() => git.init())
+      workspaceInfo = null
       return { success: true }
     } catch (err: any) {
       return { error: err.message }

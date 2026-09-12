@@ -65,11 +65,15 @@ function notifyChanged() {
   }
 }
 
+// 同路径重复调用直接复用(左右两侧 GitTab 各自 setWorkspace，路径相同)，避免重建递归 watcher
+let currentWatchPath = ''
+
 export function startWatching(workspace: string) {
+  if (watcher && workspace === currentWatchPath) return
   stopWatching()
   if (!existsSync(workspace)) return
 
-  watcher = watch(workspace, { recursive: true }, (_eventType, filename) => {
+  const w = watch(workspace, { recursive: true }, (_eventType, filename) => {
     if (!filename) return
     const normalized = filename.replace(/\\/g, '/')
     if (watcherSkipRegex.test('/' + normalized + '/')) return
@@ -80,6 +84,13 @@ export function startWatching(workspace: string) {
       notifyChanged()
     }, 300)
   })
+  // 出错即失效记录，下次 setWorkspace 重建
+  w.on('error', () => {
+    try { w.close() } catch {}
+    if (watcher === w) { watcher = null; currentWatchPath = '' }
+  })
+  watcher = w
+  currentWatchPath = workspace
 }
 
 export function stopWatching() {
@@ -87,6 +98,7 @@ export function stopWatching() {
     watcher.close()
     watcher = null
   }
+  currentWatchPath = ''
   if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null }
   if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null }
 }
@@ -191,6 +203,7 @@ export function setGitMetaPaused(paused: boolean): void {
 }
 
 export function watchGitMeta(commonDir: string) {
+  if (commonDir && commonDir === currentMetaCommonDir && metaWatchers.length > 0) return
   stopGitMeta()
   currentMetaCommonDir = commonDir
   if (!commonDir || !existsSync(commonDir)) return
