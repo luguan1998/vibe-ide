@@ -82,48 +82,97 @@ const fmtTime = (s: number) => {
   return `${m}:${ss < 10 ? '0' : ''}${ss}`
 }
 
-export const MAGE_SVG_URL = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <defs>
-    <linearGradient id="vsHat" x1="16" y1="0.8" x2="16" y2="17.6" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#b39ddb"/>
-      <stop offset="0.5" stop-color="#7e57c2"/>
-      <stop offset="1" stop-color="#4527a0"/>
-    </linearGradient>
-    <linearGradient id="vsRobe" x1="16" y1="16.5" x2="16" y2="31.6" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#9fa8da"/>
-      <stop offset="0.5" stop-color="#5c6bc0"/>
-      <stop offset="1" stop-color="#283593"/>
-    </linearGradient>
-    <radialGradient id="vsOrb" cx="24.2" cy="6.2" r="3.1" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.4" stop-color="#ffe082"/>
-      <stop offset="1" stop-color="#ff8f00"/>
-    </radialGradient>
-    <radialGradient id="vsGlow" cx="25" cy="7.2" r="6.6" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff59d" stop-opacity="0.85"/>
-      <stop offset="1" stop-color="#fff59d" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <path d="M24.6 8.5 L22.8 24" stroke="#6d4c41" stroke-width="1.9" stroke-linecap="round"/>
-  <circle cx="25" cy="7.2" r="6.6" fill="url(#vsGlow)"/>
-  <path d="M15.6 10.4C12.6 8.8 12.8 3 16 0.8c3.2 2.2 3.4 8 0.4 9.6z" fill="url(#vsHat)" stroke="#311b92" stroke-width="0.9"/>
-  <path d="M8.4 10.8q7.6 3.2 15.2 0q-7.6 2.2-15.2 0z" fill="url(#vsHat)" stroke="#311b92" stroke-width="0.8"/>
-  <path d="M12.8 5.6l.6 1.3 1.4.2-1 .9.2 1.4-1.2-.7-1.2.7.2-1.4-1-.9 1.4-.2z" fill="#ffe082" stroke="#ff8f00" stroke-width="0.35"/>
-  <circle cx="16" cy="13.4" r="3.4" fill="#f3d2b6" stroke="#c9a986" stroke-width="0.5"/>
-  <circle cx="14.7" cy="13.1" r="0.72" fill="#2f2a33"/>
-  <circle cx="17.3" cy="13.1" r="0.72" fill="#2f2a33"/>
-  <circle cx="14.9" cy="12.85" r="0.26" fill="#ffffff"/>
-  <circle cx="17.5" cy="12.85" r="0.26" fill="#ffffff"/>
-  <path d="M13.3 14.8c1.8 1.1 3.6 1.1 5.4 0 .2 1.7-.8 2.9-2.7 2.9-1.9 0-2.9-1.2-2.7-2.9z" fill="#f5f5f5" stroke="#dcdcdc" stroke-width="0.5"/>
-  <path d="M16 16.5l6.8 3v7.4c0 3.2-2.7 5.2-6.8 5.8-4.1-.6-6.8-2.6-6.8-5.8v-7.4z" fill="url(#vsRobe)" stroke="#1a237e" stroke-width="0.9"/>
-  <path d="M16 18.2l4.4 1.9v4c0 2.2-1.8 3.6-4.4 4-2.6-.4-4.4-1.8-4.4-4v-4z" fill="#7986cb" opacity="0.5"/>
-  <rect x="12.8" y="23" width="6.4" height="1.7" rx="0.85" fill="#ffd54f" stroke="#b08a2e" stroke-width="0.4"/>
-  <rect x="7.4" y="17.8" width="3" height="4.4" rx="1.4" fill="#f3d2b6" stroke="#c9a986" stroke-width="0.5"/>
-  <rect x="21.6" y="17.2" width="3" height="4.8" rx="1.4" fill="#f3d2b6" stroke="#c9a986" stroke-width="0.5"/>
-  <circle cx="25" cy="7.2" r="2.7" fill="url(#vsOrb)" stroke="#e65100" stroke-width="0.45"/>
-  <path d="M25 3.8l.8 1.7 1.9.3-1.4 1.3.3 1.8-1.6-1-1.6 1 .3-1.8-1.4-1.3 1.9-.3z" fill="#ffe082" stroke="#ff8f00" stroke-width="0.3"/>
-  <circle cx="24.1" cy="6.2" r="0.62" fill="#fffde7"/>
-</svg>`)
+const MAGE_PALETTE: Record<string, string> = {
+  K: '#241436', I: '#9070e0', i: '#7450c8', h: '#5a35b0', u: '#3d1f7d',
+  S: '#f3d2b6', s: '#d2ab88', W: '#ffffff',
+  C: '#3b2a8f', c: '#27185f', L: '#c62828', B: '#5c6bc0',
+  G: '#ffd54f', T: '#7a5a48', O: '#ff8f00', o: '#ffe082',
+  H: '#3c2a48', J: '#54405f',
+}
+const MAGE_DOWN = [
+  '.........KK.........',
+  '........KIIK........',
+  '.......KIiihK..OoO..',
+  '......KIiohhhK.oWo..',
+  '......KIGoGhhK.OoO..',
+  '.....KIiiohhhK..T...',
+  '.....KIiihhhhK..T...',
+  '...uuuuuuuuuuuuuT...',
+  '......ssSSSSs..T....',
+  '......SSKSKSS..T....',
+  '......sSSSSSs..T....',
+  '......SSsssSS..T....',
+  '.......sSSSs...T....',
+  '.....CCLCCCLCCC.....',
+  '....cCBBBBBBBCcST...',
+  '...ScCBBGGGGBCCcS...',
+  '...ScCBBBBBBBCc.T...',
+  '.....cCBBBBBCc......',
+  '......cGGGGGGc......',
+  '......KKKKKKKK......',
+]
+const MAGE_UP = [
+  '.........KK.........',
+  '........KIIK........',
+  '.OoO...KIiihK.......',
+  '.oWo..KIiihhhK......',
+  '.OoO..KIiihhhK......',
+  '..T..KIiihhhhK......',
+  '..T..KIiihhhhK......',
+  '..Tuuuuuuuuuuuuu....',
+  '..T...KHHHHHK.......',
+  '..T...KHHJHHK.......',
+  '..T...KHHHHHK.......',
+  '..T....KHHHK........',
+  '..T.....KKK.........',
+  '..T..CCCCCCCCCC.....',
+  '..T.cCBBBBBBBCcS....',
+  '..TScCBBBBBBBCcS....',
+  '..TScCBBBBBBBCc.....',
+  '.....cCBBBBBCc......',
+  '......cGGGGGGc......',
+  '......KKKKKKKK......',
+]
+const MAGE_SIDE = [
+  '.........KK.........',
+  '........KIIK........',
+  '.......KIiihK..OoO..',
+  '......KIiohhhK.oWo..',
+  '......KIGoGhhK.OoO..',
+  '.....KIiiohhhK..T...',
+  '.....KIiihhhhK..T...',
+  '...uuuuuuuuuuuuuT...',
+  '......KHHHSSS...T...',
+  '......KHHSSKS...T...',
+  '......KHHSSSSS..T...',
+  '......KHHSSSs...T...',
+  '.......KSSSs....T...',
+  '......CCCCCCCCC.T...',
+  '....cCBBBBBBBCcST...',
+  '....cCBBGGGGBCCcS...',
+  '....cCBBBBBBBCc.T...',
+  '.....cCBBBBBCc......',
+  '......cGGGGGGc......',
+  '......KKKKKKKK......',
+]
+const MAGE_GRID_W = MAGE_DOWN[0].length
+const MAGE_GRID_H = MAGE_DOWN.length
+
+export const MAGE_SVG_URL = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${MAGE_GRID_W} ${MAGE_GRID_H}" shape-rendering="crispEdges">` +
+  MAGE_DOWN.map((row, y) => {
+    let out = ''
+    for (let x = 0; x < row.length;) {
+      const ch = row[x]
+      let w = 1
+      while (x + w < row.length && row[x + w] === ch) w++
+      if (ch !== '.') out += `<rect x="${x}" y="${y}" width="${w}" height="1" fill="${MAGE_PALETTE[ch]}"/>`
+      x += w
+    }
+    return out
+  }).join('') +
+  '</svg>'
+)
 
 const shuffle = <T,>(arr: T[]): T[] => {
   const a = arr.slice()
@@ -140,11 +189,29 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
   const onBackRef = useRef(onBack)
   onBackRef.current = onBack
 
-  const mageImgRef = useRef<HTMLImageElement | null>(null)
+  const mageSpritesRef = useRef<{ down: HTMLCanvasElement; up: HTMLCanvasElement; side: HTMLCanvasElement } | null>(null)
   useEffect(() => {
-    const img = new Image()
-    img.src = MAGE_SVG_URL
-    mageImgRef.current = img
+    const build = (rows: string[]) => {
+      const cv = document.createElement('canvas')
+      cv.width = MAGE_GRID_W
+      cv.height = MAGE_GRID_H
+      const c2 = cv.getContext('2d')
+      if (!c2) return cv
+      rows.forEach((row, y) => {
+        for (let x = 0; x < row.length; x++) {
+          const ch = row[x]
+          if (ch === '.') continue
+          c2.fillStyle = MAGE_PALETTE[ch]
+          c2.fillRect(x, y, 1, 1)
+        }
+      })
+      return cv
+    }
+    mageSpritesRef.current = {
+      down: build(MAGE_DOWN),
+      up: build(MAGE_UP),
+      side: build(MAGE_SIDE),
+    }
   }, [])
 
   const keysRef = useRef<Set<string>>(new Set())
@@ -165,6 +232,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
   const playerRef = useRef({
     x: W / 2, y: H / 2, hp: 100, maxHp: 100, speed: 150,
     level: 1, xp: 0, xpNext: 14, invuln: 0, facing: 0,
+    dir: 'down' as 'down' | 'up' | 'left' | 'right', walkT: 0, walkAmp: 0, dustAcc: 0,
     weaponTimers: {} as Record<string, number>,
     regenAcc: 0, hitFlash: 0,
   })
@@ -256,6 +324,36 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     }))
   }
 
+  const groundRef = useRef<HTMLCanvasElement | null>(null)
+  if (!groundRef.current) {
+    const theme = themeRef.current!
+    const gcv = document.createElement('canvas')
+    gcv.width = W + 24
+    gcv.height = H + 24
+    const g2 = gcv.getContext('2d')
+    if (g2) {
+      g2.translate(12, 12)
+      g2.fillStyle = theme.grassBase
+      g2.fillRect(-12, -12, W + 24, H + 24)
+      g2.fillStyle = theme.grassDark
+      const cell = 48
+      for (let gy = 0; gy * cell < H; gy++) {
+        for (let gx = 0; gx * cell < W; gx++) {
+          if ((gx + gy) % 2 === 0) g2.fillRect(gx * cell, gy * cell, cell, cell)
+        }
+      }
+      for (const d of decorationsRef.current!) {
+        g2.globalAlpha = d.alpha
+        g2.fillStyle = '#ffffff'
+        g2.font = `${d.size}px ${EMOJI_FONT}`
+        g2.textAlign = 'center'
+        g2.textBaseline = 'middle'
+        g2.fillText(d.emoji, d.x, d.y)
+      }
+      groundRef.current = gcv
+    }
+  }
+
   const setPhaseBoth = useCallback((p: Phase) => {
     phaseRef.current = p
     setPhase(p)
@@ -336,6 +434,29 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
   const addText = useCallback((x: number, y: number, text: string, color: string) => {
     if (textsRef.current.length > 40) textsRef.current.shift()
     textsRef.current.push({ x, y, text, color, t: 0.8 })
+  }, [])
+
+  const emojiSpritesRef = useRef(new Map<string, HTMLCanvasElement>())
+  const emojiSprite = useCallback((emoji: string, size: number) => {
+    const s = Math.max(6, Math.round(size))
+    const key = `${emoji}@${s}`
+    const cache = emojiSpritesRef.current
+    let cv = cache.get(key)
+    if (!cv) {
+      const pad = Math.ceil(s * 0.5) + 2
+      cv = document.createElement('canvas')
+      cv.width = s + pad * 2
+      cv.height = s + pad * 2
+      const c2 = cv.getContext('2d')
+      if (c2) {
+        c2.font = `${s}px ${EMOJI_FONT}`
+        c2.textAlign = 'center'
+        c2.textBaseline = 'middle'
+        c2.fillText(emoji, cv.width / 2, cv.height / 2)
+      }
+      cache.set(key, cv)
+    }
+    return cv
   }, [])
 
   const hurtPlayer = useCallback((dmg: number, fromX: number, fromY: number) => {
@@ -576,6 +697,19 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       p.x += mx / moveL * speed * dt
       p.y += my / moveL * speed * dt
       p.facing = Math.atan2(my, mx)
+      p.dir = mx !== 0 ? (mx > 0 ? 'right' : 'left') : (my > 0 ? 'down' : 'up')
+    }
+    p.walkT += moveL > 0 ? dt : 0
+    p.walkAmp += ((moveL > 0 ? 1 : 0) - p.walkAmp) * Math.min(1, dt * 9)
+    if (moveL > 0) {
+      p.dustAcc += dt
+      if (p.dustAcc >= 0.22) {
+        p.dustAcc = 0
+        const ddx = p.dir === 'left' ? 7 : p.dir === 'right' ? -7 : 0
+        addParts(p.x + ddx, p.y + PLAYER_R * 0.5, '#e0e0e0', 2, 1.1)
+      }
+    } else {
+      p.dustAcc = 0
     }
     p.x = Math.max(PLAYER_R, Math.min(W - PLAYER_R, p.x))
     p.y = Math.max(PLAYER_R, Math.min(H - PLAYER_R, p.y))
@@ -927,14 +1061,12 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     }
 
     const theme = themeRef.current!
-    ctx.fillStyle = theme.grassBase
-    ctx.fillRect(-12, -12, W + 24, H + 24)
-    ctx.fillStyle = theme.grassDark
-    const cell = 48
-    for (let gy = 0; gy * cell < H; gy++) {
-      for (let gx = 0; gx * cell < W; gx++) {
-        if ((gx + gy) % 2 === 0) ctx.fillRect(gx * cell, gy * cell, cell, cell)
-      }
+    const ground = groundRef.current
+    if (ground) {
+      ctx.drawImage(ground, -12, -12)
+    } else {
+      ctx.fillStyle = theme.grassBase
+      ctx.fillRect(-12, -12, W + 24, H + 24)
     }
     ctx.strokeStyle = theme.grassBlade
     ctx.lineWidth = 1
@@ -947,16 +1079,6 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     }
     ctx.stroke()
 
-    for (const d of decorationsRef.current!) {
-      ctx.globalAlpha = d.alpha
-      ctx.fillStyle = '#ffffff'
-      ctx.font = `${d.size}px ${EMOJI_FONT}`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(d.emoji, d.x, d.y)
-    }
-    ctx.globalAlpha = 1
-
     for (const a of aoeRef.current) {
       ctx.fillStyle = a.follow ? 'rgba(183,28,28,0.32)' : 'rgba(103,58,183,0.28)'
       ctx.beginPath()
@@ -967,12 +1089,9 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       ctx.beginPath()
       ctx.arc(a.x, a.y, a.r * (0.8 + 0.2 * a.pulse / 0.4), 0, Math.PI * 2)
       ctx.stroke()
-      ctx.fillStyle = 'rgba(255,255,255,0.35)'
-      ctx.font = `${14}px ${EMOJI_FONT}`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.globalAlpha = 0.5 + 0.3 * Math.sin(elapsedRef.current * 4)
-      ctx.fillText(a.follow ? '☠' : '✝', a.x, a.y)
+      const aosp = emojiSprite(a.follow ? '☠' : '✝', 14)
+      ctx.globalAlpha = 0.35 * (0.5 + 0.3 * Math.sin(elapsedRef.current * 4))
+      ctx.drawImage(aosp, a.x - aosp.width / 2, a.y - aosp.height / 2)
       ctx.globalAlpha = 1
     }
 
@@ -1016,14 +1135,13 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
 
     for (const e of enemiesRef.current) {
       if (e.type === 'dino' && e.burrow > 0) {
-        ctx.fillStyle = '#ffffff'
-        ctx.font = `${e.r * 1.9}px ${EMOJI_FONT}`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText('🕳️', e.x, e.y)
+        const hsp = emojiSprite('🕳️', e.r * 1.9)
+        ctx.drawImage(hsp, e.x - hsp.width / 2, e.y - hsp.height / 2)
         if (e.burrow <= 0.7) {
           ctx.fillStyle = '#ff9800'
           ctx.font = 'bold 14px "Segoe UI", sans-serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
           ctx.fillText('!', e.x, e.y - e.r * 0.9)
         }
         continue
@@ -1033,11 +1151,8 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       const jy = e.type === 'dino' && e.wind > 0 ? (Math.random() - 0.5) * 6 : 0
       ctx.translate(jx, jy)
       ctx.globalAlpha = e.hitFlash > 0 ? 0.45 : (e.type === 'dino' && e.wind > 0 ? 0.5 + 0.5 * Math.sin(elapsedRef.current * 22) : 1)
-      ctx.fillStyle = '#ffffff'
-      ctx.font = `${e.r * 2.3}px ${EMOJI_FONT}`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(e.emoji, e.x, e.y)
+      const esp = emojiSprite(e.emoji, e.r * 2.3)
+      ctx.drawImage(esp, e.x - esp.width / 2, e.y - esp.height / 2)
       ctx.restore()
       if (e.type === 'dino' && e.wind > 0) {
         ctx.fillStyle = '#ffb74d'
@@ -1101,16 +1216,23 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       ctx.beginPath()
       ctx.ellipse(p.x + 2, p.y + 3, PLAYER_R + 1, PLAYER_R * 0.8, 0, 0, Math.PI * 2)
       ctx.fill()
-      const ki = mageImgRef.current
-      if (ki && ki.complete) {
+      const ki = mageSpritesRef.current
+      if (ki) {
         const ks = PLAYER_R * 2.6
-        ctx.drawImage(ki, p.x - ks / 2, p.y - ks / 2, ks, ks)
+        const bob = -Math.abs(Math.sin(p.walkT * 11)) * 2.6 * p.walkAmp
+        const cv = p.dir === 'up' ? ki.up : p.dir === 'down' ? ki.down : ki.side
+        ctx.save()
+        ctx.translate(p.x, p.y + bob)
+        if (p.dir === 'left') ctx.scale(-1, 1)
+        ctx.imageSmoothingEnabled = false
+        ctx.drawImage(cv, -ks / 2, -ks / 2, ks, ks)
+        ctx.restore()
       } else {
         ctx.fillStyle = '#ffffff'
         ctx.font = `${PLAYER_R * 2.4}px ${EMOJI_FONT}`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText('🧛', p.x, p.y)
+        ctx.fillText('🧙', p.x, p.y)
       }
     }
 
@@ -1142,11 +1264,8 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       ctx.arc(0, 1.5, 10, 0, Math.PI * 2)
       ctx.fill()
       ctx.rotate(es.rot)
-      ctx.fillStyle = '#ffffff'
-      ctx.font = '22px ' + EMOJI_FONT
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText('🦴', 0, 0)
+      const bsp = emojiSprite('🦴', 22)
+      ctx.drawImage(bsp, -bsp.width / 2, -bsp.height / 2)
       ctx.restore()
     }
 
