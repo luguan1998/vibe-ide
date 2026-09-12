@@ -20,7 +20,7 @@ const NavBar = React.memo(function NavBar({ entries, selectedIndex, visible, sol
     <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-slide-up">
       <div className="relative flex items-center gap-0.5 rounded-lg border border-ide-border bg-ide-sidebar/95 px-4 py-2 shadow-2xl backdrop-blur-sm">
         {entries.map((entry, i) => {
-          const name = `${entry.fullPath.replace(/^.*[/\\]/, '')}:${entry.line}`
+          const name = entry.fullPath.replace(/^.*[/\\]/, '')
           const isSelected = i === selectedIndex
           return (
             <React.Fragment key={`${entry.fullPath}:${i}`}>
