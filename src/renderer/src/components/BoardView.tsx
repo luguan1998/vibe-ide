@@ -985,7 +985,7 @@ export default function BoardView({
                     onClick={() => void quickCreate()}
                     disabled={!createCwd || !repoRoot || creating}
                     title={!createCwd ? t('No active workspace') : repoRoot === null ? t('Not a git repo — worktree unavailable') : t('New worktree session')}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-dashed border-ide-border text-left text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-full min-w-0 truncate px-2.5 py-1.5 rounded-lg border border-dashed border-ide-border text-left text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     {creating ? t('Creating...') : `🌿 ${t('New worktree session')}`}
                   </button>
@@ -993,14 +993,14 @@ export default function BoardView({
                     onClick={() => void quickCreatePlain()}
                     disabled={!createCwd || creatingPlain}
                     title={!createCwd ? t('No active workspace') : t('New terminal session')}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-dashed border-ide-border text-left text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-full min-w-0 truncate px-2.5 py-1.5 rounded-lg border border-dashed border-ide-border text-left text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     {creatingPlain ? t('Creating...') : `💻 ${t('New terminal')}`}
                   </button>
                   <button
                     onClick={addTodo}
                     title={t('New todo')}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-dashed border-ide-border text-left text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors"
+                    className="w-full min-w-0 truncate px-2.5 py-1.5 rounded-lg border border-dashed border-ide-border text-left text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 transition-colors"
                   >
                     ✅ {t('New todo')}
                   </button>
