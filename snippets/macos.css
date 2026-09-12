@@ -279,9 +279,13 @@
 ::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
 ::-webkit-scrollbar-track { background: transparent !important; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0 0 0 / 0.25) !important;
+  background: transparent !important;
   border-radius: 9999px !important;
   border: 2px solid transparent !important;
+  background-clip: content-box !important;
+}
+:hover::-webkit-scrollbar-thumb {
+  background: rgba(0 0 0 / 0.25) !important;
   background-clip: content-box !important;
 }
 ::-webkit-scrollbar-thumb:hover {

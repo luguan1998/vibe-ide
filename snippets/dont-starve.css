@@ -442,10 +442,11 @@ html, body, #root {
    滾動條 — 深海底 · 螢光綠條
    ════════════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 10px !important; height: 10px !important; }
-::-webkit-scrollbar-track { background: rgb(18 43 56) !important; }
-::-webkit-scrollbar-thumb { background: rgb(31 94 107) !important; }
+::-webkit-scrollbar-track { background: transparent !important; }
+::-webkit-scrollbar-thumb { background: transparent !important; }
+::-webkit-scrollbar-corner { background: transparent !important; }
+:hover::-webkit-scrollbar-thumb { background: rgb(31 94 107) !important; }
 ::-webkit-scrollbar-thumb:hover { background: rgb(38 223 162 / 0.5) !important; }
-::-webkit-scrollbar-corner { background: rgb(18 43 56) !important; }
 
 /* ════════════════════════════════════════════════════
    模態框 & 表單 — 炭黑邊 + 螢光綠聚焦

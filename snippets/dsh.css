@@ -332,13 +332,18 @@
   color: rgb(var(--ide-accent)) !important;
 }
 
-/* ── 滚动条 — dsh 8px 薄轨/透明底/中性灰圆头（隔离 .dsh-view，不染真 dsh 视图）── */
+/* ── 滚动条 — dsh 8px 薄轨/透明底/中性灰细圆头，默认隐藏 hover 才显
+   （隔离 .dsh-view，不染真 dsh 视图）── */
 #root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
 #root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-track { background: transparent !important; }
 #root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb {
-  background: rgb(var(--scrollbar-thumb)) !important;
+  background: transparent !important;
   border-radius: 999px !important;
   border: 2px solid transparent !important;
+  background-clip: content-box !important;
+}
+#root :not(.dsh-view, .dsh-view *):hover::-webkit-scrollbar-thumb {
+  background: rgb(var(--scrollbar-thumb)) !important;
   background-clip: content-box !important;
 }
 #root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb:hover {

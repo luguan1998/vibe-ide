@@ -360,13 +360,14 @@ textarea {
 }
 
 /* ════════════════════════════════════════════════════
-   滚动条 — 深蓝底 + 金条
+   滚动条 — hover 才出现（透明轨道，thumb hover 显）
    ════════════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 10px !important; height: 10px !important; }
-::-webkit-scrollbar-track { background: rgb(var(--ide-bg)) !important; }
-::-webkit-scrollbar-thumb { background: rgb(var(--ide-border)) !important; }
+::-webkit-scrollbar-track { background: transparent !important; }
+::-webkit-scrollbar-thumb { background: transparent !important; }
+::-webkit-scrollbar-corner { background: transparent !important; }
+:hover::-webkit-scrollbar-thumb { background: rgb(var(--ide-border)) !important; }
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--ide-accent) / 0.5) !important; }
-::-webkit-scrollbar-corner { background: rgb(var(--ide-bg)) !important; }
 
 /* ════════════════════════════════════════════════════
    模态框 & 表单 — 金色 focus 光晕

@@ -3,6 +3,8 @@
   参考 NES.css 框架：白底 + 4px 粗边框 + 3D 浮雕按钮 + NES 原色调色板
   字体：需自行安装 Zpix 最像素（中英文统一）
   https://github.com/SolidZORO/zpix-pixel-font
+  搭配：终端 ANSI 配色与 Monaco 语法色跟随基础主题（CSS 改不了），
+        请搭配浅色主题（Solarized Light / GitHub Light），勿配深色主题
 */
 
 /* ════════════════════════════════════════════════════
@@ -27,7 +29,6 @@
   --scrollbar-thumb-hover: 124 124 124 !important;
   --selection-bg: 32 156 238 !important;
   --selection-opacity: 0.25 !important;
-  --monaco-margin-bg: 30 30 30 !important;
   --ide-titlebar-symbol: 255 255 255 !important;
 }
 
@@ -255,14 +256,13 @@ html, body, #root {
 
 
 /* ════════════════════════════════════════════════════
-   终端 — 黑底 + 2px 白边 + 2px 黑轮廓
+   终端 — 白底浅色，与 NES 白底一致
    ════════════════════════════════════════════════════ */
 
 .term-view__canvas {
-  --term-bg: 0 0 0;
-  background: #000 !important;
+  --term-bg: 255 255 255;
+  background: #fff !important;
   border: 4px solid #fff !important;
-  outline: 3px solid rgb(var(--ide-border)) !important;
   border-radius: 0 0 12px 12px !important;
 }
 
@@ -530,7 +530,6 @@ html, body, #root {
 
 .md-preview pre code,
 .md-code-block code {
-  filter: brightness(0.6) contrast(1.15) saturate(1.3) !important;
   border: none !important;
   background: transparent !important;
 }
@@ -547,16 +546,17 @@ html, body, #root {
 
 
 /* ════════════════════════════════════════════════════
-   滚动条 — NES 灰 + 凸起
+   滚动条 — hover 才出现（透明轨道，thumb hover 显 · NES 灰 + 凸起）
    ════════════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 10px !important; height: 10px !important; }
 
-::-webkit-scrollbar-track {
-  background: rgb(var(--ide-sidebar)) !important;
-  box-shadow: inset 0 0 0 1px rgb(var(--ide-border) / 0.3) !important;
-}
+::-webkit-scrollbar-track { background: transparent !important; }
 
-::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb { background: transparent !important; }
+
+::-webkit-scrollbar-corner { background: transparent !important; }
+
+:hover::-webkit-scrollbar-thumb {
   background: #adafbc !important;
   border: 1px solid rgb(var(--ide-border)) !important;
   box-shadow: inset -1px -1px 0 rgba(0,0,0,0.3), inset 1px 1px 0 #fff !important;
@@ -564,6 +564,8 @@ html, body, #root {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #209cee !important;
+  border-color: rgb(var(--ide-border)) !important;
+  box-shadow: inset -1px -1px 0 rgba(0,0,0,0.3), inset 1px 1px 0 #fff !important;
 }
 
 

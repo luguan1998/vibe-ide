@@ -34,9 +34,13 @@
   background: transparent !important;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(46 50 46 / 0.22) !important;
+  background: transparent !important;
   border-radius: 9999px !important;
   border: 2px solid transparent !important;
+  background-clip: content-box !important;
+}
+:hover::-webkit-scrollbar-thumb {
+  background: rgb(46 50 46 / 0.22) !important;
   background-clip: content-box !important;
 }
 ::-webkit-scrollbar-thumb:hover {

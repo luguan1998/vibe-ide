@@ -128,6 +128,20 @@ html, body, #root {
   background: rgb(var(--scrollbar-thumb));
 }
 
+/* Dir 文件树: scrollbar 仅 hover 显示（thumb 透明，!important 防 snippets 覆盖） */
+#root .file-tab__tree::-webkit-scrollbar-thumb,
+#root .file-tab__section::-webkit-scrollbar-thumb {
+  background: transparent !important;
+}
+#root .file-tab__tree:hover::-webkit-scrollbar-thumb,
+#root .file-tab__section:hover::-webkit-scrollbar-thumb {
+  background: rgb(var(--scrollbar-thumb)) !important;
+}
+#root .file-tab__tree:hover::-webkit-scrollbar-thumb:hover,
+#root .file-tab__section:hover::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--scrollbar-thumb-hover)) !important;
+}
+
 /* xterm overrides */
 .term-view__canvas {
   background-color: rgb(var(--term-bg, var(--ide-bg)));
