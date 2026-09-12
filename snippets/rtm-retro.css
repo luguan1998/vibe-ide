@@ -154,3 +154,9 @@
   position: relative;
   z-index: 48;
 }
+
+/* 顶部标题栏同样跳过（同 z-index 手法，盖过 overlay(45)） */
+.titlebar-drag {
+  position: relative;
+  z-index: 48;
+}
