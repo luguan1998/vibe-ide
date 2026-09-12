@@ -2314,68 +2314,71 @@ export default function App() {
     return () => window.removeEventListener('vibe:dsh-fork', onDshFork)
   }, [addSessionRecord])
 
-  // Switch active session
-  const handleSwitchSession = useCallback(async (id: string) => {
+  // 按需加载：deferred tab 首次成为 active 时补齐真实资源
+  const ensureSessionLoaded = useCallback(async (id: string) => {
     const session = sessionsRef.current.find(s => s.id === id)
-    if (session) {
-      const mode = session.kind
-      const isDeferred = !session.loaded
+    if (!session || session.loaded) return
 
-      // 恢复出来的 Terminal tab 没有真实 PTY，点击时新建一个并替换占位 tab
-      if (isDeferred && mode === 'terminal') {
-        try {
-          const real = await window.api.terminal.create({
-            cwd: session.cwd,
-            shell: getMainShellType(),
-            autoUtf8,
-            initCommand: readDefaultAgent(),
-          })
-          const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true, emoji: session.emoji }
-          setSessions(prev => {
-            const idx = prev.findIndex(s => s.id === id)
-            if (idx === -1) return prev
-            const next = prev.filter(s => s.id !== id)
-            next.splice(Math.min(idx, next.length), 0, realTab)
-            return next
-          })
-          setActiveSessionId(real.id)
-          applySessionTabPolicy(real.id)
-          return
-        } catch (err) {
-          console.error('Failed to restore terminal session:', err)
-        }
+    // 恢复出来的 Terminal tab 没有真实 PTY，加载时新建一个并替换占位 tab
+    if (session.kind === 'terminal') {
+      try {
+        const real = await window.api.terminal.create({
+          cwd: session.cwd,
+          shell: getMainShellType(),
+          autoUtf8,
+          initCommand: readDefaultAgent(),
+        })
+        const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true, emoji: session.emoji }
+        setSessions(prev => {
+          const idx = prev.findIndex(s => s.id === id)
+          if (idx === -1) return prev
+          const next = prev.filter(s => s.id !== id)
+          next.splice(Math.min(idx, next.length), 0, realTab)
+          return next
+        })
+        setActiveSessionId(prev => prev === id ? real.id : prev)
+      } catch (err) {
+        console.error('Failed to restore terminal session:', err)
       }
-
-      if (isDeferred && (mode === 'gui' || mode === 'dsh')) {
-        setSessions(prev => prev.map(s => s.id === id ? { ...s, loaded: true } : s))
-
-        if (mode === 'gui') {
-          const resumeSessionId = session.resumeSessionId
-          if (resumeSessionId) {
-            const resumeCwd = session.resumeCwd || session.cwd
-            if (resumeCwd !== session.cwd) {
-              setSessions(prev => prev.map(s => s.id === id ? { ...s, cwd: resumeCwd } : s))
-            }
-            void aiStore.resumeSession(id, resumeSessionId, resumeCwd, {
-              autoApprove: false,
-              permissionMode: 'bypassPermissions',
-              name: session.name,
-            }).then((result) => {
-              if (!result) return
-              if (result.cwd && result.cwd !== (sessionsRef.current.find(x => x.id === id)?.resumeCwd || session.cwd)) {
-                setSessions(prev => prev.map(s => s.id === id ? { ...s, cwd: result.cwd!, resumeCwd: result.cwd! } : s))
-              }
-              if (!result.resumed) {
-                setSessions(prev => prev.map(s => s.id === id ? { ...s, resumeSessionId: undefined, resumeCwd: undefined } : s))
-              }
-            }).catch(() => {})
-          }
-        }
-      }
+      return
     }
+
+    setSessions(prev => prev.map(s => s.id === id ? { ...s, loaded: true } : s))
+
+    if (session.kind === 'gui') {
+      const resumeSessionId = session.resumeSessionId
+      if (!resumeSessionId) return
+      const resumeCwd = session.resumeCwd || session.cwd
+      if (resumeCwd !== session.cwd) {
+        setSessions(prev => prev.map(s => s.id === id ? { ...s, cwd: resumeCwd } : s))
+      }
+      try {
+        const result = await aiStore.resumeSession(id, resumeSessionId, resumeCwd, {
+          autoApprove: false,
+          permissionMode: 'bypassPermissions',
+          name: session.name,
+        })
+        if (!result) return
+        if (result.cwd && result.cwd !== (sessionsRef.current.find(x => x.id === id)?.resumeCwd || session.cwd)) {
+          setSessions(prev => prev.map(s => s.id === id ? { ...s, cwd: result.cwd!, resumeCwd: result.cwd! } : s))
+        }
+        if (!result.resumed) {
+          setSessions(prev => prev.map(s => s.id === id ? { ...s, resumeSessionId: undefined, resumeCwd: undefined } : s))
+        }
+      } catch {}
+    }
+  }, [autoUtf8])
+
+  // deferred tab 经任意路径成为 active（点击 / Ctrl+方向键 / 看板）都自动加载
+  React.useEffect(() => {
+    if (activeSessionId) void ensureSessionLoaded(activeSessionId)
+  }, [activeSessionId, ensureSessionLoaded])
+
+  // Switch active session
+  const handleSwitchSession = useCallback((id: string) => {
     setActiveSessionId(id)
     applySessionTabPolicy(id)
-  }, [autoUtf8, applySessionTabPolicy])
+  }, [applySessionTabPolicy])
 
   // Execute a custom command — sends to AI input in GUI mode, terminal otherwise
   const handleExecuteCommand = useCallback((command: string) => {

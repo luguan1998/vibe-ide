@@ -65,7 +65,7 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           resumeSessionId: typeof t.resumeSessionId === 'string' ? t.resumeSessionId : undefined,
           resumeCwd: typeof t.resumeCwd === 'string' ? t.resumeCwd : undefined,
           dshSessionId: typeof t.dshSessionId === 'string' ? t.dshSessionId : undefined,
-          loaded: t.kind === 'dsh' ? false : !!t.loaded,
+          loaded: t.kind === 'terminal' ? !!t.loaded : false,
         })
       }
       if (tabs.length === 0) {
