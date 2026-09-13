@@ -21,6 +21,7 @@ export interface SessionTab {
   resumeSessionId?: string
   resumeCwd?: string
   dshSessionId?: string
+  aiBackend?: 'claude' | 'pi'
   loaded: boolean
 }
 
@@ -65,6 +66,7 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           resumeSessionId: typeof t.resumeSessionId === 'string' ? t.resumeSessionId : undefined,
           resumeCwd: typeof t.resumeCwd === 'string' ? t.resumeCwd : undefined,
           dshSessionId: typeof t.dshSessionId === 'string' ? t.dshSessionId : undefined,
+          aiBackend: t.aiBackend === 'pi' ? 'pi' : t.aiBackend === 'claude' ? 'claude' : undefined,
           loaded: t.kind === 'terminal' ? !!t.loaded : false,
         })
       }

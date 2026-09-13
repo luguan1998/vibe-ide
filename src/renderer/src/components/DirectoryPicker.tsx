@@ -5,8 +5,9 @@ import { useI18n } from '../i18n'
 import { useRecentDirs } from '../cwdStore'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
+import { PiLogoIcon } from './PiLogoIcon'
 
-export type SessionMode = 'term' | 'gui' | 'dsh'
+export type SessionMode = 'term' | 'gui' | 'dsh' | 'pi'
 
 interface DirEntry { name: string; path: string; type: string }
 
@@ -160,6 +161,7 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
     ) },
     { key: 'gui', label: 'Claude', icon: <ClaudeLogoIcon size={14} /> },
     { key: 'dsh', label: 'dsh', icon: <DeepSeekLogoIcon size={14} /> },
+    { key: 'pi', label: 'Pi', icon: <PiLogoIcon size={14} /> },
   ]
 
   const currentMode = modes.find(m => m.key === selectedMode) ?? modes[0]

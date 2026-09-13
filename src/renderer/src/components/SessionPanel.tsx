@@ -10,6 +10,7 @@ import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } f
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import { getMainShellType, setMainShellType, getAuxShellType, setAuxShellType } from '@renderer/utils/shellPrefs'
 import { setLastNewMode } from '@renderer/utils/sessionModePrefs'
+import type { SessionMode } from './DirectoryPicker'
 import SettingsPanel from './SettingsPanel'
 import { ModalOverlay } from './ModalOverlay'
 import AppearancePanel from './AppearancePanel'
@@ -17,6 +18,7 @@ import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
 import { FileIcon } from './FileIcons'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
+import { PiLogoIcon } from './PiLogoIcon'
 import { BOARD_FOCUS } from './BoardView'
 import { SessionGlyph, renderKindIcon } from '../sessionIcon'
 import { PanelGitIcon, PanelDirIcon, PanelSessionsIcon } from '../panelIcons'
@@ -260,7 +262,7 @@ interface SessionPanelProps {
   pipeRunning?: Record<string, boolean>
   pipeProgress?: Record<string, { current: number; total: number }>
   onCancelPipe?: (sessionId: string) => void
-  onNewSessionHere?: (cwd: string, mode: 'term' | 'gui' | 'dsh') => void
+  onNewSessionHere?: (cwd: string, mode: SessionMode) => void
   groupSessionsByCwd?: boolean
   onToggleGroupSessionsByCwd?: (v: boolean) => void
   showSessionButtons?: boolean
@@ -603,33 +605,35 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   // 换 emoji 反馈：一次性扫描显像动画
   const [revealSessionId, setRevealSessionId] = useState<string | null>(null)
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [newMode, setNewMode] = useState<'term' | 'gui' | 'dsh'>('term')
+  const [newMode, setNewMode] = useState<SessionMode>('term')
   // 勾选即记入内存，历史会话打开时按此默认
-  const pickNewMode = (mode: 'term' | 'gui' | 'dsh') => {
+  const pickNewMode = (mode: SessionMode) => {
     setNewMode(mode)
     setLastNewMode(mode)
   }
   // 新建类型菜单：勾选项置顶
   const newModesSorted = useMemo(() => {
-    const all = ['term', 'gui', 'dsh'] as const
-    return [newMode, ...all.filter(m => m !== newMode)] as ('term' | 'gui' | 'dsh')[]
+    const all: SessionMode[] = ['term', 'gui', 'dsh', 'pi']
+    return [newMode, ...all.filter(m => m !== newMode)]
   }, [newMode])
-  const renderModeIcon = (mode: 'term' | 'gui' | 'dsh') =>
+  const renderModeIcon = (mode: SessionMode) =>
     mode === 'term' ? (
       <ToolIcon category="command" className="text-ide-text-muted" />
     ) : mode === 'gui' ? (
       <ClaudeLogoIcon size={14} className="shrink-0 text-ide-text-muted" fill="currentColor" />
+    ) : mode === 'pi' ? (
+      <PiLogoIcon size={14} className="shrink-0 text-ide-text-muted" />
     ) : (
       <DeepSeekLogoIcon size={14} className="shrink-0 text-ide-text-muted" fill="currentColor" />
     )
-  const renderNewModeItem = (mode: 'term' | 'gui' | 'dsh', onPick: (mode: 'term' | 'gui' | 'dsh') => void) => (
+  const renderNewModeItem = (mode: SessionMode, onPick: (mode: SessionMode) => void) => (
     <button
       key={mode}
       className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
       onClick={() => { pickNewMode(mode); onPick(mode) }}
     >
       {renderModeIcon(mode)}
-      <span>{mode === 'term' ? t('Terminal') : mode === 'gui' ? 'Claude' : 'dsh'}</span>
+      <span>{mode === 'term' ? t('Terminal') : mode === 'gui' ? 'Claude' : mode === 'pi' ? 'Pi' : 'dsh'}</span>
       <span className="ml-auto flex items-center">
         {newMode === mode ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
       </span>
@@ -641,7 +645,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [groupQuickNewSubmenu, setGroupQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const groupQuickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const quickNewCwd = sessions.find(s => s.id === activeSessionId)?.cwd
-  const handleQuickNewSession = (mode: 'term' | 'gui' | 'dsh') => {
+  const handleQuickNewSession = (mode: SessionMode) => {
     if (quickNewCwd && onNewSessionHere) onNewSessionHere(quickNewCwd, mode)
     else onCreateSession(termType)
   }
@@ -2145,7 +2149,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           >
             <div className="grid grid-cols-7 gap-0.5">
               <button title={t('Type Icon')} className={cellCls(ov === undefined)} onClick={() => pick(undefined)}>
-                {pickSession ? renderKindIcon(pickSession.kind) : null}
+                {pickSession ? renderKindIcon(pickSession.kind, pickSession.aiBackend) : null}
               </button>
               <button title={t('Blank')} className={cellCls(ov === ICON_NONE)} onClick={() => pick(ICON_NONE)}>
                 <span className="w-3.5 h-3.5 rounded-sm border border-dashed border-ide-text-muted" />

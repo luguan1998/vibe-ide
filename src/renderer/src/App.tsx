@@ -3,6 +3,7 @@ import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffec
 import type { ReactNode } from 'react'
 import { getDshApi } from './dsh/history'
 import { loadSessionWorkspace, saveSessionWorkspace, randomTermEmoji, type Session, type SessionTab } from './sessionRestore'
+import type { SessionMode } from './components/DirectoryPicker'
 const DshView = lazy(() => import('./components/DshView'))
 import type { DshViewHandle } from './components/DshView'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
@@ -195,8 +196,8 @@ declare global {
       onStartupOpenPath: (callback: (data: { type: 'directory' | 'file'; path: string }) => void) => any
       removeStartupOpenPathListener: (handler?: any) => void
       ai: {
-        checkAvailable: (cliCommand?: string) => Promise<{ available: boolean; installCmd?: string; error?: string }>
-        create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; resumeSessionId?: string; cliCommand?: string; configDir?: string; model?: string; enableWorktree?: boolean; computerUse?: boolean; browserUse?: boolean }) => Promise<{ success: boolean; error?: string }>
+        checkAvailable: (cliCommand?: string, backend?: 'claude' | 'pi') => Promise<{ available: boolean; installCmd?: string; error?: string }>
+        create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; backend?: 'claude' | 'pi'; resumeSessionId?: string; cliCommand?: string; configDir?: string; model?: string; enableWorktree?: boolean; computerUse?: boolean; browserUse?: boolean }) => Promise<{ success: boolean; error?: string }>
         send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>
         cancel: (sessionId: string) => Promise<boolean>
         forceStop: (sessionId: string) => Promise<{ success: boolean; error?: string }>
@@ -207,6 +208,13 @@ declare global {
         setPermissionMode: (sessionId: string, mode: string) => Promise<{ success: boolean; error?: string }>
         setModel: (sessionId: string, model: string) => Promise<{ success: boolean; error?: string }>
         resolveModels: (sessionId?: string) => Promise<{ default: string; opus: string; sonnet: string; haiku: string }>
+        resolvePiModels: () => Promise<import('@shared/types').AiPiModelRow[]>
+        listPiSessions: (currentCwd?: string) => Promise<{ sessions: import('@shared/types').AiSessionSummary[]; total: number }>
+        searchPiSessions: (query: string, opts?: any) => Promise<{ sessions: import('@shared/types').AiSessionSearchGroup[]; truncated: boolean }>
+        loadPiSessionMessages: (sessionId: string, projectDir: string) => Promise<{ messages: any[]; model: string }>
+        deletePiSession: (sessionId: string, projectDir: string) => Promise<{ success: boolean; error?: string }>
+        piThinkingLevels: (sessionId: string) => Promise<{ levels: string[]; current: string | null } | null>
+        setPiThinkingLevel: (sessionId: string, level: string) => Promise<{ success: boolean; error?: string }>
         resolveSkills: (sessionId?: string, cwd?: string) => Promise<import('@shared/types').AiSlashCommand[]>
         sideQuestion: (sessionId: string, question: string) => Promise<{ success: boolean; response?: string | null; synthetic?: boolean; error?: string }>
         setContextWindow: (sessionId: string, contextWindow: number) => Promise<{ success: boolean; contextPercent?: number | null; error?: string }>
@@ -2112,21 +2120,28 @@ export default function App() {
   }, [activeSessionCwd])
 
   // 右键「新建」：在当前 cwd 直接创建对应类型，不弹目录选择
-  const handleNewSessionHere = useCallback(async (cwd: string, mode: 'term' | 'gui' | 'dsh') => {
+  // 新建 AI 会话：gui/dsh 落到会话 kind；pi 是 Claude GUI 的另一种后端（kind 仍是 gui）
+  const makeAiSessionTab = useCallback((session: SessionTab, mode: Exclude<SessionMode, 'term'>): SessionTab => (
+    mode === 'pi'
+      ? { ...session, kind: 'gui', aiBackend: 'pi', loaded: true }
+      : { ...session, kind: mode, loaded: true }
+  ), [])
+
+  const handleNewSessionHere = useCallback(async (cwd: string, mode: SessionMode) => {
     try {
       setIsOpening(true)
       if (mode === 'term') {
         await createTermSession(cwd)
       } else {
         const session = makeLocalSession(cwd)
-        addSessionRecord({ ...session, kind: mode, loaded: true })
+        addSessionRecord(makeAiSessionTab(session, mode))
       }
     } catch (err) {
       console.error('Failed to create session here:', err)
     } finally {
       setIsOpening(false)
     }
-  }, [createTermSession, addSessionRecord])
+  }, [createTermSession, addSessionRecord, makeAiSessionTab])
 
   // 组头终端下拉：在指定 cwd 新建终端并执行命令（initOverride 顶掉默认 agent 命令）
   const handleNewTermCommand = useCallback(async (cwd: string, command: string) => {
@@ -2140,7 +2155,7 @@ export default function App() {
     }
   }, [createTermSession])
 
-  const handleDirPickerConfirm = useCallback(async (cwd: string, mode: 'term' | 'gui' | 'dsh') => {
+  const handleDirPickerConfirm = useCallback(async (cwd: string, mode: SessionMode) => {
     setDirPicker(null)
     try { localStorage.setItem('vibe-ide-dirpicker-last-dir', cwd) } catch {}
     try {
@@ -2149,14 +2164,14 @@ export default function App() {
         await createTermSession(cwd, dirPicker?.shell)
       } else {
         const session = makeLocalSession(cwd)
-        addSessionRecord({ ...session, kind: mode, loaded: true })
+        addSessionRecord(makeAiSessionTab(session, mode))
       }
     } catch (err) {
       console.error('Failed to create session:', err)
     } finally {
       setIsOpening(false)
     }
-  }, [createTermSession, addSessionRecord, dirPicker])
+  }, [createTermSession, addSessionRecord, dirPicker, makeAiSessionTab])
 
   // Create a terminal session at a specific path (no directory picker)
   const handleCreateSessionAt = useCallback(async (cwd: string, shell: string = getMainShellType()) => {
@@ -2201,7 +2216,8 @@ export default function App() {
     const parentEmoji = parent?.emoji
     if (parentMode === 'gui' || parentMode === 'dsh') {
       const session = makeLocalSession(cwd, { name })
-      addSessionRecord({ ...session, kind: parentMode, loaded: true, emoji: parentEmoji }, parentId)
+      // 克隆继承父会话后端：pi 会话克隆出来仍是 pi（否则默认回落到 Claude）
+      addSessionRecord({ ...session, kind: parentMode, loaded: true, emoji: parentEmoji, ...(parent?.aiBackend ? { aiBackend: parent.aiBackend } : {}) }, parentId)
       return
     }
     try {
@@ -3093,6 +3109,19 @@ export default function App() {
     }
   }, [addSessionRecord])
 
+  // pi 历史恢复：新会话按 pi 后端建，resumeSessionId = pi 会话 id（主进程 --session 续聊 + 历史回放）
+  const handleResumePiHistory = useCallback(async (piSessionId: string, cwd: string, name: string) => {
+    try {
+      setIsOpening(true)
+      const session = makeLocalSession(cwd, { name: name || undefined })
+      addSessionRecord({ ...session, kind: 'gui', aiBackend: 'pi', resumeSessionId: piSessionId, resumeCwd: cwd, loaded: true })
+    } catch (err) {
+      console.error('Failed to resume pi history:', err)
+    } finally {
+      setIsOpening(false)
+    }
+  }, [addSessionRecord])
+
   const handleResumeClaudeHistory = useCallback(async (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => {
     try {
       setIsOpening(true)
@@ -3545,6 +3574,7 @@ export default function App() {
                           await applyRename(session.id, name)
                         }}
                         resumeSessionId={session.resumeSessionId}
+                        backend={session.aiBackend ?? 'claude'}
                         onForkSession={(userMessageIndex: number, content?: string, occurrence?: number) => {
                           handleForkSession(session.id, userMessageIndex, content, occurrence)
                         }}
@@ -3674,6 +3704,7 @@ export default function App() {
             brushActive={brushActive}
             onResumeClaudeHistory={handleResumeClaudeHistory}
             onResumeDshHistory={handleResumeDshHistory}
+            onResumePiHistory={handleResumePiHistory}
             historyNavNonce={historyNavNonce}
             browserDocked={browserDocked}
             browserDockNonce={browserDockNonce}

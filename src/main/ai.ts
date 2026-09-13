@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, app } from 'electron'
+import { ipcMain, app } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
 import { readFile, readdir, stat, rm } from 'fs/promises'
@@ -6,8 +6,17 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join, isAbsolute, relative, basename } from 'path'
 import { setGitMetaPaused } from './watcher'
 import { homedir } from 'os'
+import { send, setAiMainWindow, setRendererVisible, sanitizeEnvForCli } from './ai-shared'
+import {
+  hasPiSession, createPiSession, sendPiTurn, cancelPiTurn, forceStopPi, destroyPiSession, cleanupPiSessions,
+  setPiModel, piContextInfo, setPiContextWindow, respondPiPermission, resolvePiModels, resolvePiCommands, findPiBinary,
+  piThinkingLevels, setPiThinkingLevel,
+} from './pi'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS, DEFAULT_AI_CONTEXT_WINDOW, asToolArray } from '../shared/types'
-import type { AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, AiSideQuestionPayload, AiSetContextWindowPayload, AiSlashCommand, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
+import type { AiBackend, AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, AiSideQuestionPayload, AiSetContextWindowPayload, AiSlashCommand, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
+
+// 其余主进程模块（ai-plan-execute/ai-revert/index）仍从 './ai' 取这两个
+export { send, setAiMainWindow }
 
 export interface ManagedAiSession {
   process: ChildProcess
@@ -151,21 +160,8 @@ function dropSideQuestionsForSession(sessionId: string, reason: string): void {
     if (p.sessionId === sessionId) settleSideQuestion(reqId, { success: false, error: reason })
   }
 }
-let mainWindow: BrowserWindow | null = null
-
-// 窗口可能在运行期重建（macOS activate 等），快照引用会失效，
-// 由 index.ts 在窗口创建/销毁时同步更新。
-export function setAiMainWindow(win: BrowserWindow | null): void {
-  mainWindow = win
-}
-let rendererVisible = true
-
-export function send(channel: string, data: any): void {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    if (channel === IPC_CHANNELS.AI_STREAM_TOKEN && !rendererVisible) return
-    mainWindow.webContents.send(channel, data)
-  }
-}
+// 窗口与推送 helper 拆到 ai-shared：pi 后端同样要推送 AI_* 事件，
+// 留在本文件会与 ai.ts → pi 的依赖形成环。
 
 const AI_INSTALL_CMD = 'npm install -g @anthropic-ai/claude-code@latest'
 
@@ -184,23 +180,6 @@ function findBinary(customCommand?: string): BinaryResult {
   return { error: `Claude CLI not found. Install with: ${AI_INSTALL_CMD}`, installCmd: AI_INSTALL_CMD }
 }
 
-// Sanitize env on Windows: Git Bash / MSYS2 leaks Unix-style vars (HOME, SHELL, OSTYPE, …)
-// that confuse the CLI's OS detection. Strip them so the subprocess sees a clean Windows env.
-function sanitizeEnvForCli(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const childEnv: NodeJS.ProcessEnv = { ...env }
-  if (process.platform === 'win32') {
-    const unixVars = [
-      'HOME', 'SHELL', 'TERM',
-      'MSYSTEM', 'MINGW_PREFIX', 'MINGW_CHOST', 'MSYS',
-      'MSYS2_PATH_TYPE', 'MANPATH', 'INFOPATH',
-      'HOSTTYPE', 'MACHTYPE', 'OSTYPE',
-      'PKG_CONFIG_PATH', 'ORIGINAL_PATH', 'ORIGINAL_TEMP',
-      'ORIGINAL_TMP',
-    ]
-    for (const v of unixVars) delete childEnv[v]
-  }
-  return childEnv
-}
 
 // Build the standard Claude CLI arg list (stream-json + permission-prompt-tool stdio).
 // Explicit platform description is appended to --append-system-prompt as a safety net
@@ -1742,7 +1721,7 @@ export function resumeAfterAsk(sessionId: string, answers: Record<string, string
 export function registerAiHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.AI_SET_VISIBLE, (_event, visible: boolean) => {
-    rendererVisible = !!visible
+    setRendererVisible(!!visible)
   })
 
   // 任意 agent(running)→ 暂停 .git 元数据监听(AI 每轮裸 git 命令刷 index 会反射成
@@ -1788,13 +1767,25 @@ export function registerAiHandlers(): void {
     return true
   })
 
-  // Check if claude/openclaude/opencc CLI is available
-  ipcMain.handle(IPC_CHANNELS.AI_CHECK_AVAILABLE, (_event, cliCommand?: string) => {
-    const result = findBinary(cliCommand || undefined)
+  // Check if claude/openclaude/opencc (or pi, per backend) CLI is available
+  ipcMain.handle(IPC_CHANNELS.AI_CHECK_AVAILABLE, (_event, cliCommand?: string, backend?: AiBackend) => {
+    const result = backend === 'pi' ? findPiBinary() : findBinary(cliCommand || undefined)
     if ('binary' in result) {
       return { available: true, binary: result.binary }
     }
     return { available: false, error: result.error, installCmd: result.installCmd }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AI_RESOLVE_PI_MODELS, async () => {
+    return (await resolvePiModels()) ?? []
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AI_PI_THINKING_LEVELS, async (_event, sessionId: string) => {
+    return piThinkingLevels(sessionId)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AI_PI_SET_THINKING_LEVEL, (_event, sessionId: string, level: string) => {
+    return setPiThinkingLevel(sessionId, level)
   })
 
   // Resolve a config-dir input (bare name → ~/name, ~/x → home-relative, absolute → as-is) to
@@ -1808,6 +1799,8 @@ export function registerAiHandlers(): void {
   // Spawn claude/openclaude/opencc subprocess
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
     const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, configDir, enableWorktree, computerUse, browserUse } = options
+
+    if (options.backend === 'pi') return createPiSession(options)
 
     const existing = aiSessions.get(sessionId)
     if (existing) {
@@ -1852,6 +1845,7 @@ export function registerAiHandlers(): void {
 
   // Send user message via stdin
   ipcMain.handle(IPC_CHANNELS.AI_SEND, (_event, payload: AiSendPayload) => {
+    if (hasPiSession(payload.sessionId)) return sendPiTurn(payload.sessionId, payload.message)
     const session = aiSessions.get(payload.sessionId)
     if (!session || !session.ready) return { success: false, error: 'AI not ready' }
     // AskUserQuestion kills the subprocess while waiting for an answer — stdin is a dead
@@ -1873,6 +1867,9 @@ export function registerAiHandlers(): void {
 
   // Respond to permission request
   ipcMain.handle(IPC_CHANNELS.AI_PERMISSION_RESPONSE, (_event, payload: AiPermissionResponsePayload) => {
+    if (hasPiSession(payload.sessionId)) {
+      return respondPiPermission(payload.sessionId, payload.requestId, payload.approved, payload.toolInput, payload.feedback)
+    }
     const session = aiSessions.get(payload.sessionId)
     if (!session) return { success: false, error: 'Session not found' }
 
@@ -1926,6 +1923,7 @@ export function registerAiHandlers(): void {
   // Switch model at runtime via control_request subtype=set_model.
   // CLI resolves aliases (opus/sonnet/haiku) via ANTHROPIC_DEFAULT_*_MODEL env vars.
   ipcMain.handle(IPC_CHANNELS.AI_SET_MODEL, (_event, payload: AiSetModelPayload) => {
+    if (hasPiSession(payload.sessionId)) return setPiModel(payload.sessionId, payload.model)
     const session = aiSessions.get(payload.sessionId)
     if (!session) return { success: false, error: 'Session not found' }
 
@@ -1972,6 +1970,10 @@ export function registerAiHandlers(): void {
   })
 
   ipcMain.handle(IPC_CHANNELS.AI_RESOLVE_SKILLS, async (_event, sessionId?: string, cwdArg?: string) => {
+    if (sessionId && hasPiSession(sessionId)) {
+      const commands = await resolvePiCommands()
+      return commands ?? []
+    }
     const session = sessionId ? aiSessions.get(sessionId) : undefined
     return scanCustomSlashCommands(session?.cwd || cwdArg || '', session?.configDir)
   })
@@ -2003,6 +2005,7 @@ export function registerAiHandlers(): void {
 
   // Manually set max context window (tokens) for a session; persisted by claudeSessionId.
   ipcMain.handle(IPC_CHANNELS.AI_SET_CONTEXT_WINDOW, (_event, payload: AiSetContextWindowPayload) => {
+    if (hasPiSession(payload.sessionId)) return setPiContextWindow(payload.sessionId, payload.contextWindow)
     const session = aiSessions.get(payload.sessionId)
     if (!session) return { success: false, error: 'Session not found' }
     const tokens = Math.max(1000, Math.round(payload.contextWindow))
@@ -2014,6 +2017,7 @@ export function registerAiHandlers(): void {
 
   // Current context occupancy facts for the ring's info row (used / max tokens).
   ipcMain.handle(IPC_CHANNELS.AI_GET_CONTEXT_INFO, (_event, sessionId: string) => {
+    if (hasPiSession(sessionId)) return piContextInfo(sessionId)
     const session = aiSessions.get(sessionId)
     if (!session) return null
     const usage = session.lastUsage
@@ -2023,6 +2027,7 @@ export function registerAiHandlers(): void {
 
   // Cancel current operation — send interrupt via stdin (CLI handles it gracefully)
   ipcMain.handle(IPC_CHANNELS.AI_CANCEL, (_event, sessionId: string) => {
+    if (hasPiSession(sessionId)) return cancelPiTurn(sessionId)
     const session = aiSessions.get(sessionId)
     if (!session || !session.ready) return false
     session.cancelRequested = true
@@ -2037,6 +2042,7 @@ export function registerAiHandlers(): void {
   // Force stop — kill + --resume respawn so the conversation survives even when the CLI
   // is stuck in a long tool/sub-agent that ignores interrupt.
   ipcMain.handle(IPC_CHANNELS.AI_FORCE_STOP, (_event, sessionId: string) => {
+    if (hasPiSession(sessionId)) return forceStopPi(sessionId)
     const session = aiSessions.get(sessionId)
     if (!session) return { success: false, error: 'Session not found' }
     const claudeSessionId = session.claudeSessionId
@@ -2080,6 +2086,7 @@ export function registerAiHandlers(): void {
 
   // Destroy session entirely
   ipcMain.handle(IPC_CHANNELS.AI_DESTROY, async (_event, sessionId: string) => {
+    if (hasPiSession(sessionId)) return destroyPiSession(sessionId)
     const session = aiSessions.get(sessionId)
     if (!session) return false
     // Deregister first so a concurrent create with the same id (mujica respawn)
@@ -2116,6 +2123,7 @@ export function registerAiHandlers(): void {
 }
 
 export function cleanupAiSessions(): void {
+  cleanupPiSessions()
   for (const [sid, session] of aiSessions) {
     if (session.computerUse) { try { require('./computer-use').stopForSession(sid) } catch {} }
     if (session.browserUse) { try { require('./browser-use').stopForSession(sid) } catch {} }

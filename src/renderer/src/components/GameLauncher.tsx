@@ -15,6 +15,7 @@ interface GameLauncherProps {
   panelWide?: boolean
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
+  onResumePiHistory?: (piSessionId: string, cwd: string, name: string) => void
   historyNavNonce?: number
   onOpenFileFromExplorer?: (fullPath: string) => void
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
@@ -40,7 +41,7 @@ const GAMES: GameCard[] = [
   { id: 'vampire', icon: <span className="text-2xl leading-none">🧛</span>, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
-export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeHistory, onResumeDshHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown, onOpenBrowser }: GameLauncherProps) {
+export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeHistory, onResumeDshHistory, onResumePiHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown, onOpenBrowser }: GameLauncherProps) {
   const [currentGame, setCurrentGame] = useState<GameId>('menu')
   const lastHistoryNonce = useRef(0)
   useEffect(() => {
@@ -58,7 +59,7 @@ export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeH
   if (currentGame !== 'menu') {
     const back = () => setCurrentGame('menu')
     switch (currentGame) {
-      case 'history': return <HistoryView onBack={back} workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} />
+      case 'history': return <HistoryView onBack={back} workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} onResumePiHistory={onResumePiHistory} />
       case 'skills': return <SkillView onBack={back} workspacePath={workspacePath} onOpenFile={onOpenFileFromExplorer ?? (() => {})} onPreviewFile={onPreviewMarkdown ? (p) => onPreviewMarkdown(p, p.split(/[\\/]/).pop() || p) : undefined} />
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />

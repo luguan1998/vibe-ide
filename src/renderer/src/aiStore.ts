@@ -1,9 +1,10 @@
 import { useSyncExternalStore, useCallback } from 'react'
-import type { AiMessage, AiSessionState, AiSlashCommand, AiPermissionMode, AiPermissionRequest, UserTurn } from '@shared/types'
+import type { AiBackend, AiMessage, AiSessionState, AiSlashCommand, AiPermissionMode, AiPermissionRequest, UserTurn } from '@shared/types'
 
 // ── 纯函数 & 常量(从 AiTab.tsx 抽出,供 store 与组件共用)──
 
 export const EMPTY_SESSION: AiSessionState = {
+  backend: 'claude',
   ready: false, busy: false, messages: [],
   streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null, pendingPermission: null,
   slashCommands: [], model: '', contextPercent: null, name: '',
@@ -108,6 +109,7 @@ interface EnsureCreatedOpts {
   cwd: string
   autoApprove: boolean
   permissionMode: AiPermissionMode
+  backend?: AiBackend
   resumeSessionId?: string
   cliCommand?: string
   configDir?: string
@@ -153,8 +155,8 @@ export const aiStore = {
     setStates(prev => {
       if (!(sid in prev)) return prev
       const next = { ...prev }
-      // destroy+重建（worktree/新会话/GUI 开关切换）保留会话级操控标记
-      next[sid] = { ...EMPTY_SESSION, computerUse: prev[sid].computerUse, browserUse: prev[sid].browserUse }
+      // destroy+重建（worktree/新会话/GUI 开关切换）保留会话级操控标记与后端选择
+      next[sid] = { ...EMPTY_SESSION, backend: prev[sid].backend, computerUse: prev[sid].computerUse, browserUse: prev[sid].browserUse }
       return next
     })
   },
@@ -173,9 +175,18 @@ export const aiStore = {
   // 空表 = 内置表 + 自定义；已有权威表 = 只并入缺的自定义项（新建 skill 免重启可见）
   async fetchSlashCommands(sid: string) {
     if (!sid) return
+    const backend = sessionStates[sid]?.backend ?? 'claude'
     try {
       const cwd = sessionStates[sid]?.cwd || ''
       const custom = (await window.api.ai.resolveSkills(sid, cwd)) || []
+      if (backend === 'pi') {
+        // pi 的斜杠命令全部来自 get_commands 探测，没有 Claude 内置表可并入
+        const next = custom
+          .filter(c => c.name)
+          .map(c => ({ name: c.name, description: c.description || c.name }))
+        aiStore.updateSession(sid, (s) => ({ ...s, slashCommands: next }))
+        return
+      }
       aiStore.updateSession(sid, (s) => {
         const known = new Set(s.slashCommands.map(c => c.name))
         const extra = custom
@@ -202,16 +213,18 @@ export const aiStore = {
     if (createdSessions.has(sid)) return
     createdSessions.add(sid)
     const fallback = readAiCliConfig()
-    const cliCommand = opts.cliCommand ?? fallback.cliCommand
+    const backend: AiBackend = opts.backend ?? 'claude'
+    const cliCommand = backend === 'claude' ? (opts.cliCommand ?? fallback.cliCommand) : undefined
     const configDir = opts.configDir ?? fallback.configDir
-    window.api.ai.checkAvailable(cliCommand).then((result: any) => {
+    window.api.ai.checkAvailable(cliCommand, backend).then((result: any) => {
       if (!result.available) {
         aiStore.updateSession(sid, () => ({
           ...EMPTY_SESSION,
+          backend,
           ready: true,
           messages: [{
             sessionId: sid, type: 'result' as const,
-            error: result.error || 'Claude CLI not found',
+            error: result.error || (backend === 'pi' ? 'Pi CLI not found' : 'Claude CLI not found'),
             installCmd: result.installCmd,
             timestamp: Date.now(),
           }],
@@ -225,6 +238,7 @@ export const aiStore = {
           cwd: createCwd,
           autoApprove: opts.autoApprove,
           permissionMode: opts.permissionMode,
+          backend,
           ...(opts.resumeSessionId ? { resumeSessionId: opts.resumeSessionId } : {}),
           ...(cliCommand ? { cliCommand } : {}),
           ...(configDir ? { configDir } : {}),
@@ -235,6 +249,7 @@ export const aiStore = {
         })
         aiStore.updateSession(sid, (s) => ({
           ...EMPTY_SESSION,
+          backend,
           cwd: createCwd,
           messages,
           model,
@@ -246,9 +261,9 @@ export const aiStore = {
           fileChangesByTurn: s.fileChangesByTurn,
         }))
       }
-      if (opts.resumeSessionId) {
+      if (opts.resumeSessionId && backend === 'claude') {
         // CLI --resume 不重放历史事件流，须先从 JSONL 预填历史（与 resumeSession 一致），
-        // 否则 fork/恢复的新会话渲染空白
+        // 否则 fork/恢复的新会话渲染空白。pi 的历史由主进程 get_messages 回放。
         window.api.ai.loadSessionMessages(opts.resumeSessionId, opts.cwd, configDir)
           .then((history: any) => finish(history?.messages || [], history?.model || '', history?.slashCommands || [], history?.actualCwd))
           .catch(() => finish([], '', []))
@@ -258,6 +273,7 @@ export const aiStore = {
     }).catch(() => {
       aiStore.updateSession(sid, () => ({
         ...EMPTY_SESSION,
+        backend,
         ready: true,
         messages: [{
           sessionId: sid, type: 'result' as const,
@@ -379,8 +395,8 @@ export const aiStore = {
       runningTools: {},
     }))
     // pause 强杀后 CLI --resume 会 fork 出新报文（无 result 事件），
-    // 重拉真实轮次，否则回退节点停留在旧报文上
-    aiStore.refreshUserTurns(sid)
+    // 重拉真实轮次，否则回退节点停留在旧报文上。pi 无 JSONL 轮次域，跳过。
+    if ((sessionStates[sid]?.backend ?? 'claude') === 'claude') aiStore.refreshUserTurns(sid)
   },
 }
 
@@ -562,6 +578,8 @@ function initListeners() {
         // 子代理消息（parentToolUseId）的 percent 是子代理自身上下文，勿覆盖 session 级
         contextPercent: msg.contextPercent != null && !msg.parentToolUseId ? Math.round(msg.contextPercent) : s0.contextPercent,
         runningTools,
+        // pi 的权限请求超时由 agent 侧自动 resolve，轮次结束即作废，卡片不滞留
+        pendingPermission: msg.type === 'result' && s0.backend === 'pi' ? null : s0.pendingPermission,
         interjectingAt: msg.type === 'result' ? (interjectCutover ? s0.interjectingAt : undefined) : undefined,
       }
     })
@@ -655,15 +673,16 @@ function initListeners() {
   })
 
   // ── onReady ──
-  window.api.ai.onReady(({ sessionId, slashCommands, model, worktreePath }: any) => {
+  window.api.ai.onReady(({ sessionId, slashCommands, model, worktreePath, thinkingLevel }: any) => {
     const commands = enrichSlashCommands(slashCommands || [])
     aiStore.updateSession(sessionId, (s) => ({
       // spawn 时的空壳 ready（及 revert 的 slashCommands:[]）不得清空已扫出的命令表
       ...s, ready: true, busy: s.busy, slashCommands: commands.length > 0 ? commands : s.slashCommands,
       model: model || s.model || '',
       worktreePath: worktreePath || s.worktreePath,
+      thinkingLevel: thinkingLevel || s.thinkingLevel,
     }))
-    aiStore.refreshUserTurns(sessionId)
+    if ((sessionStates[sessionId]?.backend ?? 'claude') === 'claude') aiStore.refreshUserTurns(sessionId)
   })
 
   // ── onError ──

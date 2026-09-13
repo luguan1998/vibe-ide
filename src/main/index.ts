@@ -11,6 +11,7 @@ import { registerPlanExecuteHandlers } from './ai-plan-execute'
 import { registerAskResumeHandlers } from './ai-ask-resume'
 import { registerRevertHandlers } from './ai-revert'
 import { registerHistoryHandlers } from './ai-history'
+import { registerPiHistoryHandlers } from './pi'
 import { registerGitHandlers } from './git'
 import { registerPrHandlers } from './pr'
 import { registerBoardHandlers } from './board'
@@ -249,6 +250,7 @@ app.whenReady().then(() => {
   registerAskResumeHandlers()
   registerRevertHandlers()
   registerHistoryHandlers()
+  registerPiHistoryHandlers()
 
   // Clamp zoom to 100% — prevents Chromium's built-in page zoom from eating Ctrl+= / Ctrl+-
   if (mainWindow) {

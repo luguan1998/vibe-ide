@@ -7,13 +7,16 @@ import { useSchedTasks } from './schedStore'
 import { ToolIcon } from './components/AiTab/tools'
 import { ClaudeLogoIcon } from './components/ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './components/DeepSeekLogoIcon'
+import { PiLogoIcon } from './components/PiLogoIcon'
 
-// 会话类型图标（term→ToolIcon(command) / gui→Claude / dsh→DeepSeek），SessionPanel 与 BoardView 共用
-export function renderKindIcon(kind: SessionTab['kind']) {
+// 会话类型图标（term→ToolIcon(command) / gui→Claude / gui+pi→Pi / dsh→DeepSeek），SessionPanel 与 BoardView 共用
+export function renderKindIcon(kind: SessionTab['kind'], aiBackend?: SessionTab['aiBackend']) {
   return kind === 'terminal' ? (
     <ToolIcon category="command" className="text-ide-accent" />
   ) : kind === 'gui' ? (
-    <ClaudeLogoIcon size={14} className="shrink-0" />
+    aiBackend === 'pi'
+      ? <PiLogoIcon size={14} className="shrink-0 text-ide-accent" />
+      : <ClaudeLogoIcon size={14} className="shrink-0" />
   ) : (
     <DeepSeekLogoIcon size={14} className="shrink-0" />
   )
@@ -53,7 +56,7 @@ export function SessionGlyph({ session, status, worktreeNav, reveal, onClick, on
     : 'idle' as const
   const clickable = state === 'scheduled' || state === 'idle' || state === 'running'
   const showEmojiHint = (state === 'idle' || state === 'running') && !reveal
-  const idleGlyph = blankIcon ? '' : (curEmoji ?? renderKindIcon(session.kind))
+  const idleGlyph = blankIcon ? '' : (curEmoji ?? renderKindIcon(session.kind, session.aiBackend))
   const glyph = state === 'scheduled' ? '⏰'
     : state === 'worktree' ? '🌿'
     : state === 'running'
@@ -66,7 +69,7 @@ export function SessionGlyph({ session, status, worktreeNav, reveal, onClick, on
     : state === 'worktree' ? (worktreePath || 'Worktree')
     : state === 'running' ? t('Running')
     : state === 'warn' ? t('Warning')
-    : (blankIcon ? t('Blank') : session.kind === 'terminal' ? t('Terminal') : session.kind === 'gui' ? 'Claude' : 'dsh')
+    : (blankIcon ? t('Blank') : session.kind === 'terminal' ? t('Terminal') : session.kind === 'gui' ? (session.aiBackend === 'pi' ? 'Pi' : 'Claude') : 'dsh')
   return (
     <span
       className={`group/glyph relative text-[13px] shrink-0 w-4 h-4 flex items-center justify-center select-none transition-colors session-item__icon${clickable ? ' cursor-pointer hover:bg-ide-hover rounded' : ''}`}

@@ -268,8 +268,8 @@ const api = {
 
   // AI (OpenClaude) operations
   ai: {
-    checkAvailable: (cliCommand?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.AI_CHECK_AVAILABLE, cliCommand),
+    checkAvailable: (cliCommand?: string, backend?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_CHECK_AVAILABLE, cliCommand, backend),
     listSessions: (cwd?: string, configDir?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_SESSIONS, cwd, configDir),
     deleteSession: (sessionId: string, cwd: string, configDir?: string) =>
@@ -308,6 +308,20 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_MODEL, { sessionId, model }),
     resolveModels: (sessionId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_RESOLVE_MODELS, sessionId),
+    resolvePiModels: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_RESOLVE_PI_MODELS),
+    listPiSessions: (currentCwd?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_PI_SESSIONS, currentCwd),
+    searchPiSessions: (query: string, opts?: any) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_SEARCH_PI_SESSIONS, query, opts),
+    loadPiSessionMessages: (sessionId: string, projectDir: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_LOAD_PI_SESSION_MESSAGES, sessionId, projectDir),
+    deletePiSession: (sessionId: string, projectDir: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_DELETE_PI_SESSION, sessionId, projectDir),
+    piThinkingLevels: (sessionId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_PI_THINKING_LEVELS, sessionId),
+    setPiThinkingLevel: (sessionId: string, level: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_PI_SET_THINKING_LEVEL, sessionId, level),
     resolveSkills: (sessionId?: string, cwd?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_RESOLVE_SKILLS, sessionId, cwd),
     sideQuestion: (sessionId: string, question: string) =>

@@ -50,6 +50,7 @@ interface RightPanelProps {
   onWorktreeNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
+  onResumePiHistory?: (piSessionId: string, cwd: string, name: string) => void
   historyNavNonce?: number
   browserDocked?: boolean
   browserDockNonce?: number
@@ -462,6 +463,7 @@ function RightPanel({
   onWorktreeNavChange,
   onResumeClaudeHistory,
   onResumeDshHistory,
+  onResumePiHistory,
   historyNavNonce,
   browserDocked,
   browserDockNonce,
@@ -738,7 +740,7 @@ function RightPanel({
       </div>
 
       <div ref={gameContentRef} tabIndex={-1} style={{ display: activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden relative">
-        <GameLauncher workspacePath={workspacePath} panelWide={panelWide} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} historyNavNonce={historyNavNonce} onOpenFileFromExplorer={onOpenFileFromExplorer} onPreviewMarkdown={onPreviewMarkdown} onOpenBrowser={onOpenBrowser} />
+        <GameLauncher workspacePath={workspacePath} panelWide={panelWide} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} onResumePiHistory={onResumePiHistory} historyNavNonce={historyNavNonce} onOpenFileFromExplorer={onOpenFileFromExplorer} onPreviewMarkdown={onPreviewMarkdown} onOpenBrowser={onOpenBrowser} />
         {browserDocked && (
           <div className="absolute inset-0 z-10 flex flex-col bg-ide-bg">
             <BrowserView

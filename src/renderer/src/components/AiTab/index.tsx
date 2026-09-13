@@ -12,9 +12,11 @@ import { StreamingMarkdown } from './markdown'
 import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard, AiPermErrorBoundary } from './permissions'
-import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, ModeSelector } from './inputArea'
+import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, PiModelBadge, PiThinkingLevelSelector, ModeSelector } from './inputArea'
 import type { MentionItem } from './inputArea'
 import { ClaudeLogoIcon } from '../ClaudeLogoIcon'
+import { PiLogoIcon } from '../PiLogoIcon'
+import type { AiBackend } from '@shared/types'
 function formatBytes(n: number): string {
   if (n < 1000) return `${n} B`
   if (n < 1000000) return `${(n / 1000).toFixed(1)} kB`
@@ -28,6 +30,7 @@ interface AiTabProps {
   autoApprove: boolean
   permissionMode: AiPermissionMode
   onPermissionModeChange: (mode: AiPermissionMode) => void
+  backend: AiBackend
   onViewAi: () => void
   onRenameSession: (name: string) => void
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
@@ -59,7 +62,7 @@ const BUSY_QUIPS = [
   'A bug in time saves nine…',
   'Long live the open-source rebellion…',
 ]
-const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -137,6 +140,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const [viewMode, setViewMode] = useState(0) // 0=all, 1=hide tools, 2=hide tools+think
   const [worktreeEnabled, setWorktreeEnabled] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
+
+  // 后端在建会话时定死（新会话菜单选 Pi 类型），头像只作标识
+  const isPi = backend === 'pi'
 
   // Close session history on outside click + Escape
   useEffect(() => {
@@ -329,14 +335,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       cwd: workspacePath,
       autoApprove,
       permissionMode,
+      backend,
       ...(resumeSessionId ? { resumeSessionId } : {}),
       cliCommand,
       configDir,
-      ...(worktreeEnabled ? { enableWorktree: true } : {}),
+      ...(worktreeEnabled && !isPi ? { enableWorktree: true } : {}),
       computerUse: state.computerUse,
       browserUse: state.browserUse,
     })
-  }, [activeSessionId, workspacePath, worktreeEnabled])
+  }, [activeSessionId, workspacePath, worktreeEnabled, backend, isPi])
 
   // ── Cleanup destroyed sessions ──
   const handleDestroySession = useCallback((sessionId: string) => {
@@ -572,6 +579,20 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         ...(isClear ? { fileChangesByTurn: [], userTurns: [] } : {}),
       }
     })
+    // pi 没有 /clear 命令：等价的用户语义 = 丢掉当前 pi 会话，换一个全新进程/会话
+    if (isPi && isClear) {
+      handleDestroySession(activeSessionId)
+      const { cliCommand, configDir } = readAiCliConfig()
+      aiStore.ensureCreated(activeSessionId, {
+        cwd: workspacePath || '',
+        autoApprove,
+        permissionMode,
+        backend: 'pi',
+        cliCommand,
+        configDir,
+      })
+      return
+    }
     const sent = await window.api.ai.send(activeSessionId, message)
     if (!sent?.success && !isClear) {
       // 发送失败（会话未就绪/进程已死，常见于 pause 强杀后的 respawn 窗口）：这条消息
@@ -582,7 +603,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         messages: s.messages.filter(m => m !== userMsg),
       }))
     }
-  }, [activeSessionId, updateSession])
+  }, [activeSessionId, updateSession, isPi, handleDestroySession, workspacePath, autoApprove, permissionMode])
 
   dispatchMessageRef.current = dispatchMessage
 
@@ -841,6 +862,11 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   }, [lastOpenedFile, workspacePath])
 
   const showEmptyCenter = state.messages.length === 0 && !state.streaming
+  // pi 的 select/input/editor 复用问答卡，但回执走 extension_ui_response（普通权限通道），
+  // claude 的 AskUserQuestion 才需要 kill+resume；按 piUiId 标记分流。
+  const answerResponder = state.pendingPermission?.toolInput?.piUiId != null || state.pendingPermission?.tool !== 'AskUserQuestion'
+    ? aiStore.handlePermissionResponse
+    : aiStore.handleAskResume
 
   const inputArea = (
       <div className="ai-tab__input-area shrink-0 w-full max-w-[928px] mx-auto px-2 pt-2 pb-0">
@@ -848,7 +874,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           {slashMenuOpen && (
             <div className="absolute bottom-full left-0 right-0 mb-1 z-20">
               <SlashCommandAutocomplete
-                commands={state.slashCommands.length > 0 ? state.slashCommands : enrichSlashCommands(Object.keys(SLASH_COMMAND_DESCRIPTIONS))}
+                commands={state.slashCommands.length > 0 || isPi ? state.slashCommands : enrichSlashCommands(Object.keys(SLASH_COMMAND_DESCRIPTIONS))}
                 filter={slashFilter}
                 selectedIndex={slashSelectedIndex}
                 onSelect={(cmd) => {
@@ -952,7 +978,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                     }
                   }
                   if (slashMenuOpen) {
-                    const activeCommands = state.slashCommands.length > 0 ? state.slashCommands : enrichSlashCommands(Object.keys(SLASH_COMMAND_DESCRIPTIONS))
+                    const activeCommands = state.slashCommands.length > 0 || isPi ? state.slashCommands : enrichSlashCommands(Object.keys(SLASH_COMMAND_DESCRIPTIONS))
                     const filtered = activeCommands.filter(c => c.name.toLowerCase().startsWith(slashFilter.toLowerCase()))
                     if (e.key === 'ArrowDown') {
                       e.preventDefault()
@@ -1038,10 +1064,20 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   >
                     <Plus size={14} strokeWidth={2} />
                   </button>
-                  <ModeSelector
-                    value={permissionMode}
-                    onChange={onPermissionModeChange}
-                  />
+                  {isPi ? (
+                    <PiThinkingLevelSelector
+                      value={state.thinkingLevel}
+                      sessionId={activeSessionId}
+                      onChange={(level) => {
+                        if (activeSessionId) aiStore.updateSession(activeSessionId, (s) => ({ ...s, thinkingLevel: level }))
+                      }}
+                    />
+                  ) : (
+                    <ModeSelector
+                      value={permissionMode}
+                      onChange={onPermissionModeChange}
+                    />
+                  )}
                 </div>
                 {lastFile && (
                   <button
@@ -1067,7 +1103,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
               {/* RIGHT: model badge + context bar + Send/Cancel */}
               <div className="ai-tab__toolbar-right flex items-center gap-1 min-w-0">
-                <ModelBadge model={state.model} sessionId={activeSessionId} />
+                {isPi
+                  ? <PiModelBadge model={state.model} sessionId={activeSessionId} />
+                  : <ModelBadge model={state.model} sessionId={activeSessionId} />}
                 <ContextBar key={activeSessionId ?? 'none'} percent={state.contextPercent} sessionId={activeSessionId} />
 
                 {state.busy ? (
@@ -1116,7 +1154,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       {/* Header */}
       <div className="ai-tab__header flex items-center justify-between px-2 py-1 border-b border-ide-border shrink-0 acrylic-titlebar-clean">
         <div className="ai-tab__header-left flex items-center gap-1.5 min-w-0">
-            <ClaudeLogoIcon />
+            {isPi
+              ? <PiLogoIcon size={14} className="shrink-0 text-ide-accent" />
+              : <ClaudeLogoIcon size={14} className="shrink-0" />}
             <span className="ai-tab__session-name text-xs font-medium text-ide-text truncate">{state.name || 'untitled'}</span>
           </div>
         <div className="ai-tab__header-actions flex items-center gap-1">
@@ -1156,23 +1196,25 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           >
             {viewMode === 0 ? <Eye size={14} /> : <EyeOff size={14} />}
           </button>
-          {/* Session history */}
-          <button
-            onClick={async () => {
-              const { configDir } = readAiCliConfig()
-              const result = await window.api.ai.listSessions(workspacePath || undefined, configDir)
-              if (result.sessions?.length > 0) {
-                setSessionHistoryList(result.sessions)
-                setSessionHistoryOpen(true)
-              }
-            }}
-            className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
-            title={t('Session History')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-            </svg>
-          </button>
+          {/* Session history — Claude JSONL only */}
+          {!isPi && (
+            <button
+              onClick={async () => {
+                const { configDir } = readAiCliConfig()
+                const result = await window.api.ai.listSessions(workspacePath || undefined, configDir)
+                if (result.sessions?.length > 0) {
+                  setSessionHistoryList(result.sessions)
+                  setSessionHistoryOpen(true)
+                }
+              }}
+              className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+              title={t('Session History')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+              </svg>
+            </button>
+          )}
           {/* New session */}
           <button
             onClick={() => {
@@ -1183,9 +1225,10 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 cwd: workspacePath,
                 autoApprove,
                 permissionMode,
+                backend,
                 cliCommand,
                 configDir,
-                ...(worktreeEnabled ? { enableWorktree: true } : {}),
+                ...(worktreeEnabled && !isPi ? { enableWorktree: true } : {}),
                 computerUse: state.computerUse,
                 browserUse: state.browserUse,
               })
@@ -1253,6 +1296,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         <>
         <div className="ai-tab__empty flex-1 flex flex-col items-center justify-center min-h-0 px-2 gap-3 animate-fade-in">
             <div className="ai-tab__empty-icon animate-zap-glow text-ide-accent">
+              {isPi ? (
+                <PiLogoIcon size={64} />
+              ) : (
               <svg
                 fill="currentColor"
                 fillRule="evenodd"
@@ -1266,7 +1312,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"
                 />
               </svg>
+              )}
             </div>
+            {!isPi && (
             <div className="ai-tab__empty-gui flex items-center gap-2">
               <button
                 onClick={() => toggleGuiTool('computerUse')}
@@ -1305,6 +1353,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 </button>
               )}
             </div>
+            )}
             {inputArea}
             <div className="ai-tab__empty-prompts flex flex-wrap justify-center gap-1.5 max-w-[928px]">
               {EXAMPLE_PROMPTS.map((item, i) => (
@@ -1344,6 +1393,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           onRevert={handleRevert}
           onRevertAndCode={handleRevertAndCode}
           onFork={handleFork}
+          allowHistory={!isPi}
         />
         {!state.ready && state.messages.length > 0 && (
           <div className="ai-tab__resume flex items-center gap-2 w-full max-w-[896px] mx-auto px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in">
@@ -1371,12 +1421,16 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             {state.streamBuffer ? (
               <div>
                 <StreamingMarkdown text={state.streamBuffer} workspacePath={workspacePath} onOpenFile={onOpenFile} />
-                <ClaudeLogoIcon className="ai-tab__busy-sparkle animate-spin-pixel ml-0.5 text-sm leading-none align-middle select-none" fill="currentColor" />
+                {isPi
+                  ? <PiLogoIcon className="ai-tab__busy-sparkle animate-spin-pixel ml-0.5 text-sm leading-none align-middle select-none" />
+                  : <ClaudeLogoIcon className="ai-tab__busy-sparkle animate-spin-pixel ml-0.5 text-sm leading-none align-middle select-none" fill="currentColor" />}
                 <span className="ai-tab__busy-quip ml-1 text-[13px] leading-none align-middle select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
               </div>
             ) : (
               <div>
-                <ClaudeLogoIcon className="animate-spin-pixel text-sm leading-none select-none" fill="currentColor" />
+                {isPi
+                  ? <PiLogoIcon className="animate-spin-pixel text-sm leading-none select-none" />
+                  : <ClaudeLogoIcon className="animate-spin-pixel text-sm leading-none select-none" fill="currentColor" />}
                 <span className="ml-1 text-[13px] leading-none select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
               </div>
             )}
@@ -1431,13 +1485,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           key={state.pendingPermission.requestId}
           perm={state.pendingPermission}
           sessionId={activeSessionId}
-          onRespond={state.pendingPermission.tool === 'AskUserQuestion' ? aiStore.handleAskResume : aiStore.handlePermissionResponse}
+          onRespond={answerResponder}
         >
           {state.pendingPermission.tool === 'AskUserQuestion' ? (
             <AiAskQuestionCard
               perm={state.pendingPermission}
               sessionId={activeSessionId}
-              onRespond={aiStore.handleAskResume}
+              onRespond={answerResponder}
             />
           ) : (
             <AiPermissionCard

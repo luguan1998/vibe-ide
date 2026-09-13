@@ -8,6 +8,7 @@ import { ArrowLeft, Check, ChevronDown, Filter, FolderOpen, History, Loader2, Ro
 import { fetchDshSessions, fetchDshHistoryTurns, archiveDshSession, type DshHistorySession } from '../dsh/history'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
+import { PiLogoIcon } from './PiLogoIcon'
 import { ToolIcon } from './AiTab/tools'
 import { getLastNewMode, toHistoryMode, type HistoryMode } from '../utils/sessionModePrefs'
 
@@ -16,6 +17,7 @@ interface HistoryViewProps {
   workspacePath: string | null
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
+  onResumePiHistory?: (piSessionId: string, cwd: string, name: string) => void
 }
 
 // dsh 会话归一化为 AiSessionSummary 形状后复用同一套列表渲染；dshRunning 标记运行中会话（不可删除）
@@ -114,9 +116,10 @@ const HISTORY_MODE_OPTIONS: { value: HistoryMode; label: string; icon: React.Rea
   },
   { value: 'gui', label: 'claude gui', icon: <ClaudeLogoIcon size={13} /> },
   { value: 'dsh', label: 'dsh', icon: <DeepSeekLogoIcon size={13} /> },
+  { value: 'pi', label: 'pi', icon: <PiLogoIcon size={13} /> },
 ]
 
-export default function HistoryView({ onBack, workspacePath, onResumeClaudeHistory, onResumeDshHistory }: HistoryViewProps) {
+export default function HistoryView({ onBack, workspacePath, onResumeClaudeHistory, onResumeDshHistory, onResumePiHistory }: HistoryViewProps) {
   const { t } = useI18n()
   const [sessions, setSessions] = useState<Summary[]>([])
   const [listLoading, setListLoading] = useState(false)
@@ -125,9 +128,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [turnsById, setTurnsById] = useState<Record<string, { turns: HistoryTurn[]; loading: boolean }>>({})
   // 默认恢复类型跟随「新会话」最近勾选（term→tui 同为终端恢复；不随重启持久化）
   const [mode, setMode] = useState<HistoryMode>(() => toHistoryMode(getLastNewMode()))
-  // tui 与 gui 共享同一份 claude 历史，仅 dsh 是独立数据源；
+  // tui 与 gui 共享同一份 claude 历史；dsh / pi 各有独立数据源
   // 列表 fetch 依赖数据源而非 mode，避免 tui↔gui 切换重复扫描历史目录
-  const dataSource = mode === 'dsh' ? 'dsh' : 'claude'
+  const dataSource = mode === 'dsh' ? 'dsh' : mode === 'pi' ? 'pi' : 'claude'
   const [dshSessions, setDshSessions] = useState<DshHistorySession[]>([])
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
@@ -214,10 +217,26 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     }
   }, [workspacePath, toSummary])
 
+  const fetchPiList = useCallback(async () => {
+    setListLoading(true)
+    setListError('')
+    try {
+      const r = await window.api.ai.listPiSessions(workspacePath || undefined)
+      const list: Summary[] = r?.sessions || []
+      setSessions(list)
+      collapseNonCurrent(list)
+    } catch (e: any) {
+      setListError(e?.message || t('No history sessions'))
+    } finally {
+      setListLoading(false)
+    }
+  }, [workspacePath, t])
+
   useEffect(() => {
     if (dataSource === 'dsh') void fetchDshList()
+    else if (dataSource === 'pi') void fetchPiList()
     else void fetchSessions()
-  }, [dataSource, fetchDshList, fetchSessions])
+  }, [dataSource, fetchDshList, fetchPiList, fetchSessions])
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), 300)
@@ -248,6 +267,22 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           if (fetchReqIdRef.current === reqId) setSearching(false)
         }
       })()
+      return
+    }
+    if (dataSource === 'pi') {
+      window.api.ai.searchPiSessions(debouncedQuery, { currentCwd: workspacePath || undefined })
+        .then((r: any) => {
+          if (fetchReqIdRef.current !== reqId) return
+          setSearchResults(r?.sessions || [])
+          setSearchTruncated(!!r?.truncated)
+        })
+        .catch((e: any) => {
+          if (fetchReqIdRef.current !== reqId) return
+          setSearchError(e?.message || '搜索失败')
+        })
+        .finally(() => {
+          if (fetchReqIdRef.current === reqId) setSearching(false)
+        })
       return
     }
     const { configDir } = readAiCliConfig()
@@ -282,7 +317,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     try {
       const turns = mode === 'dsh'
         ? await fetchDshHistoryTurns(id, s.cwd || undefined)
-        : buildHistoryTurns((await window.api.ai.loadSessionMessagesByDir(id, s.projectDir, readAiCliConfig().configDir))?.messages)
+        : mode === 'pi'
+          ? buildHistoryTurns((await window.api.ai.loadPiSessionMessages(id, s.projectDir))?.messages)
+          : buildHistoryTurns((await window.api.ai.loadSessionMessagesByDir(id, s.projectDir, readAiCliConfig().configDir))?.messages)
       setTurnsById(prev => prev[id]?.loading ? { ...prev, [id]: { turns, loading: false } } : prev)
     } catch (e: any) {
       setTurnsById(prev => prev[id]?.loading ? { ...prev, [id]: { turns: [{ role: 'assistant', text: e?.message || '加载失败' }], loading: false } } : prev)
@@ -325,6 +362,10 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
         const r = await window.api.dsh.deleteSession(id, s.cwd || undefined)
         if (r?.ok) { removeState(); return }
         setListError(r?.error || '删除失败')
+      } else if (mode === 'pi') {
+        const r = await window.api.ai.deletePiSession(id, s.projectDir)
+        if (r?.success) { removeState(); return }
+        setListError(r?.error || '删除失败')
       } else {
         const { configDir } = readAiCliConfig()
         const r = await window.api.ai.deleteSessionByDir(id, s.projectDir, configDir)
@@ -354,8 +395,12 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     const cwd = s.cwd || (s.inCurrentProject && workspacePath ? workspacePath : s.projectDir)
     if (!cwd) return
     const name = s.name && s.name !== s.session_id ? s.name : ''
+    if (mode === 'pi') {
+      onResumePiHistory?.(s.session_id, cwd, name)
+      return
+    }
     onResumeClaudeHistory(s.session_id, cwd, name, mode as 'tui' | 'gui')
-  }, [workspacePath, mode, onResumeClaudeHistory, onResumeDshHistory])
+  }, [workspacePath, mode, onResumeClaudeHistory, onResumeDshHistory, onResumePiHistory])
 
   const groups = useMemo(() => {
     const map = new Map<string, Summary[]>()
@@ -458,7 +503,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           </div>
           <div className="flex-1" />
           <button
-            onClick={mode === 'dsh' ? fetchDshList : fetchSessions}
+            onClick={mode === 'dsh' ? fetchDshList : mode === 'pi' ? fetchPiList : fetchSessions}
             disabled={listLoading}
             className="w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title={t('Refresh')}

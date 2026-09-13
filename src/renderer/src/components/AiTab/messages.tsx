@@ -104,13 +104,14 @@ function formatHourMin(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAndCode, isInternal }: {
+function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAndCode, isInternal, allowRevert = true }: {
   message: AiMessage
   userMessageIndex: number
   isBusy: boolean
   onRevert: (idx: number) => void
   onRevertAndCode: (idx: number) => void
   isInternal?: boolean
+  allowRevert?: boolean
 }) {
   const { t } = useI18n()
   const [showPopover, setShowPopover] = useState(false)
@@ -131,7 +132,7 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
   const cleanedContent = cleanMessageContent(message.content || '')
   if (!cleanedContent) return null
   const timeStr = message.timestamp ? formatHourMin(message.timestamp) : ''
-  const showRevert = userMessageIndex >= 0 && !isInternal
+  const showRevert = allowRevert && userMessageIndex >= 0 && !isInternal
 
   return (
     <div
@@ -553,7 +554,7 @@ export function TodoListPanel({ items }: { items: TodoItem[] }) {
   )
 }
 
-const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal }: {
+const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal, allowHistory = true }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
@@ -566,6 +567,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   allMessages: AiMessage[]
   viewMode?: number
   isInternal?: boolean
+  allowHistory?: boolean
 }) {
   // isLive = 当前正在流式生成的那条消息（最后一条 + busy）。用于让它的 thinking 以展开态挂载无缝交接 busy 区、
   // 下一帧平滑折叠；并让本消息 root 跳过 fade-in（接管时不透明）。子 agent 走 CollapsibleAgentGroup 的 isBusy=false → 永远非 live
@@ -582,7 +584,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   if (message.error) {
     inner = <AiErrorMessage message={message} />
   } else if (message.role === 'user') {
-    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} isInternal={isInternal} />
+    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} isInternal={isInternal} allowRevert={allowHistory} />
   } else if (
     message.type === 'result'
     && message.costUsd == null
@@ -598,7 +600,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
     // 其 forkIdx = 其之前真实用户输入数 - 1（截断点 = 该回合的 user 消息索引，
     // main 端会保留整个回合）
     let forkIdx = -1
-    if (message.type === 'result' && !message.parentToolUseId) {
+    if (allowHistory && message.type === 'result' && !message.parentToolUseId) {
       let count = 0
       for (let j = 0; j < msgIndex; j++) {
         if (isRealUserInput(allMessages, j)) count++
@@ -613,7 +615,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
 
 // memo：thinking 每次 flush 只换 thinkingBuffer（messages/busy/回调引用不变）→
 // 跳过整表分组重算与 N 个 bubble 的 element 创建，5 次/秒的 O(N) 工作归零
-export const MessageList = React.memo(function MessageList({ messages, userTurns, viewMode, busy, workspacePath, onOpenFile, onRevert, onRevertAndCode, onFork }: {
+export const MessageList = React.memo(function MessageList({ messages, userTurns, viewMode, busy, workspacePath, onOpenFile, onRevert, onRevertAndCode, onFork, allowHistory = true }: {
   messages: AiMessage[]
   userTurns: UserTurn[]
   viewMode: number
@@ -623,6 +625,7 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
   onRevert: (idx: number) => void
   onRevertAndCode: (idx: number) => void
   onFork: (idx: number) => void
+  allowHistory?: boolean
 }) {
   const userMessages = messages.filter((m, i) => isRealUserInput(messages, i))
   const groups: Array<
@@ -710,6 +713,7 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
         onFork={onFork}
         viewMode={viewMode}
         isInternal={userTurns[uIdx]?.isInternal ?? false}
+        allowHistory={allowHistory}
       />
     )
   })}</>

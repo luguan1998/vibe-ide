@@ -1,9 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import type { AiPermissionMode, AiSlashCommand } from '@shared/types'
+import type { AiPermissionMode, AiPiModelRow, AiSlashCommand } from '@shared/types'
 import { DEFAULT_AI_CONTEXT_WINDOW } from '@shared/types'
 import { FileIcon, FolderIcon } from '../FileIcons'
 import { aiStore } from '../../aiStore'
-import { Bot, ChevronDown, Check, Pencil, Plus, X } from 'lucide-react'
+import { Bot, Brain, ChevronDown, Check, Pencil, Plus, X } from 'lucide-react'
 const MODE_OPTIONS: { value: AiPermissionMode; label: string; icon: string }[] = [
   { value: 'plan', label: 'Plan', icon: '📋' },
   { value: 'acceptEdits', label: 'Edit', icon: '🖌️' },
@@ -410,6 +410,215 @@ export function ModelBadge({
               <span>自定义模型 ({customModels.length}/{MAX_CUSTOM_MODELS})</span>
             </button>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── PiModelBadge — pi 后端的模型选择器（provider/model 目录来自 get_available_models）──
+export function PiModelBadge({
+  model,
+  sessionId,
+}: {
+  model: string
+  sessionId: string | null
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const [models, setModels] = useState<AiPiModelRow[] | null>(null)
+  const [filter, setFilter] = useState('')
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setOpen(false); e.stopPropagation() }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) { setFilter(''); return }
+    if (models) return
+    window.api.ai.resolvePiModels()
+      .then((rows: AiPiModelRow[]) => setModels(rows || []))
+      .catch(() => setModels([]))
+  }, [open, models])
+
+  const handleSelect = useCallback((id: string) => {
+    if (!sessionId) return
+    setOpen(false)
+    window.api.ai.setModel(sessionId, id)
+  }, [sessionId])
+
+  const provider = model.includes('/') ? model.slice(0, model.indexOf('/')) : ''
+  const label = model.includes('/') ? model.slice(model.indexOf('/') + 1) : (model || 'default')
+  const needle = filter.trim().toLowerCase()
+  const rows = (models || []).filter(r => !needle || r.id.toLowerCase().includes(needle) || r.name.toLowerCase().includes(needle))
+
+  return (
+    <div ref={ref} className="ai-tab__model relative min-w-0">
+      <button
+        type="button"
+        onClick={() => sessionId && setOpen(v => !v)}
+        className={`ai-tab__model-btn flex items-center gap-1 px-2 py-1.5 text-xs rounded-lg transition-colors
+          ${sessionId
+            ? 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover cursor-pointer'
+            : 'bg-ide-border/15 text-ide-text-muted/40 cursor-default'}`}
+        title={model || 'Model'}
+        disabled={!sessionId}
+      >
+        <Bot size={14} strokeWidth={2} className="shrink-0" />
+        <span className="ai-tab__model-label truncate">{label}</span>
+        {sessionId && <ChevronDown size={12} className={`shrink-0 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
+      </button>
+      {open && (
+        <div className="ai-tab__model-dropdown absolute bottom-full right-0 mb-1.5 z-30
+          bg-ide-sidebar border border-ide-border rounded-lg shadow-lg min-w-[220px] max-w-[320px] w-max py-0.5 animate-fade-in">
+          <div className="px-2 py-1">
+            <input
+              autoFocus
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              placeholder="筛选模型…"
+              className="ai-tab__model-filter w-full bg-transparent text-[11px] text-ide-text border-b border-ide-accent/60
+                         focus:outline-none focus:border-ide-accent placeholder:text-ide-text-muted/40"
+            />
+          </div>
+          <div className="max-h-[16rem] overflow-y-auto">
+            {models === null && <div className="px-2.5 py-1.5 text-[11px] text-ide-text-muted/60">加载中…</div>}
+            {models !== null && rows.length === 0 && <div className="px-2.5 py-1.5 text-[11px] text-ide-text-muted/60">无匹配模型</div>}
+            {rows.map(row => {
+              const marked = row.id === model || (!model && provider === '')
+              return (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => handleSelect(row.id)}
+                  title={row.id}
+                  className={`ai-tab__model-option w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors ${
+                    marked ? 'ai-tab__model-option--selected bg-ide-accent/15 text-ide-accent' : 'text-ide-text hover:bg-ide-hover'
+                  }`}
+                >
+                  <span className="truncate min-w-0">{row.name}</span>
+                  <span className={`text-[10px] truncate shrink-0 ${marked ? 'text-ide-accent/60' : 'text-ide-text-muted/50'}`}>
+                    {row.provider}{row.contextWindow ? ` · ${Math.round(row.contextWindow / 1000)}k` : ''}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── PiThinkingLevelSelector — pi 后端的「思考强度」选择器（替代 Claude 的权限模式位）──
+const THINKING_LABELS: Record<string, string> = {
+  off: 'Off', minimal: 'Minimal', low: 'Low', medium: 'Medium',
+  high: 'High', xhigh: 'Extra High', max: 'Max',
+}
+const FALLBACK_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
+export function PiThinkingLevelSelector({
+  value,
+  sessionId,
+  onChange,
+}: {
+  value?: string
+  sessionId: string | null
+  onChange: (level: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [levels, setLevels] = useState<string[] | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setOpen(false); e.stopPropagation() }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open])
+
+  // 可用档位随模型而变（无 reasoning 的模型只有 off），每次展开都问会话要一次
+  useEffect(() => {
+    if (!open || !sessionId) return
+    let cancelled = false
+    window.api.ai.piThinkingLevels(sessionId)
+      .then((res: { levels: string[]; current: string | null } | null) => {
+        if (!cancelled) setLevels(res?.levels?.length ? res.levels : FALLBACK_THINKING_LEVELS)
+      })
+      .catch(() => { if (!cancelled) setLevels(FALLBACK_THINKING_LEVELS) })
+    return () => { cancelled = true }
+  }, [open, sessionId])
+
+  const options = levels ?? FALLBACK_THINKING_LEVELS
+  const label = THINKING_LABELS[value ?? ''] ?? value ?? 'Medium'
+
+  const handleSelect = (level: string) => {
+    setOpen(false)
+    if (!sessionId || level === value) return
+    window.api.ai.setPiThinkingLevel(sessionId, level)
+      .then((res: { success: boolean }) => {
+        if (res?.success) aiStore.updateSession(sessionId, (s) => ({ ...s, thinkingLevel: level }))
+      })
+      .catch(() => {})
+  }
+
+  return (
+    <div ref={ref} className="ai-tab__mode relative shrink-0">
+      <button
+        type="button"
+        onClick={() => sessionId && setOpen(v => !v)}
+        className="ai-tab__mode-btn flex items-center gap-1 px-2 py-1.5 text-xs rounded-lg
+                   text-ide-text-muted hover:text-ide-text hover:bg-ide-hover
+                   transition-colors"
+        title={`Thinking: ${label}`}
+        disabled={!sessionId}
+      >
+        <Brain size={13} strokeWidth={2} className="shrink-0" />
+        <span className="max-w-[72px] truncate">{label}</span>
+        <ChevronDown size={12} className={`opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="ai-tab__mode-dropdown absolute bottom-full left-0 mb-1.5 z-30
+                        bg-ide-sidebar border border-ide-border rounded-lg
+                        shadow-lg min-w-[130px] py-0.5 animate-fade-in">
+          {options.map(level => (
+            <button
+              key={level}
+              type="button"
+              onClick={() => handleSelect(level)}
+              className={`ai-tab__mode-option w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors ${
+                level === value
+                  ? 'ai-tab__mode-option--selected bg-ide-accent/15 text-ide-accent'
+                  : 'text-ide-text hover:bg-ide-hover'
+              }`}
+            >
+              <span className="truncate">{THINKING_LABELS[level] ?? level}</span>
+              {level === value && <Check size={10} className="ml-auto shrink-0" />}
+            </button>
+          ))}
         </div>
       )}
     </div>

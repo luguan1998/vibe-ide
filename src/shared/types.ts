@@ -137,6 +137,13 @@ export const IPC_CHANNELS = {
   AI_SET_PERMISSION_MODE: 'ai:setPermissionMode',
   AI_SET_MODEL: 'ai:setModel',
   AI_RESOLVE_MODELS: 'ai:resolveModels',
+  AI_RESOLVE_PI_MODELS: 'ai:resolvePiModels',
+  AI_LIST_PI_SESSIONS: 'ai:listPiSessions',              // invoke: pi 会话历史（读 ~/.pi/agent/sessions）
+  AI_SEARCH_PI_SESSIONS: 'ai:searchPiSessions',          // invoke: pi 会话全文搜索
+  AI_LOAD_PI_SESSION_MESSAGES: 'ai:loadPiSessionMessages', // invoke: pi 会话转录（历史预览）
+  AI_DELETE_PI_SESSION: 'ai:deletePiSession',            // invoke: 删除 pi 会话文件
+  AI_PI_THINKING_LEVELS: 'ai:piThinkingLevels',          // invoke: pi 当前模型支持的思考强度
+  AI_PI_SET_THINKING_LEVEL: 'ai:piSetThinkingLevel',     // invoke: 切换 pi 思考强度
   AI_RESOLVE_SKILLS: 'ai:resolveSkills',
   AI_SIDE_QUESTION: 'ai:sideQuestion',
   AI_SET_CONTEXT_WINDOW: 'ai:setContextWindow',
@@ -685,7 +692,17 @@ export interface AiSearchOptions {
   maxTotalMatches?: number
 }
 
+export type AiBackend = 'claude' | 'pi'
+
+export interface AiPiModelRow {
+  id: string
+  name: string
+  provider: string
+  contextWindow?: number
+}
+
 export interface AiSessionState {
+  backend: AiBackend
   ready: boolean
   busy: boolean
   messages: AiMessage[]
@@ -696,6 +713,7 @@ export interface AiSessionState {
   pendingPermission: AiPermissionRequest | null
   slashCommands: AiSlashCommand[]
   model: string
+  thinkingLevel?: string
   contextPercent: number | null
   name: string
   fileChangesByTurn: AiFileChange[][]
@@ -719,7 +737,9 @@ export interface AiCreateOptions {
   cwd: string
   autoApprove: boolean
   permissionMode: AiPermissionMode
+  backend?: AiBackend
   resumeSessionId?: string
+  model?: string
   cliCommand?: string
   configDir?: string
   enableWorktree?: boolean
