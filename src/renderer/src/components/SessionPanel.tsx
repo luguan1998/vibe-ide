@@ -464,7 +464,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onToggleAutoUtf8,
   cgEnabled = true,
   onToggleCgEnabled,
-  ocrEnabled = true,
+  ocrEnabled = false,
   onToggleOcrEnabled,
   forceDomRenderer = false,
   onToggleForceDomRenderer,
