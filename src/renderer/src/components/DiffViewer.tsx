@@ -95,8 +95,6 @@ interface DiffViewerProps {
   compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
   onAnnotationTrigger?: (start: number, end: number) => void
   brushActive?: boolean
-  outlineEnabled?: boolean
-  onToggleOutline?: () => void
   onOutlineNavigate?: (line: number, headingName?: string) => void
   headerLeading?: ReactNode   // 容器注入的标题栏左组（tab 条等），null 时非激活 tab
   isActive?: boolean          // display 可见性（多 tab 保活）
@@ -238,7 +236,7 @@ interface JumpItem {
   detail?: string
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, outlineEnabled = false, onToggleOutline, onOutlineNavigate = () => {}, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -1049,10 +1047,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
               </button>
             )
           )}
-          {onToggleOutline && (
+          {onOutlineNavigate && (
             <OutlineTrigger
-              outlineEnabled={outlineEnabled}
-              onToggle={onToggleOutline}
               content={modifiedContent}
               filePath={filePath}
               fullPath={fullPath}

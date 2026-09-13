@@ -738,10 +738,6 @@ export default function App() {
   const [showSessionButtons, setShowSessionButtons] = useState(() => {
     try { return localStorage.getItem('vibe-ide-session-buttons') !== 'false' } catch { return true }
   })
-  const [outlineOverlayEnabled, setOutlineOverlayEnabled] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-outline-overlay') !== 'false' } catch { return true }
-  })
-
   const [ocrEnabled, setOcrEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-ocr-enabled') !== '0' } catch { return true }
   })
@@ -1055,10 +1051,6 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-session-buttons', String(showSessionButtons)) } catch {}
   }, [showSessionButtons])
-  React.useEffect(() => {
-    try { localStorage.setItem('vibe-ide-outline-overlay', String(outlineOverlayEnabled)) } catch {}
-  }, [outlineOverlayEnabled])
-
   // Keep refs in sync for use in capture-phase keyboard handlers
   React.useEffect(() => { showHistoryRef.current = showHistory }, [showHistory])
   React.useEffect(() => { historySelectedIndexRef.current = historySelectedIndex }, [historySelectedIndex])
@@ -3150,8 +3142,6 @@ export default function App() {
 
   const currentEditFilePath = activeTab?.kind === 'diff' && activeTab.defaultEdit && !activeTab.compareOriginalPath ? activeTab.fullPath : null
 
-  const toggleOutline = useCallback(() => setOutlineOverlayEnabled(prev => !prev), [])
-
   const renderTab = useCallback((tab: FileTabState, isActive: boolean, headerLeading: ReactNode) => {
     if (tab.kind === 'diff') {
       return (
@@ -3188,8 +3178,6 @@ export default function App() {
           compareOriginalPath={tab.compareOriginalPath}
           onAnnotationTrigger={handleAnnotationTrigger}
           brushActive={brushActive}
-          outlineEnabled={outlineOverlayEnabled}
-          onToggleOutline={toggleOutline}
           onOutlineNavigate={handleOutlineNavigate}
         />
       )
@@ -3208,8 +3196,6 @@ export default function App() {
           onToggleEdit={() => openMarkdownInEditor(tab.fullPath)}
           scrollToHeading={mdScrollHeading}
           brushActive={brushActive}
-          outlineEnabled={outlineOverlayEnabled}
-          onToggleOutline={toggleOutline}
           onOutlineNavigate={handleOutlineNavigate}
         />
       )
@@ -3223,7 +3209,7 @@ export default function App() {
         brushActive={brushActive}
       />
     )
-  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, activeSessionCwd, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, outlineOverlayEnabled, toggleOutline, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading])
+  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, activeSessionCwd, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading])
 
   const fileTabsNode = (
     <FileTabsView

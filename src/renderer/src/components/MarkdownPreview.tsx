@@ -21,8 +21,6 @@ interface MarkdownPreviewProps {
   onToggleEdit?: () => void
   scrollToHeading?: string
   brushActive?: boolean
-  outlineEnabled?: boolean
-  onToggleOutline?: () => void
   onOutlineNavigate?: (line: number, headingName?: string) => void
   headerLeading?: ReactNode
   tabId?: string
@@ -190,9 +188,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   onToggleEdit,
   scrollToHeading,
   brushActive = false,
-  outlineEnabled = false,
-  onToggleOutline,
-  onOutlineNavigate = () => {},
+  onOutlineNavigate,
   headerLeading,
   tabId,
   getSnapshot,
@@ -809,10 +805,8 @@ ${clone.innerHTML}
                       </svg>
                     </button>
                   )}
-                  {onToggleOutline && (
+                  {onOutlineNavigate && (
                     <OutlineTrigger
-                      outlineEnabled={outlineEnabled}
-                      onToggle={onToggleOutline}
                       filePath={fileName}
                       fullPath={fullPath}
                       onNavigate={onOutlineNavigate}
