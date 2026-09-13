@@ -146,6 +146,7 @@ export const IPC_CHANNELS = {
   AI_PI_SET_THINKING_LEVEL: 'ai:piSetThinkingLevel',     // invoke: 切换 pi 思考强度
   AI_RESOLVE_SKILLS: 'ai:resolveSkills',
   AI_SIDE_QUESTION: 'ai:sideQuestion',
+  AI_SAVE_PASTED_IMAGE: 'ai:savePastedImage',   // invoke: 剪贴板图片落到 userData/pasted-images，返回路径供 @引用
   AI_SET_CONTEXT_WINDOW: 'ai:setContextWindow',
   AI_GET_CONTEXT_INFO: 'ai:getContextInfo',
   AI_SET_VISIBLE: 'ai:setVisible',       // invoke: renderer hidden → main drops stream tokens

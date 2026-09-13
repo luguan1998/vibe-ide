@@ -217,6 +217,7 @@ declare global {
         setPiThinkingLevel: (sessionId: string, level: string) => Promise<{ success: boolean; error?: string }>
         resolveSkills: (sessionId?: string, cwd?: string) => Promise<import('@shared/types').AiSlashCommand[]>
         sideQuestion: (sessionId: string, question: string) => Promise<{ success: boolean; response?: string | null; synthetic?: boolean; error?: string }>
+        savePastedImage: (data: { buffer: Uint8Array; ext: string }) => Promise<{ path?: string; error?: string }>
         setContextWindow: (sessionId: string, contextWindow: number) => Promise<{ success: boolean; contextPercent?: number | null; error?: string }>
         getContextInfo: (sessionId: string) => Promise<{ usedTokens: number | null; contextWindow: number | null } | null>
         setVisible: (visible: boolean) => Promise<void>
@@ -747,7 +748,7 @@ export default function App() {
     try { return localStorage.getItem('vibe-ide-session-buttons') !== 'false' } catch { return true }
   })
   const [ocrEnabled, setOcrEnabled] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-ocr-enabled') !== '0' } catch { return true }
+    try { return localStorage.getItem('vibe-ide-ocr-enabled') === '1' } catch { return false }
   })
   const [forceDomRenderer, setForceDomRenderer] = useState(() => {
     try { return localStorage.getItem('vibe-ide-force-dom-renderer') === '1' } catch { return false }

@@ -1,7 +1,7 @@
 import { ipcMain, app } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
-import { readFile, readdir, stat, rm } from 'fs/promises'
+import { readFile, readdir, stat, rm, mkdir, writeFile } from 'fs/promises'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join, isAbsolute, relative, basename } from 'path'
 import { setGitMetaPaused } from './watcher'
@@ -1863,6 +1863,21 @@ export function registerAiHandlers(): void {
     }) + '\n'
     session.process.stdin!.write(ndjson)
     return { success: true }
+  })
+
+  // 剪贴板图片 → userData/pasted-images（AiTab Ctrl+V 粘贴截图，转 @path 引用与拖拽同链路）。
+  // 不落 %TEMP%：历史 JSONL 里记的是该路径，临时目录被清理后引用会失效
+  ipcMain.handle(IPC_CHANNELS.AI_SAVE_PASTED_IMAGE, async (_event, data: { buffer: Uint8Array; ext: string }) => {
+    try {
+      const ext = /^[a-z0-9]{1,5}$/i.test(data.ext) ? data.ext.toLowerCase() : 'png'
+      const dir = join(app.getPath('userData'), 'pasted-images')
+      await mkdir(dir, { recursive: true })
+      const file = join(dir, `paste-${Date.now()}.${ext}`)
+      await writeFile(file, Buffer.from(data.buffer))
+      return { path: file }
+    } catch (err: any) {
+      return { error: err.message }
+    }
   })
 
   // Respond to permission request

@@ -221,7 +221,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     closeMention()
   }, [closeMention])
 
-  // 拖拽文件 → @path 插入：workspace 内用相对路径(与 mention 一致)，外部/跨盘兜底绝对路径
+  // 拖拽/粘贴文件 → @path 插入：workspace 内用相对路径(与 mention 一致)，外部/跨盘兜底绝对路径
   const toAtPath = useCallback((absPath: string): string => {
     const ws = workspacePath ? workspacePath.replace(/\\/g, '/').replace(/\/+$/, '') : ''
     const norm = absPath.replace(/\\/g, '/')
@@ -229,30 +229,75 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     return '@' + absPath
   }, [workspacePath])
 
+  const insertTextAtCursor = useCallback((text: string) => {
+    const el = inputRef.current
+    if (!el) return
+    el.focus({ preventScroll: true })
+    const start = el.selectionStart ?? el.value.length
+    const end = el.selectionEnd ?? el.value.length
+    el.setRangeText(text, start, end, 'end')
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+  }, [])
+
+  const insertPathsAtCursor = useCallback((paths: string[]) => {
+    if (paths.length === 0) return
+    insertTextAtCursor(paths.map(toAtPath).join(' ') + ' ')
+  }, [insertTextAtCursor, toAtPath])
+
   const insertDroppedPaths = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
     setDragOverInput(false)
     const files = e.dataTransfer?.files
     if (!files || files.length === 0) return
-    const parts: string[] = []
+    const paths: string[] = []
     for (const f of Array.from(files)) {
       const p = window.api.file.getPathForFile(f) || ((f as any).path as string | undefined)
-      if (p) parts.push(toAtPath(p))
+      if (p) paths.push(p)
     }
-    if (parts.length === 0) return
-    const insert = parts.join(' ') + ' '
-    const el = inputRef.current
-    if (el) {
-      el.focus({ preventScroll: true })
-      const start = el.selectionStart ?? el.value.length
-      const end = el.selectionEnd ?? el.value.length
-      el.setRangeText(insert, start, end, 'end')
-      el.dispatchEvent(new Event('input', { bubbles: true }))
-    } else {
-      setInputValue(inputValue ? inputValue + ' ' + insert : insert)
+    insertPathsAtCursor(paths)
+  }, [insertPathsAtCursor])
+
+  // 剪贴板图片（截图工具）没有磁盘路径 → 存到 userData/pasted-images 再复用 @path 链路
+  const saveClipboardImage = useCallback(async (file: File) => {
+    const buffer = new Uint8Array(await file.arrayBuffer())
+    const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+    const res = await window.api.ai.savePastedImage({ buffer, ext })
+    if (res?.path) insertPathsAtCursor([res.path])
+  }, [insertPathsAtCursor])
+
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(e.clipboardData?.files || [])
+    const paths = files.map(f => window.api.file.getPathForFile(f)).filter((p): p is string => !!p)
+    if (paths.length > 0) {
+      e.preventDefault()
+      insertPathsAtCursor(paths)
+      return
     }
-  }, [toAtPath, setInputValue, inputValue])
+    // 有文本时让浏览器默认粘贴文本；纯图片剪贴板（截图）落盘后插入 @path
+    if ((e.clipboardData?.getData('text/plain') || '').trim()) return
+    const image = Array.from(e.clipboardData?.items || [])
+      .find(it => it.kind === 'file' && it.type.startsWith('image/'))
+      ?.getAsFile()
+    if (!image) return
+    e.preventDefault()
+    saveClipboardImage(image).catch(() => {})
+  }, [insertPathsAtCursor, saveClipboardImage])
+
+  // 右键菜单粘贴（无 ClipboardEvent，走 async clipboard API）
+  const pasteFromClipboard = useCallback(async (): Promise<boolean> => {
+    try {
+      const items = await navigator.clipboard.read()
+      for (const item of items) {
+        const type = item.types.find(t => t.startsWith('image/'))
+        if (!type) continue
+        const blob = await item.getType(type)
+        await saveClipboardImage(new File([blob], `clipboard.${type.split('/')[1] || 'png'}`, { type }))
+        return true
+      }
+    } catch {}
+    return false
+  }, [saveClipboardImage])
 
   useEffect(() => {
     if (!mentionMenuOpen || !workspacePath) { setMentionResults([]); return }
@@ -1015,11 +1060,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 }}
                 placeholder={state.ready ? t('Type a message...') : t('Initializing...')}
                 disabled={!state.ready}
+                onPaste={handlePaste}
                 onContextMenu={async (e) => {
                   e.preventDefault()
                   e.stopPropagation()
                   const el = e.currentTarget as HTMLTextAreaElement
                   el.focus()
+                  if (await pasteFromClipboard()) return
                   if (document.execCommand('paste')) return
                   try {
                     const text = await navigator.clipboard.readText()

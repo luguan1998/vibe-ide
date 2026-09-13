@@ -326,6 +326,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_RESOLVE_SKILLS, sessionId, cwd),
     sideQuestion: (sessionId: string, question: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SIDE_QUESTION, { sessionId, question }),
+    savePastedImage: (data: { buffer: Uint8Array; ext: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_SAVE_PASTED_IMAGE, data),
     setContextWindow: (sessionId: string, contextWindow: number) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_CONTEXT_WINDOW, { sessionId, contextWindow }),
     getContextInfo: (sessionId: string) =>
