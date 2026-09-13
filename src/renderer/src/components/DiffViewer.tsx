@@ -997,12 +997,19 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
 
   return (
     <div ref={containerRef} className={`flex flex-col h-full animate-fade-in center-overlay${brushActive ? ' diff-brush-mode diff-brush-code' : ''}`}>
-      <div className="diff-titlebar h-8 px-3 flex items-center justify-between gap-2 bg-ide-sidebar border-b border-ide-border shrink-0">
+      <div
+        className="diff-titlebar h-8 px-3 flex items-center justify-between gap-2 bg-ide-sidebar border-b border-ide-border shrink-0"
+        onContextMenu={!commitHash ? (e) => {
+          const tabEl = (e.target as HTMLElement).closest?.('[data-tab-id]')
+          if (tabEl && tabEl.getAttribute('data-tab-id') !== tabId) return
+          e.preventDefault()
+          setEncodingContextMenu({ x: e.clientX, y: e.clientY })
+        } : undefined}
+      >
         {headerLeading}
 
         <div
           className="flex items-center gap-2 shrink-0"
-          onContextMenu={!commitHash ? (e) => { e.preventDefault(); setEncodingContextMenu({ x: e.clientX, y: e.clientY }) } : undefined}
           onClick={(e) => {
             if (!brushActive || !fullPath) return
             e.preventDefault()
