@@ -84,7 +84,20 @@ function fingerprint(va, len) {
 
 if (process.argv.includes('--scan')) {
   const topN = Number(process.argv[process.argv.indexOf('--scan') + 1]) || 25
-  const priv = mi.filter(m => m.type === 0x20000 && m.state === 0x1000).sort((a, b) => b.size - a.size).slice(0, topN)
+  let priv
+  if (mi.length) {
+    priv = mi.filter(m => m.type === 0x20000 && m.state === 0x1000)
+  } else {
+    // fallback: no MemoryInfoListStream (e.g. comsvcs dumps) — use raw dump ranges, skip PE images
+    console.log('(no MemoryInfoListStream; using raw memory ranges, PE images flagged)')
+    priv = ranges.map(r => {
+      const b = Buffer.alloc(2)
+      readSync(fd, b, 0, 2, r.fileOff)
+      const isPE = b[0] === 0x4d && b[1] === 0x5a
+      return { base: r.start, size: r.size, protect: 0, type: isPE ? 'IMAGE?' : 'PRIVATE?', state: 0x1000 }
+    })
+  }
+  priv = priv.sort((a, b) => b.size - a.size).slice(0, topN)
   console.log(`=== top ${topN} PRIVATE committed regions ===`)
   for (const m of priv) {
     const va = '0x' + m.base.toString(16)

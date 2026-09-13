@@ -2363,15 +2363,24 @@ export default function App() {
   }, [autoUtf8])
 
   // deferred tab 经任意路径成为 active（点击 / Ctrl+方向键 / 看板）都自动加载
+  // 例外：启动恢复时的 active 若是 gui/dsh，不自动加载——否则开机即读入整段
+  // 会话历史并渲染 AiTab（数百 MB 内存大头）。终端恢复照旧（占用小）。
+  const bootActiveIdRef = useRef(activeSessionId)
   React.useEffect(() => {
-    if (activeSessionId) void ensureSessionLoaded(activeSessionId)
+    if (!activeSessionId) return
+    if (activeSessionId === bootActiveIdRef.current) {
+      const s = sessionsRef.current.find(x => x.id === activeSessionId)
+      if (s && s.kind !== 'terminal') return
+    }
+    void ensureSessionLoaded(activeSessionId)
   }, [activeSessionId, ensureSessionLoaded])
 
   // Switch active session
   const handleSwitchSession = useCallback((id: string) => {
+    void ensureSessionLoaded(id)
     setActiveSessionId(id)
     applySessionTabPolicy(id)
-  }, [applySessionTabPolicy])
+  }, [applySessionTabPolicy, ensureSessionLoaded])
 
   // Execute a custom command — sends to AI input in GUI mode, terminal otherwise
   const handleExecuteCommand = useCallback((command: string) => {
