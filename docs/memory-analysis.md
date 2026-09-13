@@ -121,6 +121,51 @@ node scripts/ab-boot-mem.ps1       # 干净启动 A/B：每版 2 轮 × 固定�
 - 关闭文件 tab / 切换会话：释放逻辑内存，但进程内存不回（引擎池截留）
 - 文件 tab 保活 vs 逐个替换（单编辑器）：A/B 增量一样（+215 vs +202MB）
 - "在 JS 堆里找 700MB"——方向错误（堆只有 100MB）
+- 文件图标 / cwd 精灵静态图标 / 左栏重复面板：KB 级/个，千级元素 ≈ 1-3MB（§6b）
+
+## 6b. 四怀疑点实测（2026-09-13 晚，打包版 + 全新 profile + CDP 注入 14 个 cwd 组）
+
+同一文档内 A/B（种子注入后不 reload）：6s 空转漂移 0.0MB，可分辨 ≥1MB 效应；**跨 reload
+摆动 ±50MB（引擎池），小效应只能同文档比**。探针：`probe-suspects2/3.mjs` + `probe-run-suspects2/3.ps1`。
+
+| 因素 | 实测 | 结论 |
+|---|---|---|
+| 文件名图标（FileIcon 内联 svg） | 1000 个克隆 +1.4MB（≈1.4KB/个） | 真实可见 ~200 个 ≈ 0.3MB，可忽略 |
+| cwd 精灵静态 | 500 个 +1.0MB（≈2KB/个） | 可忽略 |
+| cwd 精灵**动画中**（pixel-mascot-active） | 50/150/300 个 → +7.7/+21.6/+41.0MB，**线性 ≈130-150KB/个** | 真实 running 组数个位数 → ≲1MB；但"同时动画的元素数"是乘数 |
+| 文件树展开行 | 83 行 ≈ +1~3MB（行 ~10KB：文本 glyph + 图标 + React 状态） | 千级行才到十 MB 级 |
+| 左栏 Git/Dir 重复实例 | 挂载 +1.3MB（Dir）/ ~0（Git，~76 节点）；两侧同展开 → 树行翻倍 ≈1MB/83 行 | 内存 1-3MB；重复**拉取**开销已由 36162988 门控 |
+| 开文件 tab（Monaco） | 首个 tab **+110MB**（净文档）/ +155MB（含 diff 场景）；第 2 个起边际 ≈0-1MB native、+1MB heap/个；全部关闭仅回收 ~0.2MB | 成本在"首次启用编辑器栈"，与 tab 数/保活策略无关（与 §6 A/B 一致） |
+
+**排序（影响 renderer private 大小）**：Monaco/TS 编辑栈（一次性 +110~155MB）> 已加载对话
+（§7，单个 6MB 会话 +35MB，多个非线性）> 引擎池只增不回（±50MB 摆动、关 tab/reload 不回吐）
+> 同时动画的元素数（~140KB/个，仅当数量上规模）> 静态 DOM/图标/精灵（KB 级/个，常被池余量吸收显示 0 增长）。
+
+**新判读点**：动画元素的单价（~140KB）是静态元素（~2KB）的 ~70 倍——"常驻动画"本身不贵（§6 已证伪），
+贵的是**同时在动画的元素数量**；排查动画相关内存先数 `document.getAnimations()` 的目标元素数。
+
+## 6c. 首开 Monaco 的代价是版本无关的固定成本（老版 vs 多 tab 版 A/B）
+
+问题："打开 Monaco 一直有代价，那多 tab 化（FileTabsView, e0c60554）是不是把内存搞大了？"
+同协议实测（同 5 个文件、同树展开路径、全新 profile、打包版）：
+
+| 阶段 | 老版 ce893030（多 tab 前） | HEAD（FileTabsView） |
+|---|---|---|
+| boot+seed（14 会话组） | 168.8MB | 186.3MB |
+| 树展开后 | 171.8MB（dom 1268） | 177.1MB（dom 1280） |
+| 开第 1 个文件（Monaco） | **+83.8MB**（monaco=1） | **+89.3MB**（monaco=1） |
+| 第 2~5 个文件 | +3.9 / +16.4 / -8.2 / -1.2 | +3.4 / +13.2 / +2.7 / -8.3 |
+| 5 个文件后合计 | **+94.7MB** → 266.5MB | **+100.2MB** → 277.3MB |
+| DOM 行为 | 每次开文件重挂载 DiffViewer（dom 1450~1613 波动，monaco 恒=1） | tab 保活（dom 单调 +65/个，monaco 逐个递增） |
+
+**结论**：首开 Monaco ≈ +85~90MB（Monaco 运行时 + TS worker + 语言服务 + V8 代码缓存）在
+两个架构下**一样贵**；多 tab 化的进程内存影响 ≈ 5MB/5 文件（噪声级），差别只在 DOM 与交互行为
+（保活 vs 重挂载）。"每 tab 一个 Monaco 实例"的边际成本被"老版重挂载 churn"抵消。
+
+工程坑：worktree 里用 junction 复用 node_modules 时 **electron-builder 会报
+`<主仓库路径> must be under <worktree>`**（`node_modules/@deepseek-ai/*` 是 workspace symlink
+绝对指向主仓库 vendor/harness）。打包 A/B 需要 robocopy 真实拷贝 node_modules（~1.5GB，junction
+会被跟随展开成真目录）；或用 electron.exe 直接跑（但 --user-data-dir 对 dev electron 无效）。
 
 ## 7. 本案例确认的真实结论
 
