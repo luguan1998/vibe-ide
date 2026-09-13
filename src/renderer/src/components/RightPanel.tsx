@@ -18,7 +18,7 @@ interface RightPanelProps {
   onOpenFileFromSearch?: (fullPath: string, lineNumber?: number) => void
   rightTerminalSessions?: Record<string, AuxTerminalTab[]>
   activeSessionId?: string | null
-  onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
+  onCreateRightTerminal?: (sessionId: string, cwd?: string, launchCommand?: string) => void
   onCloseRightTerminal?: (sessionId: string) => void
   activeAuxIndex?: Record<string, number>
   onCloseAuxTerminal?: (sessionId: string, tabId: string) => void

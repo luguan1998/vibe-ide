@@ -18,6 +18,7 @@ export interface DiffFileTab extends FileTabCommon {
   commitHash?: string
   gitStats?: { additions: number; deletions: number }
   defaultEdit?: boolean
+  viewMode?: 'diff' | 'edit'
   revision: number
   compareOriginalContent?: string
   compareOriginalPath?: string

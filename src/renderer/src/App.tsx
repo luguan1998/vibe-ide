@@ -1513,6 +1513,7 @@ export default function App() {
       commitHash: opts.git?.commitHash,
       gitStats: opts.git?.gitStats,
       defaultEdit: mode !== 'diff',
+      viewMode: mode === 'diff' ? 'diff' : 'edit',
       lineNumber: opts.lineNumber,
       jumpNonce: 1,
       revision: 1,
@@ -2922,7 +2923,7 @@ export default function App() {
   }, [openFileView])
 
   // 创建右侧终端（每个 session 独立，可多个 tab，append 后自动切到新 tab）
-  const handleCreateRightTerminal = useCallback(async (sessionId: string, cwdOverride?: string) => {
+  const handleCreateRightTerminal = useCallback(async (sessionId: string, cwdOverride?: string, launchCommand?: string) => {
     const session = sessions.find(s => s.id === sessionId)
     const cwd = cwdOverride || session?.cwd
     if (!cwd) return
@@ -2930,7 +2931,7 @@ export default function App() {
       const shell = getAuxShellType()
       const term = await window.api.terminal.create({ cwd, shell, autoUtf8 })
       const prevLen = rightTerminalSessions[sessionId]?.length ?? 0
-      const newTab: AuxTerminalTab = { id: term.id, terminals: [term], sizes: [1] }
+      const newTab: AuxTerminalTab = { id: term.id, terminals: [term], sizes: [1], launchCommand }
       setRightTerminalSessions(prev => ({
         ...prev,
         [sessionId]: [...(prev[sessionId] || []), newTab]
@@ -3161,6 +3162,7 @@ export default function App() {
           getSnapshot={() => getTabSnapshot(tab.id)}
           onPushSnapshot={(s) => pushTabSnapshot(tab.id, s)}
           onRuntimeChange={(rt) => handleTabRuntime(tab.id, rt)}
+          onViewModeChange={(m) => updateTab(tab.id, { viewMode: m })}
           filePath={tab.filePath}
           fullPath={tab.fullPath}
           isStaged={tab.isStaged}
@@ -3221,7 +3223,7 @@ export default function App() {
         brushActive={brushActive}
       />
     )
-  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, activeSessionCwd, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, outlineOverlayEnabled, toggleOutline, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading])
+  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, activeSessionCwd, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, outlineOverlayEnabled, toggleOutline, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading])
 
   const fileTabsNode = (
     <FileTabsView

@@ -105,6 +105,7 @@ interface DiffViewerProps {
   getSnapshot?: () => TabSnapshot | null
   onPushSnapshot?: (s: TabSnapshot) => void
   onRuntimeChange?: (rt: TabRuntime | null) => void
+  onViewModeChange?: (mode: ViewMode) => void
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -237,7 +238,7 @@ interface JumpItem {
   detail?: string
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, outlineEnabled = false, onToggleOutline, onOutlineNavigate = () => {}, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, outlineEnabled = false, onToggleOutline, onOutlineNavigate = () => {}, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -250,6 +251,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const [viewMode, setViewMode] = useState<ViewMode>(restoreSnap?.viewMode ?? (defaultEdit ? 'edit' : 'diff'))
   const viewModeRef = useRef(viewMode)
   viewModeRef.current = viewMode
+
+  const onViewModeChangeRef = useRef(onViewModeChange)
+  onViewModeChangeRef.current = onViewModeChange
+  useEffect(() => { onViewModeChangeRef.current?.(viewMode) }, [viewMode])
 
   // Reset viewMode when file changes
   const prevFullPathRef = useRef(fullPath)

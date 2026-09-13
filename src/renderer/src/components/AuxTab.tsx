@@ -11,7 +11,7 @@ interface AuxTabProps {
   activeSessionId: string | null
   effectiveGitPath: string | null
   worktreeNav: { originalPath: string; worktreePath: string; originalBranch: string } | null
-  onCreateRightTerminal?: (sessionId: string, cwd?: string) => void
+  onCreateRightTerminal?: (sessionId: string, cwd?: string, launchCommand?: string) => void
   onCloseAuxTerminal?: (sessionId: string, tabId: string) => void
   onSelectAuxTab?: (sessionId: string, index: number) => void
   onSplitAuxTerminal?: (sessionId: string, tabIndex: number) => void
@@ -47,12 +47,12 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
   const activeTab = activeArr?.[activeIdx]
   const activeTerm = activeTab?.terminals?.[0]
 
-  const handleLaunchOrAdd = useCallback(() => {
+  const handleLaunchOrAdd = useCallback((launchCommand?: string) => {
     if (!activeSessionId) return
     if (worktreeNav) {
-      onCreateRightTerminal?.(activeSessionId, effectiveGitPath ?? undefined)
+      onCreateRightTerminal?.(activeSessionId, effectiveGitPath ?? undefined, launchCommand)
     } else {
-      onCreateRightTerminal?.(activeSessionId)
+      onCreateRightTerminal?.(activeSessionId, undefined, launchCommand)
     }
   }, [activeSessionId, worktreeNav, onCreateRightTerminal, effectiveGitPath])
 
@@ -67,7 +67,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
       window.api.terminal.write(target.id, command + '\r')
     } else if (activeSessionId) {
       pendingCommandRef.current = command
-      handleLaunchOrAdd()
+      handleLaunchOrAdd(command)
     }
   }, [activeTab, activeTerm, activeSessionId, handleLaunchOrAdd])
 
@@ -296,6 +296,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
             {activeArr!.map((tab, i) => {
               const active = i === activeIdx
               const primary = tab.terminals[0]
+              const launchCommand = tab.launchCommand?.trim()
               return (
                 <div
                   key={tab.id}
@@ -306,7 +307,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
                   }`}
                   onClick={() => activeSessionId && onSelectAuxTab?.(activeSessionId, i)}
                   onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tabIndex: i, tab }) }}
-                  title={`${primary?.name ?? ''} — ${primary?.cwd ?? ''}`}
+                  title={`${launchCommand || primary?.name || ''} — ${primary?.cwd ?? ''}`}
                 >
                   {tab.terminals.length > 1 ? (
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 opacity-70">
@@ -316,7 +317,11 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
                   ) : (
                     <ToolIcon category="command" />
                   )}
-                  <span className="font-mono truncate max-w-[80px]">{(primary?.cwd.split(/[\\/]/).filter(Boolean).pop() || primary?.cwd || '')} {i + 1}</span>
+                  {launchCommand ? (
+                    <span className="font-mono truncate max-w-[120px]">{launchCommand}</span>
+                  ) : (
+                    <span className="font-mono truncate max-w-[80px]">{(primary?.cwd.split(/[\\/]/).filter(Boolean).pop() || primary?.cwd || '')} {i + 1}</span>
+                  )}
                   <button
                     onClick={(e) => { e.stopPropagation(); activeSessionId && onCloseAuxTerminal?.(activeSessionId, tab.id) }}
                     className={`w-4 h-4 rounded flex items-center justify-center transition-colors shrink-0 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text ${
@@ -345,7 +350,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
             </button>
           )}
           <button
-            onClick={handleLaunchOrAdd}
+            onClick={() => handleLaunchOrAdd()}
             className="w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0 aux-tab__add-btn"
             title={t('New Terminal')}
           >
@@ -399,7 +404,7 @@ export default function AuxTab({ rightTerminalSessions, activeSessionId, effecti
           effectiveGitPath ? (
             <div className="h-full flex items-center justify-center p-3">
               <button
-                onClick={handleLaunchOrAdd}
+                onClick={() => handleLaunchOrAdd()}
                 className="w-full max-w-xs flex items-center gap-3 p-3 rounded-lg bg-ide-sidebar border border-ide-border hover:border-ide-accent/50 hover:bg-ide-hover transition-colors text-left group aux-tab__launch-btn"
               >
                 <div className="shrink-0 w-7 h-7 flex items-center justify-center">

@@ -178,6 +178,7 @@ export function FileTabsView({
         <div ref={stripRef} className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto aux-tab__scroll file-tabs__strip">
           {tabs.map(tab => {
             const active = tab.id === activeTabId
+            const diffMode = tab.kind === 'diff' && (tab.viewMode ?? (tab.defaultEdit ? 'edit' : 'diff')) === 'diff'
             return (
               <div
                 key={tab.id}
@@ -192,6 +193,13 @@ export function FileTabsView({
               >
                 <FileIcon name={tab.fileName} className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate max-w-[120px]">{tab.fileName}</span>
+                {diffMode && (
+                  <svg viewBox="0 0 16 16" fill="none" className="w-3 h-3 shrink-0">
+                    <rect x="1.5" y="2.25" width="13" height="11" rx="2.5" stroke="#9ca3af" strokeWidth="1.5" />
+                    <rect x="4.25" y="4.5" width="3" height="6.5" rx="1" fill="#f28b82" />
+                    <rect x="8.75" y="4.5" width="3" height="6.5" rx="1" fill="#81c995" />
+                  </svg>
+                )}
                 {dirtyMap[tab.id] && <span className="w-1.5 h-1.5 rounded-full bg-ide-warning shrink-0" />}
                 <button
                   onClick={(e) => { e.stopPropagation(); onRequestClose(tab.id) }}

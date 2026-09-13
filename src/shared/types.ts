@@ -246,6 +246,7 @@ export interface AuxTerminalTab {
   id: string
   terminals: TerminalSession[]
   sizes: number[]
+  launchCommand?: string
 }
 
 // Board (session kanban) types
