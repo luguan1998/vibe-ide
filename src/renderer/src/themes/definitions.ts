@@ -79,7 +79,7 @@ const oneDark: IDETheme = {
     'ide-panel': t('#2c313a'),
     'ide-border': t('#3a3f4b'),
     'ide-text': t('#abb2bf'),
-    'ide-text-muted': t('#5c6370'),
+    'ide-text-muted': t('#7f848e'),
     'ide-accent': t('#61afef'),
     'ide-accent-hover': t('#528bff'),
     'ide-success': t('#98c379'),
@@ -87,8 +87,8 @@ const oneDark: IDETheme = {
     'ide-warning': t('#d19a66'),
     'ide-hover': t('#353d47'),
     'ide-active': t('#3d4550'),
-    'scrollbar-thumb': t('#4b5263'),
-    'scrollbar-thumb-hover': t('#5c6370'),
+    'scrollbar-thumb': t('#5c6370'),
+    'scrollbar-thumb-hover': t('#7f848e'),
     'selection-bg': t('#61afef'),
     'selection-opacity': '0.3',
     'focus-outline': t('#61afef'),
@@ -99,13 +99,13 @@ const oneDark: IDETheme = {
     selectionBackground: hexToRgba('#61afef', 0.3),
     black: '#282c34', red: '#e06c75', green: '#98c379', yellow: '#e5c07b',
     blue: '#61afef', magenta: '#c678dd', cyan: '#56b6c2', white: '#abb2bf',
-    brightBlack: '#5c6370', brightRed: '#e06c75', brightGreen: '#98c379',
+    brightBlack: '#7f848e', brightRed: '#e06c75', brightGreen: '#98c379',
     brightYellow: '#e5c07b', brightBlue: '#61afef', brightMagenta: '#c678dd',
     brightCyan: '#56b6c2', brightWhite: '#ffffff'
   },
   monacoTheme: 'vibe-ide-one-dark',
   monacoRules: [
-    { token: 'comment', foreground: '#5c6370', fontStyle: 'italic' },
+    { token: 'comment', foreground: '#7f848e', fontStyle: 'italic' },
     { token: 'keyword', foreground: '#c678dd' },
     { token: 'string', foreground: '#98c379' },
     { token: 'number', foreground: '#d19a66' },
@@ -115,7 +115,7 @@ const oneDark: IDETheme = {
     { token: 'constant', foreground: '#56b6c2' },
     { token: 'regexp', foreground: '#56b6c2' }
   ],
-  titleBar: { color: '#21252b', symbolColor: '#5c6370', backgroundColor: '#21252b' }
+  titleBar: { color: '#21252b', symbolColor: '#7f848e', backgroundColor: '#21252b' }
 }
 
 const dracula: IDETheme = {
@@ -127,7 +127,7 @@ const dracula: IDETheme = {
     'ide-panel': t('#343746'),
     'ide-border': t('#44475a'),
     'ide-text': t('#f8f8f2'),
-    'ide-text-muted': t('#6272a4'),
+    'ide-text-muted': t('#828fbf'),
     'ide-accent': t('#bd93f9'),
     'ide-accent-hover': t('#caa9fa'),
     'ide-success': t('#50fa7b'),
@@ -135,8 +135,8 @@ const dracula: IDETheme = {
     'ide-warning': t('#f1fa8c'),
     'ide-hover': t('#343746'),
     'ide-active': t('#44475a'),
-    'scrollbar-thumb': t('#44475a'),
-    'scrollbar-thumb-hover': t('#6272a4'),
+    'scrollbar-thumb': t('#6272a4'),
+    'scrollbar-thumb-hover': t('#828fbf'),
     'selection-bg': t('#bd93f9'),
     'selection-opacity': '0.3',
     'focus-outline': t('#bd93f9'),
@@ -147,13 +147,13 @@ const dracula: IDETheme = {
     selectionBackground: hexToRgba('#bd93f9', 0.3),
     black: '#21222c', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c',
     blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd', white: '#f8f8f2',
-    brightBlack: '#6272a4', brightRed: '#ff6e6e', brightGreen: '#69ff94',
+    brightBlack: '#828fbf', brightRed: '#ff6e6e', brightGreen: '#69ff94',
     brightYellow: '#ffffa5', brightBlue: '#d6acff', brightMagenta: '#ff92df',
     brightCyan: '#a4ffff', brightWhite: '#ffffff'
   },
   monacoTheme: 'vibe-ide-dracula',
   monacoRules: [
-    { token: 'comment', foreground: '#6272a4', fontStyle: 'italic' },
+    { token: 'comment', foreground: '#828fbf', fontStyle: 'italic' },
     { token: 'keyword', foreground: '#ff79c6' },
     { token: 'string', foreground: '#f1fa8c' },
     { token: 'number', foreground: '#bd93f9' },
@@ -163,7 +163,7 @@ const dracula: IDETheme = {
     { token: 'constant', foreground: '#bd93f9' },
     { token: 'regexp', foreground: '#ff5555' }
   ],
-  titleBar: { color: '#21222c', symbolColor: '#6272a4', backgroundColor: '#21222c' }
+  titleBar: { color: '#21222c', symbolColor: '#828fbf', backgroundColor: '#21222c' }
 }
 
 const nord: IDETheme = {
@@ -364,7 +364,7 @@ const monokaiPro: IDETheme = {
     'ide-panel': t('#2d2e27'),
     'ide-border': t('#3e3d32'),
     'ide-text': t('#f8f8f2'),
-    'ide-text-muted': t('#75715e'),
+    'ide-text-muted': t('#928d77'),
     'ide-accent': t('#a6e22e'),
     'ide-accent-hover': t('#b6f442'),
     'ide-success': t('#a6e22e'),
@@ -372,8 +372,8 @@ const monokaiPro: IDETheme = {
     'ide-warning': t('#e6db74'),
     'ide-hover': t('#3e3d32'),
     'ide-active': t('#49483e'),
-    'scrollbar-thumb': t('#49483e'),
-    'scrollbar-thumb-hover': t('#75715e'),
+    'scrollbar-thumb': t('#75715e'),
+    'scrollbar-thumb-hover': t('#928d77'),
     'selection-bg': t('#a6e22e'),
     'selection-opacity': '0.3',
     'focus-outline': t('#a6e22e'),
@@ -384,13 +384,13 @@ const monokaiPro: IDETheme = {
     selectionBackground: hexToRgba('#a6e22e', 0.3),
     black: '#272822', red: '#f92672', green: '#a6e22e', yellow: '#e6db74',
     blue: '#66d9ef', magenta: '#ae81ff', cyan: '#a1efe4', white: '#f8f8f2',
-    brightBlack: '#75715e', brightRed: '#f92672', brightGreen: '#a6e22e',
+    brightBlack: '#928d77', brightRed: '#f92672', brightGreen: '#a6e22e',
     brightYellow: '#e6db74', brightBlue: '#66d9ef', brightMagenta: '#ae81ff',
     brightCyan: '#a1efe4', brightWhite: '#ffffff'
   },
   monacoTheme: 'vibe-ide-monokai-pro',
   monacoRules: [
-    { token: 'comment', foreground: '#75715e', fontStyle: 'italic' },
+    { token: 'comment', foreground: '#928d77', fontStyle: 'italic' },
     { token: 'keyword', foreground: '#a6e22e' },
     { token: 'string', foreground: '#e6db74' },
     { token: 'number', foreground: '#ae81ff' },
@@ -400,7 +400,7 @@ const monokaiPro: IDETheme = {
     { token: 'constant', foreground: '#ae81ff' },
     { token: 'regexp', foreground: '#e6db74' }
   ],
-  titleBar: { color: '#1e1f1c', symbolColor: '#75715e', backgroundColor: '#1e1f1c' }
+  titleBar: { color: '#1e1f1c', symbolColor: '#928d77', backgroundColor: '#1e1f1c' }
 }
 
 const vscodeDark: IDETheme = {
