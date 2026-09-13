@@ -62,6 +62,7 @@ interface FileTabProps {
   onEditRecentFile?: (fullPath: string, lineNumber?: number) => void
   onOpenFileAtLine?: (fullPath: string, lineNumber?: number) => void
   isActive?: boolean
+  pauseWhenHidden?: boolean
   brushActive?: boolean
   onExploreNode?: (node: CodeSymbol) => void
 }
@@ -600,7 +601,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, brushActive, onExploreNode }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, pauseWhenHidden, brushActive, onExploreNode }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -639,6 +640,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const selectedRecentIndexRef = useRef<number | null>(null)
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
+
+  // pauseWhenHidden：隐藏期间攒下的树变更，显示时补刷一次（gate 常驻实例的重复刷新）
+  const fsDirtyRef = useRef(false)
 
   const treeCacheRef = useRef<Map<string, { tree: FileNode[]; expanded: string[] }>>(new Map())
   const prevWsRef = useRef<string | null>(null)
@@ -792,10 +796,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
 
   // Reload file tree when filter rules change
   useEffect(() => {
-    const handler = () => { treeCacheRef.current.clear(); refreshAllExpanded() }
+    const handler = () => {
+      treeCacheRef.current.clear()
+      if (pauseWhenHidden && !isActiveRef.current) { fsDirtyRef.current = true; return }
+      refreshAllExpanded()
+    }
     window.addEventListener('file-filter-rules-changed', handler)
     return () => window.removeEventListener('file-filter-rules-changed', handler)
-  }, [refreshAllExpanded])
+  }, [refreshAllExpanded, pauseWhenHidden])
 
   // Reload when manual refresh triggered
   useEffect(() => {
@@ -809,6 +817,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>
     const handler = window.api.file.onChanged(() => {
+      if (pauseWhenHidden && !isActiveRef.current) { fsDirtyRef.current = true; return }
       clearTimeout(timer)
       timer = setTimeout(() => {
         if (workspacePath) treeCacheRef.current.delete(norm(workspacePath))
@@ -816,7 +825,16 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       }, 300)
     })
     return () => { clearTimeout(timer); window.api.file.removeChangedListener(handler) }
-  }, [workspacePath, refreshAllExpanded])
+  }, [workspacePath, refreshAllExpanded, pauseWhenHidden])
+
+  // 隐藏期间攒下的变更，切回时补刷一次
+  useEffect(() => {
+    if (!pauseWhenHidden || !isActive) return
+    if (!fsDirtyRef.current) return
+    fsDirtyRef.current = false
+    if (workspacePath) treeCacheRef.current.delete(norm(workspacePath))
+    refreshAllExpanded()
+  }, [isActive, workspacePath, refreshAllExpanded, pauseWhenHidden])
 
   // Load CLAUDE.md (or AGENTS.md) doc tree
   const loadClaudeDocTree = useCallback(async () => {
@@ -1008,6 +1026,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   useEffect(() => {
     if (!navigateToFile || !workspacePath) return
     if (navigateToFile.trigger === navTriggerRef.current) return
+    if (pauseWhenHidden && !isActiveRef.current) return
     navTriggerRef.current = navigateToFile.trigger
 
     const normalizedWs = norm(workspacePath).replace(/\/$/, '')

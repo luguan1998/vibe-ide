@@ -3415,6 +3415,7 @@ export default function App() {
                     refreshKey={gitRefreshKey}
                     activeSessionId={activeSessionId}
                     isActive={leftPanelView === 'git'}
+                    pauseWhenHidden
                     onWorktreeNavChange={setSessionWorktreeNav}
                     onDiffScroll={handleDiffScroll}
                     onNavigateToFile={handleNavigateToFile}
@@ -3437,6 +3438,7 @@ export default function App() {
                     onRemoveRecentFile={removeRecentFile}
                     onEditRecentFile={handleOpenFileFromExplorer}
                     isActive={leftPanelView === 'dir'}
+                    pauseWhenHidden
                     brushActive={brushActive}
                     onExploreNode={(node: any) => setCallGraphFocalNode(node)}
                   />

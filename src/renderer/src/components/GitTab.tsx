@@ -18,6 +18,7 @@ interface GitTabProps {
   refreshKey?: number
   activeSessionId?: string | null
   isActive?: boolean
+  pauseWhenHidden?: boolean
   rightTerminalSession?: TerminalSession | null
   onCloseRightTerminal?: (sessionId: string) => void
   onWorktreeNavChange: (updater: (prev: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => void
@@ -140,7 +141,7 @@ const collectLeafPaths = (node: TreeNode): string[] => {
 
 const GRAPH_PAGE_SIZE = 50
 
-export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, isActive, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll, onNavigateToFile, lineHistoryPayload }: GitTabProps) {
+export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, onFileSelect, refreshKey, activeSessionId, isActive, pauseWhenHidden, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onDiffScroll, onNavigateToFile, lineHistoryPayload }: GitTabProps) {
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
   const { t } = useI18n()
@@ -178,6 +179,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
   const pendingGitPathRef = useRef<string | null>(null)
   const notGitRef = useRef<boolean>(false)
   const notGitPathRef = useRef<string | null>(null)
+  const statusDirtyRef = useRef(false)
+  const gitMetaDirtyRef = useRef(false)
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   const [commitFileCount, setCommitFileCount] = useState(0)
@@ -804,14 +807,10 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     } finally { setBusy(false) }
   }, [workspacePath, refreshStatus, refreshGraph, refreshBranches])
 
-  // Switch git workspace when effective path changes
-  useEffect(() => {
-    if (!effectiveGitPath || pendingGitPathRef.current === effectiveGitPath) return
-
-    pendingGitPathRef.current = effectiveGitPath
+  const switchGitWorkspace = useCallback(async (targetPath: string) => {
+    pendingGitPathRef.current = targetPath
     notGitRef.current = false
     notGitPathRef.current = null
-    const targetPath = effectiveGitPath
 
     setGraphEntries([])
     setHasMoreGraph(true)
@@ -819,25 +818,37 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     setError(null)
     setLoading(true)
 
-    const switchWorkspace = async () => {
-      const result = await window.api.git.setWorkspace(targetPath)
-      if (pendingGitPathRef.current !== targetPath) return
-      if (result.success) {
-        gitRootRef.current = result.gitRoot || targetPath
-        gitCommonDirRef.current = result.gitCommonDir || ''
-        await refreshStatus()
-        refreshGraph()
-        refreshBranches()
-        refreshStashCount()
-      }
-      setLoading(false)
+    const result = await window.api.git.setWorkspace(targetPath)
+    if (pendingGitPathRef.current !== targetPath) return
+    if (result.success) {
+      gitRootRef.current = result.gitRoot || targetPath
+      gitCommonDirRef.current = result.gitCommonDir || ''
+      await refreshStatus()
+      refreshGraph()
+      refreshBranches()
+      refreshStashCount()
     }
-    switchWorkspace()
-  }, [effectiveGitPath])
+    setLoading(false)
+  }, [refreshStatus, refreshGraph, refreshBranches, refreshStashCount])
+
+  // Switch git workspace when effective path changes（pauseWhenHidden：隐藏时不动、记 full 脏，
+  // 显示时由补刷 effect 补做——路径 A→B→A 往返也强制补一次，防停留在旧快照）
+  useEffect(() => {
+    if (!effectiveGitPath || pendingGitPathRef.current === effectiveGitPath) return
+    if (pauseWhenHidden && !isActiveRef.current) {
+      gitMetaDirtyRef.current = true
+      return
+    }
+    switchGitWorkspace(effectiveGitPath)
+  }, [effectiveGitPath, pauseWhenHidden, switchGitWorkspace])
 
   // Handle refreshKey changes (triggered by Ctrl+S in DiffViewer)
   useEffect(() => {
     if (refreshKey !== undefined && refreshKey > 0) {
+      if (pauseWhenHidden && !isActiveRef.current) {
+        statusDirtyRef.current = true
+        return
+      }
       refreshStatus()
     }
   }, [refreshKey])
@@ -852,8 +863,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
 
   // git 状态统一刷新信号(主进程合流 FS 变更与 .git 元数据变更，2s 窗口去重)：
   // commonDir 校验防串仓库；kind='status' → status 合并刷新，kind='full' → 全套刷新
-  const statusDirtyRef = useRef(false)
-  const gitMetaDirtyRef = useRef(false)
   useEffect(() => {
     const handler = window.api.git.onMetaChanged((data?: { commonDir?: string; kind?: 'status' | 'full' }) => {
       const mine = gitCommonDirRef.current
@@ -878,9 +887,15 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
     }
   }, [refreshAll])
 
-  // 非活动面板攒下的变更，切回时补刷：meta 脏 → 全套，否则仅 status
+  // 非活动面板攒下的变更，切回时补刷：换过路径 → 整套切换，meta 脏 → 全套，否则仅 status
   useEffect(() => {
     if (!isActive) return
+    if (pauseWhenHidden && effectiveGitPath && pendingGitPathRef.current !== effectiveGitPath) {
+      gitMetaDirtyRef.current = false
+      statusDirtyRef.current = false
+      switchGitWorkspace(effectiveGitPath)
+      return
+    }
     if (gitMetaDirtyRef.current) {
       gitMetaDirtyRef.current = false
       statusDirtyRef.current = false
@@ -889,7 +904,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, o
       statusDirtyRef.current = false
       refreshStatusCoalesced()
     }
-  }, [isActive, refreshAll, refreshStatusCoalesced])
+  }, [isActive, effectiveGitPath, pauseWhenHidden, refreshAll, refreshStatusCoalesced, switchGitWorkspace])
 
   // Dismiss context menus on outside click
   useEffect(() => {
