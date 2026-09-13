@@ -3460,10 +3460,6 @@ export default function App() {
                     onPreviewImage={handlePreviewImage}
                     onOpenInBrowser={handleOpenFileInBrowser}
                     navigateToFile={navigateToFilePayload}
-                    recentFiles={recentFiles}
-                    onOpenRecentFile={handleOpenRecentFile}
-                    onRemoveRecentFile={removeRecentFile}
-                    onEditRecentFile={handleOpenFileFromExplorer}
                     isActive={leftPanelView === 'dir'}
                     pauseWhenHidden
                     brushActive={brushActive}
@@ -3670,10 +3666,6 @@ export default function App() {
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
             onOpenFileFromSearch={handleOpenSearchResult}
             onOpenFileFromExplorer={handleOpenFileFromExplorer}
-            recentFiles={recentFiles}
-            onOpenRecentFile={handleOpenRecentFile}
-            onRemoveRecentFile={removeRecentFile}
-            onEditRecentFile={handleOpenFileFromExplorer}
             onCompareWithCurrent={handleCompareWithCurrent}
             currentEditFilePath={currentEditFilePath}
             onPreviewMarkdown={handlePreviewMarkdown}

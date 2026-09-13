@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Lightbulb, Clock, X, Pencil, Search, Filter, FileText, FilePlus, FolderPlus, ClipboardPaste, Scissors, Copy, Check, RotateCw, FolderOpen, GitCompare, Trash2, Route, Globe } from 'lucide-react'
-import { FileNode, RecentFileEntry, GrepMatch, CodeSymbol } from '@shared/types'
+import { Lightbulb, X, Pencil, Search, Filter, FileText, FilePlus, FolderPlus, ClipboardPaste, Scissors, Copy, Check, RotateCw, FolderOpen, GitCompare, Trash2, Route, Globe } from 'lucide-react'
+import { FileNode, GrepMatch, CodeSymbol } from '@shared/types'
 import { getFileInfo, FileIcon, FolderIcon } from './FileIcons'
 import { PanelDirIcon } from '../panelIcons'
 import { ModalOverlay } from './ModalOverlay'
@@ -37,11 +37,11 @@ export function saveFilterRules(rules: string[]) {
   try { localStorage.setItem(FILTER_RULES_KEY, JSON.stringify(rules)) } catch {}
 }
 
-// ── FileTab section visibility (recently / arch) ──
+// ── FileTab section visibility (arch) ──
 
-interface FileTabSectionVis { recently: boolean; arch: boolean }
+interface FileTabSectionVis { arch: boolean }
 
-const DEFAULT_SECTION_VIS: FileTabSectionVis = { recently: true, arch: true }
+const DEFAULT_SECTION_VIS: FileTabSectionVis = { arch: true }
 
 // ──
 
@@ -56,10 +56,6 @@ interface FileTabProps {
   refreshKey?: number
   navigateToFile?: { trigger: number; filePath: string } | null
   onRefresh?: () => void
-  recentFiles?: RecentFileEntry[]
-  onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
-  onRemoveRecentFile?: (fullPath: string) => void
-  onEditRecentFile?: (fullPath: string, lineNumber?: number) => void
   onOpenFileAtLine?: (fullPath: string, lineNumber?: number) => void
   isActive?: boolean
   pauseWhenHidden?: boolean
@@ -601,7 +597,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, refreshKey, navigateToFile, onRefresh, recentFiles = [], onOpenRecentFile, onRemoveRecentFile, onEditRecentFile, onOpenFileAtLine, isActive, pauseWhenHidden, brushActive, onExploreNode }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, refreshKey, navigateToFile, onRefresh, onOpenFileAtLine, isActive, pauseWhenHidden, brushActive, onExploreNode }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -632,12 +628,8 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [nameOnly, setNameOnly] = useState(false)
   const { t } = useI18n()
 
-  // ── recently file section ──
-  const [recentExpanded, setRecentExpanded] = useState(true)
-  const [selectedRecentIndex, setSelectedRecentIndex] = useState<number | null>(null)
   const [sectionVis, setSectionVis] = useState<FileTabSectionVis>(DEFAULT_SECTION_VIS)
   const [sectionMenu, setSectionMenu] = useState<{ x: number; y: number } | null>(null)
-  const selectedRecentIndexRef = useRef<number | null>(null)
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
 
@@ -651,14 +643,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   fileTreeRef.current = fileTree
   const expandedDirsRef = useRef<Set<string>>(new Set())
   expandedDirsRef.current = expandedDirs
-
-  // recently files filtered to current workspace
-  const wsRecent = useMemo(() => recentFiles.filter(f => {
-    const p = norm(f.path)
-    const w = norm(workspacePath || '').replace(/\/$/, '')
-    if (!w) return false
-    return p === w || p.startsWith(w + '/')
-  }), [recentFiles, workspacePath])
 
   const nameSearchReqId = useRef(0)
   useEffect(() => {
@@ -1083,73 +1067,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     return () => window.removeEventListener('click', handleClick)
   }, [])
 
-  // Sync selectedRecentIndex ref (avoid re-registration on every index change)
-  useEffect(() => { selectedRecentIndexRef.current = selectedRecentIndex }, [selectedRecentIndex])
-
-  // 切 session / 切走 tab / 切 workspace 时清除 recently 键盘导航高亮（X 移除时另行复位）
-  useEffect(() => { setSelectedRecentIndex(null) }, [isActive, workspacePath])
-
-  // Keyboard navigation in recently panel: ArrowUp/Down 选择，Enter 打开，Escape 清除（照抄 AuxTab 模式）
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-      if (!isActiveRef.current) return
-      if (e.ctrlKey || e.metaKey || e.altKey) return
-
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        if (!recentExpanded || !sectionVis.recently || wsRecent.length === 0) return
-        e.preventDefault()
-        e.stopImmediatePropagation()
-        const prev = selectedRecentIndexRef.current
-        const next = e.key === 'ArrowDown'
-          ? (prev === null ? 0 : Math.min(prev + 1, wsRecent.length - 1))
-          : (prev === null ? wsRecent.length - 1 : Math.max(prev - 1, 0))
-        selectedRecentIndexRef.current = next  // 同步更新，避免连按时 ref 滞后
-        setSelectedRecentIndex(next)
-        // 上下移动直接打开对应文件（无需 Enter）
-        const f = wsRecent[next]
-        if (f) onOpenRecentFile?.(f.path, f.line)
-      } else if (e.key === 'Enter') {
-        const idx = selectedRecentIndexRef.current
-        if (idx !== null && idx < wsRecent.length) {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-          const f = wsRecent[idx]
-          onOpenRecentFile?.(f.path, f.line)
-        }
-      } else if (e.key === 'Escape') {
-        setSelectedRecentIndex(null)
-      }
-    }
-
-    window.addEventListener('keydown', handleKey, true)
-    return () => window.removeEventListener('keydown', handleKey, true)
-  }, [recentExpanded, sectionVis.recently, wsRecent, onOpenRecentFile])
-
-  // 选中项滚入视
-  useEffect(() => {
-    if (selectedRecentIndex === null) return
-    const tryScroll = () => {
-      const el = document.querySelector(`[data-recent-idx="${selectedRecentIndex}"]`)
-      if (el) {
-        el.scrollIntoView({ block: 'nearest' })
-        return true
-      }
-      return false
-    }
-    if (!tryScroll()) {
-      const id = setTimeout(() => { if (!tryScroll()) setTimeout(tryScroll, 100) }, 50)
-      return () => clearTimeout(id)
-    }
-  }, [selectedRecentIndex])
-
-  // 切换 recently / arch 显隐（标题栏右键菜单与文件树空白处菜单共享）
-  const toggleSection = useCallback((key: 'recently' | 'arch') => {
-    setSectionVis(prev => {
-      const next = { ...prev, [key]: !prev[key] }
-      return next
-    })
+  // 切换 arch 显隐（标题栏右键菜单与文件树空白处菜单共享）
+  const toggleArch = useCallback(() => {
+    setSectionVis(prev => ({ arch: !prev.arch }))
   }, [])
 
   // 关闭标题栏右键菜单：外部点击 / ESC（照抄 RightPanel.ContextMenu 的 contains 判定）
@@ -1437,61 +1357,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           </div>
         )}
       </div>
-      {sectionVis.recently && wsRecent.length > 0 && (
-        <div className="shrink-0 border-t border-ide-border max-h-[14rem] overflow-y-auto file-tab__section">
-          <div
-            className={`pl-5 pr-2 py-1 text-xs uppercase tracking-wider sticky top-0 bg-ide-sidebar/95 backdrop-blur-sm flex items-center gap-1 cursor-pointer hover:bg-ide-hover select-none border-b border-ide-border file-tab__section-header ${recentExpanded ? 'text-ide-accent' : 'text-ide-text-muted'}`}
-            onClick={() => setRecentExpanded(v => !v)}
-            onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
-          >
-            <Clock size={12} className={recentExpanded ? 'text-ide-accent' : 'text-ide-text-muted'} />
-            <span className="file-tab__section-title">{t('Recently Opened')}</span>
-          </div>
-          {recentExpanded && wsRecent.map((f, i) => {
-            const baseName = f.path.split(/[\\/]/).pop() || f.path
-            return (
-              <div
-                key={f.path}
-                data-recent-idx={i}
-                className={`group pl-[30px] pr-2 py-0.5 flex items-center gap-1.5 cursor-pointer hover:bg-ide-hover ft-fname ${selectedRecentIndex === i ? 'bg-ide-accent/10 text-ide-text' : ''}`}
-                title={`${f.path}${f.line ? ':' + f.line : ''}`}
-                onClick={(e) => {
-                  if (brushActive) {
-                    e.preventDefault()
-                    const rel = toRelPath(f.path, workspacePath ?? null)
-                    window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel } }))
-                    return
-                  }
-                  if (e.ctrlKey) { e.preventDefault(); handleCopyPath(f.path); return }
-                  onOpenRecentFile?.(f.path, f.line)
-                }}
-              >
-                <FileIcon name={baseName} className="ft-icon" />
-                <span className="truncate text-ide-text min-w-0 flex-1">{baseName}</span>
-                {onEditRecentFile && baseName.toLowerCase().endsWith('.md') && (
-                  <button
-                    className="ml-1 shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 row-action"
-                    onClick={(e) => { e.stopPropagation(); onEditRecentFile(f.path, f.line) }}
-                    title={t('Edit')}
-                  >
-                    <Pencil size={11} />
-                  </button>
-                )}
-                {f.line && <span className="text-ide-accent shrink-0 text-[10px]">:{f.line}</span>}
-                {onRemoveRecentFile && (
-                  <button
-                    className="ml-1 shrink-0 w-4 h-4 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 row-action"
-                    onClick={(e) => { e.stopPropagation(); onRemoveRecentFile(f.path); setSelectedRecentIndex(null) }}
-                    title={t('Remove')}
-                  >
-                    <X size={11} />
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
       {sectionVis.arch && docTree.length > 0 && (
         <div className="shrink-0 border-t border-ide-border file-tab__section" style={{ maxHeight: '45%', overflowY: 'auto' }}>
           <div
@@ -1679,22 +1544,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
               <div className="border-t border-ide-border my-1" />
               <button
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
-                onClick={() => toggleSection('recently')}
-              >
-                <span className={`ft-icon flex items-center justify-center ${sectionVis.recently ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
-                  {sectionVis.recently ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon opacity-30" />
-                  )}
-                </span>
-                <span>{t('Recently')}</span>
-              </button>
-              <button
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
-                onClick={() => toggleSection('arch')}
+                onClick={() => toggleArch()}
               >
                 <span className={`ft-icon flex items-center justify-center ${sectionVis.arch ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
                   {sectionVis.arch ? (
@@ -1712,7 +1562,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
         </div>
       )})()}
 
-      {/* 标题栏右键菜单：切换 recently / arch 显隐 */}
+      {/* 标题栏右键菜单：切换 arch 显隐 */}
       {sectionMenu && (
         <div
           ref={sectionMenuRef}
@@ -1722,22 +1572,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
         >
           <button
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
-            onClick={() => toggleSection('recently')}
-          >
-            <span className={`ft-icon flex items-center justify-center ${sectionVis.recently ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
-              {sectionVis.recently ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ft-icon opacity-30" />
-              )}
-            </span>
-            <span>{t('Recently')}</span>
-          </button>
-          <button
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover whitespace-nowrap"
-            onClick={() => toggleSection('arch')}
+            onClick={() => toggleArch()}
           >
             <span className={`ft-icon flex items-center justify-center ${sectionVis.arch ? 'text-ide-text' : 'text-ide-text-muted/30'}`}>
               {sectionVis.arch ? (

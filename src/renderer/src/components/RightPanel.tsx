@@ -8,7 +8,7 @@ import { PanelGitIcon, PanelDirIcon } from '../panelIcons'
 import GameLauncher from './GameLauncher'
 import BrowserView, { BrowserViewHandle } from './BrowserView'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
-import { AuxTerminalTab, RecentFileEntry } from '@shared/types'
+import { AuxTerminalTab } from '@shared/types'
 
 interface RightPanelProps {
   workspacePath: string | null
@@ -41,10 +41,6 @@ interface RightPanelProps {
   onNavigateToFile?: (filePath: string) => void
   onExploreNode?: (node: any) => void
   lineHistoryPayload?: { filePath: string; lineNumber: number } | null
-  recentFiles?: RecentFileEntry[]
-  onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
-  onRemoveRecentFile?: (fullPath: string) => void
-  onEditRecentFile?: (fullPath: string) => void
   brushActive?: boolean
   sessionWorktreeNav: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onWorktreeNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
@@ -455,9 +451,6 @@ function RightPanel({
   navigateToFilePayload, onNavigateToFile,
   onExploreNode,
   lineHistoryPayload,
-  recentFiles, onOpenRecentFile,
-  onRemoveRecentFile,
-  onEditRecentFile,
   brushActive,
   sessionWorktreeNav,
   onWorktreeNavChange,
@@ -729,10 +722,6 @@ function RightPanel({
           refreshKey={fileRefreshKey}
           navigateToFile={navigateToFilePayload}
           onRefresh={() => setFileRefreshKey(k => k + 1)}
-          recentFiles={recentFiles ?? []}
-          onOpenRecentFile={onOpenRecentFile}
-          onRemoveRecentFile={onRemoveRecentFile}
-          onEditRecentFile={onEditRecentFile}
           isActive={activeSection === 'file'}
           brushActive={brushActive}
           onExploreNode={onExploreNode}
