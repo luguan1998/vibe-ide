@@ -412,13 +412,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       cwd: workspacePath,
       autoApprove,
       permissionMode,
+      backend,
       cliCommand,
       configDir,
-      ...(worktreeEnabled ? { enableWorktree: true } : {}),
+      ...(worktreeEnabled && !isPi ? { enableWorktree: true } : {}),
       computerUse: flag === 'computerUse' ? next : state.computerUse,
       browserUse: flag === 'browserUse' ? next : state.browserUse,
     })
-  }, [activeSessionId, workspacePath, autoApprove, permissionMode, worktreeEnabled, state.computerUse, state.browserUse, handleDestroySession])
+  }, [activeSessionId, workspacePath, autoApprove, permissionMode, backend, isPi, worktreeEnabled, state.computerUse, state.browserUse, handleDestroySession])
 
   const toggleWorktreeSession = useCallback(() => {
     if (!activeSessionId || !workspacePath) return
@@ -430,14 +431,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       cwd: workspacePath,
       autoApprove,
       permissionMode,
+      backend,
       cliCommand,
       configDir,
-      ...(next ? { enableWorktree: true } : {}),
+      ...(next && !isPi ? { enableWorktree: true } : {}),
       computerUse: state.computerUse,
       browserUse: state.browserUse,
     })
     onViewAi()
-  }, [activeSessionId, workspacePath, autoApprove, permissionMode, worktreeEnabled, state.computerUse, state.browserUse, handleDestroySession, onViewAi])
+  }, [activeSessionId, workspacePath, autoApprove, permissionMode, backend, isPi, worktreeEnabled, state.computerUse, state.browserUse, handleDestroySession, onViewAi])
 
   useEffect(() => {
     if (!activeSessionId || !workspacePath || !state.worktreePath || !onWorktreeNavChange) return

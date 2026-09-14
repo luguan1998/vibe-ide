@@ -2362,6 +2362,9 @@ export default function App() {
       if (resumeCwd !== session.cwd) {
         setSessions(prev => prev.map(s => s.id === id ? { ...s, cwd: resumeCwd } : s))
       }
+      // pi 续聊由 AiTab ensureCreated(backend:'pi') → createPiSession(--session + 历史回放) 负责；
+      // 走下面的 claude JSONL resume 会 spawn claude 且占住 createdSessions，pi 永不启动
+      if (session.aiBackend === 'pi') return
       try {
         const result = await aiStore.resumeSession(id, resumeSessionId, resumeCwd, {
           autoApprove: false,
