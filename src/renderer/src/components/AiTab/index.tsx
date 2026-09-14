@@ -977,10 +977,10 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   const val = e.target.value
                   setInputValue(val)
                   const isSlash = val.startsWith('/')
-                  if (isSlash) {
-                    const filter = val.slice(1).split(' ')[0]
+                  const slashMatch = /^\/([^\s]*)$/.exec(val)
+                  if (slashMatch) {
                     setSlashMenuOpen(true)
-                    setSlashFilter(filter)
+                    setSlashFilter(slashMatch[1])
                     setSlashSelectedIndex(0)
                   } else {
                     setSlashMenuOpen(false)
@@ -1038,14 +1038,22 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       return
                     }
                     if (e.key === 'Enter' || e.key === 'Tab') {
-                      e.preventDefault()
-                      if (filtered[slashSelectedIndex]) {
-                        setInputValue(`/${filtered[slashSelectedIndex].name} `)
+                      const cmd = filtered[slashSelectedIndex]
+                      if (cmd) {
+                        e.preventDefault()
+                        setInputValue(`/${cmd.name} `)
+                        setSlashMenuOpen(false)
+                        setSlashFilter('')
+                        setSlashSelectedIndex(0)
+                        return
                       }
                       setSlashMenuOpen(false)
                       setSlashFilter('')
                       setSlashSelectedIndex(0)
-                      return
+                      if (e.key === 'Tab') {
+                        e.preventDefault()
+                        return
+                      }
                     }
                     if (e.key === 'Escape') {
                       e.preventDefault()
