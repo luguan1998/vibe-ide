@@ -738,7 +738,7 @@ export interface AiCreateOptions {
   cwd: string
   autoApprove: boolean
   permissionMode: AiPermissionMode
-  backend?: AiBackend
+  backend: AiBackend
   resumeSessionId?: string
   model?: string
   cliCommand?: string

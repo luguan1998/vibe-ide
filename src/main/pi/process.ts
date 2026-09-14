@@ -7,8 +7,6 @@ import { sanitizeEnvForCli } from '../ai-shared'
 
 export const PI_INSTALL_CMD = 'npm install -g @earendil-works/pi-coding-agent'
 
-const PI_VERSION_RE = /\d+\.\d+\.\d+/
-
 // Pi installs land in a few conventional places; `where`/`which` misses them
 // when the npm global bin dir is absent from the app's PATH (GUI launch).
 function candidateBinaries(): string[] {
@@ -20,82 +18,25 @@ function candidateBinaries(): string[] {
   return dirs.flatMap((dir) => names.map((name) => join(dir, name)))
 }
 
-function binaryWorks(binary: string): boolean {
-  const quote = process.platform === 'win32' && binary.includes(' ') ? `"${binary}"` : binary
-  try {
-    const out = execSync(`${quote} --version`, { encoding: 'utf-8', timeout: 15000, stdio: 'pipe' })
-    return PI_VERSION_RE.test(out)
-  } catch {
-    return false
-  }
-}
-
 export type PiBinaryResult = { binary: string } | { error: string; installCmd: string }
 
-// 每次探测要跑一遍 `pi --version`（完整 Node CLI 启动 ≈1s），会话创建/切换都要用，
-// 不能每次重付：成功后进程内记忆。
 let binaryCache: { binary: string } | null = null
 
+// 只做路径解析，不跑 `pi --version` 校验：那是一次完整 Node CLI 冷启（≈1.3s）且同步阻塞
+// 主进程，会话创建前必走这里等于白等；真正装坏了 spawn 时会立刻报错。首次解析后记忆。
 export function findPiBinary(): PiBinaryResult {
   if (binaryCache) return binaryCache
-  const resolved = resolvePiBinary()
-  if (!('error' in resolved)) binaryCache = resolved
-  return resolved
-}
-
-// 会话创建走这条：常见安装目录能 existsSync 秒判就不等 `--version` 校验（整条 Node CLI
-// 冷启 ≈1s），校验用异步 child 在后台补进 cache；目录里都没有才退回阻塞探测。
-export function piBinaryForSpawn(): PiBinaryResult {
-  if (binaryCache) return binaryCache
-  for (const path of candidateBinaries()) {
-    if (existsSync(path)) {
-      warmBinaryCache(path)
-      return { binary: path }
-    }
-  }
-  return findPiBinary()
-}
-
-let warming = false
-
-function warmBinaryCache(binary: string): void {
-  if (warming) return
-  warming = true
-  void probeBinaryAsync(binary).then((ok) => {
-    warming = false
-    if (ok) binaryCache = { binary }
-  })
-}
-
-function probeBinaryAsync(binary: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const proc = spawn(binary, ['--version'], { shell: process.platform === 'win32', stdio: ['ignore', 'pipe', 'pipe'] })
-    let out = ''
-    const timer = setTimeout(() => { try { proc.kill() } catch { /* dead */ } ; resolve(false) }, 15000)
-    proc.stdout?.on('data', (chunk: Buffer) => { out += chunk.toString('utf-8') })
-    proc.on('error', () => { clearTimeout(timer); resolve(false) })
-    proc.on('exit', () => { clearTimeout(timer); resolve(PI_VERSION_RE.test(out)) })
-  })
-}
-
-function resolvePiBinary(): PiBinaryResult {
   const probe = process.platform === 'win32' ? 'where pi' : 'which pi'
-  const found: string[] = []
   try {
     const out = execSync(probe, { encoding: 'utf-8', timeout: 5000, stdio: 'pipe' })
     for (const line of out.split(/\r?\n/)) {
       const path = line.trim()
-      if (path && existsSync(path)) found.push(path)
+      if (path && existsSync(path)) return (binaryCache = { binary: path })
     }
   } catch { /* not on PATH */ }
   for (const path of candidateBinaries()) {
-    if (existsSync(path) && !found.includes(path)) found.push(path)
+    if (existsSync(path)) return (binaryCache = { binary: path })
   }
-  for (const binary of found) {
-    if (binaryWorks(binary)) return { binary }
-  }
-  // PATH lookup may still hit a wrapper the existence check cannot see (shims).
-  if (binaryWorks('pi')) return { binary: 'pi' }
   return { error: `Pi CLI not found. Install with: ${PI_INSTALL_CMD}`, installCmd: PI_INSTALL_CMD }
 }
 

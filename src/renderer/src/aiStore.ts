@@ -109,7 +109,7 @@ interface EnsureCreatedOpts {
   cwd: string
   autoApprove: boolean
   permissionMode: AiPermissionMode
-  backend?: AiBackend
+  backend: AiBackend
   resumeSessionId?: string
   cliCommand?: string
   configDir?: string
@@ -213,7 +213,7 @@ export const aiStore = {
     if (createdSessions.has(sid)) return
     createdSessions.add(sid)
     const fallback = readAiCliConfig()
-    const backend: AiBackend = opts.backend ?? 'claude'
+    const backend: AiBackend = opts.backend
     const cliCommand = backend === 'claude' ? (opts.cliCommand ?? fallback.cliCommand) : undefined
     const configDir = opts.configDir ?? fallback.configDir
     window.api.ai.checkAvailable(cliCommand, backend).then((result: any) => {
@@ -335,6 +335,7 @@ export const aiStore = {
       cwd: createCwd,
       autoApprove: opts.autoApprove,
       permissionMode: opts.permissionMode,
+      backend: 'claude',
       ...(resumed ? { resumeSessionId: historySessionId } : {}),
       ...(cliCommand ? { cliCommand } : {}),
       ...(configDir ? { configDir } : {}),

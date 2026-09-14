@@ -3,7 +3,7 @@ import type { ChildProcess } from 'child_process'
 import { IPC_CHANNELS, type AiCreateOptions, type AiMessage, type AiPermissionRequest } from '../../shared/types'
 import { send } from '../ai-shared'
 import { PiRpc } from './rpc'
-import { attachPiLineReader, piBinaryForSpawn, killPiProcess, spawnPi, writePiLine } from './process'
+import { attachPiLineReader, findPiBinary, killPiProcess, spawnPi, writePiLine } from './process'
 import {
   agentEndWillRetry, asRecord, assistantDeltaFromEvent, buildPiSpawnArgs, contextFromSessionStats, contextFromUsage,
   extensionUiResponse, extensionUiTitle, isAbortedAssistant, isAgentSettled, needsExtensionUiReply, parseExtensionUiRequest,
@@ -53,7 +53,7 @@ function emitMessage(session: PiSession, message: Omit<AiMessage, 'sessionId' | 
 
 export async function createPiSession(options: AiCreateOptions): Promise<{ success: boolean; error?: string; installCmd?: string }> {
   destroyPiSession(options.sessionId)
-  const resolved = piBinaryForSpawn()
+  const resolved = findPiBinary()
   if ('error' in resolved) {
     send(IPC_CHANNELS.AI_ERROR, { sessionId: options.sessionId, error: resolved.error, installCmd: resolved.installCmd })
     return { success: false, error: resolved.error, installCmd: resolved.installCmd }
@@ -173,6 +173,7 @@ export async function forceStopPi(sessionId: string): Promise<{ success: boolean
     cwd: session.cwd,
     autoApprove: false,
     permissionMode: 'bypassPermissions',
+    backend: 'pi',
     resumeSessionId: resumeId,
     ...(session.model ? { model: session.model } : {}),
   }

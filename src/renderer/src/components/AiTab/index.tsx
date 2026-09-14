@@ -1328,6 +1328,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       cwd: workspacePath || '',
                       autoApprove,
                       permissionMode,
+                      backend: 'claude',
                       resumeSessionId: s.session_id || s.id,
                       ...(cliCommand ? { cliCommand } : {}),
                       ...(configDir ? { configDir } : {}),

@@ -197,7 +197,7 @@ declare global {
       removeStartupOpenPathListener: (handler?: any) => void
       ai: {
         checkAvailable: (cliCommand?: string, backend?: 'claude' | 'pi') => Promise<{ available: boolean; installCmd?: string; error?: string }>
-        create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; backend?: 'claude' | 'pi'; resumeSessionId?: string; cliCommand?: string; configDir?: string; model?: string; enableWorktree?: boolean; computerUse?: boolean; browserUse?: boolean }) => Promise<{ success: boolean; error?: string }>
+        create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; backend: 'claude' | 'pi'; resumeSessionId?: string; cliCommand?: string; configDir?: string; model?: string; enableWorktree?: boolean; computerUse?: boolean; browserUse?: boolean }) => Promise<{ success: boolean; error?: string }>
         send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>
         cancel: (sessionId: string) => Promise<boolean>
         forceStop: (sessionId: string) => Promise<{ success: boolean; error?: string }>
