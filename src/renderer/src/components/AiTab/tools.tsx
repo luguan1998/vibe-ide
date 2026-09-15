@@ -4,6 +4,7 @@ import { AI_FILE_EDIT_TOOLS } from '@shared/types'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../../themes'
 import { Bot, ChevronDown, HelpCircle } from 'lucide-react'
+import { CONTENT_MAX_W } from './layout'
 // ── Tool type classification ──────────────────────────────────────
 
 const COMMAND_TOOLS = new Set(['Bash', 'bash', 'terminal', 'run_command', 'execute_command'])
@@ -246,7 +247,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
   const newContent = editContent?.newContent
 
   return (
-    <div className="ai-tab__tool-call block w-full max-w-[896px] mx-auto animate-fade-in cursor-pointer select-none" onClick={() => setExpanded(v => !v)}>
+    <div className={`ai-tab__tool-call block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in cursor-pointer select-none`} onClick={() => setExpanded(v => !v)}>
       <button
         type="button"
         className={`ai-tab__tool-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${
@@ -302,7 +303,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
 export function CollapsedToolsSummary({ tools }: { tools: AiToolUse[] }) {
   const [expanded, setExpanded] = useState(false)
   return (
-    <div className="ai-tab__tools-summary w-full max-w-[896px] mx-auto animate-fade-in">
+    <div className={`ai-tab__tools-summary w-full ${CONTENT_MAX_W} mx-auto animate-fade-in`}>
       <button
         onClick={() => setExpanded(v => !v)}
         className="ai-tab__tools-summary-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"

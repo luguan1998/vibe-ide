@@ -17,6 +17,7 @@ import type { MentionItem } from './inputArea'
 import { ClaudeLogoIcon } from '../ClaudeLogoIcon'
 import { PiLogoIcon } from '../PiLogoIcon'
 import type { AiBackend } from '@shared/types'
+import { CONTENT_MAX_W, PANEL_MAX_W, CONTENT_W_MIN, CONTENT_W_MAX, CONTENT_W_DEFAULT } from './layout'
 function formatBytes(n: number): string {
   if (n < 1000) return `${n} B`
   if (n < 1000000) return `${(n / 1000).toFixed(1)} kB`
@@ -587,6 +588,39 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     })
   }, [state.messages.length, state.streamBuffer, state.thinkingBuffer])
 
+  // ── 内容列宽度:输入区两侧 hover 可拖拽缩放,--ai-content-w 挂在根上全链生效 ──
+  const CONTENT_W_KEY = 'vibe-ide-ai-content-w'
+  const [contentW, setContentW] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem(CONTENT_W_KEY))
+      return v >= CONTENT_W_MIN && v <= CONTENT_W_MAX ? v : CONTENT_W_DEFAULT
+    } catch { return CONTENT_W_DEFAULT }
+  })
+  const contentWRef = useRef(contentW)
+  contentWRef.current = contentW
+  const startContentResize = useCallback((e: React.PointerEvent, side: 1 | -1) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startW = contentWRef.current
+    let latest = startW
+    const onMove = (ev: PointerEvent) => {
+      const el = containerRef.current
+      const maxW = Math.min(CONTENT_W_MAX, (el ? el.clientWidth - 24 : CONTENT_W_MAX))
+      const next = Math.max(CONTENT_W_MIN, Math.min(maxW, startW + (ev.clientX - startX) * side * 2))
+      if (next === latest) return
+      latest = next
+      setContentW(next)
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      try { localStorage.setItem(CONTENT_W_KEY, String(latest)) } catch {}
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }, [])
+
   // ── Focus input when tab becomes active ──
   // ready 前 textarea 是 disabled 无法聚焦,克隆的新 session 需等 ready 后再聚焦
   useEffect(() => {
@@ -916,7 +950,21 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     : aiStore.handleAskResume
 
   const inputArea = (
-      <div className="ai-tab__input-area shrink-0 w-full max-w-[928px] mx-auto px-2 pt-2 pb-0">
+      <div className={`ai-tab__input-area relative shrink-0 w-full ${PANEL_MAX_W} mx-auto px-2 pt-2 pb-0`}>
+        <div
+          onPointerDown={(e) => startContentResize(e, -1)}
+          title={t('Resize width')}
+          className="ai-tab__resize-handle absolute left-0 top-1/2 -translate-y-1/2 w-2 h-14 -ml-1 cursor-col-resize group flex items-center justify-center"
+        >
+          <span className="w-0.5 h-8 rounded-full bg-ide-accent/60 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+        <div
+          onPointerDown={(e) => startContentResize(e, 1)}
+          title={t('Resize width')}
+          className="ai-tab__resize-handle absolute right-0 top-1/2 -translate-y-1/2 w-2 h-14 -mr-1 cursor-col-resize group flex items-center justify-center"
+        >
+          <span className="w-0.5 h-8 rounded-full bg-ide-accent/60 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
         <div className="relative">
           {slashMenuOpen && (
             <div className="absolute bottom-full left-0 right-0 mb-1 z-20">
@@ -1207,7 +1255,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   )
 
   return (
-    <div ref={containerRef} tabIndex={-1} className="ai-tab relative flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
+    <div ref={containerRef} tabIndex={-1} style={{ '--ai-content-w': `${contentW}px` } as React.CSSProperties} className="ai-tab relative flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
       {/* Header */}
       <div className="ai-tab__header flex items-center justify-between px-2 py-1 border-b border-ide-border shrink-0 acrylic-titlebar-clean">
         <div className="ai-tab__header-left flex items-center gap-1.5 min-w-0">
@@ -1413,7 +1461,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             </div>
             )}
             {inputArea}
-            <div className="ai-tab__empty-prompts flex flex-wrap justify-center gap-1.5 max-w-[928px]">
+            <div className={`ai-tab__empty-prompts flex flex-wrap justify-center gap-1.5 ${PANEL_MAX_W}`}>
               {EXAMPLE_PROMPTS.map((item, i) => (
                 <button
                   key={i}
@@ -1440,7 +1488,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       ) : (
         <>
         <div className="ai-tab__scroll-wrap relative flex-1 min-h-0" onMouseMove={onScrollWrapMouseMove} onMouseLeave={() => setTurnNavHover(false)}>
-        <div ref={scrollContainerRef} className="ai-tab__messages h-full min-h-0 overflow-y-auto overflow-x-hidden px-2 py-2 space-y-1">
+        <div ref={scrollContainerRef} className={`ai-tab__messages h-full min-h-0 overflow-y-auto overflow-x-hidden px-2 pt-2 space-y-1 ${!atBottom ? 'pb-9' : 'pb-2'}`}>
         <MessageList
           messages={state.messages}
           userTurns={state.userTurns}
@@ -1454,7 +1502,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           allowHistory={!isPi}
         />
         {!state.ready && state.messages.length > 0 && (
-          <div className="ai-tab__resume flex items-center gap-2 w-full max-w-[896px] mx-auto px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in">
+          <div className={`ai-tab__resume flex items-center gap-2 w-full ${CONTENT_MAX_W} mx-auto px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in`}>
             <span className="h-3.5 w-3.5 rounded-full border-2 border-ide-accent/30 border-t-ide-accent animate-spin shrink-0" />
             <span>{t('Resuming session...')}</span>
           </div>
@@ -1463,7 +1511,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         {/* isActive=false 的 AiTab 挂在 DOM 里但 display:none：不挂载 live 区，后台会话每次 flush 不再
             产生 markdown/thinking 渲染、动画与滚动量测（store 仍是唯一真相源，切回即补全 live 视图） */}
         <FadeOutOnUnmount visible={state.busy && isActive} duration={200}>
-          <div className="ai-tab__busy w-full max-w-[896px] mx-auto space-y-1.5">
+          <div className={`ai-tab__busy w-full ${CONTENT_MAX_W} mx-auto space-y-1.5`}>
             {Object.keys(state.runningTools).length > 0 && (
               <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">
                 {Object.entries(state.runningTools).map(([id, rt], i) => (
@@ -1497,7 +1545,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         <div ref={messagesEndRef} />
         </div>
 
-        {/* 右侧面包屑:用户输入轮次指示器(JS 检测距右缘距离浮现,不拦截消息区点击);列底附跳到底部快捷钮 */}
+        {/* 右侧面包屑:用户输入轮次指示器(JS 检测距右缘距离浮现,不拦截消息区点击) */}
         {userTurnList.length > 0 && (
           <div className={`ai-tab__turn-zone pointer-events-none absolute inset-y-1 right-0 z-10 w-8 flex flex-col items-center
                           transition-opacity duration-150 ${turnNavHover ? 'opacity-100' : 'opacity-0'}`}>
@@ -1523,17 +1571,24 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 ))}
               </div>
             </div>
-            {!atBottom && (
-              <button
-                type="button"
-                onClick={jumpToBottom}
-                title={t('Jump to Bottom')}
-                className="ai-tab__to-bottom pointer-events-auto shrink-0 mt-1 mb-0.5 h-6 w-6 flex items-center justify-center rounded-full border border-ide-border bg-ide-sidebar text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
-              >
-                <ChevronDown size={14} />
-              </button>
-            )}
           </div>
+        )}
+
+        {/* 跳到底部:通栏横线 + 中部圆形把手,未贴底时常显,整条可点(线宽对齐内容列) */}
+        {!atBottom && (
+          <button
+            type="button"
+            onClick={jumpToBottom}
+            title={t('Jump to Bottom')}
+            className="ai-tab__to-bottom absolute inset-x-0 bottom-0 z-10 h-6 flex items-center justify-center group"
+          >
+            <div className={`relative w-full ${CONTENT_MAX_W} mx-auto flex items-center justify-center`}>
+              <span className="absolute inset-x-0 top-1/2 h-px bg-ide-border" />
+              <span className="relative h-6 w-6 flex items-center justify-center rounded-full border border-ide-border bg-ide-sidebar text-ide-text-muted group-hover:text-ide-text group-hover:bg-ide-hover transition-colors">
+                <ChevronDown size={14} />
+              </span>
+            </div>
+          </button>
         )}
         </div>
 
@@ -1566,7 +1621,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
       {/* Piped prompt — queued while busy, auto-sent when idle; 样式对齐 dsh QueueDock（36px 行高 / 14px 图标 / 28px 圆形动作） */}
       {state.pipedPrompt && activeSessionId && editingPiped === null && (
-        <div className="w-full max-w-[928px] mx-auto mb-1 px-2">
+        <div className={`w-full ${PANEL_MAX_W} mx-auto mb-1 px-2`}>
         <div className="ai-tab__piped w-full h-9 flex items-center gap-2.5 px-3 rounded-xl bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">
           <Plug size={14} className="shrink-0 text-ide-text-muted" />
           <span className="text-xs font-medium text-ide-accent/80 shrink-0">{t('Queued')}</span>
@@ -1601,7 +1656,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
       {/* Piped prompt edit mode — textarea 对齐 dsh editor（28px 高/描边/焦点主题色），Enter 保存 / Esc 取消 */}
       {state.pipedPrompt && activeSessionId && editingPiped !== null && (
-        <div className="w-full max-w-[928px] mx-auto mb-1 px-2">
+        <div className={`w-full ${PANEL_MAX_W} mx-auto mb-1 px-2`}>
         <div className="ai-tab__piped w-full min-h-9 flex items-center gap-2.5 px-3 py-1 rounded-xl bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">
           <Plug size={14} className="shrink-0 text-ide-text-muted" />
           <span className="text-xs font-medium text-ide-accent/80 shrink-0">{t('Queued')}</span>

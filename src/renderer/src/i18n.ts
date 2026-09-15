@@ -493,6 +493,7 @@ const ZH_MAP: Record<string, string> = {
   'Connecting...': '连接中...',
   'Streaming...': '生成中...',
   'Jump to Bottom': '跳到最下',
+  'Resize width': '拖拽调整宽度',
   'Explain this codebase': '解释代码库',
 
   'Write tests': '编写测试',

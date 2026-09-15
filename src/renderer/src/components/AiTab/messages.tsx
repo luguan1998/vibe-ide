@@ -6,6 +6,7 @@ import { cleanMessageContent } from '../../utils/aiConversationFormatter'
 import { ChevronDown, Check, Undo2, MessageSquare, GitBranch, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
 import { ToolIcon, AiToolCallCard, CollapsedToolsSummary, isMergeTool, isPureToolMessage } from './tools'
 import { ChatMarkdown } from './markdown'
+import { CONTENT_MAX_W, PANEL_MAX_W } from './layout'
 interface TodoItem {
   id: string
   subject: string
@@ -136,7 +137,7 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
 
   return (
     <div
-      className="ai-tab__message ai-tab__message--user w-full max-w-[896px] mx-auto flex flex-col items-end gap-1.5 animate-fade-in group/user"
+      className={`ai-tab__message ai-tab__message--user w-full ${CONTENT_MAX_W} mx-auto flex flex-col items-end gap-1.5 animate-fade-in group/user`}
       {...(userMessageIndex >= 0 ? { 'data-user-turn': userMessageIndex } : undefined)}
     >
       <div className="ai-tab__message-wrap max-w-[85%] relative">
@@ -375,7 +376,7 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
   const [expanded, setExpanded] = useState(false)
   const toolCount = messages.reduce((acc, m) => acc + (m.toolUse ? m.toolUse.length : 0), 0)
   return (
-    <div className="ai-tab__agent-group w-full max-w-[896px] mx-auto animate-fade-in">
+    <div className={`ai-tab__agent-group w-full ${CONTENT_MAX_W} mx-auto animate-fade-in`}>
       <div className="ml-2 pl-2 border-l-[3px] border-ide-accent/40 space-y-1">
         <button
           onClick={() => setExpanded(v => !v)}
@@ -439,12 +440,12 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   return (
     <div className={`ai-tab__message ai-tab__message--assistant flex flex-col items-center space-y-1 ${isLive || wasLiveRef.current ? '' : 'animate-fade-in'}`}>
       {errorStatus && (
-        <div className={`ai-tab__status-pill w-full max-w-[896px] text-[9px] font-medium px-1 ${errorStatus.color}`}>
+        <div className={`ai-tab__status-pill w-full ${CONTENT_MAX_W} text-[9px] font-medium px-1 ${errorStatus.color}`}>
           {errorStatus!.label}
         </div>
       )}
       {hasContent && (
-        <div className="ai-tab__message-content w-full max-w-[896px] space-y-1.5">
+        <div className={`ai-tab__message-content w-full ${CONTENT_MAX_W} space-y-1.5`}>
           {/* isLive = 当前正在流式生成的那条消息（提交时 busy）。autoFold 让它展开态挂载无缝交接 busy 区
               thinking、下一帧平滑收起；历史消息 isLive=false 折叠挂载。isLive 另让本消息 root 跳过 fade-in（接管不透明） */}
           {!hideThink && message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} autoFold={isLive} />}
@@ -456,7 +457,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
         </div>
       )}
       {showMeta && (
-        <div className="ai-tab__message-meta w-full max-w-[896px] flex items-center gap-2.5 text-xs text-ide-text-muted/50 group/meta">
+        <div className={`ai-tab__message-meta w-full ${CONTENT_MAX_W} flex items-center gap-2.5 text-xs text-ide-text-muted/50 group/meta`}>
           <span className="inline-flex items-center gap-0.5 mr-2">
             <span className="text-sm">✻</span>
             <span>Churned for {(() => { const sec = (message.durationMs || 0) / 1000; if (sec < 60) return `${sec.toFixed(1)}s`; const m = Math.floor(sec / 60); const s = Math.round(sec % 60); return `${m}m ${s}s`; })()}</span>
@@ -491,7 +492,7 @@ function AiErrorMessage({ message }: { message: AiMessage }) {
   }, [message.installCmd])
 
   return (
-    <div className="ai-tab__error w-full max-w-[896px] mx-auto px-3 py-2 rounded-2xl rounded-tl-md bg-ide-danger/10 border border-ide-danger/25 text-ide-danger text-xs animate-fade-in">
+    <div className={`ai-tab__error w-full ${CONTENT_MAX_W} mx-auto px-3 py-2 rounded-2xl rounded-tl-md bg-ide-danger/10 border border-ide-danger/25 text-ide-danger text-xs animate-fade-in`}>
       {message.error}
       {message.installCmd && (
         <div className="mt-1.5 flex items-center gap-1.5">
@@ -517,7 +518,7 @@ export function TodoListPanel({ items }: { items: TodoItem[] }) {
   const total = items.length
 
   return (
-    <div className="ai-tab__todo-panel shrink-0 border-b border-ide-border/30 animate-fade-in w-full max-w-[928px] mx-auto">
+    <div className={`ai-tab__todo-panel shrink-0 border-b border-ide-border/30 animate-fade-in w-full ${PANEL_MAX_W} mx-auto`}>
       <button
         onClick={() => setCollapsed(v => !v)}
         className="ai-tab__todo-toggle w-full flex items-center gap-1.5 px-2 py-1.5 hover:bg-ide-hover/30 transition-colors"
