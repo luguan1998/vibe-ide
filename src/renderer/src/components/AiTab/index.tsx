@@ -63,6 +63,7 @@ const BUSY_QUIPS = [
   'A bug in time saves nine…',
   'Long live the open-source rebellion…',
 ]
+const EDGE_HOVER_PX = 48
 const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
@@ -491,16 +492,22 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   const [activeTurn, setActiveTurn] = useState(-1)
   const [turnNavHover, setTurnNavHover] = useState(false)
+  const [bottomBarHover, setBottomBarHover] = useState(false)
   const [atBottom, setAtBottom] = useState(true)
   const turnNavHoverRef = useRef(false)
-  // mouse 距滚动区右缘 < 48px 即浮现面包屑;检测挂在 wrap 上,面包屑自身不吞
+  // mouse 距滚动区右缘 < EDGE_HOVER_PX 即浮现面包屑、距下缘 < EDGE_HOVER_PX 即浮现跳到底部条;检测挂在 wrap 上
   // mousedown 消息区不受遮挡(悬浮层 pointer-events-none,仅按钮区接收点击)
   const onScrollWrapMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const wrap = e.currentTarget
     const rect = wrap.getBoundingClientRect()
     const distFromRight = rect.right - e.clientX
+    const distFromBottom = rect.bottom - e.clientY
     setTurnNavHover(prev => {
-      const hover = distFromRight < 48
+      const hover = distFromRight < EDGE_HOVER_PX
+      return hover === prev ? prev : hover
+    })
+    setBottomBarHover(prev => {
+      const hover = distFromBottom < EDGE_HOVER_PX
       return hover === prev ? prev : hover
     })
   }, [])
@@ -541,13 +548,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
   }, [lastTurnIdx])
 
-  // 跳到底部:瞬时滚动（平滑滚动中途 scroll 事件会把 atBottom 翻回 false 致按钮闪跳），并恢复流式跟随
+  // 跳到底部:瞬时滚动（平滑滚动中途 scroll 事件会把 atBottom 翻回 false 致按钮闪跳），并恢复流式跟随,焦点落到输入框
   const jumpToBottom = useCallback(() => {
     const el = scrollContainerRef.current
     if (!el) return
     userScrolledUpRef.current = false
     setAtBottom(true)
     el.scrollTop = el.scrollHeight
+    inputRef.current?.focus({ preventScroll: true })
   }, [])
 
   useEffect(() => {
@@ -1487,7 +1495,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         </>
       ) : (
         <>
-        <div className="ai-tab__scroll-wrap relative flex-1 min-h-0" onMouseMove={onScrollWrapMouseMove} onMouseLeave={() => setTurnNavHover(false)}>
+        <div className="ai-tab__scroll-wrap relative flex-1 min-h-0" onMouseMove={onScrollWrapMouseMove} onMouseLeave={() => { setTurnNavHover(false); setBottomBarHover(false) }}>
         <div ref={scrollContainerRef} className={`ai-tab__messages h-full min-h-0 overflow-y-auto overflow-x-hidden px-2 pt-2 space-y-1 ${!atBottom ? 'pb-9' : 'pb-2'}`}>
         <MessageList
           messages={state.messages}
@@ -1591,8 +1599,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           </div>
         )}
 
-        {/* 跳到底部:通栏横线 + 中部圆形把手,未贴底时常显,整条可点(线宽对齐内容列) */}
-        {!atBottom && (
+        {/* 跳到底部:通栏横线 + 中部圆形把手,未贴底且鼠标靠近下缘时显示,整条可点(线宽对齐内容列) */}
+        {!atBottom && bottomBarHover && (
           <button
             type="button"
             onClick={jumpToBottom}
