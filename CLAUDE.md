@@ -3,6 +3,7 @@
 Vibe IDE — Electron-based desktop IDE with native terminal, git, file diff/edit, content search, and session management. Built with electron-vite, React, TypeScript, Tailwind CSS.
 - 不要加注释，除非是反复修改的问题。
 - ui交互相关的修改只需要人类验证，ai只负责检查基本语法。
+- 项目处于初期开发阶段，用户不多，不考虑存量场景（无需数据迁移/向后兼容），优先用简洁方案保证代码简单易拓展。
 
 ## UI Coding Rules
 
