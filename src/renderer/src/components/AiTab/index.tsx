@@ -138,7 +138,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // Session history
   const [sessionHistoryOpen, setSessionHistoryOpen] = useState(false)
   const [sessionHistoryList, setSessionHistoryList] = useState<any[]>([])
-  const [viewMode, setViewMode] = useState(0) // 0=all, 1=hide tools, 2=hide tools+think
+  const [viewMode, setViewMode] = useState(0) // 0=compact (tools collapsed to summary), 1=hide tools+think
   const [worktreeEnabled, setWorktreeEnabled] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
 
@@ -907,8 +907,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // ── Copy entire conversation ──
   const [conversationCopied, setConversationCopied] = useState(false)
   const handleCopyConversation = useCallback(() => {
-    const includeThinking = viewMode !== 2
-    const includeToolUse = viewMode === 0
+    const includeThinking = viewMode !== 1
+    const includeToolUse = viewMode !== 1
     const text = formatConversationMarkdown(
       state.messages, state.userTurns, state.name, includeThinking, includeToolUse
     )
@@ -1295,9 +1295,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           </button>
           {/* Toggle tool visibility */}
           <button
-            onClick={() => setViewMode(v => (v + 1) % 3)}
-            className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors ${viewMode === 2 ? 'ai-tab__header-btn--active bg-ide-active' : ''}`}
-            title={viewMode === 0 ? t('Show All') : viewMode === 1 ? t('Hide Tools') : t('Hide Tools & Think')}
+            onClick={() => setViewMode(v => (v + 1) % 2)}
+            className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors ${viewMode === 1 ? 'ai-tab__header-btn--active bg-ide-active' : ''}`}
+            title={viewMode === 0 ? t('Compact Tools') : t('Hide Tools & Think')}
           >
             {viewMode === 0 ? <Eye size={14} /> : <EyeOff size={14} />}
           </button>
@@ -1513,6 +1513,22 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         <FadeOutOnUnmount visible={state.busy && isActive} duration={200}>
           <div className={`ai-tab__busy w-full ${CONTENT_MAX_W} mx-auto space-y-1.5`}>
             {Object.keys(state.runningTools).length > 0 && (
+              viewMode === 0 ? (
+                <div className="ai-tab__live-tools flex items-center gap-1">
+                  {(() => {
+                    const entries = Object.entries(state.runningTools)
+                    const [id, rt] = entries[entries.length - 1]
+                    return (
+                      <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-hover text-ide-text-muted border border-ide-border/50">
+                        <ToolIcon category={getToolCategory(rt.tool)} />
+                        <span className="claude-shimmer-text truncate max-w-[160px]">{rt.tool}</span>
+                        <span className="text-ide-text-muted/50">{Math.round(rt.elapsed)}s</span>
+                        {entries.length > 1 && <span className="text-ide-text-muted/50">· {entries.length}</span>}
+                      </span>
+                    )
+                  })()}
+                </div>
+              ) : (
               <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">
                 {Object.entries(state.runningTools).map(([id, rt], i) => (
                   <span key={id} className="claude-row-enter inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-hover text-ide-text-muted border border-ide-border/50" style={{ '--enter-delay': `${i * 45}ms` } as React.CSSProperties}>
@@ -1522,6 +1538,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   </span>
                 ))}
               </div>
+              )
             )}
             {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll noAnimate smoothStream />}
             {state.streamBuffer ? (

@@ -4,7 +4,7 @@ import { asToolArray } from '@shared/types'
 import { useI18n } from '../../i18n'
 import { cleanMessageContent } from '../../utils/aiConversationFormatter'
 import { ChevronDown, Check, Undo2, MessageSquare, GitBranch, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
-import { ToolIcon, AiToolCallCard, CollapsedToolsSummary, isMergeTool, isPureToolMessage } from './tools'
+import { ToolIcon, AiToolCallCard, CompactToolSummary, SummaryBar, isPureToolMessage } from './tools'
 import { ChatMarkdown } from './markdown'
 import { CONTENT_MAX_W, PANEL_MAX_W } from './layout'
 interface TodoItem {
@@ -425,8 +425,8 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   // 重播 opacity 0→1 → 屏幕一闪。记录"曾经 live 过"，永跳过 fade-in（resume/历史消息 wasLive 始终 false，正常渐入）
   const wasLiveRef = useRef(false)
   if (isLive) wasLiveRef.current = true
-  const hideTools = viewMode === 1 || viewMode === 2
-  const hideThink = viewMode === 2
+  const hideTools = viewMode === 1
+  const hideThink = viewMode === 1
   const showMeta = message.type === 'result' && (message.costUsd != null || message.numTurns != null || message.isAborted || message.durationMs != null)
   const showContent = message.type !== 'result'
   const hasContent = showContent && (message.content || message.thinking || (message.toolUse && message.toolUse.length > 0))
@@ -450,9 +450,10 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
               thinking、下一帧平滑收起；历史消息 isLive=false 折叠挂载。isLive 另让本消息 root 跳过 fade-in（接管不透明） */}
           {!hideThink && message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} autoFold={isLive} />}
           {message.content && <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />}
-          {!hideTools && message.toolUse && message.toolUse.length >= 2 && <CollapsedToolsSummary tools={message.toolUse} />}
-          {!hideTools && message.toolUse && message.toolUse.length === 1 && (
-            <AiToolCallCard key={message.toolUse[0].id} tool={message.toolUse[0]} />
+          {!hideTools && message.toolUse && message.toolUse.length > 0 && (
+            message.toolUse.length === 1
+              ? <AiToolCallCard key={message.toolUse[0].id} tool={message.toolUse[0]} />
+              : <CompactToolSummary tools={message.toolUse} />
           )}
         </div>
       )}
@@ -634,20 +635,29 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     | { type: 'msg'; message: AiMessage; index: number }
     | { type: 'readSummary'; tools: AiToolUse[]; firstToolId: string }
     | { type: 'toolCard'; tool: AiToolUse }
+    | { type: 'summary'; think: number; tools: number; firstToolId: string }
   > = []
-  const hideTools = viewMode === 1 || viewMode === 2
+  const hideTools = viewMode === 1
   const readBuffer: AiToolUse[] = []
   let firstToolId = ''
   const flushReads = () => {
     if (readBuffer.length === 0) return
-    if (hideTools) { readBuffer.length = 0; firstToolId = ''; return }
-    if (readBuffer.length >= 2) {
-      groups.push({ type: 'readSummary', tools: [...readBuffer], firstToolId })
-    } else {
+    if (readBuffer.length === 1) {
       groups.push({ type: 'toolCard', tool: readBuffer[0] })
+    } else {
+      groups.push({ type: 'readSummary', tools: [...readBuffer], firstToolId })
     }
     readBuffer.length = 0
     firstToolId = ''
+  }
+  // 汇总档：连续的 thinking-only / 纯工具消息合并成一条不可展开的 SummaryBar，
+  // 遇到正文/用户消息/agent 组才收口，避免截图里 Think×1 Tools×2 交替碎片
+  const sum = { think: 0, tools: 0, firstId: '' }
+  const flushSum = () => {
+    if (sum.think || sum.tools) {
+      groups.push({ type: 'summary', think: sum.think, tools: sum.tools, firstToolId: sum.firstId })
+      sum.think = 0; sum.tools = 0; sum.firstId = ''
+    }
   }
   // Async sub-agents (and the main agent) interleave in the live stream, so consecutive-
   // same-parent grouping would split one agent into many fragments. Map each parentToolUseId
@@ -658,6 +668,7 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     const msg = messages[i]
     if (msg.parentToolUseId) {
       flushReads()
+      flushSum()
       let g = agentGroupByParent.get(msg.parentToolUseId)
       if (!g) {
         g = { type: 'agent', messages: [], parentId: msg.parentToolUseId, startIndex: i }
@@ -668,32 +679,38 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
       continue
     }
     const isStreamingLast = i === messages.length - 1 && busy
-    if (isPureToolMessage(msg) && !isStreamingLast) {
+    if (hideTools && !isStreamingLast && (msg.thinking || isPureToolMessage(msg)) && !msg.content) {
+      flushReads()
+      if (!sum.think && !sum.tools) sum.firstId = msg.messageId || String(i)
+      if (msg.thinking) sum.think++
+      sum.tools += msg.toolUse?.length ?? 0
+    } else if (isPureToolMessage(msg) && !isStreamingLast) {
+      flushSum()
       for (const tool of msg.toolUse ?? []) {
-        if (isMergeTool(tool.name)) {
-          if (readBuffer.length === 0) firstToolId = tool.id
-          readBuffer.push(tool)
-        } else {
-          flushReads()
-          if (!hideTools) groups.push({ type: 'toolCard', tool })
-        }
+        if (readBuffer.length === 0) firstToolId = tool.id
+        readBuffer.push(tool)
       }
     } else {
       flushReads()
+      flushSum()
       groups.push({ type: 'msg', message: msg, index: i })
     }
   }
   flushReads()
+  flushSum()
 
   return <>{groups.map((item) => {
     if (item.type === 'agent') {
       return <CollapsibleAgentGroup key={`agent-${item.startIndex}`} messages={item.messages} workspacePath={workspacePath} onOpenFile={onOpenFile} viewMode={viewMode} />
     }
     if (item.type === 'readSummary') {
-      return <CollapsedToolsSummary key={`read-${item.firstToolId}`} tools={item.tools} />
+      return <CompactToolSummary key={`read-${item.firstToolId}`} tools={item.tools} />
     }
     if (item.type === 'toolCard') {
       return <AiToolCallCard key={`tool-${item.tool.id}`} tool={item.tool} />
+    }
+    if (item.type === 'summary') {
+      return <SummaryBar key={`sum-${item.firstToolId}`} thinkCount={item.think} toolCount={item.tools} />
     }
     const msg = item.message
     const uIdx = isRealUserInput(messages, item.index)

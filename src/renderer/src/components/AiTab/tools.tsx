@@ -29,11 +29,6 @@ export function getToolCategory(name: string): 'file' | 'command' | 'search' | '
   return 'default'
 }
 
-export function isMergeTool(name: string): boolean {
-  const c = getToolCategory(name)
-  return c === 'search' || c === 'web' || c === 'command'
-}
-
 export function isPureToolMessage(msg: AiMessage): boolean {
   return !msg.parentToolUseId && !msg.error && msg.role !== 'user'
     && !!msg.toolUse && msg.toolUse.length > 0 && !msg.content && !msg.thinking
@@ -232,15 +227,18 @@ function getFileEditContent(tool: AiToolUse): { filePath: string; oldContent?: s
   return { filePath: fp }
 }
 
+function getToolDetail(tool: AiToolUse): string {
+  const rawPath = tool.input?.file_path || ''
+  if (!rawPath) return tool.input?.command || ''
+  return rawPath.length > 32 ? rawPath.slice(0, 15) + '...' + rawPath.slice(-14) : rawPath
+}
+
 export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
   const [expanded, setExpanded] = useState(false)
   const category = getToolCategory(tool.name)
   const isFileEdit = category === 'file'
   const hasResult = !!tool.result
-  const rawPath = tool.input?.file_path || ''
-  const detail = rawPath.length > 32
-    ? rawPath.slice(0, 15) + '...' + rawPath.slice(-14)
-    : rawPath || tool.input?.command || ''
+  const detail = getToolDetail(tool)
 
   const editContent = (expanded && isFileEdit) ? getFileEditContent(tool) : null
   const oldContent = editContent?.oldContent
@@ -300,16 +298,46 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
     </div>
   )
 }
-export function CollapsedToolsSummary({ tools }: { tools: AiToolUse[] }) {
-  const [expanded, setExpanded] = useState(false)
+export function SummaryBar({ thinkCount = 0, toolCount = 0 }: { thinkCount?: number; toolCount?: number }) {
+  if (thinkCount === 0 && toolCount === 0) return null
   return (
-    <div className={`ai-tab__tools-summary w-full ${CONTENT_MAX_W} mx-auto animate-fade-in`}>
+    <div className={`ai-tab__tools-summary block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in`}>
+      <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent border border-ide-accent/20 max-w-full select-none">
+        {thinkCount > 0 && (
+          <>
+            <span className="shrink-0 flex items-center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 block -translate-x-[0.5px]">
+              <path d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+            </svg></span>
+            <span className="shrink-0 leading-none">Think × {thinkCount}</span>
+          </>
+        )}
+        {thinkCount > 0 && toolCount > 0 && <span className="shrink-0 leading-none opacity-60">·</span>}
+        {toolCount > 0 && (
+          <>
+            <span className="shrink-0"><ToolIcon category="default" /></span>
+            <span className="shrink-0 leading-none">Tools × {toolCount}</span>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+export function CompactToolSummary({ tools }: { tools: AiToolUse[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const last = tools[tools.length - 1]
+  const errors = tools.filter(t => t.result?.isError).length
+  const detail = getToolDetail(last)
+  return (
+    <div className={`ai-tab__tools-summary ai-tab__tools-summary--compact block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in`}>
       <button
         onClick={() => setExpanded(v => !v)}
-        className="ai-tab__tools-summary-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
+        className="ai-tab__tools-summary-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors max-w-full overflow-hidden"
       >
-        <span className="shrink-0"><ToolIcon category="default" /></span>
-        <span className="shrink-0 leading-none">Tools * {tools.length}</span>
+        <span className="shrink-0"><ToolIcon category={getToolCategory(last.name)} /></span>
+        <span className="shrink-0 leading-none">{last.name}</span>
+        {detail && <span className="ai-tab__tool-detail-preview truncate flex-1 min-w-0 opacity-60 text-[10px] leading-none">{detail}</span>}
+        {tools.length >= 2 && <span className="shrink-0 leading-none">· {tools.length} steps</span>}
+        {errors > 0 && <span className="shrink-0 leading-none text-ide-danger">· {errors} failed</span>}
         <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
       {expanded && (
