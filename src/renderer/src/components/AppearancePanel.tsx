@@ -274,16 +274,24 @@ const AppearancePanel = function AppearancePanel({
 
   const contentRef = useRef<HTMLDivElement>(null)
   const [contentMinH, setContentMinH] = useState(0)
+  const contentCapRef = useRef(0)
   useLayoutEffect(() => {
-    const el = contentRef.current?.firstElementChild as HTMLElement | null
-    const box = contentRef.current
-    if (el && box) {
+    const measure = () => {
+      const el = contentRef.current?.firstElementChild as HTMLElement | null
+      const box = contentRef.current
+      if (!el || !box) return
       // 面板 max-h-80vh：content 区最高 = 80vh - 顶部固定部分(offsetTop)，超出则走内部滚动
       const cap = Math.round(window.innerHeight * 0.8) - box.offsetTop
       const h = Math.min(el.scrollHeight, cap)
-      setContentMinH(prev => h > prev ? h : prev)
+      // 窗口变小后旧高度会撑破面板，cap 缩小时不能沿用更大的历史值
+      const shrunk = cap < contentCapRef.current
+      contentCapRef.current = cap
+      setContentMinH(prev => (shrunk ? h : Math.max(prev, h)))
     }
-  }, [activeCategory, snippetsList, sessionEmojiDraft, systemFonts])
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [open, activeCategory, snippetsList, sessionEmojiDraft, systemFonts])
 
   useEffect(() => {
     if (!open) return
