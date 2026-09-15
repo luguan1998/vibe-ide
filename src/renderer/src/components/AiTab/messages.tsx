@@ -4,7 +4,7 @@ import { asToolArray } from '@shared/types'
 import { useI18n } from '../../i18n'
 import { cleanMessageContent } from '../../utils/aiConversationFormatter'
 import { ChevronDown, Check, Undo2, MessageSquare, GitBranch, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
-import { ToolIcon, AiToolCallCard, CompactToolSummary, SummaryBar, isPureToolMessage } from './tools'
+import { ToolIcon, AiToolCallCard, CompactToolSummary, isPureToolMessage } from './tools'
 import { ChatMarkdown } from './markdown'
 import { CONTENT_MAX_W, PANEL_MAX_W } from './layout'
 interface TodoItem {
@@ -635,7 +635,6 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     | { type: 'msg'; message: AiMessage; index: number }
     | { type: 'readSummary'; tools: AiToolUse[]; firstToolId: string }
     | { type: 'toolCard'; tool: AiToolUse }
-    | { type: 'summary'; think: number; tools: number; firstToolId: string }
   > = []
   const hideTools = viewMode === 1
   const readBuffer: AiToolUse[] = []
@@ -650,15 +649,6 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     readBuffer.length = 0
     firstToolId = ''
   }
-  // 汇总档：连续的 thinking-only / 纯工具消息合并成一条不可展开的 SummaryBar，
-  // 遇到正文/用户消息/agent 组才收口，避免截图里 Think×1 Tools×2 交替碎片
-  const sum = { think: 0, tools: 0, firstId: '' }
-  const flushSum = () => {
-    if (sum.think || sum.tools) {
-      groups.push({ type: 'summary', think: sum.think, tools: sum.tools, firstToolId: sum.firstId })
-      sum.think = 0; sum.tools = 0; sum.firstId = ''
-    }
-  }
   // Async sub-agents (and the main agent) interleave in the live stream, so consecutive-
   // same-parent grouping would split one agent into many fragments. Map each parentToolUseId
   // to a single agent group; all of that parent's messages collect into it at first-occurrence
@@ -668,7 +658,6 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     const msg = messages[i]
     if (msg.parentToolUseId) {
       flushReads()
-      flushSum()
       let g = agentGroupByParent.get(msg.parentToolUseId)
       if (!g) {
         g = { type: 'agent', messages: [], parentId: msg.parentToolUseId, startIndex: i }
@@ -679,25 +668,21 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
       continue
     }
     const isStreamingLast = i === messages.length - 1 && busy
-    if (hideTools && !isStreamingLast && (msg.thinking || isPureToolMessage(msg)) && !msg.content) {
-      flushReads()
-      if (!sum.think && !sum.tools) sum.firstId = msg.messageId || String(i)
-      if (msg.thinking) sum.think++
-      sum.tools += msg.toolUse?.length ?? 0
-    } else if (isPureToolMessage(msg) && !isStreamingLast) {
-      flushSum()
+    // 模式 2：thinking-only / 纯工具消息整条跳过（正文消息的 thinking/工具由 bubble 内部隐藏）
+    if (hideTools && !isStreamingLast && !msg.content && !msg.error && (msg.thinking || msg.toolUse?.length)) {
+      continue
+    }
+    if (isPureToolMessage(msg) && !isStreamingLast) {
       for (const tool of msg.toolUse ?? []) {
         if (readBuffer.length === 0) firstToolId = tool.id
         readBuffer.push(tool)
       }
     } else {
       flushReads()
-      flushSum()
       groups.push({ type: 'msg', message: msg, index: i })
     }
   }
   flushReads()
-  flushSum()
 
   return <>{groups.map((item) => {
     if (item.type === 'agent') {
@@ -708,9 +693,6 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     }
     if (item.type === 'toolCard') {
       return <AiToolCallCard key={`tool-${item.tool.id}`} tool={item.tool} />
-    }
-    if (item.type === 'summary') {
-      return <SummaryBar key={`sum-${item.firstToolId}`} thinkCount={item.think} toolCount={item.tools} />
     }
     const msg = item.message
     const uIdx = isRealUserInput(messages, item.index)

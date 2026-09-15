@@ -298,30 +298,6 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
     </div>
   )
 }
-export function SummaryBar({ thinkCount = 0, toolCount = 0 }: { thinkCount?: number; toolCount?: number }) {
-  if (thinkCount === 0 && toolCount === 0) return null
-  return (
-    <div className={`ai-tab__tools-summary block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in`}>
-      <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent border border-ide-accent/20 max-w-full select-none">
-        {thinkCount > 0 && (
-          <>
-            <span className="shrink-0 flex items-center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 block -translate-x-[0.5px]">
-              <path d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
-            </svg></span>
-            <span className="shrink-0 leading-none">Think × {thinkCount}</span>
-          </>
-        )}
-        {thinkCount > 0 && toolCount > 0 && <span className="shrink-0 leading-none opacity-60">·</span>}
-        {toolCount > 0 && (
-          <>
-            <span className="shrink-0"><ToolIcon category="default" /></span>
-            <span className="shrink-0 leading-none">Tools × {toolCount}</span>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
 export function CompactToolSummary({ tools }: { tools: AiToolUse[] }) {
   const [expanded, setExpanded] = useState(false)
   const last = tools[tools.length - 1]
