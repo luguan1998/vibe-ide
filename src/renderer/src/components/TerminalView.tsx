@@ -726,7 +726,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           }
         }
       }
-      if (e.key.toLowerCase() === 'c' && e.ctrlKey && !e.metaKey) {
+      // 精确 Ctrl+C 才做「复制选中」，带其他修饰键的组合透传给 PTY
+      const isPlainCtrlC = e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'c'
+      if (isPlainCtrlC) {
         const sel = term.getSelection()
         if (sel) {
           e.preventDefault()
@@ -734,8 +736,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           navigator.clipboard.writeText(sel).catch(() => {})
         }
       }
-      // Ctrl+V: check clipboard for image → OCR, fallback to text paste
-      if (e.key.toLowerCase() === 'v' && e.ctrlKey && !e.metaKey) {
+      // 精确 Ctrl+V（不带 Shift/Alt/Meta）才拦截粘贴，其余组合透传给 PTY
+      const isPlainCtrlV = e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'v'
+      if (isPlainCtrlV) {
         e.preventDefault()
         e.stopImmediatePropagation()
         ;(async () => {
