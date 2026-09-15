@@ -313,7 +313,7 @@ export function CompactToolSummary({ tools }: { tools: AiToolUse[] }) {
         <span className="shrink-0 leading-none">{last.name}</span>
         {detail && <span className="ai-tab__tool-detail-preview truncate flex-1 min-w-0 opacity-60 text-[10px] leading-none">{detail}</span>}
         {tools.length >= 2 && <span className="shrink-0 leading-none">· {tools.length} steps</span>}
-        {errors > 0 && <span className="shrink-0 leading-none text-ide-danger">· {errors} failed</span>}
+        {errors > 0 && <span className="shrink-0 leading-none">· {errors} <span className="text-ide-danger">✗</span></span>}
         <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
       {expanded && (
