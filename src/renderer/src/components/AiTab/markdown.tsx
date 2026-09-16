@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -87,6 +87,47 @@ function splitStreamSegments(clean: string): { blocks: string[]; rawPart: string
   return { blocks: blocks.map((b) => b.replace(/\n$/, '')), rawPart }
 }
 
+// 打字机揭示：streamBuffer 每 200ms 批量到齐，直接渲染会"一片一片"蹦字。
+// 这里让已显示长度以指数追赶（τ≈200ms，积压多自动加速、下限 60 字/s 逐字吐出），
+// 切点吸附到词边界（前瞻 ≤12 字符，CJK 无空格则按字切）压掉半词闪烁。
+// 揭示只作用于流式期；提交时 result 清 buffer，整条消息已由 ChatMarkdown 全量接管，
+// 稳态滞后 = 输入速率×τ ≈ 20 字，交接处的 pop 不可感知。
+function useTypewriterReveal(target: string): string {
+  const [, setTick] = useState(0)
+  const stRef = useRef({ target: '', shown: 0, raf: 0, last: 0 })
+  const st = stRef.current
+  st.target = target
+  if (st.shown > target.length) st.shown = target.length
+  useEffect(() => {
+    const s = stRef.current
+    if (s.raf || s.shown >= s.target.length) return
+    s.last = performance.now()
+    const tick = (now: number) => {
+      const dt = Math.min(now - s.last, 250)
+      s.last = now
+      const lag = s.target.length - s.shown
+      if (lag <= 0) { s.raf = 0; return }
+      let next = Math.min(s.target.length, s.shown + Math.max((lag * dt) / 200, dt * 0.06))
+      if (next < s.target.length) {
+        const floor = Math.floor(next)
+        // 有界扫描代替 slice+search：避免每帧分配剩余全文子串的 O(n) 垃圾
+        let rel = -1
+        for (let i = floor; i - floor <= 12 && i < s.target.length; i++) {
+          const c = s.target.charCodeAt(i)
+          if (c === 32 || (c >= 9 && c <= 13)) { rel = i - floor; break }
+        }
+        if (rel >= 0) next = floor + rel + 1
+      }
+      s.shown = next
+      setTick((t) => t + 1)
+      s.raf = s.shown < s.target.length ? requestAnimationFrame(tick) : 0
+    }
+    s.raf = requestAnimationFrame(tick)
+    return () => { cancelAnimationFrame(s.raf); s.raf = 0 }
+  })
+  return target.slice(0, st.shown)
+}
+
 // 块级增量渲染（参照 cc GUI IncrementalMarkdownParser 思路，无依赖轻量版）：
 // 前缀块文本不变 → 复用缓存的 ReactNode（ReactMarkdown 不再执行，DOM 冻结）；
 // 只有尾部活跃块 + 未闭合围栏 raw 每次 flush 重渲染。
@@ -98,9 +139,10 @@ export function StreamingMarkdown({ text, className = '', workspacePath, onOpenF
   const codeOverrides = useStableCodeOverrides()
   const components = useMemo(() => ({ ...codeOverrides, del: DelPassthrough }), [codeOverrides])
   const cacheRef = useRef<{ text: string[]; nodes: ReactNode[] }>({ text: [], nodes: [] })
+  const revealed = useTypewriterReveal(text)
 
   const rendered = useMemo(() => {
-    const clean = cleanMessageContent(text)
+    const clean = cleanMessageContent(revealed)
     const { blocks, rawPart } = splitStreamSegments(clean)
 
     const cache = cacheRef.current
@@ -122,7 +164,7 @@ export function StreamingMarkdown({ text, className = '', workspacePath, onOpenF
     if (rawPart) nodes.push(<pre key="raw" className="ai-tab__markdown-raw whitespace-pre-wrap text-ide-text">{rawPart}</pre>)
     cacheRef.current = { text: [...blocks], nodes: [...nodes] }
     return nodes
-  }, [text, components])
+  }, [revealed, components])
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (!workspacePath || !onOpenFile) return

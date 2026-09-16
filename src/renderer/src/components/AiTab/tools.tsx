@@ -307,7 +307,9 @@ export function CompactToolSummary({ tools }: { tools: AiToolUse[] }) {
     <div className={`ai-tab__tools-summary ai-tab__tools-summary--compact block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in`}>
       <button
         onClick={() => setExpanded(v => !v)}
-        className="ai-tab__tools-summary-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors max-w-full overflow-hidden"
+        className={`ai-tab__tools-summary-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${
+          getToolCategory(last.name) === 'file' ? 'bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25' : 'bg-ide-hover text-ide-text-muted hover:bg-ide-active'
+        }`}
       >
         <span className="shrink-0"><ToolIcon category={getToolCategory(last.name)} /></span>
         <span className="shrink-0 leading-none">{last.name}</span>

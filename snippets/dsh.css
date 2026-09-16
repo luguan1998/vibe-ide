@@ -309,7 +309,7 @@
   display: flex !important;
   flex-wrap: wrap !important;
   align-items: center !important;
-  padding: 0 !important;
+  padding: 4px 0 !important;
 }
 .ai-tab__tool-call:not(:has(.ai-tab__tool-detail-panel)):hover { background: rgb(var(--ide-bg)) !important; }
 .ai-tab__tool-call > .ai-tab__tool-toggle {
