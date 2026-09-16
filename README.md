@@ -357,7 +357,7 @@ src/
             ├── BrowserView.tsx    # Embedded browser + element picker
             ├── MarkdownPreview.tsx# Markdown + mermaid preview
             ├── ImagePreview.tsx   # Image viewer
-            ├── QuickOpen.tsx      # Ctrl+P fuzzy file open
+            ├── QuickOpen.tsx      # Ctrl+E fuzzy file open
             ├── NavBar.tsx         # Floating recent-files breadcrumb
             ├── OutlinePanel.tsx   # Document outline
             ├── SettingsPanel.tsx  # Keybinding editor
@@ -376,7 +376,7 @@ snippets/                          # CSS snippets (toggle in Settings → Snippe
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+P` | Quick open file |
+| `Ctrl+Click` | Add file / Markdown block to chat (as `@` reference) |
 | `Ctrl+F` | Focus search panel |
 | `Ctrl+H` | Command history (terminal / dsh) |
 | `Ctrl+S` | Save file edits |

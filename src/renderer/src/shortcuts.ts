@@ -277,7 +277,7 @@ const DEFAULT_SHORTCUTS: ShortcutDef[] = [
   },
   {
     id: 'brush.activate',
-    label: 'Feather Pen (Brush Mode)',
+    label: 'Hold {key} + Click to Add to Chat',
     defaultKeys: 'Ctrl',
     modifierOnly: true,
   },

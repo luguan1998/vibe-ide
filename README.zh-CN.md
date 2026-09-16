@@ -332,7 +332,7 @@ src/
             ├── BrowserView.tsx    # 嵌入式浏览器 + 元素拾取
             ├── MarkdownPreview.tsx# Markdown + mermaid 预览
             ├── ImagePreview.tsx   # 图片查看器
-            ├── QuickOpen.tsx      # Ctrl+P 模糊打开文件
+            ├── QuickOpen.tsx      # Ctrl+E 模糊打开文件
             ├── NavBar.tsx         # 浮动最近文件面包屑
             ├── OutlinePanel.tsx   # 文档大纲
             ├── SettingsPanel.tsx  # 快捷键编辑器
@@ -351,7 +351,7 @@ snippets/                          # CSS 片段（在 设置 → Snippets 中切
 
 | 快捷键 | 功能 |
 |--------|------|
-| `Ctrl+P` | 快速打开文件 |
+| `Ctrl+左键` | 点击文件 / Markdown 区块，加入对话（`@` 引用） |
 | `Ctrl+F` | 聚焦搜索面板 |
 | `Ctrl+H` | 命令历史（终端 / dsh） |
 | `Ctrl+S` | 保存文件编辑 |

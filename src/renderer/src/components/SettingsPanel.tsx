@@ -78,7 +78,7 @@ export default function SettingsPanel() {
               key={def.id}
               className={`flex items-center justify-between px-3 py-2 border-b border-ide-border/50 transition-colors hover:bg-ide-hover/50`}
             >
-              <span className="text-xs text-ide-text">{t(def.label)}</span>
+              <span className="text-xs text-ide-text">{t(def.label).replace('{key}', displayLabel(current))}</span>
               {isReadonly ? (
                 <span className="text-[11px] px-2 py-0.5 rounded border font-mono min-w-[80px] text-center border-ide-border text-ide-text">
                   {displayLabel(current)}
