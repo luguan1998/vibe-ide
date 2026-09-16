@@ -5,6 +5,11 @@ import remarkGfm from 'remark-gfm'
 import { useStableCodeOverrides } from '../MarkdownCodeBlock'
 import { FILE_PATH_REGEX, parseFilePath } from '../../utils/filePathUtils'
 import { cleanMessageContent } from '../../utils/aiConversationFormatter'
+
+// singleTilde:false 防 "4~7 xx 7~8" 这类范围写法被误配成删除线；del 直通彻底不渲染删除线
+const GFM_PLUGINS: [[typeof remarkGfm, { singleTilde: boolean }]] = [[remarkGfm, { singleTilde: false }]]
+const DelPassthrough = ({ children }: { children?: ReactNode }) => <>{children}</>
+
 function findFilePathAtPoint(x: number, y: number, cwd: string): { fullPath: string; lineNumber?: number } | null {
   const doc = document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null }
   const range = doc.caretRangeFromPoint?.(x, y) ?? null
@@ -29,6 +34,7 @@ export const ChatMarkdown = React.memo(function ChatMarkdown({ text, className =
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
 }) {
   const codeOverrides = useStableCodeOverrides()
+  const components = useMemo(() => ({ ...codeOverrides, del: DelPassthrough }), [codeOverrides])
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (!workspacePath || !onOpenFile) return
     const target = e.target as HTMLElement
@@ -42,7 +48,7 @@ export const ChatMarkdown = React.memo(function ChatMarkdown({ text, className =
 
   return (
     <div className={`ai-tab__markdown md-preview ${className}`} onClick={handleClick}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={codeOverrides}>
+      <ReactMarkdown remarkPlugins={GFM_PLUGINS} components={components}>
         {cleanMessageContent(text)}
       </ReactMarkdown>
     </div>
@@ -90,6 +96,7 @@ export function StreamingMarkdown({ text, className = '', workspacePath, onOpenF
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
 }) {
   const codeOverrides = useStableCodeOverrides()
+  const components = useMemo(() => ({ ...codeOverrides, del: DelPassthrough }), [codeOverrides])
   const cacheRef = useRef<{ text: string[]; nodes: ReactNode[] }>({ text: [], nodes: [] })
 
   const rendered = useMemo(() => {
@@ -106,7 +113,7 @@ export function StreamingMarkdown({ text, className = '', workspacePath, onOpenF
     for (let i = prefix; i < blocks.length; i++) {
       nodes.push(
         <div key={`${i}`} className="md-block md-block-enter" style={{ '--enter-delay': `${Math.min(i - prefix, 6) * 24}ms` } as React.CSSProperties}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={codeOverrides}>
+          <ReactMarkdown remarkPlugins={GFM_PLUGINS} components={components}>
             {blocks[i]}
           </ReactMarkdown>
         </div>
@@ -115,7 +122,7 @@ export function StreamingMarkdown({ text, className = '', workspacePath, onOpenF
     if (rawPart) nodes.push(<pre key="raw" className="ai-tab__markdown-raw whitespace-pre-wrap text-ide-text">{rawPart}</pre>)
     cacheRef.current = { text: [...blocks], nodes: [...nodes] }
     return nodes
-  }, [text, codeOverrides])
+  }, [text, components])
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (!workspacePath || !onOpenFile) return
