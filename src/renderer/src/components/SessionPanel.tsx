@@ -267,6 +267,8 @@ interface SessionPanelProps {
   onToggleCgEnabled?: (value: boolean) => void
   inlineDiff?: boolean
   onToggleInlineDiff?: (value: boolean) => void
+  selectionChat?: boolean
+  onToggleSelectionChat?: (value: boolean) => void
   diffSplitRatio?: number
   onSetDiffSplitRatio?: (value: number) => void
   capsuleTabs?: boolean
@@ -491,6 +493,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onToggleForceDomRenderer,
   inlineDiff = false,
   onToggleInlineDiff,
+  selectionChat = true,
+  onToggleSelectionChat,
   diffSplitRatio = 0.3,
   onSetDiffSplitRatio,
   capsuleTabs = true,
@@ -2519,6 +2523,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onToggleShowSessionButtons={onToggleShowSessionButtons}
         inlineDiff={inlineDiff}
         onToggleInlineDiff={onToggleInlineDiff}
+        selectionChat={selectionChat}
+        onToggleSelectionChat={onToggleSelectionChat}
         wordWrap={wordWrap}
         onToggleWordWrap={onToggleWordWrap}
         diffSplitRatio={diffSplitRatio}

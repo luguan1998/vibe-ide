@@ -86,6 +86,8 @@ const ZH_MAP: Record<string, string> = {
   'Enable computer use MCP (screenshot/click/type). GUI mode only. Applies to new sessions.': '启用电脑操控 MCP（截屏/点击/输入）。仅支持 GUI 模式，且只对新会话生效。',
   'Other Options…': '其他选项…',
   'Auto-wrap long lines in diff/editor': 'diff/edit 界面是否自动换行',
+  'Add Selection to Chat': '选中内容加入对话',
+  'Show a floating button on text selection; click to add @file:line-range to the chat input': '编辑器选中文本时浮出按钮，点击把 @文件:行区间 加入对话输入框',
   'Run chcp 65001 on terminal start to set UTF-8 encoding': '终端开启默认进行 chcp 65001 转换',
   'Recent Files Panel': '最近文件栏',
   'Show recently opened files at the bottom of the session panel': '在会话栏底部显示最近打开的文件',
@@ -448,6 +450,7 @@ const ZH_MAP: Record<string, string> = {
   'No line history': '无行修改记录',
   'Revert': '回退',
   'Revert this line': '回退此行',
+  'Add to Chat': '加入对话',
 
   // CodeGraphSearch
   'Initializing CodeGraph...': '正在初始化代码图...',

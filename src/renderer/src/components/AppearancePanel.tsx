@@ -161,6 +161,8 @@ interface AppearancePanelProps {
   onToggleShowSessionButtons?: (v: boolean) => void
   inlineDiff?: boolean
   onToggleInlineDiff?: (v: boolean) => void
+  selectionChat?: boolean
+  onToggleSelectionChat?: (v: boolean) => void
   wordWrap?: boolean
   onToggleWordWrap?: (v: boolean) => void
   diffSplitRatio?: number
@@ -199,6 +201,7 @@ const AppearancePanel = function AppearancePanel({
   groupSessionsByCwd = true, onToggleGroupSessionsByCwd,
   showSessionButtons = true, onToggleShowSessionButtons,
   inlineDiff = false, onToggleInlineDiff,
+  selectionChat = true, onToggleSelectionChat,
   wordWrap = false, onToggleWordWrap,
   diffSplitRatio = 0.3, onSetDiffSplitRatio,
   editorFontSize = 14, onAdjustEditorFontSize,
@@ -609,6 +612,10 @@ const AppearancePanel = function AppearancePanel({
                 {onToggleWordWrap && (
                   <ToggleRow labelKey="Word Wrap" descKey="Auto-wrap long lines in diff/editor"
                     checked={wordWrap} onChange={onToggleWordWrap} zone="editor" />
+                )}
+                {onToggleSelectionChat && (
+                  <ToggleRow labelKey="Add Selection to Chat" descKey="Show a floating button on text selection; click to add @file:line-range to the chat input"
+                    checked={selectionChat} onChange={onToggleSelectionChat} zone="editor" />
                 )}
                 {onSetDiffSplitRatio && (
                   <StepperRow labelKey="Diff Split Ratio" descKey="Left/right ratio of the diff editor. Smaller = narrower left (original). Side-by-side only."

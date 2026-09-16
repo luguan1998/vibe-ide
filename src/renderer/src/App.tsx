@@ -733,6 +733,9 @@ export default function App() {
   const [inlineDiff, setInlineDiff] = useState(() => {
     try { return localStorage.getItem('vibe-ide-inline-diff') !== 'false' } catch { return true }
   })
+  const [selectionChat, setSelectionChat] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-selection-chat') !== 'false' } catch { return true }
+  })
   const [diffSplitRatio, setDiffSplitRatio] = useState(() => {
     const v = Number(localStorage.getItem('vibe-ide-diff-split-ratio'))
     const r = Number.isFinite(v) && v > 0 ? v : 0.3
@@ -1048,6 +1051,9 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-inline-diff', String(inlineDiff)) } catch {}
   }, [inlineDiff])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-selection-chat', String(selectionChat)) } catch {}
+  }, [selectionChat])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-diff-split-ratio', String(diffSplitRatio)) } catch {}
   }, [diffSplitRatio])
@@ -3220,6 +3226,7 @@ export default function App() {
           compareOriginalPath={tab.compareOriginalPath}
           onAnnotationTrigger={handleAnnotationTrigger}
           brushActive={brushActive}
+          selectionChat={selectionChat}
           onOutlineNavigate={handleOutlineNavigate}
         />
       )
@@ -3251,7 +3258,7 @@ export default function App() {
         brushActive={brushActive}
       />
     )
-  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, activeSessionCwd, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading])
+  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, selectionChat, diffSplitRatio, diffScrollTrigger, activeSessionCwd, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading])
 
   const fileTabsNode = (
     <FileTabsView
@@ -3389,6 +3396,8 @@ export default function App() {
             onToggleForceDomRenderer={setForceDomRenderer}
             inlineDiff={inlineDiff}
             onToggleInlineDiff={setInlineDiff}
+            selectionChat={selectionChat}
+            onToggleSelectionChat={setSelectionChat}
             diffSplitRatio={diffSplitRatio}
             onSetDiffSplitRatio={setDiffSplitRatio}
             capsuleTabs={capsuleTabs}
