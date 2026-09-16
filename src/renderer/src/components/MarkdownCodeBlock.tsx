@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTheme } from '@renderer/themes/context'
 import { getMonaco } from '@renderer/utils/monacoSingleton'
-import mermaid from 'mermaid'
 
 const LANG_MAP: Record<string, string> = {
   js: 'javascript', ts: 'typescript', py: 'python', sh: 'shell',
@@ -58,6 +57,11 @@ function colorizeDone() {
 }
 
 let mermaidInitialized = false
+let mermaidPromise: Promise<any> | null = null
+function loadMermaid(): Promise<any> {
+  if (!mermaidPromise) mermaidPromise = import('mermaid').then(m => m.default)
+  return mermaidPromise
+}
 
 class MermaidErrorBoundary extends React.Component<{ children: React.ReactNode; code: string }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode; code: string }) {
@@ -95,28 +99,23 @@ function MermaidBlock({ code }: { code: string }) {
     const bgRgb = bg.split(/\s+/).map(Number)
     const bgIsLight = bgRgb.length === 3 && (bgRgb[0] * 0.299 + bgRgb[1] * 0.587 + bgRgb[2] * 0.114) > 128
     const isDark = !theme.monacoTheme.includes('light') && !bgIsLight
-    try {
-      if (!mermaidInitialized) {
-        mermaid.initialize({
-          startOnLoad: false,
-          theme: isDark ? 'dark' : 'default',
-          securityLevel: 'loose',
-          // 失败时 mermaid 自己清掉 append 到 body 的临时容器再 throw，否则残留 div 带 "Syntax error" SVG 永不消失
-          suppressErrorRendering: true,
-        })
-        mermaidInitialized = true
-      } else {
-        mermaid.initialize({ theme: isDark ? 'dark' : 'default', suppressErrorRendering: true })
-      }
-    } catch (err: any) {
-      if (!cancelled) {
-        setError(err?.message || 'Mermaid init error')
-        setSvg(null)
-      }
-    }
     const id = `mermaid-${Math.random().toString(36).slice(2)}`
     ;(async () => {
       try {
+        const mermaid = await loadMermaid()
+        if (cancelled) return
+        if (!mermaidInitialized) {
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: isDark ? 'dark' : 'default',
+            securityLevel: 'loose',
+            // 失败时 mermaid 自己清掉 append 到 body 的临时容器再 throw，否则残留 div 带 "Syntax error" SVG 永不消失
+            suppressErrorRendering: true,
+          })
+          mermaidInitialized = true
+        } else {
+          mermaid.initialize({ theme: isDark ? 'dark' : 'default', suppressErrorRendering: true })
+        }
         const { svg: renderedSvg } = await mermaid.render(id, code)
         if (!cancelled) {
           setSvg(renderedSvg)
