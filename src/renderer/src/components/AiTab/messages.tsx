@@ -278,20 +278,17 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
   const shown = stripCommandTags(text)
   if (!shown) return null
 
-  const preview = open ? '' : shown.slice(0, 300).replace(/\s+/g, ' ').trim()
-
   return (
     <div className={`ai-tab__thinking max-w-full ${autoFold || noAnimate ? '' : 'animate-fade-in'}`}>
       <button
         onClick={() => setOpen(v => !v)}
-        className={`ai-tab__thinking-toggle inline-flex items-center gap-1 max-w-full px-1.5 py-0.5 text-[13px] leading-[1.25] font-mono bg-ide-accent/10 text-ide-text-muted hover:bg-ide-accent/20 ring-1 ring-inset ring-ide-accent/20 transition-colors ${open ? 'rounded' : 'rounded-full'}`}
+        className="ai-tab__thinking-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
       >
-        <span className="shrink-0 flex items-center justify-center text-ide-accent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 block" aria-labelledby="thinkIconTitle">
+        <span className="shrink-0 flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 block -translate-x-[0.5px]" aria-labelledby="thinkIconTitle">
           <title id="thinkIconTitle">Thinking</title>
           <path d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
         </svg></span>
-        {open && <span className="shrink-0 leading-none">{label}</span>}
-        {preview && <span className="ai-tab__thinking-preview min-w-0 truncate">{preview}</span>}
+        <span className="shrink-0 leading-none">{label}</span>
       </button>
       <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="min-h-0 overflow-hidden">
