@@ -112,9 +112,9 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   font-size: 13px !important;
   line-height: 1;
 }
-.status-badge__segment--running::before { content: '🩸' !important; }
+.status-badge__segment--running::before { content: '🔥' !important; }
 .status-badge__segment--idle::before { content: '🌙' !important; font-size: 11px !important; width: 12px !important; }
-.status-badge__segment--warn::before { content: '🐺' !important; }
+.status-badge__segment--warn::before { content: '🎃' !important; }
 
 
 /* ==========================================================================
