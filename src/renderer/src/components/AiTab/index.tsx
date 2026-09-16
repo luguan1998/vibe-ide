@@ -188,6 +188,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const scrollContentRef = useRef<HTMLDivElement>(null)
   const userScrolledUpRef = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -474,8 +475,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     return () => el.removeEventListener('scroll', onScroll)
   }, [state.messages.length, state.streaming])
 
-  const scrollRafRef = useRef<number | null>(null)
-
   // ── 右侧面包屑:真实用户输入轮次导航 ──
   const userTurnList = useMemo(() => {
     const turns: { turnIdx: number; content: string }[] = []
@@ -582,19 +581,25 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     }
   }, [state.messages.length, state.streaming, computeActiveTurn])
 
+  // ── 流式跟随:观察实际高度变化,而不是只在 flush 事件上滚一次 ──
+  // 打字机逐帧揭示、shiki 着色回调、mermaid SVG 注入、图片加载、折叠动画过渡
+  // 都会在 flush 滚动之后继续改变内容高度,漏掉这些后发变化就表现为"渲染完
+  // 没贴底,要手动滚下去"。ResizeObserver 覆盖所有高度变化来源。
+  // 只滚 messages 自身,不用 scrollIntoView —— scrollIntoView 在提交瞬间
+  // 内容空窗期会级联滚动 overflow:hidden 的 ai-tab 祖先(整屏被推走,输入框上弹)
   useEffect(() => {
-    if (userScrolledUpRef.current) return
-    if (scrollRafRef.current != null) return
-    scrollRafRef.current = requestAnimationFrame(() => {
-      scrollRafRef.current = null
-      // 只滚 messages 自身,不用 scrollIntoView —— scrollIntoView 在提交瞬间
-      // 内容空窗期会级联滚动 overflow:hidden 的 ai-tab 祖先(整屏被推走,输入框上弹)
-      if (!userScrolledUpRef.current) {
-        const el = scrollContainerRef.current
-        if (el) el.scrollTop = el.scrollHeight
-      }
+    const el = scrollContainerRef.current
+    const content = scrollContentRef.current
+    if (!el || !content) return
+    const ro = new ResizeObserver(() => {
+      if (userScrolledUpRef.current) return
+      if (!el.offsetParent) return
+      el.scrollTop = el.scrollHeight
     })
-  }, [state.messages.length, state.streamBuffer, state.thinkingBuffer])
+    ro.observe(content)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [state.messages.length, state.streaming])
 
   // ── 内容列宽度:输入区两侧 hover 可拖拽缩放,--ai-content-w 挂在根上全链生效 ──
   const CONTENT_W_KEY = 'vibe-ide-ai-content-w'
@@ -1496,7 +1501,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       ) : (
         <>
         <div className="ai-tab__scroll-wrap relative flex-1 min-h-0" onMouseMove={onScrollWrapMouseMove} onMouseLeave={() => { setTurnNavHover(false); setBottomBarHover(false) }}>
-        <div ref={scrollContainerRef} className={`ai-tab__messages h-full min-h-0 overflow-y-auto overflow-x-hidden px-2 pt-2 space-y-1 ${!atBottom ? 'pb-9' : 'pb-2'}`}>
+        <div ref={scrollContainerRef} className={`ai-tab__messages h-full min-h-0 overflow-y-auto overflow-x-hidden px-2 pt-2 ${!atBottom ? 'pb-9' : 'pb-2'}`}>
+        <div ref={scrollContentRef} className="space-y-1">
         <MessageList
           messages={state.messages}
           userTurns={state.userTurns}
@@ -1568,6 +1574,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           </div>
         </FadeOutOnUnmount>
         <div ref={messagesEndRef} />
+        </div>
         </div>
 
         {/* 右侧面包屑:用户输入轮次指示器(JS 检测距右缘距离浮现,不拦截消息区点击) */}
