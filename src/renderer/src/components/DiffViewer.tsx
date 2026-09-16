@@ -189,7 +189,9 @@ function computeRevertBtnTop(editor: any, ln: number): number {
   return top + (lh - 22) / 2
 }
 
-function computeRevertBtnLeft(editorDom: HTMLElement | null, containerDom: HTMLElement | null): number {
+function computeRevertBtnLeft(editorDom: HTMLElement | null, containerDom: HTMLElement | null, inline?: boolean): number {
+  // inline 模式没有中缝，编辑器左缘就是行号列，浮钮贴左缘会压住正文；锚到容器左侧的撤销条/行号区
+  if (inline) return 10
   if (!editorDom || !containerDom) return 4
   return editorDom.getBoundingClientRect().left - containerDom.getBoundingClientRect().left
 }
@@ -293,6 +295,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   handleAnnotationClickRef.current = handleAnnotationClick
 
   // 单行回退 hover 浮钮
+  const inlineDiffRef = useRef(inlineDiff)
+  inlineDiffRef.current = inlineDiff
   const revertingRef = useRef(false)
   const lineChangesRef = useRef<any[]>([])
   const changedModifiedLinesRef = useRef<Set<number>>(new Set())
@@ -893,9 +897,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     renderOverviewRuler: true,
     ignoreTrimWhitespace: false,
     diffAlgorithm: 'advanced' as const,
-    // inline 模式下 gutter（Monaco 硬编码 35px）会跑到最左侧成一条空带 + 分隔线；其内置撤销按钮
-    // 由本文自带的 React 回退浮钮替代，故 inline 时不渲染；并排模式的中间 gutter（撤销按钮常显）保留
-    renderGutterMenu: !inlineDiff,
+    // gutter 撤销条两种模式都保留：inline 下无原文件编辑器占位，gutter 落在最左（宽度由 applyNarrowDiffGutter 收窄）
+    renderGutterMenu: true,
     automaticLayout: true,
     scrollbar: { verticalScrollbarSize: 0, horizontalScrollbarSize: 16, useShadows: false }
   }), [inlineDiff, commitHash, fontSize, wordWrap, diffSplitRatio])
@@ -1200,7 +1203,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                 setRevertBtn({
                   visible: true,
                   top: computeRevertBtnTop(modifiedEditor, ln),
-                  left: computeRevertBtnLeft(modifiedEditor.getDomNode(), containerRef.current),
+                  left: computeRevertBtnLeft(modifiedEditor.getDomNode(), containerRef.current, inlineDiffRef.current),
                   ln
                 })
               }
@@ -1243,7 +1246,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                   return {
                     ...prev,
                     top: computeRevertBtnTop(modifiedEditor, prev.ln),
-                    left: computeRevertBtnLeft(modifiedEditor.getDomNode(), containerRef.current)
+                    left: computeRevertBtnLeft(modifiedEditor.getDomNode(), containerRef.current, inlineDiffRef.current)
                   }
                 })
               }
