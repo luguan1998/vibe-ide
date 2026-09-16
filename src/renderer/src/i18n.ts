@@ -173,7 +173,7 @@ const ZH_MAP: Record<string, string> = {
   'Toggle Preview / Edit': '切换预览/编辑',
   'Clone Current Session': '克隆当前会话',
   'Quick Open File': '快速打开文件',
-  'Hold {key} + Click to Add to Chat': '按住 {key} 点击加入对话',
+  '{key}+Click File / Markdown to Add to Chat': '{key}+左键 点击文件/Markdown 加入对话',
 
   // File Tree
   'File Tree Depth': '文件树深度',
