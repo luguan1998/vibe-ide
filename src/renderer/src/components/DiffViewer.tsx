@@ -4,7 +4,6 @@ import { Editor, DiffEditor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
 import { ENCODING_GROUPS, DEFAULT_ENCODING } from '@shared/encodings'
 import { useI18n } from '../i18n'
-import { MessageSquarePlus } from 'lucide-react'
 import { FileIcon } from './FileIcons'
 import OutlineTrigger from './OutlineTrigger'
 import { ADD_ANNOTATION_EVENT } from './vibeEvents'
@@ -96,7 +95,6 @@ interface DiffViewerProps {
   compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
   onAnnotationTrigger?: (start: number, end: number) => void
   brushActive?: boolean
-  selectionChat?: boolean    // 选中文本浮出「加入对话」按钮
   onOutlineNavigate?: (line: number, headingName?: string) => void
   headerLeading?: ReactNode   // 容器注入的标题栏左组（tab 条等），null 时非激活 tab
   isActive?: boolean          // display 可见性（多 tab 保活）
@@ -240,7 +238,7 @@ interface JumpItem {
   detail?: string
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, selectionChat = true, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -290,8 +288,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   onAnnotationTriggerRef.current = onAnnotationTrigger
   const brushActiveRef = useRef(brushActive)
   brushActiveRef.current = brushActive
-  const selectionChatRef = useRef(selectionChat)
-  selectionChatRef.current = selectionChat
   const handleAnnotationClick = useCallback((start: number, end: number) => {
     onAnnotationTriggerRef.current?.(start, end)
   }, [])
@@ -313,39 +309,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const [revertBtn, setRevertBtn] = useState<{ visible: boolean; top: number; left: number; ln: number }>({ visible: false, top: 0, left: 56, ln: 0 })
   const revertBtnDomRef = useRef<HTMLButtonElement | null>(null)
   const lastRevertLnRef = useRef<number | null>(null)
-
-  // 选区「加入对话」浮钮：点击效果同羽毛笔（Ctrl+左键选中 → @文件:行区间 进对话输入框）
-  const [selChatBtn, setSelChatBtn] = useState<{ visible: boolean; top: number; left: number; startLn: number; endLn: number }>({ visible: false, top: 0, left: 0, startLn: 0, endLn: 0 })
-  const updateSelChatBtn = useCallback((editor: any) => {
-    const cont = containerRef.current
-    const enabled = selectionChatRef.current && !brushActiveRef.current
-    const sel = enabled && cont?.offsetParent ? editor?.getSelection() : null
-    if (!sel || sel.isEmpty()) {
-      setSelChatBtn(s => (s.visible ? { ...s, visible: false } : s))
-      return
-    }
-    const spStart = editor.getScrolledVisiblePosition(sel.getStartPosition())
-    const spEnd = editor.getScrolledVisiblePosition(sel.getEndPosition())
-    if (!spStart || !spEnd || !cont) {
-      setSelChatBtn(s => (s.visible ? { ...s, visible: false } : s))
-      return
-    }
-    const edDom = editor.getDomNode()
-    const offL = edDom ? edDom.getBoundingClientRect().left - cont.getBoundingClientRect().left : 0
-    const viewH = edDom ? edDom.clientHeight : cont.clientHeight
-    let top = spEnd.top + spEnd.height + 2
-    if (top + 28 > viewH) top = spStart.top - 24
-    const left = Math.max(8, offL + spStart.left)
-    setSelChatBtn(prev => (
-      prev.visible && prev.top === top && prev.left === left && prev.startLn === sel.startLineNumber && prev.endLn === sel.endLineNumber
-        ? prev
-        : { visible: true, top, left, startLn: sel.startLineNumber, endLn: sel.endLineNumber }
-    ))
-  }, [])
-  const hideSelChatBtn = useCallback(() => {
-    setSelChatBtn(s => (s.visible ? { ...s, visible: false } : s))
-  }, [])
-  useEffect(() => { hideSelChatBtn() }, [viewMode, fullPath, brushActive, selectionChat, hideSelChatBtn])
 
   // 仅普通 staged/unstaged diff 启用单行回退（历史只读 / 文件对比 禁用）
   useEffect(() => {
@@ -1289,10 +1252,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
               }
               revertDisposables.push(modifiedEditor.onDidScrollChange(updateVisibleRevertBtn))
               revertDisposables.push(modifiedEditor.onDidLayoutChange(updateVisibleRevertBtn))
-              const onSelChatChange = () => updateSelChatBtn(modifiedEditor)
-              revertDisposables.push(modifiedEditor.onDidChangeCursorSelection(onSelChatChange))
-              revertDisposables.push(modifiedEditor.onDidScrollChange(onSelChatChange))
-              revertDisposables.push(modifiedEditor.onDidLayoutChange(onSelChatChange))
               diffDisposablesRef.current = revertDisposables
             }}
           />
@@ -1357,9 +1316,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                 const v = r && r.length ? r[0] : null
                 visibleLineRef.current = { fullPath, line: v ? v.startLineNumber + Math.round((v.endLineNumber - v.startLineNumber) / 2) : 1 }
               })
-              editor.onDidChangeCursorSelection(() => updateSelChatBtn(editor))
-              editor.onDidScrollChange(() => updateSelChatBtn(editor))
-              editor.onDidLayoutChange(() => updateSelChatBtn(editor))
               if (lineNumber && lineNumber > 0) {
                 try {
                   const count = editor.getModel()?.getLineCount() || 0
@@ -1431,19 +1387,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
             >
               <span aria-hidden>↩</span>
               <span>{t('单行')}</span>
-            </button>
-          </div>
-        )}
-        {selChatBtn.visible && (
-          <div className="diff-selchat-overlay">
-            <button
-              className="diff-selchat-btn"
-              style={{ top: selChatBtn.top, left: selChatBtn.left }}
-              title={t('Add to Chat')}
-              onClick={() => handleAnnotationClickRef.current?.(selChatBtn.startLn, selChatBtn.endLn)}
-            >
-              <MessageSquarePlus size={11} strokeWidth={2} />
-              <span>{t('Add to Chat')}</span>
             </button>
           </div>
         )}
