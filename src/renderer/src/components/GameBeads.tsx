@@ -145,7 +145,7 @@ const WHITE = () => PALETTE[0]
 const BLACK = () => PALETTE[25]
 
 function preprocess(img: HTMLImageElement, size: number, vivid: boolean): { data: Uint8ClampedArray; w: number; h: number } {
-  const l = size <= 15 ? 16 * size : 10 * size
+  const l = size <= 29 ? 16 * size : size <= 50 ? 10 * size : 7 * size
   const canvas = document.createElement('canvas')
   canvas.width = l
   canvas.height = l
@@ -168,9 +168,9 @@ function preprocess(img: HTMLImageElement, size: number, vivid: boolean): { data
   const image = ctx.getImageData(0, 0, l, l)
   if (vivid) {
     contrastStretch(image.data, l)
-    if (size <= 29) saturationBoost(image.data, l, size <= 15 ? 1.25 : 1.15)
+    if (size <= 29) saturationBoost(image.data, l, 1.2)
   }
-  bilateralFilter(image.data, l, size <= 15 ? 30 : size <= 29 ? 25 : 20)
+  bilateralFilter(image.data, l, size <= 29 ? 25 : size <= 50 ? 20 : 16)
   return { data: image.data, w: l, h: l }
 }
 
@@ -498,14 +498,14 @@ interface ConvertOpts {
 function convertImage(img: HTMLImageElement, size: number, opts: ConvertOpts): PaletteColor[][] {
   const { data, w, h } = preprocess(img, size, opts.vivid)
   const pal = opts.compact
-    ? selectPalette(data, w, h, size <= 15 ? 10 : size <= 29 ? 16 : 22)
+    ? selectPalette(data, w, h, size <= 29 ? 16 : size <= 50 ? 22 : 28)
     : PALETTE
   let grid = quantize(data, w, h, size, pal, opts.dither)
   if (!opts.dither) {
-    const passes = size <= 15 ? 3 : size <= 29 ? 2 : 1
+    const passes = size <= 29 ? 2 : 1
     grid = majorityFill(grid)
     grid = removeIsolated(grid, passes)
-    grid = majorityFill(mergeRare(grid, size <= 15 ? 0.04 : size <= 29 ? 0.025 : 0.015))
+    grid = majorityFill(mergeRare(grid, size <= 29 ? 0.025 : size <= 50 ? 0.015 : 0.008))
     grid = removeIsolated(grid, 1)
   }
   return grid
@@ -649,7 +649,7 @@ function drawSampleCanvas(kind: 'sunset' | 'night'): HTMLCanvasElement {
   return c
 }
 
-const SIZE_OPTIONS = [15, 29, 50] as const
+const SIZE_OPTIONS = [29, 50, 100] as const
 
 export default function GameBeads({ onBack }: { onBack?: () => void }) {
   const { t } = useI18n()
@@ -738,7 +738,7 @@ export default function GameBeads({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     if (grid && canvasRef.current) {
-      renderBeads(canvasRef.current, grid, Math.floor(620 / grid.length))
+      renderBeads(canvasRef.current, grid, Math.max(6, Math.floor(700 / grid.length)))
     }
   }, [grid])
 
