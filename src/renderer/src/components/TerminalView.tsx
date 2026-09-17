@@ -553,6 +553,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       allowProposedApi: true,
       drawBoldTextInBrightColors: false,
       rescaleOverlappingGlyphs: true,
+      vtExtensions: { kittyKeyboard: true },
     } as any)
 
     const fitAddon = new FitAddon()
