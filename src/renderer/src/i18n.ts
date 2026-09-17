@@ -352,6 +352,10 @@ const ZH_MAP: Record<string, string> = {
   'Load more commits': '加载更多提交',
   'No branches': '暂无分支',
   'Show remote': '显示远程分支',
+  'Switch submodule': '切换子模块',
+  'Discovering submodules...': '子模块探索中...',
+  'Submodule': '子模块',
+  'Main Repository': '主仓库',
 
   // GitTab - Commit area
   'Commit message...': '输入提交信息...',

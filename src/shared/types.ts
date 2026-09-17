@@ -41,6 +41,8 @@ export const IPC_CHANNELS = {
   GIT_SET_FILTER_RULES: 'git:setFilterRules',
   GIT_LINE_LOG: 'git:lineLog',
   GIT_GRAPH: 'git:graph',
+  GIT_SUBMODULES: 'git:submodules',
+  GIT_SUBMODULES_PROBE: 'git:submodulesProbe',
 
   // Git PR (multi-host: github / gitlab / intranet codehub)
   GIT_PR_PROVIDERS: 'git:prProviders',
@@ -346,6 +348,14 @@ export interface GitBranch {
   name: string
   current: boolean
   remote?: boolean
+}
+
+export interface GitSubmodule {
+  path: string
+  name: string
+  absPath: string
+  branch: string
+  sha: string
 }
 
 export interface GitCommitFile {

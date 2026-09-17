@@ -44,6 +44,8 @@ interface RightPanelProps {
   brushActive?: boolean
   sessionWorktreeNav: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onWorktreeNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
+  sessionSubmoduleNav: Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>
+  onSubmoduleNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>>>
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
   onResumePiHistory?: (piSessionId: string, cwd: string, name: string) => void
@@ -454,6 +456,8 @@ function RightPanel({
   brushActive,
   sessionWorktreeNav,
   onWorktreeNavChange,
+  sessionSubmoduleNav,
+  onSubmoduleNavChange,
   onResumeClaudeHistory,
   onResumeDshHistory,
   onResumePiHistory,
@@ -482,7 +486,8 @@ function RightPanel({
   }, [hideTabBar])
 
   const worktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
-  const effectiveGitPath = worktreeNav?.worktreePath || workspacePath
+  const submoduleNav = activeSessionId ? sessionSubmoduleNav[activeSessionId] ?? null : null
+  const effectiveGitPath = submoduleNav?.submodulePath || worktreeNav?.worktreePath || workspacePath
   const auxArr = activeSessionId && rightTerminalSessions ? rightTerminalSessions[activeSessionId] : undefined
   const activeAuxIdx = activeSessionId && activeAuxIndex ? (activeAuxIndex[activeSessionId] ?? 0) : 0
   const activeRightTerminal = auxArr?.[activeAuxIdx]?.terminals?.[0] ?? null
@@ -678,6 +683,7 @@ function RightPanel({
           workspacePath={workspacePath}
           effectiveGitPath={effectiveGitPath}
           worktreeNav={worktreeNav}
+          submoduleNav={submoduleNav}
           onFileSelect={onFileSelect}
           refreshKey={refreshKey}
           activeSessionId={activeSessionId ?? null}
@@ -685,6 +691,7 @@ function RightPanel({
           rightTerminalSession={activeRightTerminal}
           onCloseRightTerminal={onCloseRightTerminal}
           onWorktreeNavChange={onWorktreeNavChange}
+          onSubmoduleNavChange={onSubmoduleNavChange}
           onDiffScroll={onDiffScroll}
           onNavigateToFile={onNavigateToFile}
           lineHistoryPayload={lineHistoryPayload}

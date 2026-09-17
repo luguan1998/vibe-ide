@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import simpleGit, { SimpleGit } from 'simple-git'
-import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, CommitOptions, AmendOptions, GitShowResult, GitCommitFile, GitLineLogEntry, GitGraphEntry } from '../shared/types'
+import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, GitSubmodule, CommitOptions, AmendOptions, GitShowResult, GitCommitFile, GitLineLogEntry, GitGraphEntry } from '../shared/types'
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import path, { isAbsolute, resolve as resolvePath } from 'path'
@@ -20,6 +20,44 @@ function getGit(): SimpleGit {
 
 export function getGitWorkspace(): { git: SimpleGit; workspace: string } {
   return { git: getGit(), workspace: currentWorkspace }
+}
+
+// 子模块清单缓存：实测 submodule status 随子模块数线性(无子模块 ~0.5s、40 个 ~3s)，
+// 且切进/切出子模块、下拉连点兄弟、左右 GitTab 并发会对同一主仓反复全量重查。
+// 无子模块的仓先用 git config -f .gitmodules 短路(21ms，文件缺失/为空即非零退出)。
+const SUB_CACHE_TTL_MS = 10_000
+const submoduleCache = new Map<string, { at: number; promise: Promise<GitSubmodule[]> }>()
+
+async function querySubmodules(repoPath: string): Promise<GitSubmodule[]> {
+  try {
+    const git = simpleGit(repoPath)
+    try {
+      await git.raw(['config', '-f', '.gitmodules', '--get-regexp', 'path'])
+    } catch {
+      return [] // 无 .gitmodules 或无子模块条目，跳过昂贵的 submodule status
+    }
+    const rawOut = await git.raw(['--no-optional-locks', 'submodule', 'status'])
+    const items: GitSubmodule[] = []
+    for (const line of rawOut.split('\n')) {
+      if (!line.trim()) continue
+      const m = line.match(/^([ +\-U]?)([0-9a-f]{7,40})\s+(.+?)(?:\s+\((?:tags|heads|commit):?[^)]*\))?$/)
+      if (!m) continue
+      const flag = m[1]
+      if (flag === '-') continue // 未初始化
+      const relPath = m[3].trim()
+      const absPath = resolvePath(repoPath, relPath).replace(/\\/g, '/')
+      items.push({ path: relPath, name: relPath.split('/').pop() || relPath, absPath, branch: '', sha: m[2] })
+    }
+    await Promise.all(items.map(async (sm) => {
+      try {
+        // detached 时 branch --show-current 返回空串，UI 回退显示 sha
+        sm.branch = (await simpleGit(sm.absPath).raw(['--no-optional-locks', 'branch', '--show-current'])).trim()
+      } catch {}
+    }))
+    return items
+  } catch {
+    return []
+  }
 }
 
 // GUI 自操 mutation 命令统一包一层：写 .git 期间 + 结束后宽限内抑制监听回声(见 watcher.ts)
@@ -580,6 +618,32 @@ export function registerGitHandlers(): void {
     } catch (err: any) {
       return { error: err.message }
     }
+  })
+
+  // Git submodules — 懒加载第一层：只探测有无子模块(21ms)，UI 据此决定下拉按钮显隐
+  ipcMain.handle(IPC_CHANNELS.GIT_SUBMODULES_PROBE, async (_event, repoPath: string) => {
+    if (typeof repoPath !== 'string' || !repoPath) return false
+    try {
+      await simpleGit(repoPath).raw(['config', '-f', '.gitmodules', '--get-regexp', 'path'])
+      return true
+    } catch {
+      return false
+    }
+  })
+
+  // Git submodules — 懒加载第二层：点开下拉才调，实测 submodule status 随子模块数线性
+  // (无子模块 ~0.5s、40 个 ~3s)，切进/切出子模块、下拉连点兄弟、左右 GitTab 并发会反复全量重查
+  // → 10s TTL 缓存 + 在途去重压成最多一次全量；手动刷新按钮传 force 绕过。不触碰全局 gitInstance。
+  ipcMain.handle(IPC_CHANNELS.GIT_SUBMODULES, async (_event, repoPath: string, force?: boolean) => {
+    if (typeof repoPath !== 'string' || !repoPath) return []
+    const hit = submoduleCache.get(repoPath)
+    if (!force && hit && Date.now() - hit.at < SUB_CACHE_TTL_MS) {
+      return hit.promise.catch(() => [])
+    }
+    const promise = querySubmodules(repoPath)
+    promise.catch(() => { if (submoduleCache.get(repoPath)?.promise === promise) submoduleCache.delete(repoPath) })
+    submoduleCache.set(repoPath, { at: Date.now(), promise })
+    return promise
   })
 
   // Git stash push

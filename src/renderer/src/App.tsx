@@ -93,6 +93,8 @@ declare global {
         setFilterRules: (rules: string[]) => Promise<any>
         lineLog: (filePath: string, startLine: number, endLine: number) => Promise<any>
         graph: (opts?: { count?: number; skip?: number }) => Promise<any>
+        submodules: (repoPath: string, force?: boolean) => Promise<any>
+        submodulesProbe: (repoPath: string) => Promise<boolean>
         prProviders: () => Promise<PrProviderView[]>
         prProviderSave: (input: PrProviderInput) => Promise<PrProviderView[]>
         prProviderDelete: (id: string) => Promise<PrProviderView[]>
@@ -723,6 +725,7 @@ export default function App() {
 
   const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
   const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
+  const [sessionSubmoduleNav, setSessionSubmoduleNav] = useState<Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>>({})
   const [focusedPanel, setFocusedPanel] = useState<'term' | 'right' | null>(null)
   const [wordWrap, setWordWrap] = useState(() => {
     try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
@@ -2061,7 +2064,8 @@ export default function App() {
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
   const leftWorktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
-  const leftEffectiveGitPath = leftWorktreeNav?.worktreePath || activeSessionCwd
+  const leftSubmoduleNav = activeSessionId ? sessionSubmoduleNav[activeSessionId] ?? null : null
+  const leftEffectiveGitPath = leftSubmoduleNav?.submodulePath || leftWorktreeNav?.worktreePath || activeSessionCwd
 
   // 本地构造 gui/dsh session 记录（不建 PTY，三者互斥省内存）
   function makeLocalSession(cwd: string, opts?: { name?: string; id?: string }): SessionTab {
@@ -3441,12 +3445,14 @@ export default function App() {
                     workspacePath={activeSessionCwd}
                     effectiveGitPath={leftEffectiveGitPath}
                     worktreeNav={leftWorktreeNav}
+                    submoduleNav={leftSubmoduleNav}
                     onFileSelect={handleFileSelect}
                     refreshKey={gitRefreshKey}
                     activeSessionId={activeSessionId}
                     isActive={leftPanelView === 'git'}
                     pauseWhenHidden
                     onWorktreeNavChange={setSessionWorktreeNav}
+                    onSubmoduleNavChange={setSessionSubmoduleNav}
                     onDiffScroll={handleDiffScroll}
                     onNavigateToFile={handleNavigateToFile}
                     lineHistoryPayload={lineHistoryPayload}
@@ -3688,6 +3694,8 @@ export default function App() {
             onExploreNode={(node: any) => setCallGraphFocalNode(node)}
             lineHistoryPayload={lineHistoryPayload}
             sessionWorktreeNav={sessionWorktreeNav}
+            sessionSubmoduleNav={sessionSubmoduleNav}
+            onSubmoduleNavChange={setSessionSubmoduleNav}
             onWorktreeNavChange={setSessionWorktreeNav}
             onDiffScroll={handleDiffScroll}
             onToggleCollapse={handleToggleRightPanel}
