@@ -108,6 +108,7 @@ const ZH_MAP: Record<string, string> = {
   'Right-click blank area to open a new session': '右键空白处打开新会话',
   'New Workspace': '新建工作区',
   'Folder Selection': '目录文件夹选择',
+  'Parent': '上一级',
   'Disks': '磁盘',
   'Launch': '启动',
   'Session mode': '会话模式',

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { Folder, FolderPlus, FolderUp, HardDrive } from 'lucide-react'
+import { FolderPlus, FolderUp, HardDrive } from 'lucide-react'
 import { ModalOverlay } from './ModalOverlay'
+import { FolderIcon } from './FileIcons'
+import { ToolIcon } from './AiTab/tools'
 import { useI18n } from '../i18n'
 import { useRecentDirs } from '../cwdStore'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
@@ -110,8 +112,12 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
 
   useEffect(() => loadDir(cwd), [cwd, loadDir])
 
-  const isRoot = /^[A-Za-z]:[\\/]$/.test(cwd) || /^[\\/]$/.test(cwd) || /^[\\/]{2}[^\\/]+[\\/][^\\/]+[\\/]$/.test(cwd)
-  const parent = cwd.replace(/[\\/][^\\/]+[\\/]?$/, '')
+  const isRoot = /^[A-Za-z]:[\\/]*$/.test(cwd) || /^[\\/]{1,2}$/.test(cwd) || /^[\\/]{2}[^\\/]+[\\/][^\\/]+[\\/]*$/.test(cwd)
+  const parent = (() => {
+    const trimmed = cwd.replace(/[\\/]+$/, '')
+    const idx = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'))
+    return idx < 0 ? cwd : trimmed.slice(0, idx + 1)
+  })()
 
   const crumbs: { label: string; path: string }[] = []
   let accPath = ''
@@ -154,11 +160,7 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
   }
 
   const modes: { key: SessionMode; label: string; icon: React.ReactNode }[] = [
-    { key: 'term', label: t('Terminal'), icon: (
-      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-        <path fillRule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" clipRule="evenodd" />
-      </svg>
-    ) },
+    { key: 'term', label: t('Terminal'), icon: <ToolIcon category="command" /> },
     { key: 'gui', label: 'Claude', icon: <ClaudeLogoIcon size={14} /> },
     { key: 'dsh', label: 'dsh', icon: <DeepSeekLogoIcon size={14} /> },
     { key: 'pi', label: 'Pi', icon: <PiLogoIcon size={14} /> },
@@ -181,7 +183,7 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
                 title={d}
                 className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors min-w-0"
               >
-                <Folder size={12} className="text-ide-text-muted shrink-0" />
+                <FolderIcon name={d.split(/[\\/]/).filter(Boolean).pop() || ''} className="w-3 h-3 text-ide-text-muted" />
                 <MiddlePathText text={d} />
               </button>
             ))}
@@ -209,17 +211,7 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
           </div>
           <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center gap-1 px-3 py-2 border-b border-ide-border shrink-0">
-          <div className={`flex-1 min-w-0 flex items-center gap-0.5 pl-0.5 pr-2 py-1 rounded bg-ide-sidebar border font-mono text-xs ${error ? 'border-ide-danger' : 'border-ide-border'}`}>
-            <button
-              onClick={() => setCwd(parent)}
-              disabled={isRoot}
-              title="上级"
-              className={`shrink-0 w-3.5 h-3.5 rounded flex items-center justify-center transition-colors ${
-                isRoot ? 'text-ide-text-muted opacity-40 cursor-not-allowed' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-              }`}
-            >
-              <FolderUp size={12} />
-            </button>
+          <div className={`flex-1 min-w-0 flex items-center gap-0.5 pl-2 pr-2 py-1 rounded bg-ide-sidebar border font-mono text-xs ${error ? 'border-ide-danger' : 'border-ide-border'}`}>
             {editingPath ? (
               <input
                 autoFocus
@@ -251,22 +243,36 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
               </div>
             )}
           </div>
-          <button
-            onClick={() => { setNewFolderError(null); setCreatingFolder(true) }}
-            title={t('New Folder')}
-            className="shrink-0 w-6 h-6 rounded flex items-center justify-center transition-colors text-ide-text-muted hover:text-ide-text hover:bg-ide-hover"
-          >
-            <FolderPlus size={14} />
-          </button>
         </div>
-        <div className="px-3 pt-1.5 pb-0.5 shrink-0">
+        <div className="flex items-center justify-between px-3 pt-1.5 pb-0.5 shrink-0">
           <span className="text-[10px] text-ide-text-muted uppercase tracking-wider">{t('Folder Selection')}</span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => { setNewFolderError(null); setCreatingFolder(true) }}
+              title={t('New Folder')}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+            >
+              <FolderPlus size={12} />
+              {t('New Folder')}
+            </button>
+            <button
+              onClick={() => setCwd(parent)}
+              disabled={isRoot}
+              title={t('Parent')}
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors ${
+                isRoot ? 'text-ide-text-muted opacity-40 cursor-not-allowed' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
+              }`}
+            >
+              <FolderUp size={12} />
+              {t('Parent')}
+            </button>
+          </div>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto py-0.5">
           {creatingFolder && (
             <div className="flex flex-col">
               <div className="px-3 py-1 flex items-center gap-2 bg-ide-accent/10">
-                <Folder size={14} className="text-ide-warning shrink-0" />
+                <FolderIcon className="w-3.5 h-3.5 text-ide-warning" />
                 <input
                   autoFocus
                   placeholder={t('Folder name')}
@@ -293,9 +299,9 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
               <button
                 key={e.path}
                 onClick={() => setCwd(e.path)}
-                className="w-full px-3 py-1 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                className="w-full px-3 py-0.5 text-left text-xs text-ide-text hover:bg-ide-hover flex items-center gap-1.5"
               >
-                <Folder size={14} className="text-ide-text-muted shrink-0" />
+                <FolderIcon name={e.name} className="w-3 h-3 text-ide-text-muted" />
                 <span className="truncate">{e.name}</span>
               </button>
             ))
@@ -304,29 +310,27 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
         </div>
         </div>
         <div className="flex items-center gap-1 px-3 py-2 border-t border-ide-border shrink-0">
-          <button onClick={onCancel} className="ml-auto px-3 py-1.5 text-sm text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors">
+          <button onClick={onCancel} className="px-3 py-1.5 text-sm text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors">
             {t('Cancel')}
           </button>
-          <div className="dir-picker__launch relative">
-            <div className="flex items-stretch rounded-md border border-ide-border overflow-hidden">
-              <button
-                onClick={() => onConfirm(cwd, selectedMode)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-ide-text hover:bg-ide-hover transition-colors whitespace-nowrap"
-              >
-                <span>{t('Launch')}</span>
-                {currentMode.icon}
-                <span>{currentMode.label}</span>
-              </button>
-              <button
-                onClick={() => setLaunchMenuOpen(v => !v)}
-                title={t('Session mode')}
-                className="flex items-center justify-center px-2 text-ide-text-muted border-l border-ide-border hover:text-ide-text hover:bg-ide-hover transition-colors"
-              >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                  <path d="M4 6l4 4 4-4" />
-                </svg>
-              </button>
-            </div>
+          <div className="dir-picker__launch ml-auto relative flex items-stretch gap-1">
+            <button
+              onClick={() => setLaunchMenuOpen(v => !v)}
+              title={t('Session mode')}
+              className="flex items-center gap-1.5 px-2 rounded-md border border-ide-border text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors whitespace-nowrap"
+            >
+              {currentMode.icon}
+              <span>{currentMode.label}</span>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                <path d="M4 6l4 4 4-4" />
+              </svg>
+            </button>
+            <button
+              onClick={() => onConfirm(cwd, selectedMode)}
+              className="flex items-center px-3 py-1.5 text-sm rounded-md bg-ide-accent text-white hover:brightness-110 transition-colors whitespace-nowrap"
+            >
+              <span>{t('Launch')}</span>
+            </button>
             {launchMenuOpen && (
               <div
                 className="absolute bottom-full right-0 mb-1 min-w-full bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50"
