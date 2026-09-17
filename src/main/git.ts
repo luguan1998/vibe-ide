@@ -25,8 +25,8 @@ export function getGitWorkspace(): { git: SimpleGit; workspace: string } {
 // 子模块清单缓存：实测 submodule status 随子模块数线性(无子模块 ~0.5s、40 个 ~3s)，
 // 且切进/切出子模块、下拉连点兄弟、左右 GitTab 并发会对同一主仓反复全量重查。
 // 无子模块的仓先用 git config -f .gitmodules 短路(21ms，文件缺失/为空即非零退出)。
-const SUB_CACHE_TTL_MS = 10_000
-const submoduleCache = new Map<string, { at: number; promise: Promise<GitSubmodule[]> }>()
+// 常驻不按时间失效：手动刷新按钮 force 绕过是唯一失效通道；体积按"查过的不同仓库数"计，KB 级。
+const submoduleCache = new Map<string, Promise<GitSubmodule[]>>()
 
 async function querySubmodules(repoPath: string): Promise<GitSubmodule[]> {
   try {
@@ -633,16 +633,16 @@ export function registerGitHandlers(): void {
 
   // Git submodules — 懒加载第二层：点开下拉才调，实测 submodule status 随子模块数线性
   // (无子模块 ~0.5s、40 个 ~3s)，切进/切出子模块、下拉连点兄弟、左右 GitTab 并发会反复全量重查
-  // → 10s TTL 缓存 + 在途去重压成最多一次全量；手动刷新按钮传 force 绕过。不触碰全局 gitInstance。
+  // → 结果常驻缓存（在途查询即去重单元），手动刷新按钮传 force 绕过。不触碰全局 gitInstance。
   ipcMain.handle(IPC_CHANNELS.GIT_SUBMODULES, async (_event, repoPath: string, force?: boolean) => {
     if (typeof repoPath !== 'string' || !repoPath) return []
-    const hit = submoduleCache.get(repoPath)
-    if (!force && hit && Date.now() - hit.at < SUB_CACHE_TTL_MS) {
-      return hit.promise.catch(() => [])
+    if (!force) {
+      const hit = submoduleCache.get(repoPath)
+      if (hit) return hit.catch(() => [])
     }
     const promise = querySubmodules(repoPath)
-    promise.catch(() => { if (submoduleCache.get(repoPath)?.promise === promise) submoduleCache.delete(repoPath) })
-    submoduleCache.set(repoPath, { at: Date.now(), promise })
+    submoduleCache.set(repoPath, promise)
+    promise.catch(() => { if (submoduleCache.get(repoPath) === promise) submoduleCache.delete(repoPath) })
     return promise
   })
 
