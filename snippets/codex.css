@@ -53,7 +53,7 @@ body,
   background:
     radial-gradient(1020px 640px at 14% -10%, rgba(88 122 255 / 0.10), transparent 62%),
     radial-gradient(880px 560px at 9% 48%, rgba(255 138 92 / 0.07), transparent 60%),
-    radial-gradient(1160px 760px at 64% 112%, rgba(56 196 176 / 0.08), transparent 64%),
+    radial-gradient(240px 640px at 104% 50%, rgba(126 152 196 / 0.13), transparent 64%),
     linear-gradient(178deg, #fcfcfd 0%, #f0f1f4 100%) !important;
   background-attachment: fixed !important;
 }
@@ -146,27 +146,22 @@ body,
   background: var(--cx-wash) !important;
 }
 
-/* 底栏状态 pill — 玻璃胶囊（Codex 左下 deepseek 3% 位）*/
+/* 底栏状态 pill — 保留默认三态极光，浓度弱化一档 + 玻璃化（blur），与 Codex 玻璃底协调 */
 .status-badge {
-  background: var(--cx-glass-strong) !important;
-  -webkit-backdrop-filter: var(--cx-blur) !important;
-  backdrop-filter: var(--cx-blur) !important;
-  border: 1px solid var(--cx-hairline-soft) !important;
-  border-radius: 9999px !important;
-  box-shadow: var(--cx-shadow-1) !important;
+  background:
+    radial-gradient(90% 140% at 0% 50%, rgb(var(--ide-accent) / 0.10), transparent 65%),
+    radial-gradient(90% 140% at 100% 50%, rgb(var(--ide-warning) / 0.10), transparent 65%),
+    linear-gradient(110deg, rgb(var(--ide-success) / 0.06), transparent 70%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
 }
-.status-badge__divider {
-  background: var(--cx-hairline) !important;
-}
+/* is-active 单态光晕同步弱化（0.42 → 0.18），防单态弹出过重 */
+.status-badge__segment--running.is-active,
 .status-badge__segment--mode.is-active {
-  background: rgba(255 255 255 / 0.92) !important;
-  color: rgb(var(--ide-text)) !important;
-  border-radius: 9999px !important;
-  box-shadow: var(--cx-shadow-1) !important;
+  background: radial-gradient(150% 170% at 50% -30%, rgb(var(--ide-accent) / 0.18), rgb(var(--ide-accent) / 0.05) 58%, transparent 80%) !important;
 }
-.status-badge__segment--mode:hover {
-  background: var(--cx-wash) !important;
-  color: rgb(var(--ide-text)) !important;
+.status-badge__segment--warn.is-active {
+  background: radial-gradient(150% 170% at 50% -30%, rgb(var(--ide-warning) / 0.18), rgb(var(--ide-warning) / 0.05) 58%, transparent 80%) !important;
 }
 
 /* ── 中栏 — 透明画布 + 大圆角浮卡 ── */
