@@ -11,9 +11,15 @@ let currentWorkspace: string = process.cwd()
 // 同路径 setWorkspace 结果缓存：左(GitTab/Dir)右两侧面板各持一个 GitTab，切会话时会对同一路径各调一次
 let workspaceInfo: { path: string; gitRoot: string; gitCommonDir: string } | null = null
 
+// git 默认 core.quotePath=true，中文文件名在 status/diff 等输出里被转成 "AI\346\222\246..." 八进制转义，
+// 面板显示异常且路径与真实文件对不上，统一关闭
+function newGit(baseDir: string): SimpleGit {
+  return simpleGit(baseDir, { config: ['core.quotePath=false'] })
+}
+
 function getGit(): SimpleGit {
   if (!gitInstance) {
-    gitInstance = simpleGit(currentWorkspace)
+    gitInstance = newGit(currentWorkspace)
   }
   return gitInstance
 }
@@ -30,7 +36,7 @@ const submoduleCache = new Map<string, Promise<GitSubmodule[]>>()
 
 async function querySubmodules(repoPath: string): Promise<GitSubmodule[]> {
   try {
-    const git = simpleGit(repoPath)
+    const git = newGit(repoPath)
     try {
       await git.raw(['config', '-f', '.gitmodules', '--get-regexp', 'path'])
     } catch {
@@ -51,7 +57,7 @@ async function querySubmodules(repoPath: string): Promise<GitSubmodule[]> {
     await Promise.all(items.map(async (sm) => {
       try {
         // detached 时 branch --show-current 返回空串，UI 回退显示 sha
-        sm.branch = (await simpleGit(sm.absPath).raw(['--no-optional-locks', 'branch', '--show-current'])).trim()
+        sm.branch = (await newGit(sm.absPath).raw(['--no-optional-locks', 'branch', '--show-current'])).trim()
       } catch {}
     }))
     return items
@@ -82,7 +88,7 @@ export function registerGitHandlers(): void {
         return { success: true, path, gitRoot: workspaceInfo.gitRoot, gitCommonDir: workspaceInfo.gitCommonDir }
       }
       currentWorkspace = path
-      gitInstance = simpleGit(currentWorkspace)
+      gitInstance = newGit(currentWorkspace)
       let gitRoot = path
       let gitCommonDir = ''
       try {
@@ -452,7 +458,7 @@ export function registerGitHandlers(): void {
       let uncommittedDiff = ''
       let stagedDiff = ''
       if (worktreePath) {
-        const wtGit = simpleGit(worktreePath)
+        const wtGit = newGit(worktreePath)
         uncommittedDiff = await wtGit.raw(['diff', '--full-index', 'HEAD'])
         stagedDiff = await wtGit.raw(['diff', '--cached', '--full-index'])
       }
@@ -517,7 +523,7 @@ export function registerGitHandlers(): void {
       let uncommittedDiff = ''
       let stagedDiff = ''
       if (worktreePath) {
-        const wtGit = simpleGit(worktreePath)
+        const wtGit = newGit(worktreePath)
         uncommittedDiff = await wtGit.raw(['diff', '--full-index', 'HEAD'])
         stagedDiff = await wtGit.raw(['diff', '--cached', '--full-index'])
       }
@@ -624,7 +630,7 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_SUBMODULES_PROBE, async (_event, repoPath: string) => {
     if (typeof repoPath !== 'string' || !repoPath) return false
     try {
-      await simpleGit(repoPath).raw(['config', '-f', '.gitmodules', '--get-regexp', 'path'])
+      await newGit(repoPath).raw(['config', '-f', '.gitmodules', '--get-regexp', 'path'])
       return true
     } catch {
       return false
@@ -853,7 +859,7 @@ export function registerGitHandlers(): void {
       : await dialog.showOpenDialog(opts)
     if (!result.canceled && result.filePaths.length > 0) {
       currentWorkspace = result.filePaths[0]
-      gitInstance = simpleGit(currentWorkspace)
+      gitInstance = newGit(currentWorkspace)
       return { path: currentWorkspace }
     }
     return { canceled: true }
