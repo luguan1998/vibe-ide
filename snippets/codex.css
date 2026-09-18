@@ -1,0 +1,459 @@
+/*
+  codex — OpenAI Codex 桌面端风格（亮色 · 毛玻璃）
+  设计语言：近白单色画布 · 黑白灰无彩强调（accent = 近黑，主按钮/选中皆灰阶）
+           · 大面积毛玻璃（标题栏/侧栏/右侧面板/菜单/弹窗/输入卡）· 发丝边 + 柔和投影
+           · 大圆角卡片 · 灰 pill 选中态（无左侧色条）· 深色终端画布（亮 chrome + 深终端）
+  骨架照抄 macos.css（已验证的构件与选择器）；玻璃分层法：
+  大容器自身不挂 backdrop-filter（会为内部 fixed 菜单创建包含块 → 坐标错乱），
+  改用 ::before 独立玻璃层（非 fixed 元素祖先，安全）；叶子构件（标题栏/菜单/输入卡）直接挂。
+*/
+
+:root {
+  /* ── Codex 亮色板（单色系）── */
+  --ide-bg: 255 255 255 !important;
+  --ide-sidebar: 250 250 251 !important;
+  --ide-panel: 255 255 255 !important;
+  --ide-border: 232 232 235 !important;
+  --ide-text: 14 14 16 !important;
+  --ide-text-muted: 136 136 143 !important;
+  --ide-accent: 17 17 19 !important;              /* Codex 近黑强调（发送钮/主按钮）*/
+  --ide-accent-hover: 44 44 48 !important;
+  --ide-success: 26 158 74 !important;
+  --ide-danger: 220 38 38 !important;
+  --ide-warning: 202 138 4 !important;
+  --ide-hover: 241 241 244 !important;
+  --ide-active: 233 233 236 !important;
+  --scrollbar-track: transparent !important;
+  --scrollbar-thumb: 208 208 214 !important;
+  --scrollbar-thumb-hover: 160 160 168 !important;
+  --selection-bg: 59 130 246 !important;           /* 文本选区用蓝（Codex 系统蓝）*/
+  --selection-opacity: 0.22 !important;
+  --monaco-margin-bg: 252 252 253 !important;
+
+  /* ── 玻璃构件令牌（非主题变量，勿加 !important）── */
+  --cx-glass-soft: rgba(255 255 255 / 0.50);       /* 侧栏 */
+  --cx-glass: rgba(255 255 255 / 0.55);            /* 面板卡片 */
+  --cx-glass-strong: rgba(255 255 255 / 0.78);     /* 菜单/弹窗/输入卡 */
+  --cx-hairline: rgba(16 16 20 / 0.08);
+  --cx-hairline-soft: rgba(16 16 20 / 0.05);
+  --cx-wash: rgba(16 16 20 / 0.055);
+  --cx-wash-strong: rgba(16 16 20 / 0.09);
+  --cx-blur: blur(24px) saturate(180%);
+  --cx-blur-strong: blur(32px) saturate(170%);
+  --cx-shadow-1: 0 1px 2px rgba(0 0 0 / 0.05);
+  --cx-shadow-2: 0 1px 2px rgba(0 0 0 / 0.04), 0 10px 30px rgba(0 0 0 / 0.07);
+  --cx-shadow-3: 0 18px 60px rgba(0 0 0 / 0.16), 0 2px 8px rgba(0 0 0 / 0.06);
+}
+
+/* ── 窗口底 — 近白画布 + 极淡色晕（毛玻璃透射的材质）
+   暖橙晕（原右上）原位搬移：集中到左侧 session 面板中部，经侧栏玻璃透出 ── */
+html,
+body,
+#root {
+  background:
+    radial-gradient(1020px 640px at 14% -10%, rgba(88 122 255 / 0.10), transparent 62%),
+    radial-gradient(880px 560px at 9% 48%, rgba(255 138 92 / 0.07), transparent 60%),
+    radial-gradient(1160px 760px at 64% 112%, rgba(56 196 176 / 0.08), transparent 64%),
+    linear-gradient(178deg, #fcfcfd 0%, #f0f1f4 100%) !important;
+  background-attachment: fixed !important;
+}
+#root > div {
+  background-color: transparent !important;
+}
+
+/* ── 标题栏 — 实底 + 发丝底边（不参与毛玻璃）── */
+.titlebar-drag[class*="h-9"] {
+  background: rgb(var(--ide-sidebar)) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  border-bottom: 1px solid var(--cx-hairline-soft) !important;
+}
+
+/* ── 左侧会话面板 — ::before 玻璃底（面板自身不挂 blur，护住内部 fixed 菜单）── */
+.session-panel {
+  background: transparent !important;
+}
+.session-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--cx-glass-soft);
+  -webkit-backdrop-filter: var(--cx-blur-strong);
+  backdrop-filter: var(--cx-blur-strong);
+  pointer-events: none;
+}
+.session-panel__list-wrapper,
+.session-panel__panel-wrapper,
+.session-panel__flat-list {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 快捷行（New chat 类）— 平铺行，悬停灰 wash */
+.session-panel__quick-action {
+  background: transparent !important;
+  border-color: transparent !important;
+  border-radius: 10px !important;
+  color: rgb(var(--ide-text)) !important;
+}
+.session-panel__quick-action:hover {
+  background: var(--cx-wash) !important;
+  border-color: transparent !important;
+}
+.session-panel__quick-action[class*="bg-ide-accent"] {
+  background: var(--cx-wash-strong) !important;
+  color: rgb(var(--ide-text)) !important;
+}
+
+/* 会话项 — 通栏平铺：无白卡、无左侧色条；选中 = 灰 pill */
+.session-group .session-item {
+  background: transparent !important;
+}
+.session-group .session-item:hover {
+  background: var(--cx-wash) !important;
+}
+.session-item--active,
+.session-group .session-item--active {
+  background: var(--cx-wash-strong) !important;
+  color: rgb(var(--ide-text)) !important;
+  border-left: none !important;
+  box-shadow: none !important;
+}
+.session-group .session-item--active .session-item__name {
+  color: rgb(var(--ide-text)) !important;
+}
+.session-group .session-item--active .session-item__actions button {
+  color: rgb(var(--ide-text-muted)) !important;
+}
+.session-group .session-item--active .session-item__actions button:hover {
+  background: var(--cx-wash-strong) !important;
+  color: rgb(var(--ide-text)) !important;
+}
+.session-item--running,
+.session-item--warn {
+  border-left: none !important;
+}
+.session-item--active .session-item__cwd,
+.session-item--active .session-item__cwd span {
+  color: rgb(var(--ide-text-muted)) !important;
+  opacity: 1 !important;
+}
+
+/* 分组头 — 项目行，悬停灰 wash（结构不动）*/
+.session-group__header:hover {
+  background: var(--cx-wash) !important;
+}
+
+/* 底栏状态 pill — 玻璃胶囊（Codex 左下 deepseek 3% 位）*/
+.status-badge {
+  background: var(--cx-glass-strong) !important;
+  -webkit-backdrop-filter: var(--cx-blur) !important;
+  backdrop-filter: var(--cx-blur) !important;
+  border: 1px solid var(--cx-hairline-soft) !important;
+  border-radius: 9999px !important;
+  box-shadow: var(--cx-shadow-1) !important;
+}
+.status-badge__divider {
+  background: var(--cx-hairline) !important;
+}
+.status-badge__segment--mode.is-active {
+  background: rgba(255 255 255 / 0.92) !important;
+  color: rgb(var(--ide-text)) !important;
+  border-radius: 9999px !important;
+  box-shadow: var(--cx-shadow-1) !important;
+}
+.status-badge__segment--mode:hover {
+  background: var(--cx-wash) !important;
+  color: rgb(var(--ide-text)) !important;
+}
+
+/* ── 中栏 — 透明画布 + 大圆角浮卡 ── */
+.focus-frame {
+  background-color: transparent !important;
+}
+.focus-frame > div[class*="bg-ide-bg"] {
+  background: transparent !important;
+}
+.center-card,
+.center-overlay {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-color: var(--cx-hairline) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--cx-shadow-2) !important;
+}
+
+/* 终端 — 深色画布（亮 chrome + 深终端），头部玻璃条 */
+.term-view__canvas {
+  background: rgb(17 17 19) !important;
+}
+.term-view__header {
+  background: var(--cx-glass-soft) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  border-bottom: 1px solid var(--cx-hairline-soft) !important;
+}
+.term-view__search {
+  background: rgba(255 255 255 / 0.92) !important;
+  border: 1px solid var(--cx-hairline) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--cx-shadow-1) !important;
+}
+.term-view__search:focus-within {
+  border-color: rgba(16 16 20 / 0.24) !important;
+  box-shadow: 0 0 0 3px rgba(16 16 20 / 0.06), var(--cx-shadow-1) !important;
+}
+
+/* ── 右栏 — ::before 玻璃内容卡（护住 GitTab 内部 fixed 菜单）+ 白 pill 激活 tab ── */
+.right-panel__content {
+  position: relative !important;
+  background: transparent !important;
+  border: 1px solid var(--cx-hairline) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--cx-shadow-2) !important;
+}
+.right-panel__content::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--cx-glass);
+  -webkit-backdrop-filter: var(--cx-blur-strong);
+  backdrop-filter: var(--cx-blur-strong);
+  pointer-events: none;
+}
+.right-panel__tab-bar {
+  border-bottom: none !important;
+}
+.right-panel__tab {
+  border: none !important;
+  border-radius: 8px !important;
+  transition: background-color 0.12s, color 0.12s, box-shadow 0.12s !important;
+}
+.right-panel__tab:hover {
+  background: var(--cx-wash) !important;
+}
+.right-panel__tab--active {
+  background: rgba(255 255 255 / 0.92) !important;
+  color: rgb(var(--ide-text)) !important;
+  box-shadow: var(--cx-shadow-1) !important;
+}
+
+/* Git 面板 */
+.git-tab__header {
+  border-bottom: 1px solid var(--cx-hairline-soft) !important;
+}
+.git-tab__section {
+  border-bottom: 1px solid var(--cx-hairline-soft) !important;
+}
+.git-tab__section-header {
+  border: none !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: rgb(var(--ide-text-muted)) !important;
+}
+.git-tab__file-item {
+  border-radius: 6px !important;
+}
+.git-tab__file-item:hover {
+  background: var(--cx-wash) !important;
+}
+.git-tab__file-item[class*="bg-ide-accent/10"] {
+  background: var(--cx-wash-strong) !important;
+  border-radius: 6px !important;
+}
+.git-tab__commit-area {
+  border-top: 1px solid var(--cx-hairline-soft) !important;
+  background: transparent !important;
+}
+.git-tab__commit-input {
+  background: rgba(255 255 255 / 0.92) !important;
+  border: 1px solid var(--cx-hairline) !important;
+  border-radius: 10px !important;
+  color: rgb(var(--ide-text)) !important;
+  box-shadow: var(--cx-shadow-1) !important;
+}
+.git-tab__commit-input:focus,
+.git-tab__commit-input:focus-visible {
+  border-color: rgba(16 16 20 / 0.24) !important;
+  box-shadow: 0 0 0 3px rgba(16 16 20 / 0.06), var(--cx-shadow-1) !important;
+}
+.git-tab__commit-btn {
+  border: none !important;
+  background: rgb(var(--ide-accent)) !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  box-shadow: var(--cx-shadow-1) !important;
+  transition: background-color 0.15s !important;
+}
+.git-tab__commit-btn:hover {
+  background: rgb(var(--ide-accent-hover)) !important;
+}
+
+/* 文件树（右栏 Dir）— 源列表风格 */
+.file-tab__header {
+  border-bottom: 1px solid var(--cx-hairline-soft) !important;
+}
+.file-tree-item {
+  border: none !important;
+  border-radius: 8px !important;
+}
+.file-tree-item:hover {
+  background: var(--cx-wash) !important;
+}
+.file-tree-item--active {
+  background: var(--cx-wash-strong) !important;
+  border-left: none !important;
+}
+.file-tree-item--active .file-tree-item__name {
+  color: rgb(var(--ide-text)) !important;
+}
+.file-tab__section {
+  border-top: 1px solid var(--cx-hairline-soft) !important;
+}
+.file-tab__section-header,
+.file-tab__section-title {
+  border: none !important;
+  background: transparent !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: rgb(var(--ide-text-muted)) !important;
+}
+
+/* ── 菜单 / 弹窗 — 重玻璃 ── */
+.session-panel__settings-menu {
+  background: var(--cx-glass-strong) !important;
+  -webkit-backdrop-filter: var(--cx-blur) !important;
+  backdrop-filter: var(--cx-blur) !important;
+  border: 1px solid var(--cx-hairline) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--cx-shadow-3) !important;
+}
+.session-panel__settings-menu button {
+  border-radius: 8px !important;
+  border: none !important;
+}
+.session-panel__settings-menu button:hover {
+  background: var(--cx-wash-strong) !important;
+  color: rgb(var(--ide-text)) !important;
+}
+/* 排除含 fixed 后代的菜单：backdrop-filter 会为 fixed 子菜单创建包含块（坐标错乱+溢出滚动条），此类菜单只用白底不用 blur */
+.fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"]:not(:has(.fixed)) {
+  background: var(--cx-glass-strong) !important;
+  -webkit-backdrop-filter: var(--cx-blur) !important;
+  backdrop-filter: var(--cx-blur) !important;
+  border: 1px solid var(--cx-hairline) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--cx-shadow-3) !important;
+}
+.fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
+  background: var(--cx-glass-strong) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(180%) !important;
+  backdrop-filter: blur(30px) saturate(180%) !important;
+  border: 1px solid var(--cx-hairline) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--cx-shadow-3) !important;
+}
+.fixed.inset-0.z-50 button {
+  border-radius: 8px !important;
+}
+
+/* ── 输入卡 — Codex 签名：白卡 + 发丝边 + 柔影 ── */
+.ai-tab__input-pill {
+  background: var(--cx-glass-strong) !important;
+  -webkit-backdrop-filter: var(--cx-blur) !important;
+  backdrop-filter: var(--cx-blur) !important;
+  border: 1px solid var(--cx-hairline) !important;
+  border-radius: 18px !important;
+  box-shadow: var(--cx-shadow-2) !important;
+}
+.ai-tab__input-pill:focus-within {
+  border-color: rgba(16 16 20 / 0.22) !important;
+  box-shadow: 0 0 0 3px rgba(16 16 20 / 0.05), var(--cx-shadow-2) !important;
+}
+.ai-tab__send-btn {
+  border-radius: 9999px !important;
+  box-shadow: var(--cx-shadow-1) !important;
+}
+
+/* ── 滚动条 — 亮 chrome overlay；终端自绘滑块反白（深画布）── */
+::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+::-webkit-scrollbar-track { background: transparent !important; }
+::-webkit-scrollbar-thumb {
+  background: transparent !important;
+  border-radius: 9999px !important;
+  border: 2px solid transparent !important;
+  background-clip: content-box !important;
+}
+:hover::-webkit-scrollbar-thumb {
+  background: rgba(16 16 20 / 0.18) !important;
+  background-clip: content-box !important;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16 16 20 / 0.32) !important;
+  background-clip: content-box !important;
+}
+::-webkit-scrollbar-corner { background: transparent !important; }
+.xterm .xterm-viewport::-webkit-scrollbar { display: none !important; }
+.xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
+  background: rgba(255 255 255 / 0.22) !important;
+  border-radius: 9999px !important;
+  border: 2px solid transparent !important;
+  background-clip: content-box !important;
+  min-width: 7px !important;
+}
+.xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider:hover {
+  background: rgba(255 255 255 / 0.38) !important;
+  background-clip: content-box !important;
+}
+
+/* ── 杂项 ── */
+::selection { background: rgba(59 130 246 / 0.22) !important; }
+input[type="checkbox"] { accent-color: rgb(var(--ide-accent)) !important; }
+.text-ide-success { color: rgb(var(--ide-success)) !important; }
+.text-ide-danger { color: rgb(var(--ide-danger)) !important; }
+.text-ide-warning { color: rgb(var(--ide-warning)) !important; }
+
+/* Markdown — 克制的暗色排版 */
+.md-preview h1, .md-preview h2, .md-preview h3,
+.md-preview h4, .md-preview h5, .md-preview h6 {
+  color: rgb(var(--ide-text)) !important;
+  font-weight: 600 !important;
+}
+.md-preview h1, .md-preview h2 { border-bottom: 1px solid var(--cx-hairline) !important; }
+.md-preview a { color: rgb(var(--ide-text)) !important; text-underline-offset: 2px !important; }
+.md-preview a:hover { color: rgb(var(--ide-accent-hover)) !important; }
+.md-preview strong { color: rgb(var(--ide-text)) !important; font-weight: 600 !important; }
+.md-preview code {
+  background: var(--cx-wash) !important;
+  color: rgb(var(--ide-text)) !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 1px 5px !important;
+}
+.md-code-block {
+  background: rgb(248 248 250) !important;
+  border: 1px solid var(--cx-hairline-soft) !important;
+  border-radius: 10px !important;
+}
+.md-code-block code {
+  color: rgb(24 24 27) !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+.md-preview blockquote {
+  border-left: 3px solid rgba(16 16 20 / 0.2) !important;
+  background: var(--cx-wash) !important;
+  color: rgb(var(--ide-text-muted)) !important;
+  border-radius: 0 6px 6px 0 !important;
+}
+.md-search-match { background: rgba(255 204 0 / 0.4) !important; border-radius: 3px !important; }
+.md-search-match-current { background: rgba(59 130 246 / 0.25) !important; border-radius: 3px !important; }
