@@ -197,7 +197,7 @@ HEAD 是 `loaded: false`（强制）。用"带 loaded:true 的真实 profile"启
 |---|---|
 | 渲染 | 144~152MB（+55s 中位；JS 堆 ~55-66MB，其余=Monaco 预载/React/CSS/字体/引擎池） |
 | 主进程 | ~190MB（**未拆**，含 git/watcher/codegraph/会话缓存，下一步方向） |
-| GPU | 88~145MB（跑间双模态，疑两条初始化路径） |
+| GPU | 88~145MB（跑间双模态 → 见 §8.2：启动尖峰 425–465MB 后 20–30s 回落到 210–310MB，取样时机/窗口状态决定读数） |
 | utility | 13MB |
 | **合计** | **~435~505MB** |
 
@@ -226,3 +226,91 @@ HEAD 是 `loaded: false`（强制）。用"带 loaded:true 的真实 profile"启
   （修复方向参考：`App.tsx` 的 `bootActiveIdRef` 跳过启动恢复加载）
 - `test/perf-file-switch.mjs` 的局限：只报 JS 堆（增长大头在堆外）+ 总内存阈值 500MB 过宽，
   大量真实增长会判 PASS
+
+---
+
+## 8. GPU 进程与平台底盘校正（2026-09-19）
+
+> 起因："GPU 进程 350–480MB 是不是可优化"。结论：**那个数字是启动尖峰，不是稳态；GPU 进程基本不是可优化项**。
+> 口径：未打包 `out/` + 独立 `--user-data-dir` + CDP，本机 125% 缩放（device-scale-factor 1.5），
+> 每状态 10–12 样本取中位数，**采样前等启动尖峰回落（≥30s）**。
+
+### 8.1 平台底盘（先量底盘，再谈应用）
+
+| 对照（同尺寸无边框 1400×900） | GPU WS | GPU private | 渲染 WS | 渲染 private |
+|---|---|---|---|---|
+| 裸 Electron 空窗口 | 161MB | 76MB | 107MB | 22MB |
+| 裸 Electron + 仿 Vibe 布局（毛玻璃/阴影/圆角/CJK 文本/三栏） | 196MB | 112MB | 108MB | 24MB |
+
+**UI 布局本身只值 +35MB**（毛玻璃 + 阴影 + 中文字形图集）。GPU 进程的大头是 Chromium/D3D11 平台税，不是我们的 CSS。
+
+### 8.2 GPU 进程是"启动尖峰 + 缓慢回落"，双模态由此而来（修正 §6d 的"疑两条初始化路径"）
+
+同一次启动内每 2s 采样（DevTools 按 dev 默认开着）：
+
+| 时刻 | GPU WS | GPU private |
+|---|---|---|
+| t=0s | 304MB | 240MB |
+| t=5s | 424MB | 327MB |
+| t=14s | 344MB | 246MB |
+| t=18s | 284MB | 186MB |
+| t=23–41s | 279–283MB | 181–186MB |
+
+1. 启动 0–10s 冲到 **425–465MB**（着色器编译、字形/纹理图集、compositor tile 分配），20–30s 回落并稳定在 210–310MB
+2. **最小化不释放**（214 → 214MB），**恢复+聚焦会再抬一次水位**（214 → 309MB，+84MB private）
+3. `peakWorkingSetSize` 会长期停在 426/464MB，容易被误读成"当前占用"
+4. DevTools 在 GPU 侧只 **+24MB**（它的大头是那个独立渲染进程 220–310MB，见 §1 的判读坑）
+5. 推论：**小于 50MB 的视觉效果改动淹没在这个抖动里**——本机同状态跨启动实测 GPU WS 从 234MB 到 381MB 都出现过
+
+### 8.3 单会话边际成本（当前最大的可优化项）
+
+`test/mem-probe.mjs` 实测：克隆 4 个会话后进程树 **+400MB**（4 × pwsh ≈ 100MB）+ 渲染 **+137MB**（≈34MB/会话）。
+
+即 **+125~135MB/终端会话**，而恢复逻辑把它放大：保存 `loaded: true`（`src/renderer/src/App.tsx:2100`）、
+恢复原样还原（`src/renderer/src/sessionRestore.ts:70`）→ 开机即给每个历史会话拉 pwsh 并全量挂载渲染。
+
+### 8.4 桌宠（唯一值得留意的小项）
+
+6 套精灵图全是 **1536×1872 静态 webp**（`pets/*/spritesheet.webp`），动画靠 CSS `steps()` 切 `background-position`，
+不是动图。解码后常驻 RGBA ≈ **11MB/套**。默认开启（`getPetVisible()` 默认 true），关闭入口：AppearancePanel → Show Pet。
+与 §6 的证伪一致：**动画本身不贵（关掉无可复现内存收益），贵的是"同时在动画的元素数"（~140KB/个）**。
+
+### 8.5 补进工具箱：主进程 inspector 直连控制
+
+```powershell
+# 主进程也开 inspector，可在主进程里执行 require('electron')
+electron.exe --inspect=9341 --remote-debugging-port=9281 --user-data-dir=$env:TEMP\probe <appDir> <workspace>
+```
+
+连 `http://127.0.0.1:9341/json/list` 的 node target，即可 `Runtime.evaluate`：
+
+```js
+const { BrowserWindow } = require('electron')
+const w = BrowserWindow.getAllWindows()[0]
+w.webContents.closeDevTools()   // 消除 dev-only 污染（比改 out/main/index.js 干净，重建不会冲掉）
+w.minimize(); w.restore()       // 测合成层水分：最小化不释放，恢复会抬水位
+```
+
+### 8.6 旧结论勘误（`doc/memory_usage.md`，2026-06 对话记录）
+
+该文仍是 2026-06 的原始记录（已在文首加勘误提示），其中被推翻的条目：
+
+| 旧说法 | 实测 |
+|---|---|
+| "GPU 189–215MB = 多个 xterm WebGL 上下文"、"xterm WebGL 多上下文 ~200MB" | WebGL ≈11MB/终端（5 终端 vs DOM 渲染器差 55MB）；有终端与无会话欢迎页的 GPU 几乎一致。**推翻** |
+| "空闲 800MB 主因排序：CodeGraph 170 + WebGL 200 + Chromium 100 + Vite 180 + MCP 58 + DevTools 80" | 正确排序见 §6d 与 §8.3：每会话 shell（100MB/个）> DevTools 渲染进程（220–310MB，dev-only）> 渲染进程非 JS 部分 > GPU 平台底盘。WebGL/动画不在主因里 |
+| "主进程正常应 30–60MB，231MB 说明 CodeGraph 常驻" | 本机裸 Electron 主进程就 139MB（§8.1）；应用主进程 147–175MB。CodeGraph 增量可能真实存在，但基准错了 |
+| "Monaco 是最大单点，常驻 100–200MB" | §6c 实测首开 Monaco +85~155MB（一次性，与 tab 数无关），非常驻 200MB |
+| "Chromium 不归还内存，600MB 基线正常" | 方向对（引擎池 + 启动尖峰），但基线数值应改用 private/稳态口径：渲染 220–450MB + GPU 210–310MB（含 161MB 平台底盘） |
+| "markdown 图片 base64 无上限" | 已修（改 `file://` 直读） |
+| "CodeGraph 常驻主进程，可开关释放" | 有效，`code.setEnabled` 保留 |
+
+### 8.7 可优化项排序（跨 §6d 与 §8 汇总）
+
+| # | 改动 | 预期 | 代价 |
+|---|---|---|---|
+| 1 | 会话恢复不预启 PTY（恢复时 `loaded:false`，激活才 `ensureSessionLoaded`） | 会话数 × ~100MB | 首次切到该会话多 200–500ms spawn |
+| 2 | dev 不自动开 DevTools（改环境变量/快捷键按需） | -220~310MB，并压低启动尖峰 | 调试时手动开 |
+| 3 | 已加载对话常驻（§6d：6.4MB 对话 = 常驻 +39MB，3 连 +256MB，无 unload 路径） | 单会话几十 MB | 需设计对话/回退数据的落盘与卸载 |
+| 4 | 不用桌宠就关掉 | ~11MB + 停常驻动画 | 无 |
+| ⛔ | GPU 进程、无意义动画、毛玻璃、xterm WebGL | **不要动**（无稳定收益，见 §6/§8.2） | — |

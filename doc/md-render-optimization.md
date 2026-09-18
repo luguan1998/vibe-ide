@@ -7,6 +7,11 @@
 - 多 block 场景下每个独立 Monaco 实例内存叠加
 - colorize（预览态）与 editor（编辑态）之间切换有闪烁
 
+> **现状核对（2026-09-19）：上面 3 条已不适用。** 双击编辑走的是 **textarea**
+> （`MarkdownPreview.tsx` 的 `editingBlock` + `editTextareaRef`，该文件全文无 monaco 引用），
+> 不存在"编辑态拖 Monaco 实例 / 实例叠加"的开销。第 2 节（预览态 colorize）仍然有效。
+> Monaco 的实测成本见 [../docs/memory-analysis.md](../docs/memory-analysis.md) §6c：首开 +85~155MB（一次性，与 tab 数无关）。
+
 ## Monaco 过重
 
 `monaco.editor.colorize()` 对每个 code block 单独调用，问题：
