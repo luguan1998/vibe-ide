@@ -405,6 +405,7 @@ export interface GitLineLogEntry {
   message: string
   author: string
   date: string
+  uncommitted?: boolean
 }
 
 // PR 托管平台配置（github / gitlab / 内网 codehub）。

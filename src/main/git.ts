@@ -66,6 +66,40 @@ async function querySubmodules(repoPath: string): Promise<GitSubmodule[]> {
   }
 }
 
+// 行历史：以文件所在目录探测仓库根，再从根目录执行命令 —— renderer 传绝对路径，主进程统一解析。
+// 命令必须从根执行：git 会按 cwd 相对根的前缀重写 pathspec/-L 里的路径，从文件目录执行会把根相对路径再叠一次前缀
+async function resolveRepoFile(absPath: string): Promise<{ git: SimpleGit; relPath: string }> {
+  const probe = newGit(path.dirname(absPath))
+  const root = (await probe.raw(['rev-parse', '--show-toplevel'])).trim().replace(/\\/g, '/')
+  const norm = absPath.replace(/\\/g, '/')
+  if (!root || !norm.toLowerCase().startsWith(root.toLowerCase() + '/')) {
+    throw new Error('该文件不在 git 仓库中')
+  }
+  return { git: newGit(root), relPath: norm.slice(root.length + 1) }
+}
+
+interface DiffHunk {
+  oldStart: number
+  oldCount: number
+  newStart: number
+  newCount: number
+}
+
+function parseUnifiedHunks(patch: string): DiffHunk[] {
+  const hunks: DiffHunk[] = []
+  for (const line of patch.split('\n')) {
+    const m = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/)
+    if (!m) continue
+    hunks.push({
+      oldStart: parseInt(m[1], 10),
+      oldCount: m[2] === undefined ? 1 : parseInt(m[2], 10),
+      newStart: parseInt(m[3], 10),
+      newCount: m[4] === undefined ? 1 : parseInt(m[4], 10)
+    })
+  }
+  return hunks
+}
+
 // GUI 自操 mutation 命令统一包一层：写 .git 期间 + 结束后宽限内抑制监听回声(见 watcher.ts)
 async function gitOp<T>(fn: () => Promise<T>): Promise<T> {
   beginGitSelfOp()
@@ -292,13 +326,50 @@ export function registerGitHandlers(): void {
     }
   })
 
-  // Git line log - get commit history for a specific line range
-  ipcMain.handle(IPC_CHANNELS.GIT_LINE_LOG, async (_event, filePath: string, startLine: number, endLine: number) => {
+  // Git line log - 追踪「当前所见版本」的某一行在历史中的演化
+  // rev 有值 = 在看某 commit 的版本（行号以该 commit 为基准）；否则看的是工作区/暂存区版本，
+  // 行号需先按 git diff HEAD 的 hunk 映射回 HEAD（命中改动 hunk 则该行是未提交改动，置顶一条）
+  ipcMain.handle(IPC_CHANNELS.GIT_LINE_LOG, async (_event, absPath: string, lineNumber: number, opts?: { rev?: string; staged?: boolean }) => {
     try {
-      const git = getGit()
-      // git log -Lstart,end:file — trace line-level history
-      const output = await git.raw(['log', `-L${startLine},${endLine}:${filePath}`, '--format=%H%x00%an%x00%ad%x00%s%x00', '--date=iso'])
+      if (!absPath || !lineNumber || lineNumber < 1) return { error: 'Invalid arguments' }
+      const { git, relPath } = await resolveRepoFile(absPath)
       const entries: GitLineLogEntry[] = []
+      let rev = opts?.rev
+      let startLine = lineNumber
+
+      if (!rev) {
+        let inHead = true
+        try {
+          await git.raw(['cat-file', '-e', `HEAD:${relPath}`])
+        } catch {
+          inHead = false
+        }
+        if (!inHead) {
+          // 未跟踪/新文件：整行都还没提交过
+          return [{ hash: '', message: '', author: '', date: '', uncommitted: true }]
+        }
+
+        let patch = ''
+        try {
+          patch = await git.raw(['diff', '--no-color', '--unified=0', opts?.staged ? '--cached' : 'HEAD', '--', relPath])
+        } catch {}
+        const hunks = parseUnifiedHunks(patch)
+        const hit = hunks.find(h => lineNumber >= h.newStart && lineNumber < h.newStart + h.newCount)
+        if (hit) {
+          entries.push({ hash: '', message: '', author: '', date: '', uncommitted: true })
+          if (!hit.oldCount) return entries // 纯新增行，没有更早的历史
+          startLine = hit.oldStart + Math.min(lineNumber - hit.newStart, hit.oldCount - 1)
+        } else {
+          let offset = 0
+          for (const h of hunks) {
+            if (h.newStart + h.newCount <= lineNumber) offset += h.oldCount - h.newCount
+          }
+          startLine = lineNumber + offset
+        }
+        rev = 'HEAD'
+      }
+
+      const output = await git.raw(['log', `-L${startLine},${startLine}:${relPath}`, rev, '--no-color', '--format=%H%x00%an%x00%ad%x00%s%x00', '--date=iso'])
       for (const line of output.split('\n')) {
         const parts = line.split('\0')
         if (parts.length >= 4 && /^[0-9a-f]{40}$/.test(parts[0])) {

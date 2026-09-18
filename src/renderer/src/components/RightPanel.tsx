@@ -40,7 +40,7 @@ interface RightPanelProps {
   navigateToFilePayload?: { trigger: number; filePath: string } | null
   onNavigateToFile?: (filePath: string) => void
   onExploreNode?: (node: any) => void
-  lineHistoryPayload?: { filePath: string; lineNumber: number } | null
+  lineHistoryPayload?: { filePath: string; lineNumber: number; rev?: string; staged?: boolean } | null
   brushActive?: boolean
   sessionWorktreeNav: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onWorktreeNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>

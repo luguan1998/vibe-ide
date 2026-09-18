@@ -91,7 +91,7 @@ declare global {
         deleteWorktree: (branch: string, force?: boolean) => Promise<any>
         deleteBranch: (branch: string) => Promise<any>
         setFilterRules: (rules: string[]) => Promise<any>
-        lineLog: (filePath: string, startLine: number, endLine: number) => Promise<any>
+        lineLog: (filePath: string, lineNumber: number, opts?: { rev?: string; staged?: boolean }) => Promise<any>
         graph: (opts?: { count?: number; skip?: number }) => Promise<any>
         submodules: (repoPath: string, force?: boolean) => Promise<any>
         submodulesProbe: (repoPath: string) => Promise<boolean>
@@ -544,9 +544,8 @@ export default function App() {
       setCallGraphFocalNode(exact || r.nodes[0])
     } catch {}
   }, [])
-  const handleViewLineHistory = useCallback((filePath: string, lineNumber: number) => {
-    // Use trigger counter to force re-render even if filePath+lineNumber are same
-    setLineHistoryPayload({ filePath, lineNumber })
+  const handleViewLineHistory = useCallback((filePath: string, lineNumber: number, rev?: string, staged?: boolean) => {
+    setLineHistoryPayload({ filePath, lineNumber, rev, staged })
   }, [])
   const [showCodeSearch, setShowCodeSearch] = useState(false)
   const [codeSearchFocusTrigger, setCodeSearchFocusTrigger] = useState(0)
@@ -615,7 +614,7 @@ export default function App() {
   }, [])
 
   // Line history payload — triggered by Monaco right-click "View Line History"
-  const [lineHistoryPayload, setLineHistoryPayload] = useState<{ filePath: string; lineNumber: number } | null>(null)
+  const [lineHistoryPayload, setLineHistoryPayload] = useState<{ filePath: string; lineNumber: number; rev?: string; staged?: boolean } | null>(null)
   const lineHistoryPayloadRef = useRef(lineHistoryPayload)
   lineHistoryPayloadRef.current = lineHistoryPayload
 

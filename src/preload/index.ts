@@ -64,7 +64,8 @@ const api = {
     deleteWorktree: (branch: string, force?: boolean) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DELETE_WORKTREE, branch, force),
     deleteBranch: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DELETE_BRANCH, branch),
     setFilterRules: (rules: string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_FILTER_RULES, rules),
-    lineLog: (filePath: string, startLine: number, endLine: number) => ipcRenderer.invoke(IPC_CHANNELS.GIT_LINE_LOG, filePath, startLine, endLine),
+    lineLog: (filePath: string, lineNumber: number, opts?: { rev?: string; staged?: boolean }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_LINE_LOG, filePath, lineNumber, opts) as Promise<import('../shared/types').GitLineLogEntry[] | { error: string }>,
     graph: (opts?: { count?: number; skip?: number }) => ipcRenderer.invoke(IPC_CHANNELS.GIT_GRAPH, opts),
     submodules: (repoPath: string, force?: boolean) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SUBMODULES, repoPath, force) as Promise<import('../shared/types').GitSubmodule[]>,
     submodulesProbe: (repoPath: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SUBMODULES_PROBE, repoPath) as Promise<boolean>,

@@ -89,7 +89,7 @@ interface DiffViewerProps {
   cursorRef?: React.MutableRefObject<{ fullPath: string; line: number; column: number } | null>
   visibleLineRef?: React.MutableRefObject<{ fullPath: string; line: number } | null>  // 视口中间可见行（居中还原用），供最近文件回写行号
   onOpenCallGraph?: (word: string) => void     // 右键菜单 → 打开 call graph
-  onViewLineHistory?: (filePath: string, lineNumber: number) => void  // 右键菜单 → 查看这行修改记录
+  onViewLineHistory?: (fullPath: string, lineNumber: number, rev?: string, staged?: boolean) => void  // 右键菜单 → 查看这行修改记录
   jumpCwd?: string                              // Ctrl+Click 跳转：工作区根目录（grep 兜底 + 相对路径解析）
   onJumpToFile?: (fullPath: string, line: number) => void  // Ctrl+Click 跳转：打开文件并定位
   compareOriginalContent?: string  // 左侧对比文件内容（文件对比模式）
@@ -1182,7 +1182,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                 run: (ed: any) => {
                   const pos = ed.getPosition()
                   if (pos && onViewLineHistoryRef.current) {
-                    onViewLineHistoryRef.current(filePath, pos.lineNumber)
+                    onViewLineHistoryRef.current(fullPath, pos.lineNumber, commitHash, isStaged)
                   }
                 }
               })
@@ -1378,8 +1378,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                 contextMenuOrder: 1.6,
                 run: (ed: any) => {
                   const pos = ed.getPosition()
+                  // edit 模式内容始终是工作区文件（commit 也读工作区），行号按「工作区 vs HEAD」映射
                   if (pos && onViewLineHistoryRef.current) {
-                    onViewLineHistoryRef.current(filePath, pos.lineNumber)
+                    onViewLineHistoryRef.current(fullPath, pos.lineNumber, undefined, false)
                   }
                 }
               })

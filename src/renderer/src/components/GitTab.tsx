@@ -26,7 +26,7 @@ interface GitTabProps {
   onSubmoduleNavChange: (updater: (prev: Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>) => Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>) => void
   onDiffScroll?: (delta: number) => void
   onNavigateToFile?: (filePath: string) => void
-  lineHistoryPayload?: { filePath: string; lineNumber: number } | null
+  lineHistoryPayload?: { filePath: string; lineNumber: number; rev?: string; staged?: boolean } | null
 }
 
 const getStatusIcon = (file: GitFileStatus): string => {
@@ -262,7 +262,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
     setLineHistoryLoading(true)
     setExpandedCommit(null)
     setLineHistoryEntries([])
-    window.api.git.lineLog(fp, ln, ln).then(result => {
+    window.api.git.lineLog(fp, ln, { rev: lineHistoryPayload.rev, staged: lineHistoryPayload.staged }).then(result => {
       if (Array.isArray(result)) {
         setLineHistoryEntries(result)
       } else if (result?.error) {
@@ -1671,7 +1671,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
                   <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-ide-accent shrink-0">
                     <path d="M2 1h12v2H2V1zm0 4h12v2H2V5zm0 4h12v2H2V9zm0 4h12v2H2v-2z" />
                   </svg>
-                  <span>{t('Line History ({file}:{line})').replace('{file}', lineHistoryFilePath.split('/').pop() || lineHistoryFilePath).replace('{line}', String(lineHistoryLine))}</span>
+                  <span>{t('Line History ({file}:{line})').replace('{file}', lineHistoryFilePath.split(/[\\/]/).pop() || lineHistoryFilePath).replace('{line}', String(lineHistoryLine))}</span>
                 </div>
                 <button
                   className="text-ide-text-muted hover:text-ide-text text-xs px-1"
@@ -1693,7 +1693,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
                   ) : lineHistoryEntries.length === 0 ? (
                     <div className="px-2 py-2 text-xs text-ide-text-muted text-center">{t('No line history')}</div>
                   ) : (
-                    lineHistoryEntries.map(entry => (
+                    lineHistoryEntries.map(entry => entry.uncommitted ? (
+                      <div key="uncommitted" className="pl-5 pr-2 py-1.5 border-b border-ide-border/50">
+                        <div className="text-xs text-ide-warning truncate">{t('Uncommitted changes')}</div>
+                      </div>
+                    ) : (
                       <div key={entry.hash}>
                         <div
                           className={`pl-5 pr-2 py-1.5 border-b border-ide-border/50 hover:bg-ide-hover cursor-pointer ${
