@@ -1679,10 +1679,17 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [closeAsk, sessionSwitchAsk])
 
-  // md 预览 → 编辑模式（diff/edit 视图）：与 Ctrl+L togglePreview 的 markdown 分支共用
+  // md 预览 ⇄ 编辑：一文件一 tab，切换时关闭旧 tab 再开新视图
   const openMarkdownInEditor = useCallback((fullPath: string) => {
+    const prev = tabsRef.current.find(t => t.kind === 'markdown' && t.fullPath === fullPath)
+    if (prev) closeTabNow(prev.id)
     openFileView(fullPath, { mode: 'edit' })
-  }, [openFileView])
+  }, [openFileView, closeTabNow])
+
+  const openMarkdownPreview = useCallback((tab: FileTabState) => {
+    closeTabNow(tab.id)
+    openFileView(tab.fullPath, { mode: 'auto' })
+  }, [openFileView, closeTabNow])
 
   // OSC 标题变更回调：仅当用户未手动改过名时自动替换
   const handleOscTitleChange = useCallback(async (sessionId: string, title: string) => {
@@ -1959,7 +1966,7 @@ export default function App() {
           if (autoViewKind(at.fullPath) === 'markdown') {
             e.preventDefault()
             e.stopImmediatePropagation()
-            openFileView(at.fullPath, { mode: 'auto' })
+            openMarkdownPreview(at)
             return
           }
         }
@@ -3207,6 +3214,7 @@ export default function App() {
           jumpNonce={tab.jumpNonce}
           revision={tab.revision}
           onDismiss={returnToBaseView}
+          onOpenPreview={tab.defaultEdit && autoViewKind(tab.fullPath) === 'markdown' ? () => openMarkdownPreview(tab) : undefined}
           onSaved={handleRefreshGit}
           defaultEdit={tab.defaultEdit}
           fontSize={editorFontSize}

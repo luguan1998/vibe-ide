@@ -110,10 +110,10 @@ function RecentInline({
           const r = e.currentTarget.getBoundingClientRect()
           setMenuAnchor({ x: r.right - 200, y: r.bottom + 4 })
         }}
-        className="w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0 file-tabs__overflow-btn"
+        className="w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0 file-tabs__overflow-btn"
         title={t('Recently Opened')}
       >
-        <Clock size={12} />
+        <Clock size={14} />
       </button>
       {menuOpen && (
         <div
