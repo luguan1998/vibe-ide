@@ -175,18 +175,8 @@ interface AppearancePanelProps {
   onSetTermFontFamily?: (f: string) => void
   terminalFontSize?: number
   onAdjustTerminalFontSize?: (delta: number) => void
-  autoUtf8?: boolean
-  onToggleAutoUtf8?: (v: boolean) => void
   cgEnabled?: boolean
   onToggleCgEnabled?: (v: boolean) => void
-  ocrEnabled?: boolean
-  onToggleOcrEnabled?: (v: boolean) => void
-  forceDomRenderer?: boolean
-  onToggleForceDomRenderer?: (v: boolean) => void
-  dshSidebarShown?: boolean
-  onToggleDshSidebar?: (v: boolean) => void
-  dshThemeOverride?: boolean
-  onToggleDshThemeOverride?: (v: boolean) => void
   sessionEmojis: string[]
   onSetSessionEmojis: (arr: string[]) => void
   onResetUiStyle?: () => void
@@ -206,12 +196,7 @@ const AppearancePanel = function AppearancePanel({
   uiFontFamily = 'Consolas', onSetUiFontFamily,
   termFontFamily = 'Consolas', onSetTermFontFamily,
   terminalFontSize = 14, onAdjustTerminalFontSize,
-  autoUtf8 = true, onToggleAutoUtf8,
   cgEnabled = true, onToggleCgEnabled,
-  ocrEnabled = false, onToggleOcrEnabled,
-  forceDomRenderer = false, onToggleForceDomRenderer,
-  dshSidebarShown = false, onToggleDshSidebar,
-  dshThemeOverride = true, onToggleDshThemeOverride,
   sessionEmojis, onSetSessionEmojis,
   onResetUiStyle, onCreateSessionAt,
 }: AppearancePanelProps) {
@@ -675,29 +660,9 @@ const AppearancePanel = function AppearancePanel({
 
             {activeCategory === 'advanced' && (
               <div className="p-4 flex flex-col">
-                {onToggleAutoUtf8 && (
-                  <ToggleRow labelKey="Auto UTF-8" descKey="Run chcp 65001 on terminal start to set UTF-8 encoding"
-                    checked={autoUtf8} onChange={onToggleAutoUtf8} zone="terminal" />
-                )}
                 {onToggleCgEnabled && (
                   <ToggleRow labelKey="CodeGraph" descKey="Code symbol indexing for smart search. Disable to free ~170MB main process memory."
                     checked={cgEnabled} onChange={onToggleCgEnabled} zone="global" />
-                )}
-                {onToggleOcrEnabled && (
-                  <ToggleRow labelKey="OCR Image to Text" descKey="Drag image or Ctrl+V to extract text from images and paste into terminal"
-                    checked={ocrEnabled} onChange={onToggleOcrEnabled} zone="terminal" />
-                )}
-                {onToggleForceDomRenderer && (
-                  <ToggleRow labelKey="Force DOM Renderer" descKey="Disable WebGL terminal renderer, fall back to DOM/canvas. Restart terminal session to take effect."
-                    checked={forceDomRenderer} onChange={onToggleForceDomRenderer} zone="terminal" />
-                )}
-                {onToggleDshSidebar && (
-                  <ToggleRow labelKey="Show dsh Sidebar" descKey="Show the dsh sidebar (workspace browser, directory picker). Hidden by default."
-                    checked={dshSidebarShown} onChange={onToggleDshSidebar} zone="global" />
-                )}
-                {onToggleDshThemeOverride && (
-                  <ToggleRow labelKey="Sync dsh Theme to Vibe" descKey="Map Vibe colors into dsh. Off uses dsh native theme. On by default."
-                    checked={dshThemeOverride} onChange={onToggleDshThemeOverride} zone="global" />
                 )}
               </div>
             )}

@@ -37,6 +37,43 @@ interface ClaudeConfigStore {
   activeId: string | null
 }
 
+// ── 会话类型（term/gui/dsh/pi）图标与名称：新建会话菜单 + 会话配置弹窗 tab 共用 ──
+const MODE_LABELS: Record<SessionMode, string> = { term: 'Terminal', gui: 'Claude', pi: 'Pi', dsh: 'dsh' }
+
+const renderModeIcon = (mode: SessionMode, cls = 'text-ide-text-muted') =>
+  mode === 'term' ? (
+    <ToolIcon category="command" className={cls} />
+  ) : mode === 'gui' ? (
+    <ClaudeLogoIcon size={14} className={`shrink-0 ${cls}`} fill="currentColor" />
+  ) : mode === 'pi' ? (
+    <PiLogoIcon size={14} className={`shrink-0 ${cls}`} />
+  ) : (
+    <DeepSeekLogoIcon size={14} className={`shrink-0 ${cls}`} fill="currentColor" />
+  )
+
+// ── 会话配置弹窗 tab ──
+type CliConfigTab = 'term' | 'gui' | 'dsh'
+const CLI_CONFIG_TABS: CliConfigTab[] = ['term', 'gui', 'dsh']
+
+function CliConfigToggle({ labelKey, descKey, checked, onChange }: {
+  labelKey: string; descKey: string; checked: boolean; onChange: (v: boolean) => void
+}) {
+  const { t } = useI18n()
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+        <span className="text-xs text-ide-text">{t(labelKey)}</span>
+        <p className="text-[11px] text-ide-text-muted">{t(descKey)}</p>
+      </div>
+      <label className="shrink-0 cursor-pointer relative inline-flex items-center mt-0.5">
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="accent-ide-accent sr-only peer" />
+        <span className="w-7 h-4 rounded-full bg-ide-hover border border-ide-border peer-checked:bg-ide-accent peer-checked:border-ide-accent transition-colors" />
+        <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white transition-transform peer-checked:translate-x-3" />
+      </label>
+    </div>
+  )
+}
+
 // 新建配置组时 env 默认预填的 key（值留空由用户填）
 const DEFAULT_CLAUDE_ENV_KEYS = [
   'ANTHROPIC_BASE_URL',
@@ -526,6 +563,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [fileFilterRulesDraft, setFileFilterRulesDraft] = useState('')
   const [showConfigMenu, setShowConfigMenu] = useState(false)
   const [showCliConfigModal, setShowCliConfigModal] = useState(false)
+  const [cliConfigTab, setCliConfigTab] = useState<CliConfigTab>('term')
   const [cliCommand, setCliCommand] = useState(() => {
     try { return localStorage.getItem('vibe-ide-ai-cli-command') || '' } catch { return '' }
   })
@@ -643,16 +681,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     const all: SessionMode[] = ['term', 'gui', 'dsh', 'pi']
     return [newMode, ...all.filter(m => m !== newMode)]
   }, [newMode])
-  const renderModeIcon = (mode: SessionMode) =>
-    mode === 'term' ? (
-      <ToolIcon category="command" className="text-ide-text-muted" />
-    ) : mode === 'gui' ? (
-      <ClaudeLogoIcon size={14} className="shrink-0 text-ide-text-muted" fill="currentColor" />
-    ) : mode === 'pi' ? (
-      <PiLogoIcon size={14} className="shrink-0 text-ide-text-muted" />
-    ) : (
-      <DeepSeekLogoIcon size={14} className="shrink-0 text-ide-text-muted" fill="currentColor" />
-    )
   const renderNewModeItem = (mode: SessionMode, onPick: (mode: SessionMode) => void) => (
     <button
       key={mode}
@@ -660,7 +688,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       onClick={() => { pickNewMode(mode); onPick(mode) }}
     >
       {renderModeIcon(mode)}
-      <span>{mode === 'term' ? t('Terminal') : mode === 'gui' ? 'Claude' : mode === 'pi' ? 'Pi' : 'dsh'}</span>
+      <span>{t(MODE_LABELS[mode])}</span>
       <span className="ml-auto flex items-center">
         {newMode === mode ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
       </span>
@@ -1632,6 +1660,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     setCliCommandDraft(cliCommand)
                     setCliConfigDirDraft(cliConfigDir)
                     setDefaultAgentDraft(defaultAgent)
+                    setCliConfigTab('term')
                     setShowCliConfigModal(true)
                     setShowConfigMenu(false)
                   }}
@@ -2538,18 +2567,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onSetTermFontFamily={onSetTermFontFamily}
         terminalFontSize={terminalFontSize}
         onAdjustTerminalFontSize={onAdjustTerminalFontSize}
-        autoUtf8={autoUtf8}
-        onToggleAutoUtf8={onToggleAutoUtf8}
         cgEnabled={cgEnabled}
         onToggleCgEnabled={onToggleCgEnabled}
-        ocrEnabled={ocrEnabled}
-        onToggleOcrEnabled={onToggleOcrEnabled}
-        forceDomRenderer={forceDomRenderer}
-        onToggleForceDomRenderer={onToggleForceDomRenderer}
-        dshSidebarShown={dshSidebarShown}
-        onToggleDshSidebar={onToggleDshSidebar}
-        dshThemeOverride={dshThemeOverride}
-        onToggleDshThemeOverride={onToggleDshThemeOverride}
         sessionEmojis={sessionEmojis}
         onSetSessionEmojis={(arr) => { setSessionEmojis(arr); saveSessionEmojis(arr) }}
         onResetUiStyle={onResetUiStyle}
@@ -2559,7 +2578,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {/* CLI Configuration Modal — Shell Type + AI CLI Command */}
       {showCliConfigModal && createPortal(
         <ModalOverlay onClose={() => setShowCliConfigModal(false)}>
-          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[440px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[440px] h-[440px] max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-9 py-3 border-b border-ide-border shrink-0">
               <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Bot className="size-3.5" />{t('CLI Configuration')}</span>
               <div className="flex items-center gap-1">
@@ -2578,7 +2597,25 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 </button>
               </div>
             </div>
-            <div className="px-9 py-4 flex flex-col gap-4">
+            <div className="flex items-center px-9 pt-3 shrink-0">
+              <div className="flex items-center rounded-lg bg-ide-hover p-0.5">
+                {CLI_CONFIG_TABS.map((id) => {
+                  const active = cliConfigTab === id
+                  return (
+                    <button
+                      key={id}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${active ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text'}`}
+                      onClick={() => setCliConfigTab(id)}
+                    >
+                      {renderModeIcon(id, active ? 'text-ide-accent' : 'text-ide-text-muted')}
+                      <span>{t(MODE_LABELS[id])}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="px-9 py-4 flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto">
+              {cliConfigTab === 'term' && (<>
               {/* Shell Type */}
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-ide-text-muted">{t('Shell Type')}</span>
@@ -2613,6 +2650,20 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   ))}
                 </select>
               </label>
+              {onToggleAutoUtf8 && (
+                <CliConfigToggle labelKey="Auto UTF-8" descKey="Run chcp 65001 on terminal start to set UTF-8 encoding"
+                  checked={autoUtf8} onChange={onToggleAutoUtf8} />
+              )}
+              {onToggleOcrEnabled && (
+                <CliConfigToggle labelKey="OCR Image to Text" descKey="Drag image or Ctrl+V to extract text from images and paste into terminal"
+                  checked={ocrEnabled} onChange={onToggleOcrEnabled} />
+              )}
+              {onToggleForceDomRenderer && (
+                <CliConfigToggle labelKey="Force DOM Renderer" descKey="Disable WebGL terminal renderer, fall back to DOM/canvas. Restart terminal session to take effect."
+                  checked={forceDomRenderer} onChange={onToggleForceDomRenderer} />
+              )}
+              </>)}
+              {cliConfigTab === 'gui' && (<>
               {/* AI CLI Command */}
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-ide-text-muted">{t('Claude Code CLI')}</span>
@@ -2659,7 +2710,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     setCliConfigDir(val)
                     try { localStorage.setItem('vibe-ide-ai-config-dir', val) } catch {}
                   }}
-                  placeholder=".opencc / ~/.claude"
+                  placeholder=".openclaude, .opencc"
                   className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
               </label>
@@ -2735,6 +2786,19 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 )}
                 {claudeApplyMsg && <div className="text-[10px] text-ide-success">{claudeApplyMsg}</div>}
               </div>
+              </>)}
+              {cliConfigTab === 'dsh' && (
+                <div className="flex flex-col gap-4">
+                  {onToggleDshSidebar && (
+                    <CliConfigToggle labelKey="Show dsh Sidebar" descKey="Show the dsh sidebar (configurable models). Hidden by default."
+                      checked={dshSidebarShown} onChange={onToggleDshSidebar} />
+                  )}
+                  {onToggleDshThemeOverride && (
+                    <CliConfigToggle labelKey="Sync dsh Theme to Vibe" descKey="Map Vibe colors into dsh. Off uses dsh native theme. On by default."
+                      checked={dshThemeOverride} onChange={onToggleDshThemeOverride} />
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </ModalOverlay>

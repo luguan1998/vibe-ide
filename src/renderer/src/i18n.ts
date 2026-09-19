@@ -75,7 +75,7 @@ const ZH_MAP: Record<string, string> = {
   'Expand dsh Sidebar': '展开 dsh 侧边栏',
   'Sync dsh Theme to Vibe': 'dsh 主题跟随 Vibe',
   'Map Vibe colors into dsh. Off uses dsh native theme. On by default.': '将 Vibe 配色映射到 dsh。关闭则用 dsh 自带主题。默认开启。',
-  'Show the dsh sidebar (workspace browser, directory picker). Hidden by default.': '显示 dsh 侧边栏（工作区浏览器、目录选择器）。默认隐藏。',
+  'Show the dsh sidebar (configurable models). Hidden by default.': '显示 dsh 侧边栏（可配置模型）。默认隐藏。',
   'Computer Use': '电脑操控',
   'Enable Computer Use': '启用电脑操控',
   'Enable Browser Use': '启用浏览器操控',
