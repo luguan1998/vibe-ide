@@ -5,6 +5,7 @@ import { FolderIcon } from './FileIcons'
 import { ToolIcon } from './AiTab/tools'
 import { useI18n } from '../i18n'
 import { useRecentDirs } from '../cwdStore'
+import { getLastNewMode } from '../utils/sessionModePrefs'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 import { PiLogoIcon } from './PiLogoIcon'
@@ -71,7 +72,7 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
   const [cwd, setCwd] = useState(initialDir)
   const [entries, setEntries] = useState<DirEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selectedMode, setSelectedMode] = useState<SessionMode>('term')
+  const [selectedMode, setSelectedMode] = useState<SessionMode>(getLastNewMode())
   const [drives, setDrives] = useState<string[] | null>(null)
   const [editingPath, setEditingPath] = useState(false)
   const [pathText, setPathText] = useState(initialDir)
