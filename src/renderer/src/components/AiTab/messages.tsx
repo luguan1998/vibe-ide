@@ -201,9 +201,10 @@ function stripCommandTags(text: string): string {
 
 export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScroll, autoFold, noAnimate, smoothStream = false }: { text: string; defaultOpen?: boolean; durationMs?: number; autoScroll?: boolean; autoFold?: boolean; noAnimate?: boolean; smoothStream?: boolean }) {
   // autoFold（live 接管 busy 区 thinking）：以展开态挂载无缝交接（零高度跳变）、匹配其底部滚动位、
-  // 下一帧 rAF 平滑折叠、跳过 fade-in。故 autoFold 隐含 defaultOpen=true + autoScroll=true
+  // 停留 600ms 后平滑折叠、跳过 fade-in。故 autoFold 隐含 defaultOpen=true + autoScroll=true
   const [open, setOpen] = useState(autoFold || defaultOpen)
   const shouldAutoScroll = autoScroll || autoFold
+  const autoFoldAtMountRef = useRef(autoFold)
   const contentRef = useRef<HTMLDivElement>(null)
   const userScrolledUpRef = useRef(false)
   const label = durationMs != null
@@ -266,12 +267,14 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
     el.scrollTop = el.scrollHeight
   }, [text, shouldAutoScroll])
 
-  // 下一帧 rAF 折叠：grid 1fr→0fr 200ms 过渡把瞬塌改为平滑收起，过渡期浏览器连续 clamp scrollTop 保持底部 pinned
+  // 展开停留 600ms 供看清尾部，再走 grid 1fr→0fr 200ms 过渡平滑收起（过渡期浏览器连续 clamp scrollTop 保持底部 pinned）。
+  // 只按挂载时的交接态调度一次：后续 flush 使该块不再是 live 最后一条时 autoFold 翻 false，
+  // 若拿它当依赖会 clearTimeout 掉折叠 → 块永久展开
   useEffect(() => {
-    if (!autoFold) return
-    const id = requestAnimationFrame(() => setOpen(false))
-    return () => cancelAnimationFrame(id)
-  }, [autoFold])
+    if (!autoFoldAtMountRef.current) return
+    const id = setTimeout(() => setOpen(false), 2000)
+    return () => clearTimeout(id)
+  }, [])
 
   // 清洗后为空（纯空白/纯标签，如 buffer 只累计了换行、历史恢复的标签态 thinking）→ 整块不渲染，
   // 只留一个空的 "Thinking" 折叠条没有意义。hooks 已在上方无条件执行，此处早退不破坏顺序

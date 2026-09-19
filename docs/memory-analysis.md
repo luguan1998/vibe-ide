@@ -363,3 +363,130 @@ w.minimize(); w.restore()       // 测合成层水分：最小化不释放，恢
 
 **判读**：与 §6d/§8 的旧构成相比无新增异常项；私有 = ~174MB 实数据（含 Monaco 预载/AI 渲染栈等常驻）+ ~338MB 池空容量。
 字体/映像映射看似 700MB+ 但不进私有口径（其中字体重复映射是上游 bug，无害但可关注 Electron 升级）。
+
+**后续（2026-09-19）**：字体重复映射 bug 的修复自 **Chromium M144** 起（"Use FontDataManager's typeface cache for
+LegacyMakeTypeface" + mapped-file 缓存，2025-11-14 落地主线；源码 tag 验证 138/140/142 无修复，Electron 40 二进制含修复埋点
+`Chrome.FontDataManager.NumMappedFiles`）→ **Electron 40 起修复**。2026-09-19 曾升级到 44.4.3 并完成验收，**当天回退至 37.10.3**
+（用户决策：包体 +40MiB 不可接受；安全权衡已明示；回退用 `git restore` + `npm ci` 干净还原）。注意：Electron 44 起 npm 包取消 postinstall，二进制改为首次运行懒下载（`node_modules/electron/index.js`
+→ install.js，走 .npmrc 的 electron_mirror）；验收方式 = 新构建运行后重跑 `dump-process.ps1` + `dmp-payload.mjs`，
+重复映射应收敛到每字体文件 1 个。包体：exe 37=195MiB / 40=204MiB / 44=235MiB（纯 Chromium 体量增长，无开关可砍）；
+locale 由项目自己的 `scripts/afterPack.js` 裁剪为 en-US/zh-CN 两枚（1.2MB vs 原装 49MB），与 Electron 版本无关。
+
+**升级验收（2026-09-19）**：新打包版（Electron 44.4.3）渲染进程转储对比——字体映射从
+25 区 / 9 唯一文件 / **重复 248.9MB** → 6 区 / 6 唯一文件 / **重复 0.0MB**（每字体恰好 1 个映射）。
+private 口径无显著变化（该 bug 本就主要在共享映射侧，不进任务管理器"内存"列），本次升级的核心收益是
+安全（37 已 EOL 8 个月）+ 消除上游映射泄漏；包体代价：exe 195→235MiB。（同日已回退，数据保留供未来再升级参考。）
+
+## 10. "cwd 精灵/文件夹 svg 导致内存变大"的证伪（2026-09-19，干净启动同协议 A/B）
+
+> 起因：用户反馈"没有 cwd 精灵图和丰富文件夹 svg 时内存不多"，怀疑 FileIcons 大调整（09-10/11）与
+> 像素 cwd 精灵（09-12）把 renderer 内存搞大，且明确要求 "干净启动 + 很少会话" 场景下回答。
+> 协议：dev electron（`electron.exe .` + WorkingDirectory + 独立 `--user-data-dir`，⚠️ 旧文档"对 dev electron
+> 无效"实测有误——**有效**，可隔离 profile 并配合 `--remote-debugging-port` 直接用 CDP 连）+ 75s 稳态采样。
+
+**A. 干净启动（全新 profile、0 会话）DOM 现场**（CDP 实测）：
+
+    domNodes=129 · mascot svg=0 · file icon svg=1 · getAnimations=1 · CSS 规则 4523 · JS 堆 51MB
+    renderer private ≈ 190MB（打包版探针）/ 177MB（HEAD dev 主窗口）
+
+→ **精灵/图标元素在干净启动下根本不存在（0 个），贡献恒为 0**。190MB 全在堆外：Monaco 预载栈
+（`main.tsx` 的 `import * as monaco` + getMonaco() 注册 16 主题/4 语言 tokenizer）、AI 渲染栈模块、
+Blink CSS 值存储、引擎池。
+
+**B. 版本 A/B**（同机器、同协议、先后各跑一次，v0.11.8 产物来自 worktree @ bf938cd2）：
+
+| 版本 | renderer 主窗口 priv | renderer#2 priv（DevTools） |
+|---|---|---|
+| v0.11.8 bf938cd2（09-07，两功能**之前**） | **193MB** | 193–198MB |
+| HEAD（09-19，两功能**之后**） | **177–178MB** | 179–206MB |
+
+→ **新版不涨反降**（ts worker 全关 / mermaid 懒加载等优化的净效果）；"这两个 UI 功能导致内存增长"不成立。
+
+**C. dev 模式的隐藏大头**：`src/main/index.ts:159-160` `if (is.dev) mainWindow.webContents.openDevTools()`
+→ **每次 `npm run dev` 自动多开一个 renderer 进程**（DevTools 本体，实测 priv 179–206MB；运行中的 dev
+实例里见过 375MB）。用户若在 dev 下使用，这 ~200MB 与任何 UI 功能无关，纯属开发模式开关
+（修法：改环境变量/快捷键按需开，见 §8.7 #2）。
+
+**D. 线上实例 310MB（打包版，1 gui + 1 dsh 会话）转储指纹**（dmp-peek，private 口径）：
+
+    heap-other 172.5MB(n=973) + sparse-pool 106.7MB + blink-css-values 22.5MB + 私有 exec ~16MB
+
+其中可归因的真实内容（区域字符串指纹）全部来自渲染栈、无一条来自左栏 UI：
+- shiki 语言 chunk 源码（`javascript-EC1dc0zO.js` / `typescript-*.js` 等）12.2MB——AI 消息代码块高亮按需
+  加载后**常驻模块缓存**
+- katex / lucide-react / ruby / html chunk 5.6MB（同上，AI markdown 渲染栈）
+- Monaco vscode 主题 CSS 变量区（10MB + 9.9MB 区，zero% 93–97% → 多为池空容量）、`ai-tab__*` 类名区 9MB
+- 注：MAPPED 侧字体 323.3MB（44 区）仍是 Chromium 字体重复映射 bug，不进任务管理器"内存"列（§9）
+
+**结论排序**（"干净启动就觉得大"）：开发模式 DevTools（+180~310MB，仅 dev）> 引擎池空容量
+（sparse-pool ~107MB，只涨不缩、只有重启回收）> Monaco/shiki/KaTeX 预载栈（常驻 ~几十 MB 实数据）
+≫ cwd 精灵 / 文件夹 svg（干净启动 0 元素，使用时 KB~MB 级）。
+
+## 11. 打包版版本曲线（2026-09-19，"内存比以前大"的最终答复）
+
+> 协议：**全部打包版**（dist 内历史包 + worktree @bf938cd2 现打包），`--user-data-dir` 独立 profile，
+> 启动后 100s+ 稳态采样，同时记 priv / ws / wsPriv（任务管理器"内存"列口径）。
+> 教训：**用户报告的内存问题一律按打包版回答**——本次先拿 dev 实例（DevTools/Vite 污染）作答被直接否定。
+
+| 版本（打包时间） | renderer priv | wsPriv | 主进程 priv | GPU priv | JS 堆 | CSS 规则 | DOM 节点 |
+|---|---|---|---|---|---|---|---|
+| 0.10.7（08-12） | **89.9MB** | 78.3 | 56.9 | 114 | 35.6 | 2123 | 85 |
+| v0.11.8（09-07，两功能之前） | **155.7MB** | 142.3 | 100.6 | 111 | — | — | — |
+| 0.12.1（09-19，含两功能） | **153.8MB** | 140.9 | 104.2 | 127 | 51 | 4523 | 129 |
+
+**结论**：renderer 增长段在 **0.10.7 → v0.11.8**（8 月中~9 月初的 0.11.x 演进，**+66MB**）；
+**v0.11.8 → 0.12.1 零增长（-2MB）**。FileIcons（09-10）/cwd 精灵（09-12）上线时增长早已完成
+→ **用户归因不成立，本次以打包版实测钉死**（与 §6b/§10 的证伪一致，但这次是用户认可的打包版口径）。
+
+**构成对比**（同条件全新 profile 转储：0.10.7 = 92MB 实例 vs 0.12.1 = 163MB 实例）：
+
+| 类别 | 0.10.7 | 0.12.1 | 差 |
+|---|---|---|---|
+| **heap-other** | **61.2MB（n=333）** | **134.1MB（n=712）** | **+72.9MB** |
+| sparse-pool | 3.6 | 4.9 | +1.3 |
+| blink-css-values | 10.3 | 8.5 | -1.8 |
+| exec / font-mapped / mapped-other | 189/141/106 | 192/141/116 | ≈持平 |
+
+→ 增长 = **Blink 对象/资源/模块字符串（≈57MB）+ JS 堆（+15.4MB）**；**不是引擎池**（干净启动池两版都低；
+用户长跑实例的池 106MB 属时间累积，见 §9）。CSS 规则 2123→4523（+113%）是 CSSOM 上涨的直接注脚。
+
+**新增模块**（0.10.7 asar 148 assets vs 0.12.1 244，`cmp-bundles` 对比）：**DshView（dsh 全套 GUI）、
+KaTeX 全套字体（~60 个 woff/ttf）、mermaid 全族图表**、FileTabsView、更多主题/语言 chunk。
+
+**主进程同向 +47MB**（56.9→104.2，未拆解）；用户看"整机/任务管理器总占用"时两者叠加 ≈ **+110MB**。
+
+**遗留问题（下一步）**：0.10.7→v0.11.8 之间具体哪几笔提交贡献最大，需打中间版本包（0.11.0/0.11.1/0.11.5…）bisect；
+候选：v0.11.1 会话模型统一（081e57a1）、dsh 全套、FileTabsView、主题扩充。测法可完全复用本次流程
+（worktree + robocopy node_modules + @deepseek-ai junction 重建 + electron-builder 7z + probe-pack-ab.ps1，
+注意 robocopy 用 MSYS_NO_PATHCONV=1 否则 /E 会被 git-bash 转义成路径；junction 目标须指向 worktree 内部）。
+
+## 12. CSS 规则数 + dsh 预热的成本（2026-09-19，用户问"减少 global css 能否优化"）
+
+**CSS 规则数 = CSSOM 对象数**：浏览器为每条"选择器+声明块"建立的对象（`document.styleSheets[i].cssRules`
+可枚举；成本在 native 侧、不在 JS 堆）。0.12.1 干净启动 4523 条的来源：
+
+| 来源 | 规则数 | 加载方式 |
+|---|---|---|
+| dsh UI 样式（context-*.css） | 2128 | 随 DshView 预热加载 |
+| Tailwind + 项目 globals（index-*.css） | 1260 | index.html 静态 |
+| Monaco 编辑器样式 | 1039 | index.html 静态 |
+| 用户 snippets custom-css | 87 | 启动注入 |
+| 桌宠 keyframes | 9 | 启动注入 |
+
+**实测**（CDP 删除全部 styleSheet 元素 + HeapProfiler.collectGarbage ×2，60s 稳定复核）：renderer priv
+**157.5 → 154.9MB，只降 2.6MB**（≈0.6KB/条；JS 堆 51.0MB 不变）。**结论：精简 CSS（含 CSS 变量/参数）
+对内存收益上限 ~2.6MB，不值得做**。CSS 规则数翻倍（2123→4523）只是同期功能增长的伴生现象，非内存增长之因。
+
+**顺藤摸出的真正可优化项**：`App.tsx:515` 启动后 3s idle 时**主动预热 DshView**
+（`idle(() => import('./components/DshView'))`，注释注明为避免首次进 dsh 现场加载 2.5MB 卡交互）。
+A/B（临时禁用预热 → 重新 build/打包，独立 output 目录，**打包版口径**）：
+
+| 全新 profile，100s 稳态（打包版） | renderer priv | wsPriv |
+|---|---|---|
+| 原版（预热开） | 153.8 | 140.9 |
+| **禁用预热** | **132.3** | **119.9** |
+
+→ **dsh 预热 = 21.5MB 常驻**（dev electron 口径同 A/B 为 ~50MB，**高估一倍余——再次印证内存问题只认打包版**）。
+v0.11.8 已含同一预热代码（App.tsx:473）→ 占 0.10.7→v0.11.8 增长（+66MB）约 1/3。
+**优化方向**：预热改条件式（有 dsh 会话才预热 / 悬停或点击 dsh 区域时再加载）——不用 dsh 的用户直接省 21.5MB；
+代价 = 首次打开 dsh 多等 chunk 加载（可折中为 hover 预热）。
