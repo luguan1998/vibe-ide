@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dagre from 'dagre'
-import { GitBranch, Loader2, Maximize2, Plus, RefreshCw, Send } from 'lucide-react'
+import { FolderGit2, GitBranch, GitFork, Loader2, Maximize2, Plus, RefreshCw, Send } from 'lucide-react'
 import type { AiGraph, AiGraphNode } from '@shared/types'
 import { useI18n } from '../../i18n'
 import { readAiCliConfig } from '../../aiStore'
@@ -62,17 +62,18 @@ interface ConversationGraphProps {
   sessionId: string | null
   workspacePath: string
   isActive: boolean
-  refreshSignal: number
+  refreshSignal: string
   onForkSend: (node: AiGraphNode, text: string) => Promise<boolean>
   onSendInThisSession: (text: string) => void
-  onSendToBranch: (claudeSessionId: string, text: string) => Promise<boolean>
-  onOpenBranch: (claudeSessionId: string) => void
+  onSendToBranch: (claudeSessionId: string, cwd: string, text: string) => Promise<boolean>
+  onOpenBranch: (claudeSessionId: string, cwd: string) => void
   onRevealTurn: (content: string, occurrence: number) => void
+  onForkWorktree: (node: AiGraphNode) => Promise<string | null>
 }
 
 export default function ConversationGraph({
   sessionId, workspacePath, isActive, refreshSignal,
-  onForkSend, onSendInThisSession, onSendToBranch, onOpenBranch, onRevealTurn,
+  onForkSend, onSendInThisSession, onSendToBranch, onOpenBranch, onRevealTurn, onForkWorktree,
 }: ConversationGraphProps): React.ReactElement {
   const { t } = useI18n()
   const [graph, setGraph] = useState<AiGraph | null>(null)
@@ -80,6 +81,8 @@ export default function ConversationGraph({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [worktreeBusy, setWorktreeBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState({ x: 0, y: 0, k: 1 })
   const viewportRef = useRef<HTMLDivElement>(null)
   const panRef = useRef<{ sx: number; sy: number; vx: number; vy: number; moved: boolean } | null>(null)
@@ -159,11 +162,41 @@ export default function ConversationGraph({
     setPanning(true)
   }, [view.x, view.y])
 
+  const branchById = useMemo(
+    () => new Map((graph?.branches ?? []).map(b => [b.claudeSessionId, b])),
+    [graph],
+  )
+  // 节点是否只属于 worktree 分支：共享前缀同时属于主分支，就不标——只有该分支独有的轮次才标
+  const nodeWorktree = useCallback((node: AiGraphNode): 'cli' | 'branch' | null => {
+    const kinds = node.branchIds.map(id => branchById.get(id)?.worktree ?? null)
+    if (kinds.length === 0 || kinds.some(k => k === null)) return null
+    return kinds[0]
+  }, [branchById])
+  // 某条 worktree 分支的入口轮次：独占该分支、且父节点正是该分支的分叉点
+  const isWorktreeEntry = useCallback((node: AiGraphNode): boolean => {
+    if (!nodeWorktree(node)) return false
+    return branchById.get(node.branchIds[0])?.forkNodeId === node.parentId
+  }, [nodeWorktree, branchById])
+  // 从这里长出了 worktree 分支（分叉点）
+  const worktreeForksAt = useCallback((node: AiGraphNode) =>
+    [...branchById.values()].filter(b => b.worktree && b.forkNodeId === node.id),
+  [branchById])
+  // 双击可打开的末端分支：以该节点结尾、且不是当前正在看的这条
+  const otherTipsOf = useCallback((node: AiGraphNode) =>
+    node.tipBranchIds
+      .filter(id => id !== graph?.activeClaudeSessionId)
+      .map(id => branchById.get(id))
+      .filter((b): b is NonNullable<typeof b> => !!b),
+  [graph, branchById])
+
   const selected = selectedId ? graph?.nodes.find(n => n.id === selectedId) ?? null : null
-  const tipBranch = selected?.tipBranchIds[0] ?? null
+  // worktree 起点节点不承载轮次，它的分支归属直接看 branchIds
+  const tipBranch = selected?.worktreeStart ? selected.branchIds[0] ?? null : selected?.tipBranchIds[0] ?? null
+  const selectedTipBranch = tipBranch ? branchById.get(tipBranch) : undefined
+  const tipBranchCwd = selectedTipBranch?.cwd ?? ''
+  const selectedTipWorktree = selectedTipBranch?.worktree ?? null
   const isCurrentTip = tipBranch === graph?.activeClaudeSessionId
-  const action: 'send' | 'continue' | 'fork' = !selected ? 'fork'
-    : selected.tipBranchIds.length === 0 ? 'fork'
+  const action: 'send' | 'continue' | 'fork' = !selected || (!selected.worktreeStart && selected.tipBranchIds.length === 0) ? 'fork'
     : isCurrentTip ? 'send' : 'continue'
 
   // 分叉/切分支失败（源文件缺失等）时保留草稿，别把用户刚敲的整段吞掉
@@ -173,19 +206,33 @@ export default function ConversationGraph({
     if (action === 'send') { setDraft(''); onSendInThisSession(text); return }
     setSending(true)
     try {
-      const ok = action === 'fork' ? await onForkSend(selected, text) : await onSendToBranch(tipBranch!, text)
+      const ok = action === 'fork' ? await onForkSend(selected, text) : await onSendToBranch(tipBranch!, tipBranchCwd, text)
       if (ok) setDraft('')
     } finally {
       setSending(false)
     }
-  }, [draft, selected, sending, action, tipBranch, onForkSend, onSendToBranch, onSendInThisSession])
+  }, [draft, selected, sending, action, tipBranch, tipBranchCwd, onForkSend, onSendToBranch, onSendInThisSession])
 
-  useEffect(() => { setSelectedId(null); setDraft('') }, [sessionId])
+  const forkWorktree = useCallback(async (node: AiGraphNode) => {
+    if (worktreeBusy) return
+    setError(null)
+    setWorktreeBusy(true)
+    try {
+      const err = await onForkWorktree(node)
+      if (err) setError(err)
+    } finally {
+      setWorktreeBusy(false)
+    }
+  }, [worktreeBusy, onForkWorktree])
+
+  useEffect(() => { setSelectedId(null); setDraft(''); setError(null) }, [sessionId])
 
   const nodeClick = useCallback((e: React.MouseEvent, id: string) => {
     if (panRef.current?.moved) return
     e.stopPropagation()
     setSelectedId(prev => (prev === id ? null : id))
+    // 点节点时 mousedown 会把焦点从输入框夺走（节点本身不可聚焦），点完还回去
+    setTimeout(() => textareaRef.current?.focus(), 0)
   }, [])
 
   return (
@@ -226,28 +273,48 @@ export default function ConversationGraph({
               const parent = posById.get(node.parentId)
               if (!parent) return null
               const active = node.active
+              const entry = isWorktreeEntry(node)
               return (
                 <path
                   key={`e-${node.id}`}
                   d={edgePath(parent, posById.get(node.id) ?? parent)}
                   fill="none"
-                  stroke={active ? 'rgb(var(--ide-accent))' : 'rgb(var(--ide-border))'}
-                  strokeWidth={active ? 2 : 1.5}
-                  opacity={active ? 0.85 : 0.7}
+                  stroke={active || entry ? 'rgb(var(--ide-accent))' : 'rgb(var(--ide-border))'}
+                  strokeWidth={active ? 2 : entry ? 2 : 1.5}
+                  strokeDasharray={entry && !active ? '5 4' : undefined}
+                  opacity={active ? 0.85 : entry ? 0.9 : 0.7}
                 />
               )
             })}
           </svg>
           {items.map(({ node, x, y }) => {
             const selfSelected = node.id === selectedId
+            const wt = nodeWorktree(node)
+            const tipBranchInfo = node.tipBranchIds.length === 1 ? branchById.get(node.tipBranchIds[0]) : undefined
+            const otherTips = otherTipsOf(node)
+            const forks = worktreeForksAt(node)
+            const tipWorktree = tipBranchInfo?.worktree ?? null
             return (
               <div
                 key={node.id}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => nodeClick(e, node.id)}
-                onDoubleClick={(e) => { e.stopPropagation(); if (node.active) onRevealTurn(node.fork.content, node.fork.occurrence) }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation()
+                  // 末端节点双击 = 打开那条分支；只有当前路径上的轮次才是"跳过去看"。
+                  // worktree 起点就是该分支的入口，双击一律进它的对话
+                  if (node.worktreeStart) {
+                    const b = branchById.get(node.branchIds[0])
+                    if (b) onOpenBranch(b.claudeSessionId, b.cwd)
+                    return
+                  }
+                  if (otherTips.length > 0) onOpenBranch(otherTips[0].claudeSessionId, otherTips[0].cwd)
+                  else if (node.active && node.fork) onRevealTurn(node.fork.content, node.fork.occurrence)
+                }}
                 style={{ left: x, top: y, width: NODE_W, height: NODE_H }}
                 className={`absolute rounded-md border px-2.5 py-2 flex flex-col gap-1 cursor-pointer transition-colors ${
+                  wt ? 'border-l-2 border-l-ide-accent ' : ''
+                }${
                   selfSelected
                     ? 'border-ide-accent bg-ide-active'
                     : node.active
@@ -257,6 +324,7 @@ export default function ConversationGraph({
               >
                 <div className="flex items-start gap-1.5">
                   {node.active && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-ide-accent shrink-0" />}
+                  {node.worktreeStart && <FolderGit2 className="mt-0.5 w-3 h-3 text-ide-accent shrink-0" />}
                   <div className="text-[11px] leading-snug text-ide-text font-medium line-clamp-2 break-words">{node.title || t('(empty)')}</div>
                 </div>
                 <div className="text-[10px] leading-snug text-ide-text-muted line-clamp-2 break-words flex-1">
@@ -265,15 +333,38 @@ export default function ConversationGraph({
                 <div className="flex items-center gap-2 text-[9px] text-ide-text-muted">
                   <span>{relTime(node.timestamp, t)}</span>
                   {node.toolCallCount > 0 && <span>{node.toolCallCount} {t('tools')}</span>}
-                  {node.tipBranchIds.length > 0 && <GitBranch className="w-2.5 h-2.5" />}
+                  {forks.length > 0 && (
+                    <span
+                      className="text-ide-accent"
+                      title={[t('Worktree branch starts here'), ...forks.map(f => f.branch ?? '')].filter(Boolean).join('\n')}
+                    >
+                      <GitFork className="w-2.5 h-2.5" />
+                    </span>
+                  )}
+                  {!node.worktreeStart && (tipWorktree ? (
+                    <span
+                      className="flex items-center gap-0.5 px-1 rounded-sm bg-ide-accent/15 text-ide-accent max-w-[130px]"
+                      title={`${tipWorktree === 'cli' ? t('Isolated worktree (clean HEAD)') : t('Isolated worktree (with uncommitted changes)')}\n${tipBranchInfo?.branch ?? ''}`}
+                    >
+                      <FolderGit2 className="w-2.5 h-2.5 shrink-0" />
+                      <span className="truncate">{tipBranchInfo?.branch ?? t('worktree')}</span>
+                    </span>
+                  ) : node.tipBranchIds.length > 0 && (
+                    <span title={otherTips.length > 0 ? t('Double-click to open this branch') : undefined}>
+                      <GitBranch className="w-2.5 h-2.5" />
+                    </span>
+                  ))}
                   <div className="flex-1" />
-                  <button
-                    className="opacity-60 hover:opacity-100 hover:text-ide-accent transition-opacity"
-                    title={t('Continue from this turn')}
-                    onClick={(e) => { e.stopPropagation(); setSelectedId(node.id); setTimeout(() => textareaRef.current?.focus(), 0) }}
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
+                  {!node.worktreeStart && (
+                    <button
+                      disabled={worktreeBusy}
+                      className="opacity-60 hover:opacity-100 hover:text-ide-accent transition-opacity disabled:opacity-30"
+                      title={t('Branch into a new isolated worktree')}
+                      onClick={(e) => { e.stopPropagation(); forkWorktree(node) }}
+                    >
+                      {worktreeBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                    </button>
+                  )}
                 </div>
               </div>
             )
@@ -282,6 +373,11 @@ export default function ConversationGraph({
       </div>
 
       <div className="shrink-0 border-t border-ide-border px-3 py-2">
+        {error && (
+          <div className="mb-1.5 px-2 py-1 rounded text-[10px] text-ide-danger bg-ide-danger/10 border border-ide-danger/30 break-words">
+            {t('Worktree failed')}: {error}
+          </div>
+        )}
         {selected ? (
           <>
             <div className="flex items-center gap-2 text-[10px] text-ide-text-muted mb-1.5">
@@ -290,10 +386,16 @@ export default function ConversationGraph({
                 {' · '}
                 <span className="text-ide-text">{selected.title}</span>
               </span>
+              {selectedTipWorktree && (
+                <span className="shrink-0 flex items-center gap-0.5 text-ide-accent max-w-[180px]" title={tipBranchCwd}>
+                  <FolderGit2 className="w-2.5 h-2.5 shrink-0" />
+                  <span className="truncate">{selectedTipBranch?.branch ?? t('worktree')}</span>
+                </span>
+              )}
               {tipBranch && tipBranch !== graph?.activeClaudeSessionId && (
                 <button
                   className="shrink-0 px-1.5 py-0.5 rounded border border-ide-border hover:border-ide-accent hover:text-ide-accent transition-colors"
-                  onClick={() => onOpenBranch(tipBranch)}
+                  onClick={() => onOpenBranch(tipBranch, tipBranchCwd)}
                 >
                   {t('Open branch')}
                 </button>

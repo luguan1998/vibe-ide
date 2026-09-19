@@ -159,6 +159,7 @@ export const IPC_CHANNELS = {
   AI_FORK: 'ai:fork',
   AI_FORK_TURN: 'ai:forkTurn',             // invoke: 从任意一轮分叉（源文件可能没有活跃 GUI 会话）
   AI_SESSION_GRAPH: 'ai:sessionGraph',     // invoke: 合并同组分叉文件 → 网状对话树
+  AI_CREATE_BRANCH_WORKTREE: 'ai:createBranchWorktree', // invoke: 开一棵携带当前工作区改动的隔离工作树
   AI_LIST_USER_TURNS: 'ai:listUserTurns',  // invoke: real user turns from JSONL (single source of truth for revert index)
   AI_REPLY_INIT: 'ai:replyInit',          // invoke: init reply cursor for a session (pet bubble, TUI+GUI unified)
   AI_REPLY_STOP: 'ai:replyStop',          // invoke: clear reply cursor
@@ -645,6 +646,7 @@ export interface UserTurn {
 
 export interface AiGraphFork {
   claudeSessionId: string  // 承载该轮的分支文件（fork 的复制源）
+  sourceCwd: string        // 该文件所在项目目录对应的 cwd（worktree 分支与主树不同）
   content: string          // 该轮 user 文本（fork 按内容+occurrence 定位）
   occurrence: number       // 同一文本第几次出现
 }
@@ -661,13 +663,18 @@ export interface AiGraphNode {
   active: boolean          // 在当前会话的路径上
   branchIds: string[]      // 包含该轮的会话文件
   tipBranchIds: string[]   // 以该轮为末尾的会话文件（可直接续聊，无需分叉）
-  fork: AiGraphFork
+  fork: AiGraphFork | null // 合成节点（worktree 起点）没有对应轮次
+  worktreeStart?: boolean  // worktree 分支的起点节点，与该分支的轮次分开显示
 }
 
 export interface AiGraphBranch {
   claudeSessionId: string
+  cwd: string              // 该文件所在项目目录对应的 cwd（worktree 分支与主树不同，必须按它开会话）
+  worktree: 'cli' | 'branch' | null  // 该分支是否跑在隔离工作树里
+  branch: string | null              // 工作树检出的 git 分支名（非工作树 / detached 时为 null）
   turnCount: number
   tipNodeId: string | null
+  forkNodeId: string | null          // 该分支从哪个节点长出来（无数独有轮次时等于 tip）
   createdAt: number
 }
 
@@ -798,6 +805,8 @@ export interface AiCreateOptions {
   cliCommand?: string
   configDir?: string
   enableWorktree?: boolean
+  // 调用方已建好的 worktree（网状视图的分支）：直接以它作为工作目录，并登记以便销毁时清理
+  worktreePath?: string
   computerUse?: boolean
   browserUse?: boolean
 }
@@ -910,4 +919,6 @@ export interface AiForkTurnPayload {
   cwd: string
   content: string                // 目标轮的 user 文本
   occurrence: number
+  sourceCwd?: string             // 源文件所在项目目录对应的 cwd（缺省 = cwd）
+  targetCwd?: string             // 新文件写到哪个 cwd 的项目目录（缺省 = sourceCwd）；worktree 分支靠它落地
 }

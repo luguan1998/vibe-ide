@@ -128,6 +128,7 @@ interface EnsureCreatedOpts {
   cliCommand?: string
   configDir?: string
   enableWorktree?: boolean
+  worktreePath?: string
   model?: string
   computerUse?: boolean
   browserUse?: boolean
@@ -257,6 +258,7 @@ export const aiStore = {
           ...(cliCommand ? { cliCommand } : {}),
           ...(configDir ? { configDir } : {}),
           ...(opts.enableWorktree ? { enableWorktree: true } : {}),
+          ...(opts.worktreePath ? { worktreePath: opts.worktreePath } : {}),
           ...(opts.model ? { model: opts.model } : {}),
           ...(opts.computerUse ? { computerUse: true } : {}),
           ...(opts.browserUse ? { browserUse: true } : {}),

@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { readFile, writeFile } from 'fs/promises'
+import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import {
@@ -20,6 +20,8 @@ import {
   stopBmForSession,
   startBmForSession,
   resolveProjectDir,
+  getProjectsRoot,
+  normalizeCwdToProjectDir,
   parseUserTurns,
 } from './ai'
 
@@ -242,12 +244,16 @@ export function registerRevertHandlers(): void {
     const configDir = live?.configDir
     if (!effectiveCwd) return { success: false, error: 'No workspace path' }
 
-    const projectDir = resolveProjectDir(effectiveCwd, configDir)
-    if (!projectDir) return { success: false, error: 'Project directory not found under ~/.claude/projects/' }
+    // CLI 的 --resume 按「进程 cwd 推出的项目目录」找会话，所以分叉出来的文件必须落在
+    // 它将要运行的那个 cwd 的项目目录里（worktree 分支与主树是两个目录）
+    const sourceCwd = payload.sourceCwd || effectiveCwd
+    const targetCwd = payload.targetCwd || sourceCwd
+    const sourceDir = resolveProjectDir(sourceCwd, configDir)
+    if (!sourceDir) return { success: false, error: 'Project directory not found under ~/.claude/projects/' }
 
     let lines: string[]
     try {
-      lines = (await readFile(join(projectDir, `${sourceClaudeSessionId}.jsonl`), 'utf-8')).split('\n').filter(Boolean)
+      lines = (await readFile(join(sourceDir, `${sourceClaudeSessionId}.jsonl`), 'utf-8')).split('\n').filter(Boolean)
     } catch {
       return { success: false, error: `Session file not found: ${sourceClaudeSessionId}` }
     }
@@ -266,12 +272,34 @@ export function registerRevertHandlers(): void {
       return { success: false, error: `Turn not found in forked source (occurrence ${occ})` }
     }
 
-    const result = await truncateJsonlAtUserMessage(sourceClaudeSessionId, effectiveCwd, targetTurnIdx, true, configDir, content, occ)
+    const result = await truncateJsonlAtUserMessage(sourceClaudeSessionId, sourceCwd, targetTurnIdx, true, configDir, content, occ)
     if ('error' in result) return { success: false, error: result.error }
+
+    let targetDir: string
+    if (targetCwd === sourceCwd) {
+      targetDir = sourceDir
+    } else {
+      targetDir = join(getProjectsRoot(configDir), normalizeCwdToProjectDir(targetCwd))
+      try { await mkdir(targetDir, { recursive: true }) } catch (err) {
+        return { success: false, error: `Failed to create project directory: ${(err as Error).message}` }
+      }
+    }
+
+    // 复制来的行里 cwd 还是源目录。渲染层 resume 会优先信 JSONL 首行的 cwd（actualCwd）
+    // 去 spawn CLI，不改就会被拉回源目录 → 那里没有这个文件 → "No conversation found" → 空白会话
+    const body = targetCwd === sourceCwd
+      ? result.truncated
+      : result.truncated.map((line) => {
+          try {
+            const o = JSON.parse(line)
+            if (typeof o?.cwd !== 'string') return line
+            return JSON.stringify({ ...o, cwd: targetCwd })
+          } catch { return line }
+        })
 
     const newClaudeSessionId = randomUUID()
     try {
-      await writeFile(join(projectDir, `${newClaudeSessionId}.jsonl`), result.truncated.join('\n') + '\n', 'utf-8')
+      await writeFile(join(targetDir, `${newClaudeSessionId}.jsonl`), body.join('\n') + '\n', 'utf-8')
     } catch (err) {
       return { success: false, error: `Failed to write forked session: ${(err as Error).message}` }
     }

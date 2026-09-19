@@ -678,6 +678,13 @@ const ZH_MAP: Record<string, string> = {
   'Fork & Send': '分叉并发送',
   'Click a turn to continue from there. Drag to pan, scroll to zoom.': '点击任意一轮即可从那里继续。拖拽平移，滚轮缩放。',
   'just now': '刚刚',
+  'Branch into a new isolated worktree': '分叉到独立 worktree（含当前未提交改动）',
+  'Worktree failed': '创建 worktree 失败',
+  'worktree': 'worktree',
+  'Double-click to open this branch': '双击打开这条分支',
+  'Worktree branch starts here': 'worktree 分支从这里开始',
+  'Isolated worktree (clean HEAD)': '隔离工作树（CLI 从 HEAD 开的干净检出）',
+  'Isolated worktree (with uncommitted changes)': '隔离工作树（含分叉时的未提交改动）',
   // PR hosting (github / gitlab / codehub)
   'Code Hosting': '代码托管',
   'No hosting platform. Click "+ New" to add': '暂无托管平台 · 点「+ 新建」添加',

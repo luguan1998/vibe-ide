@@ -888,9 +888,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     if (Object.keys(stamps).length) setIdleSinceMap(m => ({ ...m, ...stamps }))
   }, [agentStatus, sessions])
 
-  // 网状对话的分支会话默认不占位；只有当前正处于其中时才显示，避免"没有任何一行高亮"
-  const isVisibleSession = (s: SessionTab) => !s.hidden || s.id === activeSessionId
-
   // Group sessions by normalized cwd（空组保留位按记录下标插回，最后一个 session 关闭后分组不消失）
   const keptGroups = useKeptGroups()
   const sessionGroups = useMemo(() => {
@@ -905,7 +902,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       map.get(key)!.push(s)
     }
     return mergeGroupOrder(order, keptGroups).map(cwd => ({ cwd, sessions: map.get(cwd) ?? [] }))
-  }, [sessions, keptGroups])
+  }, [sessions, keptGroups, activeSessionId])
 
   // Flat index map for drag reorder: visual position → session index in original array
   const flatIndexMap = useMemo(() => {
@@ -1924,7 +1921,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 </div>
                 {/* Sessions under this folder */}
                 <div>
-                {group.sessions.filter(isVisibleSession).map((session) => {
+                {group.sessions.map((session) => {
                   const flatIdx = flatIndexMap.indexOf(sessions.findIndex(si => si.id === session.id))
                   return renderSessionItem(session, flatIdx, { showCwd: false, outerClass: 'pl-4 pr-3 py-1 cursor-grab active:cursor-grabbing transition-colors min-h-[44px] h-auto', nameClass: 'line-clamp-2 break-all', minHeightClass: 'min-h-[44px]' })
                 })}
@@ -1934,7 +1931,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           })
         ) : (
           <div className="bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-panel__flat-list">
-            {sessions.map((session, index) => isVisibleSession(session) ? renderSessionItem(session, index, { showCwd: true, outerClass: 'px-3 py-1 cursor-grab active:cursor-grabbing transition-colors relative', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[24px]' }) : null)}
+            {sessions.map((session, index) => renderSessionItem(session, index, { showCwd: true, outerClass: 'px-3 py-1 cursor-grab active:cursor-grabbing transition-colors relative', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[24px]' }))}
           </div>
         )}
         {dropGroupIndex !== null && dropGroupIndex === sessionGroups.length && dropGroupIndex !== dragGroupIndex && (

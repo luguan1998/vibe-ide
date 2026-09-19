@@ -208,7 +208,8 @@ declare global {
         clearAndExecutePlan: (sessionId: string, planFilePath: string, model?: string, resume?: boolean) => Promise<{ success: boolean; error?: string }>
         listUserTurns: (sessionId: string, cwd: string) => Promise<any>
         sessionGraph: (sessionId: string, cwd?: string, configDir?: string) => Promise<import('@shared/types').AiGraph | null>
-        forkTurn: (payload: { sessionId: string; sourceClaudeSessionId: string; cwd: string; content: string; occurrence: number }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
+        forkTurn: (payload: { sessionId: string; sourceClaudeSessionId: string; cwd: string; content: string; occurrence: number; sourceCwd?: string; targetCwd?: string }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
+        createBranchWorktree: (payload: { sessionId: string; cwd?: string; configDir?: string }) => Promise<{ path: string; branch: string; repoRoot: string; originalBranch: string } | { error: string }>
         setPermissionMode: (sessionId: string, mode: string) => Promise<{ success: boolean; error?: string }>
         setModel: (sessionId: string, model: string) => Promise<{ success: boolean; error?: string }>
         resolveModels: (sessionId?: string) => Promise<{ default: string; opus: string; sonnet: string; haiku: string }>
@@ -2072,6 +2073,13 @@ export default function App() {
   // Get cwd of the currently active session
   const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
   const leftWorktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
+  // 会话增减时让所有图重扫盘：新分支是在别的会话里长出来的，当前图的 messages 不会变
+  const branchRevision = useMemo(() => sessions.length, [sessions])
+  // 网状视图按会话绑定：分支即会话，切分支必然切会话，放 AiTab 局部会被切没；
+  // 但做成全局开关会漏给所有会话（空会话发第一条消息时凭空跳进图），所以记"图开在哪个会话上"
+  const [graphOpenFor, setGraphOpenFor] = useState<string | null>(null)
+  const graphOpenForRef = useRef<string | null>(null)
+  graphOpenForRef.current = graphOpenFor
   const leftSubmoduleNav = activeSessionId ? sessionSubmoduleNav[activeSessionId] ?? null : null
   const leftEffectiveGitPath = leftSubmoduleNav?.submodulePath || leftWorktreeNav?.worktreePath || activeSessionCwd
 
@@ -2319,33 +2327,51 @@ export default function App() {
   }, [sessions, autoUtf8])
 
   // ── 网状对话：分支会话按 claudeSessionId 找/建（隐藏，不进左侧列表）──
-  const openBranchTab = useCallback((claudeSessionId: string, cwd: string, parentId: string | null): string => {
-    const existing = sessionsRef.current.find(s => s.resumeSessionId === claudeSessionId)
+  // cwd 即该分支实际的工作目录：普通分支 = 源会话目录，worktree 分支 = 那棵树
+  const openBranchTab = useCallback((opts: {
+    claudeSessionId: string
+    cwd: string
+    parentId: string | null
+    worktree?: { originalPath: string; originalBranch: string }
+  }): string => {
+    // openBranchTab 只由图上的动作触发：图开着就让它跟着切过去，别切了就消失
+    const carryGraph = (target: string) => {
+      const owner = graphOpenForRef.current
+      if (owner && sessionsRef.current.some(s => s.id === owner)) setGraphOpenFor(target)
+    }
+    const existing = sessionsRef.current.find(s => s.resumeSessionId === opts.claudeSessionId)
     if (existing) {
+      carryGraph(existing.id)
       setActiveSessionId(existing.id)
       applySessionTabPolicy(existing.id)
       return existing.id
     }
     const tab: SessionTab = {
-      ...makeLocalSession(cwd),
+      ...makeLocalSession(opts.cwd),
       kind: 'gui',
-      hidden: true,
-      resumeSessionId: claudeSessionId,
-      resumeCwd: cwd,
+      resumeSessionId: opts.claudeSessionId,
+      resumeCwd: opts.cwd,
+      ...(opts.worktree ? { worktreePath: opts.cwd } : {}),
       loaded: true,
     }
-    addSessionRecord(tab, parentId)
+    carryGraph(tab.id)
+    addSessionRecord(tab, opts.parentId)
+    if (opts.worktree) {
+      const nav = { originalPath: opts.worktree.originalPath, worktreePath: opts.cwd, originalBranch: opts.worktree.originalBranch }
+      setSessionWorktreeNav(prev => ({ ...prev, [tab.id]: nav }))
+    }
     return tab.id
   }, [applySessionTabPolicy, addSessionRecord])
 
   // 从图上某一轮分叉：复制前缀到新 JSONL → 新分支会话 → 切过去 → 待发文本交给它
   const handleGraphForkSend = useCallback(async (sessionId: string, node: AiGraphNode, text: string): Promise<boolean> => {
     const current = sessionsRef.current.find(s => s.id === sessionId)
-    if (!current) return false
+    if (!current || !node.fork) return false
     const result = await window.api.ai.forkTurn({
       sessionId,
       sourceClaudeSessionId: node.fork.claudeSessionId,
       cwd: current.cwd,
+      sourceCwd: node.fork.sourceCwd,
       content: node.fork.content,
       occurrence: node.fork.occurrence,
     })
@@ -2353,22 +2379,51 @@ export default function App() {
       console.error('Fork turn failed:', result?.error)
       return false
     }
-    const tabId = openBranchTab(result.newClaudeSessionId, current.cwd, sessionId)
+    const tabId = openBranchTab({ claudeSessionId: result.newClaudeSessionId, cwd: node.fork.sourceCwd || current.cwd, parentId: sessionId })
     queuePendingSend(tabId, text)
     return true
   }, [openBranchTab])
 
-  const handleGraphSendToBranch = useCallback((sessionId: string, claudeSessionId: string, text: string): boolean => {
-    const current = sessionsRef.current.find(s => s.id === sessionId)
-    if (!current) return false
-    queuePendingSend(openBranchTab(claudeSessionId, current.cwd, sessionId), text)
+  const handleGraphSendToBranch = useCallback((sessionId: string, claudeSessionId: string, cwd: string, text: string): boolean => {
+    if (!sessionsRef.current.some(s => s.id === sessionId)) return false
+    queuePendingSend(openBranchTab({ claudeSessionId, cwd, parentId: sessionId }), text)
     return true
   }, [openBranchTab])
 
-  const handleGraphOpenBranch = useCallback((sessionId: string, claudeSessionId: string) => {
+  const handleGraphOpenBranch = useCallback((sessionId: string, claudeSessionId: string, cwd: string) => {
+    if (!sessionsRef.current.some(s => s.id === sessionId)) return
+    openBranchTab({ claudeSessionId, cwd, parentId: sessionId })
+    // 「打开分支」= 去那条对话看，离开网状视图；只有发送类动作才让图跟着不关
+    setGraphOpenFor(null)
+  }, [openBranchTab])
+
+  // 图上 + ：从该轮分叉，并把这棵对话放进一棵独立的 worktree（内容 = 当前工作区含未提交改动）
+  const handleGraphForkWorktree = useCallback(async (sessionId: string, node: AiGraphNode): Promise<string | null> => {
     const current = sessionsRef.current.find(s => s.id === sessionId)
-    if (!current) return
-    openBranchTab(claudeSessionId, current.cwd, sessionId)
+    if (!current || !node.fork) return 'Session not found'
+    const wt = await window.api.ai.createBranchWorktree({ sessionId, cwd: current.cwd })
+    if ('error' in wt) return wt.error
+
+    const result = await window.api.ai.forkTurn({
+      sessionId,
+      sourceClaudeSessionId: node.fork.claudeSessionId,
+      cwd: current.cwd,
+      sourceCwd: node.fork.sourceCwd,
+      targetCwd: wt.path,
+      content: node.fork.content,
+      occurrence: node.fork.occurrence,
+    })
+    if (!result?.success || !result.newClaudeSessionId) {
+      console.error('Fork turn failed:', result?.error)
+      return result?.error || 'Fork failed'
+    }
+    openBranchTab({
+      claudeSessionId: result.newClaudeSessionId,
+      cwd: wt.path,
+      parentId: sessionId,
+      worktree: { originalPath: wt.repoRoot, originalBranch: wt.originalBranch },
+    })
+    return null
   }, [openBranchTab])
 
   // dsh 会话内 fork（「在新对话中分支」）：dsh 侧已生成子会话（历史=分叉前缀），
@@ -3647,11 +3702,20 @@ export default function App() {
                           handleForkSession(session.id, userMessageIndex, content, occurrence)
                         }}
                         onGraphForkSend={(node: AiGraphNode, text: string) => handleGraphForkSend(session.id, node, text)}
-                        onGraphSendToBranch={(claudeSessionId: string, text: string) => handleGraphSendToBranch(session.id, claudeSessionId, text)}
-                        onGraphOpenBranch={(claudeSessionId: string) => handleGraphOpenBranch(session.id, claudeSessionId)}
+                        onGraphSendToBranch={(claudeSessionId: string, cwd: string, text: string) => handleGraphSendToBranch(session.id, claudeSessionId, cwd, text)}
+                        onGraphOpenBranch={(claudeSessionId: string, cwd: string) => handleGraphOpenBranch(session.id, claudeSessionId, cwd)}
+                        onGraphForkWorktree={(node: AiGraphNode) => handleGraphForkWorktree(session.id, node)}
                         onAgentStatusChange={handleAiAgentStatusChange}
                         brushActive={brushActive}
                         lastOpenedFile={lastOpenedFile}
+                        branchRevision={branchRevision}
+                        graphOpen={graphOpenFor === session.id}
+                        onGraphOpenChange={(open) => setGraphOpenFor(open ? session.id : null)}
+                        initialWorktreeEnabled={session.enableWorktree}
+                        worktreePath={session.worktreePath}
+                        onWorktreeChange={(next) => {
+                          setSessions(prev => prev.map(s => (s.id === session.id ? { ...s, ...next } : s)))
+                        }}
                         worktreeNav={sessionWorktreeNav[session.id] ?? null}
                         onWorktreeNavChange={setSessionWorktreeNav}
                         onCommand={onCommandForSession(session.id)}

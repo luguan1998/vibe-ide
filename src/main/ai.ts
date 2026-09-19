@@ -244,12 +244,20 @@ function snapshotWorktrees(cwd: string): Set<string> {
 // ./.claude/worktrees, openclaude → ./.openclaude/worktrees, a custom ".opencc" → ./.opencc/worktrees).
 // Deriving the marker from the config dir keeps one field driving both history lookup
 // (~/.opencc/projects) and worktree detection — no per-binary hard-coding.
-function configDirMarker(configDir?: string): string {
+export function configDirMarker(configDir?: string): string {
   return basename(resolveConfigDir(configDir))
 }
 
 function isCliWorktree(p: string, marker: string): boolean {
   return p.includes(`${marker}/worktrees/`) || p.includes(`${marker}\\worktrees\\`)
+}
+
+// 某条分支的 cwd 是否为隔离工作树，以及是哪一种：
+// 'cli' = CLI --worktree 开的（干净 HEAD），'branch' = 网状视图自建的（带当时未提交改动）
+export function worktreeKind(cwd: string, configDir?: string): 'cli' | 'branch' | null {
+  const marker = configDirMarker(configDir)
+  if (cwd.includes(`${marker}/branch-worktrees/`) || cwd.includes(`${marker}\\branch-worktrees\\`)) return 'branch'
+  return isCliWorktree(cwd, marker) ? 'cli' : null
 }
 
 function detectNewWorktree(cwd: string, before: Set<string>, marker: string): string | null {
@@ -1798,7 +1806,7 @@ export function registerAiHandlers(): void {
 
   // Spawn claude/openclaude/opencc subprocess
   ipcMain.handle(IPC_CHANNELS.AI_CREATE, async (_event, options: AiCreateOptions) => {
-    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, configDir, enableWorktree, computerUse, browserUse } = options
+    const { sessionId, cwd, autoApprove, permissionMode, resumeSessionId, cliCommand, configDir, enableWorktree, worktreePath, computerUse, browserUse } = options
 
     if (options.backend === 'pi') return createPiSession(options)
 
@@ -1838,6 +1846,8 @@ export function registerAiHandlers(): void {
         created.enableWorktree = true
         created.preWorktreeSnapshot = preSnapshot
       }
+      // 调用方已经建好的 worktree（网状视图的分支）：直接登记，销毁时走同一条 removeWorktree
+      if (worktreePath) created.worktreePath = worktreePath
     }
 
     return { success: true }

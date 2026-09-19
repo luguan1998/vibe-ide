@@ -1,8 +1,12 @@
 import { ipcMain } from 'electron'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { readFile, readdir, open } from 'fs/promises'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { IPC_CHANNELS, type AiGraph, type AiGraphNode, type AiGraphBranch } from '../shared/types'
-import { aiSessions, parseUserTurns, resolveProjectDir } from './ai'
+import { aiSessions, parseUserTurns, resolveProjectDir, worktreeKind } from './ai'
+
+const execFileAsync = promisify(execFile)
 
 // 网状对话：把「同一条对话的所有分叉文件」合并成一棵树。
 // fork 是逐行复制前缀到新 JSONL（uuid 原样保留），所以同组文件的 uuid 互相包含；
@@ -49,11 +53,13 @@ interface Turn {
 
 interface BranchFile {
   claudeSessionId: string
+  dirCwd: string
+  dirBranch: string | null
   entries: Map<string, Entry>
   turns: Turn[]
 }
 
-function parseBranchFile(claudeSessionId: string, raw: string): BranchFile | null {
+function parseBranchFile(claudeSessionId: string, raw: string, dirCwd: string, dirBranch: string | null): BranchFile | null {
   const lines = raw.split('\n').filter(Boolean)
   const entries = new Map<string, Entry>()
   for (const line of lines) {
@@ -99,7 +105,7 @@ function parseBranchFile(claudeSessionId: string, raw: string): BranchFile | nul
     turns[i].preview = texts.join('\n').replace(/\s+/g, ' ').trim()
   }
 
-  return { claudeSessionId, entries, turns }
+  return { claudeSessionId, dirCwd, dirBranch, entries, turns }
 }
 
 // 节点的父节点 = 该轮 user 行的 parentUuid 沿链上溯遇到的第一个 user 轮次
@@ -130,6 +136,57 @@ async function listGroupFiles(projectDir: string, headKey: string): Promise<stri
   return heads.filter((n): n is string => !!n)
 }
 
+interface CandidateDir { dir: string; cwd: string; branch: string | null }
+
+const normKey = (p: string): string => {
+  const r = resolve(p)
+  return process.platform === 'win32' ? r.toLowerCase() : r
+}
+
+// 分支 worktree 各自有自己的项目目录（CLI 按进程 cwd 落盘），整张图会跨目录。
+// 逐个 worktree 路径推出目录，用 worktree 路径本身当"该文件的 cwd"，fork 才找得到源文件；
+// 顺带解析 porcelain 的 branch 行——目录名不等于分支名，图上要显示的是分支名。
+async function candidateDirs(cwd: string, configDir?: string): Promise<CandidateDir[]> {
+  const worktrees: Array<{ path: string; branch: string | null }> = []
+  try {
+    const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], { cwd, windowsHide: true, timeout: 15000 })
+    let current: { path: string; branch: string | null } | null = null
+    for (const line of stdout.split('\n')) {
+      const t = line.trim()
+      if (line.startsWith('worktree ')) {
+        current = { path: line.slice('worktree '.length).trim(), branch: null }
+        worktrees.push(current)
+      } else if (current && t.startsWith('branch refs/heads/')) {
+        current.branch = t.slice('branch refs/heads/'.length)
+      }
+    }
+  } catch { /* 非 git 工作区：只有主目录 */ }
+
+  const branchOf = new Map(worktrees.map(w => [normKey(w.path), w.branch]))
+  const out: CandidateDir[] = []
+  const push = (d: string | null, c: string) => {
+    if (d && !out.some(x => x.dir === d)) out.push({ dir: d, cwd: c, branch: branchOf.get(normKey(c)) ?? null })
+  }
+  push(resolveProjectDir(cwd, configDir), cwd)
+  for (const w of worktrees) push(resolveProjectDir(w.path, configDir), w.path)
+  return out
+}
+
+function assignDepths(nodes: AiGraphNode[]): void {
+  const children = new Map<string | null, AiGraphNode[]>()
+  for (const n of nodes) {
+    const list = children.get(n.parentId) ?? []
+    list.push(n)
+    children.set(n.parentId, list)
+  }
+  const stack = [...(children.get(null) ?? [])].map(n => ({ n, d: 0 }))
+  while (stack.length) {
+    const { n, d } = stack.pop()!
+    n.depth = d
+    for (const c of children.get(n.id) ?? []) stack.push({ n: c, d: d + 1 })
+  }
+}
+
 export async function buildSessionGraph(sessionId: string, cwdOverride?: string, configDirOverride?: string): Promise<AiGraph | null> {
   const live = aiSessions.get(sessionId)
   const cwd = live?.cwd || cwdOverride || ''
@@ -137,21 +194,21 @@ export async function buildSessionGraph(sessionId: string, cwdOverride?: string,
   const selfClaudeId = live?.claudeSessionId || sessionId
   if (!cwd) return null
 
-  const projectDir = resolveProjectDir(cwd, configDir)
-  if (!projectDir) return null
+  const dirs = await candidateDirs(cwd, configDir)
+  if (dirs.length === 0) return null
 
-  const headKey = await readHeadKey(join(projectDir, `${selfClaudeId}.jsonl`))
-  if (!headKey) return null
+  const selfHead = await readHeadKey(join(dirs.find(d => d.cwd === cwd)?.dir ?? dirs[0].dir, `${selfClaudeId}.jsonl`))
+  if (!selfHead) return null
 
-  const fileNames = await listGroupFiles(projectDir, headKey)
-  if (fileNames.length === 0) return null
-
-  const parsed = await Promise.all(fileNames.map(async (n) => {
-    try {
-      return parseBranchFile(n.replace(/\.jsonl$/, ''), await readFile(join(projectDir, n), 'utf-8'))
-    } catch { return null }
-  }))
-  const files = parsed.filter((f): f is BranchFile => !!f)
+  const files: BranchFile[] = []
+  for (const { dir, cwd: dirCwd, branch } of dirs) {
+    for (const n of await listGroupFiles(dir, selfHead)) {
+      try {
+        const parsed = parseBranchFile(n.replace(/\.jsonl$/, ''), await readFile(join(dir, n), 'utf-8'), dirCwd, branch)
+        if (parsed) files.push(parsed)
+      } catch { /* 单文件失败不影响整图 */ }
+    }
+  }
   if (files.length === 0) return null
 
   const nodes = new Map<string, AiGraphNode>()
@@ -178,7 +235,7 @@ export async function buildSessionGraph(sessionId: string, cwdOverride?: string,
         active: false,
         branchIds: [file.claudeSessionId],
         tipBranchIds: [],
-        fork: { claudeSessionId: file.claudeSessionId, content: turn.content, occurrence: turn.occurrence },
+        fork: { claudeSessionId: file.claudeSessionId, sourceCwd: file.dirCwd, content: turn.content, occurrence: turn.occurrence },
       })
     }
     const tipNodeId = file.turns[file.turns.length - 1].uuid
@@ -186,8 +243,12 @@ export async function buildSessionGraph(sessionId: string, cwdOverride?: string,
     if (tipNode && !tipNode.tipBranchIds.includes(file.claudeSessionId)) tipNode.tipBranchIds.push(file.claudeSessionId)
     branches.push({
       claudeSessionId: file.claudeSessionId,
+      cwd: file.dirCwd,
+      worktree: worktreeKind(file.dirCwd, configDir),
+      branch: file.dirBranch,
       turnCount: file.turns.length,
       tipNodeId,
+      forkNodeId: null,
       createdAt: nodes.get(file.turns[0].uuid)?.timestamp ?? 0,
     })
   }
@@ -195,24 +256,65 @@ export async function buildSessionGraph(sessionId: string, cwdOverride?: string,
   const all = [...nodes.values()]
   const byId = new Set(all.map(n => n.id))
   for (const n of all) if (n.parentId && !byId.has(n.parentId)) n.parentId = null
+  assignDepths(all)
 
-  const childrenOf = new Map<string | null, AiGraphNode[]>()
+  // 分叉点 = 该分支第一个「只属于自己」的轮次的父节点（沿链 depth 最小者即入口）；
+  // 还没长出独占轮次（刚分叉就停手）时退化为 tip —— 两种情况下都是"这条分支从这里开始"
+  const exclusiveOf = new Map<string, AiGraphNode[]>()
   for (const n of all) {
-    const list = childrenOf.get(n.parentId) ?? []
+    if (n.branchIds.length !== 1) continue
+    const list = exclusiveOf.get(n.branchIds[0]) ?? []
     list.push(n)
-    childrenOf.set(n.parentId, list)
+    exclusiveOf.set(n.branchIds[0], list)
   }
-  const stack = [...(childrenOf.get(null) ?? [])].map(n => ({ n, d: 0 }))
-  while (stack.length) {
-    const { n, d } = stack.pop()!
-    n.depth = d
-    for (const c of childrenOf.get(n.id) ?? []) stack.push({ n: c, d: d + 1 })
+  const exclusiveFirst = (b: AiGraphBranch): AiGraphNode | null => {
+    const exclusive = exclusiveOf.get(b.claudeSessionId) ?? []
+    return exclusive.length > 0 ? exclusive.reduce((a, c) => (c.depth < a.depth ? c : a)) : null
   }
+  for (const b of branches) {
+    const first = exclusiveFirst(b)
+    b.forkNodeId = first ? first.parentId : b.tipNodeId
+  }
+
+  // worktree 分支的起点单独成节点：源路径那一轮（原路径的节点）原样留在原分支，
+  // worktree 的轮次改挂到起点下 —— 两个节点都在，才看得出 worktree 从哪开始
+  for (const b of branches) {
+    if (!b.worktree) continue
+    const first = exclusiveFirst(b)
+    const id = `wt:${b.claudeSessionId}`
+    nodes.set(id, {
+      id,
+      parentId: b.forkNodeId,
+      title: clip(b.branch ?? 'worktree', 60),
+      // 同一个 worktree 里可以有好几条分支（在里面再分叉），都叫 vibe/xxx、目录也一样，
+      // 副标题必须用分支自己的第一句轮次才能区分；还没发言时才退回显示目录
+      preview: first ? first.title : clip(b.cwd, 160),
+      // 时间用分支的最后活动，而不是分叉点时间
+      timestamp: b.tipNodeId ? nodes.get(b.tipNodeId)?.timestamp ?? 0 : 0,
+      toolCallCount: 0,
+      hasReply: false,
+      depth: 0,
+      active: b.claudeSessionId === selfClaudeId,
+      branchIds: [b.claudeSessionId],
+      tipBranchIds: first ? [] : [b.claudeSessionId],
+      fork: null,
+      worktreeStart: true,
+    })
+    if (first) first.parentId = id
+    else {
+      const prevTip = b.tipNodeId ? nodes.get(b.tipNodeId) : null
+      if (prevTip) prevTip.tipBranchIds = prevTip.tipBranchIds.filter(x => x !== b.claudeSessionId)
+      b.tipNodeId = id
+    }
+  }
+
+  const finalNodes = [...nodes.values()]
+  assignDepths(finalNodes)
 
   const activeTurns = new Set((files.find(f => f.claudeSessionId === selfClaudeId)?.turns ?? []).map(t => t.uuid))
-  for (const n of all) n.active = activeTurns.has(n.id)
+  for (const n of finalNodes) if (!n.worktreeStart) n.active = activeTurns.has(n.id)
 
-  return { rootId: headKey, activeClaudeSessionId: selfClaudeId, nodes: all, branches }
+  return { rootId: selfHead, activeClaudeSessionId: selfClaudeId, nodes: finalNodes, branches }
 }
 
 export function registerTreeHandlers(): void {

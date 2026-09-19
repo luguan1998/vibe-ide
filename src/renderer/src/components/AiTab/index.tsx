@@ -38,12 +38,21 @@ interface AiTabProps {
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   onForkSession?: (userMessageIndex: number, content?: string, occurrence?: number) => void
   onGraphForkSend?: (node: AiGraphNode, text: string) => Promise<boolean>
-  onGraphSendToBranch?: (claudeSessionId: string, text: string) => boolean
-  onGraphOpenBranch?: (claudeSessionId: string) => void
+  onGraphSendToBranch?: (claudeSessionId: string, cwd: string, text: string) => boolean
+  onGraphOpenBranch?: (claudeSessionId: string, cwd: string) => void
+  onGraphForkWorktree?: (node: AiGraphNode) => Promise<string | null>
+  // 图开着与否提升到 App：分支=会话，切分支必然切会话，状态放本组件就会随实例一起消失
+  graphOpen?: boolean
+  onGraphOpenChange?: (open: boolean) => void
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   resumeSessionId?: string
   brushActive?: boolean
   lastOpenedFile?: RecentFileEntry | null
+  // worktree 是会话属性而非本组件状态：enableWorktree=意图，worktreePath=已落地的那棵树
+  initialWorktreeEnabled?: boolean
+  worktreePath?: string
+  branchRevision?: number
+  onWorktreeChange?: (next: { enableWorktree?: boolean; worktreePath?: string }) => void
   worktreeNav?: { originalPath: string; worktreePath: string; originalBranch: string } | null
   onWorktreeNavChange?: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
   onCommand?: (command: string) => void
@@ -68,7 +77,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 const EDGE_HOVER_PX = 48
-const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onGraphForkWorktree, graphOpen, onGraphOpenChange, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, initialWorktreeEnabled, worktreePath, branchRevision, onWorktreeChange, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -144,8 +153,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const [sessionHistoryOpen, setSessionHistoryOpen] = useState(false)
   const [sessionHistoryList, setSessionHistoryList] = useState<any[]>([])
   const [viewMode, setViewMode] = useState(0) // 0=compact (tools collapsed to summary), 1=hide tools+think
-  const [graphView, setGraphView] = useState(false) // 网状对话视图
-  const [worktreeEnabled, setWorktreeEnabled] = useState(false)
+  const [graphSentTick, setGraphSentTick] = useState(0)
+  const [worktreeEnabled, setWorktreeEnabled] = useState(initialWorktreeEnabled ?? false)
   const historyRef = useRef<HTMLDivElement>(null)
 
   // 后端在建会话时定死（新会话菜单选 Pi 类型），头像只作标识
@@ -380,19 +389,28 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // ── IPC listeners(sessionStates / onMessage / onStreamToken / onPermission /
   // onReady / onError)已上提到 aiStore 单例,此处不再重复注册。──
 
+  // 已落地的 worktree 直接复用它当工作目录；只有「想进 worktree 但还没有」才让 CLI 建，
+  // 否则重启恢复时会在原 worktree 里再套一层新 worktree
+  const spawnCwd = worktreePath || workspacePath || ''
+  const worktreeSpawnOpts = useMemo(
+    () => (worktreePath ? { worktreePath } : (worktreeEnabled && !isPi ? { enableWorktree: true } : {})),
+    [worktreePath, worktreeEnabled, isPi],
+  )
+
   // ── Session lifecycle: check availability then auto-create AI session ──
   useEffect(() => {
     if (!activeSessionId || !workspacePath) return
     const { cliCommand, configDir } = readAiCliConfig()
     aiStore.ensureCreated(activeSessionId, {
-      cwd: workspacePath,
+      cwd: spawnCwd,
+      ...(worktreePath ? { worktreePath } : {}),
       autoApprove,
       permissionMode,
       backend,
       ...(resumeSessionId ? { resumeSessionId } : {}),
       cliCommand,
       configDir,
-      ...(worktreeEnabled && !isPi ? { enableWorktree: true } : {}),
+      ...worktreeSpawnOpts,
       computerUse: state.computerUse,
       browserUse: state.browserUse,
     })
@@ -424,37 +442,38 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     handleDestroySession(activeSessionId)
     const { cliCommand, configDir } = readAiCliConfig()
     aiStore.ensureCreated(activeSessionId, {
-      cwd: workspacePath,
+      cwd: spawnCwd,
       autoApprove,
       permissionMode,
       backend,
       cliCommand,
       configDir,
-      ...(worktreeEnabled && !isPi ? { enableWorktree: true } : {}),
+      ...worktreeSpawnOpts,
       computerUse: flag === 'computerUse' ? next : state.computerUse,
       browserUse: flag === 'browserUse' ? next : state.browserUse,
     })
-  }, [activeSessionId, workspacePath, autoApprove, permissionMode, backend, isPi, worktreeEnabled, state.computerUse, state.browserUse, handleDestroySession])
+  }, [activeSessionId, workspacePath, spawnCwd, worktreeSpawnOpts, autoApprove, permissionMode, backend, isPi, worktreeEnabled, state.computerUse, state.browserUse, handleDestroySession])
 
   const toggleWorktreeSession = useCallback(() => {
     if (!activeSessionId || !workspacePath) return
     const next = !worktreeEnabled
     setWorktreeEnabled(next)
+    onWorktreeChange?.({ enableWorktree: next })
     handleDestroySession(activeSessionId)
     const { cliCommand, configDir } = readAiCliConfig()
     aiStore.ensureCreated(activeSessionId, {
-      cwd: workspacePath,
+      cwd: spawnCwd,
       autoApprove,
       permissionMode,
       backend,
       cliCommand,
       configDir,
-      ...(next && !isPi ? { enableWorktree: true } : {}),
+      ...(next && !worktreePath && !isPi ? { enableWorktree: true } : {}),
       computerUse: state.computerUse,
       browserUse: state.browserUse,
     })
     onViewAi()
-  }, [activeSessionId, workspacePath, autoApprove, permissionMode, backend, isPi, worktreeEnabled, state.computerUse, state.browserUse, handleDestroySession, onViewAi])
+  }, [activeSessionId, workspacePath, spawnCwd, worktreePath, autoApprove, permissionMode, backend, isPi, worktreeEnabled, state.computerUse, state.browserUse, handleDestroySession, onViewAi, onWorktreeChange])
 
   useEffect(() => {
     if (!activeSessionId || !workspacePath || !state.worktreePath || !onWorktreeNavChange) return
@@ -470,7 +489,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         }
       }
     })
-  }, [activeSessionId, workspacePath, state.worktreePath, onWorktreeNavChange])
+    // CLI 刚建好的 worktree 落回会话属性：重启后按它 resume，不再重复创建
+    if (wtp !== worktreePath) onWorktreeChange?.({ worktreePath: wtp, enableWorktree: true })
+  }, [activeSessionId, workspacePath, state.worktreePath, worktreePath, onWorktreeChange, onWorktreeNavChange])
 
   // ── Smart auto-scroll: passive listener + threshold ──
   // scrollContainer 在空会话(showEmptyCenter)时不渲染,挂载时机由
@@ -713,8 +734,12 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   dispatchMessageRef.current = dispatchMessage
 
-  // 图只在轮次落定后重扫盘：busy 期间钉住不变，避免每条 assistant 分段都重读 JSONL
-  const graphRefreshSignal = useMemo(() => (state.busy ? 0 : state.messages.length), [state.busy, state.messages.length])
+  // 图只在轮次落定后重扫盘：busy 期间钉住不变，避免每条 assistant 分段都重读 JSONL；
+  // graphSentTick 让"就在图里发的这条"立刻带出新节点，不用等整轮跑完
+  const graphRefreshSignal = useMemo(
+    () => (state.busy ? 0 : state.messages.length) + ':' + (branchRevision ?? 0) + ':' + graphSentTick,
+    [state.busy, state.messages.length, branchRevision, graphSentTick],
+  )
 
   // ── 网状视图：在选中轮上分叉/续聊/跳转 ──
   const handleGraphForkSend = useCallback(async (node: AiGraphNode, text: string) => {
@@ -722,20 +747,26 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   }, [onGraphForkSend])
 
   const handleGraphSendHere = useCallback((text: string) => {
-    setGraphView(false)
+    setGraphSentTick(v => v + 1)
     dispatchMessage(text)
   }, [dispatchMessage])
 
-  const handleGraphSendToBranch = useCallback(async (claudeSessionId: string, text: string) => {
-    return onGraphSendToBranch ? onGraphSendToBranch(claudeSessionId, text) : false
+  const handleGraphSendToBranch = useCallback(async (claudeSessionId: string, cwd: string, text: string) => {
+    return onGraphSendToBranch ? onGraphSendToBranch(claudeSessionId, cwd, text) : false
   }, [onGraphSendToBranch])
 
-  const handleGraphOpenBranch = useCallback((claudeSessionId: string) => {
-    onGraphOpenBranch?.(claudeSessionId)
+  const handleGraphOpenBranch = useCallback((claudeSessionId: string, cwd: string) => {
+    onGraphOpenBranch?.(claudeSessionId, cwd)
   }, [onGraphOpenBranch])
+
+  const handleGraphForkWorktree = useCallback(async (node: AiGraphNode) => {
+    return onGraphForkWorktree ? await onGraphForkWorktree(node) : 'Unsupported'
+  }, [onGraphForkWorktree])
 
   // 双击活跃路径上的节点 → 回到消息视图并滚到该轮（按 content+occurrence 定位真实 user 轮）
   const handleGraphRevealTurn = useCallback((content: string, occurrence: number) => {
+    // 先退出网状视图：即使这一轮定位不到，双击也该回到普通对话，不能卡在图上
+    onGraphOpenChange?.(false)
     const want = content.trim()
     let realIdx = 0
     let seen = 0
@@ -749,9 +780,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       realIdx++
     }
     if (target < 0) return
-    setGraphView(false)
     setTimeout(() => jumpToUserTurn(target), 0)
-  }, [state.messages, jumpToUserTurn])
+  }, [state.messages, jumpToUserTurn, onGraphOpenChange])
 
   // ── Piped chip: interject send (stdin write while busy, same as pet) + inline edit ──
   const [editingPiped, setEditingPiped] = useState<string | null>(null)
@@ -1361,9 +1391,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           {/* Branch graph view */}
           {!isPi && (
             <button
-              onClick={() => setGraphView(v => !v)}
+              onClick={() => onGraphOpenChange?.(!graphOpen)}
               disabled={state.messages.length === 0}
-              className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${graphView ? 'ai-tab__header-btn--active bg-ide-active' : ''}`}
+              className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${graphOpen ? 'ai-tab__header-btn--active bg-ide-active' : ''}`}
               title={t('Branch Graph')}
             >
               <Network size={14} />
@@ -1403,13 +1433,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               handleDestroySession(activeSessionId)
               const { cliCommand, configDir } = readAiCliConfig()
               aiStore.ensureCreated(activeSessionId, {
-                cwd: workspacePath,
+                cwd: spawnCwd,
                 autoApprove,
                 permissionMode,
                 backend,
                 cliCommand,
                 configDir,
-                ...(worktreeEnabled && !isPi ? { enableWorktree: true } : {}),
+                ...worktreeSpawnOpts,
                 computerUse: state.computerUse,
                 browserUse: state.browserUse,
               })
@@ -1474,7 +1504,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         </div>
       )}
       {/* New conversation: 输入框居中,上方 icon + prompts 保持原位置 */}
-      {graphView && !showEmptyCenter ? (
+      {graphOpen && !showEmptyCenter ? (
         <ConversationGraph
           sessionId={activeSessionId}
           workspacePath={workspacePath || ''}
@@ -1485,6 +1515,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           onSendToBranch={handleGraphSendToBranch}
           onOpenBranch={handleGraphOpenBranch}
           onRevealTurn={handleGraphRevealTurn}
+          onForkWorktree={handleGraphForkWorktree}
         />
       ) : showEmptyCenter ? (
         <>

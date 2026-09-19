@@ -347,8 +347,10 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_USER_TURNS, { sessionId, cwd }),
     sessionGraph: (sessionId: string, cwd?: string, configDir?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SESSION_GRAPH, { sessionId, cwd, configDir }),
-    forkTurn: (payload: { sessionId: string; sourceClaudeSessionId: string; cwd: string; content: string; occurrence: number }) =>
+    forkTurn: (payload: { sessionId: string; sourceClaudeSessionId: string; cwd: string; content: string; occurrence: number; sourceCwd?: string; targetCwd?: string }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_FORK_TURN, payload),
+    createBranchWorktree: (payload: { sessionId: string; cwd?: string; configDir?: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_CREATE_BRANCH_WORKTREE, payload),
     onMessage: (callback: (data: any) => void) => {
       const handler = (_event: any, data: any) => callback(data)
       ipcRenderer.on(IPC_CHANNELS.AI_MESSAGE, handler)
