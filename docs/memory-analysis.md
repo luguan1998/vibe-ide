@@ -71,9 +71,10 @@ DevTools → Memory → Heap snapshot → `node scripts/analyze-heap.mjs <file.h
 
 ## 4. 第四层：内存转储（native 真相）★ 杀器
 
-生成（两种都不需要杀进程）：
+生成（都不需要杀进程）：
 - Task Manager → 右键进程 → 创建转储文件（完整）
-- `rundll32.exe C:\Windows\System32\comsvcs.dll, MiniDump <pid> <path> full`
+- `rundll32.exe C:\Windows\System32\comsvcs.dll, MiniDump <pid> <path> full`（**需管理员**，非管理员静默失败）
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dump-process.ps1 -TargetPid <pid> -Out <file.dmp>`（dbghelp P/Invoke，**非管理员可用**，默认 0x802 = 全内存 + MemoryInfoListStream）
 
 ⚠️ 坑：
 - comsvcs 转储文件 **ACL 受限**，读取前 `icacls <file> /grant "%USERNAME%":(R)`
@@ -83,6 +84,7 @@ DevTools → Memory → Heap snapshot → `node scripts/analyze-heap.mjs <file.h
 解析：
 - `node scripts/analyze-dmp.mjs <file.dmp>` — 进程计数/模块/top 已提交区域
 - `node scripts/dmp-peek.mjs <file.dmp> --scan 15` — 最大私有区域 + 内容指纹
+- `node scripts/dmp-peek.mjs <file.dmp> --summary` — 全部已提交区域按内容分类汇总（private/mapped/image 分开；类别=sparse-pool/blink-css-values/font-file/exec-code/heap-other 等）
 - `node scripts/dmp-peek.mjs <file.dmp> <VAhex> [lenMB]` — 单区域 hex + 字符串
 
 **区域指纹速查（用来认出"是谁的内存"）**：
@@ -314,3 +316,50 @@ w.minimize(); w.restore()       // 测合成层水分：最小化不释放，恢
 | 3 | 已加载对话常驻（§6d：6.4MB 对话 = 常驻 +39MB，3 连 +256MB，无 unload 路径） | 单会话几十 MB | 需设计对话/回退数据的落盘与卸载 |
 | 4 | 不用桌宠就关掉 | ~11MB + 停常驻动画 | 无 |
 | ⛔ | GPU 进程、无意义动画、毛玻璃、xterm WebGL | **不要动**（无稳定收益，见 §6/§8.2） | — |
+
+## 9. 渲染进程 512MB 转储构成（2026-09-19 线上打包版实例）
+
+对象：正在使用的 `dist/Vibe IDE-x64` 渲染进程（当时 1 个 cmd 终端会话；Get-Process private 530MB / ws 615MB）。
+工具：`scripts/dump-process.ps1`（非管理员 dbghelp 全内存转储，0x802 带 MemoryInfoListStream）+ `dmp-peek --summary`。
+转储内合计 1235.6MB = **PRIVATE 512MB**（任务管理器"内存"列口径）/ MAPPED 479MB / IMAGE 245MB。
+
+**私有 512MB 构成（--summary 分类，后经 dmp-payload.mjs 修正"活数据"口径）**：
+
+| 类别 | 大小 | 区域数 | 说明 |
+|---|---|---|---|
+| heap-other | 310.4MB | 1139 | JS 堆 + Blink 对象/资源缓存 + 长尾（此类别含大量半空池区，见下节载荷重估） |
+| sparse-pool | 116.7MB | 185 | 已提交未用（最大单块 88.5MB）；只有重启回收。旧 928MB 案例为 314MB |
+| blink-css-values | 68.5MB | 1 | 单个 CSS 值存储区（实际载荷仅 ~9MB） |
+| 私有 exec（RWX JIT） | ~16MB | — | V8 编译代码（203.7MB exec-code 中减去 188MB 的 exe 映像页） |
+| webgl / script-code-cache | ~0.4MB | 2 | 对比旧案例 WebGL 8MB / 代码缓存 46MB，大幅下降 |
+
+**载荷重估（`scripts/dmp-payload.mjs`，每区 8 点 × 64KB 采样估算实际数据占比）**：
+
+| 地址簇（推断归属） | committed | 实载荷（估） |
+|---|---|---|
+| 0x19b0…（V8 指针压缩 cage，4GB 对齐吻合） | 107.8MB | 60.6MB（56%） |
+| 0x628c…（PartitionAlloc 大对象/超级页池） | **220.8MB** | **16.2MB（7%）** |
+| 0x53dc…（PartitionAlloc 小对象池） | 131.6MB | 66.8MB（51%） |
+| 0x7ff8…（V8 JIT code，RWX） | 15.8MB | 12.5MB |
+| 其他簇 | ~36MB | ~18MB |
+| **合计** | **511.9MB** | **~174MB（34%）** |
+
+- 私有里只有 ~1/3 承载数据，~338MB 是已提交空容量（池）。**UI 显示占用大 ≠ 数据多**——重估前把 heap-other 当"活数据"会严重高估。
+- JS 堆 ~60MB 与启动基线（§6d 的 55–66MB）持平：开一个对话并不显著撑大堆；"用着用着变大"主体是池容量只涨不缩。
+- 空容量集中在 0x628c 簇（220MB 只用了 7%）：88.5MB 全零块、CSS 值区 68.5MB（载荷 ~9MB）都是它的成员。
+- heap-other 内可直接归因的样本区（内容指纹）：Shiki/TextMate shell 语法正则表 12.5MB、KaTeX 符号表 8.3MB、
+  Electron preload 模块表 8.3MB、Vite 模块地图与 Monaco js/ts 语言包脚本源 12.2MB、文档树文本（CLAUDE.md 内容）。
+- **`@typescript/lib-*` 0MB —— ts worker 关闭在线上构建中确认生效**（对照旧案例 ~60MB）。
+
+**非私有部分（任务管理器"内存"列不含，属本进程虚拟地址空间里的文件映射）**：
+- IMAGE 245MB：其中 ~188MB 是 Vibe IDE.exe（Electron 主程序）映像的代码/只读页，全进程共享
+- MAPPED 字体 354.8MB：25 个 ≥1MB 映射 = **9 个唯一字体文件（95.2MB）+ 249MB 重复映射**
+  （SimSun×6、Noto Sans SC×6、msyh 常规×3/粗×2、Segoe UI Emoji×2、霞鹜文楷 GB×2…）。
+  根因：**Chromium 已知 bug**——renderer 每次字体匹配请求都新开一个文件映射且整个进程生命周期不释放
+  （issues.chromium.org/460405907；同类历史 BUG=430021 曾 mmap ~200 次致 OOM；上游修复=FontDataManager 加映射缓存）。
+  影响面：文件后备页多份映射共享物理页、不进"专用工作集"，实际成本 ≈ 唯一字体驻留部分（全系统共享、可回收）+ 页表。
+  本项目无 @font-face（grep 过），是 Chromium/DirectWrite 行为，应用侧无法修；Electron 升级含修复版本后收敛。
+- mapped-other 120.7MB + nodata 60.3MB（54 区转储时不可达）
+
+**判读**：与 §6d/§8 的旧构成相比无新增异常项；私有 = ~174MB 实数据（含 Monaco 预载/AI 渲染栈等常驻）+ ~338MB 池空容量。
+字体/映像映射看似 700MB+ 但不进私有口径（其中字体重复映射是上游 bug，无害但可关注 Electron 升级）。
