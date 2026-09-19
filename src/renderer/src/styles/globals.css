@@ -1305,27 +1305,23 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
   backdrop-filter: none;
   transition: background-color .15s;
 }
-/* cwd 组头 hover 左侧竖条：session 行 hover 只有底色，靠这条线区分「组头 / 行」 */
-.session-group__header::before {
+/* cwd 组头 hover = 底部横线扫入（无底色）；session 行 hover = 底色块，两种形态区分组头与行 */
+.session-group__header::after {
   content: '';
   position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
+  left: 8px;
+  right: 8px;
+  bottom: 2px;
+  height: 2px;
   border-radius: 99px;
   background: rgb(var(--ide-accent));
-  opacity: 0;
-  transform: scaleY(.4);
-  transition: opacity .15s, transform .15s;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .2s ease-out;
   pointer-events: none;
 }
-.session-group__header:hover {
-  background: rgb(var(--ide-hover) / 0.55);
-}
-.session-group__header:hover::before {
-  opacity: 1;
-  transform: scaleY(1);
+.session-group__header:hover::after {
+  transform: scaleX(1);
 }
 .session-group__path {
   font-size: 14px;
