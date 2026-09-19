@@ -18,11 +18,14 @@ interface Positioned {
 
 function layoutGraph(nodes: AiGraphNode[]): { items: Positioned[]; width: number; height: number } {
   if (nodes.length === 0) return { items: [], width: 0, height: 0 }
+  // 按 (时间, id) 固定排序后再喂 dagre：切分支时目录扫描顺序会变，
+  // 节点数组顺序跟着变，不排序的话同一张图会排出不同位置
+  const sorted = [...nodes].sort((a, b) => (a.timestamp - b.timestamp) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   const g = new dagre.graphlib.Graph()
   g.setGraph({ rankdir: 'LR', ranksep: RANK_SEP, nodesep: NODE_SEP, marginx: 32, marginy: 32 })
   g.setDefaultEdgeLabel(() => ({}))
-  for (const n of nodes) g.setNode(n.id, { width: NODE_W, height: NODE_H })
-  for (const n of nodes) if (n.parentId && g.hasNode(n.parentId)) g.setEdge(n.parentId, n.id)
+  for (const n of sorted) g.setNode(n.id, { width: NODE_W, height: NODE_H })
+  for (const n of sorted) if (n.parentId && g.hasNode(n.parentId)) g.setEdge(n.parentId, n.id)
   dagre.layout(g)
 
   const items: Positioned[] = []
@@ -119,10 +122,12 @@ export default function ConversationGraph({
   const fittedFor = useRef<string | null>(null)
   useEffect(() => {
     if (items.length === 0) return
-    if (fittedFor.current === sessionId) return
-    fittedFor.current = sessionId
+    // 只在换了一组对话（rootId 变）时才重新铺满视图；同一组里切分支、长出新节点都不动视野
+    const key = graph?.rootId ?? sessionId
+    if (fittedFor.current === key) return
+    fittedFor.current = key
     fit()
-  }, [items.length, sessionId, fit])
+  }, [items.length, graph?.rootId, sessionId, fit])
 
   useEffect(() => {
     const el = viewportRef.current
