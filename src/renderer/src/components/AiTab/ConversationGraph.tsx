@@ -1,0 +1,333 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import dagre from 'dagre'
+import { GitBranch, Loader2, Maximize2, Plus, RefreshCw, Send } from 'lucide-react'
+import type { AiGraph, AiGraphNode } from '@shared/types'
+import { useI18n } from '../../i18n'
+import { readAiCliConfig } from '../../aiStore'
+
+const NODE_W = 236
+const NODE_H = 118
+const RANK_SEP = 68
+const NODE_SEP = 18
+
+interface Positioned {
+  node: AiGraphNode
+  x: number
+  y: number
+}
+
+function layoutGraph(nodes: AiGraphNode[]): { items: Positioned[]; width: number; height: number } {
+  if (nodes.length === 0) return { items: [], width: 0, height: 0 }
+  const g = new dagre.graphlib.Graph()
+  g.setGraph({ rankdir: 'LR', ranksep: RANK_SEP, nodesep: NODE_SEP, marginx: 32, marginy: 32 })
+  g.setDefaultEdgeLabel(() => ({}))
+  for (const n of nodes) g.setNode(n.id, { width: NODE_W, height: NODE_H })
+  for (const n of nodes) if (n.parentId && g.hasNode(n.parentId)) g.setEdge(n.parentId, n.id)
+  dagre.layout(g)
+
+  const items: Positioned[] = []
+  let width = 0
+  let height = 0
+  for (const n of nodes) {
+    const gn = g.node(n.id)
+    if (!gn) continue
+    const x = gn.x - NODE_W / 2
+    const y = gn.y - NODE_H / 2
+    items.push({ node: n, x, y })
+    width = Math.max(width, x + NODE_W + 32)
+    height = Math.max(height, y + NODE_H + 32)
+  }
+  return { items, width: Math.max(width, 400), height: Math.max(height, 300) }
+}
+
+function edgePath(from: Positioned, to: Positioned): string {
+  const x1 = from.x + NODE_W
+  const y1 = from.y + NODE_H / 2
+  const x2 = to.x
+  const y2 = to.y + NODE_H / 2
+  const mid = (x1 + x2) / 2
+  return `M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2},${y2}`
+}
+
+function relTime(ts: number, t: (k: string) => string): string {
+  if (!ts) return ''
+  const diff = Date.now() - ts
+  if (diff < 60_000) return t('just now')
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`
+  return `${Math.floor(diff / 86_400_000)}d`
+}
+
+interface ConversationGraphProps {
+  sessionId: string | null
+  workspacePath: string
+  isActive: boolean
+  refreshSignal: number
+  onForkSend: (node: AiGraphNode, text: string) => Promise<boolean>
+  onSendInThisSession: (text: string) => void
+  onSendToBranch: (claudeSessionId: string, text: string) => Promise<boolean>
+  onOpenBranch: (claudeSessionId: string) => void
+  onRevealTurn: (content: string, occurrence: number) => void
+}
+
+export default function ConversationGraph({
+  sessionId, workspacePath, isActive, refreshSignal,
+  onForkSend, onSendInThisSession, onSendToBranch, onOpenBranch, onRevealTurn,
+}: ConversationGraphProps): React.ReactElement {
+  const { t } = useI18n()
+  const [graph, setGraph] = useState<AiGraph | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  const [view, setView] = useState({ x: 0, y: 0, k: 1 })
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const panRef = useRef<{ sx: number; sy: number; vx: number; vy: number; moved: boolean } | null>(null)
+  const [panning, setPanning] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const load = useCallback(async () => {
+    if (!sessionId || !workspacePath) return
+    const { configDir } = readAiCliConfig()
+    setLoading(true)
+    try {
+      const g: AiGraph | null = await window.api.ai.sessionGraph(sessionId, workspacePath, configDir)
+      setGraph(g)
+    } catch {
+      setGraph(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [sessionId, workspacePath])
+
+  useEffect(() => { if (isActive) load() }, [isActive, load, refreshSignal])
+
+  const { items, width, height } = useMemo(() => layoutGraph(graph?.nodes ?? []), [graph])
+  const posById = useMemo(() => new Map(items.map(i => [i.node.id, i])), [items])
+
+  const fit = useCallback(() => {
+    const el = viewportRef.current
+    if (!el || items.length === 0) return
+    const { clientWidth: vw, clientHeight: vh } = el
+    const k = Math.min(vw / width, vh / height, 1) * 0.94
+    setView({ k, x: (vw - width * k) / 2, y: (vh - height * k) / 2 })
+  }, [items, width, height])
+
+  const fittedFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (items.length === 0) return
+    if (fittedFor.current === sessionId) return
+    fittedFor.current = sessionId
+    fit()
+  }, [items.length, sessionId, fit])
+
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const cx = e.clientX - rect.left
+      const cy = e.clientY - rect.top
+      setView(v => {
+        const k = Math.max(0.15, Math.min(2, v.k * (e.deltaY > 0 ? 0.9 : 1.1)))
+        return { k, x: cx - (cx - v.x) * (k / v.k), y: cy - (cy - v.y) * (k / v.k) }
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const p = panRef.current
+      if (!p) return
+      const dx = e.clientX - p.sx
+      const dy = e.clientY - p.sy
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) p.moved = true
+      setView(v => ({ ...v, x: p.vx + dx, y: p.vy + dy }))
+    }
+    const onUp = () => { panRef.current = null; setPanning(false) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  }, [])
+
+  const startPan = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    panRef.current = { sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false }
+    setPanning(true)
+  }, [view.x, view.y])
+
+  const selected = selectedId ? graph?.nodes.find(n => n.id === selectedId) ?? null : null
+  const tipBranch = selected?.tipBranchIds[0] ?? null
+  const isCurrentTip = tipBranch === graph?.activeClaudeSessionId
+  const action: 'send' | 'continue' | 'fork' = !selected ? 'fork'
+    : selected.tipBranchIds.length === 0 ? 'fork'
+    : isCurrentTip ? 'send' : 'continue'
+
+  // 分叉/切分支失败（源文件缺失等）时保留草稿，别把用户刚敲的整段吞掉
+  const submit = useCallback(async () => {
+    const text = draft.trim()
+    if (!text || !selected || sending) return
+    if (action === 'send') { setDraft(''); onSendInThisSession(text); return }
+    setSending(true)
+    try {
+      const ok = action === 'fork' ? await onForkSend(selected, text) : await onSendToBranch(tipBranch!, text)
+      if (ok) setDraft('')
+    } finally {
+      setSending(false)
+    }
+  }, [draft, selected, sending, action, tipBranch, onForkSend, onSendToBranch, onSendInThisSession])
+
+  useEffect(() => { setSelectedId(null); setDraft('') }, [sessionId])
+
+  const nodeClick = useCallback((e: React.MouseEvent, id: string) => {
+    if (panRef.current?.moved) return
+    e.stopPropagation()
+    setSelectedId(prev => (prev === id ? null : id))
+  }, [])
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="shrink-0 flex items-center gap-2 px-3 h-8 border-b border-ide-border text-xs text-ide-text-muted">
+        <GitBranch className="w-3.5 h-3.5" />
+        <span className="font-medium text-ide-text">{t('Branch Graph')}</span>
+        {graph && <span>{graph.nodes.length} {t('turns')} · {graph.branches.length} {t('branches')}</span>}
+        <div className="flex-1" />
+        <button className="p-1 rounded hover:bg-ide-hover hover:text-ide-text transition-colors" title={t('Fit to view')} onClick={fit}>
+          <Maximize2 className="w-3.5 h-3.5" />
+        </button>
+        <button className="p-1 rounded hover:bg-ide-hover hover:text-ide-text transition-colors" title={t('Refresh')} onClick={load}>
+          <RefreshCw className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      <div
+        ref={viewportRef}
+        className="flex-1 min-h-0 relative overflow-hidden bg-ide-bg"
+        style={{ cursor: panning ? 'grabbing' : 'grab' }}
+        onMouseDown={startPan}
+      >
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center text-ide-text-muted gap-2 text-xs">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />{t('Loading...')}
+          </div>
+        )}
+        {!loading && items.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-ide-text-muted text-xs">
+            {t('No conversation to map yet')}
+          </div>
+        )}
+        <div style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`, transformOrigin: '0 0', width, height, position: 'absolute', top: 0, left: 0 }}>
+          <svg width={width} height={height} className="absolute top-0 left-0" style={{ pointerEvents: 'none' }}>
+            {items.map(({ node }) => {
+              if (!node.parentId) return null
+              const parent = posById.get(node.parentId)
+              if (!parent) return null
+              const active = node.active
+              return (
+                <path
+                  key={`e-${node.id}`}
+                  d={edgePath(parent, posById.get(node.id) ?? parent)}
+                  fill="none"
+                  stroke={active ? 'rgb(var(--ide-accent))' : 'rgb(var(--ide-border))'}
+                  strokeWidth={active ? 2 : 1.5}
+                  opacity={active ? 0.85 : 0.7}
+                />
+              )
+            })}
+          </svg>
+          {items.map(({ node, x, y }) => {
+            const selfSelected = node.id === selectedId
+            return (
+              <div
+                key={node.id}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => nodeClick(e, node.id)}
+                onDoubleClick={(e) => { e.stopPropagation(); if (node.active) onRevealTurn(node.fork.content, node.fork.occurrence) }}
+                style={{ left: x, top: y, width: NODE_W, height: NODE_H }}
+                className={`absolute rounded-md border px-2.5 py-2 flex flex-col gap-1 cursor-pointer transition-colors ${
+                  selfSelected
+                    ? 'border-ide-accent bg-ide-active'
+                    : node.active
+                      ? 'border-ide-accent/50 bg-ide-panel hover:bg-ide-active'
+                      : 'border-ide-border bg-ide-sidebar hover:bg-ide-panel'
+                }`}
+              >
+                <div className="flex items-start gap-1.5">
+                  {node.active && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-ide-accent shrink-0" />}
+                  <div className="text-[11px] leading-snug text-ide-text font-medium line-clamp-2 break-words">{node.title || t('(empty)')}</div>
+                </div>
+                <div className="text-[10px] leading-snug text-ide-text-muted line-clamp-2 break-words flex-1">
+                  {node.preview || t('(no reply)')}
+                </div>
+                <div className="flex items-center gap-2 text-[9px] text-ide-text-muted">
+                  <span>{relTime(node.timestamp, t)}</span>
+                  {node.toolCallCount > 0 && <span>{node.toolCallCount} {t('tools')}</span>}
+                  {node.tipBranchIds.length > 0 && <GitBranch className="w-2.5 h-2.5" />}
+                  <div className="flex-1" />
+                  <button
+                    className="opacity-60 hover:opacity-100 hover:text-ide-accent transition-opacity"
+                    title={t('Continue from this turn')}
+                    onClick={(e) => { e.stopPropagation(); setSelectedId(node.id); setTimeout(() => textareaRef.current?.focus(), 0) }}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="shrink-0 border-t border-ide-border px-3 py-2">
+        {selected ? (
+          <>
+            <div className="flex items-center gap-2 text-[10px] text-ide-text-muted mb-1.5">
+              <span className="truncate flex-1">
+                {action === 'send' ? t('Sending in current branch') : action === 'continue' ? t('Continue in that branch') : t('Fork a new branch')}
+                {' · '}
+                <span className="text-ide-text">{selected.title}</span>
+              </span>
+              {tipBranch && tipBranch !== graph?.activeClaudeSessionId && (
+                <button
+                  className="shrink-0 px-1.5 py-0.5 rounded border border-ide-border hover:border-ide-accent hover:text-ide-accent transition-colors"
+                  onClick={() => onOpenBranch(tipBranch)}
+                >
+                  {t('Open branch')}
+                </button>
+              )}
+            </div>
+            <div className="flex items-end gap-2">
+              <textarea
+                ref={textareaRef}
+                autoFocus
+                rows={2}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit() }
+                }}
+                placeholder={action === 'fork' ? t('Message to start a new branch...') : t('Message...')}
+                className="flex-1 resize-none bg-ide-bg border border-ide-border rounded px-2 py-1.5 text-xs text-ide-text outline-none focus:border-ide-accent"
+              />
+              <button
+                disabled={!draft.trim() || sending}
+                onClick={submit}
+                className="shrink-0 h-8 px-3 rounded bg-ide-accent text-white text-xs font-medium flex items-center gap-1.5 disabled:opacity-40 hover:bg-ide-accent-hover transition-colors"
+              >
+                {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                {action === 'fork' ? t('Fork & Send') : t('Send')}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="text-[10px] text-ide-text-muted py-1.5">
+            {t('Click a turn to continue from there. Drag to pan, scroll to zoom.')}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

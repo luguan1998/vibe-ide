@@ -22,6 +22,8 @@ export interface SessionTab {
   resumeCwd?: string
   dshSessionId?: string
   aiBackend?: 'claude' | 'pi'
+  // 网状对话的分支会话：不在左侧列表占位，由图视图「打开分支」进入
+  hidden?: boolean
   loaded: boolean
 }
 
@@ -67,6 +69,7 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           resumeCwd: typeof t.resumeCwd === 'string' ? t.resumeCwd : undefined,
           dshSessionId: typeof t.dshSessionId === 'string' ? t.dshSessionId : undefined,
           aiBackend: t.aiBackend === 'pi' ? 'pi' : t.aiBackend === 'claude' ? 'claude' : undefined,
+          hidden: t.hidden === true ? true : undefined,
           loaded: t.kind === 'terminal' ? !!t.loaded : false,
         })
       }

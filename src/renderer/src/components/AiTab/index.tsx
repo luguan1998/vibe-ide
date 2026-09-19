@@ -1,14 +1,15 @@
 export { ChatMarkdown, StreamingMarkdown } from './markdown'
 export { InlineAnnotationInput } from './permissions'
 import React, { useState, useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import type { AiSessionState, AiPermissionMode, RecentFileEntry } from '@shared/types'
+import type { AiSessionState, AiPermissionMode, RecentFileEntry, AiGraphNode } from '@shared/types'
 import { useI18n } from '../../i18n'
 import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { loadFilterRules } from '../FileTab'
-import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig } from '../../aiStore'
+import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig, takePendingSend } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown } from 'lucide-react'
+import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown } from 'lucide-react'
 import { StreamingMarkdown } from './markdown'
+import ConversationGraph from './ConversationGraph'
 import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard, AiPermErrorBoundary } from './permissions'
@@ -36,6 +37,9 @@ interface AiTabProps {
   onRenameSession: (name: string) => void
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   onForkSession?: (userMessageIndex: number, content?: string, occurrence?: number) => void
+  onGraphForkSend?: (node: AiGraphNode, text: string) => Promise<boolean>
+  onGraphSendToBranch?: (claudeSessionId: string, text: string) => boolean
+  onGraphOpenBranch?: (claudeSessionId: string) => void
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   resumeSessionId?: string
   brushActive?: boolean
@@ -64,7 +68,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 const EDGE_HOVER_PX = 48
-const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -140,6 +144,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const [sessionHistoryOpen, setSessionHistoryOpen] = useState(false)
   const [sessionHistoryList, setSessionHistoryList] = useState<any[]>([])
   const [viewMode, setViewMode] = useState(0) // 0=compact (tools collapsed to summary), 1=hide tools+think
+  const [graphView, setGraphView] = useState(false) // 网状对话视图
   const [worktreeEnabled, setWorktreeEnabled] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
 
@@ -392,6 +397,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       browserUse: state.browserUse,
     })
   }, [activeSessionId, workspacePath, worktreeEnabled, backend, isPi])
+
+  // ── 网状视图投递：分支会话就绪后把它携带的文本发出去 ──
+  useEffect(() => {
+    if (!activeSessionId || !state.ready || state.busy) return
+    const text = takePendingSend(activeSessionId)
+    if (text) dispatchMessageRef.current?.(text)
+  }, [activeSessionId, state.ready, state.busy, state.pendingSendTick])
 
   // ── Cleanup destroyed sessions ──
   const handleDestroySession = useCallback((sessionId: string) => {
@@ -700,6 +712,46 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   }, [activeSessionId, updateSession, isPi, handleDestroySession, workspacePath, autoApprove, permissionMode])
 
   dispatchMessageRef.current = dispatchMessage
+
+  // 图只在轮次落定后重扫盘：busy 期间钉住不变，避免每条 assistant 分段都重读 JSONL
+  const graphRefreshSignal = useMemo(() => (state.busy ? 0 : state.messages.length), [state.busy, state.messages.length])
+
+  // ── 网状视图：在选中轮上分叉/续聊/跳转 ──
+  const handleGraphForkSend = useCallback(async (node: AiGraphNode, text: string) => {
+    return onGraphForkSend ? await onGraphForkSend(node, text) : false
+  }, [onGraphForkSend])
+
+  const handleGraphSendHere = useCallback((text: string) => {
+    setGraphView(false)
+    dispatchMessage(text)
+  }, [dispatchMessage])
+
+  const handleGraphSendToBranch = useCallback(async (claudeSessionId: string, text: string) => {
+    return onGraphSendToBranch ? onGraphSendToBranch(claudeSessionId, text) : false
+  }, [onGraphSendToBranch])
+
+  const handleGraphOpenBranch = useCallback((claudeSessionId: string) => {
+    onGraphOpenBranch?.(claudeSessionId)
+  }, [onGraphOpenBranch])
+
+  // 双击活跃路径上的节点 → 回到消息视图并滚到该轮（按 content+occurrence 定位真实 user 轮）
+  const handleGraphRevealTurn = useCallback((content: string, occurrence: number) => {
+    const want = content.trim()
+    let realIdx = 0
+    let seen = 0
+    let target = -1
+    for (let i = 0; i < state.messages.length; i++) {
+      if (!isRealUserInput(state.messages, i)) continue
+      if ((state.messages[i].content || '').trim() === want) {
+        if (seen === occurrence) { target = realIdx; break }
+        seen++
+      }
+      realIdx++
+    }
+    if (target < 0) return
+    setGraphView(false)
+    setTimeout(() => jumpToUserTurn(target), 0)
+  }, [state.messages, jumpToUserTurn])
 
   // ── Piped chip: interject send (stdin write while busy, same as pet) + inline edit ──
   const [editingPiped, setEditingPiped] = useState<string | null>(null)
@@ -1306,6 +1358,17 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           >
             {conversationCopied ? <Check size={14} className="text-ide-accent" /> : <Copy size={14} />}
           </button>
+          {/* Branch graph view */}
+          {!isPi && (
+            <button
+              onClick={() => setGraphView(v => !v)}
+              disabled={state.messages.length === 0}
+              className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${graphView ? 'ai-tab__header-btn--active bg-ide-active' : ''}`}
+              title={t('Branch Graph')}
+            >
+              <Network size={14} />
+            </button>
+          )}
           {/* Toggle tool visibility */}
           <button
             onClick={() => setViewMode(v => (v + 1) % 2)}
@@ -1411,7 +1474,19 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         </div>
       )}
       {/* New conversation: 输入框居中,上方 icon + prompts 保持原位置 */}
-      {showEmptyCenter ? (
+      {graphView && !showEmptyCenter ? (
+        <ConversationGraph
+          sessionId={activeSessionId}
+          workspacePath={workspacePath || ''}
+          isActive={isActive}
+          refreshSignal={graphRefreshSignal}
+          onForkSend={handleGraphForkSend}
+          onSendInThisSession={handleGraphSendHere}
+          onSendToBranch={handleGraphSendToBranch}
+          onOpenBranch={handleGraphOpenBranch}
+          onRevealTurn={handleGraphRevealTurn}
+        />
+      ) : showEmptyCenter ? (
         <>
         <div className="ai-tab__empty flex-1 flex flex-col items-center justify-center min-h-0 px-2 gap-3 animate-fade-in">
             <div className="ai-tab__empty-icon animate-zap-glow text-ide-accent">

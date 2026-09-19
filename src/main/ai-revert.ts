@@ -6,6 +6,7 @@ import {
   IPC_CHANNELS,
   type AiRevertPayload,
   type AiForkPayload,
+  type AiForkTurnPayload,
   type UserTurn,
 } from '../shared/types'
 import {
@@ -228,6 +229,52 @@ export function registerRevertHandlers(): void {
       return { success: false, error: `Failed to write forked session: ${(err as Error).message}` }
     }
 
+    return { success: true, newClaudeSessionId }
+  })
+
+  // ── FORK AT TURN (网状视图：从任意一轮分叉)────────────────────────
+  // 与 AI_FORK 的差别：源文件不必有活跃 GUI 会话（分支文件常常是"已归档"的），
+  // 目标轮由 content + occurrence 定位，避免跨文件轮次索引漂移。
+  ipcMain.handle(IPC_CHANNELS.AI_FORK_TURN, async (_event, payload: AiForkTurnPayload) => {
+    const { sessionId, sourceClaudeSessionId, cwd, content, occurrence } = payload
+    const live = aiSessions.get(sessionId)
+    const effectiveCwd = live?.cwd || cwd
+    const configDir = live?.configDir
+    if (!effectiveCwd) return { success: false, error: 'No workspace path' }
+
+    const projectDir = resolveProjectDir(effectiveCwd, configDir)
+    if (!projectDir) return { success: false, error: 'Project directory not found under ~/.claude/projects/' }
+
+    let lines: string[]
+    try {
+      lines = (await readFile(join(projectDir, `${sourceClaudeSessionId}.jsonl`), 'utf-8')).split('\n').filter(Boolean)
+    } catch {
+      return { success: false, error: `Session file not found: ${sourceClaudeSessionId}` }
+    }
+
+    const turns = parseUserTurns(lines)
+    const occ = occurrence ?? 0
+    let targetTurnIdx = -1
+    let seen = 0
+    for (let i = 0; i < turns.length; i++) {
+      if (turns[i].content === content) {
+        if (seen === occ) { targetTurnIdx = i; break }
+        seen++
+      }
+    }
+    if (targetTurnIdx < 0) {
+      return { success: false, error: `Turn not found in forked source (occurrence ${occ})` }
+    }
+
+    const result = await truncateJsonlAtUserMessage(sourceClaudeSessionId, effectiveCwd, targetTurnIdx, true, configDir, content, occ)
+    if ('error' in result) return { success: false, error: result.error }
+
+    const newClaudeSessionId = randomUUID()
+    try {
+      await writeFile(join(projectDir, `${newClaudeSessionId}.jsonl`), result.truncated.join('\n') + '\n', 'utf-8')
+    } catch (err) {
+      return { success: false, error: `Failed to write forked session: ${(err as Error).message}` }
+    }
     return { success: true, newClaudeSessionId }
   })
 

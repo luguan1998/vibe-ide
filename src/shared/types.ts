@@ -157,6 +157,8 @@ export const IPC_CHANNELS = {
   AI_RESOLVE_CONFIG_DIR: 'ai:resolveConfigDir',
   AI_REVERT: 'ai:revert',
   AI_FORK: 'ai:fork',
+  AI_FORK_TURN: 'ai:forkTurn',             // invoke: 从任意一轮分叉（源文件可能没有活跃 GUI 会话）
+  AI_SESSION_GRAPH: 'ai:sessionGraph',     // invoke: 合并同组分叉文件 → 网状对话树
   AI_LIST_USER_TURNS: 'ai:listUserTurns',  // invoke: real user turns from JSONL (single source of truth for revert index)
   AI_REPLY_INIT: 'ai:replyInit',          // invoke: init reply cursor for a session (pet bubble, TUI+GUI unified)
   AI_REPLY_STOP: 'ai:replyStop',          // invoke: clear reply cursor
@@ -637,6 +639,45 @@ export interface UserTurn {
   isInternal: boolean
 }
 
+// ── 网状对话（graph view）────────────────────────────────────────
+// 一轮对话 = 一个节点；分支 = 从某个节点再长出一条会话（分叉文件）。
+// 同一棵树的文件共享 uuid 前缀，按 uuid 去重合并即得整图。
+
+export interface AiGraphFork {
+  claudeSessionId: string  // 承载该轮的分支文件（fork 的复制源）
+  content: string          // 该轮 user 文本（fork 按内容+occurrence 定位）
+  occurrence: number       // 同一文本第几次出现
+}
+
+export interface AiGraphNode {
+  id: string               // 该轮 user 行的 uuid
+  parentId: string | null
+  title: string            // user 文本摘要
+  preview: string          // 该轮 assistant 回复摘要
+  timestamp: number
+  toolCallCount: number
+  hasReply: boolean
+  depth: number
+  active: boolean          // 在当前会话的路径上
+  branchIds: string[]      // 包含该轮的会话文件
+  tipBranchIds: string[]   // 以该轮为末尾的会话文件（可直接续聊，无需分叉）
+  fork: AiGraphFork
+}
+
+export interface AiGraphBranch {
+  claudeSessionId: string
+  turnCount: number
+  tipNodeId: string | null
+  createdAt: number
+}
+
+export interface AiGraph {
+  rootId: string
+  activeClaudeSessionId: string
+  nodes: AiGraphNode[]
+  branches: AiGraphBranch[]
+}
+
 export interface AiPermissionRequest {
   sessionId: string
   requestId: string       // tool_use_id from control_request
@@ -739,6 +780,8 @@ export interface AiSessionState {
   browserUse?: boolean
   // busy 时发消息（插话）打点：isAborted result 至此 5s 内视为"中断切轮"，busy 保持 true
   interjectingAt?: number
+  // 网状视图投递待发消息时自增，唤醒 AiTab 的投递 effect（已 ready 的会话不会因 ready 变化重跑）
+  pendingSendTick?: number
   runningTools: Record<string, AiRunningTool>
 }
 
@@ -859,4 +902,12 @@ export interface AiForkPayload {
   cwd: string
   content?: string
   occurrence?: number
+}
+
+export interface AiForkTurnPayload {
+  sessionId: string              // 发起分叉的活跃会话（提供 cwd / configDir）
+  sourceClaudeSessionId: string  // 复制源分支文件
+  cwd: string
+  content: string                // 目标轮的 user 文本
+  occurrence: number
 }

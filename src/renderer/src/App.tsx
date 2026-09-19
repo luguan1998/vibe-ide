@@ -28,13 +28,13 @@ import { DirectoryPicker } from './components/DirectoryPicker'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import BoardView, { BOARD_FOCUS } from './components/BoardView'
-import { aiStore, readAiCliConfig } from './aiStore'
+import { aiStore, readAiCliConfig, queuePendingSend } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import iconPattern from '@renderer/assets/icon-pattern.png?inline'
 import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, toRelPath } from './components/vibeEvents'
-import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult } from '@shared/types'
+import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
 import { cwdStore, useKeptGroups, mergeGroupOrder } from './cwdStore'
@@ -207,6 +207,8 @@ declare global {
         respondPermission: (sessionId: string, requestId: string, approved: boolean, tool?: string, toolInput?: Record<string, any>, feedback?: string) => Promise<{ success: boolean }>
         clearAndExecutePlan: (sessionId: string, planFilePath: string, model?: string, resume?: boolean) => Promise<{ success: boolean; error?: string }>
         listUserTurns: (sessionId: string, cwd: string) => Promise<any>
+        sessionGraph: (sessionId: string, cwd?: string, configDir?: string) => Promise<import('@shared/types').AiGraph | null>
+        forkTurn: (payload: { sessionId: string; sourceClaudeSessionId: string; cwd: string; content: string; occurrence: number }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
         setPermissionMode: (sessionId: string, mode: string) => Promise<{ success: boolean; error?: string }>
         setModel: (sessionId: string, model: string) => Promise<{ success: boolean; error?: string }>
         resolveModels: (sessionId?: string) => Promise<{ default: string; opus: string; sonnet: string; haiku: string }>
@@ -2316,6 +2318,59 @@ export default function App() {
     }
   }, [sessions, autoUtf8])
 
+  // ── 网状对话：分支会话按 claudeSessionId 找/建（隐藏，不进左侧列表）──
+  const openBranchTab = useCallback((claudeSessionId: string, cwd: string, parentId: string | null): string => {
+    const existing = sessionsRef.current.find(s => s.resumeSessionId === claudeSessionId)
+    if (existing) {
+      setActiveSessionId(existing.id)
+      applySessionTabPolicy(existing.id)
+      return existing.id
+    }
+    const tab: SessionTab = {
+      ...makeLocalSession(cwd),
+      kind: 'gui',
+      hidden: true,
+      resumeSessionId: claudeSessionId,
+      resumeCwd: cwd,
+      loaded: true,
+    }
+    addSessionRecord(tab, parentId)
+    return tab.id
+  }, [applySessionTabPolicy, addSessionRecord])
+
+  // 从图上某一轮分叉：复制前缀到新 JSONL → 新分支会话 → 切过去 → 待发文本交给它
+  const handleGraphForkSend = useCallback(async (sessionId: string, node: AiGraphNode, text: string): Promise<boolean> => {
+    const current = sessionsRef.current.find(s => s.id === sessionId)
+    if (!current) return false
+    const result = await window.api.ai.forkTurn({
+      sessionId,
+      sourceClaudeSessionId: node.fork.claudeSessionId,
+      cwd: current.cwd,
+      content: node.fork.content,
+      occurrence: node.fork.occurrence,
+    })
+    if (!result?.success || !result.newClaudeSessionId) {
+      console.error('Fork turn failed:', result?.error)
+      return false
+    }
+    const tabId = openBranchTab(result.newClaudeSessionId, current.cwd, sessionId)
+    queuePendingSend(tabId, text)
+    return true
+  }, [openBranchTab])
+
+  const handleGraphSendToBranch = useCallback((sessionId: string, claudeSessionId: string, text: string): boolean => {
+    const current = sessionsRef.current.find(s => s.id === sessionId)
+    if (!current) return false
+    queuePendingSend(openBranchTab(claudeSessionId, current.cwd, sessionId), text)
+    return true
+  }, [openBranchTab])
+
+  const handleGraphOpenBranch = useCallback((sessionId: string, claudeSessionId: string) => {
+    const current = sessionsRef.current.find(s => s.id === sessionId)
+    if (!current) return
+    openBranchTab(claudeSessionId, current.cwd, sessionId)
+  }, [openBranchTab])
+
   // dsh 会话内 fork（「在新对话中分支」）：dsh 侧已生成子会话（历史=分叉前缀），
   // 这里为它建 Vibe session（id=childId 收养 dsh 子会话），插到源会话下方并切换。
   React.useEffect(() => {
@@ -3591,6 +3646,9 @@ export default function App() {
                         onForkSession={(userMessageIndex: number, content?: string, occurrence?: number) => {
                           handleForkSession(session.id, userMessageIndex, content, occurrence)
                         }}
+                        onGraphForkSend={(node: AiGraphNode, text: string) => handleGraphForkSend(session.id, node, text)}
+                        onGraphSendToBranch={(claudeSessionId: string, text: string) => handleGraphSendToBranch(session.id, claudeSessionId, text)}
+                        onGraphOpenBranch={(claudeSessionId: string) => handleGraphOpenBranch(session.id, claudeSessionId)}
                         onAgentStatusChange={handleAiAgentStatusChange}
                         brushActive={brushActive}
                         lastOpenedFile={lastOpenedFile}

@@ -10,6 +10,7 @@ import { registerDshHandlers, cleanupDsh, setDshMainWindow } from './dsh'
 import { registerPlanExecuteHandlers } from './ai-plan-execute'
 import { registerAskResumeHandlers } from './ai-ask-resume'
 import { registerRevertHandlers } from './ai-revert'
+import { registerTreeHandlers } from './ai-tree'
 import { registerHistoryHandlers } from './ai-history'
 import { registerPiHistoryHandlers } from './pi'
 import { registerGitHandlers } from './git'
@@ -249,6 +250,7 @@ app.whenReady().then(() => {
   registerPlanExecuteHandlers()
   registerAskResumeHandlers()
   registerRevertHandlers()
+  registerTreeHandlers()
   registerHistoryHandlers()
   registerPiHistoryHandlers()
 

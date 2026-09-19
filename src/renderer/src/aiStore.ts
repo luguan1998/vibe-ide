@@ -87,6 +87,20 @@ let sessionStates: Record<string, AiSessionState> = {}
 const listeners = new Set<() => void>()
 const createdSessions = new Set<string>()
 
+// 网状视图投递：切到（或新建）分支会话后，由该会话的 AiTab 在 ready 时把文本发出去
+const pendingSends = new Map<string, string>()
+
+export function queuePendingSend(sid: string, text: string): void {
+  pendingSends.set(sid, text)
+  aiStore.updateSession(sid, (s) => ({ ...s, pendingSendTick: (s.pendingSendTick ?? 0) + 1 }))
+}
+
+export function takePendingSend(sid: string): string | undefined {
+  const text = pendingSends.get(sid)
+  if (text !== undefined) pendingSends.delete(sid)
+  return text
+}
+
 let pendingTokens = new Map<string, { text: string; thinking: string }>()
 let rafScheduled = false
 let lastFlush = 0
