@@ -48,10 +48,11 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [aiBubbleOpen, setAiBubbleOpen] = useState(false)
   const [latestReply, setLatestReply] = useState<{ messageId: string; text: string } | null>(null)
   const [replyBtw, setReplyBtw] = useState(false)
+  const [dragDir, setDragDir] = useState<'left' | 'right' | null>(null)
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const contextInputRef = useRef<HTMLTextAreaElement>(null)
-  const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number; moved: boolean } | null>(null)
+  const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number; lastX: number; moved: boolean } | null>(null)
   const singleClickTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const transientTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const lastShownReplyIdRef = useRef<string | null>(null)
@@ -167,7 +168,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     if (e.button !== 0) return
     const el = e.currentTarget as HTMLElement
     const rect = el.getBoundingClientRect()
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top, moved: false }
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top, lastX: e.clientX, moved: false }
     try { el.setPointerCapture(e.pointerId) } catch {}
   }, [])
 
@@ -182,6 +183,8 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       setAiBubbleOpen(false)
     }
     if (!d.moved) return
+    if (e.clientX !== d.lastX) setDragDir(e.clientX > d.lastX ? 'right' : 'left')
+    d.lastX = e.clientX
     const left = Math.max(0, Math.min(window.innerWidth - 8, d.origLeft + dx))
     const top = Math.max(0, Math.min(window.innerHeight - 8, d.origTop + dy))
     setPos({ left, top })
@@ -190,6 +193,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     const d = dragRef.current
     dragRef.current = null
+    setDragDir(null)
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch {}
     if (d && !d.moved) {
       const el = e.currentTarget as HTMLElement
@@ -431,9 +435,11 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   if (!manifest) return null
 
   const effectiveLogicalState = transientState ?? logicalState
-  const stateName = resolveStateName(effectiveLogicalState)
+  const stateName = dragDir
+    ? (dragDir === 'right' ? 'running-right' : 'running-left')
+    : resolveStateName(effectiveLogicalState)
   const stateFrames = manifest.states[stateName]?.frames ?? 1
-  const frames = getPetLogicalFramesOverride(effectiveLogicalState) ?? stateFrames
+  const frames = dragDir ? stateFrames : getPetLogicalFramesOverride(effectiveLogicalState) ?? stateFrames
   const defaultStyle: React.CSSProperties = (visible || (!popupOpen && !contextOpen))
     ? { left: 8, bottom: 8 }
     : { left: 70, bottom: 8 }
