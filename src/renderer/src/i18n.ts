@@ -283,7 +283,7 @@ const ZH_MAP: Record<string, string> = {
   'Pet States': '宠物状态',
   'Pet Idle': '空闲',
   'Pet Busy': '忙碌',
-  'Pet Warn': '警告',
+  'Pet Approval': '审批',
   'Pet Sleep': '睡眠',
   'Pet Double Tap': '双击宠物',
   'Pet Send Message': '发送消息',

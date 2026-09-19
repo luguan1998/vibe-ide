@@ -1,26 +1,26 @@
 import { getPetLogicalStateOverride } from './petSettings'
 
-// App 级逻辑状态：idle 空闲 / busy 忙碌 / warn 警告 / unfocused 未聚焦。
-// 优先级（高→低）：warn > busy > unfocused > idle。
+// App 级逻辑状态：idle 空闲 / busy 忙碌 / approval 审批 / unfocused 未聚焦。
+// 优先级（高→低）：approval > busy > unfocused > idle。
 // doubleTap / sendMessage 为单次触发事件，不参与持久状态优先级链。
-export type PetLogicalState = 'idle' | 'busy' | 'warn' | 'unfocused' | 'doubleTap' | 'sendMessage'
+export type PetLogicalState = 'idle' | 'busy' | 'approval' | 'unfocused' | 'doubleTap' | 'sendMessage'
 
 // 逻辑状态 → manifest 默认 state 名（用户可在设置里覆盖）。
 export const DEFAULT_PET_LOGICAL_STATE: Record<PetLogicalState, string> = {
   idle: 'idle',
   busy: 'running',
-  warn: 'failed',
+  approval: 'review',
   unfocused: 'waiting',
   doubleTap: 'waving',
   sendMessage: 'jumping',
 }
 
-export const PET_LOGICAL_STATES: PetLogicalState[] = ['idle', 'busy', 'warn', 'unfocused', 'doubleTap', 'sendMessage']
+export const PET_LOGICAL_STATES: PetLogicalState[] = ['idle', 'busy', 'approval', 'unfocused', 'doubleTap', 'sendMessage']
 
 export const PET_LOGICAL_LABEL: Record<PetLogicalState, string> = {
   idle: 'Pet Idle',
   busy: 'Pet Busy',
-  warn: 'Pet Warn',
+  approval: 'Pet Approval',
   unfocused: 'Pet Sleep',
   doubleTap: 'Pet Double Tap',
   sendMessage: 'Pet Send Message',

@@ -75,7 +75,7 @@ export function resetPetPos() {
   emit()
 }
 
-// 逻辑状态 → manifest state 名映射（用户可在设置里为 idle/busy/warn/unfocused 各选一个 row）。
+// 逻辑状态 → manifest state 名映射（用户可在设置里为 idle/busy/approval/unfocused 各选一个 row）。
 // 只做存储，类型与默认值由 stateMap.ts 持有，避免循环依赖。
 const LOGICAL_STATE_KEY = 'vibe-ide-pet-logical-states'
 

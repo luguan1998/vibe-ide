@@ -716,9 +716,9 @@ export default function App() {
     }
   }, [])
 
-  // 宠物逻辑状态：warn(全局) > busy(当前 session terminal|ai) > unfocused > idle
+  // 宠物逻辑状态：approval(全局) > busy(当前 session terminal|ai) > unfocused > idle
   const petLogicalState = useMemo<PetLogicalState>(() => {
-    if (Object.values(warnSessions).some(Boolean)) return 'warn'
+    if (Object.values(warnSessions).some(Boolean)) return 'approval'
     const sid = activeSessionId ?? ''
     if (terminalBusy[sid] || aiBusy[sid]) return 'busy'
     if (!appFocused) return 'unfocused'
