@@ -155,6 +155,10 @@
   background: transparent !important;
   padding: 0 !important;
 }
+/* 去掉全局 hover 扫入横线 — 本主题 cwd 是文件夹 tab 形态 */
+.session-group__header::after {
+  content: none !important;
+}
 /* cwd folder tab — 梯形包裹 emoji+path，加长右边，按钮不包裹 */
 .session-group__header > div:first-child {
   display: inline-flex !important;
