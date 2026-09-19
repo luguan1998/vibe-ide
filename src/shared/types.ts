@@ -35,6 +35,7 @@ export const IPC_CHANNELS = {
   GIT_DISCARD: 'git:discard',
   GIT_REMOTE_BRANCHES: 'git:remoteBranches',
   GIT_WORKTREE_PATH: 'git:worktreePath',
+  GIT_WORKTREE_INFO: 'git:worktreeInfo',
   GIT_APPLY_BRANCH_RETRY: 'git:applyBranchRetry',
   GIT_DELETE_WORKTREE: 'git:deleteWorktree',
   GIT_DELETE_BRANCH: 'git:deleteBranch',
@@ -269,7 +270,7 @@ export interface WorktreeRecord {
   slug: string
   launchCommand?: string
   worktreePath: string    // {repoRoot}/.vibe/worktrees/{slug}
-  branchName: string      // worktree- 开头，与目录/标题同 slug（供 GitTab 分辨 worktree）
+  branchName: string      // worktree- 开头，与目录/标题同 slug
   baseBranch: string
   repoRoot: string
   createdAt: number
@@ -351,6 +352,8 @@ export interface GitBranch {
   name: string
   current: boolean
   remote?: boolean
+  // 该分支正被某棵 linked worktree 检出时的树路径（porcelain 解析，不看分支名前缀）
+  worktreePath?: string
 }
 
 export interface GitSubmodule {
@@ -780,6 +783,7 @@ export interface AiSessionState {
   userTurns: UserTurn[]
   cwd: string
   worktreePath?: string
+  worktreeBranch?: string
   pipedPrompt?: string
   // 会话级 GUI 操控开关，仅对话开始前在 AiTab 头部点亮，不落盘、不恢复；
   // 切换会 destroy+重 spawn CLI，会话产生消息后按钮隐藏

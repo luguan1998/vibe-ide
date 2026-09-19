@@ -187,7 +187,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
   const [commitFiles, setCommitFiles] = useState<GitCommitFile[]>([])
   const [commitFileCount, setCommitFileCount] = useState(0)
   const [, setCommitDiff] = useState<string>('')
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; branchName: string; worktreePath?: string } | null>(null)
   const [commitContextMenu, setCommitContextMenu] = useState<{ x: number; y: number; hash: string; message: string } | null>(null)
   const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; filePath: string; fullPath: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -649,34 +649,22 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
     } finally { setBusy(false) }
   }, [refreshBranches, refreshStatus, refreshGraph])
 
-  // Navigate to worktree
-  const handleNavigateToWorktree = useCallback(async (branch: string) => {
-    setBusy(true)
-    try {
-      const result = await window.api.git.getWorktreePath(branch)
-      if (result.error) {
-        setError(result.error)
-        return
-      }
-      if (result.path) {
-        if (rightTerminalSession && activeSessionId) {
-          onCloseRightTerminal?.(activeSessionId)
+  // Navigate to worktree（路径直接用分支列表里的 porcelain 解析结果，不再二次查询）
+  const handleNavigateToWorktree = useCallback((worktreePath: string) => {
+    if (rightTerminalSession && activeSessionId) {
+      onCloseRightTerminal?.(activeSessionId)
+    }
+    onWorktreeNavChange(prev => {
+      const existing = prev[activeSessionId!]
+      return {
+        ...prev,
+        [activeSessionId!]: {
+          originalPath: existing?.originalPath || workspacePath!,
+          worktreePath,
+          originalBranch: existing?.originalBranch || statusRef.current?.branch || ''
         }
-        onWorktreeNavChange(prev => {
-          const existing = prev[activeSessionId!]
-          return {
-            ...prev,
-            [activeSessionId!]: {
-              originalPath: existing?.originalPath || workspacePath!,
-              worktreePath: result.path,
-              originalBranch: existing?.originalBranch || statusRef.current?.branch || ''
-            }
-          }
-        })
       }
-    } catch (err: any) {
-      setError(err.message)
-    } finally { setBusy(false) }
+    })
   }, [workspacePath, rightTerminalSession, activeSessionId, onCloseRightTerminal, onWorktreeNavChange])
 
   // Return from worktree navigation
@@ -1885,17 +1873,17 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
                       if (busy) return
                       if (isOriginalBranch) { handleBackFromWorktree(); return }
                       if (branch.current || branch.remote) return
-                      if (branch.name.startsWith('worktree-')) {
-                        handleNavigateToWorktree(branch.name)
+                      if (branch.worktreePath) {
+                        handleNavigateToWorktree(branch.worktreePath)
                       } else {
                         handleCheckout(branch.name)
                       }
                     }}
                     onContextMenu={(e) => {
                       if (branch.remote) return
-                      if (branch.current && !branch.name.startsWith('worktree-')) return
+                      if (branch.current && !branch.worktreePath) return
                       e.preventDefault()
-                      setContextMenu({ x: e.clientX, y: e.clientY, branchName: branch.name })
+                      setContextMenu({ x: e.clientX, y: e.clientY, branchName: branch.name, worktreePath: branch.worktreePath })
                     }}
                   >
                     <div className="flex items-center gap-1">
@@ -2108,7 +2096,8 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
 
       {/* Context Menu for branches */}
       {contextMenu && (() => {
-        const isWorktree = contextMenu.branchName.startsWith('worktree-')
+        // worktree 身份来自 porcelain（分支名无前缀约定）：CLI/graph/看板建的分支一视同仁
+        const isWorktree = !!contextMenu.worktreePath
         return (
         <div
           className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50"

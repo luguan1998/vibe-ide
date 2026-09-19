@@ -78,6 +78,27 @@ async function resolveRepoFile(absPath: string): Promise<{ git: SimpleGit; relPa
   return { git: newGit(root), relPath: norm.slice(root.length + 1) }
 }
 
+// porcelain 解析：分支名 → 检出它的 linked worktree 路径。此前四个 handler 内联同一段循环、
+// 且用 includes(branch) 子串匹配（vibe/ab 会误配 vibe/abc 的树）。worktree 身份只看 git 记录，不看分支名前缀。
+// 主工作树（porcelain 固定列首）不算：它自己的当前分支不该拿到「合并/删除工作树」入口。
+async function listWorktreeBranches(git: SimpleGit): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  try {
+    const out = await git.raw(['worktree', 'list', '--porcelain'])
+    let wtPath = ''
+    let first = true
+    for (const line of out.split('\n')) {
+      if (line.startsWith('worktree ')) {
+        wtPath = first ? '' : line.slice('worktree '.length).trim()
+        first = false
+      } else if (line.startsWith('branch refs/heads/') && wtPath) {
+        map.set(line.slice('branch refs/heads/'.length).trim(), wtPath)
+      }
+    }
+  } catch { /* 非 git 仓库 / 无 worktree 记录 */ }
+  return map
+}
+
 interface DiffHunk {
   oldStart: number
   oldCount: number
@@ -475,12 +496,14 @@ export function registerGitHandlers(): void {
     try {
       const git = getGit()
       const branches = await git.branch(['-a'])
+      const worktrees = await listWorktreeBranches(git)
       return branches.all
         .filter(name => !name.includes('HEAD'))
         .map(name => ({
           name,
           current: name === branches.current,
-          remote: name.startsWith('remotes/')
+          remote: name.startsWith('remotes/'),
+          worktreePath: worktrees.get(name)
         })) as GitBranch[]
     } catch (err: any) {
       return { error: err.message }
@@ -511,20 +534,7 @@ export function registerGitHandlers(): void {
       const base = mergeBase || 'HEAD'
       const committedDiff = await git.raw(['diff', '--full-index', base, branch])
 
-      const wtList = await git.raw(['worktree', 'list', '--porcelain'])
-      let worktreePath = ''
-      const lines = wtList.split('\n')
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].startsWith('branch ') && lines[i].includes(branch)) {
-          for (let j = i - 1; j >= 0; j--) {
-            if (lines[j].startsWith('worktree ')) {
-              worktreePath = lines[j].replace('worktree ', '').trim()
-              break
-            }
-          }
-          break
-        }
-      }
+      const worktreePath = (await listWorktreeBranches(git)).get(branch) || ''
 
       let uncommittedDiff = ''
       let stagedDiff = ''
@@ -576,20 +586,7 @@ export function registerGitHandlers(): void {
       const base = mergeBase || 'HEAD'
       const committedDiff = await git.raw(['diff', '--full-index', base, branch])
 
-      const wtList = await git.raw(['worktree', 'list', '--porcelain'])
-      let worktreePath = ''
-      const lines = wtList.split('\n')
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].startsWith('branch ') && lines[i].includes(branch)) {
-          for (let j = i - 1; j >= 0; j--) {
-            if (lines[j].startsWith('worktree ')) {
-              worktreePath = lines[j].replace('worktree ', '').trim()
-              break
-            }
-          }
-          break
-        }
-      }
+      const worktreePath = (await listWorktreeBranches(git)).get(branch) || ''
 
       let uncommittedDiff = ''
       let stagedDiff = ''
@@ -674,26 +671,44 @@ export function registerGitHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.GIT_WORKTREE_PATH, async (_event, branch: string) => {
     try {
       const git = getGit()
-      const wtList = await git.raw(['worktree', 'list', '--porcelain'])
-      let worktreePath = ''
-      const lines = wtList.split('\n')
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].startsWith('branch ') && lines[i].includes(branch)) {
-          for (let j = i - 1; j >= 0; j--) {
-            if (lines[j].startsWith('worktree ')) {
-              worktreePath = lines[j].replace('worktree ', '').trim()
-              break
-            }
-          }
-          break
-        }
-      }
+      const worktreePath = (await listWorktreeBranches(git)).get(branch)
       if (!worktreePath) {
         return { error: `找不到分支 ${branch} 对应的 worktree 路径` }
       }
       return { path: worktreePath }
     } catch (err: any) {
       return { error: err.message }
+    }
+  })
+
+  // cwd 是否落在某棵 linked worktree 里（图「打开分支」/ 手工开在树里的会话补身份用）
+  ipcMain.handle(IPC_CHANNELS.GIT_WORKTREE_INFO, async (_event, cwd: string) => {
+    if (typeof cwd !== 'string' || !cwd) return null
+    try {
+      const g = newGit(cwd)
+      const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+      const target = norm(cwd)
+      let wtPath = ''
+      let branch = ''
+      let first = true
+      for (const line of (await g.raw(['worktree', 'list', '--porcelain'])).split('\n')) {
+        if (line.startsWith('worktree ')) {
+          const p = line.slice('worktree '.length).trim()
+          wtPath = first ? '' : p
+          first = false
+        } else if (line.startsWith('branch refs/heads/') && wtPath && norm(wtPath) === target) {
+          branch = line.slice('branch refs/heads/'.length).trim()
+          break
+        }
+      }
+      if (!branch) return null
+      const commonDir = await g.raw(['rev-parse', '--git-common-dir'])
+      const repoRoot = path.dirname(path.resolve(cwd, commonDir))
+      let originalBranch = ''
+      try { originalBranch = (await newGit(repoRoot).raw(['rev-parse', '--abbrev-ref', 'HEAD'])).trim() } catch { /* 空仓库 */ }
+      return { worktreePath: wtPath, branch, repoRoot, originalBranch }
+    } catch {
+      return null
     }
   })
 
@@ -855,20 +870,7 @@ export function registerGitHandlers(): void {
     const git = getGit()
     try {
       // 1. Find worktree path
-      const wtList = await git.raw(['worktree', 'list', '--porcelain'])
-      let worktreePath = ''
-      const lines = wtList.split('\n')
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].startsWith('branch ') && lines[i].includes(branch)) {
-          for (let j = i - 1; j >= 0; j--) {
-            if (lines[j].startsWith('worktree ')) {
-              worktreePath = lines[j].replace('worktree ', '').trim()
-              break
-            }
-          }
-          break
-        }
-      }
+      const worktreePath = (await listWorktreeBranches(git)).get(branch) || ''
 
       if (!worktreePath) {
         // worktree 目录已被删除（手动删除 / 崩溃清理），git 仍留有引用

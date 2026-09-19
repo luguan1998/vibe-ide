@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { getDshApi } from './dsh/history'
-import { loadSessionWorkspace, saveSessionWorkspace, randomTermEmoji, type Session, type SessionTab } from './sessionRestore'
+import { loadSessionWorkspace, saveSessionWorkspace, randomTermEmoji, sessionGroupKey, type Session, type SessionTab } from './sessionRestore'
 import type { SessionMode } from './components/DirectoryPicker'
 const DshView = lazy(() => import('./components/DshView'))
 import type { DshViewHandle } from './components/DshView'
@@ -87,6 +87,7 @@ declare global {
         show: (hash: string) => Promise<any>
         showFile: (ref: string, filePath: string) => Promise<any>
         getWorktreePath: (branch: string) => Promise<any>
+        worktreeInfo: (cwd: string) => Promise<{ worktreePath: string; branch: string; repoRoot: string; originalBranch: string } | null>
         applyBranchRetry: (branch: string) => Promise<any>
         deleteWorktree: (branch: string, force?: boolean) => Promise<any>
         deleteBranch: (branch: string) => Promise<any>
@@ -209,7 +210,7 @@ declare global {
         listUserTurns: (sessionId: string, cwd: string) => Promise<any>
         sessionGraph: (sessionId: string, cwd?: string, configDir?: string) => Promise<import('@shared/types').AiGraph | null>
         forkTurn: (payload: { sessionId: string; sourceClaudeSessionId: string; cwd: string; content: string; occurrence: number; sourceCwd?: string; targetCwd?: string }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
-        createBranchWorktree: (payload: { sessionId: string; cwd?: string; configDir?: string }) => Promise<{ path: string; branch: string; repoRoot: string; originalBranch: string } | { error: string }>
+        createBranchWorktree: (payload: { sessionId: string; cwd?: string; configDir?: string; name?: string }) => Promise<{ path: string; branch: string; repoRoot: string; originalBranch: string } | { error: string }>
         setPermissionMode: (sessionId: string, mode: string) => Promise<{ success: boolean; error?: string }>
         setModel: (sessionId: string, model: string) => Promise<{ success: boolean; error?: string }>
         resolveModels: (sessionId?: string) => Promise<{ default: string; opus: string; sonnet: string; haiku: string }>
@@ -362,7 +363,6 @@ export default function App() {
     })
   }, [initialWorkspace])
   const [sessions, setSessions] = useState<SessionTab[]>(initialTabs)
-  const normCwdKey = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
   const keptGroups = useKeptGroups()
   // 稳定分组顺序:会话数组按创建序混杂插入,组序若按"首现位置"推导,删除组内会话会令该组位置跳变导致排布错位。
   // 用 session id 保序子序列判定:仅删/仅增(含 clone 插入、cwd 变更)→ 保持旧组序(被删组剔除、新组追加);
@@ -373,7 +373,7 @@ export default function App() {
     const sessionOrder: string[] = []
     const seen = new Set<string>()
     for (const s of sessions) {
-      const key = normCwdKey(s.cwd)
+      const key = sessionGroupKey(s)
       if (!seen.has(key)) { seen.add(key); sessionOrder.push(key) }
     }
     let base = sessionOrder
@@ -402,7 +402,7 @@ export default function App() {
   const stableSessions = useMemo(() => {
     if (stableGroupOrder.length === 0) return sessions
     const pos = new Map<string, number>(stableGroupOrder.map((k, i) => [k, i]))
-    return [...sessions].sort((a, b) => (pos.get(normCwdKey(a.cwd)) ?? Infinity) - (pos.get(normCwdKey(b.cwd)) ?? Infinity))
+    return [...sessions].sort((a, b) => (pos.get(sessionGroupKey(a)) ?? Infinity) - (pos.get(sessionGroupKey(b)) ?? Infinity))
   }, [sessions, stableGroupOrder])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
     const id = initialWorkspace?.activeTabId ?? null
@@ -726,7 +726,17 @@ export default function App() {
   }, [warnSessions, terminalBusy, aiBusy, activeSessionId, appFocused])
 
   const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
-  const [sessionWorktreeNav, setSessionWorktreeNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
+  // GitTab 手动导航打开的工作树浏览态（仅内存）；会话自身的 worktree 身份从 SessionTab 字段派生，
+  // 两者合并后供会话列表图标 / RightPanel 生效路径 / GitTab 使用，浏览态覆盖派生值
+  const [worktreeBrowseNav, setWorktreeBrowseNav] = useState<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>({})
+  const sessionWorktreeNav = useMemo(() => {
+    const map: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }> = {}
+    for (const s of sessions) {
+      if (!s.worktreePath) continue
+      map[s.id] = { originalPath: s.worktreeOriginalPath || s.cwd, worktreePath: s.worktreePath, originalBranch: s.worktreeBaseBranch || '' }
+    }
+    return { ...map, ...worktreeBrowseNav }
+  }, [sessions, worktreeBrowseNav])
   const [sessionSubmoduleNav, setSessionSubmoduleNav] = useState<Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>>({})
   const [focusedPanel, setFocusedPanel] = useState<'term' | 'right' | null>(null)
   const [wordWrap, setWordWrap] = useState(() => {
@@ -2332,18 +2342,34 @@ export default function App() {
     claudeSessionId: string
     cwd: string
     parentId: string | null
-    worktree?: { originalPath: string; originalBranch: string }
+    worktree?: { originalPath: string; originalBranch: string; branch: string }
   }): string => {
     // openBranchTab 只由图上的动作触发：图开着就让它跟着切过去，别切了就消失
     const carryGraph = (target: string) => {
       const owner = graphOpenForRef.current
       if (owner && sessionsRef.current.some(s => s.id === owner)) setGraphOpenFor(target)
     }
+    // 打开的分支可能本来就住在某棵 worktree 里（图上的 worktree 分支/在其中分叉出的普通分支）：
+    // 按 cwd 反查身份补戳，会话列表才能把它归回原仓库
+    const stampWorktreeIfAny = (tabId: string) => {
+      if (opts.worktree) return
+      window.api.git.worktreeInfo(opts.cwd).then((info) => {
+        if (!info) return
+        setSessions(prev => prev.map(s => (s.id === tabId && !s.worktreePath) ? {
+          ...s,
+          worktreePath: info.worktreePath,
+          worktreeOriginalPath: info.repoRoot,
+          worktreeBranch: info.branch,
+          worktreeBaseBranch: info.originalBranch,
+        } : s))
+      }).catch(() => {})
+    }
     const existing = sessionsRef.current.find(s => s.resumeSessionId === opts.claudeSessionId)
     if (existing) {
       carryGraph(existing.id)
       setActiveSessionId(existing.id)
       applySessionTabPolicy(existing.id)
+      stampWorktreeIfAny(existing.id)
       return existing.id
     }
     const tab: SessionTab = {
@@ -2351,15 +2377,17 @@ export default function App() {
       kind: 'gui',
       resumeSessionId: opts.claudeSessionId,
       resumeCwd: opts.cwd,
-      ...(opts.worktree ? { worktreePath: opts.cwd } : {}),
+      ...(opts.worktree ? {
+        worktreePath: opts.cwd,
+        worktreeOriginalPath: opts.worktree.originalPath,
+        worktreeBranch: opts.worktree.branch,
+        worktreeBaseBranch: opts.worktree.originalBranch,
+      } : {}),
       loaded: true,
     }
     carryGraph(tab.id)
     addSessionRecord(tab, opts.parentId)
-    if (opts.worktree) {
-      const nav = { originalPath: opts.worktree.originalPath, worktreePath: opts.cwd, originalBranch: opts.worktree.originalBranch }
-      setSessionWorktreeNav(prev => ({ ...prev, [tab.id]: nav }))
-    }
+    stampWorktreeIfAny(tab.id)
     return tab.id
   }, [applySessionTabPolicy, addSessionRecord])
 
@@ -2401,7 +2429,7 @@ export default function App() {
   const handleGraphForkWorktree = useCallback(async (sessionId: string, node: AiGraphNode): Promise<string | null> => {
     const current = sessionsRef.current.find(s => s.id === sessionId)
     if (!current || !node.fork) return 'Session not found'
-    const wt = await window.api.ai.createBranchWorktree({ sessionId, cwd: current.cwd })
+    const wt = await window.api.ai.createBranchWorktree({ sessionId, cwd: current.cwd, name: node.fork.content })
     if ('error' in wt) return wt.error
 
     const result = await window.api.ai.forkTurn({
@@ -2421,7 +2449,7 @@ export default function App() {
       claudeSessionId: result.newClaudeSessionId,
       cwd: wt.path,
       parentId: sessionId,
-      worktree: { originalPath: wt.repoRoot, originalBranch: wt.originalBranch },
+      worktree: { originalPath: wt.repoRoot, originalBranch: wt.originalBranch, branch: wt.branch },
     })
     return null
   }, [openBranchTab])
@@ -2578,8 +2606,8 @@ export default function App() {
     // 分组模式下关闭组内最后一个 session：该 cwd 记为保留空组，位置沿用当前组序
     if (groupSessionsByCwd) {
       const closing = sessions.find(s => s.id === id)
-      const key = closing ? normCwdKey(closing.cwd) : ''
-      if (key && !sessions.some(s => s.id !== id && normCwdKey(s.cwd) === key)) {
+      const key = closing ? sessionGroupKey(closing) : ''
+      if (key && !sessions.some(s => s.id !== id && sessionGroupKey(s) === key)) {
         cwdStore.upsertKeptGroup(key, Math.max(0, stableGroupOrder.indexOf(key)))
       }
     }
@@ -2705,14 +2733,17 @@ export default function App() {
       const res = await window.api.board.create({ workspacePath: targetCwd, title, launchCommand })
       if (!res.ok || !res.record) return { ok: false, error: res.error ?? '创建失败' }
       const rec = res.record
-      // worktree 会话：注册 worktreeNav 让图标走 worktree 状态(🌿)；emoji 持久化负责重启后仍显示 🌿
-      setSessionWorktreeNav(prev => prev[rec.id] ? prev : { ...prev, [rec.id]: { originalPath: rec.repoRoot, worktreePath: rec.worktreePath, originalBranch: rec.baseBranch } })
+      // worktree 身份落在 tab 字段：图标走 worktree 状态(🌿)、归入原仓库分组；emoji 持久化负责重启后仍显示 🌿
       setSessions(prev => prev.some(s => s.id === rec.id) ? prev : [...prev, {
         id: rec.id,
         kind: 'terminal',
         name: rec.title,
         cwd: rec.worktreePath,
         emoji: '🌿',
+        worktreePath: rec.worktreePath,
+        worktreeOriginalPath: rec.repoRoot,
+        worktreeBranch: rec.branchName,
+        worktreeBaseBranch: rec.baseBranch,
         active: false,
         createdAt: Date.now(),
         loaded: true
@@ -2732,14 +2763,17 @@ export default function App() {
         console.warn('[board] open terminal failed:', e?.message)
         return
       }
-      // 与 handleBoardCreate 对齐：worktreeNav 注册(图标走 worktree 状态) + emoji 持久化双保险
-      setSessionWorktreeNav(prev => prev[rec.id] ? prev : { ...prev, [rec.id]: { originalPath: rec.repoRoot, worktreePath: rec.worktreePath, originalBranch: rec.baseBranch } })
+      // 与 handleBoardCreate 对齐：worktree 身份落 tab 字段 + emoji 持久化双保险
       setSessions(prev => prev.some(s => s.id === rec.id) ? prev : [...prev, {
         id: rec.id,
         kind: 'terminal',
         name: rec.title,
         cwd: rec.worktreePath,
         emoji: '🌿',
+        worktreePath: rec.worktreePath,
+        worktreeOriginalPath: rec.repoRoot,
+        worktreeBranch: rec.branchName,
+        worktreeBaseBranch: rec.baseBranch,
         active: true,
         createdAt: Date.now(),
         loaded: true
@@ -2757,8 +2791,8 @@ export default function App() {
         console.warn('[board] finish:', res.error)
         return false
       }
-      // worktree 目录已删：清掉该 cwd 的空组保留位，避免留下指向已删目录的分组卡
-      cwdStore.removeKeptGroup(rec.worktreePath)
+      // worktree 会话已并入原仓库分组，清掉关最后一个会话时落下的空组保留位
+      cwdStore.removeKeptGroup(rec.repoRoot)
       return true
     } catch (e: any) {
       console.warn('[board] finish failed:', e?.message)
@@ -2771,7 +2805,7 @@ export default function App() {
     await closeSessionCore(rec.id)
     try {
       const res = await window.api.board.clear(rec.repoRoot, rec.id)
-      if (!res?.error) cwdStore.removeKeptGroup(rec.worktreePath)
+      if (!res?.error) cwdStore.removeKeptGroup(rec.repoRoot)
     } catch (e: any) {
       console.warn('[board] clear failed:', e?.message)
     }
@@ -2849,7 +2883,7 @@ export default function App() {
     setSessions(prev => {
       const map = new Map<string, SessionTab[]>()
       for (const s of prev) {
-        const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
+        const key = sessionGroupKey(s)
         if (!map.has(key)) map.set(key, [])
         map.get(key)!.push(s)
       }
@@ -2865,12 +2899,12 @@ export default function App() {
     setSessions(prev => {
       const moved = prev.find(s => s.id === sessionId)
       const target = prev.find(s => s.id === targetSessionId)
-      if (!moved || !target || normCwdKey(moved.cwd) !== normCwdKey(target.cwd)) return prev
-      const gKey = normCwdKey(moved.cwd)
+      if (!moved || !target || sessionGroupKey(moved) !== sessionGroupKey(target)) return prev
+      const gKey = sessionGroupKey(moved)
       const map = new Map<string, SessionTab[]>()
       const order: string[] = []
       for (const s of prev) {
-        const key = normCwdKey(s.cwd)
+        const key = sessionGroupKey(s)
         if (!map.has(key)) { map.set(key, []); order.push(key) }
         map.get(key)!.push(s)
       }
@@ -3568,7 +3602,7 @@ export default function App() {
                     activeSessionId={activeSessionId}
                     isActive={leftPanelView === 'git'}
                     pauseWhenHidden
-                    onWorktreeNavChange={setSessionWorktreeNav}
+                    onWorktreeNavChange={setWorktreeBrowseNav}
                     onSubmoduleNavChange={setSessionSubmoduleNav}
                     onDiffScroll={handleDiffScroll}
                     onNavigateToFile={handleNavigateToFile}
@@ -3713,11 +3747,13 @@ export default function App() {
                         onGraphOpenChange={(open) => setGraphOpenFor(open ? session.id : null)}
                         initialWorktreeEnabled={session.enableWorktree}
                         worktreePath={session.worktreePath}
+                        worktreeBranch={session.worktreeBranch}
+                        worktreeOriginalPath={session.worktreeOriginalPath}
                         onWorktreeChange={(next) => {
                           setSessions(prev => prev.map(s => (s.id === session.id ? { ...s, ...next } : s)))
                         }}
                         worktreeNav={sessionWorktreeNav[session.id] ?? null}
-                        onWorktreeNavChange={setSessionWorktreeNav}
+                        onWorktreeNavChange={setWorktreeBrowseNav}
                         onCommand={onCommandForSession(session.id)}
                       />
                     ) : isDsh ? (
@@ -3825,7 +3861,7 @@ export default function App() {
             sessionWorktreeNav={sessionWorktreeNav}
             sessionSubmoduleNav={sessionSubmoduleNav}
             onSubmoduleNavChange={setSessionSubmoduleNav}
-            onWorktreeNavChange={setSessionWorktreeNav}
+            onWorktreeNavChange={setWorktreeBrowseNav}
             onDiffScroll={handleDiffScroll}
             onToggleCollapse={handleToggleRightPanel}
             capsuleTabs={capsuleTabs}

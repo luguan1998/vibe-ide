@@ -1,9 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dagre from 'dagre'
-import { FolderGit2, GitBranch, GitFork, Loader2, Maximize2, Plus, RefreshCw, Send } from 'lucide-react'
+import { FolderGit2, GitBranch, GitFork, Loader2, Maximize2, RefreshCw, Send } from 'lucide-react'
 import type { AiGraph, AiGraphNode } from '@shared/types'
 import { useI18n } from '../../i18n'
 import { readAiCliConfig } from '../../aiStore'
+
+// 分叉到 worktree 的按钮图标：四叶草（svgrepo 实心图形）
+function WorktreeForkIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 498.842 498.842" fill="currentColor" className={className}>
+      <path d="M39.902,310.35c17.38,10.065,41.431,5.689,60.187,2.841c4-0.608,56.591-11.48,56.607-11.369c0.53,4.443-29.226,18.707-32.781,21.25c-16.06,11.482-32.321,27.157-36.561,47.218c-10.25,48.575,54.867,109.222,97.794,119.906c40.448,10.065,78.444-14.571,92.154-52.592c9.695-26.906,12.649-58.345,6.929-86.46c-1.327-6.508-16.902-39.477-14.187-44.593c2.229-4.191,36.087,23.397,38.253,25.409c17.766,16.472,32.403,36.771,40.126,59.882c3.912,11.697,1.594,44.561,18.58,45.758c28.057,1.979,32.925-14.87,24.355-36.924c-9.993-25.686-23.445-50.146-41.054-71.42c-4.096-4.959-49.822-46.887-49.76-46.983c2.236-2.983,30.335,6.18,33.529,6.784c20.712,3.927,41.84,6.197,62.93,6.106c39.509-0.169,95.671-9.344,101.053-57.652c4.918-44.046-13.549-106.383-47.851-135.186c-24.661-20.717-46.531-15.465-69.526,4.538c-11.395,9.913-22.121,20.616-31.971,32.071c-2.735,3.178-19.663,29.724-23.59,28.477c-2.188-0.693,17.202-35.027,17.846-36.312c9.18-18.435,19.148-39.862,17.943-60.977c-2.431-42.662-44.897-60.419-82.194-63.228c-44.19-3.317-113.616,8.915-131.292,57.266c-8.441,23.092,6.347,49.775,15.121,70.669c1.568,3.735,23.036,52.769,22.506,52.817c-8.738,0.798-24.726-29.748-28.91-35.091c-13.921-17.792-30.358-36.578-51.304-46.137c-44.97-20.542-84.783,29.635-96.943,67.066C-6.082,216.544-4.939,284.377,39.902,310.35z" />
+    </svg>
+  )
+}
 
 const NODE_W = 236
 const NODE_H = 118
@@ -367,7 +376,7 @@ export default function ConversationGraph({
                       title={t('Branch into a new isolated worktree')}
                       onClick={(e) => { e.stopPropagation(); forkWorktree(node) }}
                     >
-                      {worktreeBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                      {worktreeBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <WorktreeForkIcon className="w-3.5 h-3.5" />}
                     </button>
                   )}
                 </div>
@@ -385,7 +394,7 @@ export default function ConversationGraph({
         )}
         {selected ? (
           <>
-            <div className="flex items-center gap-2 text-[10px] text-ide-text-muted mb-1.5">
+            <div className="flex items-center gap-2 text-xs text-ide-text-muted mb-1.5">
               <span className="truncate flex-1">
                 {action === 'send' ? t('Sending in current branch') : action === 'continue' ? t('Continue in that branch') : t('Fork a new branch')}
                 {' · '}
@@ -430,7 +439,7 @@ export default function ConversationGraph({
             </div>
           </>
         ) : (
-          <div className="text-[10px] text-ide-text-muted py-1.5">
+          <div className="text-xs text-ide-text-muted py-1.5">
             {t('Click a turn to continue from there. Drag to pan, scroll to zoom.')}
           </div>
         )}

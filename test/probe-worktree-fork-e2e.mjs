@@ -171,7 +171,7 @@ async function main() {
     check('worktree 分支被标注', g.branches.some(b => b.worktree === 'branch'), JSON.stringify(g.branches.map(b => b.worktree)))
     check('非 worktree 分支不误标', g.branches.some(b => b.worktree === null), JSON.stringify(g.branches.map(b => b.worktree)))
     const wtBranch = g.branches.find(b => b.worktree === 'branch')
-    check('worktree 分支带 git 分支名', /^vibe\//.test(wtBranch?.branch || ''), String(wtBranch?.branch))
+    check('worktree 分支带 git 分支名', /^worktree-/.test(wtBranch?.branch || ''), String(wtBranch?.branch))
     // 分叉点：worktree 分支的第一个独占轮次挂在哪 —— alpha 是共享前缀，gamma 才是该分支独有的
     const alphaNode = g.nodes.find(n => n.title.includes('alpha'))
     check('worktree 分支有分叉点', wtBranch?.forkNodeId === alphaNode?.id, `fork=${wtBranch?.forkNodeId?.slice(0, 8)} alpha=${alphaNode?.id.slice(0, 8)}`)
@@ -184,7 +184,7 @@ async function main() {
 
     // worktree 起点单独成节点：原路径那一轮留在原分支，worktree 的轮次改挂起点下，两个都在
     const wtStart = g.nodes.find(n => n.worktreeStart && n.branchIds.includes(forked.newClaudeSessionId))
-    check('worktree 起点单独成节点', !!wtStart && /^vibe\//.test(wtStart.title), wtStart?.title)
+    check('worktree 起点单独成节点', !!wtStart && /^worktree-/.test(wtStart.title), wtStart?.title)
     check('起点挂在分叉轮次下（原路径节点保留）', !!wtStart && wtStart.parentId === alpha?.id, `${wtStart?.parentId?.slice(0, 8)} vs ${alpha?.id.slice(0, 8)}`)
     const gammaNode = g.nodes.find(n => n.title.includes('gamma'))
     check('worktree 的轮次改挂到起点下', gammaNode?.parentId === wtStart?.id)

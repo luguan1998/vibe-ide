@@ -51,8 +51,10 @@ interface AiTabProps {
   // worktree 是会话属性而非本组件状态：enableWorktree=意图，worktreePath=已落地的那棵树
   initialWorktreeEnabled?: boolean
   worktreePath?: string
+  worktreeBranch?: string
+  worktreeOriginalPath?: string
   branchRevision?: number
-  onWorktreeChange?: (next: { enableWorktree?: boolean; worktreePath?: string }) => void
+  onWorktreeChange?: (next: { enableWorktree?: boolean; worktreePath?: string; worktreeBranch?: string; worktreeOriginalPath?: string }) => void
   worktreeNav?: { originalPath: string; worktreePath: string; originalBranch: string } | null
   onWorktreeNavChange?: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
   onCommand?: (command: string) => void
@@ -77,7 +79,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 const EDGE_HOVER_PX = 48
-const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onGraphForkWorktree, graphOpen, onGraphOpenChange, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, initialWorktreeEnabled, worktreePath, branchRevision, onWorktreeChange, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onGraphForkWorktree, graphOpen, onGraphOpenChange, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, initialWorktreeEnabled, worktreePath, worktreeBranch, worktreeOriginalPath, branchRevision, onWorktreeChange, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -475,23 +477,17 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     onViewAi()
   }, [activeSessionId, workspacePath, spawnCwd, worktreePath, autoApprove, permissionMode, backend, isPi, worktreeEnabled, state.computerUse, state.browserUse, handleDestroySession, onViewAi, onWorktreeChange])
 
+  // CLI 建好（或晚轮询补发的 ready 送达）的 worktree 落回会话属性：重启后按它 resume，不再重复创建；
+  // 会话列表归组 / AiTab 分支标签 / GitTab 返回都从 tab 字段读取
   useEffect(() => {
-    if (!activeSessionId || !workspacePath || !state.worktreePath || !onWorktreeNavChange) return
+    if (!activeSessionId || !workspacePath || !state.worktreePath) return
     const wtp = state.worktreePath
-    onWorktreeNavChange(prev => {
-      if (prev[activeSessionId]?.worktreePath === wtp) return prev
-      return {
-        ...prev,
-        [activeSessionId]: {
-          originalPath: workspacePath,
-          worktreePath: wtp,
-          originalBranch: '',
-        }
-      }
-    })
-    // CLI 刚建好的 worktree 落回会话属性：重启后按它 resume，不再重复创建
-    if (wtp !== worktreePath) onWorktreeChange?.({ worktreePath: wtp, enableWorktree: true })
-  }, [activeSessionId, workspacePath, state.worktreePath, worktreePath, onWorktreeChange, onWorktreeNavChange])
+    const next: { enableWorktree?: boolean; worktreePath?: string; worktreeBranch?: string; worktreeOriginalPath?: string } = {}
+    if (wtp !== worktreePath) { next.worktreePath = wtp; next.enableWorktree = true }
+    if (state.worktreeBranch && state.worktreeBranch !== worktreeBranch) next.worktreeBranch = state.worktreeBranch
+    if (!worktreeOriginalPath) next.worktreeOriginalPath = workspacePath
+    if (Object.keys(next).length) onWorktreeChange?.(next)
+  }, [activeSessionId, workspacePath, state.worktreePath, state.worktreeBranch, worktreePath, worktreeBranch, worktreeOriginalPath, onWorktreeChange])
 
   // ── Smart auto-scroll: passive listener + threshold ──
   // scrollContainer 在空会话(showEmptyCenter)时不渲染,挂载时机由
@@ -1358,6 +1354,16 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               ? <PiLogoIcon size={14} className="shrink-0 text-ide-accent" />
               : <ClaudeLogoIcon size={14} className="shrink-0" />}
             <span className="ai-tab__session-name text-xs font-medium text-ide-text truncate">{state.name || 'untitled'}</span>
+            {/* 工作树标签跟标题走，不跟右侧图标挤 */}
+            {worktreePath && (
+              <span
+                className="ai-tab__worktree-chip flex items-center gap-0.5 px-1 h-4 rounded bg-ide-accent/20 text-ide-accent max-w-[160px] shrink min-w-0"
+                title={worktreeBranch ? `${worktreeBranch}\n${worktreePath}` : worktreePath}
+              >
+                <GitBranch size={10} className="shrink-0" />
+                <span className="text-[10px] truncate">{(worktreeBranch || worktreePath.split(/[\\/]/).filter(Boolean).pop() || '').replace(/^worktree-/, '')}</span>
+              </span>
+            )}
           </div>
         <div className="ai-tab__header-actions flex items-center gap-1">
           {state.messages.length > 0 && (
@@ -1372,7 +1378,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   <Globe size={14} />
                 </span>
               )}
-              {worktreeEnabled && (
+              {!worktreePath && worktreeEnabled && (
                 <span className="w-5 h-5 rounded flex items-center justify-center bg-ide-accent/20 text-ide-accent" title={t('Isolate in worktree')}>
                   <GitBranch size={14} />
                 </span>

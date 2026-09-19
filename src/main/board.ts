@@ -6,6 +6,7 @@ import { promisify } from 'util'
 import { BoardCreateOptions, BoardMergeResult, BoardOpResult, BoardRecordsResult, IPC_CHANNELS, WorktreeRecord } from '../shared/types'
 import { closeTerminalSession, createTerminalSession } from './pty'
 import { notifyGitMeta } from './watcher'
+import { slugify, uniqueName } from './slug'
 
 const gitAsync = promisify(execFile)
 
@@ -54,24 +55,8 @@ function saveRecords(repoRoot: string, list: WorktreeRecord[]): void {
   }
 }
 
-function slugify(title: string): string {
-  const slug = title
-    .toLowerCase()
-    .split('')
-    .map(c => (/[a-z0-9]/.test(c) ? c : '-'))
-    .join('')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 30)
-    .replace(/-+$/g, '')
-  return slug || 'task'
-}
-
 function uniqueSlug(base: string, records: WorktreeRecord[]): string {
-  let slug = base
-  let n = 2
-  while (records.some(r => r.slug === slug)) slug = `${base}-${n++}`
-  return slug
+  return uniqueName(base, s => records.some(r => r.slug === s))
 }
 
 function genWorktreeTitle(): string {
@@ -183,13 +168,13 @@ async function createBoardSession(options: BoardCreateOptions): Promise<BoardOpR
   try { baseBranch = (await gitAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: repoRoot, timeout: 15000, windowsHide: true })).stdout.trim() } catch {}
 
   const title = options.title?.trim() || genWorktreeTitle()
-  const slug = uniqueSlug(slugify(title), records)
+  const slug = uniqueSlug(slugify(title) || 'task', records)
   const worktreesDir = join(repoRoot, '.vibe', 'worktrees')
   mkdirSync(worktreesDir, { recursive: true })
   const worktreePath = join(worktreesDir, slug)
   if (existsSync(worktreePath)) return { error: `目录已存在: ${worktreePath}` }
 
-  // 分支统一 worktree- 开头供 GitTab 分辨；slug 本身已是 worktree- 开头时不再叠加前缀
+  // 分支统一 worktree- 开头；slug 本身已是 worktree- 开头时不再叠加前缀
   const branchName = slug.startsWith('worktree-') ? slug : `worktree-${slug}`
   // Windows 下每个新文件落盘有固定开销(杀软实时扫描)，串行检出 9000+ 文件需 5-27s；
   // 先 --no-checkout 秒建元数据，再用并行 checkout(workers=8) 重叠该延迟，实测稳定 ~2.2s。

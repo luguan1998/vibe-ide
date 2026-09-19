@@ -44,7 +44,8 @@ export interface ManagedAiSession {
   revertAwaitingReady?: boolean
   enableWorktree?: boolean
   worktreePath?: string
-  preWorktreeSnapshot?: Set<string>
+  worktreeBranch?: string
+  preWorktreeSnapshot?: Map<string, string>
   computerUse?: boolean
   browserUse?: boolean
 }
@@ -229,15 +230,19 @@ function buildClaudeArgs(opts: {
 
 // Spawn a Claude CLI subprocess with the standard args. Returns the ChildProcess on success,
 // or the findBinary error result (caller decides how to surface to UI).
-function snapshotWorktrees(cwd: string): Set<string> {
+function snapshotWorktrees(cwd: string): Map<string, string> {
+  const map = new Map<string, string>()
   try {
     const output = execSync('git worktree list --porcelain', { cwd, encoding: 'utf-8', timeout: 5000, stdio: 'pipe' })
-    const paths = new Set<string>()
+    let wtPath = ''
     for (const line of output.split('\n')) {
-      if (line.startsWith('worktree ')) paths.add(line.replace('worktree ', '').trim())
+      if (line.startsWith('worktree ')) wtPath = line.replace('worktree ', '').trim()
+      else if (line.startsWith('branch refs/heads/') && wtPath) {
+        map.set(wtPath, line.slice('branch refs/heads/'.length).trim())
+      }
     }
-    return paths
-  } catch { return new Set() }
+  } catch { /* ignore */ }
+  return map
 }
 
 // The CLI mirrors the config-dir name inside the repo as its project-local folder (claude →
@@ -260,11 +265,11 @@ export function worktreeKind(cwd: string, configDir?: string): 'cli' | 'branch' 
   return isCliWorktree(cwd, marker) ? 'cli' : null
 }
 
-function detectNewWorktree(cwd: string, before: Set<string>, marker: string): string | null {
+function detectNewWorktree(cwd: string, before: Map<string, string>, marker: string): { path: string; branch: string } | null {
   try {
     const after = snapshotWorktrees(cwd)
-    for (const p of after) {
-      if (!before.has(p) && isCliWorktree(p, marker)) return p
+    for (const [p, branch] of after) {
+      if (!before.has(p) && isCliWorktree(p, marker)) return { path: p, branch }
     }
   } catch { /* ignore */ }
   return null
@@ -272,10 +277,10 @@ function detectNewWorktree(cwd: string, before: Set<string>, marker: string): st
 
 // Destroy fallback: find any worktree spawned since preSnapshot that ready-detection
 // never recorded (path lacks <config-dir>/worktrees, e.g. cwd is not the repo root).
-function detectUnmanagedWorktree(cwd: string, before: Set<string>): string | null {
+function detectUnmanagedWorktree(cwd: string, before: Map<string, string>): string | null {
   try {
     const after = snapshotWorktrees(cwd)
-    for (const p of after) {
+    for (const p of after.keys()) {
       if (!before.has(p)) return p
     }
   } catch { /* ignore */ }
@@ -283,15 +288,18 @@ function detectUnmanagedWorktree(cwd: string, before: Set<string>): string | nul
 }
 
 // The CLI creates the worktree a moment after the ready message, so poll every
-// 500ms (up to ~4s) to record it for destroy cleanup.
+// 500ms (up to ~4s) to record it for destroy cleanup. 命中后补发 ready：
+// 渲染层靠这道推送才知道晚创建的树（路径+分支），否则会话列表/AiTab 上显示不出 worktree。
 function trackWorktreeLater(sessionId: string, attempts: number): void {
   setTimeout(() => {
     const cur = aiSessions.get(sessionId)
     if (!cur || cur.worktreePath) return
     const wt = detectNewWorktree(cur.cwd, cur.preWorktreeSnapshot!, configDirMarker(cur.configDir))
     if (wt) {
-      cur.worktreePath = wt
-      cur.cwd = wt
+      cur.worktreePath = wt.path
+      cur.worktreeBranch = wt.branch
+      cur.cwd = wt.path
+      send(IPC_CHANNELS.AI_READY, { sessionId, worktreePath: wt.path, worktreeBranch: wt.branch })
     } else if (attempts > 0) {
       trackWorktreeLater(sessionId, attempts - 1)
     }
@@ -530,11 +538,13 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       if (s?.claudeSessionId) payload.session_id = s.claudeSessionId
       if (s?.cwd) payload.cwd = s.cwd
       if (s?.enableWorktree && !s.worktreePath && s.preWorktreeSnapshot) {
-        const wtPath = detectNewWorktree(s.cwd, s.preWorktreeSnapshot, configDirMarker(s.configDir))
-        if (wtPath) {
-          s.worktreePath = wtPath
-          s.cwd = wtPath
-          payload.worktreePath = wtPath
+        const wt = detectNewWorktree(s.cwd, s.preWorktreeSnapshot, configDirMarker(s.configDir))
+        if (wt) {
+          s.worktreePath = wt.path
+          s.worktreeBranch = wt.branch
+          s.cwd = wt.path
+          payload.worktreePath = wt.path
+          payload.worktreeBranch = wt.branch
         } else {
           // CLI creates the worktree after the ready message — poll briefly so
           // destroy can clean it up without relying on the snapshot fallback
@@ -2138,7 +2148,7 @@ export function registerAiHandlers(): void {
       // give the CLI a short window to create the worktree before the fallback
       for (let i = 0; i < 5 && !wt; i++) {
         await new Promise(r => setTimeout(r, 200))
-        wt = session.worktreePath ?? detectNewWorktree(session.cwd, session.preWorktreeSnapshot, configDirMarker(session.configDir))
+        wt = session.worktreePath ?? detectNewWorktree(session.cwd, session.preWorktreeSnapshot, configDirMarker(session.configDir))?.path ?? null
       }
       if (!wt) wt = detectUnmanagedWorktree(session.cwd, session.preWorktreeSnapshot)
     }

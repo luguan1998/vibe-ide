@@ -8,7 +8,7 @@
  */
 
 import { spawn, execSync } from 'child_process'
-import { join, resolve } from 'path'
+import { join, resolve, relative, isAbsolute } from 'path'
 import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'fs'
 import { tmpdir } from 'os'
 
@@ -20,7 +20,7 @@ mkdirSync(userDataDir, { recursive: true })
 const REPO = join(tmpdir(), 'vibe-wt-probe-repo')
 const sh = (cmd, cwd = REPO) => execSync(cmd, { cwd, encoding: 'utf-8', stdio: 'pipe' }).trim()
 // createBranchWorktree 不再回传分支名（生产侧不用）：清理时自己从工作树问 git
-const branchOf = (p) => sh(`git -C "${p.replace(/\/g, '/')}" rev-parse --abbrev-ref HEAD`)
+const branchOf = (p) => sh(`git -C "${p.replace(/\\/g, '/')}" rev-parse --abbrev-ref HEAD`)
 
 async function connectCDP(port) {
   const resp = await fetch(`http://127.0.0.1:${port}/json`)
@@ -144,7 +144,9 @@ async function main() {
       check('从分支 worktree 再分叉', false, JSON.stringify(r3))
     } else {
       check('从分支 worktree 再分叉', true, branchOf(r3.path))
-      check('新树未嵌套在源 worktree 内', !r3.path.startsWith(wt), r3.path)
+      // 按路径段判嵌套：字符串前缀会被同前缀命名误伤（0919-1912 是 0919-1912-3 的前缀）
+      const relToSrc = relative(wt, r3.path)
+      check('新树未嵌套在源 worktree 内', relToSrc.startsWith('..') || isAbsolute(relToSrc), r3.path)
       check('新树落在主仓库下', r3.path.startsWith(REPO), r3.path)
       check('新树继承源 worktree 的改动', readFileSync(join(r3.path, 'tracked.txt'), 'utf-8').includes('UNCOMMITTED'))
       rmSync(r3.path, { recursive: true, force: true })

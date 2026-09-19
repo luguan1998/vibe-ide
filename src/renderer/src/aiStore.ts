@@ -9,7 +9,7 @@ export const EMPTY_SESSION: AiSessionState = {
   streaming: false, streamBuffer: '', thinkingBuffer: '', thinkingStartedAt: null, pendingPermission: null,
   slashCommands: [], model: '', contextPercent: null, name: '',
   fileChangesByTurn: [], userTurns: [],
-  cwd: '', worktreePath: undefined, pipedPrompt: '',
+  cwd: '', worktreePath: undefined, worktreeBranch: undefined, pipedPrompt: '',
   runningTools: {},
 }
 
@@ -690,13 +690,15 @@ function initListeners() {
   })
 
   // ── onReady ──
-  window.api.ai.onReady(({ sessionId, slashCommands, model, worktreePath, thinkingLevel }: any) => {
+  window.api.ai.onReady(({ sessionId, slashCommands, model, worktreePath, worktreeBranch, thinkingLevel }: any) => {
     const commands = enrichSlashCommands(slashCommands || [])
     aiStore.updateSession(sessionId, (s) => ({
       // spawn 时的空壳 ready（及 revert 的 slashCommands:[]）不得清空已扫出的命令表
       ...s, ready: true, busy: s.busy, slashCommands: commands.length > 0 ? commands : s.slashCommands,
       model: model || s.model || '',
       worktreePath: worktreePath || s.worktreePath,
+      // CLI 在 ready 后才建树，晚轮询命中会用同一条 ready 事件补发，这里合并保留
+      worktreeBranch: worktreeBranch || s.worktreeBranch,
       thinkingLevel: thinkingLevel || s.thinkingLevel,
     }))
     if ((sessionStates[sessionId]?.backend ?? 'claude') === 'claude') aiStore.refreshUserTurns(sessionId)

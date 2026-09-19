@@ -60,6 +60,7 @@ const api = {
     show: (hash: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW, hash),
     showFile: (ref: string, filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SHOW_FILE, ref, filePath),
     getWorktreePath: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_WORKTREE_PATH, branch),
+    worktreeInfo: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_WORKTREE_INFO, cwd),
     applyBranchRetry: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_APPLY_BRANCH_RETRY, branch),
     deleteWorktree: (branch: string, force?: boolean) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DELETE_WORKTREE, branch, force),
     deleteBranch: (branch: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_DELETE_BRANCH, branch),
@@ -349,7 +350,7 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_SESSION_GRAPH, { sessionId, cwd, configDir }),
     forkTurn: (payload: { sessionId: string; sourceClaudeSessionId: string; cwd: string; content: string; occurrence: number; sourceCwd?: string; targetCwd?: string }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_FORK_TURN, payload),
-    createBranchWorktree: (payload: { sessionId: string; cwd?: string; configDir?: string }) =>
+    createBranchWorktree: (payload: { sessionId: string; cwd?: string; configDir?: string; name?: string }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_CREATE_BRANCH_WORKTREE, payload),
     onMessage: (callback: (data: any) => void) => {
       const handler = (_event: any, data: any) => callback(data)

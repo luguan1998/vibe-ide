@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
-import { type SessionTab, ICON_NONE, DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
+import { type SessionTab, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey } from '../sessionRestore'
 import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, mascotColorValue, pixelMascot } from '../pixelMascots'
 import { PixelMascot } from './PixelMascot'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -133,11 +133,6 @@ function dirNameOf(path: string): string {
   const sep = path.includes('\\') ? '\\' : '/'
   const parts = path.split(sep).filter(Boolean)
   return parts[parts.length - 1] ?? path
-}
-
-// cwd 归一化 key（组判定共用）：Windows 反斜杠 → 正斜杠、去尾部斜杠
-function normCwdKey(p: string): string {
-  return p.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
 function loadCwdMascots(): Record<string, string> {
@@ -889,12 +884,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }, [agentStatus, sessions])
 
   // Group sessions by normalized cwd（空组保留位按记录下标插回，最后一个 session 关闭后分组不消失）
+  // worktree 会话并入其来源仓库的组：组键取 worktreeOriginalPath || cwd（sessionGroupKey）
   const keptGroups = useKeptGroups()
   const sessionGroups = useMemo(() => {
     const map = new Map<string, SessionTab[]>()
     const order: string[] = []
     for (const s of sessions) {
-      const key = normCwdKey(s.cwd)
+      const key = sessionGroupKey(s)
       if (!map.has(key)) {
         map.set(key, [])
         order.push(key)
@@ -1261,7 +1257,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         if (groupSessionsByCwd) {
           if (dragSessionId === null) return
           const dragged = sessions.find(s => s.id === dragSessionId)
-          if (!dragged || dragSessionId === session.id || normCwdKey(dragged.cwd) !== normCwdKey(session.cwd)) {
+          if (!dragged || dragSessionId === session.id || sessionGroupKey(dragged) !== sessionGroupKey(session)) {
             setDropSessionId(null)
             return
           }
@@ -1347,6 +1343,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 className={`text-sm min-w-0 cursor-pointer ${opts.nameClass} session-item__name ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}
                 onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
               >{session.name}</span>
+              {session.worktreePath && (
+                <span
+                  className="session-item__worktree shrink min-w-0 inline-flex items-center gap-0.5 px-1 h-4 rounded bg-ide-accent/10 text-ide-accent text-[10px] max-w-[110px]"
+                  title={`${session.worktreeBranch ? `${session.worktreeBranch}\n` : ''}${session.worktreePath}`}
+                >
+                  <GitBranch size={9} className="shrink-0" />
+                  <span className="truncate">{(session.worktreeBranch || dirNameOf(session.worktreePath)).replace(/^worktree-/, '')}</span>
+                </span>
+              )}
             </>
           )}
         </div>
@@ -1727,7 +1732,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 onDragOver={(e) => {
                   if (dragGroupIndex !== null || dragSessionId === null || group.sessions.length === 0) return
                   const dragged = sessions.find(s => s.id === dragSessionId)
-                  if (!dragged || normCwdKey(dragged.cwd) !== normCwdKey(group.cwd)) return
+                  if (!dragged || sessionGroupKey(dragged) !== group.cwd) return
                   e.preventDefault()
                   e.stopPropagation()
                   const rect = e.currentTarget.getBoundingClientRect()

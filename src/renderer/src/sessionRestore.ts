@@ -26,6 +26,10 @@ export interface SessionTab {
   // 两者都落盘：重启后按 worktreePath 直接 resume 进原工作树，不会又套一层新 worktree
   enableWorktree?: boolean
   worktreePath?: string
+  // 这棵树从哪来：原仓库根 / 树检出分支 / 原始分支（会话列表归组、GitTab 返回、AiTab 分支标签都靠它）
+  worktreeOriginalPath?: string
+  worktreeBranch?: string
+  worktreeBaseBranch?: string
   loaded: boolean
 }
 
@@ -35,6 +39,11 @@ export interface Session {
   name: string
   activeTabId: string
   tabs: SessionTab[]
+}
+
+// 会话列表分组键：worktree 会话并入其来源仓库的组（没有来源信息时退回自身 cwd）
+export function sessionGroupKey(s: Pick<SessionTab, 'cwd' | 'worktreeOriginalPath'>): string {
+  return (s.worktreeOriginalPath || s.cwd).replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
 export interface SessionWorkspace {
@@ -73,6 +82,9 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           aiBackend: t.aiBackend === 'pi' ? 'pi' : t.aiBackend === 'claude' ? 'claude' : undefined,
           enableWorktree: t.enableWorktree === true ? true : undefined,
           worktreePath: typeof t.worktreePath === 'string' ? t.worktreePath : undefined,
+          worktreeOriginalPath: typeof t.worktreeOriginalPath === 'string' ? t.worktreeOriginalPath : undefined,
+          worktreeBranch: typeof t.worktreeBranch === 'string' ? t.worktreeBranch : undefined,
+          worktreeBaseBranch: typeof t.worktreeBaseBranch === 'string' ? t.worktreeBaseBranch : undefined,
           loaded: t.kind === 'terminal' ? !!t.loaded : false,
         })
       }

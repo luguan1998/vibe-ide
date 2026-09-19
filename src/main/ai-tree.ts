@@ -286,7 +286,7 @@ export async function buildSessionGraph(sessionId: string, cwdOverride?: string,
       id,
       parentId: b.forkNodeId,
       title: clip(b.branch ?? 'worktree', 60),
-      // 同一个 worktree 里可以有好几条分支（在里面再分叉），都叫 vibe/xxx、目录也一样，
+      // 同一个 worktree 里可以有好几条分支（在里面再分叉），分支名/目录都一样，
       // 副标题必须用分支自己的第一句轮次才能区分；还没发言时才退回显示目录
       preview: first ? first.title : clip(b.cwd, 160),
       // 时间用分支的最后活动，而不是分叉点时间
