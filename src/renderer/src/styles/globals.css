@@ -1295,6 +1295,7 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
   margin-top: 4px;
 }
 .session-group__header {
+  position: relative;
   height: 34px;
   padding: 0 8px;
   border-bottom: none;
@@ -1304,8 +1305,27 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
   backdrop-filter: none;
   transition: background-color .15s;
 }
+/* cwd 组头 hover 左侧竖条：session 行 hover 只有底色，靠这条线区分「组头 / 行」 */
+.session-group__header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 99px;
+  background: rgb(var(--ide-accent));
+  opacity: 0;
+  transform: scaleY(.4);
+  transition: opacity .15s, transform .15s;
+  pointer-events: none;
+}
 .session-group__header:hover {
   background: rgb(var(--ide-hover) / 0.55);
+}
+.session-group__header:hover::before {
+  opacity: 1;
+  transform: scaleY(1);
 }
 .session-group__path {
   font-size: 14px;
