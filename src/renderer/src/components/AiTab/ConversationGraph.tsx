@@ -80,7 +80,8 @@ interface ConversationGraphProps {
   onSendToBranch: (claudeSessionId: string, cwd: string, text: string) => Promise<boolean>
   onOpenBranch: (claudeSessionId: string, cwd: string) => void
   onRevealTurn: (content: string, occurrence: number) => void
-  onForkWorktree: (node: AiGraphNode) => Promise<string | null>
+  // pi 会话没有 worktree 隔离，不传即隐藏该按钮
+  onForkWorktree?: (node: AiGraphNode) => Promise<string | null>
 }
 
 export default function ConversationGraph({
@@ -369,7 +370,7 @@ export default function ConversationGraph({
                     </span>
                   ))}
                   <div className="flex-1" />
-                  {!node.worktreeStart && (
+                  {!node.worktreeStart && onForkWorktree && (
                     <button
                       disabled={worktreeBusy}
                       className="opacity-60 hover:opacity-100 hover:text-ide-accent transition-opacity disabled:opacity-30"

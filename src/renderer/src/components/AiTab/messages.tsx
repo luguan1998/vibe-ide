@@ -83,6 +83,15 @@ export function isRealUserInput(messages: AiMessage[], i: number): boolean {
 // 历史会话没有 result 行（CLI 的 result 汇总只走 stream-json，不落 transcript），
 // 回合末条 assistant 需代 result 承载 meta（Churned for/copy/fork）；
 // 本回合已有 result 或后续还有 assistant 时返回 false，避免与 result 行重复
+// claude 的 result 带耗时/费用，meta 挂它；pi 的 result 是空壳（只有 contextPercent），
+// 既不渲染也不该抢走承载权——否则实时回合刚结束的瞬间按钮会整行消失
+function resultCarriesMeta(m: AiMessage): boolean {
+  if (m.type !== 'result') return false
+  if (m.error) return true
+  if (m.subtype === 'error_max_tokens' || m.subtype === 'error_during_execution') return true
+  return m.costUsd != null || m.numTurns != null || m.isAborted === true || m.durationMs != null
+}
+
 function isTurnEndAssistant(messages: AiMessage[], i: number): boolean {
   if (i < 0) return false
   const m = messages[i]
@@ -90,7 +99,8 @@ function isTurnEndAssistant(messages: AiMessage[], i: number): boolean {
   for (let j = i + 1; j < messages.length; j++) {
     const next = messages[j]
     if (next.parentToolUseId) continue
-    if (next.type === 'result' || next.type === 'assistant') return false
+    if (next.type === 'assistant') return false
+    if (next.type === 'result') return !resultCarriesMeta(next)
     // tool_result 回填仍是本回合（回合未完，meta 尚不该出）；真实用户输入才是回合分界
     if (next.type === 'user') return isRealUserInput(messages, j)
   }
@@ -484,7 +494,11 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
         // 两层同格叠加（grid 取较高者定行高，避免 hover 换层时跳动）：
         // 默认层 = 耗时文本（无耗时即空行）；hover 层 = 时间 + 复制 + fork，格式照抄 user 气泡 actions 行
         <div className={`ai-tab__message-meta group/meta grid w-full ${CONTENT_MAX_W}`}>
-          <div className="ai-tab__message-meta-elapsed col-start-1 row-start-1 flex items-center text-xs text-ide-text-muted/50 group-hover/meta:opacity-0 transition-opacity">
+          {/* 两层同格叠加，靠 opacity 交叉淡入淡出：opacity<1 会新建 stacking context，
+              而 hover 时恰好是「elapsed 变 0、actions 变 1」——绘制顺序会翻过来让 elapsed
+              盖住按钮（实测 elementFromPoint 命中 elapsed 的 span），所以命中权必须用
+              pointer-events 显式指定，不能靠层序 */}
+          <div className="ai-tab__message-meta-elapsed col-start-1 row-start-1 pointer-events-none flex items-center text-xs text-ide-text-muted/50 group-hover/meta:opacity-0 transition-opacity">
             {(message.durationMs != null || message.isAborted) && (
               <span className="inline-flex items-center gap-0.5 mr-2">
                 <span className="text-sm">✻</span>
@@ -493,7 +507,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
               </span>
             )}
           </div>
-          <div className="ai-tab__message-meta-actions col-start-1 row-start-1 flex items-center gap-2.5 h-7 opacity-0 group-hover/meta:opacity-100 transition-opacity">
+          <div className="ai-tab__message-meta-actions col-start-1 row-start-1 pointer-events-none group-hover/meta:pointer-events-auto flex items-center gap-2.5 h-7 opacity-0 group-hover/meta:opacity-100 transition-opacity">
             {copyText && <CopyButton text={copyText} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />}
             {forkIdx >= 0 && (
               <button
@@ -613,7 +627,8 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
       if (prev.type === 'assistant' && prev.content) { copyText = prev.content; break }
       if (prev.type !== 'assistant') break
     }
-  } else if (allowHistory && !isLive && isTurnEndAssistant(allMessages, msgIndex)) {
+  } else if (!isLive && isTurnEndAssistant(allMessages, msgIndex)) {
+    // 复制只依赖消息正文，任何后端都能用（allowHistory 只管 fork/revert）
     copyText = message.content || undefined
   }
   let inner: React.ReactNode

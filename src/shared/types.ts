@@ -813,6 +813,8 @@ export interface AiCreateOptions {
   worktreePath?: string
   computerUse?: boolean
   browserUse?: boolean
+  // pi revert 重建会话时用：renderer 已把消息乐观截断到回退点，重放历史会让两段叠加
+  skipHistoryReplay?: boolean
 }
 
 export interface AiSendPayload {

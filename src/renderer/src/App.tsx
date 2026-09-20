@@ -2324,6 +2324,7 @@ export default function App() {
       const session: SessionTab = {
         ...makeLocalSession(current.cwd),
         kind: 'gui',
+        ...(current.aiBackend ? { aiBackend: current.aiBackend } : {}),
         resumeSessionId: result.newClaudeSessionId!,
         resumeCwd: current.cwd,
         loaded: true,
@@ -2372,9 +2373,12 @@ export default function App() {
       stampWorktreeIfAny(existing.id)
       return existing.id
     }
+    // 分支 tab 跟随源会话的后端：pi 的分叉会话必须用 pi 拉起，否则会被当成 claude 会话
+    const parentBackend = sessionsRef.current.find(s => s.id === opts.parentId)?.aiBackend
     const tab: SessionTab = {
       ...makeLocalSession(opts.cwd),
       kind: 'gui',
+      ...(parentBackend ? { aiBackend: parentBackend } : {}),
       resumeSessionId: opts.claudeSessionId,
       resumeCwd: opts.cwd,
       ...(opts.worktree ? {

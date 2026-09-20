@@ -24,6 +24,8 @@ import {
   normalizeCwdToProjectDir,
   parseUserTurns,
 } from './ai'
+import { forkPiSession } from './pi/fork'
+import { piSessionMeta, resumePiSessionFrom } from './pi/session'
 
 // ── JSONL truncation ──────────────────────────────────────────────
 
@@ -105,6 +107,24 @@ export function registerRevertHandlers(): void {
   // ── REVERT ──────────────────────────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.AI_REVERT, async (_event, payload: AiRevertPayload) => {
     const { sessionId, userMessageIndex, cwd } = payload
+
+    // pi：没有截断 RPC，改从目标轮之前分叉出会话再原地重建（旧内容留作另一分支，不丢）
+    const piMeta = piSessionMeta(sessionId)
+    if (piMeta) {
+      const forked = await forkPiSession({
+        sourceSessionId: piMeta.piSessionId,
+        cwd: piMeta.cwd,
+        userTurnIndex: userMessageIndex,
+        mode: 'before',
+        content: payload.content,
+        occurrence: payload.occurrence,
+      })
+      if (!forked.success) return { success: false, error: forked.error }
+      const restarted = await resumePiSessionFrom(sessionId, forked.empty ? null : forked.sessionId)
+      return restarted.success
+        ? { success: true }
+        : { success: false, error: restarted.error || 'Failed to restart pi session' }
+    }
 
     const prev = aiSessions.get(sessionId)
     const claudeSessionId = prev?.claudeSessionId
@@ -207,6 +227,22 @@ export function registerRevertHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.AI_FORK, async (_event, payload: AiForkPayload) => {
     const { sessionId, userMessageIndex, cwd } = payload
 
+    // pi：协议原生 fork，源会话由临时进程分叉，源进程/文件不受影响
+    const piMeta = piSessionMeta(sessionId)
+    if (piMeta) {
+      const forked = await forkPiSession({
+        sourceSessionId: piMeta.piSessionId,
+        cwd: piMeta.cwd,
+        userTurnIndex: userMessageIndex,
+        mode: 'through',
+        content: payload.content,
+        occurrence: payload.occurrence,
+      })
+      if (!forked.success) return { success: false, error: forked.error }
+      if (forked.empty) return { success: false, error: 'Fork target has no messages' }
+      return { success: true, newClaudeSessionId: forked.sessionId }
+    }
+
     const prev = aiSessions.get(sessionId)
     const claudeSessionId = prev?.claudeSessionId
     if (!claudeSessionId) {
@@ -239,6 +275,24 @@ export function registerRevertHandlers(): void {
   // 目标轮由 content + occurrence 定位，避免跨文件轮次索引漂移。
   ipcMain.handle(IPC_CHANNELS.AI_FORK_TURN, async (_event, payload: AiForkTurnPayload) => {
     const { sessionId, sourceClaudeSessionId, cwd, content, occurrence } = payload
+
+    // pi：网图上的分叉。源文件可能是任意一条分支（未必是当前会话），按 content+occurrence 定位
+    // （这里的 sourceClaudeSessionId 装的是 pi 的 sessionId）。worktree 目标 pi 不支持，忽略。
+    const piMeta = piSessionMeta(sessionId)
+    if (piMeta && sourceClaudeSessionId) {
+      const forked = await forkPiSession({
+        sourceSessionId: sourceClaudeSessionId,
+        cwd: payload.sourceCwd || piMeta.cwd,
+        userTurnIndex: -1,
+        mode: 'through',
+        content,
+        occurrence,
+      })
+      if (!forked.success) return { success: false, error: forked.error }
+      if (forked.empty) return { success: false, error: 'Fork target has no messages' }
+      return { success: true, newClaudeSessionId: forked.sessionId }
+    }
+
     const live = aiSessions.get(sessionId)
     const effectiveCwd = live?.cwd || cwd
     const configDir = live?.configDir

@@ -5,6 +5,9 @@ import { readFile, readdir, open } from 'fs/promises'
 import { join, resolve } from 'path'
 import { IPC_CHANNELS, type AiGraph, type AiGraphNode, type AiGraphBranch } from '../shared/types'
 import { aiSessions, parseUserTurns, resolveProjectDir, worktreeKind } from './ai'
+import { assignDepths, assignForkPoints, clip, exclusiveFirstOf } from './graph-shared'
+import { piSessionMeta } from './pi/session'
+import { buildPiSessionGraph } from './pi/tree'
 
 const execFileAsync = promisify(execFile)
 
@@ -121,10 +124,6 @@ function nearestAncestorTurn(file: BranchFile, turnUuids: Set<string>, fromUuid:
   return null
 }
 
-function clip(s: string, n: number): string {
-  return s.length > n ? s.slice(0, n) + '…' : s
-}
-
 async function listGroupFiles(projectDir: string, headKey: string): Promise<string[]> {
   let names: string[]
   try { names = await readdir(projectDir) } catch { return [] }
@@ -170,21 +169,6 @@ async function candidateDirs(cwd: string, configDir?: string): Promise<Candidate
   push(resolveProjectDir(cwd, configDir), cwd)
   for (const w of worktrees) push(resolveProjectDir(w.path, configDir), w.path)
   return out
-}
-
-function assignDepths(nodes: AiGraphNode[]): void {
-  const children = new Map<string | null, AiGraphNode[]>()
-  for (const n of nodes) {
-    const list = children.get(n.parentId) ?? []
-    list.push(n)
-    children.set(n.parentId, list)
-  }
-  const stack = [...(children.get(null) ?? [])].map(n => ({ n, d: 0 }))
-  while (stack.length) {
-    const { n, d } = stack.pop()!
-    n.depth = d
-    for (const c of children.get(n.id) ?? []) stack.push({ n: c, d: d + 1 })
-  }
 }
 
 export async function buildSessionGraph(sessionId: string, cwdOverride?: string, configDirOverride?: string): Promise<AiGraph | null> {
@@ -259,22 +243,11 @@ export async function buildSessionGraph(sessionId: string, cwdOverride?: string,
   assignDepths(all)
 
   // 分叉点 = 该分支第一个「只属于自己」的轮次的父节点（沿链 depth 最小者即入口）；
-  // 还没长出独占轮次（刚分叉就停手）时退化为 tip —— 两种情况下都是"这条分支从这里开始"
-  const exclusiveOf = new Map<string, AiGraphNode[]>()
-  for (const n of all) {
-    if (n.branchIds.length !== 1) continue
-    const list = exclusiveOf.get(n.branchIds[0]) ?? []
-    list.push(n)
-    exclusiveOf.set(n.branchIds[0], list)
-  }
-  const exclusiveFirst = (b: AiGraphBranch): AiGraphNode | null => {
-    const exclusive = exclusiveOf.get(b.claudeSessionId) ?? []
-    return exclusive.length > 0 ? exclusive.reduce((a, c) => (c.depth < a.depth ? c : a)) : null
-  }
-  for (const b of branches) {
-    const first = exclusiveFirst(b)
-    b.forkNodeId = first ? first.parentId : b.tipNodeId
-  }
+  // 还没长出独占轮次（刚分叉就停手）时退化为 tip —— 两种情况下都是"这条分支从这里开始"。
+  // 快照必须在插 worktree 起点节点之前取，下面 worktree 段还要复用它。
+  const exclusiveFirstOfNode = exclusiveFirstOf(all)
+  const exclusiveFirst = (b: AiGraphBranch): AiGraphNode | null => exclusiveFirstOfNode(b.claudeSessionId)
+  assignForkPoints(all, branches)
 
   // worktree 分支的起点单独成节点：源路径那一轮（原路径的节点）原样留在原分支，
   // worktree 的轮次改挂到起点下 —— 两个节点都在，才看得出 worktree 从哪开始
@@ -320,6 +293,8 @@ export async function buildSessionGraph(sessionId: string, cwdOverride?: string,
 export function registerTreeHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.AI_SESSION_GRAPH, async (_e, payload: { sessionId: string; cwd?: string; configDir?: string }) => {
     try {
+      const piMeta = piSessionMeta(payload.sessionId)
+      if (piMeta) return await buildPiSessionGraph(piMeta.piSessionId, piMeta.cwd)
       return await buildSessionGraph(payload.sessionId, payload.cwd, payload.configDir)
     } catch (err) {
       console.error('[ai-tree] build failed:', (err as Error).message)

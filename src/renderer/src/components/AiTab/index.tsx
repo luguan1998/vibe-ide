@@ -1368,17 +1368,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               )}
             </>
           )}
-          {/* Branch graph view */}
-          {!isPi && (
-            <button
-              onClick={() => onGraphOpenChange?.(!graphOpen)}
-              disabled={state.messages.length === 0}
-              className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${graphOpen ? 'ai-tab__header-btn--active bg-ide-active' : ''}`}
-              title={t('Branch Graph')}
-            >
-              <Network size={14} />
-            </button>
-          )}
+          {/* Branch graph view — claude 与 pi 都有（pi 的分支血缘走 parentSession） */}
+          <button
+            onClick={() => onGraphOpenChange?.(!graphOpen)}
+            disabled={state.messages.length === 0}
+            className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${graphOpen ? 'ai-tab__header-btn--active bg-ide-active' : ''}`}
+            title={t('Branch Graph')}
+          >
+            <Network size={14} />
+          </button>
           {/* Toggle tool visibility */}
           <button
             onClick={() => setViewMode(v => (v + 1) % 2)}
@@ -1495,7 +1493,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           onSendToBranch={handleGraphSendToBranch}
           onOpenBranch={handleGraphOpenBranch}
           onRevealTurn={handleGraphRevealTurn}
-          onForkWorktree={handleGraphForkWorktree}
+          onForkWorktree={isPi ? undefined : handleGraphForkWorktree}
         />
       ) : showEmptyCenter ? (
         <>
@@ -1599,7 +1597,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           onRevert={handleRevert}
           onRevertAndCode={handleRevertAndCode}
           onFork={handleFork}
-          allowHistory={!isPi}
         />
         {!state.ready && state.messages.length > 0 && (
           <div className={`ai-tab__resume flex items-center gap-2 w-full ${CONTENT_MAX_W} mx-auto px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in`}>

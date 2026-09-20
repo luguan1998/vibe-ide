@@ -34,6 +34,8 @@ interface PiSession {
   retrying: boolean
   compacting: boolean
   pendingUi: Map<string, PiExtensionUiRequest>
+  // revert 重建时按原样复用（cwd/模型/worktree 等），只需换 resumeSessionId
+  createOptions: AiCreateOptions
 }
 
 const piSessions = new Map<string, PiSession>()
@@ -42,12 +44,21 @@ export function hasPiSession(sessionId: string): boolean {
   return piSessions.has(sessionId)
 }
 
+// fork/revert 需要源会话在 pi 侧的 id（文件按它定位）与其 cwd（决定 sessions 子目录）；
+// piSessionId 要等 get_state 回来才有，创建窗口期内为 undefined
+export function piSessionMeta(sessionId: string): { piSessionId: string; cwd: string; model?: string } | null {
+  const session = piSessions.get(sessionId)
+  if (!session?.piSessionId) return null
+  return { piSessionId: session.piSessionId, cwd: session.cwd, model: session.model }
+}
+
 function contextPercentOf(session: PiSession): number | null {
   if (!session.contextWindow || !session.usedTokens) return null
   return Math.round((session.usedTokens / session.contextWindow) * 100)
 }
 
-function emitMessage(session: PiSession, message: Omit<AiMessage, 'sessionId' | 'timestamp'>): void {
+// 历史回放会带上记录里的真实时间；实时事件没有，落到 Date.now()
+function emitMessage(session: PiSession, message: Omit<AiMessage, 'sessionId' | 'timestamp'> & { timestamp?: number }): void {
   send(IPC_CHANNELS.AI_MESSAGE, { sessionId: session.sessionId, timestamp: Date.now(), ...message })
 }
 
@@ -82,6 +93,7 @@ export async function createPiSession(options: AiCreateOptions): Promise<{ succe
     retrying: false,
     compacting: false,
     pendingUi: new Map(),
+    createOptions: options,
   }
   piSessions.set(options.sessionId, session)
   session.rpc = new PiRpc('Pi', (payload) => writePiLine(proc, payload), (rec) => handleFrame(session, rec))
@@ -104,7 +116,7 @@ export async function createPiSession(options: AiCreateOptions): Promise<{ succe
     send(IPC_CHANNELS.AI_ERROR, { sessionId: options.sessionId, error: `Pi init failed: ${message}` })
     return { success: false, error: message }
   }
-  if (options.resumeSessionId) await pushHistory(session)
+  if (options.resumeSessionId && !options.skipHistoryReplay) await pushHistory(session)
   send(IPC_CHANNELS.AI_READY, {
     sessionId: options.sessionId,
     session_id: session.piSessionId,
@@ -182,6 +194,18 @@ export async function forceStopPi(sessionId: string): Promise<{ success: boolean
   piSessions.delete(sessionId)
   const result = await createPiSession(options)
   return result.success ? { success: true } : { success: false, error: result.error }
+}
+
+// revert：把该 GUI 会话换到分叉出来的新 pi 会话上重建。renderer 已经把消息乐观截断到
+// 回退点，重放历史会叠加，故 skipHistoryReplay。resumeSessionId 为 null = 回退到第一轮，
+// pi 没有可恢复的空分支，直接开全新会话（与 claude 侧清空 JSONL 后不传 --resume 对齐）。
+export function resumePiSessionFrom(sessionId: string, resumeSessionId: string | null): Promise<{ success: boolean; error?: string; installCmd?: string }> {
+  const prev = piSessions.get(sessionId)
+  if (!prev) return Promise.resolve({ success: false, error: 'Pi session not found' })
+  const base: AiCreateOptions = { ...prev.createOptions }
+  base.resumeSessionId = resumeSessionId ?? undefined
+  base.skipHistoryReplay = !!resumeSessionId
+  return createPiSession({ ...base, sessionId })
 }
 
 export function destroyPiSession(sessionId: string): boolean {

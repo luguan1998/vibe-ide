@@ -8,7 +8,7 @@ import { piRecordToMessage } from './messages'
 
 // pi 的会话存储：~/.pi/agent/sessions/<dashed-cwd>/<ISO时间>_<sessionId>.jsonl，
 // 首行是 {type:'session', id, cwd, timestamp} 头，其余为 model_change / thinking_level_change / message 行。
-const PI_SESSIONS_ROOT = join(homedir(), '.pi', 'agent', 'sessions')
+export const PI_SESSIONS_ROOT = join(homedir(), '.pi', 'agent', 'sessions')
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MAX_SESSIONS_PER_PROJECT = 100
 const MAX_TOTAL_SESSIONS = 1000
@@ -209,7 +209,7 @@ async function loadPiSessionMessages(sessionId: string, projectDir: string): Pro
     try { rec = JSON.parse(lines[i]) } catch { continue }
     if (rec?.type !== 'message') continue
     const mapped = piRecordToMessage(rec.message, `pi-file-${i}`)
-    if (mapped) messages.push({ sessionId, timestamp: typeof rec.timestamp === 'number' ? rec.timestamp : 0, ...mapped })
+    if (mapped) messages.push({ sessionId, ...mapped })
   }
   return { messages, model: sessionModel(lines), slashCommands: [] }
 }
