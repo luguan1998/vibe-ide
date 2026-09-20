@@ -229,7 +229,7 @@ export default function ConversationGraph({
   }, [draft, selected, sending, action, tipBranch, tipBranchCwd, onForkSend, onSendToBranch, onSendInThisSession])
 
   const forkWorktree = useCallback(async (node: AiGraphNode) => {
-    if (worktreeBusy) return
+    if (worktreeBusy || !onForkWorktree) return
     setError(null)
     setWorktreeBusy(true)
     try {
