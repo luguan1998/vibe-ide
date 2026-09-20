@@ -5,7 +5,7 @@ import { useI18n } from '../i18n'
 import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, PanelRightClose, SlidersHorizontal, SwatchBook, Info, PawPrint, Trash2 } from 'lucide-react'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { ModalOverlay } from './ModalOverlay'
-import { DEFAULT_SESSION_EMOJIS } from '../sessionRestore'
+import { DEFAULT_SESSION_EMOJIS, type DefaultSessionIcon } from '../sessionRestore'
 import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, setPetLogicalState, setPetLogicalFrames, getPetFrameRate, setPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, setPetListenAi, getPetListenDsh, setPetListenDsh, PET_SCALE_MIN, PET_SCALE_MAX, PET_FRAME_RATE_MIN, PET_FRAME_RATE_MAX } from './DesktopPet/petSettings'
 import { resolveStateName, PET_LOGICAL_STATES, PET_LOGICAL_LABEL, DEFAULT_PET_LOGICAL_STATE } from './DesktopPet/stateMap'
 
@@ -16,6 +16,12 @@ const FALLBACK_FONTS = [
 const MONO_KW = ['mono', 'code', 'consol', 'courier', 'fira', 'hack', 'source code',
   'jetbrains', 'droid sans mono', 'dejavu sans mono', 'ubuntu mono', 'noto sans mono',
   'inconsolata', 'anonymous pro', '等宽', 'monospace']
+
+const DEFAULT_ICON_OPTIONS: { value: DefaultSessionIcon; labelKey: string }[] = [
+  { value: 'random', labelKey: 'Random' },
+  { value: 'type', labelKey: 'Type Icon' },
+  { value: 'blank', labelKey: 'Blank' },
+]
 
 type CategoryId = 'theme' | 'session' | 'middle' | 'panel' | 'pet' | 'advanced'
 
@@ -179,6 +185,8 @@ interface AppearancePanelProps {
   onToggleCgEnabled?: (v: boolean) => void
   sessionEmojis: string[]
   onSetSessionEmojis: (arr: string[]) => void
+  defaultSessionIcon?: DefaultSessionIcon
+  onSetDefaultSessionIcon?: (v: DefaultSessionIcon) => void
   onResetUiStyle?: () => void
   onCreateSessionAt?: (cwd: string, shell?: string) => void
 }
@@ -198,6 +206,7 @@ const AppearancePanel = function AppearancePanel({
   terminalFontSize = 14, onAdjustTerminalFontSize,
   cgEnabled = true, onToggleCgEnabled,
   sessionEmojis, onSetSessionEmojis,
+  defaultSessionIcon = 'blank', onSetDefaultSessionIcon,
   onResetUiStyle, onCreateSessionAt,
 }: AppearancePanelProps) {
   const { themes, currentThemeId, setTheme } = useTheme()
@@ -578,6 +587,24 @@ const AppearancePanel = function AppearancePanel({
                     />
                   </div>
                 </div>
+                {onSetDefaultSessionIcon && (
+                  <div className="border-t border-ide-border mt-2 pt-2 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-ide-text">{t('Default Session Icon')}</span>
+                      <Pill zone="session" />
+                    </div>
+                    <p className="text-[12px] text-ide-text-muted">{t('Icon for new sessions. Switching also resets all open sessions.')}</p>
+                    <div className="grid grid-cols-3 gap-1">
+                      {DEFAULT_ICON_OPTIONS.map(o => (
+                        <button
+                          key={o.value}
+                          onClick={() => onSetDefaultSessionIcon(o.value)}
+                          className={`h-7 rounded text-xs transition-colors${defaultSessionIcon === o.value ? ' bg-ide-accent/20 ring-1 ring-ide-accent text-ide-text' : ' bg-ide-hover text-ide-text-muted hover:text-ide-text'}`}
+                        >{t(o.labelKey)}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

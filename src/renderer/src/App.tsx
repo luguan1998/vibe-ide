@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { getDshApi } from './dsh/history'
-import { loadSessionWorkspace, saveSessionWorkspace, randomTermEmoji, sessionGroupKey, type Session, type SessionTab } from './sessionRestore'
+import { loadSessionWorkspace, saveSessionWorkspace, resolveDefaultIcon, sessionGroupKey, type Session, type SessionTab } from './sessionRestore'
 import type { SessionMode } from './components/DirectoryPicker'
 const DshView = lazy(() => import('./components/DshView'))
 import type { DshViewHandle } from './components/DshView'
@@ -2110,9 +2110,9 @@ export default function App() {
   }
 
   const addSessionRecord = useCallback((session: SessionTab, parentId?: string | null, activate = true) => {
-    // term 会话默认随机 emoji（落到具体 emoji 而非类型 SVG），克隆时父 emoji 优先
-    const rec = session.kind === 'terminal' && session.emoji === undefined
-      ? { ...session, emoji: randomTermEmoji() }
+    // 新建会话按外观里的"默认会话图标"落 emoji（随机/类型/空白），克隆时父 emoji 优先
+    const rec = session.emoji === undefined
+      ? { ...session, emoji: resolveDefaultIcon() }
       : session
     setSessions(prev => {
       if (prev.some(s => s.id === rec.id)) return prev
@@ -2577,7 +2577,7 @@ export default function App() {
     try {
       const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: command })
       const parentEmoji = sessionsRef.current.find(s => s.id === sessionId)?.emoji
-      const tab: SessionTab = { ...session, kind: 'terminal', loaded: true, emoji: parentEmoji ?? randomTermEmoji() }
+      const tab: SessionTab = { ...session, kind: 'terminal', loaded: true, emoji: parentEmoji ?? resolveDefaultIcon() }
       setSessions(prev => {
         const parentIndex = prev.findIndex(s => s.id === sessionId)
         if (parentIndex === -1) return [...prev, tab]

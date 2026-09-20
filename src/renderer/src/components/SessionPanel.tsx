@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
 import { RecentFileEntry } from '@shared/types'
-import { type SessionTab, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey } from '../sessionRestore'
+import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon } from '../sessionRestore'
 import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, mascotColorValue, pixelMascot } from '../pixelMascots'
 import { PixelMascot } from './PixelMascot'
 import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch } from 'lucide-react'
@@ -599,6 +599,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [auxTermType, setAuxTermType] = useState(() => getAuxShellType())
   const [shellOptions, setShellOptions] = useState(FALLBACK_SHELLS)
   const [sessionEmojis, setSessionEmojis] = useState<string[]>(() => loadSessionEmojis())
+  const [defaultIcon, setDefaultIcon] = useState<DefaultSessionIcon>(() => getDefaultSessionIcon())
   const [cwdMascots, setCwdMascots] = useState<Record<string, string>>(() => loadCwdMascots())
   const [cwdMascotColors, setCwdMascotColors] = useState<Record<string, string>>(() => loadCwdMascotColors())
   const [cwdAliases, setCwdAliases] = useState<Record<string, string>>(() => loadCwdAliases())
@@ -635,6 +636,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       }
     }
   }, [sessionEmojis, sessions, onSetSessionEmoji])
+
+  // 默认会话图标：写盘 + 立即套用到现有会话（random 每个会话各摇一次）
+  const handleSetDefaultIcon = (v: DefaultSessionIcon) => {
+    setDefaultIcon(v)
+    persistDefaultSessionIcon(v)
+    for (const s of sessions) onSetSessionEmoji?.(s.id, emojiForDefaultIcon(v))
+  }
 
   // 启动时从主进程获取本机已安装的 shell，过滤选项
   useEffect(() => {
@@ -2571,6 +2579,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onToggleCgEnabled={onToggleCgEnabled}
         sessionEmojis={sessionEmojis}
         onSetSessionEmojis={(arr) => { setSessionEmojis(arr); saveSessionEmojis(arr) }}
+        defaultSessionIcon={defaultIcon}
+        onSetDefaultSessionIcon={handleSetDefaultIcon}
         onResetUiStyle={onResetUiStyle}
         onCreateSessionAt={onCreateSessionAt}
       />, document.body)}

@@ -9,6 +9,31 @@ export function randomTermEmoji(): string {
   return DEFAULT_SESSION_EMOJIS[Math.floor(Math.random() * DEFAULT_SESSION_EMOJIS.length)]
 }
 
+// 新建会话默认图标：random=池内随机 / type=类型图标 / blank=空白（picker 第二格）
+export type DefaultSessionIcon = 'random' | 'type' | 'blank'
+
+const DEFAULT_ICON_KEY = 'vibe-ide-default-session-icon'
+
+export function getDefaultSessionIcon(): DefaultSessionIcon {
+  try {
+    const v = localStorage.getItem(DEFAULT_ICON_KEY)
+    if (v === 'random' || v === 'type' || v === 'blank') return v
+  } catch {}
+  return 'blank'
+}
+
+export function persistDefaultSessionIcon(v: DefaultSessionIcon): void {
+  try { localStorage.setItem(DEFAULT_ICON_KEY, v) } catch {}
+}
+
+export function emojiForDefaultIcon(v: DefaultSessionIcon): string | undefined {
+  return v === 'random' ? randomTermEmoji() : v === 'type' ? undefined : ICON_NONE
+}
+
+export function resolveDefaultIcon(): string | undefined {
+  return emojiForDefaultIcon(getDefaultSessionIcon())
+}
+
 export interface SessionTab {
   id: string
   kind: TabKind
@@ -72,7 +97,7 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           kind: t.kind,
           name: t.name,
           cwd: t.cwd,
-          emoji: typeof t.emoji === 'string' ? t.emoji : (t.kind === 'terminal' ? randomTermEmoji() : undefined),
+          emoji: typeof t.emoji === 'string' ? t.emoji : resolveDefaultIcon(),
           active: true,
           createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
           shell: typeof t.shell === 'string' ? t.shell : undefined,
@@ -94,7 +119,7 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           kind: 'terminal',
           name: 'Terminal',
           cwd: s.cwd,
-          emoji: randomTermEmoji(),
+          emoji: resolveDefaultIcon(),
           active: true,
           createdAt: Date.now(),
           loaded: false,
