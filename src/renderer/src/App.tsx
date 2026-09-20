@@ -27,6 +27,7 @@ import { ModalOverlay } from './components/ModalOverlay'
 import { DirectoryPicker } from './components/DirectoryPicker'
 import QuickOpen from './components/QuickOpen'
 import AiTab, { AiTabHandle } from './components/AiTab'
+import ConversationGraph from './components/AiTab/ConversationGraph'
 import BoardView, { BOARD_FOCUS } from './components/BoardView'
 import { aiStore, readAiCliConfig, queuePendingSend } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
@@ -472,7 +473,14 @@ export default function App() {
   }, [])
   // useEffect 延迟同步,渲染帧内读到的是打开 overlay 前的 centerView(用于定侧/回落判断)
   const centerViewRef = React.useRef<CenterView>('terminal')
-  const overlayKind = centerView === 'files' && tabs.length > 0 ? 'files' : null
+  // 网状视图按会话绑定：分支即会话，切分支必然切会话，放 AiTab 局部会被切没；
+  // 但做成全局开关会漏给所有会话（空会话发第一条消息时凭空跳进图），所以记"图开在哪个会话上"
+  const [graphOpenFor, setGraphOpenFor] = useState<string | null>(null)
+  const graphOpenForRef = useRef<string | null>(null)
+  graphOpenForRef.current = graphOpenFor
+  // 会落右栏 overlay 的中栏视图：文件 tab（优先占位）与网状图（AI tab 顶栏开）
+  const overlayKind: 'files' | 'graph' | null =
+    centerView === 'files' && tabs.length > 0 ? 'files' : graphOpenFor ? 'graph' : null
   const overlaySnapRef = useRef<{ key: string | null; right: boolean; base: 'terminal' | 'board' }>({ key: null, right: false, base: 'terminal' })
   if (overlayKind && overlaySnapRef.current.key !== overlayKind) {
     const firstOpen = overlaySnapRef.current.key === null
@@ -2085,11 +2093,6 @@ export default function App() {
   const leftWorktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
   // 会话增减时让所有图重扫盘：新分支是在别的会话里长出来的，当前图的 messages 不会变
   const branchRevision = useMemo(() => sessions.length, [sessions])
-  // 网状视图按会话绑定：分支即会话，切分支必然切会话，放 AiTab 局部会被切没；
-  // 但做成全局开关会漏给所有会话（空会话发第一条消息时凭空跳进图），所以记"图开在哪个会话上"
-  const [graphOpenFor, setGraphOpenFor] = useState<string | null>(null)
-  const graphOpenForRef = useRef<string | null>(null)
-  graphOpenForRef.current = graphOpenFor
   const leftSubmoduleNav = activeSessionId ? sessionSubmoduleNav[activeSessionId] ?? null : null
   const leftEffectiveGitPath = leftSubmoduleNav?.submodulePath || leftWorktreeNav?.worktreePath || activeSessionCwd
 
@@ -2422,11 +2425,12 @@ export default function App() {
     return true
   }, [openBranchTab])
 
-  const handleGraphOpenBranch = useCallback((sessionId: string, claudeSessionId: string, cwd: string) => {
+  const handleGraphOpenBranch = useCallback((sessionId: string, claudeSessionId: string, cwd: string, keepGraph = false) => {
     if (!sessionsRef.current.some(s => s.id === sessionId)) return
+    // 打开分支 = 去那条对话看：图跟着切到新分支（openBranchTab 里的 carryGraph 已改 graphOpenFor）
     openBranchTab({ claudeSessionId, cwd, parentId: sessionId })
-    // 「打开分支」= 去那条对话看，离开网状视图；只有发送类动作才让图跟着不关
-    setGraphOpenFor(null)
+    // 图就地铺着时离开网状视图（不然盖住刚跳过去的对话）；挂在右栏时留着，两边同时可见
+    if (!keepGraph) setGraphOpenFor(null)
   }, [openBranchTab])
 
   // 图上 + ：从该轮分叉，并把这棵对话放进一棵独立的 worktree（内容 = 当前工作区含未提交改动）
@@ -2651,6 +2655,8 @@ export default function App() {
     // 清理该 session 的 AI 子进程 + renderer 单例 store 中的状态(消除残骸)
     window.api.ai.destroy(id)
     aiStore.clearSession(id)
+    // 图打开的那个会话被关掉：不留下指向已死会话的 graphOpenFor（否则右栏 overlay 判定会一直为真）
+    setGraphOpenFor(prev => (prev === id ? null : prev))
     if (activeSessionId === id) {
       const remaining = sessions.filter(s => s.id !== id)
       setActiveSessionId(remaining.length > 0 ? remaining[0].id : null)
@@ -3428,7 +3434,26 @@ export default function App() {
     />
   )
 
-  const rightOverlay = overlayOnRight ? fileTabsNode : null
+  // 网状图落右栏：props 都在 App 侧可得，只有「滚到该轮/就地发送」走 AiTab 句柄（消息态与滚动容器在那边）。
+  // 刷新信号用 agentStatus（busy 边沿，等价于 AiTab 里的 busy?0:messages.length）+ branchRevision
+  const graphDockSession = graphOpenFor ? sessions.find(s => s.id === graphOpenFor) : undefined
+  const graphOnRight = overlayKind === 'graph' && overlayOnRight && graphOpenFor === activeSessionId
+  const graphDockNode = graphOnRight && graphOpenFor && graphDockSession ? (
+    <ConversationGraph
+      sessionId={graphOpenFor}
+      workspacePath={graphDockSession.cwd}
+      isActive
+      refreshSignal={`${agentStatus[graphOpenFor] || 'idle'}:${branchRevision}`}
+      onForkSend={(node, text) => handleGraphForkSend(graphOpenFor, node, text)}
+      onSendInThisSession={(text) => aiTabRefs.current[graphOpenFor]?.sendText(text)}
+      onSendToBranch={async (claudeSessionId, cwd, text) => handleGraphSendToBranch(graphOpenFor, claudeSessionId, cwd, text)}
+      onOpenBranch={(claudeSessionId, cwd) => handleGraphOpenBranch(graphOpenFor, claudeSessionId, cwd, true)}
+      onRevealTurn={(content, occurrence) => aiTabRefs.current[graphOpenFor]?.revealTurn(content, occurrence)}
+      onForkWorktree={graphDockSession.aiBackend === 'pi' ? undefined : (node) => handleGraphForkWorktree(graphOpenFor, node)}
+    />
+  ) : null
+
+  const rightOverlay = overlayOnRight ? (overlayKind === 'graph' ? graphDockNode : fileTabsNode) : null
 
   // 右面板宽到出现 TabRail 导航（>= PANEL_TAB_RAIL_MIN_W）时收紧中间卡片与右面板的间隙，原始宽度保持对称
   const centerGapX = !isWelcome && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'ml-1 mr-0' : 'mx-1'
@@ -3748,6 +3773,7 @@ export default function App() {
                         lastOpenedFile={lastOpenedFile}
                         branchRevision={branchRevision}
                         graphOpen={graphOpenFor === session.id}
+                        graphDockedRight={graphOnRight}
                         onGraphOpenChange={(open) => setGraphOpenFor(open ? session.id : null)}
                         initialWorktreeEnabled={session.enableWorktree}
                         worktreePath={session.worktreePath}

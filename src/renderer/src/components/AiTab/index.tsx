@@ -43,6 +43,8 @@ interface AiTabProps {
   // 图开着与否提升到 App：分支=会话，切分支必然切会话，状态放本组件就会随实例一起消失
   graphOpen?: boolean
   onGraphOpenChange?: (open: boolean) => void
+  // 右栏够宽时图由 App 挂到右栏 overlay（开时定侧），本组件不再就地整屏替换
+  graphDockedRight?: boolean
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   resumeSessionId?: string
   brushActive?: boolean
@@ -64,6 +66,8 @@ export interface AiTabHandle {
   setValue: (text: string) => void
   appendText: (text: string) => void
   sendText: (text: string) => void
+  // 图挂在右栏时按 content+occurrence 滚到该轮（本组件持有消息态与滚动容器）
+  revealTurn: (content: string, occurrence: number) => void
 }
 const BUSY_QUIPS = [
   'Forging the digital frontier…',
@@ -78,7 +82,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 const EDGE_HOVER_PX = 48
-const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onGraphForkWorktree, graphOpen, onGraphOpenChange, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, initialWorktreeEnabled, worktreePath, worktreeBranch, worktreeOriginalPath, branchRevision, onWorktreeChange, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onGraphForkWorktree, graphOpen, onGraphOpenChange, graphDockedRight, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, initialWorktreeEnabled, worktreePath, worktreeBranch, worktreeOriginalPath, branchRevision, onWorktreeChange, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -342,6 +346,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   useEffect(() => { closeMention() }, [activeSessionId, closeMention])
 
   const dispatchMessageRef = useRef<((message: string) => Promise<void>) | null>(null)
+  const revealTurnRef = useRef<((content: string, occurrence: number) => void) | null>(null)
 
   useImperativeHandle(ref, () => ({
     focus: () => { inputRef.current?.focus({ preventScroll: true }) },
@@ -367,6 +372,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     sendText: (text: string) => {
       if (!text.trim()) return
       dispatchMessageRef.current?.(text.trim())
+    },
+    revealTurn: (content: string, occurrence: number) => {
+      revealTurnRef.current?.(content, occurrence)
     },
   }), [setInputValue, setInputValues])
 
@@ -758,10 +766,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     return onGraphForkWorktree ? await onGraphForkWorktree(node) : 'Unsupported'
   }, [onGraphForkWorktree])
 
-  // 双击活跃路径上的节点 → 回到消息视图并滚到该轮（按 content+occurrence 定位真实 user 轮）
-  const handleGraphRevealTurn = useCallback((content: string, occurrence: number) => {
-    // 先退出网状视图：即使这一轮定位不到，双击也该回到普通对话，不能卡在图上
-    onGraphOpenChange?.(false)
+  // 双击活跃路径上的节点 → 滚到该轮（按 content+occurrence 定位真实 user 轮）
+  const revealTurnInMessages = useCallback((content: string, occurrence: number) => {
     const want = content.trim()
     let realIdx = 0
     let seen = 0
@@ -776,7 +782,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     }
     if (target < 0) return
     setTimeout(() => jumpToUserTurn(target), 0)
-  }, [state.messages, jumpToUserTurn, onGraphOpenChange])
+  }, [state.messages, jumpToUserTurn])
+  revealTurnRef.current = revealTurnInMessages
+
+  // 图就地铺在本组件时，双击要连带退出网状视图；挂在右栏时由 App 直接调 revealTurn（图不关）
+  const handleGraphRevealTurn = useCallback((content: string, occurrence: number) => {
+    // 先退出网状视图：即使这一轮定位不到，双击也该回到普通对话，不能卡在图上
+    onGraphOpenChange?.(false)
+    revealTurnInMessages(content, occurrence)
+  }, [revealTurnInMessages, onGraphOpenChange])
 
   // ── Piped chip: interject send (stdin write while busy, same as pet) + inline edit ──
   const [editingPiped, setEditingPiped] = useState<string | null>(null)
@@ -1482,7 +1496,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         </div>
       )}
       {/* New conversation: 输入框居中,上方 icon + prompts 保持原位置 */}
-      {graphOpen && !showEmptyCenter ? (
+      {graphOpen && !graphDockedRight && !showEmptyCenter ? (
         <ConversationGraph
           sessionId={activeSessionId}
           workspacePath={workspacePath || ''}
