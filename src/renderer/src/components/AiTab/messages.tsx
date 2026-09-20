@@ -80,6 +80,23 @@ export function isRealUserInput(messages: AiMessage[], i: number): boolean {
   return !(i > 0 && messages[i - 1].type === 'assistant')
 }
 
+// 历史会话没有 result 行（CLI 的 result 汇总只走 stream-json，不落 transcript），
+// 回合末条 assistant 需代 result 承载 meta（Churned for/copy/fork）；
+// 本回合已有 result 或后续还有 assistant 时返回 false，避免与 result 行重复
+function isTurnEndAssistant(messages: AiMessage[], i: number): boolean {
+  if (i < 0) return false
+  const m = messages[i]
+  if (!m || m.type !== 'assistant' || m.parentToolUseId) return false
+  for (let j = i + 1; j < messages.length; j++) {
+    const next = messages[j]
+    if (next.parentToolUseId) continue
+    if (next.type === 'result' || next.type === 'assistant') return false
+    // tool_result 回填仍是本回合（回合未完，meta 尚不该出）；真实用户输入才是回合分界
+    if (next.type === 'user') return isRealUserInput(messages, j)
+  }
+  return true
+}
+
 export function findMessageIndexForUserMessage(messages: AiMessage[], userMessageIndex: number): number {
   let count = 0
   for (let i = 0; i < messages.length; i++) {
@@ -430,7 +447,10 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   if (isLive) wasLiveRef.current = true
   const hideTools = viewMode === 1
   const hideThink = viewMode === 1
-  const showMeta = message.type === 'result' && (message.costUsd != null || message.numTurns != null || message.isAborted || message.durationMs != null)
+  // result 行只有 CLI 汇总字段；历史会话的回合末条 assistant（无 result）只承载按钮，无耗时
+  const showMeta = message.type === 'result'
+    ? (message.costUsd != null || message.numTurns != null || message.isAborted || message.durationMs != null)
+    : forkIdx >= 0 || copyText != null
   const showContent = message.type !== 'result'
   const hasContent = showContent && (message.content || message.thinking || (message.toolUse && message.toolUse.length > 0))
 
@@ -461,22 +481,31 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
         </div>
       )}
       {showMeta && (
-        <div className={`ai-tab__message-meta w-full ${CONTENT_MAX_W} flex items-center gap-2.5 text-xs text-ide-text-muted/50 group/meta`}>
-          <span className="inline-flex items-center gap-0.5 mr-2">
-            <span className="text-sm">✻</span>
-            <span>Churned for {(() => { const sec = (message.durationMs || 0) / 1000; if (sec < 60) return `${sec.toFixed(1)}s`; const m = Math.floor(sec / 60); const s = Math.round(sec % 60); return `${m}m ${s}s`; })()}</span>
-            {message.isAborted && <span className="text-ide-text-muted/40"> · paused by user</span>}
-          </span>
-          {copyText && <CopyButton text={copyText} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-accent opacity-0 group-hover/meta:opacity-100 transition" />}
-          {forkIdx >= 0 && (
-            <button
-              onClick={() => onFork(forkIdx)}
-              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-accent opacity-0 group-hover/meta:opacity-100 transition"
-              title={t('Fork to new session')}
-            >
-              <GitBranch size={14} />
-            </button>
-          )}
+        // 两层同格叠加（grid 取较高者定行高，避免 hover 换层时跳动）：
+        // 默认层 = 耗时文本（无耗时即空行）；hover 层 = 时间 + 复制 + fork，格式照抄 user 气泡 actions 行
+        <div className={`ai-tab__message-meta group/meta grid w-full ${CONTENT_MAX_W}`}>
+          <div className="ai-tab__message-meta-elapsed col-start-1 row-start-1 flex items-center text-xs text-ide-text-muted/50 group-hover/meta:opacity-0 transition-opacity">
+            {(message.durationMs != null || message.isAborted) && (
+              <span className="inline-flex items-center gap-0.5 mr-2">
+                <span className="text-sm">✻</span>
+                {message.durationMs != null && <span>Churned for {(() => { const sec = message.durationMs / 1000; if (sec < 60) return `${sec.toFixed(1)}s`; const m = Math.floor(sec / 60); const s = Math.round(sec % 60); return `${m}m ${s}s`; })()}</span>}
+                {message.isAborted && <span className="text-ide-text-muted/40"> · paused by user</span>}
+              </span>
+            )}
+          </div>
+          <div className="ai-tab__message-meta-actions col-start-1 row-start-1 flex items-center gap-2.5 h-7 opacity-0 group-hover/meta:opacity-100 transition-opacity">
+            {copyText && <CopyButton text={copyText} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />}
+            {forkIdx >= 0 && (
+              <button
+                onClick={() => onFork(forkIdx)}
+                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+                title={t('Fork to new session')}
+              >
+                <GitBranch size={14} />
+              </button>
+            )}
+            <span className="text-sm leading-none tabular-nums text-ide-text-muted/50">{message.timestamp ? formatHourMin(message.timestamp) : ''}</span>
+          </div>
         </div>
       )}
     </div>
@@ -584,6 +613,8 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
       if (prev.type === 'assistant' && prev.content) { copyText = prev.content; break }
       if (prev.type !== 'assistant') break
     }
+  } else if (allowHistory && !isLive && isTurnEndAssistant(allMessages, msgIndex)) {
+    copyText = message.content || undefined
   }
   let inner: React.ReactNode
   if (message.error) {
@@ -603,9 +634,10 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   } else {
     // fork 语义 = 保留到该 AI 回复正文结束：第 N 个主会话 result = 第 N 回合完成，
     // 其 forkIdx = 其之前真实用户输入数 - 1（截断点 = 该回合的 user 消息索引，
-    // main 端会保留整个回合）
+    // main 端会保留整个回合）。历史会话无 result，由回合末条 assistant 代承
     let forkIdx = -1
-    if (allowHistory && message.type === 'result' && !message.parentToolUseId) {
+    if (allowHistory && ((message.type === 'result' && !message.parentToolUseId)
+      || (!isLive && isTurnEndAssistant(allMessages, msgIndex)))) {
       let count = 0
       for (let j = 0; j < msgIndex; j++) {
         if (isRealUserInput(allMessages, j)) count++

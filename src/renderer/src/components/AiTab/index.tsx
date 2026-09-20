@@ -3,11 +3,10 @@ export { InlineAnnotationInput } from './permissions'
 import React, { useState, useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import type { AiSessionState, AiPermissionMode, RecentFileEntry, AiGraphNode } from '@shared/types'
 import { useI18n } from '../../i18n'
-import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { loadFilterRules } from '../FileTab'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig, takePendingSend } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, Check, MessageSquarePlus, Copy, Eye, EyeOff, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown } from 'lucide-react'
+import { SquareArrowUp, Square, Check, MessageSquarePlus, Eye, EyeOff, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown } from 'lucide-react'
 import { StreamingMarkdown } from './markdown'
 import ConversationGraph from './ConversationGraph'
 import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput } from './messages'
@@ -691,7 +690,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     const isSlash = message.startsWith('/')
     const isClear = message.startsWith('/clear')
     onCommand?.(message)
-    const userMsg = { sessionId: activeSessionId, type: 'user' as const, role: 'user' as const, content: message, timestamp: Date.now() }
+    const userMsg = { sessionId: activeSessionId, type: 'user' as const, role: 'user' as const, content: message, timestamp: Date.now(), isRealUserTurn: true }
     updateSession(activeSessionId, (s) => {
       const newName = !s.name && !isSlash ? message.slice(0, 60) : s.name
       return {
@@ -994,22 +993,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   // ── Todo list ──
   const todoItems = useMemo(() => deriveTodoList(state.messages), [state.messages])
-
-  // ── Copy entire conversation ──
-  const [conversationCopied, setConversationCopied] = useState(false)
-  const handleCopyConversation = useCallback(() => {
-    const includeThinking = viewMode !== 1
-    const includeToolUse = viewMode !== 1
-    const text = formatConversationMarkdown(
-      state.messages, state.userTurns, state.name, includeThinking, includeToolUse
-    )
-    if (text) {
-      navigator.clipboard.writeText(text).then(() => {
-        setConversationCopied(true)
-        setTimeout(() => setConversationCopied(false), 1500)
-      })
-    }
-  }, [state.messages, state.userTurns, state.name, viewMode])
 
   const lastFile = useMemo(() => {
     if (!lastOpenedFile) return null
@@ -1385,15 +1368,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               )}
             </>
           )}
-          {/* Copy conversation */}
-          <button
-            onClick={handleCopyConversation}
-            disabled={state.messages.length === 0}
-            className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title={t('Copy as Markdown (content follows eye filter)')}
-          >
-            {conversationCopied ? <Check size={14} className="text-ide-accent" /> : <Copy size={14} />}
-          </button>
           {/* Branch graph view */}
           {!isPi && (
             <button
