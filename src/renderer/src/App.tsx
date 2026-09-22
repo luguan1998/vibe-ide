@@ -3456,46 +3456,62 @@ export default function App() {
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
       {/* Title Bar */}
-      <div className="titlebar-drag h-9 bg-ide-sidebar border-b border-ide-border flex items-center px-4 select-none shrink-0">
-        {!isWelcome && (
+      <div className="titlebar-drag h-8 bg-ide-sidebar border-b border-ide-border flex items-center px-4 select-none shrink-0">
+        {!isWelcome && leftPanelCollapsed && (
         <button
           className="no-drag w-6 h-6 -ml-1 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
           onClick={handleToggleLeftPanel}
-          title={leftPanelCollapsed ? t('Restore Sessions') : t('Collapse Sessions')}
+          title={t('Restore Sessions')}
         >
-          <svg viewBox="0 0 24 24" fill="currentColor" className="size-4 -scale-x-100">
-            <path d={PANEL_ICON_PATH} />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" className="size-4">
+            <rect x="2.75" y="4.5" width="18.5" height="15" rx="4" />
+            <line x1="9.75" y1="4.5" x2="9.75" y2="19.5" />
           </svg>
         </button>
         )}
-        <div className="flex items-center gap-0.5 ml-2 shrink-0">
+        <div className={`flex items-center gap-0.5 shrink-0 ${leftPanelCollapsed ? 'ml-2' : '-ml-1'}`}>
+          {/* 三个图标按 ink 等高归一：17px 盒 + 各自 scale，实测 ink 13x13（机器人宽 15、高同为 13） */}
           <button
-            className="no-drag px-2 h-6 rounded flex items-center text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+            className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
             onClick={() => sessionPanelRef.current?.openAppearance()}
             title={t('Appearance')}
           >
-            {t('Nav Appearance')}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-[17px]">
+              <g transform="translate(1.92 1.92) scale(0.84)">
+                <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+                <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+                <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+                <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
+              </g>
+            </svg>
           </button>
           <button
-            className="no-drag px-2 h-6 rounded flex items-center text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+            className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
             onClick={() => sessionPanelRef.current?.openCliConfig()}
             title={t('CLI Configuration')}
           >
-            {t('Session')}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-[17px]">
+              <g transform="translate(-0.6 -0.6) scale(1.05)">
+                <path d="M12 8V4H8" />
+                <rect width="16" height="12" x="4" y="8" rx="2" />
+                <path d="M2 14h2" />
+                <path d="M20 14h2" />
+                <path d="M15 13v2" />
+                <path d="M9 13v2" />
+              </g>
+            </svg>
           </button>
           <button
-            className="no-drag px-2 h-6 rounded flex items-center text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
-            onClick={() => sessionPanelRef.current?.openShortcuts()}
-            title={t('Keyboard Shortcuts')}
-          >
-            {t('Keys')}
-          </button>
-          <button
-            className="no-drag px-2 h-6 rounded flex items-center text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+            className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
             onClick={() => sessionPanelRef.current?.openFileFilterRules()}
             title={t('File Filter Rules')}
           >
-            {t('Filter')}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-[17px]">
+              <g transform="translate(0.8 0.8) scale(0.933)">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </g>
+            </svg>
           </button>
         </div>
         <div className="flex-1" />

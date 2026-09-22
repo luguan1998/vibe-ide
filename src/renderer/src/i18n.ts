@@ -29,8 +29,6 @@ const EN_MAP: Record<string, string> = {
   'Plugin Bar Hint': 'dsh plugin only manages dependencies: a package declaring dsh.bundle becomes a profile layer after restart; plain packages need a manual insert row in ~/.dsh/profiles/web/cordis.patch.yml to take effect.',
   // 窄侧栏按钮，完整词过长
   'Open CSS Config': 'Open CSS',
-  // 标题栏入口，英文取短词
-  'Nav Appearance': 'Theme',
   // 右键菜单双列按钮，完整词过长
   'Clear Screen': 'Clear',
   // 会话列表空态提示
@@ -49,12 +47,6 @@ const ZH_MAP: Record<string, string> = {
   'Shell Type': '命令行类型',
   'Aux Shell Type': 'Aux 命令行类型',
   'Keyboard Shortcuts': '键盘快捷键',
-  // 标题栏入口短标签：英文取短词，完整名走 tooltip
-  'Session': '会话',
-  'Keys': '键位',
-  'Filter': '过滤',
-  // 'Theme' / 'Appearance' 两个键已被外观面板占用（导航项、面板标题），另起键名以便英文取短词
-  'Nav Appearance': '外观',
   'Claude Code CLI': 'Claude Code CLI 别名',
   'Claude Config Dir': 'Claude 配置目录',
   'Claude Provider Config': 'claude code 多provider配置',

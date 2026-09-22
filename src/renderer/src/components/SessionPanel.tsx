@@ -343,7 +343,6 @@ interface SessionPanelProps {
 export interface SessionPanelHandle {
   openAppearance: () => void
   openCliConfig: () => void
-  openShortcuts: () => void
   openFileFilterRules: () => void
 }
 
@@ -873,7 +872,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   useImperativeHandle(ref, () => ({
     openAppearance: () => setShowAppearance(true),
-    openShortcuts: () => setShowShortcuts(true),
     openFileFilterRules: () => {
       setFileFilterRulesDraft(fileFilterRules.join('\n'))
       setShowFileFilterRules(true)
@@ -1402,7 +1400,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     <div ref={panelRef} className={`flex flex-col relative session-panel${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
       {/* App 信息行：放在 .session-panel 内部，好让各主题既有的面板底（玻璃/贴图）自动覆盖到这一栏 */}
       {showAppInfo && (
-      <div className="app-info group/app-info relative h-12 px-3 flex items-center select-none shrink-0">
+      <div className="app-info group/app-info relative h-10 px-3 flex items-center select-none shrink-0">
         <span className="relative w-[22px] h-[22px] mr-2 shrink-0 block">
           <span
             className="app-info__icon-bg absolute inset-0 bg-ide-accent"
@@ -1420,6 +1418,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           </svg>
         </button>
         <div className="flex-1" />
+        <button
+          className="app-info-menu w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-all shrink-0 opacity-0 pointer-events-none group-hover/app-info:opacity-100 group-hover/app-info:pointer-events-auto"
+          onClick={() => setShowShortcuts(true)}
+          title={t('Keyboard Shortcuts')}
+        >
+          <Keyboard className="size-3.5" />
+        </button>
         {showInfoMenu && (
           <div className="app-info-menu absolute left-3 top-full z-50 min-w-[168px] bg-ide-bg border border-ide-border rounded shadow-lg py-1">
             <div className="flex items-center justify-between gap-4 px-3 py-1.5">
@@ -1444,7 +1449,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {!showSessionButtons && (
         <button
           onClick={() => onToggleShowSessionButtons?.(true)}
-          className={`absolute ${showAppInfo ? 'top-12' : 'top-0'} inset-x-0 h-3.5 z-30 group/expand flex items-end justify-center cursor-pointer`}
+          className={`absolute ${showAppInfo ? 'top-10' : 'top-0'} inset-x-0 h-3.5 z-30 group/expand flex items-end justify-center cursor-pointer`}
           title={t('Expand')}
         >
           <span className="w-full h-2.5 flex items-center justify-center hover:bg-ide-hover/50 transition-colors">
@@ -1546,7 +1551,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
       {/* 三态 status badge — moved below Session History */}
       {showStatusBadge && (
-      <div ref={statusBadgeAreaRef} className="px-5 py-1.5 mt-1.5 flex items-center justify-center shrink-0 session-panel__header">
+      <div ref={statusBadgeAreaRef} className="px-5 py-1.5 mt-0.5 flex items-center justify-center shrink-0 session-panel__header">
         <div ref={statusBadgeRef} className="status-badge">
           <div className="status-badge__switch">
             <button
