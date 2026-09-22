@@ -161,10 +161,12 @@ interface AppearancePanelProps {
   onClose: () => void
   capsuleTabs?: boolean
   onToggleCapsuleTabs?: (v: boolean) => void
-  groupSessionsByCwd?: boolean
-  onToggleGroupSessionsByCwd?: (v: boolean) => void
   showSessionButtons?: boolean
   onToggleShowSessionButtons?: (v: boolean) => void
+  showAppInfo?: boolean
+  onToggleShowAppInfo?: (v: boolean) => void
+  showStatusBadge?: boolean
+  onToggleShowStatusBadge?: (v: boolean) => void
   inlineDiff?: boolean
   onToggleInlineDiff?: (v: boolean) => void
   wordWrap?: boolean
@@ -194,8 +196,9 @@ interface AppearancePanelProps {
 const AppearancePanel = function AppearancePanel({
   open, onClose,
   capsuleTabs = true, onToggleCapsuleTabs,
-  groupSessionsByCwd = true, onToggleGroupSessionsByCwd,
   showSessionButtons = true, onToggleShowSessionButtons,
+  showAppInfo = true, onToggleShowAppInfo,
+  showStatusBadge = true, onToggleShowStatusBadge,
   inlineDiff = false, onToggleInlineDiff,
   wordWrap = false, onToggleWordWrap,
   diffSplitRatio = 0.3, onSetDiffSplitRatio,
@@ -546,13 +549,17 @@ const AppearancePanel = function AppearancePanel({
 
             {activeCategory === 'session' && (
               <div className="p-4 flex flex-col">
-                {onToggleGroupSessionsByCwd && (
-                  <ToggleRow labelKey="Group Sessions by Folder" descKey="Group sessions by their working directory. Off = flat list with cwd under each item."
-                    checked={groupSessionsByCwd} onChange={onToggleGroupSessionsByCwd} zone="session" />
+                {onToggleShowAppInfo && (
+                  <ToggleRow labelKey="Show App Info Row" descKey="Show the Vibe IDE row at the top of the sidebar (app icon, name, and the version / language menu)."
+                    checked={showAppInfo} onChange={onToggleShowAppInfo} zone="session" />
                 )}
                 {onToggleShowSessionButtons && (
-                  <ToggleRow labelKey="Show Default Buttons" descKey="Show New Session and Session History buttons in the sidebar. Turn off to hide them."
+                  <ToggleRow labelKey="Show Default Buttons" descKey="Show the New Session, Session History and Task Board buttons in the sidebar. Turn off to hide all three; hover the sidebar's top edge to reveal them again."
                     checked={showSessionButtons} onChange={onToggleShowSessionButtons} zone="session" />
+                )}
+                {onToggleShowStatusBadge && (
+                  <ToggleRow labelKey="Show Status Badge" descKey="Show the running / idle / pending pill above the session list. It also carries the Session List / Dir / Git switcher, so hiding it removes that entry."
+                    checked={showStatusBadge} onChange={onToggleShowStatusBadge} zone="session" />
                 )}
                 {onSetFontFamily && (
                   <FontRow labelKey="Session Font" value={fontFamily} recommended="Consolas" onChange={onSetFontFamily} zone="session" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />

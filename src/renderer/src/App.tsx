@@ -32,8 +32,6 @@ import BoardView, { BOARD_FOCUS } from './components/BoardView'
 import { aiStore, readAiCliConfig, queuePendingSend } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
-import iconPattern from '@renderer/assets/icon-pattern.png?inline'
-import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, toRelPath } from './components/vibeEvents'
 import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
@@ -347,6 +345,9 @@ function HistoryCopyButton({ cmd }: { cmd: string }) {
 function dispatchBtwReply(detail: { pending?: boolean; text?: string | null; error?: string }): void {
   window.dispatchEvent(new CustomEvent(BTW_REPLY_EVENT, { detail }))
 }
+
+// 左右栏收缩按钮共用的面板图标（左列实心、右侧列表线）
+const PANEL_ICON_PATH = 'M19,2H5C2.243,2,0,4.243,0,7v10c0,2.757,2.243,5,5,5h14c2.757,0,5-2.243,5-5V7c0-2.757-2.243-5-5-5ZM2,17V7c0-1.654,1.346-3,3-3H13V20H5c-1.654,0-3-1.346-3-3Zm20,0c0,1.654-1.346,3-3,3h-4V4h4c1.654,0,3,1.346,3,3v10Zm-2-6c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Zm0,4c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Zm0-8c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Z'
 
 export default function App() {
   const { t } = useI18n()
@@ -764,11 +765,14 @@ export default function App() {
   const [capsuleTabs, setCapsuleTabs] = useState(() => {
     try { return localStorage.getItem('vibe-ide-capsule-tabs') !== 'false' } catch { return true }
   })
-  const [groupSessionsByCwd, setGroupSessionsByCwd] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-group-sessions-by-cwd') !== 'false' } catch { return true }
-  })
   const [showSessionButtons, setShowSessionButtons] = useState(() => {
     try { return localStorage.getItem('vibe-ide-session-buttons') !== 'false' } catch { return true }
+  })
+  const [showAppInfo, setShowAppInfo] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-app-info-row') !== 'false' } catch { return true }
+  })
+  const [showStatusBadge, setShowStatusBadge] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-status-badge') !== 'false' } catch { return true }
   })
   const [ocrEnabled, setOcrEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-ocr-enabled') === '1' } catch { return false }
@@ -821,10 +825,10 @@ export default function App() {
   }, [])
 
   // 持久化当前打开的所有 tab，按 cwd 聚合为 Session 容器
-  // 分组模式下按稳定组序(stableSessions)保存，保证重启后组排布与删除前一致
+  // 按稳定组序(stableSessions)保存，保证重启后组排布与删除前一致
   React.useEffect(() => {
     const byCwd = new Map<string, { cwd: string; tabs: SessionTab[] }>()
-    for (const s of (groupSessionsByCwd ? stableSessions : sessions)) {
+    for (const s of stableSessions) {
       const key = s.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
       const group = byCwd.get(key) || { cwd: s.cwd, tabs: [] }
       group.tabs.push(s)
@@ -842,7 +846,7 @@ export default function App() {
       })
     }
     saveSessionWorkspace({ activeTabId: activeSessionId, sessions: sessionContainers })
-  }, [sessions, stableSessions, activeSessionId, groupSessionsByCwd])
+  }, [stableSessions, activeSessionId])
 
   // 恢复的终端 tab 直接后台创建真实 PTY，不需要用户点击
   React.useEffect(() => {
@@ -1078,11 +1082,14 @@ export default function App() {
     try { localStorage.setItem('vibe-ide-capsule-tabs', String(capsuleTabs)) } catch {}
   }, [capsuleTabs])
   React.useEffect(() => {
-    try { localStorage.setItem('vibe-ide-group-sessions-by-cwd', String(groupSessionsByCwd)) } catch {}
-  }, [groupSessionsByCwd])
-  React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-session-buttons', String(showSessionButtons)) } catch {}
   }, [showSessionButtons])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-app-info-row', String(showAppInfo)) } catch {}
+  }, [showAppInfo])
+  React.useEffect(() => {
+    try { localStorage.setItem('vibe-ide-status-badge', String(showStatusBadge)) } catch {}
+  }, [showStatusBadge])
   // Keep refs in sync for use in capture-phase keyboard handlers
   React.useEffect(() => { showHistoryRef.current = showHistory }, [showHistory])
   React.useEffect(() => { historySelectedIndexRef.current = historySelectedIndex }, [historySelectedIndex])
@@ -1844,9 +1851,8 @@ export default function App() {
       }
 
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
-      // Use visual order: grouped by cwd when grouping enabled, raw array order otherwise
-      // 分组模式下用 stableSessions(稳定组序),与左侧面板视觉排布一致:删除会话不改变组序
-      const visualOrder = groupSessionsByCwd ? stableSessions : sessions
+      // 用 stableSessions(稳定组序),与左侧面板视觉排布一致:删除会话不改变组序
+      const visualOrder = stableSessions
 
       if (eventMatchesBinding(e, bindings['terminal.next'])) {
         e.preventDefault()
@@ -2044,7 +2050,7 @@ export default function App() {
     // capture phase: intercept before xterm.js gets it
     window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [centerView, sessions, activeSessionId, groupSessionsByCwd])
+  }, [centerView, sessions, activeSessionId])
 
   // Brush keyup → deactivate feather pen
   React.useEffect(() => {
@@ -2611,13 +2617,11 @@ export default function App() {
     delete aiTabRefs.current[id]
     delete dshRefs.current[id]
     setSessions(prev => prev.filter(s => s.id !== id))
-    // 分组模式下关闭组内最后一个 session：该 cwd 记为保留空组，位置沿用当前组序
-    if (groupSessionsByCwd) {
-      const closing = sessions.find(s => s.id === id)
-      const key = closing ? sessionGroupKey(closing) : ''
-      if (key && !sessions.some(s => s.id !== id && sessionGroupKey(s) === key)) {
-        cwdStore.upsertKeptGroup(key, Math.max(0, stableGroupOrder.indexOf(key)))
-      }
+    // 关闭组内最后一个 session：该 cwd 记为保留空组，位置沿用当前组序
+    const closing = sessions.find(s => s.id === id)
+    const closingKey = closing ? sessionGroupKey(closing) : ''
+    if (closingKey && !sessions.some(s => s.id !== id && sessionGroupKey(s) === closingKey)) {
+      cwdStore.upsertKeptGroup(closingKey, Math.max(0, stableGroupOrder.indexOf(closingKey)))
     }
     if (twinId) setSplitTwins(prev => { const n = { ...prev }; delete n[id]; return n })
     if (twinId) setSplitRatios(prev => { const n = { ...prev }; delete n[id]; return n })
@@ -2661,7 +2665,7 @@ export default function App() {
       const remaining = sessions.filter(s => s.id !== id)
       setActiveSessionId(remaining.length > 0 ? remaining[0].id : null)
     }
-  }, [activeSessionId, sessions, rightTerminalSessions, splitTwins, setSplitTwins, setSplitRatios, groupSessionsByCwd, stableGroupOrder])
+  }, [activeSessionId, sessions, rightTerminalSessions, splitTwins, setSplitTwins, setSplitRatios, stableGroupOrder])
 
   // 看板任务会话：关标签不再静默遗留记录+worktree，弹确认让用户选"仅关闭"或"关闭并清理"
   const [boardCloseAsk, setBoardCloseAsk] = useState<{ rec: WorktreeRecord; sessionId: string } | null>(null)
@@ -2866,15 +2870,6 @@ export default function App() {
 
   const handleReadTerminalTail = useCallback((sessionId: string, maxLines?: number): string[] => {
     return terminalRefs.current[sessionId]?.readTail(maxLines ?? 200) ?? []
-  }, [])
-
-  const handleReorderSessions = useCallback((fromIndex: number, toIndex: number) => {
-    setSessions(prev => {
-      const next = [...prev]
-      const [moved] = next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, moved)
-      return next
-    })
   }, [])
 
   // 组拖拽：索引按完整组序（含空组保留位，与面板视觉一致），保留位下标同步写回 store
@@ -3462,34 +3457,47 @@ export default function App() {
     <div className="h-full w-full flex flex-col bg-ide-bg">
       {/* Title Bar */}
       <div className="titlebar-drag h-9 bg-ide-sidebar border-b border-ide-border flex items-center px-4 select-none shrink-0">
-        <span className="relative w-[18px] h-[18px] mr-1.5 shrink-0 -ml-1 block">
-          <span
-            className="absolute inset-0 bg-ide-accent"
-            style={{ maskImage: `url(${iconBgMask})`, WebkitMaskImage: `url(${iconBgMask})`, maskSize: 'contain', WebkitMaskSize: 'contain', maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat', maskPosition: 'center', WebkitMaskPosition: 'center' }}
-          />
-          <img src={iconPattern} alt="" className="absolute inset-0 w-full h-full object-contain" />
-        </span>
-        <span className="text-ide-text-muted text-sm font-medium tracking-wide">Vibe IDE</span>
+        {!isWelcome && (
         <button
-          className="no-drag config-menu-area w-6 h-6 ml-[10px] rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
-          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); sessionPanelRef.current?.toggleConfig(r) }}
-          title={t('Settings')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="butt" strokeLinejoin="bevel" className="w-5 h-5">
-            <path d="M12 3 L19 8 L19 15 L12 20 L5 15 L5 8 Z M5 8 L12 13 L19 8 M12 13 L12 20" />
-          </svg>
-        </button>
-        {leftPanelCollapsed && !isWelcome && (
-        <button
-          className="no-drag w-6 h-6 ml-1 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
+          className="no-drag w-6 h-6 -ml-1 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
           onClick={handleToggleLeftPanel}
-          title={t('Restore Sessions')}
+          title={leftPanelCollapsed ? t('Restore Sessions') : t('Collapse Sessions')}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4">
-            <polyline points="9 18 15 12 9 6" />
+          <svg viewBox="0 0 24 24" fill="currentColor" className="size-4 -scale-x-100">
+            <path d={PANEL_ICON_PATH} />
           </svg>
         </button>
         )}
+        <div className="flex items-center gap-0.5 ml-2 shrink-0">
+          <button
+            className="no-drag px-2 h-6 rounded flex items-center text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+            onClick={() => sessionPanelRef.current?.openAppearance()}
+            title={t('Appearance')}
+          >
+            {t('Nav Appearance')}
+          </button>
+          <button
+            className="no-drag px-2 h-6 rounded flex items-center text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+            onClick={() => sessionPanelRef.current?.openCliConfig()}
+            title={t('CLI Configuration')}
+          >
+            {t('Session')}
+          </button>
+          <button
+            className="no-drag px-2 h-6 rounded flex items-center text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+            onClick={() => sessionPanelRef.current?.openShortcuts()}
+            title={t('Keyboard Shortcuts')}
+          >
+            {t('Keys')}
+          </button>
+          <button
+            className="no-drag px-2 h-6 rounded flex items-center text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+            onClick={() => sessionPanelRef.current?.openFileFilterRules()}
+            title={t('File Filter Rules')}
+          >
+            {t('Filter')}
+          </button>
+        </div>
         <div className="flex-1" />
         <button
           className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${showSearchDropdown ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
@@ -3520,15 +3528,9 @@ export default function App() {
           onClick={handleToggleRightPanel}
           title={rightPanelCollapsed ? t('Expand Panel') : t('Collapse Panel')}
         >
-          {rightPanelCollapsed ? (
-            <svg viewBox="0 0 24 24" fill="currentColor" className="size-4">
-              <path d="M19,2H5C2.243,2,0,4.243,0,7v10c0,2.757,2.243,5,5,5h14c2.757,0,5-2.243,5-5V7c0-2.757-2.243-5-5-5ZM2,17V7c0-1.654,1.346-3,3-3H13V20H5c-1.654,0-3-1.346-3-3Zm20,0c0,1.654-1.346,3-3,3h-4V4h4c1.654,0,3,1.346,3,3v10Zm-2-6c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Zm0,4c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Zm0-8c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Z" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" fill="currentColor" className="size-4">
-              <path d="M19,2H5C2.243,2,0,4.243,0,7v10c0,2.757,2.243,5,5,5h14c2.757,0,5-2.243,5-5V7c0-2.757-2.243-5-5-5ZM2,17V7c0-1.654,1.346-3,3-3H13V20H5c-1.654,0-3-1.346-3-3Zm20,0c0,1.654-1.346,3-3,3h-4V4h4c1.654,0,3,1.346,3,3v10Zm-2-6c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Zm0,4c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Zm0-8c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Z" />
-            </svg>
-          )}
+          <svg viewBox="0 0 24 24" fill="currentColor" className="size-4">
+            <path d={PANEL_ICON_PATH} />
+          </svg>
         </button>
       </div>
 
@@ -3540,7 +3542,7 @@ export default function App() {
           <div className="flex-1 overflow-hidden">
             <SessionPanel
               ref={sessionPanelRef}
-              sessions={groupSessionsByCwd ? stableSessions : sessions}
+              sessions={stableSessions}
               activeSessionId={boardActive ? null : activeSessionId}
               onCreateSession={handleCreateSession}
             onCreateSessionAt={handleCreateSessionAt}
@@ -3550,7 +3552,6 @@ export default function App() {
             onCloseSession={handleCloseSession}
             onRenameSession={handleRenameSession}
             onSetSessionEmoji={handleSetSessionEmoji}
-            onReorderSessions={handleReorderSessions}
             onReorderGroup={handleReorderGroup}
             onReorderSessionInGroup={handleReorderSessionInGroup}
             commandHistory={commandHistory}
@@ -3577,10 +3578,12 @@ export default function App() {
             onSetDiffSplitRatio={setDiffSplitRatio}
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={setCapsuleTabs}
-            groupSessionsByCwd={groupSessionsByCwd}
-            onToggleGroupSessionsByCwd={setGroupSessionsByCwd}
             showSessionButtons={showSessionButtons}
             onToggleShowSessionButtons={setShowSessionButtons}
+            showAppInfo={showAppInfo}
+            onToggleShowAppInfo={setShowAppInfo}
+            showStatusBadge={showStatusBadge}
+            onToggleShowStatusBadge={setShowStatusBadge}
             terminalFontSize={terminalFontSize}
             editorFontSize={editorFontSize}
             onAdjustTerminalFontSize={(delta: number) => setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))}
@@ -3595,7 +3598,6 @@ export default function App() {
               setTerminalFontSize(14)
               setEditorFontSize(14)
               setCapsuleTabs(true)
-              setGroupSessionsByCwd(true)
               setShowSessionButtons(true)
               setInlineDiff(true)
               setDiffSplitRatio(0.3)
@@ -3814,7 +3816,7 @@ export default function App() {
           <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`}>
             <BoardView
               workspacePath={activeSessionCwd}
-              sessions={groupSessionsByCwd ? stableSessions : sessions}
+              sessions={stableSessions}
               agentStatus={agentStatus}
               activeSessionId={null}
               sessionWorktreeNav={sessionWorktreeNav}

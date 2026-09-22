@@ -91,6 +91,11 @@ body,
   box-shadow: none !important;
 }
 
+/* App 信息行图标底座 — Codex 强调色近黑，侦探头像的黑色描边会糊进底座；改用 app 图标本身的品牌底色 */
+.app-info__icon-bg {
+  background: rgb(153 161 213) !important;
+}
+
 /* 快捷行（New chat 类）— 平铺行，悬停灰 wash */
 .session-panel__quick-action {
   background: transparent !important;

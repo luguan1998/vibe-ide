@@ -4,7 +4,7 @@ import { RecentFileEntry } from '@shared/types'
 import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon } from '../sessionRestore'
 import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, mascotColorValue, pixelMascot } from '../pixelMascots'
 import { PixelMascot } from './PixelMascot'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Palette, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -24,6 +24,8 @@ import { SessionGlyph, renderKindIcon } from '../sessionIcon'
 import { PanelGitIcon, PanelDirIcon, PanelSessionsIcon } from '../panelIcons'
 import { useSchedTasks, setSchedTask, deleteSchedTask, markSchedFired, pruneSchedTasks } from '../schedStore'
 import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
+import iconPattern from '@renderer/assets/icon-pattern.png?inline'
+import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
 import { ToolIcon } from './AiTab/tools'
 
 // ── Claude 配置组（model/provider 多组切换）──
@@ -275,7 +277,6 @@ interface SessionPanelProps {
   onCloseSession: (id: string) => void
   onRenameSession?: (id: string, newName: string) => Promise<void>
   onSetSessionEmoji?: (id: string, emoji?: string) => void
-  onReorderSessions?: (fromIndex: number, toIndex: number) => void
   onReorderGroup?: (fromGroupIndex: number, toGroupIndex: number) => void
   onReorderSessionInGroup?: (sessionId: string, targetSessionId: string, before: boolean) => void
   commandHistory?: Record<string, string[]>
@@ -316,10 +317,12 @@ interface SessionPanelProps {
   pipeProgress?: Record<string, { current: number; total: number }>
   onCancelPipe?: (sessionId: string) => void
   onNewSessionHere?: (cwd: string, mode: SessionMode) => void
-  groupSessionsByCwd?: boolean
-  onToggleGroupSessionsByCwd?: (v: boolean) => void
   showSessionButtons?: boolean
   onToggleShowSessionButtons?: (v: boolean) => void
+  showAppInfo?: boolean
+  onToggleShowAppInfo?: (v: boolean) => void
+  showStatusBadge?: boolean
+  onToggleShowStatusBadge?: (v: boolean) => void
   terminalFontSize?: number
   editorFontSize?: number
   onAdjustTerminalFontSize?: (delta: number) => void
@@ -338,7 +341,10 @@ interface SessionPanelProps {
 }
 
 export interface SessionPanelHandle {
-  toggleConfig: (rect: DOMRect) => void
+  openAppearance: () => void
+  openCliConfig: () => void
+  openShortcuts: () => void
+  openFileFilterRules: () => void
 }
 
 // hover 预览 timer 清理：清掉并置 null，统一入口避免各处重复 clearTimeout 判断
@@ -495,7 +501,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onCloseSession,
   onRenameSession,
   onSetSessionEmoji,
-  onReorderSessions,
   onReorderGroup,
   onReorderSessionInGroup,
   commandHistory = {},
@@ -536,10 +541,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   pipeProgress = {},
   onCancelPipe,
   onNewSessionHere,
-  groupSessionsByCwd = true,
-  onToggleGroupSessionsByCwd,
   showSessionButtons = true,
   onToggleShowSessionButtons,
+  showAppInfo = true,
+  onToggleShowAppInfo,
+  showStatusBadge = true,
+  onToggleShowStatusBadge,
   terminalFontSize = 14,
   editorFontSize = 14,
   onAdjustTerminalFontSize,
@@ -557,11 +564,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onTogglePinRecentFile,
 }: SessionPanelProps, ref: React.ForwardedRef<SessionPanelHandle>) {
   const [showShortcuts, setShowShortcuts] = useState(false)
-  const [appVersion, setAppVersion] = useState('')
   const [showFileFilterRules, setShowFileFilterRules] = useState(false)
   const [fileFilterRules, setFileFilterRules] = useState<string[]>(() => loadFilterRules())
   const [fileFilterRulesDraft, setFileFilterRulesDraft] = useState('')
-  const [showConfigMenu, setShowConfigMenu] = useState(false)
   const [showCliConfigModal, setShowCliConfigModal] = useState(false)
   const [cliConfigTab, setCliConfigTab] = useState<CliConfigTab>('term')
   const [cliCommand, setCliCommand] = useState(() => {
@@ -672,6 +677,17 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }, [fileFilterRules])
 
   const { t, lang, setLang } = useI18n()
+  const [appVersion, setAppVersion] = useState('')
+  useEffect(() => { window.api.appVersion().then(setAppVersion).catch(() => {}) }, [])
+  const [showInfoMenu, setShowInfoMenu] = useState(false)
+  useEffect(() => {
+    if (!showInfoMenu) return
+    const onDocClick = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.app-info-menu')) setShowInfoMenu(false)
+    }
+    document.addEventListener('click', onDocClick, true)
+    return () => document.removeEventListener('click', onDocClick, true)
+  }, [showInfoMenu])
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [emojiMenu, setEmojiMenu] = useState<{ x: number; y: number } & ({ sessionId: string } | { cwd: string }) | null>(null)
   const menuSession = contextMenu ? sessions.find(s => s.id === contextMenu.sessionId) : null
@@ -843,12 +859,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const lastMouseMoveAtRef = useRef(0)
   const cwdHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [cwdLinkSession, setCwdLinkSession] = useState<string | null>(null)
-  const [configMenuStyle, setConfigMenuStyle] = useState<React.CSSProperties>({})
   const inputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const commandsRef = useRef<CustomCommandsHandle>(null)
-  const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [dragGroupIndex, setDragGroupIndex] = useState<number | null>(null)
   const [dropGroupIndex, setDropGroupIndex] = useState<number | null>(null)
   // 分组模式 session 拖动：按 session id 定位拖投目标（组内拖动不跨组）
@@ -859,18 +872,20 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [groupMarkerTop, setGroupMarkerTop] = useState<number | null>(null)
 
   useImperativeHandle(ref, () => ({
-    toggleConfig: (rect: DOMRect) => {
-      const menuWidth = 192
-      const left = Math.max(4, rect.left + rect.width / 2 - menuWidth / 2)
-      setConfigMenuStyle({
-        position: 'fixed',
-        left,
-        top: rect.bottom + 4,
-        minWidth: menuWidth,
-      })
-      setShowConfigMenu(prev => !prev)
+    openAppearance: () => setShowAppearance(true),
+    openShortcuts: () => setShowShortcuts(true),
+    openFileFilterRules: () => {
+      setFileFilterRulesDraft(fileFilterRules.join('\n'))
+      setShowFileFilterRules(true)
     },
-  }), [])
+    openCliConfig: () => {
+      setCliCommandDraft(cliCommand)
+      setCliConfigDirDraft(cliConfigDir)
+      setDefaultAgentDraft(defaultAgent)
+      setCliConfigTab('term')
+      setShowCliConfigModal(true)
+    },
+  }), [fileFilterRules, cliCommand, cliConfigDir, defaultAgent])
 
   useEffect(() => {
     if (renaming && inputRef.current) {
@@ -936,17 +951,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     return mergeGroupOrder(order, keptGroups).map(cwd => ({ cwd, sessions: map.get(cwd) ?? [] }))
   }, [sessions, keptGroups, activeSessionId])
 
-  // Flat index map for drag reorder: visual position → session index in original array
-  const flatIndexMap = useMemo(() => {
-    const map: number[] = []
-    for (const g of sessionGroups) {
-      for (const s of g.sessions) {
-        map.push(sessions.findIndex(si => si.id === s.id))
-      }
-    }
-    return map
-  }, [sessionGroups, sessions])
-
   const groupRefs = useRef<(HTMLDivElement | null)[]>([])
   // 边界用当前组数而非 groupRefs.length：组被删除后数组尾部残留旧条目（React 置 null 不截断），
   // 用残留长度会使"拖到底部"返回的下标对不上 sessionGroups.length，尾部树杈标记不显示
@@ -973,44 +977,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
   }, [])
-
-  useEffect(() => {
-    if (!showConfigMenu) return
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest('.config-menu-area')) {
-        setShowConfigMenu(false)
-      }
-    }
-    document.addEventListener('click', handleClick, true)
-    return () => document.removeEventListener('click', handleClick, true)
-  }, [showConfigMenu])
-
-  // Settings menu: auto-close when mouse leaves the menu area (incl. submenus)
-  useEffect(() => {
-    if (!showConfigMenu) return
-    let closeTimer: ReturnType<typeof setTimeout> | null = null
-    const isInMenuArea = (el: EventTarget | null) =>
-      !!(el as HTMLElement | null)?.closest('.config-menu-area')
-    const handleMouseOut = (e: MouseEvent) => {
-      if (isInMenuArea(e.target) && !isInMenuArea(e.relatedTarget)) {
-        if (closeTimer) clearTimeout(closeTimer)
-        closeTimer = setTimeout(() => setShowConfigMenu(false), 200)
-      }
-    }
-    const handleMouseOver = (e: MouseEvent) => {
-      if (isInMenuArea(e.target)) {
-        if (closeTimer) { clearTimeout(closeTimer); closeTimer = null }
-      }
-    }
-    document.addEventListener('mouseout', handleMouseOut, true)
-    document.addEventListener('mouseover', handleMouseOver, true)
-    return () => {
-      document.removeEventListener('mouseout', handleMouseOut, true)
-      document.removeEventListener('mouseover', handleMouseOver, true)
-      if (closeTimer) clearTimeout(closeTimer)
-    }
-  }, [showConfigMenu])
 
   // ESC handler for CLI Config modal (capture phase per CLAUDE.md rule #8)
   useEffect(() => {
@@ -1118,8 +1084,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     }
   }, [focusSettingsTrigger])
 
-  useEffect(() => { window.api.appVersion().then(setAppVersion).catch(() => {}) }, [])
-
   const handleContextMenu = (e: React.MouseEvent, sessionId: string) => {
     e.preventDefault()
     e.stopPropagation()
@@ -1203,8 +1167,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   useEffect(() => () => { if (revealTimerRef.current) clearTimeout(revealTimerRef.current) }, [])
 
   const clearDragState = () => {
-    setDragIndex(null)
-    setDropIndex(null)
     setDragGroupIndex(null)
     setDropGroupIndex(null)
     setDragSessionId(null)
@@ -1215,12 +1177,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   const renderSessionItem = (
     session: SessionTab,
-    dragIdx: number,
     opts: { showCwd: boolean; outerClass: string; nameClass: string; minHeightClass: string }
   ) => (
     <div
       key={session.id}
-      draggable={groupSessionsByCwd ? !!onReorderSessionInGroup : !!onReorderSessions}
+      draggable={!!onReorderSessionInGroup}
       className={`group ${opts.outerClass} session-item${
         session.id === activeSessionId ? ' session-item--active' : ''
       }${pipeRunning?.[session.id] ? ' session-item--pipe-running' : ''}${
@@ -1239,8 +1200,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             : agentStatus[session.id] === 'warn'
               ? 'text-ide-warning hover:bg-ide-hover border-l-[3px] border-ide-warning/60'
               : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-      } ${dragIndex === dragIdx ? 'opacity-40' : ''} ${
-        dropIndex === dragIdx && dropIndex !== dragIndex ? ' session-item__drop-marker session-item__drop-marker--before' : ''
       }${
         dragSessionId === session.id ? ' opacity-40' : ''
       }${
@@ -1274,58 +1233,33 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         hoverTimerRef.current = setTimeout(() => setHoverPreview(prev => prev?.pinned ? prev : null), 200)
       }}
       onDragStart={() => {
-        if (groupSessionsByCwd) {
-          setDragSessionId(session.id)
-          setDropSessionId(null)
-          setDropBefore(false)
-          setDragIndex(null)
-          setDropIndex(null)
-          setDragGroupIndex(null)
-          setDropGroupIndex(null)
-        } else {
-          setDragIndex(dragIdx)
-          setDragGroupIndex(null)
-          setDropGroupIndex(null)
-        }
+        setDragSessionId(session.id)
+        setDropSessionId(null)
+        setDropBefore(false)
+        setDragGroupIndex(null)
+        setDropGroupIndex(null)
       }}
       onDragOver={(e) => {
         if (dragGroupIndex !== null) return
-        if (groupSessionsByCwd) {
-          if (dragSessionId === null) return
-          const dragged = sessions.find(s => s.id === dragSessionId)
-          if (!dragged || dragSessionId === session.id || sessionGroupKey(dragged) !== sessionGroupKey(session)) {
-            setDropSessionId(null)
-            return
-          }
-          e.preventDefault()
-          e.stopPropagation()
-          const rect = e.currentTarget.getBoundingClientRect()
-          const midY = rect.top + rect.height / 2
-          setDropSessionId(session.id)
-          setDropBefore(e.clientY < midY)
+        if (dragSessionId === null) return
+        const dragged = sessions.find(s => s.id === dragSessionId)
+        if (!dragged || dragSessionId === session.id || sessionGroupKey(dragged) !== sessionGroupKey(session)) {
+          setDropSessionId(null)
           return
         }
         e.preventDefault()
         e.stopPropagation()
-        if (dragIndex === null || dragIndex === dragIdx) {
-          setDropIndex(null)
-          return
-        }
         const rect = e.currentTarget.getBoundingClientRect()
         const midY = rect.top + rect.height / 2
-        setDropIndex(e.clientY < midY ? dragIdx : dragIdx + 1)
+        setDropSessionId(session.id)
+        setDropBefore(e.clientY < midY)
       }}
       onDrop={(e) => {
         if (dragGroupIndex !== null) return
         e.preventDefault()
         e.stopPropagation()
-        if (groupSessionsByCwd) {
-          if (dragSessionId !== null && dropSessionId !== null && dragSessionId !== dropSessionId && dropSessionId === session.id) {
-            onReorderSessionInGroup?.(dragSessionId, dropSessionId, dropBefore)
-          }
-        } else if (dragIndex !== null && dragIndex !== dragIdx) {
-          const toIndex = dropIndex !== null && dropIndex > dragIndex ? dropIndex - 1 : dropIndex ?? dragIdx
-          onReorderSessions?.(dragIndex, toIndex)
+        if (dragSessionId !== null && dropSessionId !== null && dragSessionId !== dropSessionId && dropSessionId === session.id) {
+          onReorderSessionInGroup?.(dragSessionId, dropSessionId, dropBefore)
         }
         clearDragState()
       }}
@@ -1466,10 +1400,51 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
   return (
     <div ref={panelRef} className={`flex flex-col relative session-panel${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
+      {/* App 信息行：放在 .session-panel 内部，好让各主题既有的面板底（玻璃/贴图）自动覆盖到这一栏 */}
+      {showAppInfo && (
+      <div className="app-info group/app-info relative h-12 px-3 flex items-center select-none shrink-0">
+        <span className="relative w-[22px] h-[22px] mr-2 shrink-0 block">
+          <span
+            className="app-info__icon-bg absolute inset-0 bg-ide-accent"
+            style={{ maskImage: `url(${iconBgMask})`, WebkitMaskImage: `url(${iconBgMask})`, maskSize: 'contain', WebkitMaskSize: 'contain', maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat', maskPosition: 'center', WebkitMaskPosition: 'center' }}
+          />
+          <img src={iconPattern} alt="" className="absolute inset-0 w-full h-full object-contain" />
+        </span>
+        <span className="text-ide-text text-base font-semibold tracking-wide truncate">Vibe IDE</span>
+        <button
+          className={`app-info-menu w-5 h-5 ml-1 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-all shrink-0 ${showInfoMenu ? 'opacity-100' : 'opacity-0 pointer-events-none group-hover/app-info:opacity-100 group-hover/app-info:pointer-events-auto'}`}
+          onClick={() => setShowInfoMenu(v => !v)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        <div className="flex-1" />
+        {showInfoMenu && (
+          <div className="app-info-menu absolute left-3 top-full z-50 min-w-[168px] bg-ide-bg border border-ide-border rounded shadow-lg py-1">
+            <div className="flex items-center justify-between gap-4 px-3 py-1.5">
+              <div className="inline-flex items-center rounded-md bg-ide-hover overflow-hidden">
+                <button
+                  className={`px-2 py-1 text-[11px] transition-colors ${lang === 'zh' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                  onClick={() => setLang('zh')}
+                >中</button>
+                <button
+                  className={`px-2 py-1 text-[11px] transition-colors ${lang === 'en' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                  onClick={() => setLang('en')}
+                >EN</button>
+              </div>
+              {appVersion && (
+                <span className="text-[11px] text-ide-text-muted/60">v{appVersion}</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      )}
       {!showSessionButtons && (
         <button
           onClick={() => onToggleShowSessionButtons?.(true)}
-          className="absolute top-0 inset-x-0 h-3.5 z-30 group/expand flex items-end justify-center cursor-pointer"
+          className={`absolute ${showAppInfo ? 'top-12' : 'top-0'} inset-x-0 h-3.5 z-30 group/expand flex items-end justify-center cursor-pointer`}
           title={t('Expand')}
         >
           <span className="w-full h-2.5 flex items-center justify-center hover:bg-ide-hover/50 transition-colors">
@@ -1570,6 +1545,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       )}
 
       {/* 三态 status badge — moved below Session History */}
+      {showStatusBadge && (
       <div ref={statusBadgeAreaRef} className="px-5 py-1.5 mt-1.5 flex items-center justify-center shrink-0 session-panel__header">
         <div ref={statusBadgeRef} className="status-badge">
           <div className="status-badge__switch">
@@ -1628,84 +1604,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="relative config-menu-area session-panel__settings">
-            {showConfigMenu && createPortal(
-              <div style={configMenuStyle} className="bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 config-menu-area session-panel__settings-menu">
-                {/* Language toggle */}
-                <div className="flex items-center justify-between mx-3 my-1.5">
-                  <div className="inline-flex items-center rounded-md bg-ide-hover overflow-hidden">
-                    <button
-                      className={`px-2 py-1 text-[11px] transition-colors ${lang === 'zh' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
-                      onClick={() => setLang('zh')}
-                    >中</button>
-                    <button
-                      className={`px-2 py-1 text-[11px] transition-colors ${lang === 'en' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
-                      onClick={() => setLang('en')}
-                    >EN</button>
-                  </div>
-                  {appVersion && (
-                    <span className="text-[11px] text-ide-text-muted/60">v{appVersion}</span>
-                  )}
-                </div>
-                <div className="border-t border-ide-border mt-1 pt-1">
-                  <button
-                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors flex items-center gap-1.5"
-                    onClick={() => {
-                      setShowAppearance(true)
-                      setShowConfigMenu(false)
-                    }}
-                  >
-                    <Palette className="size-3.5" />
-                    {t('Appearance')}
-                  </button>
-                </div>
-                <div className="border-t border-ide-border mt-1 pt-1">
-                {/* 会话配置 */}
-                <button
-                  className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors flex items-center gap-1.5"
-                  onClick={() => {
-                    setCliCommandDraft(cliCommand)
-                    setCliConfigDirDraft(cliConfigDir)
-                    setDefaultAgentDraft(defaultAgent)
-                    setCliConfigTab('term')
-                    setShowCliConfigModal(true)
-                    setShowConfigMenu(false)
-                  }}
-                >
-                  <Bot className="size-3.5" />
-                  {t('CLI Configuration')}
-                </button>
-                </div>
-                {/* Keyboard Shortcuts */}
-                <div className="border-t border-ide-border mt-1 pt-1">
-                  <button
-                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors flex items-center gap-1.5"
-                    onClick={() => { setShowShortcuts(true); setShowConfigMenu(false) }}
-                  >
-                    <Keyboard className="size-3.5" />
-                    {t('Keyboard Shortcuts')}
-                  </button>
-                </div>
-                {/* File Filter Rules */}
-                <div className="border-t border-ide-border mt-1 pt-1">
-                  <button
-                    className="w-full px-3 py-1.5 text-xs text-ide-text hover:bg-ide-hover text-left transition-colors flex items-center gap-1.5"
-                    onClick={() => {
-                      setFileFilterRulesDraft(fileFilterRules.join('\n'))
-                      setShowFileFilterRules(true)
-                      setShowConfigMenu(false)
-                    }}
-                  >
-                    <Filter className="size-3.5" />
-                    {t('File Filter Rules')}
-                  </button>
-                </div>
-              </div>
-            , document.body)}
-          </div>
-        </div>
       </div>
+      )}
 
       {/* 三态之下：Dir / Git 面板（复用右栏组件；返回会话时 display 隐藏，保留面板内部状态） */}
       {panelContent && (
@@ -1736,8 +1636,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               } else {
                 setGroupMarkerTop(null)
               }
-            } else if (dragIndex !== null && sessions.length > 0) {
-              setDropIndex(sessions.length)
             }
           }}
           onDrop={(e) => {
@@ -1752,11 +1650,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           }}
           onContextMenu={handleEmptyAreaContextMenu}
         >
-        {(groupSessionsByCwd ? sessionGroups.length === 0 : sessions.length === 0) ? (
+        {sessionGroups.length === 0 ? (
           <div className="h-full flex items-center justify-center text-ide-text-muted text-sm">
             No sessions yet
           </div>
-        ) : groupSessionsByCwd ? (
+        ) : (
           sessionGroups.map((group, gi) => {
             const dirName = cwdTitle(group.cwd)
             const groupHasActive = activeSessionId && group.sessions.some(s => s.id === activeSessionId)
@@ -1802,12 +1700,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   className={`group h-7 pl-4 pr-3 shrink-0 select-none flex items-center justify-between border-b border-ide-border text-ide-text-muted cursor-grab active:cursor-grabbing session-group__header ${
                     dragGroupIndex === gi ? 'opacity-40' : ''
                   }`}
-                  onDragStart={() => { setDragGroupIndex(gi); setDragIndex(null); setDropIndex(null) }}
+                  onDragStart={() => { setDragGroupIndex(gi) }}
                   onDragEnd={() => {
                     setDragGroupIndex(null)
                     setDropGroupIndex(null)
-                    setDragIndex(null)
-                    setDropIndex(null)
                   }}
                   onClick={(e) => {
                     if (e.target !== e.currentTarget) return
@@ -1964,26 +1860,18 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 {/* Sessions under this folder */}
                 <div>
                 {group.sessions.map((session) => {
-                  const flatIdx = flatIndexMap.indexOf(sessions.findIndex(si => si.id === session.id))
-                  return renderSessionItem(session, flatIdx, { showCwd: false, outerClass: 'pl-4 pr-3 py-1 cursor-grab active:cursor-grabbing transition-colors min-h-[44px] h-auto', nameClass: 'line-clamp-2 break-all', minHeightClass: 'min-h-[44px]' })
+                  return renderSessionItem(session, { showCwd: false, outerClass: 'pl-4 pr-3 py-1 cursor-grab active:cursor-grabbing transition-colors min-h-[44px] h-auto', nameClass: 'line-clamp-2 break-all', minHeightClass: 'min-h-[44px]' })
                 })}
                 </div>
               </div>
             )
           })
-        ) : (
-          <div className="bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden session-panel__flat-list">
-            {sessions.map((session, index) => renderSessionItem(session, index, { showCwd: true, outerClass: 'px-3 py-1 cursor-grab active:cursor-grabbing transition-colors relative', nameClass: 'truncate min-w-0', minHeightClass: 'min-h-[24px]' }))}
-          </div>
         )}
         {dropGroupIndex !== null && dropGroupIndex === sessionGroups.length && dropGroupIndex !== dragGroupIndex && (
           <div className="session-drop-tail mt-1" />
         )}
         {dropGroupIndex !== null && dropGroupIndex < sessionGroups.length && dropGroupIndex !== dragGroupIndex && groupMarkerTop !== null && (
           <div className="group-drop-overlay" style={{ top: groupMarkerTop }} />
-        )}
-        {dropIndex === sessions.length && dropIndex !== dragIndex && dragIndex !== sessions.length - 1 && (
-          <div className="session-drop-tail" />
         )}
         {sessions.length === 1 && (
           <div className="text-center text-[11px] text-ide-text-muted/50 py-3 select-none">
@@ -2555,10 +2443,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onClose={() => setShowAppearance(false)}
         capsuleTabs={capsuleTabs}
         onToggleCapsuleTabs={onToggleCapsuleTabs}
-        groupSessionsByCwd={groupSessionsByCwd}
-        onToggleGroupSessionsByCwd={onToggleGroupSessionsByCwd}
         showSessionButtons={showSessionButtons}
         onToggleShowSessionButtons={onToggleShowSessionButtons}
+        showAppInfo={showAppInfo}
+        onToggleShowAppInfo={onToggleShowAppInfo}
+        showStatusBadge={showStatusBadge}
+        onToggleShowStatusBadge={onToggleShowStatusBadge}
         inlineDiff={inlineDiff}
         onToggleInlineDiff={onToggleInlineDiff}
         wordWrap={wordWrap}
