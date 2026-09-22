@@ -3470,7 +3470,7 @@ export default function App() {
         </button>
         )}
         <div className={`flex items-center gap-0.5 shrink-0 ${leftPanelCollapsed ? 'ml-2' : '-ml-1'}`}>
-          {/* 三个图标按 ink 等高归一：17px 盒 + 各自 scale，实测 ink 13x13（机器人宽 15、高同为 13） */}
+          {/* 三个图标按 ink 视觉权重归一：17px 盒 + 各自 scale，实测面积 25/36/28、高度 13/13/12（圆的留大） */}
           <button
             className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
             onClick={() => sessionPanelRef.current?.openAppearance()}
@@ -3492,7 +3492,7 @@ export default function App() {
             title={t('CLI Configuration')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-[17px]">
-              <g transform="translate(-0.6 -0.6) scale(1.05)">
+              <g transform="translate(0.24 0.24) scale(0.98)">
                 <path d="M12 8V4H8" />
                 <rect width="16" height="12" x="4" y="8" rx="2" />
                 <path d="M2 14h2" />
@@ -3508,7 +3508,7 @@ export default function App() {
             title={t('File Filter Rules')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-[17px]">
-              <g transform="translate(0.8 0.8) scale(0.933)">
+              <g transform="translate(1.44 1.44) scale(0.88)">
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
               </g>
             </svg>
