@@ -6,7 +6,8 @@ import { useI18n } from '../../i18n'
 import { loadFilterRules } from '../FileTab'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig, takePendingSend } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, Check, MessageSquarePlus, Eye, EyeOff, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown } from 'lucide-react'
+import { SquareArrowUp, Square, Check, MessageSquarePlus, Eye, EyeOff, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown, Copy } from 'lucide-react'
+import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { StreamingMarkdown } from './markdown'
 import ConversationGraph from './ConversationGraph'
 import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput } from './messages'
@@ -158,6 +159,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const [sessionHistoryOpen, setSessionHistoryOpen] = useState(false)
   const [sessionHistoryList, setSessionHistoryList] = useState<any[]>([])
   const [viewMode, setViewMode] = useState(0) // 0=compact (tools collapsed to summary), 1=hide tools+think
+  const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [conversationCopied, setConversationCopied] = useState(false)
+  const contextMenuRef = useRef<HTMLDivElement>(null)
   const [graphSentTick, setGraphSentTick] = useState(0)
   const [worktreeEnabled, setWorktreeEnabled] = useState(initialWorktreeEnabled ?? false)
   const historyRef = useRef<HTMLDivElement>(null)
@@ -187,6 +191,36 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       document.removeEventListener('keydown', handleKey)
     }
   }, [sessionHistoryOpen])
+
+  // AiTab 右键菜单：mousedown 外部关闭 + ESC
+  useEffect(() => {
+    if (!tabContextMenu) return
+    const handle = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) setTabContextMenu(null)
+    }
+    const timer = setTimeout(() => document.addEventListener('mousedown', handle), 0)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setTabContextMenu(null) }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handle)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [tabContextMenu])
+
+  const handleCopyConversation = useCallback(() => {
+    setTabContextMenu(null)
+    const includeThinking = viewMode !== 1
+    const includeToolUse = viewMode === 0
+    const text = formatConversationMarkdown(
+      state.messages, state.userTurns, state.name, includeThinking, includeToolUse
+    )
+    if (!text) return
+    navigator.clipboard.writeText(text).then(() => {
+      setConversationCopied(true)
+      setTimeout(() => setConversationCopied(false), 1500)
+    })
+  }, [state.messages, state.userTurns, state.name, viewMode])
 
   // Input
   // Per-session draft keyed by sessionId — survives session switching.
@@ -1343,7 +1377,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   )
 
   return (
-    <div ref={containerRef} tabIndex={-1} style={{ '--ai-content-w': `${contentW}px` } as React.CSSProperties} className="ai-tab relative flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
+    <div ref={containerRef} tabIndex={-1} style={{ '--ai-content-w': `${contentW}px` } as React.CSSProperties}
+      onContextMenu={(e) => {
+        const t = e.target as HTMLElement
+        if (t.closest('textarea')) return
+        e.preventDefault()
+        setTabContextMenu({ x: e.clientX, y: e.clientY })
+      }}
+      className="ai-tab relative flex-1 flex flex-col overflow-hidden outline-none focus:outline-none focus:ring-0">
       {/* Header */}
       <div className="ai-tab__header flex items-center justify-between px-2 py-1 border-b border-ide-border shrink-0 acrylic-titlebar-clean">
         <div className="ai-tab__header-left flex items-center gap-1.5 min-w-0">
@@ -1830,6 +1871,32 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
       {inputArea}
         </>
+      )}
+
+      {/* AiTab 右键菜单 */}
+      {tabContextMenu && (
+        <div
+          ref={contextMenuRef}
+          style={{ position: 'fixed', left: Math.min(tabContextMenu.x, window.innerWidth - 180), top: Math.min(tabContextMenu.y, window.innerHeight - 120), zIndex: 100 }}
+          className="ai-tab__context-menu bg-ide-sidebar border border-ide-border rounded-md shadow-2xl py-1 min-w-[160px] animate-fade-in"
+        >
+          <button
+            disabled={state.messages.length === 0}
+            onClick={handleCopyConversation}
+            className="ai-tab__context-menu-item w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent whitespace-nowrap"
+          >
+            {conversationCopied ? <Check size={12} className="shrink-0 text-ide-accent" /> : <Copy size={12} className="shrink-0" />}
+            {t('Copy as Markdown')}
+          </button>
+          <button
+            disabled={state.messages.length === 0}
+            onClick={() => { setTabContextMenu(null); onGraphOpenChange?.(!graphOpen) }}
+            className="ai-tab__context-menu-item w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent whitespace-nowrap"
+          >
+            <Network size={12} className="shrink-0" />
+            {t('Branch Graph')}
+          </button>
+        </div>
       )}
 
       {/* Plan overlay — covers entire dialog */}
