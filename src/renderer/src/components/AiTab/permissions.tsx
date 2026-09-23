@@ -382,6 +382,7 @@ export const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm,
   const [switchOpen, setSwitchOpen] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const switchRef = useRef<HTMLDivElement>(null)
+  const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
     const el = feedbackRef.current
@@ -399,7 +400,7 @@ export const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm,
     const ro = new ResizeObserver(resize)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [feedback])
+  }, [feedback, collapsed])
   const [annotationInput, setAnnotationInput] = useState<{ top: number; left: number; heading: string | null; snippet: string } | null>(null)
   const planContentRef = useRef<HTMLDivElement>(null)
 
@@ -456,7 +457,6 @@ export const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm,
   }, [brushActive])
 
   const brushClass = brushActive ? ' diff-brush-mode' : ''
-  const [collapsed, setCollapsed] = useState(false)
   const renderActions = (compact: boolean) => (
     <div className={`flex items-center gap-1.5 ${compact ? '' : 'shrink-0'}`}>
       <button

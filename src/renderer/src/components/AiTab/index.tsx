@@ -244,6 +244,19 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const userScrolledUpRef = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  // 网状视图/空会话会把消息区整块卸载重挂,单靠 messages.length/streaming 无法感知
+  // → 用 callback ref 把实际的滚动元素提升为 state,驱动下面几个监听 effect 重绑
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
+  const attachScrollContainer = useCallback((el: HTMLDivElement | null) => {
+    scrollContainerRef.current = el
+    setScrollEl(el)
+  }, [])
+  // 同理:输入框在网状视图分支不渲染,关图后是新节点,autoGrow effect 需靠 inputEl 重跑
+  const [inputEl, setInputEl] = useState<HTMLTextAreaElement | null>(null)
+  const attachInput = useCallback((el: HTMLTextAreaElement | null) => {
+    inputRef.current = el
+    setInputEl(el)
+  }, [])
 
   // 触发式扫描：/ 或 + 打开命令菜单时才扫 skill/command 目录（与模型下拉展开即刷新同型）
   useEffect(() => {
@@ -422,7 +435,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden'
   }, [])
 
-  useEffect(() => { autoGrow() }, [inputValue, autoGrow])
+  useEffect(() => { autoGrow() }, [inputValue, autoGrow, inputEl])
 
   // ── Update session state helper(委托给单例 store)──
   const updateSession = useCallback((sessionId: string, updater: (s: AiSessionState) => AiSessionState) => {
@@ -531,9 +544,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   }, [activeSessionId, workspacePath, state.worktreePath, state.worktreeBranch, worktreePath, worktreeBranch, worktreeOriginalPath, onWorktreeChange])
 
   // ── Smart auto-scroll: passive listener + threshold ──
-  // scrollContainer 在空会话(showEmptyCenter)时不渲染,挂载时机由
-  // messages/streaming 决定;依赖这两个值让容器出现时重新注册监听,
-  // 否则 userScrolledUpRef 恒为初值 false → 流式刷新永远把用户拉回底部。
+  // scrollContainer 在空会话/网状视图时不渲染,靠 scrollEl 感知重挂;漏绑监听时
+  // userScrolledUpRef 恒为初值 false → 流式刷新永远把用户拉回底部。
   useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
@@ -543,7 +555,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     }
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
-  }, [state.messages.length, state.streaming])
+  }, [scrollEl, state.messages.length, state.streaming])
 
   // ── 右侧面包屑:真实用户输入轮次导航 ──
   const userTurnList = useMemo(() => {
@@ -649,7 +661,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       cancelAnimationFrame(raf)
       cancelAnimationFrame(initRaf)
     }
-  }, [state.messages.length, state.streaming, computeActiveTurn])
+  }, [scrollEl, state.messages.length, state.streaming, computeActiveTurn])
 
   // ── 流式跟随:观察实际高度变化,而不是只在 flush 事件上滚一次 ──
   // 打字机逐帧揭示、shiki 着色回调、mermaid SVG 注入、图片加载、折叠动画过渡
@@ -669,7 +681,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     ro.observe(content)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [state.messages.length, state.streaming])
+  }, [scrollEl, state.messages.length, state.streaming])
 
   // ── 内容列宽度:输入区两侧 hover 可拖拽缩放,--ai-content-w 挂在根上全链生效 ──
   const CONTENT_W_KEY = 'vibe-ide-ai-content-w'
@@ -1141,7 +1153,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             {/* Textarea zone */}
             <div className="ai-tab__input-zone px-3 pt-1.5 pb-0">
               <textarea
-                ref={inputRef}
+                ref={attachInput}
                 value={inputValue}
                 onChange={(e) => {
                   const val = e.target.value
@@ -1640,7 +1652,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       ) : (
         <>
         <div className="ai-tab__scroll-wrap relative flex-1 min-h-0" onMouseMove={onScrollWrapMouseMove} onMouseLeave={() => { setTurnNavHover(false); setBottomBarHover(false) }}>
-        <div ref={scrollContainerRef} className={`ai-tab__messages h-full min-h-0 overflow-y-auto overflow-x-hidden px-2 pt-2 ${!atBottom ? 'pb-9' : 'pb-2'}`}>
+        <div ref={attachScrollContainer} className={`ai-tab__messages h-full min-h-0 overflow-y-auto overflow-x-hidden px-2 pt-2 ${!atBottom ? 'pb-9' : 'pb-2'}`}>
         <div ref={scrollContentRef} className="space-y-1">
         <MessageList
           messages={state.messages}
