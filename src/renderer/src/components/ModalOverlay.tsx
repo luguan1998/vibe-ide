@@ -13,7 +13,7 @@ export function ModalOverlay({ onClose, children, className, style, onKeyDown }:
   const downPosRef = useRef<{ x: number; y: number } | null>(null)
   return (
     <div
-      className={className ?? 'fixed inset-0 z-50 flex items-center justify-center bg-black/50'}
+      className={`vibe-ui ${className ?? 'fixed inset-0 z-50 flex items-center justify-center bg-black/50'}`}
       style={style}
       onKeyDown={onKeyDown}
       onMouseDown={(e) => { downPosRef.current = { x: e.clientX, y: e.clientY } }}

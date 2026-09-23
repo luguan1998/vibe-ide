@@ -1820,18 +1820,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                           : ''
                       }`}
                       title={group.cwd}
-                      onMouseEnter={() => {
-                        cwdHoverTimerRef.current = setTimeout(() => {
-                          setCwdLinkSession(group.cwd)
-                        }, 600)
-                      }}
-                      onMouseLeave={() => {
-                        if (cwdHoverTimerRef.current) {
-                          clearTimeout(cwdHoverTimerRef.current)
-                          cwdHoverTimerRef.current = null
-                        }
-                        setCwdLinkSession(null)
-                      }}
+                      onMouseEnter={() => setCwdLinkSession(group.cwd)}
+                      onMouseLeave={() => setCwdLinkSession(null)}
                       onClick={(e) => {
                         e.stopPropagation()
                         if (cwdLinkSession === group.cwd) {
