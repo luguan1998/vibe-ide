@@ -1724,7 +1724,8 @@ export default function App() {
 
     // 去掉前缀 spinner/状态字符（CC 思考动画：✻⠐·等），保留正文
     // braille 区块 U+2800-U+28FF 覆盖所有盲文点字 spinner
-    const clean = title.replace(/^[\s✢✳∗✻✽·\*⠀-⣿]+/, '').trim()
+    // 变体选择符/零宽/私用区同剥：ConPTY 会把 OSC 1 的图标名重写成 OSC 0 透传，残留 U+FE0F/PUA 会成标题开头的乱码
+    const clean = title.replace(/^[\s\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2060\ufe0e\ufe0f\ue000-\uf8ff✢✳∗✻✽·\*⠀-⣿]+/, '').trim()
     if (!clean) return
 
     // 过滤无意义的 OSC 标题
