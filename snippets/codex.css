@@ -96,6 +96,12 @@ body,
   background: rgb(153 161 213) !important;
 }
 
+/* App 信息行 — Codex 风格不显示应用图标，标题文字替换为 Codex（样式全部继承原 span：font-size:0 只是藏掉原字符，伪元素还原字号，粗细/字距/颜色自动沿用）
+   左缘对齐下方会话图标 svg：行 px-3(12) + 11 = 23px = 会话行 pl-4(16)+gap-1.5(6)+图标盒居中 14px svg 的左缘 */
+.app-info > span[class*="w-[22px]"] { display: none !important; }
+.app-info > span.truncate { font-size: 0 !important; margin-left: 8px; }
+.app-info > span.truncate::after { content: 'Codex'; font-size: 18px; }
+
 /* 快捷行（New chat 类）— 平铺行，悬停灰 wash */
 .session-panel__quick-action {
   background: transparent !important;
