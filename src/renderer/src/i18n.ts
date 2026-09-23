@@ -261,7 +261,7 @@ const ZH_MAP: Record<string, string> = {
   'Show the New Session, Session History and Task Board buttons in the sidebar. Turn off to hide all three; hover the sidebar\'s top edge to reveal them again.': '在侧栏显示「新建会话」「历史会话」「任务看板」三个按钮。关闭后三个一起隐藏，鼠标移到侧栏顶部边缘可临时展开。',
   'Show App Info Row': '显示 App 信息栏',
   'Show the Vibe IDE row at the top of the sidebar (app icon, name, and the version / language menu).': '在侧栏顶部显示 Vibe IDE 那一栏（App 图标、名称，以及版本号 / 中英文菜单）。',
-  'Show Status Badge': '显示三态药丸',
+  'Show Status Badge': '显示状态栏',
   'Show the running / idle / pending pill above the session list. It also carries the Session List / Dir / Git switcher, so hiding it removes that entry.': '在会话列表上方显示「运行 / 空闲 / 待审批」药丸；悬停它可切换 会话列表 / 目录 / Git 视图，关闭后该入口一并消失。',
   'UI Style': 'UI 样式',
   'CSS Snippets': 'CSS 片段',
