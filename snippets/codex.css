@@ -100,7 +100,7 @@ body,
    左缘对齐下方会话图标 svg：行 px-3(12) + 11 = 23px = 会话行 pl-4(16)+gap-1.5(6)+图标盒居中 14px svg 的左缘 */
 .app-info > span[class*="w-[22px]"] { display: none !important; }
 .app-info > span.truncate { font-size: 0 !important; margin-left: 8px; }
-.app-info > span.truncate::after { content: 'Codex'; font-size: 18px; }
+.app-info > span.truncate::after { content: 'Codex'; font-size: 18px; position: relative; top: 4px; }
 
 /* 快捷行（New chat 类）— 平铺行，悬停灰 wash */
 .session-panel__quick-action {

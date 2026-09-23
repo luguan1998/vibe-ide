@@ -116,6 +116,8 @@ const ZH_MAP: Record<string, string> = {
   'Close Session': '归档会话',
   'Clone': '克隆',
   'Rename': '重命名',
+  'Rename App': '重命名应用',
+  'Language': '语言',
   'Close': '关闭',
   'Back': '后退',
   'Forward': '前进',

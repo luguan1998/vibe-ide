@@ -4,7 +4,7 @@ import { RecentFileEntry } from '@shared/types'
 import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon } from '../sessionRestore'
 import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, mascotColorValue, pixelMascot } from '../pixelMascots'
 import { PixelMascot } from './PixelMascot'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -679,6 +679,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [appVersion, setAppVersion] = useState('')
   useEffect(() => { window.api.appVersion().then(setAppVersion).catch(() => {}) }, [])
   const [showInfoMenu, setShowInfoMenu] = useState(false)
+  const [appName, setAppName] = useState('Vibe IDE')
+  const [editingAppName, setEditingAppName] = useState(false)
   useEffect(() => {
     if (!showInfoMenu) return
     const onDocClick = (e: MouseEvent) => {
@@ -1408,7 +1410,21 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           />
           <img src={iconPattern} alt="" className="absolute inset-0 w-full h-full object-contain" />
         </span>
-        <span className="text-ide-text text-base font-semibold tracking-wide truncate">Vibe IDE</span>
+        {editingAppName ? (
+          <input
+            autoFocus
+            defaultValue={appName}
+            onBlur={(e) => { const v = e.target.value.trim(); if (v) setAppName(v); setEditingAppName(false) }}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              if (e.key === 'Escape') setEditingAppName(false)
+            }}
+            className="bg-ide-bg border border-ide-accent rounded px-1 text-base font-semibold tracking-wide text-ide-text outline-none min-w-0"
+          />
+        ) : (
+          <span className="text-ide-text text-base font-semibold tracking-wide truncate">{appName}</span>
+        )}
         <button
           className={`app-info-menu w-5 h-5 ml-1 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-all shrink-0 ${showInfoMenu ? 'opacity-100' : 'opacity-0 pointer-events-none group-hover/app-info:opacity-100 group-hover/app-info:pointer-events-auto'}`}
           onClick={() => setShowInfoMenu(v => !v)}
@@ -1426,21 +1442,33 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <Keyboard className="size-3.5" />
         </button>
         {showInfoMenu && (
-          <div className="app-info-menu absolute left-3 top-full z-50 min-w-[168px] bg-ide-bg border border-ide-border rounded shadow-lg py-1">
-            <div className="flex items-center justify-between gap-4 px-3 py-1.5">
-              <div className="inline-flex items-center rounded-md bg-ide-hover overflow-hidden">
+          <div className="app-info-menu absolute left-3 top-full z-50 min-w-[180px] bg-ide-bg border border-ide-border rounded shadow-lg py-1">
+            <button
+              className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+              onClick={() => { setShowInfoMenu(false); setEditingAppName(true) }}
+            >
+              <Pencil size={14} className="text-ide-text-muted" />
+              <span>{t('Rename App')}</span>
+            </button>
+            {appVersion && (
+              <div className="w-full px-3 py-1.5 text-sm text-ide-text flex items-center gap-2">
+                <Info size={14} className="text-ide-text-muted" />
+                <span className="text-ide-text-muted">v{appVersion}</span>
+              </div>
+            )}
+            <div className="w-full px-3 py-1.5 text-sm text-ide-text flex items-center gap-2">
+              <Languages size={14} className="text-ide-text-muted" />
+              <span>{t('Language')}</span>
+              <div className="ml-auto inline-flex items-center rounded bg-ide-hover overflow-hidden">
                 <button
-                  className={`px-2 py-1 text-[11px] transition-colors ${lang === 'zh' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                  className={`px-2 py-0.5 text-[11px] transition-colors ${lang === 'zh' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
                   onClick={() => setLang('zh')}
                 >中</button>
                 <button
-                  className={`px-2 py-1 text-[11px] transition-colors ${lang === 'en' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
+                  className={`px-2 py-0.5 text-[11px] transition-colors ${lang === 'en' ? 'bg-ide-accent text-white' : 'text-ide-text-muted hover:text-ide-text'}`}
                   onClick={() => setLang('en')}
                 >EN</button>
               </div>
-              {appVersion && (
-                <span className="text-[11px] text-ide-text-muted/60">v{appVersion}</span>
-              )}
             </div>
           </div>
         )}
