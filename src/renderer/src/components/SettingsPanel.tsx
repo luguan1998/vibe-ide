@@ -10,6 +10,8 @@ import {
   keybindingFromEvent,
 } from '../shortcuts'
 
+const BADGE_BASE = 'text-[11px] px-2 py-0.5 rounded border font-mono min-w-[80px] text-center'
+
 export default function SettingsPanel() {
   const [shortcuts, setShortcuts] = useState<Record<string, string>>({})
   const [listeningId, setListeningId] = useState<string | null>(null)
@@ -79,15 +81,15 @@ export default function SettingsPanel() {
               className={`flex items-center justify-between px-3 py-2 border-b border-ide-border/50 transition-colors hover:bg-ide-hover/50`}
             >
               <span className="text-xs text-ide-text">{t(def.label).replace('{key}', displayLabel(current))}</span>
-              {isReadonly ? (
-                <span className="text-[11px] px-2 py-0.5 rounded border font-mono min-w-[80px] text-center border-ide-border text-ide-text">
-                  {displayLabel(current)}
-                </span>
-              ) : (
-                <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1">
+                {isReadonly ? (
+                  <span className={`${BADGE_BASE} border-ide-border text-ide-text`}>
+                    {displayLabel(current)}
+                  </span>
+                ) : (
                   <button
                     className={`
-                      text-[11px] px-2 py-0.5 rounded border font-mono transition-all min-w-[80px] text-center
+                      ${BADGE_BASE} transition-all
                       ${isListening
                         ? 'border-ide-accent text-ide-accent bg-ide-accent/10 animate-pulse'
                         : isDisabled
@@ -99,17 +101,19 @@ export default function SettingsPanel() {
                   >
                     {isListening ? t('Press keys...') : isDisabled ? t('Disabled') : displayLabel(current)}
                   </button>
-                  {canClear && (
-                    <button
-                      className="flex items-center justify-center w-5 h-5 rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
-                      title={t('Clear')}
-                      onClick={() => handleClear(def.id)}
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-              )}
+                )}
+                {canClear ? (
+                  <button
+                    className="flex items-center justify-center w-5 h-5 rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                    title={t('Clear')}
+                    onClick={() => handleClear(def.id)}
+                  >
+                    <X size={12} />
+                  </button>
+                ) : (
+                  <span className="w-5 h-5 shrink-0" aria-hidden="true" />
+                )}
+              </div>
             </div>
           )
         })}

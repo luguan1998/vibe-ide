@@ -138,18 +138,41 @@ export function eventIsModifierPress(e: KeyboardEvent, raw: string): boolean {
 
 const DEFAULT_SHORTCUTS: ShortcutDef[] = [
   {
+    id: 'terminal.contextMenu',
+    label: 'Terminal Copy/Paste',
+    defaultKeys: 'Right-click',
+    readonly: true,
+  },
+  {
+    id: 'diff.close',
+    label: 'Close Any Overlay',
+    defaultKeys: 'Escape',
+    readonly: true,
+  },
+  {
+    id: 'terminal.newline',
+    label: 'Terminal Newline',
+    defaultKeys: 'Shift+Enter',
+  },
+  {
+    id: 'brush.activate',
+    label: '{key}+Click File / Markdown to Add to Chat',
+    defaultKeys: 'Ctrl',
+    modifierOnly: true,
+  },
+  {
     id: 'search.focus',
     label: 'Focus Search',
     defaultKeys: 'Ctrl+KeyF',
   },
   {
     id: 'terminal.next',
-    label: 'Next Terminal',
+    label: 'Next Session',
     defaultKeys: 'Ctrl+ArrowDown',
   },
   {
     id: 'terminal.prev',
-    label: 'Previous Terminal',
+    label: 'Previous Session',
     defaultKeys: 'Ctrl+ArrowUp',
   },
   {
@@ -199,30 +222,19 @@ const DEFAULT_SHORTCUTS: ShortcutDef[] = [
   },
 
   {
-    id: 'terminal.newline',
-    label: 'Terminal Newline',
-    defaultKeys: 'Shift+Enter',
-  },
-  {
     id: 'terminal.pageDown',
-    label: 'Terminal Page Down',
+    label: 'Page Down',
     defaultKeys: 'PageDown',
   },
   {
     id: 'terminal.pageUp',
-    label: 'Terminal Page Up',
+    label: 'Page Up',
     defaultKeys: 'PageUp',
   },
   {
     id: 'terminal.history',
     label: 'Command History',
     defaultKeys: 'Ctrl+KeyH',
-  },
-  {
-    id: 'terminal.contextMenu',
-    label: 'Terminal Copy/Paste',
-    defaultKeys: 'Right-click',
-    readonly: true,
   },
   {
     id: 'navigate.back',
@@ -255,12 +267,6 @@ const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Alt+ArrowDown',
   },
   {
-    id: 'diff.close',
-    label: 'Close Diff / Back',
-    defaultKeys: 'Escape',
-    readonly: true,
-  },
-  {
     id: 'view.togglePreview',
     label: 'Toggle Preview / Edit',
     defaultKeys: 'Ctrl+KeyL',
@@ -274,12 +280,6 @@ const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     id: 'quickOpen.file',
     label: 'Quick Open File',
     defaultKeys: 'Ctrl+KeyE',
-  },
-  {
-    id: 'brush.activate',
-    label: '{key}+Click File / Markdown to Add to Chat',
-    defaultKeys: 'Ctrl',
-    modifierOnly: true,
   },
 ]
 
