@@ -198,7 +198,7 @@ const AppearancePanel = function AppearancePanel({
   capsuleTabs = true, onToggleCapsuleTabs,
   showSessionButtons = true, onToggleShowSessionButtons,
   showAppInfo = true, onToggleShowAppInfo,
-  showStatusBadge = true, onToggleShowStatusBadge,
+  showStatusBadge = false, onToggleShowStatusBadge,
   inlineDiff = false, onToggleInlineDiff,
   wordWrap = false, onToggleWordWrap,
   diffSplitRatio = 0.3, onSetDiffSplitRatio,
@@ -550,7 +550,7 @@ const AppearancePanel = function AppearancePanel({
             {activeCategory === 'session' && (
               <div className="p-4 flex flex-col">
                 {onToggleShowAppInfo && (
-                  <ToggleRow labelKey="Show App Info Row" descKey="Show the Vibe IDE row at the top of the sidebar (app icon, name, and the version / language menu)."
+                  <ToggleRow labelKey="Show App Info Row" descKey="Show the Codey row at the top of the sidebar (app icon, name, and the version / language menu)."
                     checked={showAppInfo} onChange={onToggleShowAppInfo} zone="session" />
                 )}
                 {onToggleShowSessionButtons && (

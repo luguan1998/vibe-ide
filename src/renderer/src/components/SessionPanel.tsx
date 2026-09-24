@@ -544,7 +544,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onToggleShowSessionButtons,
   showAppInfo = true,
   onToggleShowAppInfo,
-  showStatusBadge = true,
+  showStatusBadge = false,
   onToggleShowStatusBadge,
   terminalFontSize = 14,
   editorFontSize = 14,
@@ -679,7 +679,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [appVersion, setAppVersion] = useState('')
   useEffect(() => { window.api.appVersion().then(setAppVersion).catch(() => {}) }, [])
   const [showInfoMenu, setShowInfoMenu] = useState(false)
-  const [appName, setAppName] = useState('Vibe IDE')
+  const [appName, setAppName] = useState('Codey')
   const [editingAppName, setEditingAppName] = useState(false)
   useEffect(() => {
     if (!showInfoMenu) return

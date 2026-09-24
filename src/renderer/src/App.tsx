@@ -772,7 +772,7 @@ export default function App() {
     try { return localStorage.getItem('vibe-ide-app-info-row') !== 'false' } catch { return true }
   })
   const [showStatusBadge, setShowStatusBadge] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-status-badge') !== 'false' } catch { return true }
+    try { return localStorage.getItem('vibe-ide-status-badge') === '1' } catch { return false }
   })
   const [ocrEnabled, setOcrEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-ocr-enabled') === '1' } catch { return false }
@@ -1088,7 +1088,7 @@ export default function App() {
     try { localStorage.setItem('vibe-ide-app-info-row', String(showAppInfo)) } catch {}
   }, [showAppInfo])
   React.useEffect(() => {
-    try { localStorage.setItem('vibe-ide-status-badge', String(showStatusBadge)) } catch {}
+    try { localStorage.setItem('vibe-ide-status-badge', showStatusBadge ? '1' : '0') } catch {}
   }, [showStatusBadge])
   // Keep refs in sync for use in capture-phase keyboard handlers
   React.useEffect(() => { showHistoryRef.current = showHistory }, [showHistory])
