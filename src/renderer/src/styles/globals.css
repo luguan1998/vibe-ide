@@ -535,6 +535,18 @@ html, body, #root {
   );
 }
 
+/* 右面板宽形态（TabRail）时中间栏去边框，与右面板融为一体 */
+.center-no-border .center-card,
+.center-no-border .center-overlay {
+  border: none;
+}
+
+.center-no-border .ai-tab__header {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 /* Focus indicator — inset shadow with subtle inner glow, follows border-radius */
 .focus-frame {
   position: relative;

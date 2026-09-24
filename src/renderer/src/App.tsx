@@ -3451,8 +3451,9 @@ export default function App() {
 
   const rightOverlay = overlayOnRight ? (overlayKind === 'graph' ? graphDockNode : fileTabsNode) : null
 
-  // 右面板宽到出现 TabRail 导航（>= PANEL_TAB_RAIL_MIN_W）时收紧中间卡片与右面板的间隙，原始宽度保持对称
-  const centerGapX = !isWelcome && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'ml-1 mr-0' : 'mx-1'
+  const panelWide = !isWelcome && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W
+  // 右面板宽到出现 TabRail 导航时收紧中间卡片与右面板的间隙（原始宽度保持对称），并去掉中间栏边框使两栏融合
+  const centerGapX = panelWide ? 'ml-1 mr-0' : 'mx-1'
 
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
@@ -3705,7 +3706,7 @@ export default function App() {
         )}
 
         {/* Center Panel: Terminal or Diff — all three blocks always mounted, toggled via display */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-ide-bg focus-frame relative"
+        <div className={`flex-1 flex flex-col overflow-hidden bg-ide-bg focus-frame relative${panelWide ? ' center-no-border' : ''}`}
           ref={centerPanelRef}
           data-focused={focusedPanel === 'term' ? 'true' : undefined}
           onFocus={handleCenterFocus}
