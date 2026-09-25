@@ -80,6 +80,15 @@ export function isRealUserInput(messages: AiMessage[], i: number): boolean {
   return !(i > 0 && messages[i - 1].type === 'assistant')
 }
 
+// 真实用户轮清单：turnIdx 与 MessageList 的 data-user-turn 同域，跳转与 hover 弹窗导航共用一份派生口径
+export function deriveUserTurns(messages: AiMessage[]): { turnIdx: number; content: string }[] {
+  const turns: { turnIdx: number; content: string }[] = []
+  messages.forEach((m, i) => {
+    if (isRealUserInput(messages, i)) turns.push({ turnIdx: turns.length, content: m.content || '' })
+  })
+  return turns
+}
+
 // 历史会话没有 result 行（CLI 的 result 汇总只走 stream-json，不落 transcript），
 // 回合末条 assistant 需代 result 承载 meta（Churned for/copy/fork）；
 // 本回合已有 result 或后续还有 assistant 时返回 false，避免与 result 行重复

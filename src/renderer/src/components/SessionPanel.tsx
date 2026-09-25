@@ -27,6 +27,8 @@ import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 import iconPattern from '@renderer/assets/icon-pattern.png?inline'
 import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
 import { ToolIcon } from './AiTab/tools'
+import { deriveUserTurns } from './AiTab/messages'
+import { useAiSession } from '../aiStore'
 
 // ── Claude 配置组（model/provider 多组切换）──
 interface ClaudeConfigGroup {
@@ -280,6 +282,7 @@ interface SessionPanelProps {
   onReorderGroup?: (fromGroupIndex: number, toGroupIndex: number) => void
   onReorderSessionInGroup?: (sessionId: string, targetSessionId: string, before: boolean) => void
   commandHistory?: Record<string, string[]>
+  onRevealUserTurn?: (sessionId: string, turnIdx: number) => void
   agentStatus?: Record<string, 'running' | 'idle' | 'warn'>
   sessionWorktreeNav?: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onOpenHistoryTab?: () => void
@@ -455,6 +458,60 @@ function SessionCmdCopyButton({ cmd }: { cmd: string }) {
   )
 }
 
+// hover 弹窗行：序号 + 文本 + 存为命令 + 复制；onClick 存在即表示该行可跳转
+function HoverPopoverRow({ no, text, commandsRef, onClick }: {
+  no: number
+  text: string
+  commandsRef: React.RefObject<CustomCommandsHandle | null>
+  onClick?: () => void
+}) {
+  const { t } = useI18n()
+  return (
+    <div
+      className={`px-3 py-0.5 text-xs font-mono text-ide-text hover:bg-ide-hover flex items-center gap-2 group relative${onClick ? ' cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
+      <button
+        onClick={(e) => { e.stopPropagation(); commandsRef.current?.openCreateModal({ command: text }) }}
+        className="absolute left-0.5 opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-accent shrink-0 transition-opacity p-0.5"
+        title={t('Save to command')}
+      >
+        <Pencil size={12} />
+      </button>
+      <span className="text-ide-text-muted shrink-0 select-none w-4 text-right">{no}</span>
+      <span className="truncate flex-1" title={text}>{text.length > 60 ? text.slice(0, 60) + '...' : text}</span>
+      <SessionCmdCopyButton cmd={text} />
+    </div>
+  )
+}
+
+// AI 会话的 hover 列表：真实用户轮（与消息区 [data-user-turn] 同域），点一轮跳到该轮
+function HoverTurnRows({ sessionId, commandsRef, onPick }: {
+  sessionId: string
+  commandsRef: React.RefObject<CustomCommandsHandle | null>
+  onPick: (turnIdx: number) => void
+}) {
+  const { t } = useI18n()
+  const st = useAiSession(sessionId)
+  const turns = useMemo(() => deriveUserTurns(st.messages), [st.messages])
+  if (turns.length === 0) {
+    return <div className="px-3 py-4 text-xs text-ide-text-muted text-center">{t('No commands yet')}</div>
+  }
+  return (
+    <>
+      {turns.map(turn => (
+        <HoverPopoverRow
+          key={`hp-${turn.turnIdx}`}
+          no={turn.turnIdx + 1}
+          text={turn.content}
+          commandsRef={commandsRef}
+          onClick={() => onPick(turn.turnIdx)}
+        />
+      ))}
+    </>
+  )
+}
+
 // 会话闲置时长短英文：<60s 显示 now，否则 Nm / Nh / Nd
 function formatIdleDuration(durMs: number): string {
   if (durMs < 60_000) return 'now'
@@ -507,6 +564,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onReorderGroup,
   onReorderSessionInGroup,
   commandHistory = {},
+  onRevealUserTurn,
   agentStatus = {},
   sessionWorktreeNav = {},
   onOpenHistoryTab,
@@ -2306,7 +2364,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               {hoverPreview.mode === 'files' && <FolderOpen size={12} className="text-ide-accent/70 shrink-0" />}
               <span
                 className={`text-xs font-medium text-ide-text min-w-0 ${hoverPreview.mode === 'cmds' ? 'line-clamp-2' : 'truncate'}`}
-              >{hoverPreview.mode === 'cmds' && <span className="text-ide-text-muted mr-1">{'>_'}</span>}{previewTitle}</span>
+              >{previewTitle}</span>
               {hoverPreview.mode === 'files' && (
                 <button
                   onMouseDown={(e) => e.stopPropagation()}
@@ -2322,34 +2380,24 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             </div>
             {hoverPreview.mode === 'cmds' ? (
               <div className="flex-1 overflow-y-auto py-1">
-                {cmds.length === 0 ? (
+                {hoverSess?.kind === 'gui' ? (
+                  <HoverTurnRows
+                    sessionId={hoverSess.id}
+                    commandsRef={commandsRef}
+                    onPick={(turnIdx) => onRevealUserTurn?.(hoverSess.id, turnIdx)}
+                  />
+                ) : cmds.length === 0 ? (
                   <div className="px-3 py-4 text-xs text-ide-text-muted text-center">
                     {t('No commands yet')}
                   </div>
                 ) : (
                   displayed.map((cmd, i) => (
-                    <div
+                    <HoverPopoverRow
                       key={`hp-${i}`}
-                      className="px-3 py-0.5 text-xs font-mono text-ide-text hover:bg-ide-hover flex items-center gap-2 group relative"
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          commandsRef.current?.openCreateModal({ command: cmd })
-                        }}
-                        className="absolute left-0.5 opacity-0 group-hover:opacity-100 text-ide-text-muted hover:text-ide-accent shrink-0 transition-opacity p-0.5"
-                        title={t('Save to command')}
-                      >
-                        <Pencil size={12} />
-                      </button>
-                      <span className="text-ide-text-muted shrink-0 select-none w-5 text-right">
-                        {cmds.length - displayed.length + i + 1}
-                      </span>
-                      <span className="truncate flex-1" title={cmd}>
-                        {cmd.length > 60 ? cmd.slice(0, 60) + '...' : cmd}
-                      </span>
-                      <SessionCmdCopyButton cmd={cmd} />
-                    </div>
+                      no={cmds.length - displayed.length + i + 1}
+                      text={cmd}
+                      commandsRef={commandsRef}
+                    />
                   ))
                 )}
               </div>

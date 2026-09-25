@@ -2569,6 +2569,13 @@ export default function App() {
     applySessionTabPolicy(id)
   }, [applySessionTabPolicy, ensureSessionLoaded])
 
+  // session hover 弹窗点某轮：切到该会话 → 回对话视图 → 滚到该轮（等 React 提交后再量 rect）
+  const handleRevealUserTurn = useCallback((sessionId: string, turnIdx: number) => {
+    if (sessionId !== activeSessionIdRef.current) handleSwitchSession(sessionId)
+    setCenterView('terminal')
+    setTimeout(() => aiTabRefs.current[sessionId]?.revealTurnIndex(turnIdx), 0)
+  }, [handleSwitchSession])
+
   // Execute a custom command — sends to AI input in GUI mode, terminal otherwise
   const handleExecuteCommand = useCallback((command: string) => {
     if (!activeSessionId) return
@@ -3579,6 +3586,7 @@ export default function App() {
             onReorderGroup={handleReorderGroup}
             onReorderSessionInGroup={handleReorderSessionInGroup}
             commandHistory={commandHistory}
+            onRevealUserTurn={handleRevealUserTurn}
             agentStatus={agentStatus}
             sessionWorktreeNav={sessionWorktreeNav}
             onResetCache={handleResetCache}

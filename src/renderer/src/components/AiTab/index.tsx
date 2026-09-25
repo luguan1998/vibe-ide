@@ -10,7 +10,7 @@ import { SquareArrowUp, Square, Check, MessageSquarePlus, Eye, EyeOff, Plug, Git
 import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { StreamingMarkdown } from './markdown'
 import ConversationGraph from './ConversationGraph'
-import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput } from './messages'
+import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput, deriveUserTurns } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard, AiPermErrorBoundary } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, PiModelBadge, PiThinkingLevelSelector, ModeSelector } from './inputArea'
@@ -69,6 +69,8 @@ export interface AiTabHandle {
   sendText: (text: string) => void
   // 图挂在右栏时按 content+occurrence 滚到该轮（本组件持有消息态与滚动容器）
   revealTurn: (content: string, occurrence: number) => void
+  // session hover 弹窗按轮次下标滚到该轮
+  revealTurnIndex: (turnIdx: number) => void
 }
 const BUSY_QUIPS = [
   'Forging the digital frontier…',
@@ -394,6 +396,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   const dispatchMessageRef = useRef<((message: string) => Promise<void>) | null>(null)
   const revealTurnRef = useRef<((content: string, occurrence: number) => void) | null>(null)
+  const revealTurnIndexRef = useRef<((turnIdx: number) => void) | null>(null)
 
   useImperativeHandle(ref, () => ({
     focus: () => { inputRef.current?.focus({ preventScroll: true }) },
@@ -422,6 +425,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     },
     revealTurn: (content: string, occurrence: number) => {
       revealTurnRef.current?.(content, occurrence)
+    },
+    revealTurnIndex: (turnIdx: number) => {
+      revealTurnIndexRef.current?.(turnIdx)
     },
   }), [setInputValue, setInputValues])
 
@@ -557,63 +563,19 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     return () => el.removeEventListener('scroll', onScroll)
   }, [scrollEl, state.messages.length, state.streaming])
 
-  // ── 右侧面包屑:真实用户输入轮次导航 ──
-  const userTurnList = useMemo(() => {
-    const turns: { turnIdx: number; content: string }[] = []
-    let idx = 0
-    state.messages.forEach((m, i) => {
-      if (isRealUserInput(state.messages, i)) {
-        turns.push({ turnIdx: idx, content: m.content || '' })
-        idx++
-      }
-    })
-    return turns
-  }, [state.messages])
-  const lastTurnIdx = userTurnList.length ? userTurnList[userTurnList.length - 1].turnIdx : -1
+  // 轮次导航已外移到 session hover 弹窗,本组件只保留滚到某轮的能力
+  const lastTurnIdx = useMemo(() => deriveUserTurns(state.messages).length - 1, [state.messages])
 
-  const [activeTurn, setActiveTurn] = useState(-1)
-  const [turnNavHover, setTurnNavHover] = useState(false)
   const [bottomBarHover, setBottomBarHover] = useState(false)
   const [atBottom, setAtBottom] = useState(true)
-  const turnNavHoverRef = useRef(false)
-  // mouse 距滚动区右缘 < EDGE_HOVER_PX 即浮现面包屑、距下缘 < EDGE_HOVER_PX 即浮现跳到底部条;检测挂在 wrap 上
-  // mousedown 消息区不受遮挡(悬浮层 pointer-events-none,仅按钮区接收点击)
+  // mouse 距下缘 < EDGE_HOVER_PX 即浮现跳到底部条;检测挂在 wrap 上
   const onScrollWrapMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const wrap = e.currentTarget
-    const rect = wrap.getBoundingClientRect()
-    const distFromRight = rect.right - e.clientX
-    const distFromBottom = rect.bottom - e.clientY
-    setTurnNavHover(prev => {
-      const hover = distFromRight < EDGE_HOVER_PX
-      return hover === prev ? prev : hover
-    })
+    const distFromBottom = e.currentTarget.getBoundingClientRect().bottom - e.clientY
     setBottomBarHover(prev => {
       const hover = distFromBottom < EDGE_HOVER_PX
       return hover === prev ? prev : hover
     })
   }, [])
-
-  // 滚动容器中心线附近最近的 user turn = 当前轮(遍历 Map 顺序即渲染顺序,turn 递增)
-  const computeActiveTurn = useCallback(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
-    const centerY = container.getBoundingClientRect().top + container.clientHeight / 2
-    let active = -1
-    // turn 元素按文档顺序排列 → rect.top 单调递增，越过中心线即可停，避免每帧全量 rect 读取
-    const els = container.querySelectorAll<HTMLElement>('[data-user-turn]')
-    for (let i = 0; i < els.length; i++) {
-      const top = els[i].getBoundingClientRect().top
-      if (top > centerY) break
-      active = Math.max(active, Number(els[i].dataset.userTurn))
-    }
-    setActiveTurn(prev => (prev === active ? prev : active))
-  }, [])
-
-  // 面包屑只在 hover 时可见 → 非 hover 期间完全不量测（流式每次 flush 都会程序化滚到底并派发 scroll）
-  useEffect(() => {
-    turnNavHoverRef.current = turnNavHover
-    if (turnNavHover) computeActiveTurn()
-  }, [turnNavHover, computeActiveTurn])
 
   // 跳转到指定 user turn:手动 scrollTo 居中(scrollIntoView 会级联滚动 ai-tab 祖先)
   const jumpToUserTurn = useCallback((turnIdx: number) => {
@@ -628,6 +590,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     userScrolledUpRef.current = turnIdx === lastTurnIdx ? false : true
     container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
   }, [lastTurnIdx])
+  revealTurnIndexRef.current = jumpToUserTurn
 
   // 跳到底部:瞬时滚动（平滑滚动中途 scroll 事件会把 atBottom 翻回 false 致按钮闪跳），并恢复流式跟随,焦点落到输入框
   const jumpToBottom = useCallback(() => {
@@ -642,26 +605,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
-    let raf = 0
     const onScroll = () => {
       const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
       userScrolledUpRef.current = distFromBottom > 40
       setAtBottom(distFromBottom <= 40)
-      if (raf || !turnNavHoverRef.current) return
-      raf = requestAnimationFrame(() => {
-        raf = 0
-        computeActiveTurn()
-      })
     }
     el.addEventListener('scroll', onScroll, { passive: true })
-    let initRaf = 0
-    if (turnNavHoverRef.current) initRaf = requestAnimationFrame(computeActiveTurn)
-    return () => {
-      el.removeEventListener('scroll', onScroll)
-      cancelAnimationFrame(raf)
-      cancelAnimationFrame(initRaf)
-    }
-  }, [scrollEl, state.messages.length, state.streaming, computeActiveTurn])
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [scrollEl, state.messages.length, state.streaming])
 
   // ── 流式跟随:观察实际高度变化,而不是只在 flush 事件上滚一次 ──
   // 打字机逐帧揭示、shiki 着色回调、mermaid SVG 注入、图片加载、折叠动画过渡
@@ -1651,7 +1602,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         </>
       ) : (
         <>
-        <div className="ai-tab__scroll-wrap relative flex-1 min-h-0" onMouseMove={onScrollWrapMouseMove} onMouseLeave={() => { setTurnNavHover(false); setBottomBarHover(false) }}>
+        <div className="ai-tab__scroll-wrap relative flex-1 min-h-0" onMouseMove={onScrollWrapMouseMove} onMouseLeave={() => setBottomBarHover(false)}>
         <div ref={attachScrollContainer} className={`ai-tab__messages h-full min-h-0 overflow-y-auto overflow-x-hidden px-2 pt-2 ${!atBottom ? 'pb-9' : 'pb-2'}`}>
         <div ref={scrollContentRef} className="space-y-1">
         <MessageList
@@ -1726,35 +1677,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         <div ref={messagesEndRef} />
         </div>
         </div>
-
-        {/* 右侧面包屑:用户输入轮次指示器(JS 检测距右缘距离浮现,不拦截消息区点击) */}
-        {userTurnList.length > 0 && (
-          <div className={`ai-tab__turn-zone pointer-events-none absolute inset-y-1 right-0 z-10 w-8 flex flex-col items-center
-                          transition-opacity duration-150 ${turnNavHover ? 'opacity-100' : 'opacity-0'}`}>
-            <div className="ai-tab__turn-nav flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
-              <div className="pointer-events-auto flex flex-col items-center gap-0.5
-                              max-h-full overflow-y-auto overflow-x-hidden w-full py-0.5">
-                {userTurnList.map((turn) => (
-                  <button
-                    key={turn.turnIdx}
-                    type="button"
-                    onClick={() => jumpToUserTurn(turn.turnIdx)}
-                    title={`#${turn.turnIdx + 1} ${turn.content.slice(0, 60)}`}
-                    className={`ai-tab__turn-btn shrink-0 w-6 h-5 flex items-center justify-center rounded-md transition-colors ${
-                      activeTurn === turn.turnIdx ? 'bg-ide-accent/15' : 'hover:bg-ide-hover'
-                    }`}
-                  >
-                    <span className={`ai-tab__turn-bar rounded-full transition-all duration-200 ${
-                      activeTurn === turn.turnIdx
-                        ? 'w-[3px] h-4 bg-ide-accent'
-                        : 'w-[3px] h-1.5 bg-ide-text-muted/30'
-                    }`} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* 跳到底部:通栏横线 + 中部圆形把手,未贴底且鼠标靠近下缘时显示,整条可点(线宽对齐内容列) */}
         {!atBottom && bottomBarHover && (
