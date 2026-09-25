@@ -244,10 +244,13 @@ export interface LspDefinitionArgs {
 export const LSP_SERVERS: { id: string; label: string; installHint?: string }[] = [
   { id: 'python', label: 'Python (Pyright)' },
   { id: 'c', label: 'C / C++ (clangd)', installHint: 'Needs clangd — install LLVM, or Visual Studio with the C++ workload.' },
+  { id: 'ts', label: 'TypeScript / JavaScript (tsserver)' },
 ]
 
-// Monaco 语言 id → 服务器 id（clangd 同时服务 c 与 cpp）；主进程与渲染层共用
-export const LSP_LANG_TO_SERVER: Record<string, string> = { python: 'python', c: 'c', cpp: 'c' }
+// Monaco 语言 id → 服务器 id（clangd 同时服务 c 与 cpp，tsserver 同时服务 ts 与 js）；主进程与渲染层共用
+export const LSP_LANG_TO_SERVER: Record<string, string> = {
+  python: 'python', c: 'c', cpp: 'c', typescript: 'ts', javascript: 'ts',
+}
 
 // Snippet types
 export interface SnippetInfo {

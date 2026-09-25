@@ -812,9 +812,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     }
 
     jumpInflightRef.current = null
-    if (!items.length && !warming) return
+    if (!items.length) {
+      if (warming) setJumpCandidates({ word, items, x, y, warming })
+      return
+    }
     if (items.length === 1 || lspMultiDefRef.current === 'goto') { jumpToItem(items[0]); return }
-    setJumpCandidates({ word, items, x, y, warming })
+    setJumpCandidates({ word, items, x, y })
     setJumpSel(0)
   }, [jumpToItem])
 

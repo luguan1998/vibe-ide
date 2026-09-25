@@ -12,12 +12,18 @@ const IDLE_KILL_MS = 15 * 60 * 1000
 const INIT_TIMEOUT_MS = 30_000
 const REQUEST_TIMEOUT_MS = 20_000
 const ROOT_WALK_MAX = 8
+// tsserver 加载工程的等待窗口（见 awaitProjectLoad）
+const PROJECT_LOAD_WAIT_MS = 10_000
+const PROGRESS_BEGIN_GRACE_MS = 600
+const PROGRESS_POLL_MS = 50
 
 interface Resolved { cmd: string; args: string[] }
 interface ServerDef {
   resolve: () => Resolved | null
   rootMarkers: string[]
   rootArgs?: (root: string) => string[]   // 依赖工程根的启动参数（clangd 的 compile_commands 目录）
+  waitProjectLoad?: boolean               // 打开文档后才异步建 program，加载期间回答不可信（tsserver）
+  initOptions?: Record<string, unknown>   // initialize.initializationOptions
 }
 
 function nodeModulesRoot(): string {
@@ -30,6 +36,13 @@ function resolvePyright(): Resolved | null {
   const script = join(nodeModulesRoot(), 'node_modules', 'pyright', 'langserver.index.js')
   if (!existsSync(script)) return null
   return { cmd: app.isPackaged ? process.execPath : 'node', args: [script, '--stdio'] }
+}
+
+// 必须落在 asar.unpacked 的真实目录：它 fork 出来的 tsserver 子进程按真实路径加载
+function resolveTypescriptLanguageServer(): Resolved | null {
+  const cli = join(nodeModulesRoot(), 'node_modules', 'typescript-language-server', 'lib', 'cli.mjs')
+  if (!existsSync(cli)) return null
+  return { cmd: app.isPackaged ? process.execPath : 'node', args: [cli, '--stdio'] }
 }
 
 // clangd 多半不在 PATH 上：Windows 上它要么来自 LLVM 安装包，要么是 VS 自带的 LLVM 工具集。
@@ -92,6 +105,13 @@ const SERVER_DEFS: Record<string, ServerDef> = {
       return dir ? [`--compile-commands-dir=${dir}`] : []
     },
   },
+  ts: {
+    resolve: resolveTypescriptLanguageServer,
+    rootMarkers: ['tsconfig.json', 'jsconfig.json', 'package.json', '.git'],
+    waitProjectLoad: true,
+    // 默认开着 ATA（缺 @types 就往用户仓库跑 npm install），跳转不需要它
+    initOptions: { disableAutomaticTypingAcquisition: true },
+  },
 }
 
 const resolvedCache = new Map<string, Resolved | null>()
@@ -129,6 +149,8 @@ function findRoot(startFile: string, markers: string[], cwd: string): string {
 
 interface Pending { resolve: (v: any) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
 
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
+
 class LspClient {
   private proc: ChildProcess | null = null
   private buf = Buffer.alloc(0)
@@ -139,6 +161,7 @@ class LspClient {
   private idle: ReturnType<typeof setTimeout> | null = null
   private dead = false
   private initialized = false
+  private loading = new Set<string | number>()   // 进行中的 workDone 进度（tsserver 用它标记建 program）
 
   constructor(private serverId: string, private def: ServerDef, readonly root: string) {}
 
@@ -198,7 +221,14 @@ class LspClient {
       this.write({ jsonrpc: '2.0', id: msg.id, result: null })
       return
     }
-    if (msg.id === undefined) return
+    if (msg.id === undefined) {
+      if (msg.method === '$/progress') {
+        const { token, value } = msg.params ?? {}
+        if (value?.kind === 'end') this.loading.delete(token)
+        else if (token !== undefined) this.loading.add(token)
+      }
+      return
+    }
     const p = this.pending.get(msg.id)
     if (!p) return
     this.pending.delete(msg.id)
@@ -237,7 +267,12 @@ class LspClient {
         clientInfo: { name: 'vibe-ide' },
         rootUri,
         workspaceFolders: [{ uri: rootUri, name: 'workspace' }],
-        capabilities: { workspace: { workspaceFolders: true } },
+        capabilities: {
+          workspace: { workspaceFolders: true },
+          // 只为拿到 tsserver 加载工程的 workDone 进度（见 awaitProjectLoad），不声明它就收不到
+          window: { workDoneProgress: true },
+        },
+        initializationOptions: this.def.initOptions,
       }, INIT_TIMEOUT_MS)
       this.notify('initialized', {})
       this.initialized = true
@@ -252,7 +287,21 @@ class LspClient {
     this.initialized = false
     this.initPromise = null
     this.docs.clear()
+    this.loading.clear()
     this.failPending(new Error('server exited'))
+  }
+
+  // tsserver 收到 didOpen 才异步建 program，加载期间 definition 会拿半成品 program 回答 ——
+  // 导入符号会被解析成那条 import 语句本身（同文件、指向 import 行），跳过去是错的。
+  // 这段窗口 tls 用 workDone 进度包着，故：等它结束再问；等不到就抛（上层回落 warming，下次重试）
+  private async awaitProjectLoad(newDoc: boolean): Promise<void> {
+    if (!this.def.waitProjectLoad) return
+    const deadline = Date.now() + PROJECT_LOAD_WAIT_MS
+    if (newDoc) await sleep(PROGRESS_BEGIN_GRACE_MS)
+    while (this.loading.size) {
+      if (Date.now() > deadline) throw new Error('project still loading')
+      await sleep(PROGRESS_POLL_MS)
+    }
   }
 
   async definition(fullPath: string, langId: string, text: string, line: number, column: number): Promise<LspLocation[]> {
@@ -267,6 +316,7 @@ class LspClient {
       this.notify('textDocument/didChange', { textDocument: { uri, version: doc.version }, contentChanges: [{ text }] })
     }
     this.touch()
+    await this.awaitProjectLoad(!doc)
     const res = await this.request('textDocument/definition', {
       textDocument: { uri },
       position: { line: line - 1, character: column - 1 },
@@ -292,6 +342,7 @@ class LspClient {
     const proc = this.proc
     this.proc = null
     this.docs.clear()
+    this.loading.clear()
     this.failPending(new Error('server stopped'))
     if (!proc?.pid) return
     try {
