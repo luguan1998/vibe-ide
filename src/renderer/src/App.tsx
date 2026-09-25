@@ -18,7 +18,6 @@ import type { TabSnapshot, TabRuntime } from './fileTabs'
 import MarkdownPreview, { MD_SEARCH_OPEN } from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
 import BrowserView, { BrowserViewHandle, setBrowserStartUrl } from './components/BrowserView'
-import NavBar, { NavEntry } from './components/NavBar'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
 import { DesktopPet, type PetLogicalState } from './components/DesktopPet'
@@ -949,42 +948,37 @@ export default function App() {
   const visibleLineRef = useRef<VisibleLineEntry | null>(null)
 
 
-  // ── NavBar 数据源：当前 session cwd 下的最近打开文件（复用 recentFiles）──
-  const navBarEntries = useMemo<NavEntry[]>(() => {
-    const cwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
-    const w = cwd ? cwd.replace(/\\/g, '/').replace(/\/$/, '') : ''
-    if (!w) return []
-    return recentFiles
-      .filter(f => { const p = f.path.replace(/\\/g, '/'); return p === w || p.startsWith(w + '/') })
-      .map(f => ({ fullPath: f.path, line: f.line ?? 1 }))
-  }, [recentFiles, sessions, activeSessionId])
-  const navBarEntriesRef = useRef(navBarEntries)
-  navBarEntriesRef.current = navBarEntries
   const [brushActive, setBrushActive] = useState(false)
   const brushActiveRef = useRef(false)
   brushActiveRef.current = brushActive
-  // Nav bar state
-  const [navBarVisible, setNavBarVisible] = useState(false)
-  const [navBarIndex, setNavBarIndex] = useState(0)
-  const [navBarSolid, setNavBarSolid] = useState(false)
-  const navBarVisibleRef = useRef(false)
-  const navBarIndexRef = useRef(0)
-  const navBarCwdRef = useRef<string | null>(null)
-  const navBarUsedRef = useRef(false)  // true when user actually navigated with arrows
-  navBarVisibleRef.current = navBarVisible
-  navBarIndexRef.current = navBarIndex
-  // navBarEntries 缩短（删最近文件）或重排（置顶）时 clamp navBarIndex，防越界致长按 alt 呼不出 NavBar
-  useEffect(() => {
-    setNavBarIndex(prev => {
-      const len = navBarEntries.length
-      if (len > 0 && prev >= len) return len - 1
-      if (prev < 0) return 0
-      return prev
-    })
-  }, [navBarEntries])
-  useEffect(() => {
-    if (!navBarVisible) setNavBarSolid(false)
-  }, [navBarVisible])
+
+  // ── 导航历史（Alt+←/→，VS Code 的 navigateBack/Forward）──
+  // list 是走过的位置序列，index 指向当前所在位置；跳转时截断 index 之后的分支再压入新位置
+  interface NavPos { fullPath: string; line: number }
+  const NAV_HIST_MAX = 100
+  const navHistRef = useRef<{ list: NavPos[]; index: number }>({ list: [], index: -1 })
+  const navSuppressRef = useRef(false)
+  const navBackRef = useRef<() => void>(() => {})
+  const navForwardRef = useRef<() => void>(() => {})
+  // 光标位置优先（DiffViewer 实时回写）；cursorRef 是全局单个，切 tab 后可能残留旧文件，需比对
+  const currentNavPos = useCallback((): NavPos | null => {
+    const c = cursorRef.current
+    const t = activeTabRef.current as { fullPath: string; lineNumber?: number } | null
+    if (t) {
+      if (c && c.fullPath === t.fullPath) return { fullPath: t.fullPath, line: c.line }
+      return { fullPath: t.fullPath, line: t.lineNumber ?? 1 }
+    }
+    return c?.fullPath ? { fullPath: c.fullPath, line: c.line } : null
+  }, [])
+  const navPush = useCallback((pos: NavPos) => {
+    const h = navHistRef.current
+    const cur = h.list[h.index]
+    if (cur && cur.fullPath === pos.fullPath && cur.line === pos.line) return
+    h.list = h.list.slice(0, h.index + 1)
+    h.list.push(pos)
+    if (h.list.length > NAV_HIST_MAX) h.list = h.list.slice(-NAV_HIST_MAX)
+    h.index = h.list.length - 1
+  }, [])
   const flashPanelRef = useRef<'term' | 'right' | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingBlurRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1557,6 +1551,13 @@ export default function App() {
   }, [])
 
   const openFileView = useCallback((fullPath: string, opts: OpenFileOpts = {}) => {
+    // 记录导航历史：先订正"来时位置"（用户可能在文件内滚动过），再压目标位置。
+    // 必须早于 openTab —— 那时 activeTab/cursorRef 还指向跳转前的文件
+    if (!navSuppressRef.current) {
+      const from = currentNavPos()
+      if (from) navPush(from)
+      navPush({ fullPath, line: opts.lineNumber && opts.lineNumber > 0 ? opts.lineNumber : 1 })
+    }
     const mode: OpenFileMode = opts.mode ?? 'auto'
     const kind = (mode === 'diff' || mode === 'edit') ? 'diff' as const : autoViewKind(fullPath)
     const name = baseName(fullPath)
@@ -1616,7 +1617,29 @@ export default function App() {
     }
     if (opts.record !== false) recordRecentFile(fullPath, opts.lineNumber)
     setCenterView('files')
-  }, [openTab, updateTab, recordRecentFile, relFromCwd])
+  }, [openTab, updateTab, recordRecentFile, relFromCwd, currentNavPos, navPush])
+
+  // 沿历史移动：抑制 openFileView 自己的记录，否则会边走边改写栈
+  const navGoTo = useCallback((pos: NavPos) => {
+    navSuppressRef.current = true
+    try {
+      openFileView(pos.fullPath, { mode: 'edit', lineNumber: pos.line, record: false })
+    } finally {
+      navSuppressRef.current = false
+    }
+  }, [openFileView])
+  navBackRef.current = () => {
+    const h = navHistRef.current
+    if (h.index <= 0) return
+    h.index--
+    navGoTo(h.list[h.index])
+  }
+  navForwardRef.current = () => {
+    const h = navHistRef.current
+    if (h.index < 0 || h.index >= h.list.length - 1) return
+    h.index++
+    navGoTo(h.list[h.index])
+  }
 
   const flushTabVisibleLine = useCallback((tab: FileTabState | null | undefined) => {
     if (!tab || tab.kind !== 'diff') return
@@ -1794,55 +1817,25 @@ export default function App() {
         return
       }
 
-      // ── Alt keydown: 显示 NavBar（Alt+←/→ 切换并跳转）──
+      // 吞掉纯 Alt：既不激活 Electron 菜单栏，也不让 xterm 收到 Alt 前缀
       if (e.key === 'Alt' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         e.preventDefault()
         e.stopImmediatePropagation()
-        const hist = navBarEntriesRef.current
-        if (hist.length > 0) {
-          let idx = navBarIndexRef.current
-          if (idx < 0 || idx >= hist.length) idx = 0
-          navBarCwdRef.current = sessionsRef.current.find(s => s.id === activeSessionId)?.cwd ?? null
-          navBarVisibleRef.current = true
-          navBarUsedRef.current = false
-          navBarIndexRef.current = idx
-          setNavBarSolid(false)
-          setNavBarVisible(true)
-          setNavBarIndex(idx)
-        }
         return
       }
 
-      // ── nav bar mode: intercept Left/Right to move selection ──
-      if (navBarVisibleRef.current) {
-        if (e.key === 'ArrowLeft' && e.altKey) {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-          navBarUsedRef.current = true
-          setNavBarSolid(true)
-          setNavBarIndex(prev => {
-            const len = navBarEntriesRef.current.length
-            return prev <= 0 ? len - 1 : prev - 1
-          })
-          return
-        }
-        if (e.key === 'ArrowRight' && e.altKey) {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-          navBarUsedRef.current = true
-          setNavBarSolid(true)
-          setNavBarIndex(prev => {
-            const len = navBarEntriesRef.current.length
-            return prev >= len - 1 ? 0 : prev + 1
-          })
-          return
-        }
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-          setNavBarVisible(false)
-          return
-        }
+      // navigate.back / navigate.forward → Alt+←/→ 沿导航历史前进后退
+      if (eventMatchesBinding(e, bindings['navigate.back'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        navBackRef.current()
+        return
+      }
+      if (eventMatchesBinding(e, bindings['navigate.forward'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        navForwardRef.current()
+        return
       }
 
       // quickOpen.file → Ctrl+E toggle fuzzy file quick open
@@ -2088,33 +2081,10 @@ export default function App() {
         setBrushActive(false)
         return
       }
-
-      if (e.key !== 'Alt') return
-
-      if (!navBarVisibleRef.current) return
-      if (!navBarUsedRef.current) { setNavBarVisible(false); return }
-      const idx = navBarIndexRef.current
-      const hist = navBarEntriesRef.current
-      if (idx >= 0 && idx < hist.length) {
-        const entry = hist[idx]
-        openFileView(entry.fullPath, { mode: 'edit', lineNumber: entry.line, record: false })
-      }
-      setNavBarVisible(false)
     }
     window.addEventListener('keyup', handleKeyUp)
     return () => window.removeEventListener('keyup', handleKeyUp)
   }, [])
-
-  // NavBar click → navigate to file (same as Alt keyup commit)
-  const handleNavBarSelect = useCallback((idx: number) => {
-    navBarVisibleRef.current = false
-    setNavBarVisible(false)
-    const hist = navBarEntriesRef.current
-    if (idx >= 0 && idx < hist.length) {
-      const entry = hist[idx]
-      openFileView(entry.fullPath, { mode: 'edit', lineNumber: entry.line, record: false })
-    }
-  }, [openFileView])
 
   const handleQuickOpenSelect = useCallback((fullPath: string, relativePath: string) => {
     openFileView(fullPath, { mode: 'edit', relPath: relativePath, record: false })
@@ -4180,15 +4150,6 @@ export default function App() {
         onClose={closeQuickOpen}
       />
 
-      {/* Nav Bar — 当前 cwd 最近文件，Alt+←/→ 切换并跳转 */}
-      <NavBar
-        entries={navBarEntries}
-        selectedIndex={navBarIndex}
-        visible={navBarVisible}
-        solid={navBarSolid}
-        onSelect={handleNavBarSelect}
-      />
-
       {/* Search Dropdown — titlebar 搜索图标浮窗 */}
       <ModalOverlay
         onClose={() => setShowSearchDropdown(false)}
@@ -4215,7 +4176,7 @@ export default function App() {
         </div>
       </ModalOverlay>
 
-      {/* Call Graph Overlay — rendered at App level like NavBar to stay on top */}
+      {/* Call Graph Overlay — rendered at App level to stay on top */}
       {callGraphFocalNode && (
         <CallGraphOverlay
           focalNode={callGraphFocalNode}

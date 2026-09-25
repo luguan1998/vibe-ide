@@ -470,7 +470,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     if (!targetLn || targetLn <= 0) return
     if (!containerRef.current?.offsetParent) return
     try {
+      // 保活的 tab 在 display:none 期间被 layout 成 0 高，automaticLayout 的 ResizeObserver 晚一帧才恢复，
+      // 此时 revealLineInCenter 会按零高视口算滚动量、把目标行顶到顶部。先强制 layout 再滚
       if (viewMode === 'diff' && diffEditorRef.current) {
+        diffEditorRef.current.layout()
         const modifiedEditor = diffEditorRef.current.getModifiedEditor()
         const count = modifiedEditor.getModel()?.getLineCount() || 0
         const ln = Math.min(targetLn, count)
@@ -481,6 +484,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
           if (visibleLineRef) visibleLineRef.current = { fullPath, line: ln }
         }
       } else if (viewMode === 'edit' && editEditorRef.current) {
+        editEditorRef.current.layout()
         const count = editEditorRef.current.getModel()?.getLineCount() || 0
         const ln = Math.min(targetLn, count)
         if (ln > 0) {

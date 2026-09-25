@@ -16,7 +16,7 @@ Vibe IDE — Electron-based desktop IDE with native terminal, git, file diff/edi
 7. **禁用同步弹窗** — 严禁使用 `confirm()`、`prompt()`、`alert()` 等同步阻塞式浏览器原生弹窗。确认/输入类交互统一使用异步 Modal 模式（参考 `confirmAction` 状态 + fixed 定位弹窗，或内联 `<input>` 编辑）
 8. **被调先于主调** — `const` 声明（含 `useCallback`）不提升，被调函数必须在调用方之前定义。违反会触发 `ReferenceError: Cannot access 'xxx' before initialization`
 9. **ESC 按注册顺序分层**（均为 window capture）：
-   - App.tsx 最先：NavBar → history → callGraph → codeSearch → exploreResult → focus return(`centerView === 'terminal'`)
+   - App.tsx 最先：history → callGraph → codeSearch → exploreResult → focus return(`centerView === 'terminal'`)
    - DiffViewer：收起文件区回终端（`onDismiss`，tab 保活不关闭；capture 因 Monaco 会抢清选区）
    - MarkdownPreview / ImagePreview：内部浮层（导出菜单/页内搜索）→ `onDismiss` 收起
    - 三者均以 `containerRef.current?.offsetParent` 判定自身可见（多 tab display:none 保活，隐藏实例不响应）
@@ -74,7 +74,6 @@ src/
 │   ├── dsh/                      # DshView 根组件、context、动态插件、主题桥
 │   └── components/
 │       ├── SessionPanel.tsx      # 左侧会话列表
-│       ├── NavBar.tsx            # 顶部导航栏（最近文件/新旧 UI 切换）
 │       ├── TerminalView.tsx      # xterm.js 终端 (中栏)
 │       ├── DiffViewer.tsx        # Monaco 编辑器/Diff (中栏)
 │       ├── RightPanel.tsx        # 右侧多 tab 面板（编排器）
