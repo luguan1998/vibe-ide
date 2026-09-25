@@ -72,6 +72,23 @@ function getLanguageFromFile(path: string): string {
   return langMap[ext] || 'plaintext'
 }
 
+// 跳转候选里的测试文件。目录段逐段精确匹配，不做子串 —— 否则 contest/、test-utils/ 会被误伤
+const TEST_DIR_SEGMENTS = new Set(['test', 'tests', '__tests__', 'spec', 'specs', 'e2e', '__mocks__', 'fixtures'])
+function isTestPath(fullPath: string): boolean {
+  const norm = fullPath.replace(/\\/g, '/')
+  const lower = norm.toLowerCase()
+  const segs = lower.split('/')
+  const file = segs[segs.length - 1] || ''
+  if (segs.slice(0, -1).some(s => TEST_DIR_SEGMENTS.has(s))) return true
+  if (/\.(test|spec)\.[^.]+$/.test(file)) return true
+  if (/^test_.+\.py$/.test(file)) return true
+  if (/_test\.(py|go|rs|rb|js|ts)$/.test(file)) return true
+  if (/_spec\.rb$/.test(file)) return true
+  // Java/Kotlin/C# 惯例是 FooTest，保留大小写以免 Latest.java 撞上
+  if (/Tests?\.(java|kt|cs|scala)$/.test(norm)) return true
+  return false
+}
+
 interface DefHintCtx {
   root?: string
   langId: string
@@ -805,12 +822,18 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
             if (!curLines) curLines = (modifiedContentRef.current ?? '').split(/\r\n|\r|\n/)
             return (curLines[ln - 1] ?? '').trim().slice(0, 120)
           }
-          items = r.locations.slice(0, 8).map(loc => ({
+          const mapped: JumpItem[] = r.locations.map(loc => ({
             fullPath: loc.path,
             line: loc.line,
             label: norm(loc.path).startsWith(prefix) ? loc.path.slice(prefix.length).replace(/\\/g, '/') : loc.path,
             detail: snippet(loc.path, loc.line) || 'LSP',
           }))
+          // 符号重名时服务器可能把 test 里的定义排在前面。先排序再截断，避免非 test 候选落在第 8 个之后被丢掉；
+          // 从 test 文件出发时不重排 —— 测试之间互相跳是正常操作
+          if (!isTestPath(target)) {
+            mapped.sort((a, b) => Number(isTestPath(a.fullPath)) - Number(isTestPath(b.fullPath)))
+          }
+          items = mapped.slice(0, 8)
         }
       } catch {}
     }
