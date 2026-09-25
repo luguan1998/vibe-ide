@@ -177,6 +177,7 @@ declare global {
         definition: (args: import('@shared/types').LspDefinitionArgs) => Promise<import('@shared/types').LspDefinitionResult>
         status: () => Promise<import('@shared/types').LspStatus>
         stop: (serverId?: string) => Promise<{ ok: boolean }>
+        setScopes: (cwds: string[]) => Promise<{ ok: boolean }>
       }
       ocr: {
         recognize: (input: string | { buffer: Uint8Array; name: string }) => Promise<string>
@@ -1092,6 +1093,12 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem('vibe-ide-lsp-multi-def', lspMultiDef) } catch {}
   }, [lspMultiDef])
+  // 会话增删时同步活跃 cwd 集合，主进程据此释放已关闭会话的 LSP 实例（切走不关的会话仍保留）
+  const sessionCwds = useMemo(
+    () => [...new Set(sessions.map(s => s.cwd).filter((c): c is string => !!c))],
+    [sessions],
+  )
+  useEffect(() => { window.api.lsp.setScopes(sessionCwds) }, [sessionCwds])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-inline-diff', String(inlineDiff)) } catch {}
   }, [inlineDiff])

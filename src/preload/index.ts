@@ -279,6 +279,7 @@ const api = {
     status: () =>
       ipcRenderer.invoke(IPC_CHANNELS.LSP_STATUS) as Promise<import('../shared/types').LspStatus>,
     stop: (serverId?: string) => ipcRenderer.invoke(IPC_CHANNELS.LSP_STOP, serverId),
+    setScopes: (cwds: string[]) => ipcRenderer.invoke(IPC_CHANNELS.LSP_SET_SCOPES, cwds),
   },
 
   // AI (OpenClaude) operations

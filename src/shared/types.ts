@@ -120,6 +120,7 @@ export const IPC_CHANNELS = {
   LSP_DEFINITION: 'lsp:definition',
   LSP_STATUS: 'lsp:status',
   LSP_STOP: 'lsp:stop',
+  LSP_SET_SCOPES: 'lsp:setScopes',
 
   // Perf
   PERF_SNAPSHOT: 'perf:snapshot',

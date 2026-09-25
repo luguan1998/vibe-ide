@@ -16,6 +16,8 @@ const ROOT_WALK_MAX = 8
 const PROJECT_LOAD_WAIT_MS = 10_000
 const PROGRESS_BEGIN_GRACE_MS = 600
 const PROGRESS_POLL_MS = 50
+// 冷启动或切换 root 时把跳转请求挂起，等服务器就绪再答 —— 否则用户每次都要白点一下
+const QUEUE_WAIT_MS = 5000
 
 interface Resolved { cmd: string; args: string[] }
 interface ServerDef {
@@ -129,22 +131,23 @@ const normalizeDrive = (p: string) => (/^[a-z]:/.test(p) ? p[0].toUpperCase() + 
 
 const normPath = (p: string) => p.replace(/\\/g, '/').toLowerCase().replace(/\/+$/, '')
 
-// 从文件向上找工程标记，但不上穿会话工作目录 —— 根比 cwd 大会成倍推高服务器内存
+// 从文件向上找工程标记，但不上穿会话工作目录 —— 根比 cwd 大会成倍推高服务器内存。
+// 记「最靠近 cwd 的」而非「最近的」：多包仓库里子目录遍地 package.json，就近优先会让同一会话的
+// root 在子包之间横跳，每次跳转都触发服务器重建
 function findRoot(startFile: string, markers: string[], cwd: string): string {
   const c = normPath(cwd)
   let dir = dirname(startFile)
+  let best: string | null = null
   for (let i = 0; i < ROOT_WALK_MAX; i++) {
     const nd = normPath(dir)
     if (nd !== c && !nd.startsWith(c + '/')) break
-    for (const m of markers) {
-      if (existsSync(join(dir, m))) return dir
-    }
+    if (markers.some(m => existsSync(join(dir, m)))) best = dir
     if (nd === c) break
     const parent = dirname(dir)
     if (parent === dir) break
     dir = parent
   }
-  return cwd
+  return best ?? cwd
 }
 
 interface Pending { resolve: (v: any) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
@@ -168,10 +171,15 @@ class LspClient {
   get pid(): number { return this.proc?.pid ?? 0 }
   get alive(): boolean { return !this.dead && !!this.proc }
   get ready(): boolean { return this.initialized && !this.dead }
+  get readyPromise(): Promise<void> { return this.initPromise ?? Promise.resolve() }
 
   private touch(): void {
     if (this.idle) clearTimeout(this.idle)
-    this.idle = setTimeout(() => { stopClient(this.serverId) }, IDLE_KILL_MS)
+    this.idle = setTimeout(() => {
+      stopClient(this.serverId)
+      const r = retiring.get(this.serverId)
+      if (r?.client === this) retiring.delete(this.serverId)
+    }, IDLE_KILL_MS)
   }
 
   private write(msg: unknown): void {
@@ -354,13 +362,51 @@ class LspClient {
 }
 
 const clients = new Map<string, LspClient>()
+// 被替换下来的实例先不杀：新实例首次跳转成功后收掉，期间切回可直接复用
+const retiring = new Map<string, { client: LspClient; rootKey: string }>()
 const enabledServers = new Set<string>()
+let activeScopes = new Set<string>()
 
 function stopClient(serverId: string): void {
   const c = clients.get(serverId)
   if (!c) return
   c.stop()
   clients.delete(serverId)
+}
+
+function dropRetiring(serverId: string): void {
+  const r = retiring.get(serverId)
+  if (!r) return
+  r.client.stop()
+  retiring.delete(serverId)
+}
+
+// active 降级为 retiring：每个 server 至多留一个
+function retireActive(serverId: string): void {
+  const cur = clients.get(serverId)
+  if (!cur) return
+  dropRetiring(serverId)
+  retiring.set(serverId, { client: cur, rootKey: normPath(cur.root) })
+  clients.delete(serverId)
+}
+
+// 新实例起不来时把退休的还回去，避免一次失败就丢掉可用实例
+function reviveRetiring(serverId: string): void {
+  const r = retiring.get(serverId)
+  if (!r) return
+  retiring.delete(serverId)
+  if (!r.client.alive || clients.has(serverId)) { r.client.stop(); return }
+  clients.set(serverId, r.client)
+}
+
+// 会话关闭后，root 不再属于任何活跃 cwd 的实例一并释放
+function releaseOutOfScope(): void {
+  for (const [sid, c] of [...clients]) {
+    if (!activeScopes.has(normPath(c.root))) { c.stop(); clients.delete(sid) }
+  }
+  for (const [sid, r] of [...retiring]) {
+    if (!activeScopes.has(r.rootKey)) { r.client.stop(); retiring.delete(sid) }
+  }
 }
 
 async function handleDefinition(args: LspDefinitionArgs): Promise<LspDefinitionResult> {
@@ -371,22 +417,45 @@ async function handleDefinition(args: LspDefinitionArgs): Promise<LspDefinitionR
   if (!def || !resolveServer(serverId)) return { state: 'unavailable', locations: [] }
 
   const root = findRoot(args.fullPath, def.rootMarkers, args.root)
+  const rootKey = normPath(root)
+
   let client = clients.get(serverId)
   if (client && !client.alive) { clients.delete(serverId); client = undefined }
-  if (client && client.root !== root) { client.stop(); clients.delete(serverId); client = undefined }
+
+  if (client && normPath(client.root) !== rootKey) {
+    const ret = retiring.get(serverId)
+    if (ret && ret.rootKey === rootKey && ret.client.alive) {
+      // 切回刚离开的 root：两边交换身份，谁都不用重建
+      retiring.set(serverId, { client, rootKey: normPath(client.root) })
+      clients.set(serverId, ret.client)
+      client = ret.client
+    } else {
+      retireActive(serverId)
+      client = undefined
+    }
+  }
 
   if (!client) {
     const fresh = new LspClient(serverId, def, root)
     clients.set(serverId, fresh)
-    fresh.start().catch(() => {
+    const started = fresh.start().catch(() => {
       if (clients.get(serverId) === fresh) clients.delete(serverId)
+      reviveRetiring(serverId)
     })
-    return { state: 'warming', locations: [] }
+    // 挂起等就绪，别让用户白点一次；超时保留实例继续初始化，下次跳转可能就赶上了
+    await Promise.race([started, sleep(QUEUE_WAIT_MS)])
+    if (!fresh.ready) return { state: 'warming', locations: [] }
+    client = fresh
+  } else if (!client.ready) {
+    await Promise.race([client.readyPromise, sleep(QUEUE_WAIT_MS)])
+    if (!client.ready) return { state: 'warming', locations: [] }
   }
-  if (!client.ready) return { state: 'warming', locations: [] }
 
   try {
-    return { state: 'ok', locations: await client.definition(args.fullPath, args.langId, args.text ?? '', args.line, args.column) }
+    const locations = await client.definition(args.fullPath, args.langId, args.text ?? '', args.line, args.column)
+    // 新实例头一次真正答出来才算确认可用，这时才收掉退休的旧实例
+    dropRetiring(serverId)
+    return { state: 'ok', locations }
   } catch {
     return { state: 'warming', locations: [] }
   }
@@ -396,7 +465,7 @@ export function registerLspHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.LSP_SET_ENABLED, (_event, serverId: string, on: boolean) => {
     if (typeof serverId !== 'string' || !SERVER_DEFS[serverId]) return { error: 'unknown server' }
     if (on) enabledServers.add(serverId)
-    else { enabledServers.delete(serverId); stopClient(serverId) }
+    else { enabledServers.delete(serverId); stopClient(serverId); dropRetiring(serverId) }
     return { enabled: enabledServers.has(serverId) }
   })
 
@@ -411,14 +480,27 @@ export function registerLspHandlers(): void {
     return { available, running }
   })
 
+  // 渲染层同步「当前有哪些会话 cwd」，据此释放已关闭会话的实例（同 cwd 多会话共享，故不能靠引用计数）
+  ipcMain.handle(IPC_CHANNELS.LSP_SET_SCOPES, (_event, cwds: unknown) => {
+    const list = Array.isArray(cwds) ? cwds.filter((c): c is string => typeof c === 'string') : []
+    activeScopes = new Set(list.map(normPath))
+    releaseOutOfScope()
+    return { ok: true }
+  })
+
   ipcMain.handle(IPC_CHANNELS.LSP_STOP, (_event, serverId?: string) => {
-    if (serverId) stopClient(serverId)
-    else for (const id of [...clients.keys()]) stopClient(id)
+    if (serverId) { stopClient(serverId); dropRetiring(serverId) }
+    else {
+      for (const id of [...clients.keys()]) stopClient(id)
+      for (const id of [...retiring.keys()]) dropRetiring(id)
+    }
     return { ok: true }
   })
 }
 
 export function cleanupLsp(): void {
   for (const id of [...clients.keys()]) stopClient(id)
+  for (const id of [...retiring.keys()]) dropRetiring(id)
   clients.clear()
+  retiring.clear()
 }
