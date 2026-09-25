@@ -687,7 +687,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [appVersion, setAppVersion] = useState('')
   useEffect(() => { window.api.appVersion().then(setAppVersion).catch(() => {}) }, [])
   const [showInfoMenu, setShowInfoMenu] = useState(false)
-  const [appName, setAppName] = useState('Clawn Code')
+  const [appName, setAppName] = useState('Clown Code')
   const [editingAppName, setEditingAppName] = useState(false)
   useEffect(() => {
     if (!showInfoMenu) return

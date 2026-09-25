@@ -564,7 +564,7 @@ const AppearancePanel = function AppearancePanel({
             {activeCategory === 'session' && (
               <div className="p-4 flex flex-col">
                 {onToggleShowAppInfo && (
-                  <ToggleRow labelKey="Show App Info Row" descKey="Show the Clawn Code row at the top of the sidebar (app icon, name, and the version / language menu)."
+                  <ToggleRow labelKey="Show App Info Row" descKey="Show the Clown Code row at the top of the sidebar (app icon, name, and the version / language menu)."
                     checked={showAppInfo} onChange={onToggleShowAppInfo} zone="session" />
                 )}
                 {onToggleShowSessionButtons && (

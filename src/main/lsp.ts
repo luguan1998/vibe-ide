@@ -77,10 +77,10 @@ function resolveClangd(): Resolved | null {
   try {
     const probe = process.platform === 'win32' ? 'where clangd' : 'which clangd'
     const out = execSync(probe, { encoding: 'utf-8', timeout: 5000, stdio: 'pipe' }).trim().split(/\r?\n/)[0]
-    if (out) return { cmd: out.trim(), args: ['--stdio'] }
+    if (out) return { cmd: out.trim(), args: [] }
   } catch {}
   for (const p of clangdCandidates()) {
-    if (existsSync(p)) return { cmd: p, args: ['--stdio'] }
+    if (existsSync(p)) return { cmd: p, args: [] }
   }
   return null
 }
