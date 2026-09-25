@@ -1539,8 +1539,9 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
   to { opacity: 1; transform: translateY(0); }
 }
 /* thinking 平滑浮现：每次 flush 增量段整段做一次柔和淡入（0.1→1，无字符颗粒），旧段 DOM 复用不重播；
-   起点非 0 避免「凭空猛闪」。时长必须 ≥ 2×flush 节流(200ms)才看得见：linear + 600ms
-   让尾部稳定保持 3 段雾散梯度（约 0.1/0.4/0.7），ease-out 会把亮度堆在前 100ms、快模型下融成一片 */
+   起点非 0 避免「凭空猛闪」。linear 保梯度，ease-out 会把亮度堆在前 100ms、快模型下融成一片。
+   时长由 messages.tsx 按段长内联给出（flush 节流固定 200ms，段长∝模型速度）：慢速小段 600ms
+   保持尾部 3 段雾散梯度（约 0.1/0.4/0.7），快速大段压到 120ms 让新文本即刻清晰；此处 600ms 仅兜底 */
 .ai-tab__think-seg {
   animation: think-seg-in 600ms linear;
 }
