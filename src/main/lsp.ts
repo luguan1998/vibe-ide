@@ -17,6 +17,7 @@ interface Resolved { cmd: string; args: string[] }
 interface ServerDef {
   resolve: () => Resolved | null
   rootMarkers: string[]
+  rootArgs?: (root: string) => string[]   // 依赖工程根的启动参数（clangd 的 compile_commands 目录）
 }
 
 function nodeModulesRoot(): string {
@@ -31,12 +32,50 @@ function resolvePyright(): Resolved | null {
   return { cmd: app.isPackaged ? process.execPath : 'node', args: [script, '--stdio'] }
 }
 
+// clangd 多半不在 PATH 上：Windows 上它要么来自 LLVM 安装包，要么是 VS 自带的 LLVM 工具集。
+// PATH 仍首选，其次看常见安装位置，省掉用户手动配环境变量
+function clangdCandidates(): string[] {
+  const env = process.env
+  if (process.platform !== 'win32') {
+    return ['/usr/bin/clangd', '/usr/local/bin/clangd', '/opt/homebrew/bin/clangd', '/usr/lib/llvm/bin/clangd']
+  }
+  const pf = env['ProgramFiles'] || 'C:\\Program Files'
+  const pf86 = env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)'
+  const local = env['LOCALAPPDATA']
+  const out = [
+    join(pf, 'LLVM', 'bin', 'clangd.exe'),
+    join(pf86, 'LLVM', 'bin', 'clangd.exe'),
+    local ? join(local, 'Programs', 'LLVM', 'bin', 'clangd.exe') : '',
+  ]
+  for (const year of ['2022', '2019']) {
+    for (const root of [join(pf, 'Microsoft Visual Studio', year), join(pf86, 'Microsoft Visual Studio', year)]) {
+      for (const ed of ['Community', 'Professional', 'Enterprise', 'BuildTools']) {
+        out.push(join(root, ed, 'VC', 'Tools', 'Llvm', 'x64', 'bin', 'clangd.exe'))
+        out.push(join(root, ed, 'VC', 'Tools', 'Llvm', 'bin', 'clangd.exe'))
+      }
+    }
+  }
+  return out.filter(Boolean)
+}
+
 function resolveClangd(): Resolved | null {
   try {
     const probe = process.platform === 'win32' ? 'where clangd' : 'which clangd'
     const out = execSync(probe, { encoding: 'utf-8', timeout: 5000, stdio: 'pipe' }).trim().split(/\r?\n/)[0]
     if (out) return { cmd: out.trim(), args: ['--stdio'] }
   } catch {}
+  for (const p of clangdCandidates()) {
+    if (existsSync(p)) return { cmd: p, args: ['--stdio'] }
+  }
+  return null
+}
+
+// clangd 只从文件所在目录向上找 compile_commands.json；CMake 默认生成在 build/ 里就漏了
+function compileCommandsDir(root: string): string | null {
+  for (const rel of ['', 'build', 'out', 'cmake-build-debug', 'cmake-build-release']) {
+    const dir = rel ? join(root, rel) : root
+    if (existsSync(join(dir, 'compile_commands.json'))) return dir
+  }
   return null
 }
 
@@ -48,6 +87,10 @@ const SERVER_DEFS: Record<string, ServerDef> = {
   c: {
     resolve: resolveClangd,
     rootMarkers: ['compile_commands.json', 'compile_flags.txt', 'CMakeLists.txt', 'Makefile', '.git'],
+    rootArgs: (root) => {
+      const dir = compileCommandsDir(root)
+      return dir ? [`--compile-commands-dir=${dir}`] : []
+    },
   },
 }
 
@@ -174,8 +217,9 @@ class LspClient {
     this.initPromise = (async () => {
       const r = this.def.resolve()
       if (!r) throw new Error('language server not found')
+      const args = [...r.args, ...(this.def.rootArgs?.(this.root) ?? [])]
       const env = app.isPackaged ? { ...process.env, ELECTRON_RUN_AS_NODE: '1' } : process.env
-      const proc = spawn(r.cmd, r.args, {
+      const proc = spawn(r.cmd, args, {
         cwd: this.root,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,

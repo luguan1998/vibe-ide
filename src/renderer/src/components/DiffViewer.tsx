@@ -36,6 +36,8 @@ const langMap: Record<string, string> = {
   'py': 'python', 'pyw': 'python',
   'rs': 'rust', 'go': 'go', 'java': 'java', 'kt': 'kotlin', 'kts': 'kotlin',
   'c': 'c', 'cpp': 'cpp', 'h': 'c', 'hpp': 'cpp',
+  'cc': 'cpp', 'cxx': 'cpp', 'c++': 'cpp', 'hh': 'cpp', 'hxx': 'cpp', 'h++': 'cpp',
+  'inl': 'cpp', 'ipp': 'cpp', 'tpp': 'cpp',
   'cs': 'csharp', 'csx': 'csharp', 'cake': 'csharp',
   'rb': 'ruby', 'php': 'php', 'swift': 'swift', 'dart': 'dart',
   'scala': 'scala', 'sc': 'scala', 'sbt': 'scala',
@@ -97,7 +99,8 @@ function attachDefHint(
       decoIds = []
     }
   }
-  const reset = () => { clearDeco(); lastKey = '' }
+  // gen 一并推进：松手/移开时正在飞的那次查询返回后不得再把下划线画回来
+  const reset = () => { clearDeco(); lastKey = ''; gen++ }
 
   const evaluate = async (ctrl: boolean) => {
     if (!ctrl || !isVisible()) { reset(); return }
@@ -145,7 +148,6 @@ function attachDefHint(
   }
   const onKeyUp = (e: KeyboardEvent) => {
     if (e.key !== 'Control' && e.key !== 'Meta') return
-    gen++
     reset()
   }
   window.addEventListener('keydown', onKeyDown)
@@ -153,7 +155,6 @@ function attachDefHint(
 
   return {
     dispose: () => {
-      gen++
       reset()
       try { moveD.dispose() } catch {}
       window.removeEventListener('keydown', onKeyDown)

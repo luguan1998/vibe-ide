@@ -74,6 +74,7 @@ const ZH_MAP: Record<string, string> = {
   'Language Server': '语言服务器',
   'Precise go-to-definition. Nothing is loaded until you jump; the server is killed after 15 min idle.': '精确跳转定义。不跳转就不加载；空闲 15 分钟后自动回收。',
   'Server binary not found — install it first.': '未找到服务端程序，需先安装。',
+  'Needs clangd — install LLVM, or Visual Studio with the C++ workload.': '需要 clangd —— 安装 LLVM，或装了 C++ 工作负载的 Visual Studio。',
   'Not running — starts on first jump': '未启动 — 首次跳转时拉起',
   'Multiple Definitions': '多结果跳转',
   'List them, let me pick': '列出让我选',

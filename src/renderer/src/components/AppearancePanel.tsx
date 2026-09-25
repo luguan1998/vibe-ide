@@ -735,7 +735,7 @@ const AppearancePanel = function AppearancePanel({
                       return (
                         <div key={s.id}>
                           <ToggleRow labelKey={s.label}
-                            descKey={missing ? 'Server binary not found — install it first.' : undefined}
+                            descKey={missing ? (s.installHint ?? 'Server binary not found — install it first.') : undefined}
                             checked={on} onChange={(v) => onToggleLspLang(s.id, v)} zone="global" />
                           {on && !missing && (
                             <div className="flex items-center gap-2 -mt-1 pb-1.5 text-[11px] text-ide-text-muted">
