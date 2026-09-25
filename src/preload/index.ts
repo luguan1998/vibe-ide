@@ -280,6 +280,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.LSP_STATUS) as Promise<import('../shared/types').LspStatus>,
     stop: (serverId?: string) => ipcRenderer.invoke(IPC_CHANNELS.LSP_STOP, serverId),
     setScopes: (cwds: string[]) => ipcRenderer.invoke(IPC_CHANNELS.LSP_SET_SCOPES, cwds),
+    createCompileDb: (args: import('../shared/types').LspCreateDbArgs) =>
+      ipcRenderer.invoke(IPC_CHANNELS.LSP_CREATE_COMPILE_DB, args) as Promise<import('../shared/types').LspCreateDbResult>,
   },
 
   // AI (OpenClaude) operations

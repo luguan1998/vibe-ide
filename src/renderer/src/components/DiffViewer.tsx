@@ -756,11 +756,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const lspMultiDefRef = useRef(lspMultiDef); lspMultiDefRef.current = lspMultiDef
   const fullPathRef = useRef(fullPath); fullPathRef.current = fullPath
   const modifiedContentRef = useRef(modifiedContent); modifiedContentRef.current = modifiedContent
-  const [jumpCandidates, setJumpCandidates] = useState<{ word: string; items: JumpItem[]; x: number; y: number; warming?: boolean } | null>(null)
+  const [jumpCandidates, setJumpCandidates] = useState<{ word: string; items: JumpItem[]; x: number; y: number; warming?: boolean; noDb?: boolean; line?: number; column?: number } | null>(null)
   const jumpCandidatesRef = useRef(jumpCandidates); jumpCandidatesRef.current = jumpCandidates
   const [jumpSel, setJumpSel] = useState(0)
   const jumpSelRef = useRef(jumpSel); jumpSelRef.current = jumpSel
   const jumpInflightRef = useRef<{ word: string; ts: number } | null>(null)
+  const [dbBusy, setDbBusy] = useState(false)
+  const [dbError, setDbError] = useState(false)
 
   const getDefHintCtx = (): DefHintCtx => {
     const target = fullPathRef.current
@@ -791,17 +793,14 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     onJumpToFileRef.current?.(item.fullPath, item.line)
   }, [closeJump])
 
-  const performJumpQuery = useCallback(async (word: string, x: number, y: number, line?: number, column?: number) => {
-    const now = Date.now()
-    const inflight = jumpInflightRef.current
-    if (inflight && inflight.word === word && now - inflight.ts < 300) return
-    jumpInflightRef.current = { word, ts: now }
+  const queryDefinition = useCallback(async (line?: number, column?: number) => {
     const cwd = jumpCwdRef.current
     const target = fullPathRef.current
     const langId = getLanguageFromFile(target)
     const serverId = LSP_LANG_TO_SERVER[langId]
     let items: JumpItem[] = []
     let warming = false
+    let noDb = false
 
     if (cwd && serverId && line && column && lspLangsRef.current?.includes(serverId)) {
       try {
@@ -811,6 +810,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
           text: modifiedContentRef.current ?? '', line, column,
         })
         if (r?.state === 'warming') warming = true
+        if (r?.state === 'no-db') noDb = true
         if (r?.state === 'ok' && r.locations?.length) {
           const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase()
           const prefix = norm(cwd).replace(/\/+$/, '') + '/'
@@ -837,8 +837,17 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
         }
       } catch {}
     }
+    return { items, warming, noDb }
+  }, [])
 
+  const performJumpQuery = useCallback(async (word: string, x: number, y: number, line?: number, column?: number) => {
+    const now = Date.now()
+    const inflight = jumpInflightRef.current
+    if (inflight && inflight.word === word && now - inflight.ts < 300) return
+    jumpInflightRef.current = { word, ts: now }
+    const { items, warming, noDb } = await queryDefinition(line, column)
     jumpInflightRef.current = null
+    if (noDb) { setDbError(false); setJumpCandidates({ word, items, x, y, noDb, line, column }); return }
     if (!items.length) {
       if (warming) setJumpCandidates({ word, items, x, y, warming })
       return
@@ -846,7 +855,24 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     if (items.length === 1 || lspMultiDefRef.current === 'goto') { jumpToItem(items[0]); return }
     setJumpCandidates({ word, items, x, y })
     setJumpSel(0)
-  }, [jumpToItem])
+  }, [jumpToItem, queryDefinition])
+
+  // 一键补 compile_flags.txt（主进程写 -I<工程根> 并重启 clangd），随后重试这次跳转
+  const createCompileDb = useCallback(async () => {
+    const c = jumpCandidatesRef.current
+    if (!c?.noDb || dbBusy) return
+    setDbBusy(true)
+    setDbError(false)
+    try {
+      const r = await window.api.lsp.createCompileDb({ root: jumpCwdRef.current ?? '', fullPath: fullPathRef.current })
+      if (!r?.ok) { setDbError(true); return }
+      await performJumpQuery(c.word, c.x, c.y, c.line, c.column)
+    } catch {
+      setDbError(true)
+    } finally {
+      setDbBusy(false)
+    }
+  }, [dbBusy, performJumpQuery])
 
   // IMouseEvent 没有 button 字段（只有 leftButton/browserEvent），用 !leftButton 判左键
   const handleJumpMouseDown = useCallback((editor: any, e: any) => {
@@ -1595,24 +1621,47 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
           onClick={(e) => e.stopPropagation()}
         >
           <div className="px-3 py-1 text-[10px] text-ide-text-muted font-semibold uppercase tracking-wider truncate">{jumpCandidates.word} →</div>
-          {jumpCandidates.items.map((item, i) => (
-            <button
-              key={`${item.fullPath}:${item.line}:${i}`}
-              onClick={() => jumpToItem(item)}
-              onMouseEnter={() => setJumpSel(i)}
-              className={`w-full px-3 py-1 text-left flex items-center gap-2 transition-colors ${i === jumpSel ? 'bg-ide-accent/15' : ''}`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="text-xs text-ide-text truncate">{item.label}</div>
-                {item.detail && <div className="text-[10px] text-ide-text-muted truncate">{item.detail}</div>}
+          {jumpCandidates.noDb ? (
+            <>
+              <div className="px-3 py-1 text-[11px] text-ide-text max-w-[380px] leading-snug">
+                {t("clangd can't resolve header includes without a compile database, and this project has none")}
               </div>
-              <span className="text-[10px] text-ide-text-muted shrink-0 font-mono">{item.line}</span>
-            </button>
-          ))}
-          {jumpCandidates.warming && (
-            <div className="px-3 py-1 text-[10px] text-ide-text-muted border-t border-ide-border/60">
-              {t('Language server starting — retry in a moment')}
-            </div>
+              <div className="px-3 pb-1.5 text-[10px] text-ide-text-muted max-w-[380px] leading-snug">
+                {t('CMake projects: rerun cmake with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON')}
+              </div>
+              <button
+                onClick={() => void createCompileDb()}
+                disabled={dbBusy}
+                className="w-full px-3 py-1 text-left text-xs text-ide-accent hover:bg-ide-accent/15 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {dbBusy ? t('Generating...') : t('Generate compile_flags.txt (-I<project root>)')}
+              </button>
+              {dbError && (
+                <div className="px-3 py-1 text-[10px] text-ide-danger">{t('Failed to write compile_flags.txt')}</div>
+              )}
+            </>
+          ) : (
+            <>
+              {jumpCandidates.items.map((item, i) => (
+                <button
+                  key={`${item.fullPath}:${item.line}:${i}`}
+                  onClick={() => jumpToItem(item)}
+                  onMouseEnter={() => setJumpSel(i)}
+                  className={`w-full px-3 py-1 text-left flex items-center gap-2 transition-colors ${i === jumpSel ? 'bg-ide-accent/15' : ''}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs text-ide-text truncate">{item.label}</div>
+                    {item.detail && <div className="text-[10px] text-ide-text-muted truncate">{item.detail}</div>}
+                  </div>
+                  <span className="text-[10px] text-ide-text-muted shrink-0 font-mono">{item.line}</span>
+                </button>
+              ))}
+              {jumpCandidates.warming && (
+                <div className="px-3 py-1 text-[10px] text-ide-text-muted border-t border-ide-border/60">
+                  {t('Language server starting — retry in a moment')}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

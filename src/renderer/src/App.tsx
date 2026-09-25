@@ -178,6 +178,7 @@ declare global {
         status: () => Promise<import('@shared/types').LspStatus>
         stop: (serverId?: string) => Promise<{ ok: boolean }>
         setScopes: (cwds: string[]) => Promise<{ ok: boolean }>
+        createCompileDb: (args: import('@shared/types').LspCreateDbArgs) => Promise<import('@shared/types').LspCreateDbResult>
       }
       ocr: {
         recognize: (input: string | { buffer: Uint8Array; name: string }) => Promise<string>

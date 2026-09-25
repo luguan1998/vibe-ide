@@ -121,6 +121,7 @@ export const IPC_CHANNELS = {
   LSP_STATUS: 'lsp:status',
   LSP_STOP: 'lsp:stop',
   LSP_SET_SCOPES: 'lsp:setScopes',
+  LSP_CREATE_COMPILE_DB: 'lsp:createCompileDb',
 
   // Perf
   PERF_SNAPSHOT: 'perf:snapshot',
@@ -219,12 +220,23 @@ export interface LspLocation {
   column: number      // 1-based
 }
 
-// ok=已用语言服务器解析；warming=冷启动中（本次回落既有索引）；unavailable=未安装/已禁用
-export type LspDefinitionState = 'ok' | 'warming' | 'unavailable'
+// ok=已用语言服务器解析；warming=冷启动中（本次回落既有索引）；unavailable=未安装/已禁用；
+// no-db=clangd 查不到结果且工程没有编译数据库（补一个 compile_flags.txt 就能跳头文件）
+export type LspDefinitionState = 'ok' | 'warming' | 'unavailable' | 'no-db'
 
 export interface LspDefinitionResult {
   state: LspDefinitionState
   locations: LspLocation[]
+}
+
+export interface LspCreateDbArgs {
+  root: string          // 会话工作目录
+  fullPath: string      // 当前文件，用于定位工程根
+}
+
+export interface LspCreateDbResult {
+  ok: boolean
+  path?: string
 }
 
 export interface LspStatus {

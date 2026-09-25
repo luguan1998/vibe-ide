@@ -1,10 +1,11 @@
 import { ipcMain, app } from 'electron'
 import { spawn, execSync, type ChildProcess } from 'child_process'
-import { existsSync } from 'fs'
+import { existsSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import {
   IPC_CHANNELS, LSP_SERVERS, LSP_LANG_TO_SERVER,
+  type LspCreateDbArgs, type LspCreateDbResult,
   type LspDefinitionArgs, type LspDefinitionResult, type LspLocation, type LspStatus
 } from '../shared/types'
 
@@ -148,6 +149,25 @@ function findRoot(startFile: string, markers: string[], cwd: string): string {
     dir = parent
   }
   return best ?? cwd
+}
+
+// 有没有编译数据库：clangd 解析 #include 的搜索路径只从这里来，没有就跳不了头文件
+function findCompileDbFile(root: string, startFile: string): string | null {
+  const c = normPath(root)
+  let dir = dirname(startFile)
+  for (let i = 0; i < ROOT_WALK_MAX; i++) {
+    const nd = normPath(dir)
+    if (nd !== c && !nd.startsWith(c + '/')) break
+    for (const marker of ['compile_commands.json', 'compile_flags.txt']) {
+      const f = join(dir, marker)
+      if (existsSync(f)) return f
+    }
+    if (nd === c) break
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return compileCommandsDir(root)
 }
 
 interface Pending { resolve: (v: any) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
@@ -455,6 +475,10 @@ async function handleDefinition(args: LspDefinitionArgs): Promise<LspDefinitionR
     const locations = await client.definition(args.fullPath, args.langId, args.text ?? '', args.line, args.column)
     // 新实例头一次真正答出来才算确认可用，这时才收掉退休的旧实例
     dropRetiring(serverId)
+    // clangd 空手而归且工程没有编译数据库：不是「没定义」，是头文件路径根本无从解析
+    if (!locations.length && serverId === 'c' && !findCompileDbFile(root, args.fullPath)) {
+      return { state: 'no-db', locations: [] }
+    }
     return { state: 'ok', locations }
   } catch {
     return { state: 'warming', locations: [] }
@@ -470,6 +494,24 @@ export function registerLspHandlers(): void {
   })
 
   ipcMain.handle(IPC_CHANNELS.LSP_DEFINITION, (_event, args: LspDefinitionArgs) => handleDefinition(args))
+
+  // clangd 没编译数据库时的补救：写一行 -I<工程根> 到工程根的 compile_flags.txt
+  ipcMain.handle(IPC_CHANNELS.LSP_CREATE_COMPILE_DB, async (_event, args: LspCreateDbArgs): Promise<LspCreateDbResult> => {
+    const def = SERVER_DEFS.c
+    if (!args?.fullPath || !args?.root) return { ok: false }
+    const root = findRoot(args.fullPath, def.rootMarkers, args.root)
+    const target = join(root, 'compile_flags.txt')
+    try {
+      if (!existsSync(target)) writeFileSync(target, `-I${root.replace(/\\/g, '/')}\n`, 'utf-8')
+    } catch { return { ok: false } }
+    // compile_flags.txt 没有热重载：重启实例并等它就绪，渲染层随后的重试才不用再等冷启动
+    stopClient('c')
+    dropRetiring('c')
+    const fresh = new LspClient('c', def, root)
+    clients.set('c', fresh)
+    await Promise.race([fresh.start().catch(() => {}), sleep(QUEUE_WAIT_MS)])
+    return { ok: true, path: target }
+  })
 
   ipcMain.handle(IPC_CHANNELS.LSP_STATUS, (): LspStatus => {
     const available: Record<string, boolean> = {}
