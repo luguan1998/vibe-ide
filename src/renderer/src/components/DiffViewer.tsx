@@ -7,7 +7,7 @@ import { useI18n } from '../i18n'
 import { FileIcon } from './FileIcons'
 import OutlineTrigger from './OutlineTrigger'
 import { ADD_ANNOTATION_EVENT } from './vibeEvents'
-import { resolveAbsPath } from '../utils/filePathUtils'
+import { LSP_LANG_TO_SERVER } from '@shared/types'
 import { baseName } from '../fileTabs'
 import type { TabSnapshot, TabRuntime } from '../fileTabs'
 
@@ -70,6 +70,98 @@ function getLanguageFromFile(path: string): string {
   return langMap[ext] || 'plaintext'
 }
 
+interface DefHintCtx {
+  root?: string
+  langId: string
+  serverEnabled: boolean
+  fullPath: string
+  text: string
+}
+
+// Ctrl+hover 下划线（VS Code 同款）。必须由 LSP 确认真有定义才划线，否则关键字、字符串里的词
+// 也会被标上，反馈就是错的。点击仍由 handleJumpMouseDown 处理，这里只管视觉。
+function attachDefHint(
+  editor: any,
+  monaco: any,
+  isVisible: () => boolean,
+  getCtx: () => DefHintCtx,
+): { dispose: () => void } {
+  let decoIds: string[] = []
+  let gen = 0
+  let lastKey = ''
+  let hoverPos: { lineNumber: number; column: number } | null = null
+
+  const clearDeco = () => {
+    if (decoIds.length) {
+      try { editor.deltaDecorations(decoIds, []) } catch {}
+      decoIds = []
+    }
+  }
+  const reset = () => { clearDeco(); lastKey = '' }
+
+  const evaluate = async (ctrl: boolean) => {
+    if (!ctrl || !isVisible()) { reset(); return }
+    const pos = hoverPos
+    const ctx = getCtx()
+    if (!pos || !ctx.serverEnabled || !ctx.root) { reset(); return }
+    // IWordAtPosition 只有 word/startColumn/endColumn，行号得从 pos 取
+    const wordInfo = editor.getModel()?.getWordAtPosition(pos)
+    if (!wordInfo?.word || wordInfo.word.length > 120) { reset(); return }
+    const lineNumber = pos.lineNumber
+    const key = `${lineNumber}:${wordInfo.startColumn}:${wordInfo.endColumn}`
+    // lastKey 记的是"已问过的词"，与是否划上线无关 —— 否则同一个词上未命中时会反复重问
+    if (key === lastKey) return
+    lastKey = key
+    const g = ++gen
+    let hit = false
+    try {
+      const r = await window.api.lsp.definition({
+        root: ctx.root, langId: ctx.langId, fullPath: ctx.fullPath, text: ctx.text,
+        line: lineNumber, column: wordInfo.startColumn,
+      })
+      // 冷启动那一次必然失败；放开去重让服务器就绪后的下一次移动能补上，否则同一词上永远不重试
+      if (r?.state === 'warming') lastKey = ''
+      hit = r?.state === 'ok' && !!r.locations?.length
+    } catch {}
+    if (g !== gen) return
+    if (!hit) { clearDeco(); return }
+    try {
+      decoIds = editor.deltaDecorations(decoIds, [{
+        range: new monaco.Range(lineNumber, wordInfo.startColumn, lineNumber, wordInfo.endColumn),
+        options: { inlineClassName: 'vibe-def-link', stickiness: 0 },
+      }])
+    } catch {}
+  }
+
+  const moveD = editor.onMouseMove((e: any) => {
+    hoverPos = e.target?.position ?? null
+    evaluate(!!(e.event?.ctrlKey || e.event?.metaKey))
+  })
+  // onMouseMove 只在移动时触发；鼠标停着按下 Ctrl 也应立刻提示，故补一组键监听
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.repeat) return
+    if (e.key !== 'Control' && e.key !== 'Meta') return
+    evaluate(true)
+  }
+  const onKeyUp = (e: KeyboardEvent) => {
+    if (e.key !== 'Control' && e.key !== 'Meta') return
+    gen++
+    reset()
+  }
+  window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('keyup', onKeyUp)
+
+  return {
+    dispose: () => {
+      gen++
+      reset()
+      try { moveD.dispose() } catch {}
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    },
+  }
+}
+
 interface DiffViewerProps {
   filePath: string          // 相对路径（用于 git 操作）
   fullPath: string          // 完整路径（用于 file read/write）
@@ -90,7 +182,9 @@ interface DiffViewerProps {
   visibleLineRef?: React.MutableRefObject<{ fullPath: string; line: number } | null>  // 视口中间可见行（居中还原用），供最近文件回写行号
   onOpenCallGraph?: (word: string) => void     // 右键菜单 → 打开 call graph
   onViewLineHistory?: (fullPath: string, lineNumber: number, rev?: string, staged?: boolean) => void  // 右键菜单 → 查看这行修改记录
-  jumpCwd?: string                              // Ctrl+Click 跳转：工作区根目录（grep 兜底 + 相对路径解析）
+  jumpCwd?: string                              // 跳转：LSP 根目录（会话 cwd）
+  lspLangs?: string[]                          // 已启用的语言服务器 id（App 侧 localStorage 状态）
+  lspMultiDef?: string                         // 多结果处理：peek（列出选）| goto（直接跳第一个）
   onJumpToFile?: (fullPath: string, line: number) => void  // Ctrl+Click 跳转：打开文件并定位
   compareOriginalContent?: string  // 左侧对比文件内容（文件对比模式）
   compareOriginalPath?: string     // 左侧对比文件路径（文件对比模式）
@@ -221,17 +315,6 @@ function applyNarrowDiffGutter(editor: any) {
   } catch {}
 }
 
-// Ctrl+Click 跳转：D 兜底定义正则（行首强定义模式，避开调用点）
-// 三分支：关键字定义（function/class/def/fn/const…）/ 裸赋值定义（foo = / foo:）/ 类型前置定义（int foo( / pub fn foo(）
-// 否定前瞻排除控制流（return foo( 是调用不是定义）
-function buildDefRegex(word: string): string {
-  const w = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return `^(?!\\s*(?:return|throw|await|yield|new|sizeof)\\b)(?:\\s*(?:export\\s+)?(?:async\\s+)?(?:function|class|interface|type|enum|def|fn|func|struct|trait|const|let|var)\\s+${w}\\b|\\s*${w}\\s*(?:[=:]|\\s*=>)|\\s*[\\w<>:,*&]+(?:\\s+[\\w<>:,*&]+){0,3}\\s+${w}\\s*\\()`
-}
-
-// Ctrl+Click 跳转：定义类 kind 优先排序
-const DEF_KINDS = new Set(['function', 'method', 'constructor', 'class', 'interface', 'type', 'enum', 'struct', 'variable', 'constant', 'field', 'property'])
-
 interface JumpItem {
   fullPath: string
   line: number
@@ -239,7 +322,7 @@ interface JumpItem {
   detail?: string
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -304,6 +387,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const enabledRef = useRef(false)
   const diffDisposablesRef = useRef<Array<{ dispose?: () => void }>>([])
+  const defHintDisposablesRef = useRef<Array<{ dispose: () => void }>>([])
   // 首次 diff 就绪后自动跳到第一处修改（无指定行号时）；切文件重置
   const autoJumpedRef = useRef(false)
   const pendingEditLineRef = useRef<number | null>(null)
@@ -322,10 +406,16 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     return () => {
       // Dispose call-graph + line-history actions before disposing editors
       try {
+        diffEditorRef.current?.getModifiedEditor()?._goToDefinitionActionDisposable?.dispose?.()
+      } catch {}
+      try {
         diffEditorRef.current?.getModifiedEditor()?._callGraphActionDisposable?.dispose?.()
       } catch {}
       try {
         diffEditorRef.current?.getModifiedEditor()?._lineHistoryActionDisposable?.dispose?.()
+      } catch {}
+      try {
+        editEditorRef.current?._goToDefinitionActionDisposable?.dispose?.()
       } catch {}
       try {
         editEditorRef.current?._callGraphActionDisposable?.dispose?.()
@@ -338,6 +428,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
         try { d?.dispose?.() } catch {}
       }
       diffDisposablesRef.current = []
+      for (const d of defHintDisposablesRef.current) {
+        try { d?.dispose?.() } catch {}
+      }
+      defHintDisposablesRef.current = []
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
       // 抓取 model 引用：widget dispose 后 getModel 链路不可靠，必须先抓
       let diffOrigModel: any = null
@@ -633,14 +727,37 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     } catch {}
   }, [isActive])
 
-  // Ctrl+Click 跳转：C=codegraph 索引 → D=grep 定义正则兜底
+  // Ctrl+Click / F12 跳转：只走 LSP，该语言未启用服务器时不动
   const jumpCwdRef = useRef(jumpCwd); jumpCwdRef.current = jumpCwd
   const onJumpToFileRef = useRef(onJumpToFile); onJumpToFileRef.current = onJumpToFile
-  const [jumpCandidates, setJumpCandidates] = useState<{ word: string; items: JumpItem[]; x: number; y: number } | null>(null)
+  const lspLangsRef = useRef(lspLangs); lspLangsRef.current = lspLangs
+  const lspMultiDefRef = useRef(lspMultiDef); lspMultiDefRef.current = lspMultiDef
+  const fullPathRef = useRef(fullPath); fullPathRef.current = fullPath
+  const modifiedContentRef = useRef(modifiedContent); modifiedContentRef.current = modifiedContent
+  const [jumpCandidates, setJumpCandidates] = useState<{ word: string; items: JumpItem[]; x: number; y: number; warming?: boolean } | null>(null)
   const jumpCandidatesRef = useRef(jumpCandidates); jumpCandidatesRef.current = jumpCandidates
   const [jumpSel, setJumpSel] = useState(0)
   const jumpSelRef = useRef(jumpSel); jumpSelRef.current = jumpSel
   const jumpInflightRef = useRef<{ word: string; ts: number } | null>(null)
+
+  const getDefHintCtx = (): DefHintCtx => {
+    const target = fullPathRef.current
+    const langId = getLanguageFromFile(target)
+    const serverId = LSP_LANG_TO_SERVER[langId]
+    return {
+      root: jumpCwdRef.current,
+      langId,
+      serverEnabled: !!(serverId && lspLangsRef.current?.includes(serverId)),
+      fullPath: target,
+      text: modifiedContentRef.current ?? '',
+    }
+  }
+  const defHintVisible = () => !!containerRef.current?.offsetParent
+  // 换编辑器（diff ↔ edit）时新挂载方直接顶掉旧的，避免残留 window 键监听
+  const mountDefHint = (editor: any, monaco: any) => {
+    for (const d of defHintDisposablesRef.current) { try { d?.dispose?.() } catch {} }
+    defHintDisposablesRef.current = [attachDefHint(editor, monaco, defHintVisible, getDefHintCtx)]
+  }
 
   const closeJump = useCallback(() => {
     setJumpCandidates(null)
@@ -652,64 +769,80 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     onJumpToFileRef.current?.(item.fullPath, item.line)
   }, [closeJump])
 
-  const performJumpQuery = useCallback(async (word: string, x: number, y: number) => {
+  const performJumpQuery = useCallback(async (word: string, x: number, y: number, line?: number, column?: number) => {
     const now = Date.now()
     const inflight = jumpInflightRef.current
     if (inflight && inflight.word === word && now - inflight.ts < 300) return
     jumpInflightRef.current = { word, ts: now }
     const cwd = jumpCwdRef.current
-    const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase()
-    const curFile = norm(filePath)
+    const target = fullPathRef.current
+    const langId = getLanguageFromFile(target)
+    const serverId = LSP_LANG_TO_SERVER[langId]
     let items: JumpItem[] = []
-    try {
-      const r = await window.api.code.searchNodes(word, { limit: 50 })
-      if (r && !r.error && r.nodes?.length) {
-        const exact = r.nodes.filter((n: any) => n.name === word)
-        exact.sort((a: any, b: any) => {
-          const af = norm(a.filePath || '') === curFile ? 0 : 1
-          const bf = norm(b.filePath || '') === curFile ? 0 : 1
-          if (af !== bf) return af - bf
-          const ak = DEF_KINDS.has(a.kind) ? 0 : 1
-          const bk = DEF_KINDS.has(b.kind) ? 0 : 1
-          if (ak !== bk) return ak - bk
-          return (a.line || 0) - (b.line || 0)
-        })
-        items = exact.slice(0, 8).map((n: any) => ({
-          fullPath: resolveAbsPath(n.filePath, cwd),
-          line: n.line || 1,
-          label: n.filePath || '',
-          detail: n.signature || n.kind || ''
-        }))
-      }
-    } catch {}
-    if (!items.length && cwd) {
+    let warming = false
+
+    if (cwd && serverId && line && column && lspLangsRef.current?.includes(serverId)) {
       try {
-        const g = await window.api.search.grep({ query: buildDefRegex(word), cwd, regex: true, caseSensitive: true })
-        if (g && !g.error && g.matches?.length) {
-          items = g.matches.slice(0, 8).map((m: any) => ({
-            fullPath: m.fullPath,
-            line: m.line,
-            label: m.file,
-            detail: String(m.content || '').trim()
+        const r = await window.api.lsp.definition({
+          root: cwd, langId, fullPath: target,
+          // 传内存 buffer 而非磁盘内容，未保存的改动也能解析
+          text: modifiedContentRef.current ?? '', line, column,
+        })
+        if (r?.state === 'warming') warming = true
+        if (r?.state === 'ok' && r.locations?.length) {
+          const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase()
+          const prefix = norm(cwd).replace(/\/+$/, '') + '/'
+          const targetNorm = norm(target)
+          // 服务器常对变量返回同文件多个赋值点，只给路径+行号会看着像重复，补上该行源码
+          let curLines: string[] | null = null
+          const snippet = (p: string, ln: number) => {
+            if (norm(p) !== targetNorm) return ''
+            if (!curLines) curLines = (modifiedContentRef.current ?? '').split(/\r\n|\r|\n/)
+            return (curLines[ln - 1] ?? '').trim().slice(0, 120)
+          }
+          items = r.locations.slice(0, 8).map(loc => ({
+            fullPath: loc.path,
+            line: loc.line,
+            label: norm(loc.path).startsWith(prefix) ? loc.path.slice(prefix.length).replace(/\\/g, '/') : loc.path,
+            detail: snippet(loc.path, loc.line) || 'LSP',
           }))
         }
       } catch {}
     }
-    jumpInflightRef.current = null
-    if (!items.length) return
-    setJumpCandidates({ word, items, x, y })
-    setJumpSel(0)
-  }, [filePath])
 
+    jumpInflightRef.current = null
+    if (!items.length && !warming) return
+    if (items.length === 1 || lspMultiDefRef.current === 'goto') { jumpToItem(items[0]); return }
+    setJumpCandidates({ word, items, x, y, warming })
+    setJumpSel(0)
+  }, [jumpToItem])
+
+  // IMouseEvent 没有 button 字段（只有 leftButton/browserEvent），用 !leftButton 判左键
   const handleJumpMouseDown = useCallback((editor: any, e: any) => {
     const be = e.event
-    if (!be || !(be.ctrlKey || be.metaKey) || be.button !== 0) return
+    if (!be || !(be.ctrlKey || be.metaKey) || !be.leftButton) return
     const pos = e.target?.position
     if (!pos) return
     const word = editor.getModel()?.getWordAtPosition(pos)?.word
     if (!word || word.length > 120) return
-    performJumpQuery(word, be.clientX, be.clientY)
+    performJumpQuery(word, be.clientX, be.clientY, pos.lineNumber, pos.column)
   }, [performJumpQuery])
+
+  // F12 / 右键「Go to Definition」：给浮层一个贴近光标的落点
+  const goToDefinitionRef = useRef<(ed: any) => void>(() => {})
+  goToDefinitionRef.current = (ed: any) => {
+    if (!ed) return
+    const pos = ed.getPosition()
+    const word = pos ? ed.getModel()?.getWordAtPosition(pos)?.word : undefined
+    if (!pos || !word || word.length > 120) return
+    let x = 300, y = 200
+    try {
+      const sp = ed.getScrolledVisiblePosition(pos)
+      const rect = ed.getDomNode?.()?.getBoundingClientRect()
+      if (sp && rect) { x = rect.left + sp.left; y = rect.top + sp.top + sp.height }
+    } catch {}
+    performJumpQuery(word, x, y, pos.lineNumber, pos.column)
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -753,7 +886,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       if (e.key === 'ArrowDown') {
         e.preventDefault()
         e.stopImmediatePropagation()
-        setJumpSel(i => Math.min(i + 1, c.items.length - 1))
+        setJumpSel(i => c.items.length ? Math.min(i + 1, c.items.length - 1) : 0)
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -1101,6 +1234,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
               applyDiffPerSideOptions(editor)
               applyNarrowDiffGutter(editor)
               const modifiedEditor = editor.getModifiedEditor()
+              mountDefHint(modifiedEditor, monaco)
               modifiedEditor.onMouseDown((e: any) => {
                 const ctrlClick = !!(e.event?.ctrlKey || e.event?.metaKey)
                 const pos = e.target?.position
@@ -1155,6 +1289,14 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                   }
                 } catch {}
               }
+              ;(modifiedEditor as any)._goToDefinitionActionDisposable = modifiedEditor.addAction({
+                id: 'lsp-go-to-definition',
+                label: t('Go to Definition'),
+                keybindings: [monaco.KeyCode.F12],
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.45,
+                run: (ed: any) => goToDefinitionRef.current(ed)
+              })
               ;(modifiedEditor as any)._callGraphActionDisposable = modifiedEditor.addAction({
                 id: 'open-call-graph',
                 label: t('Open Call Graph'),
@@ -1294,6 +1436,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
             onMount={(editor, monaco) => {
               editEditorRef.current = editor
               monacoRef.current = monaco
+              mountDefHint(editor, monaco)
               editor.onMouseDown((e: any) => {
                 const ctrlClick = !!(e.event?.ctrlKey || e.event?.metaKey)
                 const pos = e.target?.position
@@ -1352,6 +1495,14 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                   }
                 }, 100)
               }
+              ;(editor as any)._goToDefinitionActionDisposable = editor.addAction({
+                id: 'lsp-go-to-definition',
+                label: t('Go to Definition'),
+                keybindings: [monaco.KeyCode.F12],
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.45,
+                run: (ed: any) => goToDefinitionRef.current(ed)
+              })
               ;(editor as any)._callGraphActionDisposable = editor.addAction({
                 id: 'open-call-graph',
                 label: t('Open Call Graph'),
@@ -1408,7 +1559,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       {/* Ctrl+Click 跳转候选浮层 */}
       {jumpCandidates && (
         <div
-          className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[280px] max-w-[520px] max-h-72 overflow-y-auto"
+          className="jump-candidates fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[280px] max-w-[520px] max-h-72 overflow-y-auto"
           style={{ left: Math.max(8, Math.min(jumpCandidates.x - 40, window.innerWidth - 540)), top: Math.min(jumpCandidates.y + 16, window.innerHeight - 300) }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1427,6 +1578,11 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
               <span className="text-[10px] text-ide-text-muted shrink-0 font-mono">{item.line}</span>
             </button>
           ))}
+          {jumpCandidates.warming && (
+            <div className="px-3 py-1 text-[10px] text-ide-text-muted border-t border-ide-border/60">
+              {t('Language server starting — retry in a moment')}
+            </div>
+          )}
         </div>
       )}
 

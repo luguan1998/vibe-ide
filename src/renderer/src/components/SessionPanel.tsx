@@ -298,6 +298,10 @@ interface SessionPanelProps {
   onToggleAutoUtf8?: (value: boolean) => void
   cgEnabled?: boolean
   onToggleCgEnabled?: (value: boolean) => void
+  lspLangs?: string[]
+  onToggleLspLang?: (serverId: string, value: boolean) => void
+  lspMultiDef?: string
+  onSetLspMultiDef?: (value: string) => void
   inlineDiff?: boolean
   onToggleInlineDiff?: (value: boolean) => void
   diffSplitRatio?: number
@@ -521,6 +525,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onToggleAutoUtf8,
   cgEnabled = true,
   onToggleCgEnabled,
+  lspLangs,
+  onToggleLspLang,
+  lspMultiDef,
+  onSetLspMultiDef,
   ocrEnabled = false,
   onToggleOcrEnabled,
   forceDomRenderer = false,
@@ -2490,6 +2498,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onAdjustTerminalFontSize={onAdjustTerminalFontSize}
         cgEnabled={cgEnabled}
         onToggleCgEnabled={onToggleCgEnabled}
+        lspLangs={lspLangs}
+        onToggleLspLang={onToggleLspLang}
+        lspMultiDef={lspMultiDef}
+        onSetLspMultiDef={onSetLspMultiDef}
         sessionEmojis={sessionEmojis}
         onSetSessionEmojis={(arr) => { setSessionEmojis(arr); saveSessionEmojis(arr) }}
         defaultSessionIcon={defaultIcon}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
-import { SnippetInfo, SnippetsLoadResult, PetManifest, PetListResult } from '@shared/types'
+import { SnippetInfo, SnippetsLoadResult, PetManifest, PetListResult, LSP_SERVERS, type LspStatus } from '@shared/types'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
 import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, PanelRightClose, SlidersHorizontal, SwatchBook, Info, PawPrint, Trash2 } from 'lucide-react'
@@ -185,6 +185,10 @@ interface AppearancePanelProps {
   onAdjustTerminalFontSize?: (delta: number) => void
   cgEnabled?: boolean
   onToggleCgEnabled?: (v: boolean) => void
+  lspLangs?: string[]
+  onToggleLspLang?: (serverId: string, v: boolean) => void
+  lspMultiDef?: string
+  onSetLspMultiDef?: (v: string) => void
   sessionEmojis: string[]
   onSetSessionEmojis: (arr: string[]) => void
   defaultSessionIcon?: DefaultSessionIcon
@@ -208,6 +212,8 @@ const AppearancePanel = function AppearancePanel({
   termFontFamily = 'Consolas', onSetTermFontFamily,
   terminalFontSize = 14, onAdjustTerminalFontSize,
   cgEnabled = true, onToggleCgEnabled,
+  lspLangs = [], onToggleLspLang,
+  lspMultiDef = 'peek', onSetLspMultiDef,
   sessionEmojis, onSetSessionEmojis,
   defaultSessionIcon = 'blank', onSetDefaultSessionIcon,
   onResetUiStyle, onCreateSessionAt,
@@ -230,7 +236,15 @@ const AppearancePanel = function AppearancePanel({
     try { localStorage.setItem('vibe-ide-md-font-size', String(mdFontSize)) } catch {}
   }, [mdFontSize])
   const [activeCategory, setActiveCategory] = useState<CategoryId>('theme')
+  const [lspStatus, setLspStatus] = useState<LspStatus | null>(null)
+  useEffect(() => {
+    if (!open || activeCategory !== 'advanced') return
+    let alive = true
+    window.api.lsp.status().then(s => { if (alive) setLspStatus(s) }).catch(() => {})
+    return () => { alive = false }
+  }, [open, activeCategory, lspLangs])
   const [dragOffset, setDragOffset] = useState({ x: 24, y: -24 })
+
   const dragRef = useRef<{ startX: number; startY: number; offX: number; offY: number } | null>(null)
 
   const onHeaderMouseDown = (e: React.MouseEvent) => {
@@ -697,6 +711,48 @@ const AppearancePanel = function AppearancePanel({
                 {onToggleCgEnabled && (
                   <ToggleRow labelKey="CodeGraph" descKey="Code symbol indexing for smart search. Disable to free ~170MB main process memory."
                     checked={cgEnabled} onChange={onToggleCgEnabled} zone="global" />
+                )}
+                {onToggleLspLang && (
+                  <>
+                    <div className="flex items-center gap-2 mt-3 mb-1">
+                      <span className="text-xs font-semibold text-ide-text-muted uppercase tracking-wide">{t('Language Server')}</span>
+                      <div className="flex-1 border-t border-ide-border/60" />
+                    </div>
+                    <p className="text-[12px] text-ide-text-muted pb-1">
+                      {t('Precise go-to-definition. Nothing is loaded until you jump; the server is killed after 15 min idle.')}
+                    </p>
+                    {onSetLspMultiDef && (
+                      <SelectRow labelKey="Multiple Definitions" value={lspMultiDef} onChange={onSetLspMultiDef}
+                        options={[
+                          { value: 'peek', label: t('List them, let me pick') },
+                          { value: 'goto', label: t('Jump to the first') },
+                        ]} />
+                    )}
+                    {LSP_SERVERS.map(s => {
+                      const on = lspLangs.includes(s.id)
+                      const missing = lspStatus?.available?.[s.id] === false
+                      const run = lspStatus?.running?.find(r => r.id === s.id)
+                      return (
+                        <div key={s.id}>
+                          <ToggleRow labelKey={s.label}
+                            descKey={missing ? 'Server binary not found — install it first.' : undefined}
+                            checked={on} onChange={(v) => onToggleLspLang(s.id, v)} zone="global" />
+                          {on && !missing && (
+                            <div className="flex items-center gap-2 -mt-1 pb-1.5 text-[11px] text-ide-text-muted">
+                              <span className={`w-1.5 h-1.5 rounded-full ${run ? 'bg-ide-success' : 'bg-ide-hover'}`} />
+                              <span>{run ? `${t('Running')} · PID ${run.pid}` : t('Not running — starts on first jump')}</span>
+                              {run && (
+                                <button
+                                  onClick={() => window.api.lsp.stop(s.id).then(() => window.api.lsp.status()).then(setLspStatus).catch(() => {})}
+                                  className="px-1.5 py-0.5 rounded hover:bg-ide-hover hover:text-ide-text transition-colors"
+                                >{t('Stop')}</button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </>
                 )}
               </div>
             )}

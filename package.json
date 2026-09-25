@@ -123,7 +123,8 @@
     "asarUnpack": [
       "node_modules/tesseract.js/**",
       "node_modules/tesseract.js-core/**",
-      "node_modules/@tesseract.js-data/**"
+      "node_modules/@tesseract.js-data/**",
+      "node_modules/pyright/**"
     ]
   },
   "dependencies": {
@@ -223,6 +224,7 @@
     "mermaid": "^11.15.0",
     "monaco-editor": "^0.52.2",
     "node-pty": "^1.0.0",
+    "pyright": "^1.1.414",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",

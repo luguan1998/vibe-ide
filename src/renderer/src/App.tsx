@@ -33,7 +33,7 @@ import { aiStore, readAiCliConfig, queuePendingSend } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, toRelPath } from './components/vibeEvents'
-import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode } from '@shared/types'
+import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode, LSP_SERVERS } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
 import { cwdStore, useKeptGroups, mergeGroupOrder } from './cwdStore'
@@ -172,6 +172,12 @@ declare global {
         onProgress: (callback: (progress: any) => void) => any
         removeProgressListener: (handler?: any) => void
         setEnabled: (enabled: boolean) => Promise<{ enabled: boolean }>
+      }
+      lsp: {
+        setEnabled: (serverId: string, enabled: boolean) => Promise<{ enabled: boolean; error?: string }>
+        definition: (args: import('@shared/types').LspDefinitionArgs) => Promise<import('@shared/types').LspDefinitionResult>
+        status: () => Promise<import('@shared/types').LspStatus>
+        stop: (serverId?: string) => Promise<{ ok: boolean }>
       }
       ocr: {
         recognize: (input: string | { buffer: Uint8Array; name: string }) => Promise<string>
@@ -783,6 +789,19 @@ export default function App() {
   const [cgEnabled, setCgEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-cg-enabled') !== '0' } catch { return true }
   })
+  const [lspLangs, setLspLangs] = useState<string[]>(() => {
+    try {
+      const arr = JSON.parse(localStorage.getItem('vibe-ide-lsp-langs') || '[]')
+      return Array.isArray(arr) ? arr.filter((v: any) => typeof v === 'string') : []
+    } catch { return [] }
+  })
+  // 对齐 VS Code 的 editor.gotoLocation.multipleDefinitions：多结果时列出来选，还是直接跳第一个
+  const [lspMultiDef, setLspMultiDef] = useState<string>(() => {
+    try { return localStorage.getItem('vibe-ide-lsp-multi-def') || 'peek' } catch { return 'peek' }
+  })
+  const toggleLspLang = useCallback((serverId: string, on: boolean) => {
+    setLspLangs(prev => on ? (prev.includes(serverId) ? prev : [...prev, serverId]) : prev.filter(x => x !== serverId))
+  }, [])
 
   const [terminalFontSize, setTerminalFontSize] = useState(() => {
     try {
@@ -1072,6 +1091,13 @@ export default function App() {
     try { localStorage.setItem('vibe-ide-cg-enabled', cgEnabled ? '1' : '0') } catch {}
     window.api.code.setEnabled(cgEnabled)
   }, [cgEnabled])
+  useEffect(() => {
+    try { localStorage.setItem('vibe-ide-lsp-langs', JSON.stringify(lspLangs)) } catch {}
+    for (const { id } of LSP_SERVERS) window.api.lsp.setEnabled(id, lspLangs.includes(id))
+  }, [lspLangs])
+  useEffect(() => {
+    try { localStorage.setItem('vibe-ide-lsp-multi-def', lspMultiDef) } catch {}
+  }, [lspMultiDef])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-inline-diff', String(inlineDiff)) } catch {}
   }, [inlineDiff])
@@ -3376,6 +3402,8 @@ export default function App() {
           onOpenCallGraph={handleOpenCallGraphFromEditor}
           onViewLineHistory={handleViewLineHistory}
           jumpCwd={activeSessionCwd ?? undefined}
+          lspLangs={lspLangs}
+          lspMultiDef={lspMultiDef}
           onJumpToFile={handleOpenFileFromSearch}
           compareOriginalContent={tab.compareOriginalContent}
           compareOriginalPath={tab.compareOriginalPath}
@@ -3412,7 +3440,7 @@ export default function App() {
         brushActive={brushActive}
       />
     )
-  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, activeSessionCwd, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading])
+  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, activeSessionCwd, lspLangs, lspMultiDef, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading])
 
   const fileTabsNode = (
     <FileTabsView
@@ -3586,6 +3614,10 @@ export default function App() {
             onToggleAutoUtf8={setAutoUtf8}
             cgEnabled={cgEnabled}
             onToggleCgEnabled={setCgEnabled}
+            lspLangs={lspLangs}
+            onToggleLspLang={toggleLspLang}
+            lspMultiDef={lspMultiDef}
+            onSetLspMultiDef={setLspMultiDef}
             ocrEnabled={ocrEnabled}
             onToggleOcrEnabled={setOcrEnabled}
             forceDomRenderer={forceDomRenderer}

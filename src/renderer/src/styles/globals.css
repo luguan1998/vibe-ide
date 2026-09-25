@@ -167,6 +167,14 @@ html, body, #root {
   transform: translateY(calc(-100% - 26px));
 }
 
+/* Ctrl+hover 可跳转单词的下划线（VS Code 同款交互）。不用 !important：
+   笔刷模式下 .diff-brush-code 的笔形光标应继续保持覆盖 */
+.monaco-editor .vibe-def-link {
+  text-decoration: underline;
+  text-underline-position: under;
+  cursor: pointer;
+}
+
 /* Brush mode: feather pen cursor */
 .diff-brush-mode,
 .diff-brush-mode *,

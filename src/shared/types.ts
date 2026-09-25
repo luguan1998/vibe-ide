@@ -115,6 +115,12 @@ export const IPC_CHANNELS = {
   CODE_SET_ENABLED: 'code:setEnabled',
   CODE_CHECK_AVAILABLE: 'code:checkAvailable',
 
+  // LSP (language server, on-demand)
+  LSP_SET_ENABLED: 'lsp:setEnabled',
+  LSP_DEFINITION: 'lsp:definition',
+  LSP_STATUS: 'lsp:status',
+  LSP_STOP: 'lsp:stop',
+
   // Perf
   PERF_SNAPSHOT: 'perf:snapshot',
 
@@ -204,6 +210,44 @@ export const IPC_CHANNELS = {
   PET_DELETE: 'pet:delete',
   PET_CHANGED: 'pet:changed'        // push: import/delete 后通知 renderer 重载
 } as const
+
+// LSP types
+export interface LspLocation {
+  path: string        // 绝对本地路径（主进程已把 file:// URI 转好）
+  line: number        // 1-based
+  column: number      // 1-based
+}
+
+// ok=已用语言服务器解析；warming=冷启动中（本次回落既有索引）；unavailable=未安装/已禁用
+export type LspDefinitionState = 'ok' | 'warming' | 'unavailable'
+
+export interface LspDefinitionResult {
+  state: LspDefinitionState
+  locations: LspLocation[]
+}
+
+export interface LspStatus {
+  available: Record<string, boolean>    // serverId → 服务器是否可解析
+  running: { id: string; pid: number; root: string }[]
+}
+
+export interface LspDefinitionArgs {
+  root: string          // 会话工作目录（根的上界）
+  langId: string        // Monaco 语言 id，主进程自行映射到服务器
+  fullPath: string
+  text: string          // 当前 buffer 内容（含未保存改动）
+  line: number          // 1-based
+  column: number        // 1-based
+}
+
+// 可用的语言服务器清单：主进程注册表与设置面板共用，避免两处各写一份
+export const LSP_SERVERS: { id: string; label: string }[] = [
+  { id: 'python', label: 'Python (Pyright)' },
+  { id: 'c', label: 'C / C++ (clangd)' },
+]
+
+// Monaco 语言 id → 服务器 id（clangd 同时服务 c 与 cpp）；主进程与渲染层共用
+export const LSP_LANG_TO_SERVER: Record<string, string> = { python: 'python', c: 'c', cpp: 'c' }
 
 // Snippet types
 export interface SnippetInfo {
@@ -512,15 +556,6 @@ export interface RecentFileEntry {
 }
 
 // Search types
-interface GrepSearchOptions {
-  query: string
-  cwd: string
-  regex?: boolean
-  caseSensitive?: boolean
-  wholeWord?: boolean
-  include?: string
-}
-
 export interface GrepMatch {
   file: string
   fullPath: string

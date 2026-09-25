@@ -21,6 +21,7 @@ import { stopWatching } from './watcher'
 import { registerFileHandlers } from './file'
 import { registerSearchHandlers } from './search'
 import { registerCodeGraphHandlers, closeCodeGraph } from './codegraph'
+import { registerLspHandlers, cleanupLsp } from './lsp'
 import { recognizeImage, terminateOcrWorker } from './ocr'
 import { IPC_CHANNELS, SnippetInfo } from '../shared/types'
 
@@ -231,6 +232,7 @@ app.whenReady().then(() => {
   registerFileHandlers()
   registerSearchHandlers()
   registerCodeGraphHandlers()
+  registerLspHandlers()
 
   createWindow()
 
@@ -667,6 +669,7 @@ function cleanupAndExit(): void {
   cleanupDsh()
   stopWatching()
   closeCodeGraph()
+  cleanupLsp()
   terminateOcrWorker()
 }
 
