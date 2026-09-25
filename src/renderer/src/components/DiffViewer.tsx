@@ -217,6 +217,7 @@ interface DiffViewerProps {
   onPushSnapshot?: (s: TabSnapshot) => void
   onRuntimeChange?: (rt: TabRuntime | null) => void
   onViewModeChange?: (mode: ViewMode) => void
+  onUnreadableChange?: (fullPath: string, unreadable: boolean) => void  // 过大/二进制读不出内容（只剩 Force Open 占位）
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -340,7 +341,7 @@ interface JumpItem {
   detail?: string
 }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange, onUnreadableChange }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -379,6 +380,11 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const [currentEncoding, setCurrentEncoding] = useState<string>(DEFAULT_ENCODING)
   const [encodingInfo, setEncodingInfo] = useState<string>('')
   const [unreadableReason, setUnreadableReason] = useState<string>('')
+
+  const onUnreadableChangeRef = useRef(onUnreadableChange)
+  onUnreadableChangeRef.current = onUnreadableChange
+  useEffect(() => { onUnreadableChangeRef.current?.(fullPath, !!unreadableReason) }, [unreadableReason, fullPath])
+
   const [encodingContextMenu, setEncodingContextMenu] = useState<{ x: number; y: number } | null>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
 

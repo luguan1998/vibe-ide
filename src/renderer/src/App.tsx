@@ -955,18 +955,24 @@ export default function App() {
   brushActiveRef.current = brushActive
 
   // ── 导航历史（Alt+←/→，VS Code 的 navigateBack/Forward）──
-  // list 是走过的位置序列，index 指向当前所在位置；跳转时截断 index 之后的分支再压入新位置
+  // list 是走过的位置序列，index 指向当前所在位置；跳转时截断 index 之后的分支再压入新位置。
+  // index === list.length 为哨兵：当前停在「不占历史位」的视图上（md/图片预览、不可读文件），
+  // 此时 Alt+← 落回「来时的文件」而不是再往前一格
   interface NavPos { fullPath: string; line: number }
   const NAV_HIST_MAX = 100
   const navHistRef = useRef<{ list: NavPos[]; index: number }>({ list: [], index: -1 })
   const navSuppressRef = useRef(false)
+  // 不可读文件（过大/二进制，DiffViewer 只渲染 Force Open 占位）：既不压栈，也不作为「来时位置」
+  const navUnreadableRef = useRef(new Set<string>())
   const navBackRef = useRef<() => void>(() => {})
   const navForwardRef = useRef<() => void>(() => {})
-  // 光标位置优先（DiffViewer 实时回写）；cursorRef 是全局单个，切 tab 后可能残留旧文件，需比对
+  // 光标位置优先（DiffViewer 实时回写）；cursorRef 是全局单个，切 tab 后可能残留旧文件，需比对。
+  // 预览（md/图片）与不可读文件没有可定位的编辑器内容，返回 null 表示当前位置不计入历史
   const currentNavPos = useCallback((): NavPos | null => {
     const c = cursorRef.current
-    const t = activeTabRef.current as { fullPath: string; lineNumber?: number } | null
+    const t = activeTabRef.current
     if (t) {
+      if (t.kind !== 'diff' || navUnreadableRef.current.has(t.fullPath)) return null
       if (c && c.fullPath === t.fullPath) return { fullPath: t.fullPath, line: c.line }
       return { fullPath: t.fullPath, line: t.lineNumber ?? 1 }
     }
@@ -1559,15 +1565,20 @@ export default function App() {
   }, [])
 
   const openFileView = useCallback((fullPath: string, opts: OpenFileOpts = {}) => {
+    const mode: OpenFileMode = opts.mode ?? 'auto'
+    const kind = (mode === 'diff' || mode === 'edit') ? 'diff' as const : autoViewKind(fullPath)
     // 记录导航历史：先订正"来时位置"（用户可能在文件内滚动过），再压目标位置。
-    // 必须早于 openTab —— 那时 activeTab/cursorRef 还指向跳转前的文件
+    // 必须早于 openTab —— 那时 activeTab/cursorRef 还指向跳转前的文件。
+    // 预览（md/图片）与不可读文件不占历史位，只把 index 推到哨兵位
     if (!navSuppressRef.current) {
       const from = currentNavPos()
       if (from) navPush(from)
-      navPush({ fullPath, line: opts.lineNumber && opts.lineNumber > 0 ? opts.lineNumber : 1 })
+      if (kind === 'diff' && !navUnreadableRef.current.has(fullPath)) {
+        navPush({ fullPath, line: opts.lineNumber && opts.lineNumber > 0 ? opts.lineNumber : 1 })
+      } else {
+        navHistRef.current.index = navHistRef.current.list.length
+      }
     }
-    const mode: OpenFileMode = opts.mode ?? 'auto'
-    const kind = (mode === 'diff' || mode === 'edit') ? 'diff' as const : autoViewKind(fullPath)
     const name = baseName(fullPath)
     const buildTab = (): FileTabState => kind === 'diff' ? {
       id: makeTabId('diff'),
@@ -1648,6 +1659,19 @@ export default function App() {
     h.index++
     navGoTo(h.list[h.index])
   }
+
+  // DiffViewer 读出「不可读」（过大/二进制，只给 Force Open 占位）：把该路径从历史里摘掉。
+  // 读成功后（含强行打开）解除标记，位置在下次跳走时由 currentNavPos 重新带回历史
+  const handleUnreadableChange = useCallback((fullPath: string, unreadable: boolean) => {
+    if (!unreadable) { navUnreadableRef.current.delete(fullPath); return }
+    navUnreadableRef.current.add(fullPath)
+    const h = navHistRef.current
+    if (!h.list.some(p => p.fullPath === fullPath)) return
+    const dropped = h.list.slice(0, h.index + 1).filter(p => p.fullPath === fullPath).length
+    h.list = h.list.filter(p => p.fullPath !== fullPath)
+    // 落在当前tab上的条目被摘掉 → 退回哨兵位，Alt+← 落回"来时的文件"
+    h.index = activeTabRef.current?.fullPath === fullPath ? h.list.length : h.index - dropped
+  }, [])
 
   const flushTabVisibleLine = useCallback((tab: FileTabState | null | undefined) => {
     if (!tab || tab.kind !== 'diff') return
@@ -3395,6 +3419,7 @@ export default function App() {
           onAnnotationTrigger={handleAnnotationTrigger}
           brushActive={brushActive}
           onOutlineNavigate={handleOutlineNavigate}
+          onUnreadableChange={handleUnreadableChange}
         />
       )
     }
@@ -3425,7 +3450,7 @@ export default function App() {
         brushActive={brushActive}
       />
     )
-  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, activeSessionCwd, lspLangs, lspMultiDef, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading])
+  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, activeSessionCwd, lspLangs, lspMultiDef, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading, handleUnreadableChange])
 
   const fileTabsNode = (
     <FileTabsView
