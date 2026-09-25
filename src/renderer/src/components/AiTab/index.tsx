@@ -59,7 +59,6 @@ interface AiTabProps {
   onWorktreeChange?: (next: { enableWorktree?: boolean; worktreePath?: string; worktreeBranch?: string; worktreeOriginalPath?: string }) => void
   worktreeNav?: { originalPath: string; worktreePath: string; originalBranch: string } | null
   onWorktreeNavChange?: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
-  onCommand?: (command: string) => void
 }
 
 export interface AiTabHandle {
@@ -85,7 +84,7 @@ const BUSY_QUIPS = [
   'Long live the open-source rebellion…',
 ]
 const EDGE_HOVER_PX = 48
-const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onGraphForkWorktree, graphOpen, onGraphOpenChange, graphDockedRight, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, initialWorktreeEnabled, worktreePath, worktreeBranch, worktreeOriginalPath, branchRevision, onWorktreeChange, worktreeNav, onWorktreeNavChange, onCommand }, ref) {
+const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onGraphForkWorktree, graphOpen, onGraphOpenChange, graphDockedRight, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, initialWorktreeEnabled, worktreePath, worktreeBranch, worktreeOriginalPath, branchRevision, onWorktreeChange, worktreeNav, onWorktreeNavChange }, ref) {
   const { t } = useI18n()
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -694,7 +693,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     if (!activeSessionId || !message.trim()) return
     const isSlash = message.startsWith('/')
     const isClear = message.startsWith('/clear')
-    onCommand?.(message)
     const userMsg = { sessionId: activeSessionId, type: 'user' as const, role: 'user' as const, content: message, timestamp: Date.now(), isRealUserTurn: true }
     updateSession(activeSessionId, (s) => {
       const newName = !s.name && !isSlash ? message.slice(0, 60) : s.name

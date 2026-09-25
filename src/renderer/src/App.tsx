@@ -3822,7 +3822,6 @@ export default function App() {
                         }}
                         worktreeNav={sessionWorktreeNav[session.id] ?? null}
                         onWorktreeNavChange={setWorktreeBrowseNav}
-                        onCommand={onCommandForSession(session.id)}
                       />
                     ) : isDsh ? (
                       <DshView ref={(node) => { if (node) dshRefs.current[session.id] = node }} sessionId={session.id} cwd={session.cwd} isActive={isActive} dshSessionId={session.dshSessionId} sidebarVisible={dshSidebarShown} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} onCommand={onCommandForSession(session.id)} />
