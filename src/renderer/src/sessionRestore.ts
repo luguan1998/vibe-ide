@@ -3,7 +3,7 @@ export type TabKind = 'terminal' | 'gui' | 'dsh'
 // 行首图标哨兵：空白图标（emoji === undefined 表示类型图标位）
 export const ICON_NONE = ''
 // 会话默认 emoji 池（AppearancePanel 重置按钮共用；term 新建默认随机也取自此池）
-export const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '👻', '🤣', '👾', '⚡', '🌟', '🐉', '🤗', '🙏', '🥷']
+export const DEFAULT_SESSION_EMOJIS = ['🔥', '💀', '🗿', '🤡', '👽', '👻', '🤣', '👾', '🏷️', '🌟', '🐉', '🤗', '🙏', '🗺️']
 
 export function randomTermEmoji(): string {
   return DEFAULT_SESSION_EMOJIS[Math.floor(Math.random() * DEFAULT_SESSION_EMOJIS.length)]
@@ -32,6 +32,13 @@ export function emojiForDefaultIcon(v: DefaultSessionIcon): string | undefined {
 
 export function resolveDefaultIcon(): string | undefined {
   return emojiForDefaultIcon(getDefaultSessionIcon())
+}
+
+// 新建会话默认名：类型前缀 + 同类型序号（Terminal 1 / Claude 1 / Pi 1 / dsh 1）
+export function defaultSessionName(s: Pick<SessionTab, 'kind' | 'aiBackend'>, existing: Pick<SessionTab, 'name'>[]): string {
+  const base = s.kind === 'gui' ? (s.aiBackend === 'pi' ? 'Pi' : 'Claude') : s.kind === 'dsh' ? 'dsh' : 'Terminal'
+  const used = existing.filter(e => new RegExp(`^${base} \\d+$`).test(e.name)).length
+  return `${base} ${used + 1}`
 }
 
 export interface SessionTab {
