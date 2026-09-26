@@ -72,16 +72,16 @@ body,
   border-bottom: none !important;
 }
 
-/* AiTab — 内容区浅灰底，只留头部与输入卡是白
+/* AiTab — 内容区浅灰底，头部同色，靠一条加粗分界线划分（只留输入卡是白）
    灰必须挂根节点：输入区是 PANEL_MAX_W + mx-auto 的居中窄列，只刷它/刷消息容器
-   都会在左右留出白边；头部另刷白顶掉继承来的灰
-   也不能去掉头部 border-b 那条（应用自带）——会在标题栏下方再出一条发丝线 */
+   都会在左右留出白边；头部要同色就得自己顶掉应用自带的 border-b（1px --ide-border），
+   这里换成 2px 同色系，比默认那条更明确 */
 .ai-tab {
   background-color: rgb(247 247 250) !important;
 }
 .ai-tab__header {
-  border-bottom: none !important;
-  background-color: #fff !important;
+  background-color: rgb(247 247 250) !important;
+  border-bottom: 2px solid rgb(var(--ide-border)) !important;
 }
 
 /* ── 左侧会话面板 — ::before 玻璃底（面板自身不挂 blur，护住内部 fixed 菜单）── */
