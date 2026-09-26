@@ -56,7 +56,7 @@ function autoDetectEncoding(buffer: Buffer): { encoding: string; confidence: num
   return { encoding, confidence: result.confidence || 0, bom: false }
 }
 
-async function readFileWithEncoding(filePath: string, encoding?: string, forceOpen?: boolean) {
+export async function readFileWithEncoding(filePath: string, encoding?: string, forceOpen?: boolean) {
   // Pre-read checks (skipped when user forces open)
   if (!forceOpen) {
     if (isBinaryByExtension(filePath)) {

@@ -3,6 +3,7 @@ import { spawn, execSync, type ChildProcess } from 'child_process'
 import { existsSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
+import { readFileWithEncoding } from './file'
 import {
   IPC_CHANNELS, LSP_SERVERS, LSP_LANG_TO_SERVER,
   type LspCreateDbArgs, type LspCreateDbResult,
@@ -12,6 +13,8 @@ import {
 const IDLE_KILL_MS = 15 * 60 * 1000
 const INIT_TIMEOUT_MS = 30_000
 const REQUEST_TIMEOUT_MS = 20_000
+// 引用查找要扫整个工程，比单点 definition 慢得多
+const REFERENCES_TIMEOUT_MS = 30_000
 const ROOT_WALK_MAX = 8
 // tsserver 加载工程的等待窗口（见 awaitProjectLoad）
 const PROJECT_LOAD_WAIT_MS = 10_000
@@ -131,6 +134,44 @@ function resolveServer(serverId: string, refresh = false): Resolved | null {
 const normalizeDrive = (p: string) => (/^[a-z]:/.test(p) ? p[0].toUpperCase() + p.slice(1) : p)
 
 const normPath = (p: string) => p.replace(/\\/g, '/').toLowerCase().replace(/\/+$/, '')
+
+// 引用列表要显示代码行，而引用几乎都在没打开过的文件里 —— 只能读盘。
+// 同一文件只读一次；二进制与超大文件会被 readFileWithEncoding 直接拒掉，跳过即可
+async function attachLineTexts(locations: LspLocation[]): Promise<void> {
+  const byPath = new Map<string, LspLocation[]>()
+  for (const loc of locations) {
+    const arr = byPath.get(loc.path)
+    if (arr) arr.push(loc)
+    else byPath.set(loc.path, [loc])
+  }
+  await Promise.all([...byPath.values()].map(async (locs) => {
+    try {
+      const r = await readFileWithEncoding(locs[0].path)
+      if ('error' in r) return
+      const lines = r.content.split(/\r\n|\r|\n/)
+      for (const loc of locs) {
+        const text = lines[loc.line - 1]
+        if (text !== undefined) loc.text = text.trim().slice(0, 120)
+      }
+    } catch {}
+  }))
+}
+
+// definition 答 Location[] 或 LocationLink[]，references 只答 Location[]，两种都认
+function toLocations(res: any): LspLocation[] {
+  if (!res) return []
+  const items = Array.isArray(res) ? res : [res]
+  const locations: LspLocation[] = []
+  for (const item of items) {
+    const target = item?.targetUri ?? item?.uri
+    const range = item?.targetSelectionRange ?? item?.targetRange ?? item?.range
+    if (!target || !range?.start) continue
+    let p: string
+    try { p = fileURLToPath(target) } catch { continue }
+    locations.push({ path: normalizeDrive(p), line: range.start.line + 1, column: range.start.character + 1 })
+  }
+  return locations
+}
 
 // 从文件向上找工程标记，但不上穿会话工作目录 —— 根比 cwd 大会成倍推高服务器内存。
 // 记「最靠近 cwd 的」而非「最近的」：多包仓库里子目录遍地 package.json，就近优先会让同一会话的
@@ -332,7 +373,8 @@ class LspClient {
     }
   }
 
-  async definition(fullPath: string, langId: string, text: string, line: number, column: number): Promise<LspLocation[]> {
+  // 把当前 buffer 内容同步给服务器（含未保存改动），返回 uri 与「是否首次打开」
+  private openDoc(fullPath: string, langId: string, text: string): { uri: string; isNew: boolean } {
     const uri = pathToFileURL(fullPath).href
     const doc = this.docs.get(uri)
     if (!doc) {
@@ -344,23 +386,27 @@ class LspClient {
       this.notify('textDocument/didChange', { textDocument: { uri, version: doc.version }, contentChanges: [{ text }] })
     }
     this.touch()
-    await this.awaitProjectLoad(!doc)
-    const res = await this.request('textDocument/definition', {
+    return { uri, isNew: !doc }
+  }
+
+  async definition(fullPath: string, langId: string, text: string, line: number, column: number): Promise<LspLocation[]> {
+    const { uri, isNew } = this.openDoc(fullPath, langId, text)
+    await this.awaitProjectLoad(isNew)
+    return toLocations(await this.request('textDocument/definition', {
       textDocument: { uri },
       position: { line: line - 1, character: column - 1 },
-    })
-    if (!res) return []
-    const items = Array.isArray(res) ? res : [res]
-    const locations: LspLocation[] = []
-    for (const item of items) {
-      const target = item?.targetUri ?? item?.uri
-      const range = item?.targetSelectionRange ?? item?.targetRange ?? item?.range
-      if (!target || !range?.start) continue
-      let p: string
-      try { p = fileURLToPath(target) } catch { continue }
-      locations.push({ path: normalizeDrive(p), line: range.start.line + 1, column: range.start.character + 1 })
-    }
-    return locations
+    }))
+  }
+
+  async references(fullPath: string, langId: string, text: string, line: number, column: number): Promise<LspLocation[]> {
+    const { uri, isNew } = this.openDoc(fullPath, langId, text)
+    await this.awaitProjectLoad(isNew)
+    return toLocations(await this.request('textDocument/references', {
+      textDocument: { uri },
+      position: { line: line - 1, character: column - 1 },
+      // 带上声明处本身，与 VS Code「Find All References」一致
+      context: { includeDeclaration: true },
+    }, REFERENCES_TIMEOUT_MS))
   }
 
   stop(): void {
@@ -429,7 +475,7 @@ function releaseOutOfScope(): void {
   }
 }
 
-async function handleDefinition(args: LspDefinitionArgs): Promise<LspDefinitionResult> {
+async function handleLspRequest(kind: 'definition' | 'references', args: LspDefinitionArgs): Promise<LspDefinitionResult> {
   const serverId = LSP_LANG_TO_SERVER[args?.langId]
   if (!serverId || !enabledServers.has(serverId)) return { state: 'unavailable', locations: [] }
   if (!args.fullPath || !args.line || !args.column) return { state: 'unavailable', locations: [] }
@@ -472,11 +518,15 @@ async function handleDefinition(args: LspDefinitionArgs): Promise<LspDefinitionR
   }
 
   try {
-    const locations = await client.definition(args.fullPath, args.langId, args.text ?? '', args.line, args.column)
+    const locations = kind === 'references'
+      ? await client.references(args.fullPath, args.langId, args.text ?? '', args.line, args.column)
+      : await client.definition(args.fullPath, args.langId, args.text ?? '', args.line, args.column)
     // 新实例头一次真正答出来才算确认可用，这时才收掉退休的旧实例
     dropRetiring(serverId)
-    // clangd 空手而归且工程没有编译数据库：不是「没定义」，是头文件路径根本无从解析
-    if (!locations.length && serverId === 'c' && !findCompileDbFile(root, args.fullPath)) {
+    if (kind === 'references' && locations.length) await attachLineTexts(locations)
+    // clangd 空手而归且工程没有编译数据库：不是「没定义」，是头文件路径根本无从解析。
+    // 只对 definition 判定 —— 引用查不到是常态，套这个提示会误导
+    if (kind === 'definition' && !locations.length && serverId === 'c' && !findCompileDbFile(root, args.fullPath)) {
       return { state: 'no-db', locations: [] }
     }
     return { state: 'ok', locations }
@@ -493,7 +543,9 @@ export function registerLspHandlers(): void {
     return { enabled: enabledServers.has(serverId) }
   })
 
-  ipcMain.handle(IPC_CHANNELS.LSP_DEFINITION, (_event, args: LspDefinitionArgs) => handleDefinition(args))
+  ipcMain.handle(IPC_CHANNELS.LSP_DEFINITION, (_event, args: LspDefinitionArgs) => handleLspRequest('definition', args))
+
+  ipcMain.handle(IPC_CHANNELS.LSP_REFERENCES, (_event, args: LspDefinitionArgs) => handleLspRequest('references', args))
 
   // clangd 没编译数据库时的补救：写一行 -I<工程根> 到工程根的 compile_flags.txt
   ipcMain.handle(IPC_CHANNELS.LSP_CREATE_COMPILE_DB, async (_event, args: LspCreateDbArgs): Promise<LspCreateDbResult> => {

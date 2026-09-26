@@ -72,6 +72,30 @@ function getLanguageFromFile(path: string): string {
   return langMap[ext] || 'plaintext'
 }
 
+// 引用可能上百条，浮层只渲染前这么多，其余在标题上标出来
+const REFERENCES_MAX = 200
+// 引用数不超过这个值的文件在结果里默认展开，省掉逐组点开
+const REFS_AUTO_EXPAND_MAX = 3
+
+// 列表里的代码缩略：把命中的符号点亮，与编辑器里的引用高亮同观感
+function highlightMatches(text: string, word: string): React.ReactNode {
+  if (!word || !text.includes(word)) return text
+  return text.split(word).map((part, i) => (
+    i === 0 ? part : <span key={i}><span className="text-ide-accent">{word}</span>{part}</span>
+  ))
+}
+
+// 取某行源码做列表缩略。当前文件用内存 buffer（含未保存改动），异文件返回空串由调用方回落
+function makeLineReader(targetPath: string, buffer: string | undefined) {
+  const targetNorm = targetPath.replace(/\\/g, '/').toLowerCase()
+  let lines: string[] | null = null
+  return (p: string, ln: number): string => {
+    if (p.replace(/\\/g, '/').toLowerCase() !== targetNorm) return ''
+    if (!lines) lines = (buffer ?? '').split(/\r\n|\r|\n/)
+    return (lines[ln - 1] ?? '').trim().slice(0, 120)
+  }
+}
+
 // 跳转候选里的测试文件。目录段逐段精确匹配，不做子串 —— 否则 contest/、test-utils/ 会被误伤
 const TEST_DIR_SEGMENTS = new Set(['test', 'tests', '__tests__', 'spec', 'specs', 'e2e', '__mocks__', 'fixtures'])
 function isTestPath(fullPath: string): boolean {
@@ -340,6 +364,11 @@ interface JumpItem {
   label: string
   detail?: string
 }
+
+// 跳转候选浮层的可见行：引用按文件合并成「组头 + 展开的条目」，定义候选仍是平铺条目
+type JumpRow =
+  | { kind: 'group'; key: string; label: string; count: number }
+  | { kind: 'item'; item: JumpItem }
 
 const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange, onUnreadableChange }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
@@ -762,10 +791,40 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const lspMultiDefRef = useRef(lspMultiDef); lspMultiDefRef.current = lspMultiDef
   const fullPathRef = useRef(fullPath); fullPathRef.current = fullPath
   const modifiedContentRef = useRef(modifiedContent); modifiedContentRef.current = modifiedContent
-  const [jumpCandidates, setJumpCandidates] = useState<{ word: string; items: JumpItem[]; x: number; y: number; warming?: boolean; noDb?: boolean; line?: number; column?: number } | null>(null)
+  const [jumpCandidates, setJumpCandidates] = useState<{ word: string; items: JumpItem[]; x: number; y: number; warming?: boolean; noDb?: boolean; line?: number; column?: number; kind?: 'refs'; total?: number; files?: number } | null>(null)
   const jumpCandidatesRef = useRef(jumpCandidates); jumpCandidatesRef.current = jumpCandidates
   const [jumpSel, setJumpSel] = useState(0)
   const jumpSelRef = useRef(jumpSel); jumpSelRef.current = jumpSel
+  // 引用结果同文件合并成一组，组头点击展开/收起（命中集中的默认收起，引用稀疏的默认展开）
+  const [expandedRefFiles, setExpandedRefFiles] = useState<Set<string>>(new Set())
+  const toggleRefFile = useCallback((key: string) => {
+    setExpandedRefFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+  // 键盘 ↑↓/Enter 走的可见行（索引即 jumpSel 的域，与渲染顺序一一对应）
+  const jumpRows = useMemo<JumpRow[]>(() => {
+    const c = jumpCandidates
+    if (!c) return []
+    if (c.kind !== 'refs') return c.items.map(item => ({ kind: 'item', item }))
+    const groups = new Map<string, { label: string; items: JumpItem[] }>()
+    for (const item of c.items) {
+      const g = groups.get(item.fullPath)
+      if (g) g.items.push(item)
+      else groups.set(item.fullPath, { label: item.label, items: [item] })
+    }
+    const rows: JumpRow[] = []
+    // Map 保持插入序：首次出现的文件在前，组内保持服务器返回的行序
+    for (const [key, g] of groups) {
+      rows.push({ kind: 'group', key, label: g.label, count: g.items.length })
+      if (expandedRefFiles.has(key)) for (const item of g.items) rows.push({ kind: 'item', item })
+    }
+    return rows
+  }, [jumpCandidates, expandedRefFiles])
+  const jumpRowsRef = useRef(jumpRows); jumpRowsRef.current = jumpRows
   const jumpInflightRef = useRef<{ word: string; ts: number } | null>(null)
   const [dbBusy, setDbBusy] = useState(false)
   const [dbError, setDbError] = useState(false)
@@ -792,6 +851,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const closeJump = useCallback(() => {
     setJumpCandidates(null)
     setJumpSel(0)
+    setExpandedRefFiles(new Set())
   }, [])
 
   const jumpToItem = useCallback((item: JumpItem) => {
@@ -820,14 +880,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
         if (r?.state === 'ok' && r.locations?.length) {
           const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase()
           const prefix = norm(cwd).replace(/\/+$/, '') + '/'
-          const targetNorm = norm(target)
           // 服务器常对变量返回同文件多个赋值点，只给路径+行号会看着像重复，补上该行源码
-          let curLines: string[] | null = null
-          const snippet = (p: string, ln: number) => {
-            if (norm(p) !== targetNorm) return ''
-            if (!curLines) curLines = (modifiedContentRef.current ?? '').split(/\r\n|\r|\n/)
-            return (curLines[ln - 1] ?? '').trim().slice(0, 120)
-          }
+          const snippet = makeLineReader(target, modifiedContentRef.current)
           const mapped: JumpItem[] = r.locations.map(loc => ({
             fullPath: loc.path,
             line: loc.line,
@@ -863,6 +917,60 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     setJumpSel(0)
   }, [jumpToItem, queryDefinition])
 
+  // 引用查找：结果几乎全在别的文件，故只给路径 + 行号，不取源码行
+  const queryReferences = useCallback(async (line?: number, column?: number) => {
+    const cwd = jumpCwdRef.current
+    const target = fullPathRef.current
+    const langId = getLanguageFromFile(target)
+    const serverId = LSP_LANG_TO_SERVER[langId]
+    if (!cwd || !serverId || !line || !column || !lspLangsRef.current?.includes(serverId)) {
+      return { items: [] as JumpItem[], warming: false, total: 0, files: 0, defaultExpanded: new Set<string>() }
+    }
+    try {
+      const r = await window.api.lsp.references({
+        root: cwd, langId, fullPath: target,
+        text: modifiedContentRef.current ?? '', line, column,
+      })
+      if (r?.state !== 'ok' || !r.locations?.length) {
+        return { items: [] as JumpItem[], warming: r?.state === 'warming', total: 0, files: 0, defaultExpanded: new Set<string>() }
+      }
+      const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase()
+      const prefix = norm(cwd).replace(/\/+$/, '') + '/'
+      // 当前文件的那几行取内存 buffer，异文件用主进程读盘带回的 loc.text
+      const lineOf = makeLineReader(target, modifiedContentRef.current)
+      // 服务器有时把声明与引用位置重复给出
+      const seen = new Set<string>()
+      const items: JumpItem[] = []
+      for (const loc of r.locations) {
+        const key = `${norm(loc.path)}:${loc.line}:${loc.column}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        items.push({
+          fullPath: loc.path,
+          line: loc.line,
+          label: norm(loc.path).startsWith(prefix) ? loc.path.slice(prefix.length).replace(/\\/g, '/') : loc.path,
+          detail: lineOf(loc.path, loc.line) || loc.text,
+        })
+      }
+      // 引用稀疏的文件默认展开；计数用截断前的全量，否则引用多的文件会被截掉一部分而误判成"少"
+      const counts = new Map<string, number>()
+      for (const it of items) counts.set(it.fullPath, (counts.get(it.fullPath) ?? 0) + 1)
+      const defaultExpanded = new Set<string>()
+      for (const [fp, n] of counts) if (n <= REFS_AUTO_EXPAND_MAX) defaultExpanded.add(fp)
+      // 文件数按截断前的全量算，标题栏「N 个文件中有 M 个结果」才对得上真实结果数
+      return { items: items.slice(0, REFERENCES_MAX), warming: false, total: items.length, files: new Set(items.map(i => norm(i.fullPath))).size, defaultExpanded }
+    } catch {
+      return { items: [] as JumpItem[], warming: true, total: 0, files: 0, defaultExpanded: new Set<string>() }
+    }
+  }, [])
+
+  const runReferences = useCallback(async (word: string, x: number, y: number, line: number, column: number) => {
+    const { items, warming, total, files, defaultExpanded } = await queryReferences(line, column)
+    setExpandedRefFiles(defaultExpanded)
+    setJumpCandidates({ word, items, x, y, warming, kind: 'refs', total, files })
+    setJumpSel(0)
+  }, [queryReferences])
+
   // 一键补 compile_flags.txt（主进程写 -I<工程根> 并重启 clangd），随后重试这次跳转
   const createCompileDb = useCallback(async () => {
     const c = jumpCandidatesRef.current
@@ -891,20 +999,32 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     performJumpQuery(word, be.clientX, be.clientY, pos.lineNumber, pos.column)
   }, [performJumpQuery])
 
-  // F12 / 右键「Go to Definition」：给浮层一个贴近光标的落点
-  const goToDefinitionRef = useRef<(ed: any) => void>(() => {})
-  goToDefinitionRef.current = (ed: any) => {
-    if (!ed) return
-    const pos = ed.getPosition()
+  // 取光标处的词与浮层落点（贴近光标，不挡住它）
+  const anchorAt = (ed: any): { word: string; x: number; y: number; line: number; column: number } | null => {
+    const pos = ed?.getPosition()
     const word = pos ? ed.getModel()?.getWordAtPosition(pos)?.word : undefined
-    if (!pos || !word || word.length > 120) return
+    if (!pos || !word || word.length > 120) return null
     let x = 300, y = 200
     try {
       const sp = ed.getScrolledVisiblePosition(pos)
       const rect = ed.getDomNode?.()?.getBoundingClientRect()
       if (sp && rect) { x = rect.left + sp.left; y = rect.top + sp.top + sp.height }
     } catch {}
-    performJumpQuery(word, x, y, pos.lineNumber, pos.column)
+    return { word, x, y, line: pos.lineNumber, column: pos.column }
+  }
+
+  // F12 / 右键「Go to Definition」
+  const goToDefinitionRef = useRef<(ed: any) => void>(() => {})
+  goToDefinitionRef.current = (ed: any) => {
+    const a = anchorAt(ed)
+    if (a) performJumpQuery(a.word, a.x, a.y, a.line, a.column)
+  }
+
+  // Shift+F12 / 右键「Find All References」
+  const findReferencesRef = useRef<(ed: any) => void>(() => {})
+  findReferencesRef.current = (ed: any) => {
+    const a = anchorAt(ed)
+    if (a) void runReferences(a.word, a.x, a.y, a.line, a.column)
   }
 
   useEffect(() => {
@@ -946,10 +1066,11 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       const c = jumpCandidatesRef.current
       if (!c) return
       if (e.ctrlKey || e.metaKey || e.altKey) return
+      const rows = jumpRowsRef.current
       if (e.key === 'ArrowDown') {
         e.preventDefault()
         e.stopImmediatePropagation()
-        setJumpSel(i => c.items.length ? Math.min(i + 1, c.items.length - 1) : 0)
+        setJumpSel(i => rows.length ? Math.min(i + 1, rows.length - 1) : 0)
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -957,13 +1078,15 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       } else if (e.key === 'Enter') {
         e.preventDefault()
         e.stopImmediatePropagation()
-        const item = c.items[jumpSelRef.current]
-        if (item) jumpToItem(item)
+        const row = rows[jumpSelRef.current]
+        if (!row) return
+        if (row.kind === 'group') toggleRefFile(row.key)
+        else jumpToItem(row.item)
       }
     }
     window.addEventListener('keydown', handleJumpKeys, true)
     return () => window.removeEventListener('keydown', handleJumpKeys, true)
-  }, [jumpToItem])
+  }, [jumpToItem, toggleRefFile])
 
   // PageDown/PageUp 双击 / Ctrl+PageDown/PageUp 跳 diff 区块（对齐 VS Code）
   useEffect(() => {
@@ -1360,6 +1483,14 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                 contextMenuOrder: 1.45,
                 run: (ed: any) => goToDefinitionRef.current(ed)
               })
+              ;(modifiedEditor as any)._findReferencesActionDisposable = modifiedEditor.addAction({
+                id: 'lsp-find-references',
+                label: t('Find All References'),
+                keybindings: [monaco.KeyMod.Shift | monaco.KeyCode.F12],
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.46,
+                run: (ed: any) => findReferencesRef.current(ed)
+              })
               ;(modifiedEditor as any)._callGraphActionDisposable = modifiedEditor.addAction({
                 id: 'open-call-graph',
                 label: t('Open Call Graph'),
@@ -1566,6 +1697,14 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                 contextMenuOrder: 1.45,
                 run: (ed: any) => goToDefinitionRef.current(ed)
               })
+              ;(editor as any)._findReferencesActionDisposable = editor.addAction({
+                id: 'lsp-find-references',
+                label: t('Find All References'),
+                keybindings: [monaco.KeyMod.Shift | monaco.KeyCode.F12],
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.46,
+                run: (ed: any) => findReferencesRef.current(ed)
+              })
               ;(editor as any)._callGraphActionDisposable = editor.addAction({
                 id: 'open-call-graph',
                 label: t('Open Call Graph'),
@@ -1622,11 +1761,26 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       {/* Ctrl+Click 跳转候选浮层 */}
       {jumpCandidates && (
         <div
-          className="jump-candidates fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[280px] max-w-[520px] max-h-72 overflow-y-auto"
+          className={`jump-candidates fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[280px] max-w-[520px] overflow-y-auto ${jumpCandidates.kind === 'refs' ? 'max-h-[min(70vh,520px)]' : 'max-h-72'}`}
           style={{ left: Math.max(8, Math.min(jumpCandidates.x - 40, window.innerWidth - 540)), top: Math.min(jumpCandidates.y + 16, window.innerHeight - 300) }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-3 py-1 text-[10px] text-ide-text-muted font-semibold uppercase tracking-wider truncate">{jumpCandidates.word} →</div>
+          <div className="px-3 py-1 text-[10px] text-ide-text-muted font-semibold uppercase tracking-wider flex items-center gap-1.5">
+            {jumpCandidates.kind === 'refs' ? (
+              !!jumpCandidates.total && (
+                <span className="font-mono text-[11px]">
+                  {t('{hits} results in {files} files')
+                    .replace('{hits}', String(jumpCandidates.total))
+                    .replace('{files}', String(jumpCandidates.files ?? 1))}
+                </span>
+              )
+            ) : (
+              <>
+                <span className="truncate min-w-0">{jumpCandidates.word}</span>
+                <span className="shrink-0">→</span>
+              </>
+            )}
+          </div>
           {jumpCandidates.noDb ? (
             <>
               <div className="px-3 py-1 text-[11px] text-ide-text max-w-[380px] leading-snug">
@@ -1648,24 +1802,71 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
             </>
           ) : (
             <>
-              {jumpCandidates.items.map((item, i) => (
-                <button
-                  key={`${item.fullPath}:${item.line}:${i}`}
-                  onClick={() => jumpToItem(item)}
-                  onMouseEnter={() => setJumpSel(i)}
-                  className={`w-full px-3 py-1 text-left flex items-center gap-2 transition-colors ${i === jumpSel ? 'bg-ide-accent/15' : ''}`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs text-ide-text truncate">{item.label}</div>
-                    {item.detail && <div className="text-[10px] text-ide-text-muted truncate">{item.detail}</div>}
-                  </div>
-                  <span className="text-[10px] text-ide-text-muted shrink-0 font-mono">{item.line}</span>
-                </button>
-              ))}
+              {jumpRows.map((row, i) => {
+                const selCls = i === jumpSel ? 'bg-ide-accent/15' : ''
+                if (row.kind === 'group') {
+                  const open = expandedRefFiles.has(row.key)
+                  return (
+                    <button
+                      key={`g:${row.key}`}
+                      type="button"
+                      onClick={() => toggleRefFile(row.key)}
+                      onMouseEnter={() => setJumpSel(i)}
+                      className={`w-full px-3 py-1 text-left flex items-center gap-1 transition-colors ${selCls}`}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 text-ide-text-muted transition-transform shrink-0 ${open ? 'rotate-0' : '-rotate-90'}`}>
+                        <path d="M4 6l4 4 4-4" />
+                      </svg>
+                      <span className="text-xs text-ide-text truncate min-w-0">{row.label}</span>
+                      <span className="ml-auto shrink-0 font-mono text-[10px] text-ide-text-muted">{row.count}</span>
+                    </button>
+                  )
+                }
+                if (jumpCandidates.kind === 'refs') {
+                  return (
+                    <button
+                      key={`r:${row.item.fullPath}:${row.item.line}:${i}`}
+                      type="button"
+                      onClick={() => jumpToItem(row.item)}
+                      onMouseEnter={() => setJumpSel(i)}
+                      className={`w-full pl-7 pr-3 py-1 text-left flex items-center gap-2 transition-colors ${selCls}`}
+                    >
+                      <span className="text-[10px] text-ide-text-muted shrink-0 font-mono">{row.item.line}</span>
+                      {row.item.detail && (
+                        <span className="text-xs text-ide-text truncate min-w-0 font-mono">
+                          {highlightMatches(row.item.detail, jumpCandidates.word)}
+                        </span>
+                      )}
+                    </button>
+                  )
+                }
+                return (
+                  <button
+                    key={`${row.item.fullPath}:${row.item.line}:${i}`}
+                    type="button"
+                    onClick={() => jumpToItem(row.item)}
+                    onMouseEnter={() => setJumpSel(i)}
+                    className={`w-full px-3 py-1 text-left flex items-center gap-2 transition-colors ${selCls}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs text-ide-text truncate">{row.item.label}</div>
+                      {row.item.detail && (
+                        <div className="text-[10px] text-ide-text-muted truncate font-mono">
+                          {highlightMatches(row.item.detail, jumpCandidates.word)}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-ide-text-muted shrink-0 font-mono">{row.item.line}</span>
+                  </button>
+                )
+              })}
               {jumpCandidates.warming && (
                 <div className="px-3 py-1 text-[10px] text-ide-text-muted border-t border-ide-border/60">
                   {t('Language server starting — retry in a moment')}
                 </div>
+              )}
+              {jumpCandidates.kind === 'refs' && !jumpCandidates.items.length && !jumpCandidates.warming && (
+                <div className="px-3 py-1 text-[11px] text-ide-text-muted">{t('No references found')}</div>
               )}
             </>
           )}

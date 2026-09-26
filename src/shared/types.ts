@@ -118,6 +118,7 @@ export const IPC_CHANNELS = {
   // LSP (language server, on-demand)
   LSP_SET_ENABLED: 'lsp:setEnabled',
   LSP_DEFINITION: 'lsp:definition',
+  LSP_REFERENCES: 'lsp:references',
   LSP_STATUS: 'lsp:status',
   LSP_STOP: 'lsp:stop',
   LSP_SET_SCOPES: 'lsp:setScopes',
@@ -218,6 +219,7 @@ export interface LspLocation {
   path: string        // 绝对本地路径（主进程已把 file:// URI 转好）
   line: number        // 1-based
   column: number      // 1-based
+  text?: string       // 该行源码（仅 references 填，用于列表里的代码缩略）
 }
 
 // ok=已用语言服务器解析；warming=冷启动中（本次回落既有索引）；unavailable=未安装/已禁用；
@@ -228,6 +230,9 @@ export interface LspDefinitionResult {
   state: LspDefinitionState
   locations: LspLocation[]
 }
+
+// 引用查找与定义查找返回同形状；references 不做 no-db 判定（查不到引用是常态，不该报缺编译数据库）
+export type LspReferencesResult = LspDefinitionResult
 
 export interface LspCreateDbArgs {
   root: string          // 会话工作目录
@@ -244,6 +249,7 @@ export interface LspStatus {
   running: { id: string; pid: number; root: string }[]
 }
 
+// definition 与 references 共用入参
 export interface LspDefinitionArgs {
   root: string          // 会话工作目录（根的上界）
   langId: string        // Monaco 语言 id，主进程自行映射到服务器
@@ -256,7 +262,7 @@ export interface LspDefinitionArgs {
 // 可用的语言服务器清单：主进程注册表与设置面板共用，避免两处各写一份
 export const LSP_SERVERS: { id: string; label: string; installHint?: string }[] = [
   { id: 'python', label: 'Python (Pyright)' },
-  { id: 'c', label: 'C / C++ (clangd)', installHint: 'Needs clangd — install LLVM, or Visual Studio with the C++ workload.' },
+  { id: 'c', label: 'C / C++ (clangd)', installHint: 'clangd not found — run in terminal: winget install LLVM.LLVM' },
   { id: 'ts', label: 'TypeScript / JavaScript (tsserver)' },
 ]
 

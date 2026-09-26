@@ -270,12 +270,14 @@ const api = {
     },
   },
 
-  // LSP (按需拉起的语言服务器，仅提供函数跳转)
+  // LSP (按需拉起的语言服务器，提供函数跳转与引用查找)
   lsp: {
     setEnabled: (serverId: string, enabled: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.LSP_SET_ENABLED, serverId, enabled),
     definition: (args: import('../shared/types').LspDefinitionArgs) =>
       ipcRenderer.invoke(IPC_CHANNELS.LSP_DEFINITION, args) as Promise<import('../shared/types').LspDefinitionResult>,
+    references: (args: import('../shared/types').LspDefinitionArgs) =>
+      ipcRenderer.invoke(IPC_CHANNELS.LSP_REFERENCES, args) as Promise<import('../shared/types').LspReferencesResult>,
     status: () =>
       ipcRenderer.invoke(IPC_CHANNELS.LSP_STATUS) as Promise<import('../shared/types').LspStatus>,
     stop: (serverId?: string) => ipcRenderer.invoke(IPC_CHANNELS.LSP_STOP, serverId),

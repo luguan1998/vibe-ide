@@ -1198,9 +1198,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const statusBadgeBaseRef = useRef(0)
 
   useEffect(() => {
+    if (!showStatusBadge) return
     const area = statusBadgeAreaRef.current
     const badge = statusBadgeRef.current
     if (!area || !badge) return
+    statusBadgeBaseRef.current = 0
     const ro = new ResizeObserver(() => {
       const areaW = area.offsetWidth
       if (!statusBadgeBaseRef.current) statusBadgeBaseRef.current = badge.offsetWidth
@@ -1214,7 +1216,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     })
     ro.observe(area)
     return () => ro.disconnect()
-  }, [])
+  }, [showStatusBadge])
 
   const stats = useMemo(() => {
     const total = sessions.length

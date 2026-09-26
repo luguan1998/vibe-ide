@@ -175,6 +175,7 @@ declare global {
       lsp: {
         setEnabled: (serverId: string, enabled: boolean) => Promise<{ enabled: boolean; error?: string }>
         definition: (args: import('@shared/types').LspDefinitionArgs) => Promise<import('@shared/types').LspDefinitionResult>
+        references: (args: import('@shared/types').LspDefinitionArgs) => Promise<import('@shared/types').LspReferencesResult>
         status: () => Promise<import('@shared/types').LspStatus>
         stop: (serverId?: string) => Promise<{ ok: boolean }>
         setScopes: (cwds: string[]) => Promise<{ ok: boolean }>
@@ -352,9 +353,6 @@ function HistoryCopyButton({ cmd }: { cmd: string }) {
 function dispatchBtwReply(detail: { pending?: boolean; text?: string | null; error?: string }): void {
   window.dispatchEvent(new CustomEvent(BTW_REPLY_EVENT, { detail }))
 }
-
-// 左右栏收缩按钮共用的面板图标（左列实心、右侧列表线）
-const PANEL_ICON_PATH = 'M19,2H5C2.243,2,0,4.243,0,7v10c0,2.757,2.243,5,5,5h14c2.757,0,5-2.243,5-5V7c0-2.757-2.243-5-5-5ZM2,17V7c0-1.654,1.346-3,3-3H13V20H5c-1.654,0-3-1.346-3-3Zm20,0c0,1.654-1.346,3-3,3h-4V4h4c1.654,0,3,1.346,3,3v10Zm-2-6c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Zm0,4c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Zm0-8c0,.553-.448,1-1,1h-1c-.552,0-1-.447-1-1s.448-1,1-1h1c.552,0,1,.447,1,1Z'
 
 export default function App() {
   const { t } = useI18n()
@@ -3572,7 +3570,7 @@ export default function App() {
           onClick={handleOpenWebDebug}
           title={t('Web Debug')}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
             <circle cx="12" cy="12" r="10" />
             <line x1="2" y1="12" x2="22" y2="12" />
             <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
@@ -3584,8 +3582,12 @@ export default function App() {
           onClick={handleToggleRightPanel}
           title={rightPanelCollapsed ? t('Expand Panel') : t('Collapse Panel')}
         >
-          <svg viewBox="0 0 24 24" fill="currentColor" className="size-4">
-            <path d={PANEL_ICON_PATH} />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
+            <rect x="1.5" y="3.5" width="21" height="17" rx="4" />
+            <line x1="14" y1="4" x2="14" y2="20" />
+            <line x1="17.5" y1="7" x2="19.5" y2="7" />
+            <line x1="17.5" y1="11" x2="19.5" y2="11" />
+            <line x1="17.5" y1="15" x2="19.5" y2="15" />
           </svg>
         </button>
       </div>
