@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 
-const W = 480
-const H = 640
+const W = 400
+const H = 700
 const DURATION = 360
 const PLAYER_R = 13
 const MAX_LV = 4
@@ -1579,7 +1579,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
             </button>
           )}
           <img src={MAGE_SVG_URL} alt="" className="w-5 h-5" />
-          <span className="text-xs font-bold text-ide-text-muted tracking-wider">Vampire Survivors</span>
+          <span className="text-xs font-bold text-ide-text-muted tracking-wider">Survivors</span>
         </div>
         <div className="flex items-center gap-3 text-xs">
           <div className="text-center">

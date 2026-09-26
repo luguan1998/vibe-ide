@@ -38,7 +38,7 @@ const GAMES: GameCard[] = [
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
   { id: 'sandspiel', icon: <span className="text-2xl leading-none">🏖️</span>, name: 'Sandspiel', desc: 'Falling sand particle physics' },
   { id: '2048', icon: <span className="text-2xl leading-none">🧩</span>, name: '2048', desc: 'Slide tiles to merge them' },
-  { id: 'vampire', icon: <span className="text-2xl leading-none">🧛</span>, name: 'Vampire Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
+  { id: 'vampire', icon: <span className="text-2xl leading-none">🧛</span>, name: 'Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
 export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeHistory, onResumeDshHistory, onResumePiHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown, onOpenBrowser }: GameLauncherProps) {
