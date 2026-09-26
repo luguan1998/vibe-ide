@@ -715,7 +715,7 @@ const AppearancePanel = function AppearancePanel({
                 {onToggleLspLang && (
                   <>
                     <div className="flex items-center gap-2 mt-3 mb-1">
-                      <span className="text-xs font-semibold text-ide-text-muted uppercase tracking-wide">{t('Language Server')}</span>
+                      <span className="text-sm font-semibold text-ide-text-muted uppercase tracking-wide">{t('Language Server')}</span>
                       <div className="flex-1 border-t border-ide-border/60" />
                     </div>
                     <p className="text-[12px] text-ide-text-muted pb-1">

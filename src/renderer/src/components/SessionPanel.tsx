@@ -2563,7 +2563,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {/* CLI Configuration Modal — Shell Type + AI CLI Command */}
       {showCliConfigModal && createPortal(
         <ModalOverlay onClose={() => setShowCliConfigModal(false)}>
-          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[440px] h-[440px] max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="relative bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[440px] h-[440px] max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-9 py-3 border-b border-ide-border shrink-0">
               <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Bot className="size-3.5" />{t('CLI Configuration')}</span>
               <div className="flex items-center gap-1">
@@ -2769,7 +2769,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     })}
                   </div>
                 )}
-                {claudeApplyMsg && <div className="text-[10px] text-ide-success">{claudeApplyMsg}</div>}
               </div>
               </>)}
               {cliConfigTab === 'dsh' && (
@@ -2785,6 +2784,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 </div>
               )}
             </div>
+            {claudeApplyMsg && (
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-3 max-w-[90%] px-3 py-1.5 rounded-md bg-ide-hover border border-ide-border shadow-lg text-[11px] text-ide-success break-words">
+                {claudeApplyMsg}
+              </div>
+            )}
           </div>
         </ModalOverlay>
       , document.body)}
