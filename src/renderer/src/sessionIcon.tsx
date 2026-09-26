@@ -1,5 +1,5 @@
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { Loader2, Smile } from 'lucide-react'
+import { Smile } from 'lucide-react'
 import type { SessionTab } from './sessionRestore'
 import { ICON_NONE } from './sessionRestore'
 import { useI18n } from './i18n'
@@ -26,6 +26,13 @@ export function renderKindIcon(kind: SessionTab['kind'], aiBackend?: SessionTab[
 // emoji 存于 SessionTab.emoji（undefined=类型位 / ICON_NONE=空白 / 具体 emoji）
 // scheduled 由组件自订阅 schedStore，调用方无需传入
 export type SessionIconStatus = 'running' | 'idle' | 'warn'
+
+// 3x3 点阵外圈 8 点的灭灯相位（ms，负值错开相位；null = 中心点恒亮）
+const BUSY_DOT_DELAYS: (number | null)[] = [
+  -640, -560, -480,
+  -80, null, -400,
+  -160, -240, -320,
+]
 
 export interface SessionGlyphInfo {
   state: 'scheduled' | 'worktree' | 'running' | 'warn' | 'idle'
@@ -60,9 +67,22 @@ export function SessionGlyph({ session, status, worktreeNav, reveal, onClick, on
   const glyph = state === 'scheduled' ? '⏰'
     : state === 'worktree' ? '🌿'
     : state === 'running'
-      ? blankIcon
-        ? <Loader2 className="w-3.5 h-3.5 text-ide-accent animate-spin-slow shrink-0" />
-        : <span className="w-full h-full flex items-center justify-center animate-color-pulse">{idleGlyph}</span>
+      ? curEmoji
+        ? <span className="w-full h-full flex items-center justify-center animate-color-pulse">{curEmoji}</span>
+        : (
+          <svg className="shrink-0 text-ide-accent" width="14" height="14" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+            {BUSY_DOT_DELAYS.map((delay, i) => (
+              <circle
+                key={i}
+                className={delay === null ? undefined : 'session-busy-cell'}
+                cx={2 + (i % 3) * 4}
+                cy={2 + Math.floor(i / 3) * 4}
+                r={1.5}
+                style={delay === null ? undefined : { animationDelay: `${delay}ms` }}
+              />
+            ))}
+          </svg>
+        )
       : state === 'warn' ? '⚠️'
       : idleGlyph
   const title = state === 'scheduled' ? t('Scheduled Task')

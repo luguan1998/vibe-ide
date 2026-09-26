@@ -414,16 +414,6 @@ html, body, #root {
   animation: zapGlow 2s ease-in-out infinite;
 }
 
-@keyframes spinSlow {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.animate-spin-slow {
-  animation: spinSlow 1.6s linear infinite;
-}
-
 @keyframes colorPulse {
   0%, 100% {
     filter: drop-shadow(0 0 0 rgb(var(--ide-accent) / 0));
@@ -435,6 +425,20 @@ html, body, #root {
 
 .animate-color-pulse {
   animation: colorPulse 2s ease-in-out infinite;
+}
+
+/* session busy 态：3x3 圆点阵，外圈缺口顺时针转一圈（SVG 承载，子元素不提升合成层） */
+.session-busy-cell {
+  animation: sessionBusyChase 640ms linear infinite;
+}
+
+@keyframes sessionBusyChase {
+  0%, 24.99% {
+    opacity: 0;
+  }
+  25%, 100% {
+    opacity: 1;
+  }
 }
 
 /* cwd 像素 sprite 两帧循环：硬切帧 + 一像素跳，arcade 风格 */
