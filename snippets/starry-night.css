@@ -70,7 +70,7 @@ textarea {
 /* ════════════════════════════════════════════════════
    标题栏 — 夜空最暗层 + 金色星光线
    ════════════════════════════════════════════════════ */
-.titlebar-drag[class*="h-9"] {
+.titlebar-drag {
   border-bottom: 2px solid rgb(255 195 40 / 0.25) !important;
   background: linear-gradient(180deg, rgb(10 12 28), rgb(18 22 48)) !important;
 }
@@ -543,11 +543,11 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
    标题栏 — 月牙装饰（对应画作右上角新月）
    ════════════════════════════════════════════════════ */
 
-.titlebar-drag[class*="h-9"] {
+.titlebar-drag {
   position: relative !important;
   overflow: hidden !important;
 }
-.titlebar-drag[class*="h-9"]::after {
+.titlebar-drag::after {
   content: '' !important;
   position: absolute !important;
   top: 6px !important;

@@ -54,7 +54,7 @@
 }
 
 /* ── 标题栏 — 米白 + 极淡底边 ── */
-.titlebar-drag[class*="h-9"] {
+.titlebar-drag {
   background: rgb(var(--ide-bg)) !important;
   border-bottom: 1px solid var(--dsh-border) !important;
 }

@@ -73,7 +73,7 @@ html, body, #root {
 /* ════════════════════════════════════════════════════
    標題欄 — 深洋漸層 + 炭黑底邊
    ════════════════════════════════════════════════════ */
-.titlebar-drag[class*="h-9"] {
+.titlebar-drag {
   border-bottom: 2px solid rgb(32 27 24 / 0.5) !important;
   background: linear-gradient(180deg, rgb(20 50 65), rgb(31 94 107)) !important;
 }

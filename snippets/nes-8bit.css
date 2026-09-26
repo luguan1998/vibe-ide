@@ -65,10 +65,10 @@ html, body, #root {
    标题栏 — NES 蓝底
    不设 border / height，避免干扰 Windows 原生按钮
    ════════════════════════════════════════════════════ */
-.titlebar-drag[class*="h-9"] {
+.titlebar-drag {
   background: #209cee !important;
 }
-.titlebar-drag[class*="h-9"] * { color: #fff !important; }
+.titlebar-drag * { color: #fff !important; }
 
 
 /* ════════════════════════════════════════════════════

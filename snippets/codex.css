@@ -51,22 +51,37 @@ html,
 body,
 #root {
   background:
-    radial-gradient(1020px 640px at 14% -10%, rgba(88 122 255 / 0.10), transparent 62%),
+    radial-gradient(1020px 640px at 14% -10%, rgba(56 178 228 / 0.14), transparent 62%),
     radial-gradient(880px 560px at 9% 48%, rgba(255 138 92 / 0.07), transparent 60%),
     radial-gradient(240px 640px at 104% 50%, rgba(126 152 196 / 0.13), transparent 64%),
-    linear-gradient(178deg, #fcfcfd 0%, #f0f1f4 100%) !important;
+    linear-gradient(178deg, #fafdfe 0%, #f0f1f4 100%) !important;
   background-attachment: fixed !important;
 }
 #root > div {
   background-color: transparent !important;
 }
 
-/* ── 标题栏 — 实底 + 发丝底边（不参与毛玻璃）── */
-.titlebar-drag[class*="h-9"] {
-  background: rgb(var(--ide-sidebar)) !important;
+/* ── 标题栏 — 实底 + 发丝底边（不参与毛玻璃）；左青右粉，对齐 Codex 顶部实测（左 #EDF5F9 → 右 #F9EFF6）
+   background 末端那个颜色必须等于渐变的右端色：Electron 原生窗控区按 syncTitleBarOverlay 读到的
+   backgroundColor 上色，纯渐变会读成 transparent 而回退 --ide-sidebar，右侧窗控条留一条白缝。
+   渐变在 calc(100% - 240px) 处收成右端色并保持，正好压在窗控区之前，窗口宽度变化也不会露色差 ── */
+.titlebar-drag {
+  background: linear-gradient(90deg, #e6f2f9 0%, #e6f2f9 26%, #f9eff6 calc(100% - 240px)) #f9eff6 !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
-  border-bottom: 1px solid var(--cx-hairline-soft) !important;
+  border-bottom: none !important;
+}
+
+/* AiTab — 内容区浅灰底，只留头部与输入卡是白
+   灰必须挂根节点：输入区是 PANEL_MAX_W + mx-auto 的居中窄列，只刷它/刷消息容器
+   都会在左右留出白边；头部另刷白顶掉继承来的灰
+   也不能去掉头部 border-b 那条（应用自带）——会在标题栏下方再出一条发丝线 */
+.ai-tab {
+  background-color: rgb(247 247 250) !important;
+}
+.ai-tab__header {
+  border-bottom: none !important;
+  background-color: #fff !important;
 }
 
 /* ── 左侧会话面板 — ::before 玻璃底（面板自身不挂 blur，护住内部 fixed 菜单）── */
@@ -84,8 +99,7 @@ body,
   pointer-events: none;
 }
 .session-panel__list-wrapper,
-.session-panel__panel-wrapper,
-.session-panel__flat-list {
+.session-panel__panel-wrapper {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -175,20 +189,25 @@ body,
   background: radial-gradient(150% 170% at 50% -30%, rgb(var(--ide-warning) / 0.18), rgb(var(--ide-warning) / 0.05) 58%, transparent 80%) !important;
 }
 
-/* ── 中栏 — 透明画布 + 大圆角浮卡 ── */
+/* ── 中栏 — 白卡浮在青色画布上（对齐 Codex：卡内纯白，圆角外的缝透窗口青晕）
+   卡（.center-card/.center-overlay）铺不透明白 → 视图内部是干净的白；
+   画布（.focus-frame[bg-ide-bg]）保持透明 → 圆角外那圈缝跟侧栏同色（都吃窗口青晕），
+   Codex 的「白卡 + 青底」就还原了。右栏同为 .focus-frame 但不带该类，不受影响
+   画布不挂 backdrop-filter：会给内部 AiTab fixed 菜单建包含块；底是平滑色晕，虚化也无视觉差 ── */
 .focus-frame {
   background-color: transparent !important;
 }
-.focus-frame > div[class*="bg-ide-bg"] {
-  background: transparent !important;
+.focus-frame[class*="bg-ide-bg"] {
+  background-color: transparent !important;
 }
 .center-card,
 .center-overlay {
-  border-width: 1px !important;
-  border-style: solid !important;
-  border-color: var(--cx-hairline) !important;
+  border: none !important;
+  background-color: #fff !important;
   border-radius: 12px !important;
-  box-shadow: var(--cx-shadow-2) !important;
+  /* 不能用 --cx-shadow-2：那 30px 大模糊会在卡片与侧栏之间 4px 空隙里投出一条灰带（缝发脏）；
+     贴边浅影只留一点浮起感，不横向溢出 */
+  box-shadow: 0 1px 2px rgba(16 16 20 / 0.05) !important;
 }
 
 /* 终端 — 深色画布（亮 chrome + 深终端），头部玻璃条 */
@@ -216,9 +235,9 @@ body,
 .right-panel__content {
   position: relative !important;
   background: transparent !important;
-  border: 1px solid var(--cx-hairline) !important;
+  border: none !important;
   border-radius: 12px !important;
-  box-shadow: var(--cx-shadow-2) !important;
+  box-shadow: 0 1px 2px rgba(16 16 20 / 0.05) !important;
 }
 .right-panel__content::before {
   content: '';
@@ -334,22 +353,6 @@ body,
 }
 
 /* ── 菜单 / 弹窗 — 重玻璃 ── */
-.session-panel__settings-menu {
-  background: var(--cx-glass-strong) !important;
-  -webkit-backdrop-filter: var(--cx-blur) !important;
-  backdrop-filter: var(--cx-blur) !important;
-  border: 1px solid var(--cx-hairline) !important;
-  border-radius: 12px !important;
-  box-shadow: var(--cx-shadow-3) !important;
-}
-.session-panel__settings-menu button {
-  border-radius: 8px !important;
-  border: none !important;
-}
-.session-panel__settings-menu button:hover {
-  background: var(--cx-wash-strong) !important;
-  color: rgb(var(--ide-text)) !important;
-}
 /* 排除含 fixed 后代的菜单：backdrop-filter 会为 fixed 子菜单创建包含块（坐标错乱+溢出滚动条），此类菜单只用白底不用 blur */
 .fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"]:not(:has(.fixed)) {
   background: var(--cx-glass-strong) !important;

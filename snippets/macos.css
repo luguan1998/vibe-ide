@@ -29,7 +29,7 @@
 }
 
 /* 标题栏 — 统一工具栏，底部发丝线 */
-.titlebar-drag[class*="h-9"] {
+.titlebar-drag {
   background: rgb(var(--ide-bg)) !important;
   border-bottom: 1px solid rgba(0 0 0 / 0.08) !important;
 }
