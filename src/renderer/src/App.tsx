@@ -3553,27 +3553,32 @@ export default function App() {
           </button>
         </div>
         <div className="flex-1" />
+        {/* 右侧三个同左侧规格：17px 盒 + 各自 scale 归一墨量 */}
         <button
           className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${showSearchDropdown ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
           style={{ marginRight: 16 }}
           onClick={() => { setShowSearchDropdown(true); setSearchFocusTrigger(k => k + 1) }}
           title={t('Search')}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="17" y1="17" x2="22" y2="22" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-[17px]">
+            <g transform="translate(1.2 1.2) scale(0.9)">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="17" y1="17" x2="22" y2="22" />
+            </g>
           </svg>
         </button>
         <button
-          className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${browserDocked || centerView === 'browser' ? 'text-ide-text bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+          className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${browserDocked || centerView === 'browser' ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
           style={{ marginRight: 16 }}
           onClick={handleOpenWebDebug}
           title={t('Web Debug')}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="2" y1="12" x2="22" y2="12" />
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-[17px]">
+            <g transform="translate(1.8 1.8) scale(0.85)">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </g>
           </svg>
         </button>
         <button
@@ -3582,12 +3587,11 @@ export default function App() {
           onClick={handleToggleRightPanel}
           title={rightPanelCollapsed ? t('Expand Panel') : t('Collapse Panel')}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
-            <rect x="1.5" y="3.5" width="21" height="17" rx="4" />
-            <line x1="14" y1="4" x2="14" y2="20" />
-            <line x1="17.5" y1="7" x2="19.5" y2="7" />
-            <line x1="17.5" y1="11" x2="19.5" y2="11" />
-            <line x1="17.5" y1="15" x2="19.5" y2="15" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" className="size-[17px]">
+            <g transform="translate(0.96 0.96) scale(0.92)">
+              <rect x="2.75" y="4.5" width="18.5" height="15" rx="4" />
+              <line x1="14.25" y1="4.5" x2="14.25" y2="19.5" />
+            </g>
           </svg>
         </button>
       </div>
