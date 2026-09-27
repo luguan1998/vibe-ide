@@ -110,11 +110,24 @@ body,
   background: rgb(153 161 213) !important;
 }
 
-/* App 信息行 — Codex 风格不显示应用图标，标题文字替换为 Codex（样式全部继承原 span：font-size:0 只是藏掉原字符，伪元素还原字号，粗细/字距/颜色自动沿用）
-   左缘对齐下方会话图标 svg：行 px-3(12) + 11 = 23px = 会话行 pl-4(16)+gap-1.5(6)+图标盒居中 14px svg 的左缘 */
+/* App 信息行 — Codex 风格不显示应用图标，标题文字替换为 Codex（原 span 只留粗细/颜色：font-size:0 藏掉原字符，字号/字距/字体由伪元素接管）
+   字体：走 app 的 --ide-app-name-font（= Segoe UI 系，默认 Clown Code 标题同款）；
+         会话字体（默认 Consolas）的 C 是平切闭合口，不用它。var() 带兜底：老构建没有该 token 时仍生效
+   字距：清掉继承来的 tracking-wide，那是 Consolas 时代的补偿，几何字面不需要
+   对齐：C 视觉左缘对齐下方快捷行 svg 的视觉左缘（150% DPI 下截图实测）
+         → 行 px-3(12) + 4.7 + 'C' 字面留白 1（Segoe UI 18px/600 实测）= 17.7px = 26.5 物理px，
+           svg = 图标盒 16（mx-2 + pl-2）+ 画稿留白 1.7 = 17.7px；整数值会差 1 物理px，故带小数
+         注：标题栏图标列又在 svg 右侧 1 物理px（26.5 vs 27），是 app 自身三列不齐，此处只对 svg
+   垂直交给 line-height:1（18px 行盒在 h-10 里自动居中），不再用 top 偏移硬推
+         （实测原 top:4px 让字比行中线低 5~6px） */
 .app-info > span[class*="w-[22px]"] { display: none !important; }
-.app-info > span.truncate { font-size: 0 !important; margin-left: 8px; }
-.app-info > span.truncate::after { content: 'Codex'; font-size: 18px; position: relative; top: 4px; }
+.app-info > span.truncate { font-size: 0 !important; line-height: 1 !important; margin-left: 4.7px; }
+.app-info > span.truncate::after {
+  content: 'Codex';
+  font-size: 18px;
+  font-family: var(--ide-app-name-font, 'Segoe UI Variable Display', 'Segoe UI', Calibri, system-ui, sans-serif);
+  letter-spacing: normal;
+}
 
 /* 快捷行（New chat 类）— 平铺行，悬停灰 wash */
 .session-panel__quick-action {

@@ -745,7 +745,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [appVersion, setAppVersion] = useState('')
   useEffect(() => { window.api.appVersion().then(setAppVersion).catch(() => {}) }, [])
   const [showInfoMenu, setShowInfoMenu] = useState(false)
-  const [appName, setAppName] = useState('Clown Code')
+  const [appName, setAppName] = useState('ClownCode')
   const [editingAppName, setEditingAppName] = useState(false)
   useEffect(() => {
     if (!showInfoMenu) return
@@ -1489,9 +1489,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               if (e.key === 'Escape') setEditingAppName(false)
             }}
             className="bg-ide-bg border border-ide-accent rounded px-1 text-base font-semibold tracking-wide text-ide-text outline-none min-w-0"
+            style={{ fontFamily: 'var(--ide-app-name-font)' }}
           />
         ) : (
-          <span className="text-ide-text text-base font-semibold tracking-wide truncate">{appName}</span>
+          <span className="text-ide-text text-base font-semibold tracking-wide truncate" style={{ fontFamily: 'var(--ide-app-name-font)' }}>{appName}</span>
         )}
         <button
           className={`app-info-menu w-5 h-5 ml-1 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-all shrink-0 ${showInfoMenu ? 'opacity-100' : 'opacity-0 pointer-events-none group-hover/app-info:opacity-100 group-hover/app-info:pointer-events-auto'}`}

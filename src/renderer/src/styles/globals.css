@@ -24,6 +24,7 @@
   --focus-outline: 0 122 204;
   --monaco-margin-bg: 30 30 30;
   --dsh-sidebar-width: 280px;
+  --ide-app-name-font: 'Segoe UI Variable Display', 'Segoe UI', Calibri, system-ui, sans-serif;
 }
 
 .dsh-view .dsh-root__sidebar { flex: 0 0 var(--dsh-sidebar-width, 280px); min-width: 0; overflow: hidden; }
