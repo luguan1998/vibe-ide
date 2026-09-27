@@ -70,7 +70,7 @@ const ZH_MAP: Record<string, string> = {
   'Word Wrap': '自动换行',
   'Auto UTF-8': '自动切 UTF-8',
   'CodeGraph': '代码图谱',
-  'Code symbol indexing for smart search. Disable to free ~170MB main process memory.': '代码符号索引，用于智能搜索。关闭可释放主进程约 170MB 内存。',
+  'Code symbol indexing for smart search. Disable to stop the background indexer and file watcher.': '代码符号索引，用于智能搜索。关闭可停止后台索引进程与文件监听。',
   'Language Server': '语言服务器',
   'Precise go-to-definition. Nothing is loaded until you jump; the server is killed after 15 min idle.': '精确跳转定义。不跳转就不加载；空闲 15 分钟后自动回收。',
   'Server binary not found — install it first.': '未找到服务端程序，需先安装。',

@@ -709,7 +709,7 @@ const AppearancePanel = function AppearancePanel({
             {activeCategory === 'advanced' && (
               <div className="p-4 flex flex-col">
                 {onToggleCgEnabled && (
-                  <ToggleRow labelKey="CodeGraph" descKey="Code symbol indexing for smart search. Disable to free ~170MB main process memory."
+                  <ToggleRow labelKey="CodeGraph" descKey="Code symbol indexing for smart search. Disable to stop the background indexer and file watcher."
                     checked={cgEnabled} onChange={onToggleCgEnabled} zone="global" />
                 )}
                 {onToggleLspLang && (
