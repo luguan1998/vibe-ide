@@ -1608,6 +1608,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           userTurns={state.userTurns}
           viewMode={viewMode}
           busy={state.busy}
+          pendingPermission={!!state.pendingPermission}
           workspacePath={workspacePath}
           onOpenFile={onOpenFile}
           onRevert={handleRevert}

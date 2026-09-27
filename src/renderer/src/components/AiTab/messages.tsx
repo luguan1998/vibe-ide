@@ -101,7 +101,7 @@ function resultCarriesMeta(m: AiMessage): boolean {
   return m.costUsd != null || m.numTurns != null || m.isAborted === true || m.durationMs != null
 }
 
-function isTurnEndAssistant(messages: AiMessage[], i: number): boolean {
+function isTurnEndAssistant(messages: AiMessage[], i: number, turnOngoing = false): boolean {
   if (i < 0) return false
   const m = messages[i]
   if (!m || m.type !== 'assistant' || m.parentToolUseId) return false
@@ -113,7 +113,9 @@ function isTurnEndAssistant(messages: AiMessage[], i: number): boolean {
     // tool_result 回填仍是本回合（回合未完，meta 尚不该出）；真实用户输入才是回合分界
     if (next.type === 'user') return isRealUserInput(messages, j)
   }
-  return true
+  // 走到尾说明后面只剩子代理消息（或什么都没有）：回合是否已结束只能由 busy/权限态判定，
+  // 否则：子代理还在跑、main result 未到时会提前出 meta 行；等权限批准时同理
+  return !turnOngoing
 }
 
 export function findMessageIndexForUserMessage(messages: AiMessage[], userMessageIndex: number): number {
@@ -253,28 +255,31 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
   // 1) 段只存字符偏移，DOM 里只渲染最近 TAIL_LOW~TAIL_MAX 字符的滑动窗口。旧实现把全部已收文本
   //    常驻一个 <pre>，每次 flush 触发整块文本重排 + cleanMessageContent 全文 6 趟正则 → O(n²)。
   //    窗口化后 layout/paint/正则面积恒定。
-  // 2) live 标记在段的创建时刻固化（不再按下标推断）：动画播完前摘掉 class 会让旧段中途硬跳到不透明。
+  // 2) 段的淡入时长在创建时刻固化（不再按下标推断）：动画播完前摘掉 class 会让旧段中途硬跳到不透明。
   // 3) 淡入时长按段长自适应：flush 节流固定 200ms，段长即正比于模型速度。快模型一段几百字若仍按
   //    600ms 淡入，尾部会长期停在雾里（读到的是 0.1~0.7 的文字）；段越大时长压得越短。
+  //    压到 SEG_DUR_MIN（200ms，一次 flush）及以下就不淡入（dur=0）：淡入不比下一次落字更晚结束时，
+  //    逐段淡入连成持续闪烁——这种速率直接落字反而省眼
   const TAIL_MAX = 6000
   const TAIL_LOW = 4000
   const SEG_KEEP = 24
   const SEG_REF = 24
-  const SEG_DUR_MIN = 120
+  const SEG_DUR_MIN = 200
   const SEG_DUR_MAX = 600
-  const segStreamRef = useRef<{ last: string; win: number; seq: number; segs: { id: number; start: number; end: number; live: boolean; dur: number }[] }>(
+  const segStreamRef = useRef<{ last: string; win: number; seq: number; segs: { id: number; start: number; end: number; dur: number }[] }>(
     { last: '', win: 0, seq: 0, segs: [] })
-  let segView: { cut: boolean; segs: { id: number; text: string; live: boolean; dur: number }[] } | null = null
+  let segView: { cut: boolean; segs: { id: number; text: string; dur: number }[] } | null = null
   if (smoothStream) {
     const st = segStreamRef.current
     const clean = stripCommandTags(text)
     if (!st.segs.length || !clean.startsWith(st.last)) {
-      st.segs = clean ? [{ id: st.seq++, start: 0, end: clean.length, live: false, dur: 0 }] : []
+      st.segs = clean ? [{ id: st.seq++, start: 0, end: clean.length, dur: 0 }] : []
       st.win = 0
     } else if (clean.length > st.last.length) {
       const len = clean.length - st.last.length
-      st.segs.push({ id: st.seq++, start: st.last.length, end: clean.length, live: true,
-        dur: Math.min(SEG_DUR_MAX, Math.max(SEG_DUR_MIN, Math.round((SEG_REF * SEG_DUR_MAX) / len))) })
+      const rawDur = Math.round((SEG_REF * SEG_DUR_MAX) / len)
+      st.segs.push({ id: st.seq++, start: st.last.length, end: clean.length,
+        dur: rawDur <= SEG_DUR_MIN ? 0 : Math.min(SEG_DUR_MAX, rawDur) })
     }
     st.last = clean
     if (clean.length - st.win > TAIL_MAX) st.win = clean.length - TAIL_LOW
@@ -283,11 +288,11 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
       const drop = st.segs.length - SEG_KEEP + 1
       // 最旧 drop 段并成一条，且沿用首段 id → React 复用同一 DOM 节点，只改文本不重挂载，
       // 已播完的淡入不会被重新触发
-      st.segs.splice(0, drop, { id: st.segs[0].id, start: st.segs[0].start, end: st.segs[drop - 1].end, live: st.segs[0].live, dur: st.segs[0].dur })
+      st.segs.splice(0, drop, { id: st.segs[0].id, start: st.segs[0].start, end: st.segs[drop - 1].end, dur: st.segs[0].dur })
     }
     segView = {
       cut: st.win > 0,
-      segs: st.segs.map((s) => ({ id: s.id, text: clean.slice(s.start > st.win ? s.start : st.win, s.end), live: s.live, dur: s.dur })),
+      segs: st.segs.map((s) => ({ id: s.id, text: clean.slice(s.start > st.win ? s.start : st.win, s.end), dur: s.dur })),
     }
   }
 
@@ -343,8 +348,8 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
               <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">
                 {segView.cut && <span className="text-ide-text-muted/40 select-none">…</span>}
                 {segView.segs.map((s) => (
-                  <span key={s.id} className={s.live ? 'ai-tab__think-seg' : undefined}
-                    style={s.live ? { animationDuration: `${s.dur}ms` } : undefined}>{s.text}</span>
+                  <span key={s.id} className={s.dur > 0 ? 'ai-tab__think-seg' : undefined}
+                    style={s.dur > 0 ? { animationDuration: `${s.dur}ms` } : undefined}>{s.text}</span>
                 ))}
               </pre>
             ) : (
@@ -445,6 +450,7 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
                 onOpenFile={onOpenFile}
                 userMessageIndex={-1}
                 isBusy={false}
+                turnOngoing={false}
                 onRevert={() => {}}
                 onRevertAndCode={() => {}}
                 onFork={() => {}}
@@ -623,12 +629,13 @@ export function TodoListPanel({ items }: { items: TodoItem[] }) {
   )
 }
 
-const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, isLatestAssistant, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal, allowHistory = true }: {
+const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, turnOngoing, isLatestAssistant, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal, allowHistory = true }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   userMessageIndex: number
   isBusy: boolean
+  turnOngoing: boolean
   isLatestAssistant?: boolean
   onRevert: (idx: number) => void
   onRevertAndCode: (idx: number) => void
@@ -646,10 +653,13 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   if (message.type === 'result' && message.numTurns != null) {
     for (let j = msgIndex - 1; j >= 0; j--) {
       const prev = allMessages[j]
+      // 子代理消息（live 由 sidecar 转发、history 由 inlineSubagents 插入）与工具回填（live 的 tool_result）
+      // 都夹在 main result 与主回复之间，属本回合内部噪音：不跳过会复制到子代理正文、或提前 break 丢掉复制按钮
+      if (prev.parentToolUseId || prev.toolResult) continue
       if (prev.type === 'assistant' && prev.content) { copyText = prev.content; break }
       if (prev.type !== 'assistant') break
     }
-  } else if (!isLive && isTurnEndAssistant(allMessages, msgIndex)) {
+  } else if (!isLive && isTurnEndAssistant(allMessages, msgIndex, turnOngoing)) {
     // 复制只依赖消息正文，任何后端都能用（allowHistory 只管 fork/revert）
     copyText = message.content || undefined
   }
@@ -674,7 +684,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
     // main 端会保留整个回合）。历史会话无 result，由回合末条 assistant 代承
     let forkIdx = -1
     if (allowHistory && ((message.type === 'result' && !message.parentToolUseId)
-      || (!isLive && isTurnEndAssistant(allMessages, msgIndex)))) {
+      || (!isLive && isTurnEndAssistant(allMessages, msgIndex, turnOngoing)))) {
       let count = 0
       for (let j = 0; j < msgIndex; j++) {
         if (isRealUserInput(allMessages, j)) count++
@@ -689,11 +699,12 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
 
 // memo：thinking 每次 flush 只换 thinkingBuffer（messages/busy/回调引用不变）→
 // 跳过整表分组重算与 N 个 bubble 的 element 创建，5 次/秒的 O(N) 工作归零
-export const MessageList = React.memo(function MessageList({ messages, userTurns, viewMode, busy, workspacePath, onOpenFile, onRevert, onRevertAndCode, onFork, allowHistory = true }: {
+export const MessageList = React.memo(function MessageList({ messages, userTurns, viewMode, busy, pendingPermission, workspacePath, onOpenFile, onRevert, onRevertAndCode, onFork, allowHistory = true }: {
   messages: AiMessage[]
   userTurns: UserTurn[]
   viewMode: number
   busy: boolean
+  pendingPermission: boolean
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
   onRevert: (idx: number) => void
@@ -701,6 +712,8 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
   onFork: (idx: number) => void
   allowHistory?: boolean
 }) {
+  // busy 不等于回合进行中（等权限批准时 aiStore.onPermission 会把 busy 置回 false），两者合一才是"回合未完"
+  const turnOngoing = busy || pendingPermission
   const userMessages = messages.filter((m, i) => isRealUserInput(messages, i))
   const groups: Array<
     | { type: 'agent'; messages: AiMessage[]; parentId: string; startIndex: number }
@@ -787,6 +800,7 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
         onOpenFile={onOpenFile}
         userMessageIndex={uIdx}
         isBusy={busy}
+        turnOngoing={turnOngoing}
         isLatestAssistant={item.index === lastAssistantIdx}
         onRevert={onRevert}
         onRevertAndCode={onRevertAndCode}
