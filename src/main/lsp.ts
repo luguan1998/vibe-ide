@@ -1,11 +1,12 @@
 import { ipcMain, app } from 'electron'
 import { spawn, execSync, type ChildProcess } from 'child_process'
 import { existsSync, writeFileSync } from 'fs'
-import { dirname, join } from 'path'
+import { basename, dirname, join } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import { readFileWithEncoding } from './file'
 import {
   IPC_CHANNELS, LSP_SERVERS, LSP_LANG_TO_SERVER,
+  type LspCallNode, type LspCallRelationArgs, type LspCallResult,
   type LspCreateDbArgs, type LspCreateDbResult,
   type LspDefinitionArgs, type LspDefinitionResult, type LspLocation, type LspStatus
 } from '../shared/types'
@@ -409,6 +410,47 @@ class LspClient {
     }, REFERENCES_TIMEOUT_MS))
   }
 
+  // 调用图三件套：prepare 定位到光标处的可调用符号，再按方向拉一层关系
+  async prepareCalls(fullPath: string, langId: string, text: string, line: number, column: number): Promise<any[]> {
+    const { uri, isNew } = this.openDoc(fullPath, langId, text)
+    await this.awaitProjectLoad(isNew)
+    const items = await this.request('textDocument/prepareCallHierarchy', {
+      textDocument: { uri },
+      position: { line: line - 1, character: column - 1 },
+    })
+    return Array.isArray(items) ? items : []
+  }
+
+  // 入边 = 调用者，出边 = 被调用者；协议统一包成 { from } / { to }
+  async callRelations(dir: 'incoming' | 'outgoing', item: any): Promise<any[]> {
+    const method = dir === 'incoming' ? 'callHierarchy/incomingCalls' : 'callHierarchy/outgoingCalls'
+    const res = await this.request(method, { item }, REFERENCES_TIMEOUT_MS)
+    if (!Array.isArray(res)) return []
+    return res.map((r: any) => (dir === 'incoming' ? r?.from : r?.to)).filter(Boolean)
+  }
+
+  // 引用兜底：JSX 用法不进 callHierarchy，只能靠 references 找使用处（位置粒度，不含符号名）。
+  // 丢掉声明处自身 —— 它与 item 的 selectionRange 同位置
+  async refUsages(item: any): Promise<LspLocation[]> {
+    const res = await this.request('textDocument/references', {
+      textDocument: { uri: item.uri },
+      position: item.selectionRange.start,
+      context: { includeDeclaration: true },
+    }, REFERENCES_TIMEOUT_MS)
+    if (!Array.isArray(res)) return []
+    const selfLine = item.selectionRange.start.line
+    const selfChar = item.selectionRange.start.character
+    const out: LspLocation[] = []
+    for (const loc of res) {
+      if (!loc?.uri || !loc.range?.start) continue
+      if (normPath(loc.uri) === normPath(item.uri) && loc.range.start.line === selfLine && loc.range.start.character === selfChar) continue
+      let p: string
+      try { p = fileURLToPath(loc.uri) } catch { continue }
+      out.push({ path: normalizeDrive(p), line: loc.range.start.line + 1, column: loc.range.start.character + 1 })
+    }
+    return out
+  }
+
   stop(): void {
     if (this.idle) { clearTimeout(this.idle); this.idle = null }
     this.dead = true
@@ -433,11 +475,62 @@ const retiring = new Map<string, { client: LspClient; rootKey: string }>()
 const enabledServers = new Set<string>()
 let activeScopes = new Set<string>()
 
+// LSP 的 CallHierarchyItem 里 data 是不透明字段，展开下一层时必须原样回传。
+// 渲染层只拿 node id，原始 item 留在主进程（见 LspCallNode 注释）
+const callItems = new Map<string, { serverId: string; rootKey: string; item: any }>()
+
+// SymbolKind 数字 → 调用图既有的 kind 词表（kindIconPaths / getKindColorHex 认的那套）
+const SYMBOL_KINDS: Record<number, string> = {
+  1: 'file', 2: 'module', 3: 'module', 4: 'module',
+  5: 'class', 6: 'method', 7: 'variable', 8: 'variable', 9: 'method',
+  10: 'enum', 11: 'interface', 12: 'function', 13: 'variable', 14: 'constant',
+  22: 'constant', 23: 'class', 25: 'function', 26: 'type',
+}
+
+const isUnderRoot = (p: string, rootKey: string) => {
+  const n = normPath(p)
+  return n === rootKey || n.startsWith(rootKey + '/')
+}
+
+// onlyInRoot：调用关系只保留工程内的目标。出边否则会被内置方法灌满（split/replace 全指到
+// node_modules/typescript/lib/*.d.ts），C/C++ 是系统头文件、Python 是 site-packages，同理。
+// 焦点节点本身不滤 —— 用户可能就想看某个库函数的调用关系
+function toCallNodes(serverId: string, rootKey: string, items: any[], onlyInRoot = false): LspCallNode[] {
+  const out: LspCallNode[] = []
+  for (const item of items) {
+    if (!item?.uri || !item.range?.start) continue
+    let p: string
+    try { p = fileURLToPath(item.uri) } catch { continue }
+    const sel = item.selectionRange ?? item.range
+    const fullPath = normalizeDrive(p)
+    if (onlyInRoot && !isUnderRoot(fullPath, rootKey)) continue
+    // id 由符号自身位置派生：同一符号被多次查到（入边/出边/再展开）都落回同一个节点
+    const id = `${normPath(fullPath)}:${sel.start.line}:${sel.start.character}`
+    callItems.set(id, { serverId, rootKey, item })
+    out.push({
+      id,
+      name: item.name || '(anonymous)',
+      kind: SYMBOL_KINDS[item.kind] ?? 'function',
+      filePath: fullPath,
+      line: sel.start.line + 1,
+      column: sel.start.character + 1,
+      detail: item.detail || undefined,
+    })
+  }
+  return out
+}
+
+// 实例被回收后其 item 不再可用，顺手清掉避免 id 无限堆积
+function forgetCallItems(serverId: string): void {
+  for (const [id, rec] of callItems) if (rec.serverId === serverId) callItems.delete(id)
+}
+
 function stopClient(serverId: string): void {
   const c = clients.get(serverId)
   if (!c) return
   c.stop()
   clients.delete(serverId)
+  forgetCallItems(serverId)
 }
 
 function dropRetiring(serverId: string): void {
@@ -445,6 +538,7 @@ function dropRetiring(serverId: string): void {
   if (!r) return
   r.client.stop()
   retiring.delete(serverId)
+  forgetCallItems(serverId)
 }
 
 // active 降级为 retiring：每个 server 至多留一个
@@ -475,14 +569,8 @@ function releaseOutOfScope(): void {
   }
 }
 
-async function handleLspRequest(kind: 'definition' | 'references', args: LspDefinitionArgs): Promise<LspDefinitionResult> {
-  const serverId = LSP_LANG_TO_SERVER[args?.langId]
-  if (!serverId || !enabledServers.has(serverId)) return { state: 'unavailable', locations: [] }
-  if (!args.fullPath || !args.line || !args.column) return { state: 'unavailable', locations: [] }
-  const def = SERVER_DEFS[serverId]
-  if (!def || !resolveServer(serverId)) return { state: 'unavailable', locations: [] }
-
-  const root = findRoot(args.fullPath, def.rootMarkers, args.root)
+// 取（必要时拉起）对应 serverId + 工程根的实例，等它就绪。definition/references/callHierarchy 共用
+async function acquireClient(serverId: string, def: ServerDef, root: string): Promise<{ client: LspClient } | { state: 'warming' }> {
   const rootKey = normPath(root)
 
   let client = clients.get(serverId)
@@ -510,12 +598,35 @@ async function handleLspRequest(kind: 'definition' | 'references', args: LspDefi
     })
     // 挂起等就绪，别让用户白点一次；超时保留实例继续初始化，下次跳转可能就赶上了
     await Promise.race([started, sleep(QUEUE_WAIT_MS)])
-    if (!fresh.ready) return { state: 'warming', locations: [] }
-    client = fresh
-  } else if (!client.ready) {
-    await Promise.race([client.readyPromise, sleep(QUEUE_WAIT_MS)])
-    if (!client.ready) return { state: 'warming', locations: [] }
+    if (!fresh.ready) return { state: 'warming' }
+    return { client: fresh }
   }
+  if (!client.ready) {
+    await Promise.race([client.readyPromise, sleep(QUEUE_WAIT_MS)])
+    if (!client.ready) return { state: 'warming' }
+  }
+  return { client }
+}
+
+// 三处共用的前置校验：语言是否映射到服务器、服务器是否启用且可解析
+function resolveTarget(langId: string): { serverId: string; def: ServerDef } | null {
+  const serverId = LSP_LANG_TO_SERVER[langId]
+  if (!serverId || !enabledServers.has(serverId)) return null
+  const def = SERVER_DEFS[serverId]
+  if (!def || !resolveServer(serverId)) return null
+  return { serverId, def }
+}
+
+async function handleLspRequest(kind: 'definition' | 'references', args: LspDefinitionArgs): Promise<LspDefinitionResult> {
+  const target = resolveTarget(args?.langId)
+  if (!target) return { state: 'unavailable', locations: [] }
+  if (!args.fullPath || !args.line || !args.column) return { state: 'unavailable', locations: [] }
+  const { serverId, def } = target
+
+  const root = findRoot(args.fullPath, def.rootMarkers, args.root)
+  const acq = await acquireClient(serverId, def, root)
+  if ('state' in acq) return { state: acq.state, locations: [] }
+  const { client } = acq
 
   try {
     const locations = kind === 'references'
@@ -535,6 +646,66 @@ async function handleLspRequest(kind: 'definition' | 'references', args: LspDefi
   }
 }
 
+// 调用图入口：光标处的符号 → 图上的焦点节点
+async function handleCallPrepare(args: LspDefinitionArgs): Promise<LspCallResult> {
+  const target = resolveTarget(args?.langId)
+  if (!target) return { state: 'unavailable', nodes: [] }
+  if (!args.fullPath || !args.line || !args.column) return { state: 'unavailable', nodes: [] }
+  const { serverId, def } = target
+
+  const root = findRoot(args.fullPath, def.rootMarkers, args.root)
+  const acq = await acquireClient(serverId, def, root)
+  if ('state' in acq) return { state: acq.state, nodes: [] }
+
+  try {
+    const items = await acq.client.prepareCalls(args.fullPath, args.langId, args.text ?? '', args.line, args.column)
+    const nodes = toCallNodes(serverId, normPath(root), items)
+    dropRetiring(serverId)
+    return nodes.length ? { state: 'ok', nodes } : { state: 'empty', nodes: [] }
+  } catch {
+    return { state: 'warming', nodes: [] }
+  }
+}
+
+// 引用兜底最多铺这么多节点，避免被引用几百次的符号把图撑爆
+const REFS_NODE_MAX = 40
+
+// 展开一层。实例被换掉（切工程/空闲回收）时 item 已失效，报 warming 让用户重开
+async function handleCallRelations(dir: 'incoming' | 'outgoing', args: LspCallRelationArgs): Promise<LspCallResult> {
+  const rec = args?.nodeId ? callItems.get(args.nodeId) : undefined
+  if (!rec) return { state: 'empty', nodes: [] }
+  const client = clients.get(rec.serverId)
+  if (!client?.alive || !client.ready || normPath(client.root) !== rec.rootKey) return { state: 'warming', nodes: [] }
+  try {
+    const items = await client.callRelations(dir, rec.item)
+    const nodes = toCallNodes(rec.serverId, rec.rootKey, items, true)
+    if (nodes.length || dir !== 'incoming') return { state: 'ok', nodes }
+
+    // 入边为空 ≠ 没人用：组件以 JSX 使用时不产生调用边。回退成「使用处」，节点名取该行源码。
+    // 只对 JSX 文件做 —— 其他情况「没人调」就是真的没人调，多跑一次全工程 references 白费
+    if (!/\.(tsx|jsx)$/i.test(rec.item.uri)) return { state: 'ok', nodes: [] }
+    const locs = (await client.refUsages(rec.item))
+      .filter(l => isUnderRoot(l.path, rec.rootKey))
+      .slice(0, REFS_NODE_MAX)
+    if (!locs.length) return { state: 'ok', nodes: [] }
+    await attachLineTexts(locs)
+    return {
+      state: 'ok',
+      via: 'refs',
+      nodes: locs.map(l => ({
+        id: `${normPath(l.path)}:${l.line - 1}:${l.column - 1}`,
+        name: l.text || basename(l.path),
+        kind: 'ref',
+        filePath: l.path,
+        line: l.line,
+        column: l.column,
+      })),
+    }
+  } catch {
+    return { state: 'warming', nodes: [] }
+  }
+}
+
 export function registerLspHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.LSP_SET_ENABLED, (_event, serverId: string, on: boolean) => {
     if (typeof serverId !== 'string' || !SERVER_DEFS[serverId]) return { error: 'unknown server' }
@@ -546,6 +717,12 @@ export function registerLspHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.LSP_DEFINITION, (_event, args: LspDefinitionArgs) => handleLspRequest('definition', args))
 
   ipcMain.handle(IPC_CHANNELS.LSP_REFERENCES, (_event, args: LspDefinitionArgs) => handleLspRequest('references', args))
+
+  ipcMain.handle(IPC_CHANNELS.LSP_CALL_PREPARE, (_event, args: LspDefinitionArgs) => handleCallPrepare(args))
+
+  ipcMain.handle(IPC_CHANNELS.LSP_CALL_INCOMING, (_event, args: LspCallRelationArgs) => handleCallRelations('incoming', args))
+
+  ipcMain.handle(IPC_CHANNELS.LSP_CALL_OUTGOING, (_event, args: LspCallRelationArgs) => handleCallRelations('outgoing', args))
 
   // clangd 没编译数据库时的补救：写一行 -I<工程根> 到工程根的 compile_flags.txt
   ipcMain.handle(IPC_CHANNELS.LSP_CREATE_COMPILE_DB, async (_event, args: LspCreateDbArgs): Promise<LspCreateDbResult> => {
@@ -597,4 +774,5 @@ export function cleanupLsp(): void {
   for (const id of [...retiring.keys()]) dropRetiring(id)
   clients.clear()
   retiring.clear()
+  callItems.clear()
 }

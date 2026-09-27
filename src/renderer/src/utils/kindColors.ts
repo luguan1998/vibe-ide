@@ -26,5 +26,7 @@ const KIND_COLORS_HEX: Record<string, string> = {
   class: '#60a5fa', interface: '#4ade80',
   variable: '#c084fc', constant: '#fb923c',
   type: '#2dd4bf', component: '#f472b6',
+  // 引用兜底出来的「使用处」节点（不是符号，只是一个位置）
+  ref: '#94a3b8',
 }
 export function getKindColorHex(kind: string): string { return KIND_COLORS_HEX[kind] || '#888' }

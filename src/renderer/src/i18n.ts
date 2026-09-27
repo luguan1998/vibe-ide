@@ -463,7 +463,13 @@ const ZH_MAP: Record<string, string> = {
 
   // DiffViewer
   'Force Open': '强行打开',
-  'Open Call Graph': '查看调用图',
+  'Open Call Graph by CodeGraph': '查看调用图 by CodeGraph',
+  'Call Hierarchy': '调用层级',
+  'by {name}': '来自 {name}',
+  'Right-drag to pan · Scroll to zoom · Click a node to open it': '右键拖动平移 · 滚轮缩放 · 单击节点打开',
+  'No calls found for this symbol': '该符号没有调用关系',
+  'Components used as JSX produce no call edges — showing reference sites instead': '组件以 JSX 使用时不产生调用关系，这里改列引用位置（使用处）',
+  'No callers or callees in the index': '索引里没有调用者或被调用者',
   'Go to Definition': '转到定义',
   'Find All References': '查找所有引用',
   'References': '引用',

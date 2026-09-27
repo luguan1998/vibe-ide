@@ -123,6 +123,9 @@ export const IPC_CHANNELS = {
   LSP_STOP: 'lsp:stop',
   LSP_SET_SCOPES: 'lsp:setScopes',
   LSP_CREATE_COMPILE_DB: 'lsp:createCompileDb',
+  LSP_CALL_PREPARE: 'lsp:callPrepare',
+  LSP_CALL_INCOMING: 'lsp:callIncoming',
+  LSP_CALL_OUTGOING: 'lsp:callOutgoing',
 
   // Perf
   PERF_SNAPSHOT: 'perf:snapshot',
@@ -259,11 +262,40 @@ export interface LspDefinitionArgs {
   column: number        // 1-based
 }
 
-// 可用的语言服务器清单：主进程注册表与设置面板共用，避免两处各写一份
-export const LSP_SERVERS: { id: string; label: string; installHint?: string }[] = [
-  { id: 'python', label: 'Python (Pyright)' },
-  { id: 'c', label: 'C / C++ (clangd)', installHint: 'clangd not found — run in terminal: winget install LLVM.LLVM' },
-  { id: 'ts', label: 'TypeScript / JavaScript (tsserver)' },
+// 调用图的节点。id 由服务器给出的符号位置派生（同一符号在多次查询间复用同一 id），
+// 主进程另存 LSP 原始 item（含 data 字段）—— 渲染层只当不透明句柄回传
+export interface LspCallNode {
+  id: string
+  name: string
+  kind: string        // 已从 LSP SymbolKind 数字归一为 function/method/class/... 文案
+  filePath: string    // 绝对本地路径
+  line: number        // 1-based
+  column: number      // 1-based
+  detail?: string     // 容器名（类/模块），浮层里当上下文
+}
+
+// 与跳转同形：ok / warming 之外多一个 empty（服务器答了但该位置不是可调用符号）
+export type LspCallState = 'ok' | 'warming' | 'unavailable' | 'empty'
+
+export interface LspCallResult {
+  state: LspCallState
+  nodes: LspCallNode[]
+  // incoming 侧的回退来源：tsserver 不把 JSX 用法算作调用，组件只能靠引用找使用处。
+  // 这类节点的 name 是所在行源码，且不可再展开
+  via?: 'calls' | 'refs'
+}
+
+// 展开一层调用关系只需节点 id：LSP 原始 item 留在主进程
+export interface LspCallRelationArgs {
+  nodeId: string
+}
+
+// 可用的语言服务器清单：主进程注册表与设置面板共用，避免两处各写一份。
+// short 是浮层徽标上的引擎名（"by LSP · tsserver"）
+export const LSP_SERVERS: { id: string; label: string; short: string; installHint?: string }[] = [
+  { id: 'python', label: 'Python (Pyright)', short: 'pyright' },
+  { id: 'c', label: 'C / C++ (clangd)', short: 'clangd', installHint: 'clangd not found — run in terminal: winget install LLVM.LLVM' },
+  { id: 'ts', label: 'TypeScript / JavaScript (tsserver)', short: 'tsserver' },
 ]
 
 // Monaco 语言 id → 服务器 id（clangd 同时服务 c 与 cpp，tsserver 同时服务 ts 与 js）；主进程与渲染层共用

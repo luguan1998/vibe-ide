@@ -278,6 +278,12 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.LSP_DEFINITION, args) as Promise<import('../shared/types').LspDefinitionResult>,
     references: (args: import('../shared/types').LspDefinitionArgs) =>
       ipcRenderer.invoke(IPC_CHANNELS.LSP_REFERENCES, args) as Promise<import('../shared/types').LspReferencesResult>,
+    callPrepare: (args: import('../shared/types').LspDefinitionArgs) =>
+      ipcRenderer.invoke(IPC_CHANNELS.LSP_CALL_PREPARE, args) as Promise<import('../shared/types').LspCallResult>,
+    callIncoming: (args: import('../shared/types').LspCallRelationArgs) =>
+      ipcRenderer.invoke(IPC_CHANNELS.LSP_CALL_INCOMING, args) as Promise<import('../shared/types').LspCallResult>,
+    callOutgoing: (args: import('../shared/types').LspCallRelationArgs) =>
+      ipcRenderer.invoke(IPC_CHANNELS.LSP_CALL_OUTGOING, args) as Promise<import('../shared/types').LspCallResult>,
     status: () =>
       ipcRenderer.invoke(IPC_CHANNELS.LSP_STATUS) as Promise<import('../shared/types').LspStatus>,
     stop: (serverId?: string) => ipcRenderer.invoke(IPC_CHANNELS.LSP_STOP, serverId),

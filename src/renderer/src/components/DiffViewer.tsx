@@ -204,6 +204,17 @@ function attachDefHint(
   }
 }
 
+// 调用图请求：codegraph 走 word（索引里按名查符号），LSP 走 position（语言服务器只看光标处）
+export interface CallGraphRequest {
+  word: string
+  fullPath: string
+  line: number
+  column: number
+  text: string
+  langId: string
+  root: string
+}
+
 interface DiffViewerProps {
   filePath: string          // 相对路径（用于 git 操作）
   fullPath: string          // 完整路径（用于 file read/write）
@@ -222,7 +233,8 @@ interface DiffViewerProps {
   diffSplitRatio?: number   // 左右分栏占比（0.1~0.9，分隔线位置=左边占比）
   cursorRef?: React.MutableRefObject<{ fullPath: string; line: number; column: number } | null>
   visibleLineRef?: React.MutableRefObject<{ fullPath: string; line: number } | null>  // 视口中间可见行（居中还原用），供最近文件回写行号
-  onOpenCallGraph?: (word: string) => void     // 右键菜单 → 打开 call graph
+  onOpenCallGraph?: (req: CallGraphRequest) => void          // 右键菜单 → 调用图（CodeGraph 索引）
+  onOpenCallHierarchy?: (req: CallGraphRequest) => void       // 右键菜单 → 调用层级（LSP 实时）
   onViewLineHistory?: (fullPath: string, lineNumber: number, rev?: string, staged?: boolean) => void  // 右键菜单 → 查看这行修改记录
   jumpCwd?: string                              // 跳转：LSP 根目录（会话 cwd）
   lspLangs?: string[]                          // 已启用的语言服务器 id（App 侧 localStorage 状态）
@@ -370,7 +382,7 @@ type JumpRow =
   | { kind: 'group'; key: string; label: string; count: number }
   | { kind: 'item'; item: JumpItem }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange, onUnreadableChange }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onOpenCallHierarchy, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange, onUnreadableChange }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -465,6 +477,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
         diffEditorRef.current?.getModifiedEditor()?._callGraphActionDisposable?.dispose?.()
       } catch {}
       try {
+        diffEditorRef.current?.getModifiedEditor()?._callHierarchyActionDisposable?.dispose?.()
+      } catch {}
+      try {
         diffEditorRef.current?.getModifiedEditor()?._lineHistoryActionDisposable?.dispose?.()
       } catch {}
       try {
@@ -472,6 +487,9 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       } catch {}
       try {
         editEditorRef.current?._callGraphActionDisposable?.dispose?.()
+      } catch {}
+      try {
+        editEditorRef.current?._callHierarchyActionDisposable?.dispose?.()
       } catch {}
       try {
         editEditorRef.current?._lineHistoryActionDisposable?.dispose?.()
@@ -729,6 +747,8 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   handleSaveRef.current = handleSave
   const onOpenCallGraphRef = useRef(onOpenCallGraph)
   onOpenCallGraphRef.current = onOpenCallGraph
+  const onOpenCallHierarchyRef = useRef(onOpenCallHierarchy)
+  onOpenCallHierarchyRef.current = onOpenCallHierarchy
   const onViewLineHistoryRef = useRef(onViewLineHistory)
   onViewLineHistoryRef.current = onViewLineHistory
 
@@ -791,6 +811,27 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const lspMultiDefRef = useRef(lspMultiDef); lspMultiDefRef.current = lspMultiDef
   const fullPathRef = useRef(fullPath); fullPathRef.current = fullPath
   const modifiedContentRef = useRef(modifiedContent); modifiedContentRef.current = modifiedContent
+
+  // 两个调用图菜单项共用的入参：选中文本优先（用户可能框选了名字），否则取光标处的词
+  const buildCallGraphRequest = (ed: any): CallGraphRequest | null => {
+    const target = fullPathRef.current
+    const pos = ed?.getPosition()
+    let word: string | undefined
+    const sel = ed?.getSelection()
+    if (sel && !sel.isEmpty()) word = ed.getModel()?.getValueInRange(sel)
+    if (!word) word = pos ? ed.getModel()?.getWordAtPosition(pos)?.word : undefined
+    if (!word || !pos) return null
+    return {
+      word,
+      fullPath: target,
+      line: pos.lineNumber,
+      column: pos.column,
+      text: modifiedContentRef.current ?? '',
+      langId: getLanguageFromFile(target),
+      root: jumpCwdRef.current ?? '',
+    }
+  }
+
   const [jumpCandidates, setJumpCandidates] = useState<{ word: string; items: JumpItem[]; x: number; y: number; warming?: boolean; noDb?: boolean; line?: number; column?: number; kind?: 'refs'; total?: number; files?: number } | null>(null)
   const jumpCandidatesRef = useRef(jumpCandidates); jumpCandidatesRef.current = jumpCandidates
   const [jumpSel, setJumpSel] = useState(0)
@@ -1493,21 +1534,22 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
               })
               ;(modifiedEditor as any)._callGraphActionDisposable = modifiedEditor.addAction({
                 id: 'open-call-graph',
-                label: t('Open Call Graph'),
+                label: t('Open Call Graph by CodeGraph'),
                 contextMenuGroupId: 'navigation',
                 contextMenuOrder: 1.5,
                 run: (ed: any) => {
-                  let word: string | undefined
-                  const sel = ed.getSelection()
-                  if (sel && !sel.isEmpty()) {
-                    word = ed.getModel()?.getValueInRange(sel)
-                  } else {
-                    const pos = ed.getPosition()
-                    if (pos) word = ed.getModel()?.getWordAtPosition(pos)?.word
-                  }
-                  if (word && onOpenCallGraphRef.current) {
-                    onOpenCallGraphRef.current(word)
-                  }
+                  const req = buildCallGraphRequest(ed)
+                  if (req) onOpenCallGraphRef.current?.(req)
+                }
+              })
+              ;(modifiedEditor as any)._callHierarchyActionDisposable = modifiedEditor.addAction({
+                id: 'open-call-hierarchy',
+                label: t('Call Hierarchy'),
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.48,
+                run: (ed: any) => {
+                  const req = buildCallGraphRequest(ed)
+                  if (req) onOpenCallHierarchyRef.current?.(req)
                 }
               })
               ;(modifiedEditor as any)._lineHistoryActionDisposable = modifiedEditor.addAction({
@@ -1707,21 +1749,22 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
               })
               ;(editor as any)._callGraphActionDisposable = editor.addAction({
                 id: 'open-call-graph',
-                label: t('Open Call Graph'),
+                label: t('Open Call Graph by CodeGraph'),
                 contextMenuGroupId: 'navigation',
                 contextMenuOrder: 1.5,
                 run: (ed: any) => {
-                  let word: string | undefined
-                  const sel = ed.getSelection()
-                  if (sel && !sel.isEmpty()) {
-                    word = ed.getModel()?.getValueInRange(sel)
-                  } else {
-                    const pos = ed.getPosition()
-                    if (pos) word = ed.getModel()?.getWordAtPosition(pos)?.word
-                  }
-                  if (word && onOpenCallGraphRef.current) {
-                    onOpenCallGraphRef.current(word)
-                  }
+                  const req = buildCallGraphRequest(ed)
+                  if (req) onOpenCallGraphRef.current?.(req)
+                }
+              })
+              ;(editor as any)._callHierarchyActionDisposable = editor.addAction({
+                id: 'open-call-hierarchy',
+                label: t('Call Hierarchy'),
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.48,
+                run: (ed: any) => {
+                  const req = buildCallGraphRequest(ed)
+                  if (req) onOpenCallHierarchyRef.current?.(req)
                 }
               })
               ;(editor as any)._lineHistoryActionDisposable = editor.addAction({

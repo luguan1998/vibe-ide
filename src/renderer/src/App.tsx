@@ -10,7 +10,7 @@ import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel
 import RightPanel from './components/RightPanel'
 import GitTab from './components/GitTab'
 import FileTab from './components/FileTab'
-import DiffViewer from './components/DiffViewer'
+import DiffViewer, { type CallGraphRequest } from './components/DiffViewer'
 import { FileTabsView } from './components/FileTabsView'
 import { useFileTabs } from './utils/useFileTabs'
 import { FileTab as FileTabState, DiffFileTab, baseName, makeTabId, autoViewKind } from './fileTabs'
@@ -32,7 +32,7 @@ import { aiStore, readAiCliConfig, queuePendingSend } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, toRelPath } from './components/vibeEvents'
-import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode, LSP_SERVERS } from '@shared/types'
+import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode, LSP_SERVERS, LSP_LANG_TO_SERVER } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
 import { cwdStore, useKeptGroups, mergeGroupOrder } from './cwdStore'
@@ -176,6 +176,9 @@ declare global {
         setEnabled: (serverId: string, enabled: boolean) => Promise<{ enabled: boolean; error?: string }>
         definition: (args: import('@shared/types').LspDefinitionArgs) => Promise<import('@shared/types').LspDefinitionResult>
         references: (args: import('@shared/types').LspDefinitionArgs) => Promise<import('@shared/types').LspReferencesResult>
+        callPrepare: (args: import('@shared/types').LspDefinitionArgs) => Promise<import('@shared/types').LspCallResult>
+        callIncoming: (args: import('@shared/types').LspCallRelationArgs) => Promise<import('@shared/types').LspCallResult>
+        callOutgoing: (args: import('@shared/types').LspCallRelationArgs) => Promise<import('@shared/types').LspCallResult>
         status: () => Promise<import('@shared/types').LspStatus>
         stop: (serverId?: string) => Promise<{ ok: boolean }>
         setScopes: (cwds: string[]) => Promise<{ ok: boolean }>
@@ -551,16 +554,9 @@ export default function App() {
   }, [initialWorkspace])
 
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
-  const [callGraphFocalNode, setCallGraphFocalNode] = useState<any>(null)
+  // source 决定浮层数据源与左上角徽标（by CodeGraph / by LSP · tsserver）
+  const [callGraphFocalNode, setCallGraphFocalNode] = useState<{ node: any; source: 'codegraph' | 'lsp'; serverLabel?: string } | null>(null)
   const callGraphFocalNodeRef = useRef<any>(null); callGraphFocalNodeRef.current = callGraphFocalNode
-  const handleOpenCallGraphFromEditor = useCallback(async (word: string) => {
-    try {
-      const r = await window.api.code.searchNodes(word, { limit: 10, kinds: ['function', 'method', 'constructor'] })
-      if (r.error || !r.nodes.length) return
-      const exact = r.nodes.find(n => n.name === word)
-      setCallGraphFocalNode(exact || r.nodes[0])
-    } catch {}
-  }, [])
   const handleViewLineHistory = useCallback((filePath: string, lineNumber: number, rev?: string, staged?: boolean) => {
     setLineHistoryPayload({ filePath, lineNumber, rev, staged })
   }, [])
@@ -789,10 +785,13 @@ export default function App() {
     try { return localStorage.getItem('vibe-ide-cg-enabled') !== '0' } catch { return true }
   })
   const [lspLangs, setLspLangs] = useState<string[]>(() => {
+    const all = LSP_SERVERS.map(s => s.id)
     try {
-      const arr = JSON.parse(localStorage.getItem('vibe-ide-lsp-langs') || '[]')
-      return Array.isArray(arr) ? arr.filter((v: any) => typeof v === 'string') : []
-    } catch { return [] }
+      const raw = localStorage.getItem('vibe-ide-lsp-langs')
+      if (!raw) return all
+      const arr = JSON.parse(raw)
+      return Array.isArray(arr) ? arr.filter((v: any) => typeof v === 'string') : all
+    } catch { return all }
   })
   // 对齐 VS Code 的 editor.gotoLocation.multipleDefinitions：多结果时列出来选，还是直接跳第一个
   const [lspMultiDef, setLspMultiDef] = useState<string>(() => {
@@ -1098,6 +1097,39 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem('vibe-ide-lsp-multi-def', lspMultiDef) } catch {}
   }, [lspMultiDef])
+
+  const openCodeGraphAt = useCallback(async (word: string) => {
+    try {
+      const r = await window.api.code.searchNodes(word, { limit: 10, kinds: ['function', 'method', 'constructor'] })
+      if (r.error || !r.nodes.length) return false
+      const exact = r.nodes.find(n => n.name === word)
+      setCallGraphFocalNode({ node: exact || r.nodes[0], source: 'codegraph' })
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
+  const handleOpenCallGraphFromEditor = useCallback((req: CallGraphRequest) => {
+    void openCodeGraphAt(req.word)
+  }, [openCodeGraphAt])
+
+  // 优先语言服务器（精确、零索引）；该语言没启用服务器、或该位置不是可调用符号时回落后台索引 ——
+  // 菜单项在任何语言下都得有反应，左上角徽标会如实标出结果来自谁
+  const handleOpenCallHierarchy = useCallback(async (req: CallGraphRequest) => {
+    const serverId = LSP_LANG_TO_SERVER[req.langId]
+    if (serverId && lspLangs.includes(serverId) && req.root) {
+      try {
+        const r = await window.api.lsp.callPrepare(req)
+        if (r?.state === 'ok' && r.nodes.length) {
+          const short = LSP_SERVERS.find(s => s.id === serverId)?.short ?? serverId
+          setCallGraphFocalNode({ node: r.nodes[0], source: 'lsp', serverLabel: short })
+          return
+        }
+      } catch {}
+    }
+    await openCodeGraphAt(req.word)
+  }, [openCodeGraphAt, lspLangs])
   // 会话增删时同步活跃 cwd 集合，主进程据此释放已关闭会话的 LSP 实例（切走不关的会话仍保留）
   const sessionCwds = useMemo(
     () => [...new Set(sessions.map(s => s.cwd).filter((c): c is string => !!c))],
@@ -3410,6 +3442,7 @@ export default function App() {
           cursorRef={cursorRef}
           visibleLineRef={visibleLineRef}
           onOpenCallGraph={handleOpenCallGraphFromEditor}
+          onOpenCallHierarchy={handleOpenCallHierarchy}
           onViewLineHistory={handleViewLineHistory}
           jumpCwd={activeSessionCwd ?? undefined}
           lspLangs={lspLangs}
@@ -3724,7 +3757,7 @@ export default function App() {
                     isActive={leftPanelView === 'dir'}
                     pauseWhenHidden
                     brushActive={brushActive}
-                    onExploreNode={(node: any) => setCallGraphFocalNode(node)}
+                    onExploreNode={(node: any) => setCallGraphFocalNode({ node, source: 'codegraph' })}
                   />
                 </div>
               </>
@@ -3957,7 +3990,7 @@ export default function App() {
             clearAuxBufferTrigger={clearAuxBufferTrigger}
             navigateToFilePayload={navigateToFilePayload}
             onNavigateToFile={handleNavigateToFile}
-            onExploreNode={(node: any) => setCallGraphFocalNode(node)}
+            onExploreNode={(node: any) => setCallGraphFocalNode({ node, source: 'codegraph' })}
             lineHistoryPayload={lineHistoryPayload}
             sessionWorktreeNav={sessionWorktreeNav}
             sessionSubmoduleNav={sessionSubmoduleNav}
@@ -4220,15 +4253,17 @@ export default function App() {
               handleOpenSearchResult(fullPath, lineNumber)
             }}
             focusTrigger={searchFocusTrigger}
-            onExploreNode={(node: any) => setCallGraphFocalNode(node)}
+            onExploreNode={(node: any) => setCallGraphFocalNode({ node, source: 'codegraph' })}
           />
         </div>
       </ModalOverlay>
 
-      {/* Call Graph Overlay — rendered at App level to stay on top */}
+      {/* Call Graph — rendered at App level to stay on top */}
       {callGraphFocalNode && (
         <CallGraphOverlay
-          focalNode={callGraphFocalNode}
+          focalNode={callGraphFocalNode.node}
+          source={callGraphFocalNode.source}
+          serverLabel={callGraphFocalNode.serverLabel}
           onClose={() => setCallGraphFocalNode(null)}
           onJumpToFile={(filePath, line) => {
             handleOpenFileFromSearch(resolveAbsPath(filePath, activeSessionCwd ?? undefined), line)
@@ -4241,7 +4276,7 @@ export default function App() {
         <CodeGraphSearch
           workspacePath={activeSessionCwd}
           onClose={closeCodeSearch}
-          onSelectNode={(node) => setCallGraphFocalNode(node)}
+          onSelectNode={(node) => setCallGraphFocalNode({ node, source: 'codegraph' })}
           onJumpTo={(node) => {
             handleOpenFileFromSearch(resolveAbsPath(node.filePath, activeSessionCwd ?? undefined), node.line)
           }}
