@@ -75,6 +75,16 @@
   transform: none !important;
 }
 
+/* 标题栏按钮（外观/CLI/过滤/搜索/网页/面板开关）保持原生圆角图标态，不套硬阴影与位移
+   ╚ 两个 :not 同上方理由只为对齐规则 47 特异性；:hover/:active 各 +1 级压规则 53/58 */
+#root .titlebar-drag button:not(.dsh-view *):not(.session-panel__quick-action),
+#root .titlebar-drag button:not(.dsh-view *):not(.session-panel__quick-action):hover,
+#root .titlebar-drag button:not(.dsh-view *):not(.session-panel__quick-action):active {
+  border: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
 /* ════════════════════════════════════════════════════
    右侧 tab — rtm tab-style-btn（激活 = 按下状态）
    ════════════════════════════════════════════════════ */

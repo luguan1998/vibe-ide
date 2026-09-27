@@ -207,7 +207,10 @@ html, body, #root {
   position: absolute !important;
   left: 100% !important;
   top: 50% !important;
-  transform: translateY(-50%) !important;
+  /* 居中禁用 transform：本 div 内的 + 号菜单是 position:fixed，祖先一旦有 transform 就成为它的包含块，
+     视口坐标的 left/top 全错位，且被 .session-panel__list 的 overflow 裁掉 → 弹窗彻底不显示。
+     改用 margin 上提 10px（= h-5 图标 20px 的一半） */
+  margin-top: -10px !important;
   opacity: 0 !important;
   pointer-events: none !important;
   transition: opacity 0.12s ease !important;
