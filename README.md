@@ -99,7 +99,7 @@ Vibe IDE’s center area has three core usage modes — **Terminal**, **Claude G
 - **Custom CSS import (Snippets)** — drop any `.css` into `snippets/` and it's auto-discovered; toggle on/off from Settings → Snippets to **reshape the whole UI without touching source**:
   - Override theme color variables (`--ide-accent`, etc., needs `!important`)
   - Terminal background image / animations / font size / scrollbar styling
-  - 11 bundled snippets: starry-night, dont-starve, macos, nes-8bit, nyan-cat, Bloodborne, …
+  - 11 bundled snippets: starry-night, dont-starve, macos, nes-8bit, nyan-cat, diablo, …
 
 ### 🎮 Extras
 - **Session History** — browse/search Claude Code sessions (TUI/GUI) and dsh sessions; resume or delete from one place

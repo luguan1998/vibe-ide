@@ -99,7 +99,7 @@ Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**
 - **自定义 CSS 导入（Snippets）** — 把任意 `.css` 丢进 `snippets/` 即自动识别，在 设置 → Snippets 一键启用/禁用，**无需改源码即可重塑整个界面**：
   - 覆盖主题色变量（`--ide-accent` 等，需 `!important`）
   - 终端背景图 / 动画 / 字号 / 滚动条样式
-  - 随包附带 11 款片段：starry-night、dont-starve、macos、nes-8bit、nyan-cat、Bloodborne 等
+  - 随包附带 11 款片段：starry-night、dont-starve、macos、nes-8bit、nyan-cat、diablo 等
 
 ### 🎮 更多
 - **会话历史（Session History）** — 统一浏览/搜索 Claude Code（TUI/GUI）与 dsh 历史会话，支持恢复和删除
