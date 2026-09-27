@@ -18,7 +18,7 @@ if (!PIPE || !TOKEN) {
 const TOOLS = [
   {
     name: 'screenshot',
-    description: 'Take a screenshot of a display. Returns a base64 PNG image plus a snapshot_id and display info. display: "primary" (default), a target display_id from the "all displays" list in the text, or "all" for reconnaissance (one image per display; the returned snapshot is NOT usable for actions — call screenshot(display: <id>) for the display you want to operate on first). Coordinates in the image are physical pixels of that display; click/type/scroll coordinates map 1:1. All action tools MUST carry the latest snapshot_id (a stale snapshot_id is rejected).',
+    description: 'Take a screenshot of a display. Returns a base64 PNG image plus a snapshot_id and display info. display: "primary" (default), a target display_id from the "all displays" list in the text, or "all" for reconnaissance (one image per display; the returned snapshot is NOT usable for actions — call screenshot(display: <id>) for the display you want to operate on first). click/scroll coordinates are NORMALIZED 0..1 over the returned image — (0,0) is its top-left corner, (1,1) its bottom-right. Never pass pixel values; the image may be resized in transit, so only fractions are stable. All action tools MUST carry the latest snapshot_id (a stale snapshot_id is rejected).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -29,17 +29,17 @@ const TOOLS = [
   },
   {
     name: 'cursor_position',
-    description: 'Get the current mouse cursor position in global physical pixels, the display it is on (display_id, is_primary, scale_factor), the position relative to that display (matching screenshot coordinates), and the current snapshot_id.',
+    description: 'Get the current mouse cursor position: absolute physical pixels (x, y), the display it is on (display_id, is_primary, scale_factor), the same position normalized 0..1 over that display (compare this with what you see in a screenshot), and the current snapshot_id.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false }
   },
   {
     name: 'click',
-    description: 'Click at (x, y) in the pixel coordinates of the most recent single-display screenshot. button: left/right/middle. count: 1/2/3 (2 = double click).',
+    description: 'Click at normalized (x, y) over the most recent single-display screenshot: 0..1, (0,0) = its top-left corner, (1,1) = its bottom-right. Estimate the position as a fraction of the image ("the button sits ~62% across, ~44% down"), never as pixels. button: left/right/middle. count: 1/2/3 (2 = double click).',
     inputSchema: {
       type: 'object',
       properties: {
-        x: { type: 'integer', description: 'x in the most recent single-display screenshot pixels' },
-        y: { type: 'integer', description: 'y in the most recent single-display screenshot pixels' },
+        x: { type: 'number', minimum: 0, maximum: 1, description: 'fraction of image width, 0..1 (0 = left edge, 1 = right edge)' },
+        y: { type: 'number', minimum: 0, maximum: 1, description: 'fraction of image height, 0..1 (0 = top edge, 1 = bottom edge)' },
         button: { type: 'string', enum: ['left', 'right', 'middle'], default: 'left' },
         count: { type: 'integer', enum: [1, 2, 3], default: 1 },
         snapshot_id: { type: 'string', description: 'latest snapshot_id from screenshot()' }
@@ -76,12 +76,12 @@ const TOOLS = [
   },
   {
     name: 'scroll',
-    description: 'Scroll at (x, y) by dx, dy ticks (positive dy = scroll down). x/y are pixel coordinates of the most recent single-display screenshot.',
+    description: 'Scroll at normalized (x, y) by dx, dy ticks (positive dy = scroll down). x/y are fractions 0..1 of the most recent single-display screenshot, never pixels.',
     inputSchema: {
       type: 'object',
       properties: {
-        x: { type: 'integer' },
-        y: { type: 'integer' },
+        x: { type: 'number', minimum: 0, maximum: 1, description: 'fraction of image width, 0..1' },
+        y: { type: 'number', minimum: 0, maximum: 1, description: 'fraction of image height, 0..1' },
         dx: { type: 'integer' },
         dy: { type: 'integer' },
         snapshot_id: { type: 'string' }

@@ -8,7 +8,7 @@ import { execFile } from 'child_process'
 const ADD_TYPE_PS = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class VibeU{[DllImport("user32.dll")]public static extern bool SetCursorPos(int x,int y);[DllImport("user32.dll")]public static extern void mouse_event(uint f,uint dx,uint dy,int d,IntPtr e);[DllImport("user32.dll")]public static extern void keybd_event(byte b,byte s,uint f,IntPtr e);[DllImport("user32.dll")]public static extern bool GetCursorPos(ref POINT p);[DllImport("user32.dll")]public static extern bool SetProcessDpiAwarenessContext(IntPtr value);public struct POINT{public int X;public int Y;}}' -Language CSharp`
 
 // powershell 5.1 默认 DPI-unaware，SetCursorPos/GetCursorPos 会使用虚拟化坐标；
-// 前置 per-monitor v2 让坐标直接使用原始物理像素，与截图像素空间 1:1
+// 前置 per-monitor v2 让坐标直接使用原始物理像素(normToPhysical 已换算到物理空间)
 function dpiPreamble(): string {
   return `[VibeU]::SetProcessDpiAwarenessContext(([IntPtr](-4)))\n`
 }
@@ -47,8 +47,6 @@ interface SessionState {
   mcpConfigPath: string
   snapshotId: number
   snapshotDisplayId: number | null
-  snapshotScaleX: number
-  snapshotScaleY: number
   client: Socket | null
   clientBuf: string
 }
@@ -110,7 +108,7 @@ function displaySummary(d: Electron.Display): string {
   const o = physicalOriginOf(d)
   const r = displayPhysicalRect(d)
   const isPrimary = d.id === screen.getPrimaryDisplay().id
-  return `display_id=${displayIdOf(d)}; is_primary=${isPrimary}; scale_factor=${d.scaleFactor}; pixels=${r.w}x${r.h}; dip=${d.size.width}x${d.size.height}; origin=${o.x},${o.y}; rotation=${d.rotation}`
+  return `display_id=${displayIdOf(d)}; is_primary=${isPrimary}; scale_factor=${d.scaleFactor}; physical=${r.w}x${r.h}; dip=${d.size.width}x${d.size.height}; origin=${o.x},${o.y}; rotation=${d.rotation}`
 }
 
 function resolveDisplay(displayArg: string | undefined): Electron.Display {
@@ -146,9 +144,23 @@ function displayForSnapshot(session: SessionState): Electron.Display {
   return d
 }
 
-function mapToGlobal(session: SessionState, display: Electron.Display, x: number, y: number): { x: number; y: number } {
+// 坐标契约：click/scroll 收归一化 0..1(相对整幅截图)，客户端把图缩到多少都不影响命中
+function normToPhysical(display: Electron.Display, nx: unknown, ny: unknown): { x: number; y: number } {
+  const x = Number(nx)
+  const y = Number(ny)
+  if (!(x >= 0 && x <= 1) || !(y >= 0 && y <= 1)) {
+    throw new Error(`x/y must be normalized 0..1 over the screenshot image (got x=${nx}, y=${ny}); pixel values are rejected`)
+  }
   const o = physicalOriginOf(display)
-  return { x: o.x + Math.round(x * session.snapshotScaleX), y: o.y + Math.round(y * session.snapshotScaleY) }
+  const r = displayPhysicalRect(display)
+  return { x: o.x + Math.round(x * (r.w - 1)), y: o.y + Math.round(y * (r.h - 1)) }
+}
+
+function physicalToNorm(display: Electron.Display, x: number, y: number): { x: number; y: number } {
+  const o = physicalOriginOf(display)
+  const r = displayPhysicalRect(display)
+  const round4 = (v: number) => Math.round(v * 1e4) / 1e4
+  return { x: round4((x - o.x) / (r.w - 1)), y: round4((y - o.y) / (r.h - 1)) }
 }
 
 function assertSnapshot(session: SessionState, id: string): void {
@@ -158,7 +170,7 @@ function assertSnapshot(session: SessionState, id: string): void {
   if (session.snapshotDisplayId === null) throw new Error('snapshot is reconnaissance-only (all displays); call screenshot(display: <id>) for the target display first')
 }
 
-async function captureDisplay(display: Electron.Display): Promise<{ image: any; info: string; scaleX: number; scaleY: number } | null> {
+async function captureDisplay(display: Electron.Display): Promise<{ image: any; info: string } | null> {
   const sf = display.scaleFactor
   const physW = Math.round(display.size.width * sf)
   const physH = Math.round(display.size.height * sf)
@@ -175,14 +187,12 @@ async function captureDisplay(display: Electron.Display): Promise<{ image: any; 
   }
   if (!source || source.thumbnail.isEmpty()) return null
   const img = source.thumbnail
-  const size = img.getSize()
   const o = physicalOriginOf(display)
-  const info = `display_id=${displayIdOf(display)}; name=${source.name}; is_primary=${display.id === screen.getPrimaryDisplay().id}; scale_factor=${display.scaleFactor}; pixels=${size.width}x${size.height}; dip=${display.size.width}x${display.size.height}; origin=${o.x},${o.y}; rotation=${display.rotation}`
+  const r = displayPhysicalRect(display)
+  const info = `display_id=${displayIdOf(display)}; name=${source.name}; is_primary=${display.id === screen.getPrimaryDisplay().id}; scale_factor=${display.scaleFactor}; physical=${r.w}x${r.h}; dip=${display.size.width}x${display.size.height}; origin=${o.x},${o.y}; rotation=${display.rotation}`
   return {
     image: { type: 'image', data: img.toPNG().toString('base64'), mimeType: 'image/png' },
     info,
-    scaleX: physW > 0 ? size.width / physW : 1,
-    scaleY: physH > 0 ? size.height / physH : 1,
   }
 }
 
@@ -213,14 +223,12 @@ async function takeScreenshot(session: SessionState, args: any): Promise<ToolRes
   }
   session.snapshotId++
   session.snapshotDisplayId = display.id
-  session.snapshotScaleX = shot.scaleX
-  session.snapshotScaleY = shot.scaleY
   const sid = snapshotIdOf(session)
   const all = screen.getAllDisplays()
   return {
     content: [
       shot.image,
-      { type: 'text', text: `snapshot_id=${sid}; ${shot.info}\n\nall displays:\n` + all.map(displaySummary).join('\n') },
+      { type: 'text', text: `snapshot_id=${sid}; ${shot.info}\nclick/scroll take normalized 0..1 over this image (0,0 = top-left, 1,1 = bottom-right)\n\nall displays:\n` + all.map(displaySummary).join('\n') },
     ],
     isError: false,
   }
@@ -268,14 +276,14 @@ async function handleClientCall(session: SessionState, name: string, args: any):
     case 'cursor_position': {
       const { x, y } = await cursorPosition()
       const display = displayAt(x, y)
-      const rel = display ? { x: x - physicalOriginOf(display).x, y: y - physicalOriginOf(display).y } : null
-      return { content: [{ type: 'text', text: JSON.stringify({ x, y, display_id: display ? displayIdOf(display) : null, is_primary: display ? display.id === screen.getPrimaryDisplay().id : null, scale_factor: display?.scaleFactor ?? null, relative: rel, snapshot_id: snapshotIdOf(session) }) }], isError: false }
+      const normalized = display ? physicalToNorm(display, x, y) : null
+      return { content: [{ type: 'text', text: JSON.stringify({ x, y, display_id: display ? displayIdOf(display) : null, is_primary: display ? display.id === screen.getPrimaryDisplay().id : null, scale_factor: display?.scaleFactor ?? null, normalized, snapshot_id: snapshotIdOf(session) }) }], isError: false }
     }
     case 'click':
       assertSnapshot(session, args?.snapshot_id)
-      { const g = mapToGlobal(session, displayForSnapshot(session), args.x, args.y)
+      { const g = normToPhysical(displayForSnapshot(session), args.x, args.y)
         await sendClick(g.x, g.y, args.button || 'left', args.count || 1)
-        return { content: [{ type: 'text', text: `clicked ${args.button || 'left'} at (${args.x},${args.y})` }], isError: false } }
+        return { content: [{ type: 'text', text: `clicked ${args.button || 'left'} at normalized (${args.x},${args.y})` }], isError: false } }
     case 'type_text':
       assertSnapshot(session, args?.snapshot_id)
       await sendTypeText(args.text)
@@ -286,9 +294,9 @@ async function handleClientCall(session: SessionState, name: string, args: any):
       return { content: [{ type: 'text', text: `pressed ${args.keys}` }], isError: false }
     case 'scroll':
       assertSnapshot(session, args?.snapshot_id)
-      { const g = mapToGlobal(session, displayForSnapshot(session), args.x, args.y)
+      { const g = normToPhysical(displayForSnapshot(session), args.x, args.y)
         await sendScroll(g.x, g.y, args.dx, args.dy)
-        return { content: [{ type: 'text', text: `scrolled dx=${args.dx} dy=${args.dy}` }], isError: false } }
+        return { content: [{ type: 'text', text: `scrolled dx=${args.dx} dy=${args.dy} at normalized (${args.x},${args.y})` }], isError: false } }
     default:
       return { content: [{ type: 'text', text: `unknown tool: ${name}` }], isError: true }
   }
@@ -322,8 +330,6 @@ export function startForSession(sessionId: string): { pipeName: string; token: s
     mcpConfigPath,
     snapshotId: 0,
     snapshotDisplayId: null,
-    snapshotScaleX: 1,
-    snapshotScaleY: 1,
     client: null,
     clientBuf: '',
   }
