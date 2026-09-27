@@ -2,5 +2,16 @@
   "id": "deepseek",
   "displayName": "deepseek",
   "description": "基于 DeepSeek 娘化三视图的蓝发鲸尾 Q 版女仆动态宠物.",
-  "spritesheetPath": "spritesheet.webp"
+  "spritesheetPath": "spritesheet.webp",
+  "states": {
+    "idle": { "row": 0, "frames": 6, "loop": true },
+    "running-right": { "row": 1, "frames": 6, "loop": true },
+    "running-left": { "row": 2, "frames": 6, "loop": true },
+    "waving": { "row": 3, "frames": 4, "loop": true },
+    "jumping": { "row": 4, "frames": 4, "loop": true },
+    "failed": { "row": 5, "frames": 6, "loop": true },
+    "waiting": { "row": 6, "frames": 6, "loop": true },
+    "running": { "row": 7, "frames": 6, "loop": true },
+    "review": { "row": 8, "frames": 5, "loop": true }
+  }
 }
