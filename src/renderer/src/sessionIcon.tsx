@@ -70,7 +70,7 @@ export function SessionGlyph({ session, status, worktreeNav, reveal, onClick, on
       ? curEmoji
         ? <span className="w-full h-full flex items-center justify-center animate-color-pulse">{curEmoji}</span>
         : (
-          <svg className="shrink-0 text-ide-accent" width="14" height="14" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+          <svg className="shrink-0 text-ide-accent" width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
             {BUSY_DOT_DELAYS.map((delay, i) => (
               <circle
                 key={i}
