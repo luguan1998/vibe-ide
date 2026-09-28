@@ -3,6 +3,7 @@ import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffec
 import type { ReactNode } from 'react'
 import { getDshApi } from './dsh/history'
 import { loadSessionWorkspace, saveSessionWorkspace, resolveDefaultIcon, defaultSessionName, sessionGroupKey, type Session, type SessionTab } from './sessionRestore'
+import { hasSchedTask } from './schedStore'
 import type { SessionMode } from './components/DirectoryPicker'
 const DshView = lazy(() => import('./components/DshView'))
 import type { DshViewHandle } from './components/DshView'
@@ -2738,8 +2739,8 @@ export default function App() {
 
   // 看板任务会话：关标签不再静默遗留记录+worktree，弹确认让用户选"仅关闭"或"关闭并清理"
   const [boardCloseAsk, setBoardCloseAsk] = useState<{ rec: WorktreeRecord; sessionId: string } | null>(null)
-  // busy 会话关闭需二次确认
-  const [busyCloseAsk, setBusyCloseAsk] = useState<string | null>(null)
+  // busy / 定时任务会话关闭需二次确认
+  const [busyCloseAsk, setBusyCloseAsk] = useState<{ id: string; busy: boolean; sched: boolean } | null>(null)
 
   const proceedCloseSession = useCallback(async (id: string) => {
     const s = sessions.find(x => x.id === id)
@@ -2757,8 +2758,10 @@ export default function App() {
   }, [sessions, closeSessionCore])
 
   const handleCloseSession = useCallback(async (id: string) => {
-    if (terminalBusyRef.current[id] || aiBusyRef.current[id]) {
-      setBusyCloseAsk(id)
+    const busy = terminalBusyRef.current[id] || aiBusyRef.current[id]
+    const sched = hasSchedTask(id)
+    if (busy || sched) {
+      setBusyCloseAsk({ id, busy: !!busy, sched })
       return
     }
     await proceedCloseSession(id)
@@ -2766,7 +2769,7 @@ export default function App() {
 
   const confirmBusyClose = useCallback(async () => {
     if (!busyCloseAsk) return
-    const sid = busyCloseAsk
+    const sid = busyCloseAsk.id
     setBusyCloseAsk(null)
     await proceedCloseSession(sid)
   }, [busyCloseAsk, proceedCloseSession])
@@ -4104,9 +4107,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Busy session close confirm — running task will be terminated */}
+      {/* Busy / scheduled session close confirm */}
       {busyCloseAsk && (() => {
-        const name = sessions.find(s => s.id === busyCloseAsk)?.name || busyCloseAsk
+        const name = sessions.find(s => s.id === busyCloseAsk.id)?.name || busyCloseAsk.id
         return (
           <div
             className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center"
@@ -4117,10 +4120,12 @@ export default function App() {
               onMouseDown={e => e.stopPropagation()}
             >
               <div className="text-sm text-ide-text font-medium truncate">
-                {t('Close running session?')} · {name}
+                {busyCloseAsk.busy ? t('Close running session?') : t('Close session with scheduled task?')} · {name}
               </div>
               <div className="text-xs text-ide-text-muted leading-relaxed">
-                {t('The session is still running. Closing will terminate its process and in-flight task.')}
+                {busyCloseAsk.busy
+                  ? t('The session is still running. Closing will terminate its process and in-flight task.')
+                  : t('This session has a scheduled task. Closing will remove it.')}
               </div>
               <div className="flex gap-2 justify-end pt-1">
                 <button

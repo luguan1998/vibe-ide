@@ -57,6 +57,10 @@ export function setSchedTask(sid: string, task: SchedTask) {
   emit()
 }
 
+export function hasSchedTask(sid: string): boolean {
+  return sid in schedTasks
+}
+
 export function deleteSchedTask(sid: string) {
   if (!(sid in schedTasks)) return
   schedTasks = { ...schedTasks }
