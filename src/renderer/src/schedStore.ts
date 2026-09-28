@@ -2,7 +2,7 @@ import { useSyncExternalStore, useCallback } from 'react'
 
 // ── 定时任务共享 store ──
 // 会话行首 ⏰ 状态（scheduled）由 SessionPanel 与 BoardView 共用。
-// 内存态 + 订阅（会话内活时段调度，随 SessionPanel 原不持久化行为）。
+// 任务按 session id 存 localStorage，随会话恢复接上；会话关闭后由 prune 清理。
 // 会话行首 emoji 已收进 SessionTab.emoji（见 sessionRestore.ts），不在此处。
 
 export interface SchedTask {
@@ -11,10 +11,39 @@ export interface SchedTask {
   lastFired: string
 }
 
-let schedTasks: Record<string, SchedTask> = {}
+const STORAGE_KEY = 'vibe-ide-sched-tasks'
+
+function load(): Record<string, SchedTask> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return {}
+    const data = JSON.parse(raw)
+    if (!data || typeof data !== 'object') return {}
+    const out: Record<string, SchedTask> = {}
+    for (const [k, v] of Object.entries(data)) {
+      if (!v || typeof v !== 'object') continue
+      const t = v as Record<string, unknown>
+      if (typeof t.cron !== 'string' || typeof t.command !== 'string') continue
+      out[k] = { cron: t.cron, command: t.command, lastFired: typeof t.lastFired === 'string' ? t.lastFired : '' }
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function persist() {
+  try {
+    if (Object.keys(schedTasks).length === 0) localStorage.removeItem(STORAGE_KEY)
+    else localStorage.setItem(STORAGE_KEY, JSON.stringify(schedTasks))
+  } catch {}
+}
+
+let schedTasks: Record<string, SchedTask> = load()
 const listeners = new Set<() => void>()
 
 function emit() {
+  persist()
   for (const l of listeners) l()
 }
 
