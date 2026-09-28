@@ -80,7 +80,7 @@ function clangdCandidates(): string[] {
 
 function resolveClangd(): Resolved | null {
   try {
-    const probe = process.platform === 'win32' ? 'where clangd' : 'which clangd'
+    const probe = process.platform === 'win32' ? 'where.exe clangd' : 'which clangd'
     const out = execSync(probe, { encoding: 'utf-8', timeout: 5000, stdio: 'pipe' }).trim().split(/\r?\n/)[0]
     if (out) return { cmd: out.trim(), args: [] }
   } catch {}

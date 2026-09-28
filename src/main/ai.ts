@@ -173,7 +173,7 @@ function findBinary(customCommand?: string): BinaryResult {
   const names = customCommand ? [customCommand] : ['claude', 'openclaude', 'opencc']
   for (const name of names) {
     try {
-      const cmd = process.platform === 'win32' ? `where ${name}` : `which ${name}`
+      const cmd = process.platform === 'win32' ? `where.exe ${name}` : `which ${name}`
       execSync(cmd, { encoding: 'utf-8', timeout: 5000, stdio: 'pipe' })
       return { binary: name }
     } catch { /* try next */ }

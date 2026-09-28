@@ -26,7 +26,7 @@ let binaryCache: { binary: string } | null = null
 // 主进程，会话创建前必走这里等于白等；真正装坏了 spawn 时会立刻报错。首次解析后记忆。
 export function findPiBinary(): PiBinaryResult {
   if (binaryCache) return binaryCache
-  const probe = process.platform === 'win32' ? 'where pi' : 'which pi'
+  const probe = process.platform === 'win32' ? 'where.exe pi' : 'which pi'
   try {
     const out = execSync(probe, { encoding: 'utf-8', timeout: 5000, stdio: 'pipe' })
     for (const line of out.split(/\r?\n/)) {

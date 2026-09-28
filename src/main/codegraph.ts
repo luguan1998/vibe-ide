@@ -24,7 +24,7 @@ const CODEGRAPH_INSTALL_CMD = `npm install -g @colbymchenry/codegraph@latest`
 /** Check if codegraph CLI is available in PATH */
 function isCodegraphCliAvailable(): boolean {
   try {
-    const cmd = process.platform === 'win32' ? 'where codegraph' : 'which codegraph'
+    const cmd = process.platform === 'win32' ? 'where.exe codegraph' : 'which codegraph'
     execSync(cmd, { encoding: 'utf-8', timeout: 5000, stdio: 'pipe' })
     return true
   } catch { return false }
@@ -52,7 +52,7 @@ function findCodegraphModuleDir(): string | null {
 
   // 2. Find from CLI binary path
   try {
-    const cmd = process.platform === 'win32' ? 'where codegraph' : 'which codegraph'
+    const cmd = process.platform === 'win32' ? 'where.exe codegraph' : 'which codegraph'
     const cliPath = execSync(cmd, { encoding: 'utf-8', timeout: 5000 }).trim().split(/\r?\n/)[0].trim()
 
     if (process.platform === 'win32') {
