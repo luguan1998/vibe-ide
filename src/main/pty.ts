@@ -294,6 +294,10 @@ export function registerPtyHandlers(): void {
         'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment',
         'HKCU\\Environment'
       ]
+      // PATH 不能逐键覆盖：Windows 会话 PATH = 系统(HKLM) + 用户(HKCU) 拼接。
+      // HKCU 后写会整体顶掉 HKLM 值，丢 System32/Git\cmd 等条目，主进程之后
+      // 所有裸名 spawn（git/reg/taskkill/where）全部 ENOENT，git 页面瘫痪
+      const pathParts: string[] = []
       for (const regKey of regKeys) {
         let output: string
         try {
@@ -306,10 +310,16 @@ export function registerPtyHandlers(): void {
           let value = m[2]
           if (value === '(value not set)') continue
           value = value.replace(/%([^%]+)%/g, (_m, varName) => process.env[varName] ?? `%${varName}%`)
+          if (key.toLowerCase() === 'path') {
+            pathParts.push(value)
+            count++
+            continue
+          }
           process.env[key] = value
           count++
         }
       }
+      if (pathParts.length > 0) process.env.PATH = pathParts.join(';')
       return { success: true, count }
     } catch (err: any) {
       console.error('Failed to refresh env:', err)
