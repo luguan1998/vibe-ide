@@ -123,6 +123,7 @@
   color: rgba(255 255 255 / 0.75) !important;
   opacity: 1 !important;
 }
+.session-item--active .session-item__actions span.text-ide-text-muted { color: #fff !important; }
 .session-item--active .session-item__actions button { color: rgba(255 255 255 / 0.9) !important; }
 .session-item--active .session-item__actions button:hover {
   background: rgba(255 255 255 / 0.2) !important;

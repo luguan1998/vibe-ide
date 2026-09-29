@@ -156,6 +156,7 @@
   border-radius: 9999px !important;
   transition: background-color 0.12s, color 0.12s !important;
 }
+.session-item--active .session-item__actions span.text-ide-text-muted { color: #fff !important; }
 .session-item--active .session-item__actions button { color: rgb(255 255 255 / 0.9) !important; }
 .session-item__actions button:hover {
   background: rgb(255 64 129 / 0.16) !important;
