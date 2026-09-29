@@ -19,6 +19,9 @@ interface SearchPanelProps {
   onOpenFile: (fullPath: string, lineNumber?: number) => void
   focusTrigger?: number
   onExploreNode?: (node: CodeSymbol) => void
+  pinned?: boolean
+  onTogglePin?: () => void
+  onDragHandlePointerDown?: (e: React.PointerEvent) => void
 }
 
 export function trimToMatch(content: string, column: number): { text: string; head: boolean; tail: boolean } {
@@ -137,7 +140,7 @@ function ReplaceConfirmModal({ query, replacement, total, uniqueFiles, onConfirm
   )
 }
 
-export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNode }: SearchPanelProps) {
+export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNode, pinned, onTogglePin, onDragHandlePointerDown }: SearchPanelProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<GrepMatch[]>([])
   const [total, setTotal] = useState(0)
@@ -367,49 +370,76 @@ export default function SearchPanel({ cwd, onOpenFile, focusTrigger, onExploreNo
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* Search input */}
       <div className="p-2 border-b border-ide-border shrink-0">
-        <div className="relative">
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder={mode === 'smart' ? t('描述后按 Enter 搜索...') : t('Search context in project...')}
-            onContextMenu={async (e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              const el = e.currentTarget as HTMLInputElement
-              el.focus()
-              if (document.execCommand('paste')) return
-              try {
-                const text = await navigator.clipboard.readText()
-                if (text) el.setRangeText(text, el.selectionStart || 0, el.selectionEnd || 0, 'end')
-              } catch {}
-              el.dispatchEvent(new Event('input', { bubbles: true }))
-            }}
-            className={`w-full text-sm bg-ide-bg border border-ide-border rounded px-2 py-1.5 text-ide-text focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50 ${cgReady ? 'pr-16' : 'pr-8'}`}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                if (mode === 'smart') doSmartSearch(query)
-                else doSearch(query)
-              }
-            }}
-          />
-          {searching && (
-            <div className={`absolute top-1/2 -translate-y-1/2 ${cgReady ? 'right-8' : 'right-2'}`}>
-              <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin" />
+        <div className="flex items-center gap-1">
+          <div className="relative flex-1 min-w-0">
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              placeholder={mode === 'smart' ? t('描述后按 Enter 搜索...') : t('Search context in project...')}
+              onContextMenu={async (e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                const el = e.currentTarget as HTMLInputElement
+                el.focus()
+                if (document.execCommand('paste')) return
+                try {
+                  const text = await navigator.clipboard.readText()
+                  if (text) el.setRangeText(text, el.selectionStart || 0, el.selectionEnd || 0, 'end')
+                } catch {}
+                el.dispatchEvent(new Event('input', { bubbles: true }))
+              }}
+              className={`w-full text-sm bg-ide-bg border border-ide-border rounded px-2 py-1.5 text-ide-text focus:border-ide-accent focus:outline-none placeholder:text-ide-text-muted/50 ${cgReady ? 'pr-16' : 'pr-8'}`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (mode === 'smart') doSmartSearch(query)
+                  else doSearch(query)
+                }
+              }}
+            />
+            {searching && (
+              <div className={`absolute top-1/2 -translate-y-1/2 ${cgReady ? 'right-8' : 'right-2'}`}>
+                <div className="w-3 h-3 border-2 border-ide-accent border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {cgReady && (
+              <button
+                onClick={() => {
+                  if (mode === 'smart') { setMode('grep'); saveMode('grep'); setSmartResults([]); setSmartRoots(new Set()); setSmartConfidence(undefined) }
+                  else { setMode('smart'); saveMode('smart') }
+                }}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${mode === 'smart' ? 'text-ide-accent bg-ide-accent/15' : 'text-ide-text-muted/30 hover:text-ide-text-muted/60'}`}
+                title={mode === 'smart' ? t('智能模式（点击切换为文本搜索）') : t('文本搜索（点击切换为智能模式）')}
+              >
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                  <path d="M8 1a4.5 4.5 0 0 0-3 7.83V11a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8.83A4.5 4.5 0 0 0 8 1zM5.5 7.42A3 3 0 1 1 10.5 7.42l-.5.41V10H6V7.83l-.5-.41zM6 12h4v1H6z"/>
+                </svg>
+              </button>
+            )}
+          </div>
+          {onDragHandlePointerDown && (
+            <div
+              onPointerDown={onDragHandlePointerDown}
+              className="shrink-0 w-4 h-5 flex items-center justify-center cursor-move select-none text-ide-text/30 hover:text-ide-text/60 transition-colors"
+              title={t('Drag to move')}
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="size-3">
+                <circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" />
+                <circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" />
+                <circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
+              </svg>
             </div>
           )}
-          {cgReady && (
+          {onTogglePin && (
             <button
-              onClick={() => {
-                if (mode === 'smart') { setMode('grep'); saveMode('grep'); setSmartResults([]); setSmartRoots(new Set()); setSmartConfidence(undefined) }
-                else { setMode('smart'); saveMode('smart') }
-              }}
-              className={`absolute right-2 top-1/2 -translate-y-1/2 shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${mode === 'smart' ? 'text-ide-accent bg-ide-accent/15' : 'text-ide-text-muted/30 hover:text-ide-text-muted/60'}`}
-              title={mode === 'smart' ? t('智能模式（点击切换为文本搜索）') : t('文本搜索（点击切换为智能模式）')}
+              onClick={onTogglePin}
+              className={`shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${pinned ? 'text-ide-accent' : 'text-ide-text/40 hover:text-ide-text'}`}
+              title={t(pinned ? 'Unpin' : 'Pin')}
             >
-              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                <path d="M8 1a4.5 4.5 0 0 0-3 7.83V11a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8.83A4.5 4.5 0 0 0 8 1zM5.5 7.42A3 3 0 1 1 10.5 7.42l-.5.41V10H6V7.83l-.5-.41zM6 12h4v1H6z"/>
+              <svg viewBox="0 0 24 24" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5">
+                <path d="M12 17v5" />
+                <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
               </svg>
             </button>
           )}

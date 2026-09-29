@@ -565,6 +565,31 @@ export default function App() {
   const [codeSearchFocusTrigger, setCodeSearchFocusTrigger] = useState(0)
   const [exploreResult, setExploreResult] = useState<{ query: string; content: string } | null>(null)
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [searchPinned, setSearchPinned] = useState(false)
+  const [searchPos, setSearchPos] = useState<{ x: number; y: number } | null>(null)
+  const searchPanelRef = useRef<HTMLDivElement>(null)
+  const startSearchDrag = useCallback((e: React.PointerEvent) => {
+    const panel = searchPanelRef.current
+    if (!panel) return
+    const rect = panel.getBoundingClientRect()
+    const startX = e.clientX, startY = e.clientY
+    const move = (ev: PointerEvent) => {
+      const nx = Math.max(0, Math.min(rect.left + ev.clientX - startX, window.innerWidth - rect.width))
+      const ny = Math.max(0, Math.min(rect.top + ev.clientY - startY, window.innerHeight - rect.height))
+      setSearchPos({ x: nx, y: ny })
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }, [])
+  const openSearchDropdown = useCallback(() => {
+    setSearchPos(null)
+    setShowSearchDropdown(true)
+    setSearchFocusTrigger(k => k + 1)
+  }, [])
 
   const showCodeSearchRef = useRef(false); showCodeSearchRef.current = showCodeSearch
   const showSearchDropdownRef = useRef(false); showSearchDropdownRef.current = showSearchDropdown
@@ -1928,8 +1953,7 @@ export default function App() {
         } else if (centerView !== 'files') {
           e.preventDefault()
           e.stopImmediatePropagation()
-          setShowSearchDropdown(true)
-          setSearchFocusTrigger(k => k + 1)
+          openSearchDropdown()
         }
       }
 
@@ -3596,7 +3620,7 @@ export default function App() {
         <button
           className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${showSearchDropdown ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
           style={{ marginRight: 16 }}
-          onClick={() => { setShowSearchDropdown(true); setSearchFocusTrigger(k => k + 1) }}
+          onClick={openSearchDropdown}
           title={t('Search')}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-[17px]">
@@ -4239,17 +4263,16 @@ export default function App() {
 
       {/* Search Dropdown — titlebar 搜索图标浮窗 */}
       <ModalOverlay
-        onClose={() => setShowSearchDropdown(false)}
+        onClose={() => { if (!searchPinned) setShowSearchDropdown(false) }}
+        className={`fixed inset-0 z-50 ${searchPinned ? 'pointer-events-none' : ''}`}
         style={{ display: showSearchDropdown ? 'block' : 'none' }}
       >
         <div
-          className="absolute bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl flex flex-col overflow-hidden animate-fade-in"
-          style={{
-            top: 40,
-            right: 16,
-            width: 480,
-            maxHeight: 'calc(100vh - 56px)',
-          }}
+          ref={searchPanelRef}
+          className="absolute pointer-events-auto bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+          style={searchPos
+            ? { left: searchPos.x, top: searchPos.y, width: 480, maxHeight: 'calc(100vh - 56px)' }
+            : { top: 40, right: 16, width: 480, maxHeight: 'calc(100vh - 56px)' }}
           onClick={(e) => e.stopPropagation()}
         >
           <SearchPanel
@@ -4259,6 +4282,9 @@ export default function App() {
             }}
             focusTrigger={searchFocusTrigger}
             onExploreNode={(node: any) => setCallGraphFocalNode({ node, source: 'codegraph' })}
+            pinned={searchPinned}
+            onTogglePin={() => setSearchPinned(p => !p)}
+            onDragHandlePointerDown={startSearchDrag}
           />
         </div>
       </ModalOverlay>
