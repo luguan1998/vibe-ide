@@ -10,7 +10,7 @@ import { SquareArrowUp, Square, Check, MessageSquarePlus, Eye, EyeOff, Plug, Git
 import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { StreamingMarkdown } from './markdown'
 import ConversationGraph from './ConversationGraph'
-import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput, deriveUserTurns } from './messages'
+import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput, deriveUserTurns, countTurnTools } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard, AiPermErrorBoundary } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, PiModelBadge, PiThinkingLevelSelector, ModeSelector } from './inputArea'
@@ -86,6 +86,8 @@ const BUSY_QUIPS = [
 const EDGE_HOVER_PX = 48
 const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onGraphForkWorktree, graphOpen, onGraphOpenChange, graphDockedRight, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, initialWorktreeEnabled, worktreePath, worktreeBranch, worktreeOriginalPath, branchRevision, onWorktreeChange, worktreeNav, onWorktreeNavChange }, ref) {
   const { t } = useI18n()
+  // 0=compact (tools collapsed to summary)，1=精简：过程内容（工具/非末段正文）驻留 2s 后收起，只留每回合末段正文
+  const [viewMode, setViewMode] = useState(0)
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
   const isActiveRef = useRef(isActive)
@@ -122,9 +124,16 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   }, [state.busy, isActive])
   const busyTimeLabel = busySeconds >= 10
     ? busySeconds >= 60
-      ? ` (${Math.floor(busySeconds / 60)}m ${busySeconds % 60}s)`
-      : ` (${busySeconds}s)`
+      ? `${Math.floor(busySeconds / 60)}m ${busySeconds % 60}s`
+      : `${busySeconds}s`
     : ''
+  // 本轮工具调用数（含子代理）：只有精简模式显示（工具卡片会驻留消失，靠这个数看本轮干了多少活），
+  // 与回合耗时行 Churned for · N tools 同一口径
+  const turnToolCount = useMemo(
+    () => (viewMode === 1 ? countTurnTools(state.messages, state.messages.length - 1) : 0),
+    [state.messages, viewMode])
+  const busyBits = [busyTimeLabel, turnToolCount > 0 ? `${turnToolCount} tools` : ''].filter(Boolean)
+  const busyLabel = busyQuip + (busyBits.length > 0 ? ` (${busyBits.join(' · ')})` : '')
 
   // Stop button two-stage: 点过一次软中断后 5s 内仍 busy 才升级强杀，未点击不自动武装
   const [interruptTried, setInterruptTried] = useState(false)
@@ -159,7 +168,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // Session history
   const [sessionHistoryOpen, setSessionHistoryOpen] = useState(false)
   const [sessionHistoryList, setSessionHistoryList] = useState<any[]>([])
-  const [viewMode, setViewMode] = useState(0) // 0=compact (tools collapsed to summary), 1=hide tools+think
   const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [conversationCopied, setConversationCopied] = useState(false)
   const contextMenuRef = useRef<HTMLDivElement>(null)
@@ -1661,14 +1669,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 {isPi
                   ? <PiLogoIcon className="ai-tab__busy-sparkle animate-spin-pixel ml-0.5 text-sm leading-none align-middle select-none" />
                   : <ClaudeLogoIcon className="ai-tab__busy-sparkle animate-spin-pixel ml-0.5 text-sm leading-none align-middle select-none" fill="currentColor" />}
-                <span className="ai-tab__busy-quip ml-1 text-[13px] leading-none align-middle select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
+                <span className="ai-tab__busy-quip ml-1 text-[13px] leading-none align-middle select-none text-ide-accent/60">{busyLabel}</span>
               </div>
             ) : (
               <div>
                 {isPi
                   ? <PiLogoIcon className="animate-spin-pixel text-sm leading-none select-none" />
                   : <ClaudeLogoIcon className="animate-spin-pixel text-sm leading-none select-none" fill="currentColor" />}
-                <span className="ml-1 text-[13px] leading-none select-none text-ide-accent/60">{busyQuip}{busyTimeLabel}</span>
+                <span className="ml-1 text-[13px] leading-none select-none text-ide-accent/60">{busyLabel}</span>
               </div>
             )}
           </div>

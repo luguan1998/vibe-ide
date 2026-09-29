@@ -80,6 +80,18 @@ export function isRealUserInput(messages: AiMessage[], i: number): boolean {
   return !(i > 0 && messages[i - 1].type === 'assistant')
 }
 
+// 回合工具调用计数：从 idx 往前扫到上一个真实用户输入为止（含 idx 自身），子代理消息的工具也算。
+// busy 行与本回合耗时行（Churned for）共用这一口径，两处数字必须一致
+export function countTurnTools(messages: AiMessage[], idx: number): number {
+  let n = 0
+  for (let i = idx; i >= 0; i--) {
+    if (isRealUserInput(messages, i)) break
+    const m = messages[i]
+    if (m.toolUse?.length) n += m.toolUse.length
+  }
+  return n
+}
+
 // 真实用户轮清单：turnIdx 与 MessageList 的 data-user-turn 同域，跳转与 hover 弹窗导航共用一份派生口径
 export function deriveUserTurns(messages: AiMessage[]): { turnIdx: number; content: string }[] {
   const turns: { turnIdx: number; content: string }[] = []
@@ -400,6 +412,45 @@ export function FadeOutOnUnmount({ visible, duration = 200, children }: {
   )
 }
 
+// 精简模式（viewMode=1）驻留：过程内容（工具条/非末段正文）到场后停留 2s，再走 grid 1fr→0fr 平滑收起、
+// 动画播完卸载 children（长会话不留一堆 0 高占位 DOM）。
+// stamp = 该内容的到场时刻（消息 timestamp）：挂载时已过期就整块不挂载——历史 / resume / 切模式回来的
+// 旧内容不重放驻留，也不白跑一遍 DOM；dwell 由 false 翻 true（live 那条被后续内容顶掉）时按 stamp 余额决定
+// 是立刻收起还是再驻留一会儿，故不能在挂载时就把 open 定死
+export const DWELL_MS = 2000
+const DWELL_FADE_MS = 200
+
+export function Dwell({ dwell, stamp, children }: {
+  dwell: boolean
+  stamp: number
+  children: React.ReactNode
+}) {
+  const [mounted, setMounted] = useState(() => !dwell || Date.now() - stamp < DWELL_MS)
+  const [open, setOpen] = useState(true)
+  useEffect(() => {
+    if (!dwell || !mounted) return
+    const remain = stamp + DWELL_MS - Date.now()
+    if (remain <= 0) {
+      setOpen(false)
+      return
+    }
+    const id = setTimeout(() => setOpen(false), remain)
+    return () => clearTimeout(id)
+  }, [dwell, mounted, stamp])
+  useEffect(() => {
+    if (!mounted || open) return
+    const id = setTimeout(() => setMounted(false), DWELL_FADE_MS + 50)
+    return () => clearTimeout(id)
+  }, [mounted, open])
+  if (!dwell) return <>{children}</>
+  if (!mounted) return null
+  return (
+    <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  )
+}
+
 function CopyButton({ text, className = 'opacity-0 group-hover/meta:opacity-100 transition-opacity hover:text-ide-accent' }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false)
   const handleCopy = useCallback(() => {
@@ -463,7 +514,7 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
     </div>
   )
 }
-function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, viewMode, onFork, forkIdx, isLive, isLatestAssistant }: {
+function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, viewMode, onFork, forkIdx, isLive, isLatestAssistant, dwellContent, turnTools = 0 }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
@@ -473,6 +524,8 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   forkIdx: number
   isLive?: boolean
   isLatestAssistant?: boolean
+  dwellContent?: boolean
+  turnTools?: number
 }) {
   const { t } = useI18n()
   // 给 root 补 animate-fade-in 会重播 opacity 0→1 → 整块闪一下，两种到达顺序都要挡：
@@ -482,8 +535,10 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   // resume/历史消息两者皆为 false，正常渐入
   const wasLiveRef = useRef(false)
   if (isLive || isLatestAssistant) wasLiveRef.current = true
-  const hideTools = viewMode === 1
-  const hideThink = viewMode === 1
+  // 精简模式：thinking 照旧整块不渲染；工具与非末段正文改走 Dwell 驻留（末段正文是答案，永久留）
+  const concise = viewMode === 1
+  const dwellStamp = message.timestamp ?? 0
+
   // result 行只有 CLI 汇总字段；历史会话的回合末条 assistant（无 result）只承载按钮，无耗时
   const showMeta = message.type === 'result'
     ? (message.costUsd != null || message.numTurns != null || message.isAborted || message.durationMs != null)
@@ -497,6 +552,14 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
       ? { label: t('Execution failed'), color: 'text-ide-danger' }
       : null
 
+  // 耗时层文本：Churned for Xs · N tools（N = 本回合工具调用数，与 busy 行同口径同措辞）
+  const churnedBits: string[] = []
+  if (message.durationMs != null) {
+    const sec = message.durationMs / 1000
+    churnedBits.push(`Churned for ${sec < 60 ? `${sec.toFixed(1)}s` : `${Math.floor(sec / 60)}m ${Math.round(sec % 60)}s`}`)
+  }
+  if (turnTools > 0) churnedBits.push(`${turnTools} tools`)
+
   return (
     <div className={`ai-tab__message ai-tab__message--assistant flex flex-col items-center space-y-1 ${isLive || wasLiveRef.current ? '' : 'animate-fade-in'}`}>
       {errorStatus && (
@@ -508,12 +571,18 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
         <div className={`ai-tab__message-content w-full ${CONTENT_MAX_W} space-y-1.5`}>
           {/* isLive = 当前正在流式生成的那条消息（提交时 busy）。autoFold 让它展开态挂载无缝交接 busy 区
               thinking、下一帧平滑收起；历史消息 isLive=false 折叠挂载。isLive 另让本消息 root 跳过 fade-in（接管不透明） */}
-          {!hideThink && message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} autoFold={isLive} />}
-          {message.content && <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />}
-          {!hideTools && message.toolUse && message.toolUse.length > 0 && (
-            message.toolUse.length === 1
-              ? <AiToolCallCard key={message.toolUse[0].id} tool={message.toolUse[0]} />
-              : <CompactToolSummary tools={message.toolUse} />
+          {!concise && message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} autoFold={isLive} />}
+          {message.content && (
+            <Dwell dwell={!!dwellContent} stamp={dwellStamp}>
+              <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />
+            </Dwell>
+          )}
+          {message.toolUse && message.toolUse.length > 0 && (
+            <Dwell dwell={concise} stamp={dwellStamp}>
+              {message.toolUse.length === 1
+                ? <AiToolCallCard key={message.toolUse[0].id} tool={message.toolUse[0]} />
+                : <CompactToolSummary tools={message.toolUse} />}
+            </Dwell>
           )}
         </div>
       )}
@@ -526,10 +595,10 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
               盖住按钮（实测 elementFromPoint 命中 elapsed 的 span），所以命中权必须用
               pointer-events 显式指定，不能靠层序 */}
           <div className="ai-tab__message-meta-elapsed col-start-1 row-start-1 pointer-events-none flex items-center text-xs text-ide-text-muted/50 group-hover/meta:opacity-0 transition-opacity">
-            {(message.durationMs != null || message.isAborted) && (
+            {(churnedBits.length > 0 || message.isAborted) && (
               <span className="inline-flex items-center gap-0.5 mr-2">
                 <span className="text-sm">✻</span>
-                {message.durationMs != null && <span>Churned for {(() => { const sec = message.durationMs / 1000; if (sec < 60) return `${sec.toFixed(1)}s`; const m = Math.floor(sec / 60); const s = Math.round(sec % 60); return `${m}m ${s}s`; })()}</span>}
+                {churnedBits.length > 0 && <span>{churnedBits.join(' · ')}</span>}
                 {message.isAborted && <span className="text-ide-text-muted/40"> · paused by user</span>}
               </span>
             )}
@@ -629,7 +698,7 @@ export function TodoListPanel({ items }: { items: TodoItem[] }) {
   )
 }
 
-const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, turnOngoing, isLatestAssistant, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal, allowHistory = true }: {
+const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, turnOngoing, isLatestAssistant, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal, allowHistory = true, dwellContent }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
@@ -645,6 +714,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   viewMode?: number
   isInternal?: boolean
   allowHistory?: boolean
+  dwellContent?: boolean
 }) {
   // isLive = 当前正在流式生成的那条消息（最后一条 + busy）。用于让它的 thinking 以展开态挂载无缝交接 busy 区、
   // 下一帧平滑折叠；并让本消息 root 跳过 fade-in（接管时不透明）。子 agent 走 CollapsibleAgentGroup 的 isBusy=false → 永远非 live
@@ -691,7 +761,11 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
       }
       forkIdx = count - 1
     }
-    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} viewMode={viewMode} onFork={onFork} forkIdx={forkIdx} isLive={isLive} isLatestAssistant={isLatestAssistant} />
+    // 工具数只有精简模式显示；且只有 result 汇总行与回合末条 assistant 会出耗时行，其余消息不必扫
+    const turnTools = (viewMode === 1 && (message.type === 'result' || copyText != null || forkIdx >= 0))
+      ? countTurnTools(allMessages, msgIndex)
+      : 0
+    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} viewMode={viewMode} onFork={onFork} forkIdx={forkIdx} isLive={isLive} isLatestAssistant={isLatestAssistant} dwellContent={dwellContent} turnTools={turnTools} />
   }
 
   return <>{inner}</>
@@ -718,21 +792,23 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
   const groups: Array<
     | { type: 'agent'; messages: AiMessage[]; parentId: string; startIndex: number }
     | { type: 'msg'; message: AiMessage; index: number }
-    | { type: 'readSummary'; tools: AiToolUse[]; firstToolId: string }
-    | { type: 'toolCard'; tool: AiToolUse }
+    | { type: 'readSummary'; tools: AiToolUse[]; firstToolId: string; stamp: number }
+    | { type: 'toolCard'; tool: AiToolUse; stamp: number }
   > = []
-  const hideTools = viewMode === 1
+  const concise = viewMode === 1
   const readBuffer: AiToolUse[] = []
   let firstToolId = ''
+  let firstToolStamp = 0
   const flushReads = () => {
     if (readBuffer.length === 0) return
     if (readBuffer.length === 1) {
-      groups.push({ type: 'toolCard', tool: readBuffer[0] })
+      groups.push({ type: 'toolCard', tool: readBuffer[0], stamp: firstToolStamp })
     } else {
-      groups.push({ type: 'readSummary', tools: [...readBuffer], firstToolId })
+      groups.push({ type: 'readSummary', tools: [...readBuffer], firstToolId, stamp: firstToolStamp })
     }
     readBuffer.length = 0
     firstToolId = ''
+    firstToolStamp = 0
   }
   // Async sub-agents (and the main agent) interleave in the live stream, so consecutive-
   // same-parent grouping would split one agent into many fragments. Map each parentToolUseId
@@ -753,13 +829,17 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
       continue
     }
     const isStreamingLast = i === messages.length - 1 && busy
-    // 模式 2：thinking-only / 纯工具消息整条跳过（正文消息的 thinking/工具由 bubble 内部隐藏）
-    if (hideTools && !isStreamingLast && !msg.content && !msg.error && (msg.thinking || msg.toolUse?.length)) {
+    // 精简模式：纯 thinking 消息（无正文/工具/错误）整条跳过；纯工具消息不再跳过，
+    // 改为照常成组渲染、由 Dwell 驻留 2s 后收起（正文消息的 thinking 由 bubble 内部不渲染、工具走 Dwell）
+    if (concise && !isStreamingLast && !msg.content && !msg.error && !msg.toolUse?.length && msg.thinking) {
       continue
     }
     if (isPureToolMessage(msg) && !isStreamingLast) {
       for (const tool of msg.toolUse ?? []) {
-        if (readBuffer.length === 0) firstToolId = tool.id
+        if (readBuffer.length === 0) {
+          firstToolId = tool.id
+          firstToolStamp = msg.timestamp ?? 0
+        }
         readBuffer.push(tool)
       }
     } else {
@@ -776,15 +856,32 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     if (messages[i].role === 'assistant' && !messages[i].parentToolUseId) { lastAssistantIdx = i; break }
   }
 
+  // 精简模式：每回合只留最后一段正文（即该回合的答案），此前各段正文与工具一样驻留 2s 后收起。
+  // 回合边界 = 真实用户输入；末段 = 边界内最后一条带正文的主 assistant 消息（工具消息无正文，不影响）
+  const finalContentIdx = new Set<number>()
+  if (concise) {
+    let lastContent = -1
+    for (let i = 0; i < messages.length; i++) {
+      if (isRealUserInput(messages, i)) {
+        if (lastContent >= 0) finalContentIdx.add(lastContent)
+        lastContent = -1
+        continue
+      }
+      const m = messages[i]
+      if (m.type === 'assistant' && !m.parentToolUseId && m.content) lastContent = i
+    }
+    if (lastContent >= 0) finalContentIdx.add(lastContent)
+  }
+
   return <>{groups.map((item) => {
     if (item.type === 'agent') {
       return <CollapsibleAgentGroup key={`agent-${item.startIndex}`} messages={item.messages} workspacePath={workspacePath} onOpenFile={onOpenFile} viewMode={viewMode} />
     }
     if (item.type === 'readSummary') {
-      return <CompactToolSummary key={`read-${item.firstToolId}`} tools={item.tools} />
+      return <Dwell key={`read-${item.firstToolId}`} dwell={concise} stamp={item.stamp}><CompactToolSummary tools={item.tools} /></Dwell>
     }
     if (item.type === 'toolCard') {
-      return <AiToolCallCard key={`tool-${item.tool.id}`} tool={item.tool} />
+      return <Dwell key={`tool-${item.tool.id}`} dwell={concise} stamp={item.stamp}><AiToolCallCard tool={item.tool} /></Dwell>
     }
     const msg = item.message
     const uIdx = isRealUserInput(messages, item.index)
@@ -808,6 +905,7 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
         viewMode={viewMode}
         isInternal={userTurns[uIdx]?.isInternal ?? false}
         allowHistory={allowHistory}
+        dwellContent={concise && !finalContentIdx.has(item.index)}
       />
     )
   })}</>
