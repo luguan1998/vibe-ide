@@ -28,10 +28,9 @@
   --monaco-margin-bg: 242 242 246 !important;
 }
 
-/* 标题栏 — 统一工具栏，底部发丝线 */
+/* 标题栏 — 统一工具栏 */
 .titlebar-drag {
   background: rgb(var(--ide-bg)) !important;
-  border-bottom: 1px solid rgba(0 0 0 / 0.08) !important;
 }
 
 /* 会话面板 — 侧栏 vibrancy 模拟（浅灰渐变） */

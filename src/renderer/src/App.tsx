@@ -3557,7 +3557,7 @@ export default function App() {
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
       {/* Title Bar */}
-      <div className="titlebar-drag h-8 bg-ide-sidebar border-b border-ide-border flex items-center px-4 select-none shrink-0">
+      <div className="titlebar-drag h-8 bg-ide-sidebar flex items-center px-4 select-none shrink-0">
         {!isWelcome && leftPanelCollapsed && (
         <button
           className="no-drag w-6 h-6 -ml-1 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
@@ -3660,7 +3660,7 @@ export default function App() {
       </div>
 
       {/* Main Content - 3 Panels */}
-      <div className="flex flex-1 overflow-hidden" style={{ cursor: isDragging ? 'col-resize' : 'default' }}>
+      <div className="app__main flex flex-1 overflow-hidden border-t border-ide-border" style={{ cursor: isDragging ? 'col-resize' : 'default' }}>
         {/* Left Panel: Session + Outline */}
         <div className="shrink-0 flex flex-col relative" data-panel="left" style={{ width: leftPanelWidth, display: isWelcome || leftPanelCollapsed ? 'none' : undefined }}>
           {/* SessionPanel: always full height */}

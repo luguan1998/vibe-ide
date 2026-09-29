@@ -39,7 +39,6 @@
 /* 微量圆角 — 仅列 UI 容器，不命中 .monaco-editor 内部节点
    通配符 * 会扫描 Monaco 渲染文件时的数千 DOM 节点（view-line/span/装饰），
    开文件瞬间 style recalc 成本被放大成 CPU 抖升；改用具体容器即可断掉扫描路径 */
-.titlebar-drag,
 .status-badge,
 .session-panel__settings-btn,
 .session-panel__new-btn,
@@ -68,11 +67,16 @@ textarea {
 
 
 /* ════════════════════════════════════════════════════
-   标题栏 — 夜空最暗层 + 金色星光线
+   标题栏 — 夜空最暗层
    ════════════════════════════════════════════════════ */
 .titlebar-drag {
-  border-bottom: 2px solid rgb(255 195 40 / 0.25) !important;
   background: linear-gradient(180deg, rgb(10 12 28), rgb(18 22 48)) !important;
+}
+
+/* 金色星光线 — 画在内容区顶边（.app__main border-t），
+   原生窗控按钮(32px overlay)盖住标题栏底边，画在上面右侧会被遮 */
+.app__main {
+  border-top: 2px solid rgb(255 195 40 / 0.25) !important;
 }
 
 /* ════════════════════════════════════════════════════
