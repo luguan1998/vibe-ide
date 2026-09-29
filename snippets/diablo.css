@@ -206,6 +206,24 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   background: rgb(18 17 16) url('assets/button_black.png') center/cover no-repeat !important;
   border-bottom: 1px solid rgb(48 42 38) !important;
 }
+/* 胶囊容器底透明，让 tab 直接嵌进贴图凹槽 */
+.right-panel__tab-bar > div:not(.flex-1) {
+  background: transparent !important;
+  padding: 0 !important;
+  gap: 2px !important;
+  border-radius: 0 !important;
+}
+/* 4 个 tab 缩小：压 padding / 字号 / 图标，使其贴合贴图镶边 */
+.right-panel__tab {
+  padding: 1px 7px !important;
+  font-size: 11px !important;
+  gap: 3px !important;
+  border-radius: 0 !important;
+}
+.right-panel__tab svg {
+  width: 11px !important;
+  height: 11px !important;
+}
 .right-panel__tab--active {
   color: rgb(215 145 75) !important;
   border-bottom: 2px solid rgb(140 20 20) !important;
