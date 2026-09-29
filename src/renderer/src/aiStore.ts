@@ -462,6 +462,8 @@ function initListeners() {
   // ── onMessage ──
   window.api.ai.onMessage((msg: any) => {
     if (!msg.sessionId) return
+    // 子代理（Task/Agent）收尾也发 result（带 parentToolUseId）：只结束子代理，主回合仍在跑
+    const isMainResult = msg.type === 'result' && !msg.parentToolUseId
     aiStore.updateSession(msg.sessionId, (s) => {
       const isAssistant = msg.type === 'assistant' && msg.role === 'assistant'
 
@@ -505,7 +507,7 @@ function initListeners() {
       const extraText = coveredByMergedText ? '' : tailNotCovered(s0.streamBuffer, msg.content)
       const hasExtra = extraThinking || extraText
 
-      const flushedMsg = (hasExtra && s0.streaming && (isAssistant || msg.type === 'result'))
+      const flushedMsg = (hasExtra && s0.streaming && (isAssistant || isMainResult))
         ? [{ sessionId: msg.sessionId, type: 'assistant' as const, role: 'assistant' as const,
             content: extraText || undefined,
             thinking: extraThinking || undefined,
@@ -565,7 +567,7 @@ function initListeners() {
       const newName = isUserMsg && !s0.name ? msg.content.trim().slice(0, 60) : s0.name
 
       let runningTools = s0.runningTools
-      if (msg.type === 'result') {
+      if (isMainResult) {
         runningTools = {}
       } else if (msg.toolResult) {
         runningTools = { ...runningTools }
@@ -587,20 +589,20 @@ function initListeners() {
         ...s0,
         messages,
         name: newName,
-        busy: interjectCutover ? true : (s0.busy && msg.type !== 'result'),
-        streaming: msg.type === 'result' ? false : s0.streaming,
-        streamBuffer: clearText || msg.type === 'result' ? '' : s0.streamBuffer,
-        thinkingBuffer: clearThinking || msg.type === 'result' ? '' : s0.thinkingBuffer,
-        thinkingStartedAt: clearThinking || msg.type === 'result' ? null : s0.thinkingStartedAt,
+        busy: interjectCutover ? true : (s0.busy && !isMainResult),
+        streaming: isMainResult ? false : s0.streaming,
+        streamBuffer: clearText || isMainResult ? '' : s0.streamBuffer,
+        thinkingBuffer: clearThinking || isMainResult ? '' : s0.thinkingBuffer,
+        thinkingStartedAt: clearThinking || isMainResult ? null : s0.thinkingStartedAt,
         // 子代理消息（parentToolUseId）的 percent 是子代理自身上下文，勿覆盖 session 级
         contextPercent: msg.contextPercent != null && !msg.parentToolUseId ? Math.round(msg.contextPercent) : s0.contextPercent,
         runningTools,
         // pi 的权限请求超时由 agent 侧自动 resolve，轮次结束即作废，卡片不滞留
-        pendingPermission: msg.type === 'result' && s0.backend === 'pi' ? null : s0.pendingPermission,
-        interjectingAt: msg.type === 'result' ? (interjectCutover ? s0.interjectingAt : undefined) : undefined,
+        pendingPermission: isMainResult && s0.backend === 'pi' ? null : s0.pendingPermission,
+        interjectingAt: isMainResult ? (interjectCutover ? s0.interjectingAt : undefined) : undefined,
       }
     })
-    if (msg.type === 'result') aiStore.refreshUserTurns(msg.sessionId)
+    if (isMainResult) aiStore.refreshUserTurns(msg.sessionId)
   })
 
   // ── onStreamToken ──
