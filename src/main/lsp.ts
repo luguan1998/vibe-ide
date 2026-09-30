@@ -235,13 +235,18 @@ class LspClient {
   get ready(): boolean { return this.initialized && !this.dead }
   get readyPromise(): Promise<void> { return this.initPromise ?? Promise.resolve() }
 
-  private touch(): void {
+  // 空闲倒计时只属于「活跃实例」这一身份。退役时不清掉的话，退役实例的定时器到点会去
+  // stopClient(serverId) —— 杀的是接任的活跃实例，而自己因为不在 clients 里反而漏杀成孤儿进程
+  touch(): void {
     if (this.idle) clearTimeout(this.idle)
     this.idle = setTimeout(() => {
+      if (clients.get(this.serverId) !== this) return
       stopClient(this.serverId)
-      const r = retiring.get(this.serverId)
-      if (r?.client === this) retiring.delete(this.serverId)
     }, IDLE_KILL_MS)
+  }
+
+  clearIdle(): void {
+    if (this.idle) { clearTimeout(this.idle); this.idle = null }
   }
 
   private write(msg: unknown): void {
@@ -545,6 +550,7 @@ function dropRetiring(serverId: string): void {
 function retireActive(serverId: string): void {
   const cur = clients.get(serverId)
   if (!cur) return
+  cur.clearIdle()
   dropRetiring(serverId)
   retiring.set(serverId, { client: cur, rootKey: normPath(cur.root) })
   clients.delete(serverId)
@@ -556,6 +562,7 @@ function reviveRetiring(serverId: string): void {
   if (!r) return
   retiring.delete(serverId)
   if (!r.client.alive || clients.has(serverId)) { r.client.stop(); return }
+  r.client.touch()
   clients.set(serverId, r.client)
 }
 
@@ -580,8 +587,10 @@ async function acquireClient(serverId: string, def: ServerDef, root: string): Pr
     const ret = retiring.get(serverId)
     if (ret && ret.rootKey === rootKey && ret.client.alive) {
       // 切回刚离开的 root：两边交换身份，谁都不用重建
+      client.clearIdle()
       retiring.set(serverId, { client, rootKey: normPath(client.root) })
       clients.set(serverId, ret.client)
+      ret.client.touch()
       client = ret.client
     } else {
       retireActive(serverId)
