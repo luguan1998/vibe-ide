@@ -161,11 +161,11 @@ html, body, #root {
 .term-view__canvas {
   background-color: rgb(var(--term-bg, var(--ide-bg)));
 }
-/* 终端文字留呼吸感：padding 挂在根节点（不是 .xterm）——
-   .xterm-screen 是根节点的直接子元素，随内容区一起被 FitAddon 量到（fit 自动少算出对应行列），
-   同时 .xterm-viewport 少掉这一圈，自绘滚动条与内容对齐 */
+/* 终端文字留呼吸感：只留左侧 6px，右侧不留 —— 右侧整条让给自绘滚动条贴边。
+   padding 挂在 .xterm 根节点，FitAddon 按它的 padding 少算行列（fit 已自带扣除滚动条宽度，
+   右侧不会压字）；右侧 padding 为 0 时滚动条可一直贴到卡片右缘 */
 .term-view .xterm {
-  padding: 2px 6px;
+  padding: 2px 0 2px 6px;
 }
 .xterm {
   padding: 0;
