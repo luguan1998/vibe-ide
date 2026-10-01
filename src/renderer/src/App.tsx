@@ -3567,8 +3567,10 @@ export default function App() {
 
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
-      {/* Title Bar */}
-      <div className="titlebar-drag h-8 bg-ide-sidebar flex items-center px-4 select-none shrink-0">
+      {/* Title Bar — 34px 高于原生 WCO overlay(32px)：窗口非最大化时系统窗口边框会把 overlay 往下多压 1px，
+          与 overlay 等高会把 .app__main 顶边那条分隔线正好盖掉（最大化无边框故正常）。
+          pb-0.5 让内部内容盒仍是 32px，图标/按钮继续与原生窗控按钮居中对齐 */}
+      <div className="titlebar-drag h-[34px] pb-0.5 bg-ide-sidebar flex items-center px-4 select-none shrink-0">
         {!isWelcome && leftPanelCollapsed && (
         <button
           className="no-drag w-6 h-6 -ml-1 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
