@@ -1912,14 +1912,23 @@ export default function App() {
         return
       }
 
-      // navigate.back / navigate.forward → Alt+←/→ 沿导航历史前进后退
-      if (eventMatchesBinding(e, bindings['navigate.back'])) {
+      // navigate.back / navigate.forward → Alt+←/→
+      const navBackMatch = eventMatchesBinding(e, bindings['navigate.back'])
+      const navForwardMatch = eventMatchesBinding(e, bindings['navigate.forward'])
+      // 文件 tab 未展示时，先揭示文件视图（回到当前 tab），不沿导航历史跳到别处
+      if ((navBackMatch || navForwardMatch) && centerView !== 'files' && tabsRef.current.length > 0) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setCenterView('files')
+        return
+      }
+      if (navBackMatch) {
         e.preventDefault()
         e.stopImmediatePropagation()
         navBackRef.current()
         return
       }
-      if (eventMatchesBinding(e, bindings['navigate.forward'])) {
+      if (navForwardMatch) {
         e.preventDefault()
         e.stopImmediatePropagation()
         navForwardRef.current()
