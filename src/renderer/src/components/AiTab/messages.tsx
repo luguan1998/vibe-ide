@@ -557,8 +557,10 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   if (message.durationMs != null) {
     const sec = message.durationMs / 1000
     churnedBits.push(`Churned for ${sec < 60 ? `${sec.toFixed(1)}s` : `${Math.floor(sec / 60)}m ${Math.round(sec % 60)}s`}`)
+    if (turnTools > 0) churnedBits.push(`${turnTools} tools`)
+  } else if (turnTools > 0) {
+    churnedBits.push(`Churned for ${turnTools} tools`)
   }
-  if (turnTools > 0) churnedBits.push(`${turnTools} tools`)
 
   return (
     <div className={`ai-tab__message ai-tab__message--assistant flex flex-col items-center space-y-1 ${isLive || wasLiveRef.current ? '' : 'animate-fade-in'}`}>
