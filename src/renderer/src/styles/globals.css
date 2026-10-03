@@ -230,10 +230,19 @@ html, body, #root {
   width: 100% !important;
 }
 
-/* Monaco diff: gutter 分隔线（宽度由 DiffViewer applyNarrowDiffGutter 运行时收窄） */
+/* Monaco diff: gutter 分隔线（宽度由 DiffViewer applyNarrowDiffGutter 运行时收窄）。
+   inline 下 gutter 落到行号最左，描边成了行号左侧的多余竖线，去掉 */
 .monaco-diff-editor .gutter {
   outline: 1px solid rgb(var(--ide-border));
   outline-offset: -1px;
+}
+.monaco-diff-editor:not(.side-by-side) .gutter {
+  outline: none;
+}
+
+/* Monaco 每个变更块自带 2px 竖线（.gutterItem .background），与上面的分隔线重复，去掉 */
+.monaco-diff-editor .gutter .gutterItem .background {
+  display: none;
 }
 
 /* Monaco diff: 承载 gutterItem 的绝对定位包裹层默认收缩为 34px，撑满 gutter 才能居中 */
@@ -267,7 +276,7 @@ html, body, #root {
 }
 .diff-revert-btn {
   position: absolute;
-  left: 4px; /* fallback, overridden by inline style */
+  right: 32px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -302,8 +311,10 @@ html, body, #root {
 }
 
 /* inline diff：原文件编辑器只是个 gutter 壳（行号已命令式关闭，删除行文本画在 modified 侧 view zone），
-   整条隐藏 —— 否则残留壳的底色会在行号左侧亮出一条高亮带 */
-.diff-inline .monaco-diff-editor .editor.original {
+   整条隐藏 —— 否则残留壳会被裁到几 px，在行号左侧露出每行开头的字符碎片。
+   判定用 Monaco 自己的 .side-by-side（diffEditorWidget 实际渲染态），而非 app 的 inlineDiff 手动开关：
+   面板窄于 renderSideBySideInlineBreakpoint 时 Monaco 会自动走 inline，此时手动开关并不为真 */
+.monaco-diff-editor:not(.side-by-side) .editor.original {
   display: none !important;
 }
 

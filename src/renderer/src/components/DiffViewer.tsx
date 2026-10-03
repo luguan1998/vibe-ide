@@ -339,13 +339,6 @@ function computeRevertBtnTop(editor: any, ln: number): number {
   return top + (lh - 22) / 2
 }
 
-function computeRevertBtnLeft(editorDom: HTMLElement | null, containerDom: HTMLElement | null, inline?: boolean): number {
-  // inline 模式没有中缝，编辑器左缘就是行号列，浮钮贴左缘会压住正文；锚到容器左侧的撤销条/行号区
-  if (inline) return 10
-  if (!editorDom || !containerDom) return 4
-  return editorDom.getBoundingClientRect().left - containerDom.getBoundingClientRect().left
-}
-
 // 中缝 gutter（内置撤销按钮所在竖框）宽度 Monaco 硬编码 35px（gutterFeature.js const width），无 options 可调：
 // 取内部实例同时改写 width 可观测值（布局）与 DOM 宽度，两处必须同源；sash 拖拽条仍按 35px 定位需补差
 const MONACO_DIFF_GUTTER_WIDTH = 35
@@ -444,8 +437,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   handleAnnotationClickRef.current = handleAnnotationClick
 
   // 单行回退 hover 浮钮
-  const inlineDiffRef = useRef(inlineDiff)
-  inlineDiffRef.current = inlineDiff
   const revertingRef = useRef(false)
   const lineChangesRef = useRef<any[]>([])
   const changedModifiedLinesRef = useRef<Set<number>>(new Set())
@@ -456,7 +447,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   // 首次 diff 就绪后自动跳到第一处修改（无指定行号时）；切文件重置
   const autoJumpedRef = useRef(false)
   const pendingEditLineRef = useRef<number | null>(null)
-  const [revertBtn, setRevertBtn] = useState<{ visible: boolean; top: number; left: number; ln: number }>({ visible: false, top: 0, left: 56, ln: 0 })
+  const [revertBtn, setRevertBtn] = useState<{ visible: boolean; top: number; ln: number }>({ visible: false, top: 0, ln: 0 })
   const revertBtnDomRef = useRef<HTMLButtonElement | null>(null)
   const lastRevertLnRef = useRef<number | null>(null)
 
@@ -1197,7 +1188,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     setCurrentEncoding(DEFAULT_ENCODING)
     setEncodingInfo('')
     setUnreadableReason('')
-    setRevertBtn({ visible: false, top: 0, left: 56, ln: 0 })
+    setRevertBtn({ visible: false, top: 0, ln: 0 })
     lastRevertLnRef.current = null
     autoJumpedRef.current = false
     pendingEditLineRef.current = null
@@ -1251,10 +1242,12 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     fontSize,
     lineNumbers: 'on' as const,
     lineNumbersMinChars: 3,
-    lineDecorationsWidth: 2,
+    // diff 内层编辑器被 Monaco 强制 folding:false，没有折叠列留白；用装饰列补出行号与正文的间隙（≈edit 模式的 2+16）
+    lineDecorationsWidth: 12,
     glyphMargin: true,
     wordWrap: (wordWrap ? 'on' : 'off') as 'on' | 'off',
-    renderIndicators: true,
+    // 行装饰栏仅 2px，renderIndicators 的 +/− 图标会被裁成小点，故关闭（两种模式共用此开关）
+    renderIndicators: false,
     originalEditable: false,
     renderOverviewRuler: true,
     ignoreTrimWhitespace: false,
@@ -1595,7 +1588,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                 setRevertBtn({
                   visible: true,
                   top: computeRevertBtnTop(modifiedEditor, ln),
-                  left: computeRevertBtnLeft(modifiedEditor.getDomNode(), containerRef.current, inlineDiffRef.current),
                   ln
                 })
               }
@@ -1603,11 +1595,6 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                 if (!enabledRef.current || revertingRef.current) return
                 const ln = e.target?.position?.lineNumber
                 if (!ln || !changedModifiedLinesRef.current.has(ln)) { scheduleHide(); return }
-                const dom = modifiedEditor.getDomNode()
-                if (dom) {
-                  const rect = dom.getBoundingClientRect()
-                  if (e.event.browserEvent.clientX - rect.left > rect.width / 2) { scheduleHide(); return }
-                }
                 if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null }
                 if (lastRevertLnRef.current !== ln) {
                   positionRevertBtn(ln)
@@ -1637,8 +1624,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                   }
                   return {
                     ...prev,
-                    top: computeRevertBtnTop(modifiedEditor, prev.ln),
-                    left: computeRevertBtnLeft(modifiedEditor.getDomNode(), containerRef.current, inlineDiffRef.current)
+                    top: computeRevertBtnTop(modifiedEditor, prev.ln)
                   }
                 })
               }
@@ -1790,7 +1776,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
             <button
               ref={revertBtnDomRef}
               className="diff-revert-btn"
-              style={{ top: revertBtn.top, left: revertBtn.left }}
+              style={{ top: revertBtn.top }}
               title={t('Revert this line')}
               onMouseEnter={() => { if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null } }}
               onMouseLeave={() => scheduleHide()}
