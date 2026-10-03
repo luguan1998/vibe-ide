@@ -45,6 +45,7 @@ const ZH_MAP: Record<string, string> = {
   'Settings': '设置',
   'Theme': '主题',
   'Shell Type': '命令行类型',
+  'Agent Preference': 'Agent 偏好',
   'Aux Shell Type': 'Aux 命令行类型',
   'Keyboard Shortcuts': '键盘快捷键',
   'Claude Code CLI': 'Claude Code CLI 别名',
@@ -183,7 +184,6 @@ const ZH_MAP: Record<string, string> = {
   'Jump to Previous Prompt': '跳到上条命令',
   'Jump to Next Prompt': '跳到下条命令',
   'Toggle Preview / Edit': '切换预览/编辑',
-  'Clone Current Session': '克隆当前会话',
   'Quick Open File': '快速打开文件',
   '{key}+Click File / Markdown to Add to Chat': '{key}+左键 点击文件/Markdown 加入对话',
 

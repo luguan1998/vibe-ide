@@ -786,8 +786,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     </button>
   )
 
-  const [quickNewSubmenu, setQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
+  const [quickNewSubmenu, setQuickNewSubmenu] = useState<{ x: number; y: number } | null>(null)
   const quickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [agentPrefSubmenu, setAgentPrefSubmenu] = useState<{ x: number; y: number } | null>(null)
+  const agentPrefSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [groupQuickNewSubmenu, setGroupQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const groupQuickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const quickNewCwd = sessions.find(s => s.id === activeSessionId)?.cwd
@@ -803,6 +805,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const emojiMenuPos = useAdaptiveMenuPos(!!emojiMenu, emojiMenu?.x ?? 0, emojiMenu?.y ?? 0)
   const cloneSubmenuPos = useAdaptiveMenuPos(!!cloneSubmenu, cloneSubmenu?.x ?? 0, cloneSubmenu?.y ?? 0)
   const quickNewSubmenuPos = useAdaptiveMenuPos(!!quickNewSubmenu, quickNewSubmenu?.x ?? 0, quickNewSubmenu?.y ?? 0)
+  const agentPrefSubmenuPos = useAdaptiveMenuPos(!!agentPrefSubmenu, agentPrefSubmenu?.x ?? 0, agentPrefSubmenu?.y ?? 0)
   const groupQuickNewSubmenuPos = useAdaptiveMenuPos(!!groupQuickNewSubmenu, groupQuickNewSubmenu?.x ?? 0, groupQuickNewSubmenu?.y ?? 0)
   const recentDirs = useRecentDirs()
   const favCwds = useFavCwds()
@@ -1037,8 +1040,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       setEmojiMenu(null)
       setCloneSubmenu(null)
       setQuickNewSubmenu(null)
+      setAgentPrefSubmenu(null)
       if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
       if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
+      if (agentPrefSubmenuTimerRef.current) { clearTimeout(agentPrefSubmenuTimerRef.current); agentPrefSubmenuTimerRef.current = null }
     }
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
@@ -1157,8 +1162,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setEmojiMenu(null)
     setCloneSubmenu(null)
     setQuickNewSubmenu(null)
+    setAgentPrefSubmenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
     if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
+    if (agentPrefSubmenuTimerRef.current) { clearTimeout(agentPrefSubmenuTimerRef.current); agentPrefSubmenuTimerRef.current = null }
     setContextMenu({ x: e.clientX, y: e.clientY, sessionId })
   }
 
@@ -1168,8 +1175,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setEmojiMenu(null)
     setCloneSubmenu(null)
     setQuickNewSubmenu(null)
+    setAgentPrefSubmenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
     if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
+    if (agentPrefSubmenuTimerRef.current) { clearTimeout(agentPrefSubmenuTimerRef.current); agentPrefSubmenuTimerRef.current = null }
     setEmptyAreaMenu({ x: e.clientX, y: e.clientY })
   }
 
@@ -1373,6 +1382,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   setEmptyAreaMenu(null)
                   setCloneSubmenu(null)
                   setQuickNewSubmenu(null)
+                  setAgentPrefSubmenu(null)
                   setGroupQuickNewSubmenu(null)
                   setEmojiMenu({ x: e.clientX, y: e.clientY, sessionId: session.id })
                 }}
@@ -1557,11 +1567,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       <div className="mx-2 mt-1 flex flex-col gap-1.5">
         {showSessionButtons && (<>
         <div
-          className="relative group/new-session"
+          className="relative"
           onMouseEnter={(e) => {
             if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
             const r = e.currentTarget.getBoundingClientRect()
-            setQuickNewSubmenu({ x: r.left, y: r.bottom + 4, cwd: null })
+            setQuickNewSubmenu({ x: r.left, y: r.bottom + 4 })
           }}
           onMouseLeave={() => {
             quickNewSubmenuTimerRef.current = setTimeout(() => setQuickNewSubmenu(null), 150)
@@ -1586,11 +1596,42 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               }}
               onMouseLeave={() => setQuickNewSubmenu(null)}
             >
-              {newModesSorted.map(mode => renderNewModeItem(mode, (m) => {
-                if (quickNewSubmenu.cwd && onNewSessionHere) onNewSessionHere(quickNewSubmenu.cwd, m)
-                else handleQuickNewSession(m)
-                setQuickNewSubmenu(null)
-              }))}
+              <div
+                className="relative"
+                onMouseEnter={(e) => {
+                  if (agentPrefSubmenuTimerRef.current) { clearTimeout(agentPrefSubmenuTimerRef.current); agentPrefSubmenuTimerRef.current = null }
+                  const r = e.currentTarget.getBoundingClientRect()
+                  setAgentPrefSubmenu({ x: r.right + 4, y: r.top })
+                }}
+                onMouseLeave={() => {
+                  agentPrefSubmenuTimerRef.current = setTimeout(() => setAgentPrefSubmenu(null), 150)
+                }}
+              >
+                <button
+                  className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                  onClick={() => { setAgentPrefSubmenu(null); setQuickNewSubmenu(null) }}
+                >
+                  {renderModeIcon(newMode)}
+                  <span>{t('Agent Preference')}</span>
+                  <ChevronRight size={14} className="ml-auto text-ide-text-muted shrink-0" />
+                </button>
+                {agentPrefSubmenu && (
+                  <div
+                    className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 w-[168px]"
+                    ref={agentPrefSubmenuPos.ref}
+                    style={agentPrefSubmenuPos.style}
+                    onMouseEnter={() => {
+                      if (agentPrefSubmenuTimerRef.current) { clearTimeout(agentPrefSubmenuTimerRef.current); agentPrefSubmenuTimerRef.current = null }
+                    }}
+                    onMouseLeave={() => setAgentPrefSubmenu(null)}
+                  >
+                    {newModesSorted.map(mode => renderNewModeItem(mode, () => {
+                      setAgentPrefSubmenu(null)
+                      setQuickNewSubmenu(null)
+                    }))}
+                  </div>
+                )}
+              </div>
               <div className="border-t border-ide-border my-1" />
               <button
                 className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
@@ -1853,6 +1894,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         setEmptyAreaMenu(null)
                         setCloneSubmenu(null)
                         setQuickNewSubmenu(null)
+                        setAgentPrefSubmenu(null)
                         setGroupQuickNewSubmenu(null)
                         setEmojiMenu({ x: e.clientX, y: e.clientY, cwd: group.cwd })
                       }}

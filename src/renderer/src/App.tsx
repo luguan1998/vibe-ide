@@ -39,6 +39,7 @@ import { useI18n } from './i18n'
 import { cwdStore, useKeptGroups, mergeGroupOrder } from './cwdStore'
 import type { TerminalViewHandle } from './components/TerminalView'
 import { getMainShellType, getAuxShellType } from './utils/shellPrefs'
+import { getLastNewMode } from './utils/sessionModePrefs'
 import { resolveAbsPath, toFileUrl } from './utils/filePathUtils'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
@@ -2012,16 +2013,13 @@ export default function App() {
       }
 
 
-      // session.clone → Ctrl+N clone current session
-      if (eventMatchesBinding(e, bindings['session.clone'])) {
-        if (activeSessionId) {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-          const current = sessions.find(s => s.id === activeSessionId)
-          if (current) {
-            handleCloneSession(current.id, current.cwd, current.shell)
-          }
-        }
+      // session.new → Ctrl+N 新建会话（同侧栏「新会话」按钮点击）
+      if (eventMatchesBinding(e, bindings['session.new'])) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const current = activeSessionId ? sessions.find(s => s.id === activeSessionId) : null
+        if (current?.cwd) handleNewSessionHere(current.cwd, getLastNewMode())
+        else handleCreateSession()
       }
 
       // terminal.history → toggle command history popup

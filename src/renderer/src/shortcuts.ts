@@ -272,8 +272,8 @@ const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Ctrl+KeyL',
   },
   {
-    id: 'session.clone',
-    label: 'Clone Current Session',
+    id: 'session.new',
+    label: 'New Session',
     defaultKeys: 'Ctrl+KeyN',
   },
   {
