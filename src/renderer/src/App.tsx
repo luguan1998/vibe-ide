@@ -39,7 +39,6 @@ import { useI18n } from './i18n'
 import { cwdStore, useKeptGroups, mergeGroupOrder } from './cwdStore'
 import type { TerminalViewHandle } from './components/TerminalView'
 import { getMainShellType, getAuxShellType } from './utils/shellPrefs'
-import { getLastNewMode } from './utils/sessionModePrefs'
 import { resolveAbsPath, toFileUrl } from './utils/filePathUtils'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
@@ -2013,13 +2012,14 @@ export default function App() {
       }
 
 
-      // session.new → Ctrl+N 新建会话（同侧栏「新会话」按钮点击）
-      if (eventMatchesBinding(e, bindings['session.new'])) {
-        e.preventDefault()
-        e.stopImmediatePropagation()
+      // session.clone → Ctrl+N 克隆当前会话
+      if (eventMatchesBinding(e, bindings['session.clone'])) {
         const current = activeSessionId ? sessions.find(s => s.id === activeSessionId) : null
-        if (current?.cwd) handleNewSessionHere(current.cwd, getLastNewMode())
-        else handleCreateSession()
+        if (current) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          handleCloneSession(current.id, current.cwd, current.shell)
+        }
       }
 
       // terminal.history → toggle command history popup
@@ -2797,6 +2797,22 @@ export default function App() {
     }
     await proceedCloseSession(id)
   }, [proceedCloseSession])
+
+  // 关闭工作区：逐个关闭组内全部会话（已在「关闭工作区」弹窗确认，不再逐个弹 busy/看板确认）
+  const handleCloseGroupSessions = useCallback(async (cwd: string) => {
+    const ids = sessionsRef.current.filter(s => sessionGroupKey(s) === cwd).map(s => s.id)
+    if (ids.length === 0) return
+    for (const id of ids) {
+      await closeSessionCore(id)
+    }
+    // closeSessionCore 依据渲染期快照判断"组内最后一个会话"会保留空组，批量场景统一不保留
+    cwdStore.removeKeptGroup(cwd)
+    setActiveSessionId(prev => {
+      if (!prev || !ids.includes(prev)) return prev
+      const rest = sessionsRef.current.filter(s => !ids.includes(s.id))
+      return rest.length > 0 ? rest[0].id : null
+    })
+  }, [closeSessionCore])
 
   const confirmBusyClose = useCallback(async () => {
     if (!busyCloseAsk) return
@@ -3757,6 +3773,7 @@ export default function App() {
             onCloneWithInit={handleCloneWithInit}
             onNewTermCommand={handleNewTermCommand}
             onNewSessionHere={handleNewSessionHere}
+            onCloseGroupSessions={handleCloseGroupSessions}
             onOpenHistoryTab={handleOpenHistoryTab}
             boardActive={boardActive}
             panelView={leftPanelView}

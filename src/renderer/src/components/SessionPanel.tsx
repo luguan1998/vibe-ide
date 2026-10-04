@@ -324,6 +324,7 @@ interface SessionPanelProps {
   pipeProgress?: Record<string, { current: number; total: number }>
   onCancelPipe?: (sessionId: string) => void
   onNewSessionHere?: (cwd: string, mode: SessionMode) => void
+  onCloseGroupSessions?: (cwd: string) => void
   showSessionButtons?: boolean
   onToggleShowSessionButtons?: (v: boolean) => void
   showAppInfo?: boolean
@@ -606,6 +607,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   pipeProgress = {},
   onCancelPipe,
   onNewSessionHere,
+  onCloseGroupSessions,
   showSessionButtons = true,
   onToggleShowSessionButtons,
   showAppInfo = true,
@@ -758,6 +760,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
   const [emojiMenu, setEmojiMenu] = useState<{ x: number; y: number } & ({ sessionId: string } | { cwd: string }) | null>(null)
   const menuSession = contextMenu ? sessions.find(s => s.id === contextMenu.sessionId) : null
+  const menuInitCmds = contextMenu ? loadCustomCommands().filter(c => c.type === 'init') : []
   // 换 emoji 反馈：一次性扫描显像动画
   const [revealSessionId, setRevealSessionId] = useState<string | null>(null)
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -793,6 +796,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [groupQuickNewSubmenu, setGroupQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const groupQuickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [groupMenu, setGroupMenu] = useState<{ x: number; y: number; cwd: string } | null>(null)
+  const [groupCloseAsk, setGroupCloseAsk] = useState<{ cwd: string; count: number } | null>(null)
   const quickNewCwd = sessions.find(s => s.id === activeSessionId)?.cwd
   const handleQuickNewSession = (mode: SessionMode) => {
     if (quickNewCwd && onNewSessionHere) onNewSessionHere(quickNewCwd, mode)
@@ -1064,6 +1068,19 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
   }, [showCliConfigModal])
+
+  // ESC 关闭「关闭工作区」确认弹窗
+  useEffect(() => {
+    if (!groupCloseAsk) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'escape') return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      setGroupCloseAsk(null)
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [groupCloseAsk])
 
   // ── Claude 配置组：打开 CLI 配置弹窗时加载；子编辑弹窗 ESC（window capture 优先于外层） ──
   useEffect(() => {
@@ -1800,7 +1817,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         >
         {sessionGroups.length === 0 ? (
           <div className="h-full flex items-center justify-center text-ide-text-muted text-sm">
-            No sessions yet
+            {t('No sessions yet')}
           </div>
         ) : (
           sessionGroups.map((group, gi) => {
@@ -1887,15 +1904,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span
-                      className={`relative shrink-0 w-4 h-4 flex items-center justify-center rounded select-none transition-colors ${
-                        group.sessions.length === 0 ? '' : 'cursor-pointer hover:bg-ide-hover'
-                      }`}
-                      title={group.sessions.length === 0 ? undefined : t('Edit')}
+                      className="relative shrink-0 w-4 h-4 flex items-center justify-center rounded select-none transition-colors cursor-pointer hover:bg-ide-hover"
+                      title={t('Edit')}
                       draggable={false}
                       onClick={(e) => {
                         e.stopPropagation()
                         e.preventDefault()
-                        if (group.sessions.length === 0) return
                         setContextMenu(null)
                         setEmptyAreaMenu(null)
                         setCloneSubmenu(null)
@@ -1996,10 +2010,14 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         </button>
                         <button
                           className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover flex items-center gap-2"
-                          onClick={() => { setGroupMenu(null); cwdStore.removeKeptGroup(group.cwd) }}
+                          onClick={() => {
+                            setGroupMenu(null)
+                            if (group.sessions.length === 0) { cwdStore.removeKeptGroup(group.cwd); return }
+                            setGroupCloseAsk({ cwd: group.cwd, count: group.sessions.length })
+                          }}
                         >
                           <X size={14} className="text-ide-danger" />
-                          <span>{t('Close')}</span>
+                          <span>{t('Close Workspace')}</span>
                         </button>
                       </div>
                     )}
@@ -2069,13 +2087,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <div
             className="relative"
             onMouseEnter={(e) => {
-              const cmds = loadCustomCommands().filter(c => c.type === 'init')
-              if (cmds.length === 0) return
+              if (menuInitCmds.length === 0) return
               const session = sessions.find(s => s.id === contextMenu.sessionId)
               if (!session) return
               if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
               const r = e.currentTarget.getBoundingClientRect()
-              setCloneSubmenu({ x: r.right + 4, y: r.top, sessionId: session.id, cwd: session.cwd, shell: session.shell, initCommands: cmds })
+              setCloneSubmenu({ x: r.right + 4, y: r.top, sessionId: session.id, cwd: session.cwd, shell: session.shell, initCommands: menuInitCmds })
             }}
             onMouseLeave={() => {
               cloneSubmenuTimerRef.current = setTimeout(() => setCloneSubmenu(null), 150)
@@ -2094,7 +2111,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             >
               <Copy size={14} className="text-ide-text-muted" />
               <span>{t('Clone')}</span>
-              {loadCustomCommands().some(c => c.type === 'init') && (
+              {menuInitCmds.length > 0 && (
                 <ChevronRight size={14} className="ml-auto text-ide-text-muted" />
               )}
             </button>
@@ -2248,7 +2265,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     key={mascot.name}
                     title={mascot.name}
                     className={`grid size-6 place-items-center rounded hover:bg-ide-hover transition-colors${current === mascot.name ? ' bg-ide-accent/20 ring-1 ring-ide-accent' : ''}`}
-                    onClick={() => { setCwdMascot(cwd, mascot.name); setEmojiMenu(null) }}
+                    onClick={() => setCwdMascot(cwd, mascot.name)}
                   >
                     <PixelMascot seed={cwd} name={mascot.name} color={overrideColor} className="size-3.5" />
                   </button>
@@ -2984,6 +3001,39 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           </div>
         </ModalOverlay>
       )}
+
+      {/* 关闭工作区确认 */}
+      {groupCloseAsk && createPortal(
+        <ModalOverlay onClose={() => setGroupCloseAsk(null)} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
+          <div
+            className="bg-ide-sidebar border border-ide-border rounded-xl p-4 w-[400px] mx-4 shadow-2xl space-y-3"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-sm text-ide-text font-medium truncate">
+              {t('Close workspace?')} · {dirNameOf(groupCloseAsk.cwd)}
+            </div>
+            <div className="text-xs text-ide-text-muted leading-relaxed">
+              {t('This closes all {count} sessions in this workspace.').replace('{count}', String(groupCloseAsk.count))}
+              <br />
+              {t('You can reopen it from Recent Directories by right-clicking the blank area of the session list.')}
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                onClick={() => setGroupCloseAsk(null)}
+                className="px-3 py-1.5 rounded-md text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+              >
+                {t('Cancel')}
+              </button>
+              <button
+                onClick={() => { onCloseGroupSessions?.(groupCloseAsk.cwd); setGroupCloseAsk(null) }}
+                className="px-3 py-1.5 rounded-md text-xs text-ide-danger bg-ide-danger/15 border border-ide-danger/40 hover:bg-ide-danger/25 transition-colors"
+              >
+                {t('Close Workspace')}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      , document.body)}
 
       {/* 定时命令 Modal */}
       {showSchedModal && createPortal(

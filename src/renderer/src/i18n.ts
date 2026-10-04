@@ -124,6 +124,10 @@ const ZH_MAP: Record<string, string> = {
   'Session mode': '会话模式',
   'Search dsh sessions...': '搜索 dsh 会话…',
   'Close Session': '归档会话',
+  'Close Workspace': '关闭工作区',
+  'Close workspace?': '关闭工作区？',
+  'This closes all {count} sessions in this workspace.': '将关闭该工作区下的 {count} 个会话。',
+  'You can reopen it from Recent Directories by right-clicking the blank area of the session list.': '可在会话列表空白处右键，从「最近打开的目录」重新打开。',
   'Clone': '克隆',
   'Rename': '重命名',
   'Rename App': '重命名应用',
@@ -184,6 +188,7 @@ const ZH_MAP: Record<string, string> = {
   'Jump to Previous Prompt': '跳到上条命令',
   'Jump to Next Prompt': '跳到下条命令',
   'Toggle Preview / Edit': '切换预览/编辑',
+  'Clone Current Session': '克隆当前会话',
   'Quick Open File': '快速打开文件',
   '{key}+Click File / Markdown to Add to Chat': '{key}+左键 点击文件/Markdown 加入对话',
 
@@ -249,7 +254,6 @@ const ZH_MAP: Record<string, string> = {
   'Delete {fileName}?': '确定删除 {fileName}？',
   'Recently Opened': '最近打开的文件',
   'Remove': '移除',
-  'Remove Group': '移除分组',
   'Queued': '待发送',
   'Interject': '插话发送',
 
