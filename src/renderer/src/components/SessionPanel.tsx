@@ -4,7 +4,7 @@ import { RecentFileEntry } from '@shared/types'
 import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon } from '../sessionRestore'
 import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, mascotColorValue, pixelMascot } from '../pixelMascots'
 import { PixelMascot } from './PixelMascot'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages, Ellipsis } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -792,6 +792,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const agentPrefSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [groupQuickNewSubmenu, setGroupQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const groupQuickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [groupMenu, setGroupMenu] = useState<{ x: number; y: number; cwd: string } | null>(null)
   const quickNewCwd = sessions.find(s => s.id === activeSessionId)?.cwd
   const handleQuickNewSession = (mode: SessionMode) => {
     if (quickNewCwd && onNewSessionHere) onNewSessionHere(quickNewCwd, mode)
@@ -807,6 +808,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const quickNewSubmenuPos = useAdaptiveMenuPos(!!quickNewSubmenu, quickNewSubmenu?.x ?? 0, quickNewSubmenu?.y ?? 0)
   const agentPrefSubmenuPos = useAdaptiveMenuPos(!!agentPrefSubmenu, agentPrefSubmenu?.x ?? 0, agentPrefSubmenu?.y ?? 0)
   const groupQuickNewSubmenuPos = useAdaptiveMenuPos(!!groupQuickNewSubmenu, groupQuickNewSubmenu?.x ?? 0, groupQuickNewSubmenu?.y ?? 0)
+  const groupMenuPos = useAdaptiveMenuPos(!!groupMenu, groupMenu?.x ?? 0, groupMenu?.y ?? 0)
   const recentDirs = useRecentDirs()
   const favCwds = useFavCwds()
   const prevSessionIdsRef = useRef<Set<string>>(new Set())
@@ -1041,6 +1043,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       setCloneSubmenu(null)
       setQuickNewSubmenu(null)
       setAgentPrefSubmenu(null)
+      setGroupMenu(null)
       if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
       if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
       if (agentPrefSubmenuTimerRef.current) { clearTimeout(agentPrefSubmenuTimerRef.current); agentPrefSubmenuTimerRef.current = null }
@@ -1163,6 +1166,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setCloneSubmenu(null)
     setQuickNewSubmenu(null)
     setAgentPrefSubmenu(null)
+    setGroupMenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
     if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
     if (agentPrefSubmenuTimerRef.current) { clearTimeout(agentPrefSubmenuTimerRef.current); agentPrefSubmenuTimerRef.current = null }
@@ -1176,6 +1180,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setCloneSubmenu(null)
     setQuickNewSubmenu(null)
     setAgentPrefSubmenu(null)
+    setGroupMenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
     if (quickNewSubmenuTimerRef.current) { clearTimeout(quickNewSubmenuTimerRef.current); quickNewSubmenuTimerRef.current = null }
     if (agentPrefSubmenuTimerRef.current) { clearTimeout(agentPrefSubmenuTimerRef.current); agentPrefSubmenuTimerRef.current = null }
@@ -1802,6 +1807,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             const dirName = cwdTitle(group.cwd)
             const groupHasActive = activeSessionId && group.sessions.some(s => s.id === activeSessionId)
             const groupMascotRunning = group.sessions.some(s => agentStatus[s.id] === 'running')
+            const groupMenuAnchor = groupMenu?.cwd === group.cwd ? groupMenu : null
             return (
               <div
                 key={group.cwd}
@@ -1881,10 +1887,10 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span
-                      className={`group/glyph relative shrink-0 w-4 h-4 flex items-center justify-center rounded select-none transition-colors ${
+                      className={`relative shrink-0 w-4 h-4 flex items-center justify-center rounded select-none transition-colors ${
                         group.sessions.length === 0 ? '' : 'cursor-pointer hover:bg-ide-hover'
                       }`}
-                      title={group.sessions.length === 0 ? t('Remove Group') : t('Edit')}
+                      title={group.sessions.length === 0 ? undefined : t('Edit')}
                       draggable={false}
                       onClick={(e) => {
                         e.stopPropagation()
@@ -1896,6 +1902,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         setQuickNewSubmenu(null)
                         setAgentPrefSubmenu(null)
                         setGroupQuickNewSubmenu(null)
+                        setGroupMenu(null)
                         setEmojiMenu({ x: e.clientX, y: e.clientY, cwd: group.cwd })
                       }}
                     >
@@ -1904,23 +1911,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         name={cwdMascots[group.cwd]}
                         color={mascotColorValue(cwdMascotColors[group.cwd])}
                         active={groupMascotRunning}
-                        className="size-3.5 transition-opacity group-hover:opacity-0"
+                        className="size-3.5"
                       />
-                      {group.sessions.length === 0 ? (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); cwdStore.removeKeptGroup(group.cwd) }}
-                          className="absolute inset-0 opacity-0 group-hover:opacity-100 hover:bg-ide-danger hover:text-white rounded transition-all flex items-center justify-center"
-                          title={t('Remove Group')}
-                        >
-                          <X size={12} />
-                        </button>
-                      ) : (
-                        <span className="absolute inset-0 opacity-0 group-hover:opacity-100 group-hover/glyph:text-ide-accent transition-[opacity,color] flex items-center justify-center pointer-events-none text-ide-text">
-                          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                            <path d="M9.94076 1.34942C10.7047 0.90231 11.6503 0.902415 12.4143 1.34942C12.7061 1.52015 12.9688 1.79118 13.3104 2.13284C13.6521 2.47448 13.9231 2.73721 14.0939 3.02894C14.5408 3.79294 14.5409 4.73856 14.0939 5.50251C13.9231 5.79415 13.652 6.05704 13.3104 6.39861L6.65932 13.0497C6.28068 13.4284 6.00695 13.7108 5.66543 13.9097C5.32391 14.1085 4.94315 14.2074 4.42705 14.3498L3.24394 14.6761C2.77527 14.8054 2.34538 14.9262 2.00131 14.9684C1.65196 15.0112 1.17964 15.0013 0.810764 14.6325C0.441921 14.2637 0.432107 13.7913 0.47486 13.442C0.517035 13.0979 0.6379 12.668 0.767181 12.1993L1.09352 11.0162C1.23588 10.5001 1.33481 10.1193 1.5336 9.77784C1.7325 9.43632 2.0149 9.1626 2.39355 8.78395L9.04466 2.13284C9.38625 1.79126 9.64911 1.52016 9.94076 1.34942ZM15.5427 14.8398H7.55223L8.96707 13.425H15.5427V14.8398ZM3.39382 9.78422C2.965 10.213 2.84244 10.3436 2.75709 10.49C2.67183 10.6366 2.61862 10.8079 2.45733 11.3925L2.13099 12.5756C2.00183 13.0439 1.92194 13.3419 1.88863 13.5536C2.10041 13.5204 2.39872 13.4416 2.86764 13.3123L4.05075 12.9859C4.63544 12.8246 4.80669 12.7715 4.95323 12.6862C5.09968 12.6008 5.23022 12.4783 5.65905 12.0494L10.721 6.98644L8.45577 4.72121L3.39382 9.78422ZM11.7 2.57079C11.3774 2.38198 10.9777 2.38198 10.6551 2.57079C10.5602 2.62647 10.4487 2.72931 10.0449 3.13311L9.45604 3.72094L11.7213 5.98617L12.3102 5.39833C12.7139 4.99457 12.8168 4.88307 12.8725 4.78818C13.0613 4.46561 13.0612 4.06585 12.8725 3.74326C12.8169 3.64827 12.7146 3.53752 12.3102 3.13311C11.9057 2.72863 11.795 2.6264 11.7 2.57079Z" />
-                          </svg>
-                        </span>
-                      )}
                     </span>
                     <span
                       className={`text-xs font-medium truncate min-w-0 cursor-pointer transition-all session-group__path ${
@@ -1945,12 +1937,30 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
+                        setContextMenu(null)
+                        setEmptyAreaMenu(null)
+                        setCloneSubmenu(null)
+                        setQuickNewSubmenu(null)
+                        setGroupQuickNewSubmenu(null)
+                        const r = e.currentTarget.getBoundingClientRect()
+                        setGroupMenu(groupMenu?.cwd === group.cwd ? null : { x: r.left, y: r.bottom + 4, cwd: group.cwd })
+                      }}
+                      className="w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:bg-ide-hover hover:text-ide-text transition-all shrink-0 flex items-center justify-center"
+                      title={t('Settings')}
+                    >
+                      <Ellipsis size={13} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setGroupMenu(null)
                         if (groupQuickNewSubmenuTimerRef.current) { clearTimeout(groupQuickNewSubmenuTimerRef.current); groupQuickNewSubmenuTimerRef.current = null }
                         setGroupQuickNewSubmenu(null)
                         onNewSessionHere?.(group.cwd, newMode)
                       }}
                       onMouseEnter={(e) => {
                         clearTimer(hoverTimerRef)
+                        setGroupMenu(null)
                         setHoverPreview(prev => prev?.pinned ? prev : null)
                         if (groupQuickNewSubmenuTimerRef.current) { clearTimeout(groupQuickNewSubmenuTimerRef.current); groupQuickNewSubmenuTimerRef.current = null }
                         const r = e.currentTarget.getBoundingClientRect()
@@ -1964,6 +1974,35 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     >
                       <Plus size={13} />
                     </button>
+                    {groupMenuAnchor && (
+                      <div
+                        className="fixed pointer-events-auto bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 min-w-[132px]"
+                        ref={groupMenuPos.ref}
+                        style={groupMenuPos.style}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                          onClick={(e) => {
+                            const headerEl = e.currentTarget.closest('.session-group__header')
+                            const rect = headerEl?.getBoundingClientRect()
+                            const padLeft = headerEl ? parseFloat(getComputedStyle(headerEl).paddingLeft) || 0 : 0
+                            setGroupMenu(null)
+                            setEmojiMenu({ x: rect ? rect.left + padLeft : groupMenuAnchor.x, y: groupMenuAnchor.y, cwd: group.cwd })
+                          }}
+                        >
+                          <Pencil size={14} className="text-ide-text-muted" />
+                          <span>{t('Rename')}</span>
+                        </button>
+                        <button
+                          className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover flex items-center gap-2"
+                          onClick={() => { setGroupMenu(null); cwdStore.removeKeptGroup(group.cwd) }}
+                        >
+                          <X size={14} className="text-ide-danger" />
+                          <span>{t('Close')}</span>
+                        </button>
+                      </div>
+                    )}
                     {groupQuickNewSubmenu && groupQuickNewSubmenu.cwd === group.cwd && (
                       <div
                         className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 w-[168px]"
