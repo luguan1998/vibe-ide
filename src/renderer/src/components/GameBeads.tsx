@@ -664,6 +664,9 @@ export default function GameBeads({ onBack }: { onBack?: () => void }) {
   const [ansiWide, setAnsiWide] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const helpRef = useRef<HTMLDivElement>(null)
+  const [brush, setBrush] = useState<PaletteColor>(PALETTE[0])
+  const [showPalette, setShowPalette] = useState(false)
+  const paletteRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!showHelp) return
@@ -673,6 +676,15 @@ export default function GameBeads({ onBack }: { onBack?: () => void }) {
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [showHelp])
+
+  useEffect(() => {
+    if (!showPalette) return
+    const onDown = (e: MouseEvent) => {
+      if (paletteRef.current && !paletteRef.current.contains(e.target as Node)) setShowPalette(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [showPalette])
   const containerRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -729,6 +741,51 @@ export default function GameBeads({ onBack }: { onBack?: () => void }) {
     setDragOver(false)
     onPickFile(e.dataTransfer.files?.[0])
   }, [onPickFile])
+
+  const cellAt = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!grid) return null
+    const rect = e.currentTarget.getBoundingClientRect()
+    const cell = rect.width / grid.length
+    const x = Math.floor((e.clientX - rect.left) / cell)
+    const y = Math.floor((e.clientY - rect.top) / cell)
+    if (x < 0 || y < 0 || x >= grid.length || y >= grid.length) return null
+    return { x, y }
+  }, [grid])
+
+  const paint = useCallback((x: number, y: number, color: PaletteColor) => {
+    setGrid(g => {
+      if (!g || g[y][x] === color) return g
+      const next = g.map(row => row.slice())
+      next[y][x] = color
+      return next
+    })
+  }, [])
+
+  const paintingRef = useRef(false)
+
+  useEffect(() => {
+    const stop = () => { paintingRef.current = false }
+    window.addEventListener('mouseup', stop)
+    return () => window.removeEventListener('mouseup', stop)
+  }, [])
+
+  const onCanvasDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const hit = cellAt(e)
+    if (!hit || !grid) return
+    if (e.button === 2) {
+      setBrush(grid[hit.y][hit.x])
+      return
+    }
+    if (e.button !== 0) return
+    paintingRef.current = true
+    paint(hit.x, hit.y, brush)
+  }, [cellAt, grid, paint, brush])
+
+  const onCanvasMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!paintingRef.current || !(e.buttons & 1)) return
+    const hit = cellAt(e)
+    if (hit) paint(hit.x, hit.y, brush)
+  }, [cellAt, paint, brush])
 
   useEffect(() => {
     const handle = (e: ClipboardEvent) => {
@@ -893,6 +950,36 @@ export default function GameBeads({ onBack }: { onBack?: () => void }) {
             e.target.value = ''
           }}
         />
+        {grid && (
+          <div ref={paletteRef} className="relative">
+            <button
+              onClick={() => setShowPalette(v => !v)}
+              title="Brush color"
+              className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-lg bg-ide-hover hover:bg-ide-border text-ide-text-muted transition-colors"
+            >
+              <span className="w-3 h-3 rounded-full border border-black/20" style={{ backgroundColor: brush.hex }} />
+              {brush.name}
+            </button>
+            {showPalette && (
+              <div className="absolute left-0 top-full mt-1.5 w-60 rounded-lg bg-ide-sidebar border border-ide-border shadow-lg p-2 z-40 grid grid-cols-8 gap-1.5">
+                {PALETTE.map(c => (
+                  <button
+                    key={c.name}
+                    title={c.name}
+                    onClick={() => {
+                      setBrush(c)
+                      setShowPalette(false)
+                    }}
+                    className={`w-5 h-5 rounded-full border transition-transform hover:scale-110 ${
+                      brush === c ? 'border-ide-accent border-2' : 'border-black/20'
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
@@ -928,15 +1015,29 @@ export default function GameBeads({ onBack }: { onBack?: () => void }) {
               </div>
               <canvas
                 ref={canvasRef}
-                className={`rounded-lg border border-ide-border ${busy ? 'opacity-50' : ''}`}
+                className={`rounded-lg border border-ide-border cursor-crosshair ${busy ? 'opacity-50' : ''}`}
                 style={{ width: 'auto', maxWidth: '100%' }}
+                title="Click to paint · Drag to paint · Right-click to pick color"
+                onMouseDown={onCanvasDown}
+                onMouseMove={onCanvasMove}
+                onContextMenu={e => e.preventDefault()}
               />
+              <div className="text-[10px] text-ide-text-muted/60">Click to paint · Right-click to pick color</div>
               <div className="text-xs text-ide-text-muted">
                 {counts.map(([c, n]) => (
-                  <span key={c.name} className="inline-flex items-center gap-1.5 mr-3 my-0.5">
-                    <span className="w-3 h-3 rounded-full border border-black/20" style={{ backgroundColor: c.hex }} />
+                  <button
+                    key={c.name}
+                    onClick={() => setBrush(c)}
+                    className={`inline-flex items-center gap-1.5 mr-3 my-0.5 transition-opacity hover:opacity-80 ${
+                      brush === c ? 'text-ide-accent' : ''
+                    }`}
+                  >
+                    <span
+                      className={`w-3 h-3 rounded-full border ${brush === c ? 'border-ide-accent border-2' : 'border-black/20'}`}
+                      style={{ backgroundColor: c.hex }}
+                    />
                     {c.name} ×{n}
-                  </span>
+                  </button>
                 ))}
               </div>
             </div>
