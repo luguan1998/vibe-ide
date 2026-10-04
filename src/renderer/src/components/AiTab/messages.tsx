@@ -572,8 +572,11 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
       {hasContent && (
         <div className={`ai-tab__message-content w-full ${CONTENT_MAX_W} space-y-1.5`}>
           {/* isLive = 当前正在流式生成的那条消息（提交时 busy）。autoFold 让它展开态挂载无缝交接 busy 区
-              thinking、下一帧平滑收起；历史消息 isLive=false 折叠挂载。isLive 另让本消息 root 跳过 fade-in（接管不透明） */}
-          {!concise && message.thinking && <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} autoFold={isLive} />}
+              thinking、下一帧平滑收起；历史消息 isLive=false 折叠挂载。isLive 另让本消息 root 跳过 fade-in（接管不透明）。
+              精简模式：同样展开态挂载无缝交接，改由 Dwell 驻留 2s 后整块收起卸载；历史 / resume 的 stamp 已过期 → 整块不挂载 */}
+          {message.thinking && (concise
+            ? <Dwell dwell stamp={dwellStamp}><ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} defaultOpen /></Dwell>
+            : <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} autoFold={isLive} />)}
           {message.content && (
             <Dwell dwell={!!dwellContent} stamp={dwellStamp}>
               <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />
@@ -831,11 +834,7 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
       continue
     }
     const isStreamingLast = i === messages.length - 1 && busy
-    // 精简模式：纯 thinking 消息（无正文/工具/错误）整条跳过；纯工具消息不再跳过，
-    // 改为照常成组渲染、由 Dwell 驻留 2s 后收起（正文消息的 thinking 由 bubble 内部不渲染、工具走 Dwell）
-    if (concise && !isStreamingLast && !msg.content && !msg.error && !msg.toolUse?.length && msg.thinking) {
-      continue
-    }
+    // 精简模式的纯 thinking 消息不再跳过：照常成组渲染，由 bubble 内的 Dwell 驻留 2s 后收起（历史 stamp 过期则整块不挂载）
     if (isPureToolMessage(msg) && !isStreamingLast) {
       for (const tool of msg.toolUse ?? []) {
         if (readBuffer.length === 0) {
