@@ -673,6 +673,7 @@ export default function GameBeads({ onBack }: { onBack?: () => void }) {
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [showHelp])
+  const containerRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sizeRef = useRef<number>(29)
@@ -729,6 +730,24 @@ export default function GameBeads({ onBack }: { onBack?: () => void }) {
     onPickFile(e.dataTransfer.files?.[0])
   }, [onPickFile])
 
+  useEffect(() => {
+    const handle = (e: ClipboardEvent) => {
+      // 游戏 tab 隐藏（display:none）时组件仍挂载，隐藏实例不响应
+      const el = containerRef.current
+      if (!el || !el.offsetParent) return
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      const file = Array.from(e.clipboardData?.items ?? [])
+        .find(it => it.kind === 'file' && it.type.startsWith('image/'))
+        ?.getAsFile()
+      if (!file) return
+      e.preventDefault()
+      onPickFile(file)
+    }
+    window.addEventListener('paste', handle)
+    return () => window.removeEventListener('paste', handle)
+  }, [onPickFile])
+
   const counts = useMemo(() => {
     if (!grid) return []
     const tally = new Map<PaletteColor, number>()
@@ -762,7 +781,7 @@ export default function GameBeads({ onBack }: { onBack?: () => void }) {
   }, [grid, ansiWide])
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none" tabIndex={-1}>
+    <div ref={containerRef} className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none" tabIndex={-1}>
       <div className="flex items-center justify-between px-4 py-2 bg-ide-hover/50 border-b border-ide-border shrink-0 select-none">
         <div className="flex items-center gap-2">
           {onBack && (
@@ -892,7 +911,7 @@ export default function GameBeads({ onBack }: { onBack?: () => void }) {
             onClick={() => fileRef.current?.click()}
           >
             <div className="text-3xl mb-2">{busy ? '⏳' : '📸'}</div>
-            <div className="text-sm text-ide-text-muted">{busy ? 'Converting…' : 'Drop your image here or click to browse'}</div>
+            <div className="text-sm text-ide-text-muted">{busy ? 'Converting…' : 'Drop, paste (Ctrl+V) or click to browse'}</div>
             <div className="text-xs text-ide-text-muted/60 mt-1">JPG, PNG, WebP</div>
           </div>
         ) : (
