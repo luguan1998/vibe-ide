@@ -39,6 +39,7 @@
   --ide-font-family: 'Zpix', monospace !important;
   --ide-term-font: 'Zpix', monospace !important;
   --ide-session-font: 'Zpix', monospace !important;
+  --ide-app-name-font: 'Zpix', 'Segoe UI Variable Display', 'Segoe UI', Calibri, system-ui, sans-serif !important;
 }
 
 html, body, #root {
@@ -219,6 +220,17 @@ html, body, #root {
 .session-group__header > div:last-child:hover {
   opacity: 1 !important;
   pointer-events: auto !important;
+}
+/* 两个按钮本身 — 组头 hover 时由灰转深，按钮 hover 时给 NES 实心蓝块
+   （app 默认 hover:bg-ide-hover = #e7e7e7，白底上几乎看不见） */
+.session-group__header:hover > div:last-child > button {
+  color: rgb(var(--ide-text)) !important;
+  border-radius: 0 !important;
+}
+.session-group__header > div:last-child > button:hover {
+  background: rgb(var(--ide-accent)) !important;
+  color: #fff !important;
+  box-shadow: inset 2px 2px 0 rgb(0 107 179) !important;
 }
 .session-group:has(.session-item--active) .session-group__header {
   background: #fff !important;
