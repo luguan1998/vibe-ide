@@ -47,7 +47,7 @@ src/
 │   ├── git.ts                    # simple-git 版本控制（含 lineLog/graph）
 │   ├── file.ts                   # 文件系统读写、目录树（iconv-lite/jschardet 编码探测）
 │   ├── search.ts                 # ripgrep 内容搜索（grep/replace）
-│   ├── watcher.ts                # chokidar 文件变动监听（fs:changed 推送）
+│   ├── watcher.ts                # fs.watch 文件变动监听（fs:changed 推送）
 │   ├── codegraph.ts              # CodeGraph 调用图索引（生成/查询/进度/MCP）
 │   ├── ai.ts                     # Claude CLI 子进程管理（configDir → CLAUDE_CONFIG_DIR + 同目录 JSONL）
 │   ├── ai-history.ts             # JSONL 会话历史读取
@@ -64,7 +64,7 @@ src/
 │   ├── main.tsx                  # React 挂载入口（Monaco 预载）
 │   ├── App.tsx                   # 三栏布局、会话管理、全局快捷键
 │   ├── shortcuts.ts              # 快捷键定义注册
-│   ├── aiStore.ts                # AI 会话全局状态（zustand）
+│   ├── aiStore.ts                # AI 会话全局状态（useSyncExternalStore 订阅）
 │   ├── sessionRestore.ts         # 会话恢复
 │   ├── i18n.ts                   # 中英文文案
 │   ├── styles/globals.css        # Tailwind + CSS 变量 + 自定义动画
@@ -107,8 +107,8 @@ src/
 - **board**：records/create/finish/clear/merge/mergeAbort
 - **pet**：list/setActive/delete/changed；杂项：claudeConfig:dir、titlebar:update、font:adjust/list、focus:settings、startup:openPath、perf:snapshot、ocr:recognize、app:version、snippets:load/toggle
 
-**关键依赖：** `node-pty`（external from Rollup）、`@xterm/xterm`、`@monaco-editor/react`、`simple-git`、`@vscode/ripgrep`、`chokidar`、`tesseract.js`（OCR）、`iconv-lite`/`jschardet`（编码）、`sharp`、`koffi`、`@earendil-works/pi-ai`（pi 后端 RPC 子进程）
-- 渲染层：`@xterm/xterm` + addons（fit/webgl/search/clipboard/unicode-graphemes/web-links）、`@monaco-editor/react`、`react-markdown` + `shiki` + `katex` + micromark 系（AI 消息渲染）、`mermaid` + `dagre`（调用图/流程图）、`lucide-react`、`zustand` + `immer`、`@tanstack/react-virtual`、`turndown`（网页→markdown）、`@modelcontextprotocol/sdk`、`@earendil-works/pi-ai`
+**关键依赖：** `node-pty`（external from Rollup）、`@xterm/xterm`、`@monaco-editor/react`、`simple-git`、`tesseract.js`（OCR，语言数据随 `@tesseract.js-data/*` 走 asarUnpack）、`iconv-lite`/`jschardet`（编码）、`pyright`/`typescript`/`typescript-language-server`（LSP，按路径解析）。搜索用系统 `rg`（PATH），无则回落 Node.js 实现；pi 后端走全局安装的 `pi` CLI，无本地依赖
+- 渲染层：`@xterm/xterm` + addons（fit/webgl/search/clipboard/unicode-graphemes/web-links）、`@monaco-editor/react`、`react-markdown` + `remark-gfm`（AI 消息渲染，代码块走 Monaco 高亮）、`mermaid` + `dagre`（调用图/流程图）、`lucide-react`
 - **终端背景图 (`--terminal-bg-image`)**：xterm.js >= 6.1.0-beta 已修复 CSS 黑底 + WebGL 透明问题（`.xterm:not(.allow-transparency) .xterm-viewport` 条件化 + PR #5561）。背景图 CSS 变量由主进程 `resolveCssUrls()` 将 `url()` 转 base64 以绕过 dev 模式跨域。详见 `terminal-bg-image` 记忆
 - **xterm 自绘滚动条**：xterm.js 6.x 使用自定义 DOM 滚动条（`.xterm-scrollable-element > .xterm-scrollbar > .xterm-slider`），而非浏览器原生滚动条。`::-webkit-scrollbar-*` 伪元素对其无效。xterm 运行时动态注入 `<style>` 设置 `.xterm-slider` 的 `background`，snippets CSS 需 `!important` 覆盖。原生 `.xterm-viewport` 滚动条应 `display: none` 隐藏，否则底部会露出多余轨道空隙
 
