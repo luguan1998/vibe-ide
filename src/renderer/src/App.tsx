@@ -3467,7 +3467,7 @@ export default function App() {
             title={t('File Filter Rules')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
-              <g transform="translate(1.44 1.44) scale(0.88)">
+              <g transform="translate(1.92 1.92) scale(0.84)">
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
               </g>
             </svg>
