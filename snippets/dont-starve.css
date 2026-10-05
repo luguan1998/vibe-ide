@@ -191,6 +191,10 @@ html, body, #root {
 .session-item--active .animate-spin {
   color: rgb(32 27 24) !important;
 }
+/* 無 emoji 的 running 圖示是 accent 色點陣 SVG（非 .animate-spin），紅底上同樣隱形 → 炭黑 */
+.session-item__icon svg:has(.session-busy-cell) {
+  color: rgb(32 27 24) !important;
+}
 .session-item.border-ide-accent\/60:not(.session-item--active) .session-item__name.animate-text-wave,
 .session-item--active .session-item__name.animate-text-wave {
   background-image: linear-gradient(
@@ -424,6 +428,14 @@ html, body, #root {
   color: rgb(0 0 0) !important;
   filter: brightness(1.15) !important;
   transform: none !important;
+}
+/* Launch Terminal 卡片內文 — 沙灘金底上淺色字看不清，統一改炭黑 */
+.aux-tab__launch-btn .text-ide-text {
+  color: rgb(32 27 24) !important;
+}
+.aux-tab__launch-btn [class*="text-ide-text-muted"] {
+  color: rgb(32 27 24) !important;
+  opacity: 0.75 !important;
 }
 .git-tab__commit-btn:disabled,
 .git-tab__push-group button:disabled,
