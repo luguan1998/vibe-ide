@@ -389,7 +389,7 @@ const ZH_MAP: Record<string, string> = {
   // GitTab - Commit context menu
   'Copy Message': '复制提交信息',
   'Copy Hash': '复制哈希值',
-  'Copy Path': '复制文件路径',
+  'Copy Path': '复制绝对路径',
 
   // GitTab - Section headers (keep English)
 
