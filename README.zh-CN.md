@@ -2,13 +2,13 @@
 
 [English](README.md) | **中文**
 
-> 一款面向"氛围编码"（Vibe Coding）的桌面 IDE —— 三栏布局：左侧会话管理、中间原生终端、右侧 Git/Aux/搜索/文件工具，并内置 Claude AI 助手、DeepSeek Harness（dsh）Agent 模式、实时代码图、嵌入式浏览器与桌面宠物，让开发流保持顺畅不中断。
+> 一款面向"氛围编码"（Vibe Coding）的桌面 IDE —— 三栏布局：左侧会话管理、中间原生终端、右侧 Git/Aux/搜索/文件工具，并内置 Claude AI 助手、pi Agent 后端、实时代码图、嵌入式浏览器与桌面宠物，让开发流保持顺畅不中断。
 
 ---
 
 ## 快速上手：三种基本用法
 
-Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**、**Claude GUI** 和 **dsh**，覆盖从纯命令行到 AI 结对编程的各种工作流。三者共用左侧会话列表和右侧 Git / 搜索 / 文件工具；Claude Code 和 dsh 的历史会话都可以在“会话历史”中恢复。
+Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**、**Claude GUI** 和 **pi**，覆盖从纯命令行到 AI 结对编程的各种工作流。两种 AI 模式共用同一套聊天界面，也都共用左侧会话列表和右侧 Git / 搜索 / 文件工具；Claude Code 和 pi 的历史会话都可以在“会话历史”中恢复。
 
 ### 1. Terminal —— 原生终端
 
@@ -22,11 +22,11 @@ Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**
 - 本质是 Claude Code CLI 的桌面 GUI 前端：在聊天框里直接提需求，实时流式查看回答、思维块、工具调用和权限提示。
 - 支持会话历史、模型切换、Plan→Execute、回退/Fork、Worktree 导航等，适合把编码任务交给 Claude 去执行。
 
-### 3. dsh —— DeepSeek Harness Agent
+### 3. pi —— 另一种 AI 后端
 
-- 新建会话时选择 **dsh**，即可进入 DeepSeek Harness Agent 模式。
-- 在 Vibe 内嵌渲染真实 dsh 对话界面，支持思维链、工具调用、流式输出和轨迹回放。
-- 会话仍由左侧面板统一管理，支持 dsh 插件管理，并与原生 dsh CLI 共用 `~/.dsh`，方便在 IDE 内外无缝衔接。
+- 新建会话时选择 **Pi**（或在空会话中把 Claude 会话的后端切换为 pi），即可用 `pi` CLI 驱动同一套聊天界面，而不再走 Claude Code。
+- pi 以 RPC 子进程方式运行，会话历史独立存放在 `~/.pi/agent/sessions`，可在“会话历史”中浏览与恢复。
+- 支持模型选择、思考强度、权限提示，以及与 Claude 后端一致的流式输出 / 工具调用渲染。
 
 ---
 
@@ -75,13 +75,11 @@ Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**
 - 斜杠命令、会话列表/加载、模型切换、回退/Fork、Worktree 导航、示例提示
 - Plan→Execute 流水线；AskUserQuestion 恢复
 
-### 🧠 dsh Agent 模式 — DeepSeek Harness
-- 与终端、Claude 并列的第三种中间视图：可从新建会话选择器创建 `dsh` 会话；历史会话可从会话历史中恢复
-- 在进程内渲染真实 dsh 对话界面（cordis 插件栈），支持思维链 / 工具调用 / 流式输出 / 轨迹
-- 会话仍由 Vibe 左侧面板管理；dsh 工作区挂载、Fork、历史恢复/删除均同步回 Vibe
-- 通过 dsh 主题桥自动跟随 Vibe 主题与字体
-- 桌面宠物可监听最新 dsh 回复并以气泡展示
-- **dsh 插件管理** — 设置 → dsh → 插件 → *安装插件*：支持添加/卸载 dsh 包并原地重启 dsh；与原生 dsh CLI 共用 `~/.dsh`
+### 🧠 pi 后端 —— 另一种 AI Agent
+- 与 Claude Code 并列的第二种 AI 后端，可在新建会话时选择（或在空对话中切换后端）
+- 以 RPC 子进程运行 `pi` CLI（`@earendil-works/pi-ai`），复用同一套 AiTab 渲染流式回答、思维、工具调用与权限提示
+- 独立会话历史 `~/.pi/agent/sessions`：可在会话历史中列出、搜索、预览、恢复、删除
+- 模型选择器 + 按模型可选的思考强度；桌面宠物可监听最新 pi 回复并以气泡展示
 
 ### 🐾 桌面宠物
 - 基于 webp 精灵图的动画宠物，在桌面上溜达
@@ -102,7 +100,7 @@ Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**
   - 随包附带 11 款片段：starry-night、dont-starve、macos、nes-8bit、nyan-cat、diablo 等
 
 ### 🎮 更多
-- **会话历史（Session History）** — 统一浏览/搜索 Claude Code（TUI/GUI）与 dsh 历史会话，支持恢复和删除
+- **会话历史（Session History）** — 统一浏览/搜索 Claude Code（TUI/GUI）与 pi 历史会话，支持恢复和删除
 - **Mujica** — 多 Agent Claude 编队指挥（并行会话可视化为乐队）
 - 小游戏：2048、Sandspiel（落沙模拟）、Balatro（扑克 Roguelike）、Fruit Ninja、Vampire Survivors
 - **OCR** — Tesseract.js（chi_sim + eng），识别图片/截图
@@ -120,7 +118,7 @@ Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**
 | **终端** | xterm.js（WebGL / 剪贴板 / 链接 / unicode-graphemes）+ node-pty |
 | **编辑器** | Monaco Editor (`@monaco-editor/react`) |
 | **AI** | Claude Code CLI 子进程（stream-json） |
-| **dsh Agent** | DeepSeek Harness 子进程 + 内置 cordis 客户端栈 |
+| **pi Agent** | `@earendil-works/pi-ai` CLI 子进程（RPC） |
 | **Git** | simple-git |
 | **搜索** | ripgrep (rg) + Node.js 回退 |
 | **代码图** | `@colbymchenry/codegraph` CLI（符号索引/调用分析）+ dagre（图布局） |
@@ -138,75 +136,7 @@ Vibe IDE 的中间栏有三种核心使用方式 —— **终端（Terminal）**
 
 - Node.js >= 18
 - npm
-- pnpm（可选——仅在需要重新构建内置 dsh harness 时需要）
 - Windows 系统（目前主要支持）
-
-### 仓库布局
-
-**dsh Agent 模式**会以子进程方式拉起本地
-[deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) 服务。运行时已内置在
-`vendor/harness/` 中，并通过 `file:./vendor/harness/...` 引用，因此**新克隆即可直接使用 dsh 模式**，
-无需再额外 clone 一个同级 deepseek-harness 仓库。
-
-```
-claudeui/
-├── src/             # Vibe IDE 源码
-└── vendor/harness/  # 内置 DeepSeek Harness 运行时 + CLI
-```
-
-如果你从上游重新替换 `vendor/harness`，必须重新构建两份**未入 git** 的产物——缺失时 dsh 启动会抛模块解析错误，表现为误导性的"启动超时"：
-
-- `vendor/harness/native/landlock-run/packages/entry/lib/`（被 `.gitignore`）
-- `vendor/harness/apps/web/dist/`（从未提交）
-
-vendored 包使用 `file:` 规格（由 `scripts/patch-workspace-refs.mjs` 从 `workspace:` 改写，以便 **npm** 解析——用 npm，不要用 pnpm，pnpm 会拒绝 `peerDependencies` 里的 `file:`）。
-
-```bash
-# 1. landlock-run lib（纯 JS 桥接；Windows 运行时不用 landlock）
-node node_modules/typescript/bin/tsc -b vendor/harness/native/landlock-run/packages/entry/tsconfig.json
-
-# 2. dsh web 前端 dist（vite build 直接编译 vendored client src/）
-npm install --prefix vendor/harness/apps/web --ignore-scripts
-npm run --prefix vendor/harness/apps/web build
-```
-
-`npm run postinstall` 会运行 `scripts/build-vendored-dsh.mjs` 幂等地执行以上两步（产物已存在则跳过），因此任意机器执行 `npm ci` 即可得到可用的 dsh，无需额外步骤。
-
-### dsh 预设
-
-`presets/` 存放可直接使用的 dsh agent 预设。把预设目录复制到用户预设根目录即可生效，无需改任何代码：
-
-```bash
-cp -r presets/minimal-gitbash "$USERPROFILE/.dsh/.agent-presets/"
-```
-
-`presets/minimal-gitbash` 是官方 `minimal` 预设的 **Windows 专属**变体：双工具 Agent（持久
-`bash` + `str_replace_editor`），显式使用 Git Bash。macOS/Linux 上自带的 `minimal` 预设开箱即用
-（默认 `/bin/bash` 就是系统 bash），无需本预设。
-
-复制前先编辑 `agent.cordis.yml`，把 `shellPath` 改为该机器上 Git Bash 的实际路径：
-
-```yaml
-- id: terminal-bash
-  name: '@deepseek-ai/dsh-terminal-bash'
-  config:
-    timeoutMs: 300000
-    shellPath: 'C:\Program Files\Git\bin\bash.exe'   # <- 换成你机器的 Git bash.exe 路径
-```
-
-复制后即可在 dsh 预设列表中选择；要作为默认，在设置里选为默认（或改
-`~/.dsh/settings.yaml` 的 `agent-presets.default`）。
-
-`presets/standard-gitbash` 是官方 `standard` 预设的 **Windows 专属**变体：保留标准模式的
-全部能力（文件编辑、检索、Skills、计划、目标、子代理、工作流），只换 shell 层 —— 模型
-拿到的是运行在 Git Bash 里的持久 `bash` 工具（`pwsh` 工具停用），不再是 PowerShell。
-macOS/Linux 上本预设自动回落为标准 bash 工具，行为不变。
-
-```bash
-cp -r presets/standard-gitbash "$USERPROFILE/.dsh/.agent-presets/"
-```
-
-复制前同样先改 `shellPath`（见上）。
 
 ### 安装 & 运行（新电脑完整流程）
 
@@ -230,34 +160,24 @@ electron_builder_binaries_mirror=https://npmmirror.com/mirrors/electron-builder-
 ```bash
 npm ci
 ```
-`npm ci` 严格按 lock 装依赖、不重新解析 `^` 范围——`npm install` 会重解析并把依赖树/lock 搞漂（换电脑后"dsh 启动超时"的根因）。它还会跑 `postinstall`，其中 `scripts/build-vendored-dsh.mjs` 会**自动构建两份未入 git 的 vendored 产物**（`landlock-run/lib/` 和 `apps/web/dist/`）——无需手动构建。
+`npm ci` 严格按 lock 装依赖、不重新解析 `^` 范围——`npm install` 会重解析并把依赖树/lock 搞漂。
 
 **4. 验证 dev**
 ```bash
 npm run dev
 ```
-应用里打开 AI 面板（dsh），dev 终端应打印 `dsh web: http://127.0.0.1:PORT`。
+应用里打开一个 Claude 或 pi 会话并发送一条消息，验证 AI 后端可用。
 
 **5. 打包**
 ```bash
 npm run build:win
 ```
-产物在 `dist/`：`Vibe IDE Setup x64.exe`（NSIS 安装包）+ 7z。装上后打开 dsh 验证。
+产物在 `dist/`：`Vibe IDE Setup x64.exe`（NSIS 安装包）+ 7z。装上后打开会话验证。
 
 > **踩坑提醒（每条都是真实根因）：**
-> - 用 **npm，不要用 pnpm**——vendored 包使用 `file:` 规格（由 `patch-workspace-refs.mjs` 改写）；pnpm 会拒绝 `peerDependencies` 里的 `file:`。
 > - electron **二进制**必须走镜像（第 2 步），否则 dev 报 `Electron uninstall`。
 > - `node-pty` 需要 VS C++ 工作负载，否则编译失败。
-> - 开发模式自动从 `vendor/harness/apps/cli/lib/bin.js` 发现 dsh 运行时。
-> - 若 `postinstall` 漏构建 dsh 产物，手动跑 `node scripts/build-vendored-dsh.mjs`。
-
-### 隐私说明：遥测已删除
-
-harness 唯一的数据外传通道——`session-telemetry-otel` 包（OTLP/HTTP 日志上报到
-`harness-telemetry.deepseeksvc.com`）——已从 harness 源码中**彻底删除并重新构建**。
-除你自己配置的 LLM API 端点外，无任何分析 SDK、崩溃上报或默认外联。若以后合并上游
-harness 改动，请复查是否有遥测回归；`src/main/dsh.ts` 中保留的 `DSH_TELEMETRY_DISABLED=1`
-（任意非空值即强制禁用遥测行）作为纵深防御。
+> - pi 后端需要 `pi` CLI 在 `PATH` 中（或能从其安装目录解析到）。
 
 ### 构建 & 打包
 
@@ -268,10 +188,6 @@ npm run build
 # 打包 Windows 安装包（NSIS + 7z）
 npm run build:win
 ```
-
-**打包后的 dsh 运行时：** harness CLI 已随安装包内置在 `resources/app.asar/vendor/harness/apps/cli`。
-安装器还会在安装根目录放置 `dsh.cmd` / `dsh.ps1` / `dsh.sh` 包装脚本，并可选加入 `PATH`，
-因此安装后也可以在 IDE 外直接使用 `dsh`（包括插件管理）。如需指定其他运行时，仍可通过 `DSH_CLI_BIN` 覆盖。
 
 ### 预览构建产物
 
@@ -296,7 +212,6 @@ src/
 │   ├── file.ts                    # 文件系统读/写/树/重命名/复制/移动
 │   ├── search.ts                  # ripgrep 内容搜索/替换
 │   ├── codegraph.ts               # 符号索引 + 调用图
-│   ├── dsh.ts                     # dsh 子进程服务 + 插件管理
 │   ├── ocr.ts                     # Tesseract.js OCR
 │   └── watcher.ts                 # 文件系统监听
 ├── preload/
@@ -309,7 +224,6 @@ src/
         ├── App.tsx                # 布局、中栏视图切换、全局快捷键
         ├── aiStore.ts             # AI 会话状态 store
         ├── mujicaStore.ts         # Mujica 多 Agent 状态 store
-        ├── dsh/                   # dsh cordis 装配 + 主题桥 + 历史辅助
         ├── i18n.ts                # 中英文 i18n
         ├── shortcuts.ts           # 快捷键定义 + 持久化
         ├── themes/                # 14 套主题 + Monaco 主题 + ThemeProvider
@@ -326,9 +240,7 @@ src/
             ├── FileTab.tsx        # 文件浏览器
             ├── SearchPanel.tsx    # ripgrep 搜索
             ├── AiTab.tsx          # Claude AI 聊天面板
-            ├── DshView.tsx        # dsh Agent 视图（Vibe 中栏内嵌对话界面）
-            ├── DshPluginTab.tsx   # dsh 插件安装/卸载 UI
-            ├── HistoryView.tsx    # 会话历史浏览（Claude + dsh）
+            ├── HistoryView.tsx    # 会话历史浏览（Claude + pi）
             ├── BrowserView.tsx    # 嵌入式浏览器 + 元素拾取
             ├── MarkdownPreview.tsx# Markdown + mermaid 预览
             ├── ImagePreview.tsx   # 图片查看器
@@ -353,7 +265,7 @@ snippets/                          # CSS 片段（在 设置 → Snippets 中切
 |--------|------|
 | `Ctrl+左键` | 点击文件 / Markdown 区块，加入对话（`@` 引用） |
 | `Ctrl+F` | 聚焦搜索面板 |
-| `Ctrl+H` | 命令历史（终端 / dsh） |
+| `Ctrl+H` | 命令历史（终端 / AI） |
 | `Ctrl+S` | 保存文件编辑 |
 | `Ctrl+Enter` | 提交 Git 提交 |
 | `Ctrl+↑` / `Ctrl+↓` | 切换终端会话 |

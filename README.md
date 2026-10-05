@@ -2,13 +2,13 @@
 
 **English** | [中文](README.zh-CN.md)
 
-> An Electron desktop IDE for vibe coding — a three-panel layout with session management, a native terminal, and Git/Aux/Search/File tools, plus built-in Claude Code and DeepSeek Harness (dsh) agent modes, a live code-graph, an embedded browser, and a desktop pet, all designed to keep your flow state uninterrupted.
+> An Electron desktop IDE for vibe coding — a three-panel layout with session management, a native terminal, and Git/Aux/Search/File tools, plus built-in Claude Code and pi agent backends, a live code-graph, an embedded browser, and a desktop pet, all designed to keep your flow state uninterrupted.
 
 ---
 
 ## Quick Start: Three Basic Ways to Use
 
-Vibe IDE’s center area has three core usage modes — **Terminal**, **Claude GUI**, and **dsh** — covering workflows from plain shell commands to AI pair-programming. They share the same left-side session list and right-side Git / Search / File tools. Claude Code and dsh history sessions can also be restored from Session History, so you can pick up where you left off.
+Vibe IDE’s center area has three core usage modes — **Terminal**, **Claude GUI**, and **pi** — covering workflows from plain shell commands to AI pair-programming. The two AI modes share the same chat UI; Claude Code and pi history sessions can also be restored from Session History, so you can pick up where you left off.
 
 ### 1. Terminal — Native Shell
 
@@ -22,11 +22,11 @@ Vibe IDE’s center area has three core usage modes — **Terminal**, **Claude G
 - It is a desktop GUI over the Claude Code CLI: type your request in the chat box and watch streaming replies, thinking blocks, tool-use visualization, and permission prompts live.
 - Supports session history, model switching, Plan→Execute, revert/fork, worktree navigation, and more — ideal for delegating coding tasks to Claude.
 
-### 3. dsh — DeepSeek Harness Agent
+### 3. pi — Alternative AI Backend
 
-- Pick **dsh** when creating a new session to enter DeepSeek Harness agent mode.
-- Renders the real dsh chat UI in-process, with thinking chains, tool calls, streaming output, and trajectory.
-- Sessions stay managed in Vibe’s left panel; dsh plugin management and the shared `~/.dsh` are supported, so it also works with the original dsh CLI.
+- Pick **Pi** when creating a new session (or start a Claude session and switch the backend while the conversation is empty) to drive the same chat UI with the `pi` CLI instead of Claude Code.
+- pi runs as an RPC subprocess and keeps its own session history under `~/.pi/agent/sessions`, browsable and resumable from Session History.
+- Supports model selection, thinking levels, permission prompts, and the same streaming / tool-use rendering as the Claude backend.
 
 ---
 
@@ -75,13 +75,11 @@ Vibe IDE’s center area has three core usage modes — **Terminal**, **Claude G
 - Slash commands, session list/load, model switcher, revert/fork, worktree nav, example prompts
 - Plan→Execute pipeline; AskUserQuestion resume
 
-### 🧠 dsh Agent Mode — DeepSeek Harness
-- Third center view alongside Terminal and Claude: create a `dsh` session from the new-session picker; dsh history sessions can be resumed from Session History
-- Renders the real dsh chat UI in-process (cordis plugin stack), with thinking / tool calls / streaming / trajectory
-- Sessions stay in Vibe's left panel; dsh workspace attach, fork, history resume/delete are synchronized back into Vibe
-- Follows Vibe themes and fonts through a dsh theme bridge
-- Desktop pet can listen to the latest dsh reply as a bubble
-- **dsh plugin management** — Settings → dsh → Plugins → *Install Plugin*: add/remove dsh packages and restart dsh in place; shares `~/.dsh` with the original dsh CLI
+### 🧠 pi Backend — Alternative AI Agent
+- Second AI backend alongside Claude Code, selectable when creating a session (or by switching backend in an empty conversation)
+- Runs the `pi` CLI (`@earendil-works/pi-ai`) as an RPC subprocess; the same AiTab renders streaming replies, thinking, tool calls, and permissions
+- Own session history in `~/.pi/agent/sessions`: list, search, preview, resume, and delete from Session History
+- Model picker plus per-model thinking levels; desktop pet can listen to the latest pi reply as a bubble
 
 ### 🐾 Desktop Pet
 - Animated webp sprite-sheet pet that roams your desktop
@@ -102,7 +100,7 @@ Vibe IDE’s center area has three core usage modes — **Terminal**, **Claude G
   - 11 bundled snippets: starry-night, dont-starve, macos, nes-8bit, nyan-cat, diablo, …
 
 ### 🎮 Extras
-- **Session History** — browse/search Claude Code sessions (TUI/GUI) and dsh sessions; resume or delete from one place
+- **Session History** — browse/search Claude Code sessions (TUI/GUI) and pi sessions; resume or delete from one place
 - **Mujica** — multi-agent Claude orchestra conductor (parallel sessions visualized as a band)
 - Mini-games: 2048, Sandspiel (falling sand), Balatro (poker roguelike), Fruit Ninja, Vampire Survivors
 - **OCR** — Tesseract.js (chi_sim + eng) on images / screenshots
@@ -120,7 +118,7 @@ Vibe IDE’s center area has three core usage modes — **Terminal**, **Claude G
 | **Terminal** | xterm.js (WebGL / clipboard / web-links / unicode-graphemes) + node-pty |
 | **Editor** | Monaco Editor (`@monaco-editor/react`) |
 | **AI** | Claude Code CLI subprocess (stream-json) |
-| **dsh agent** | DeepSeek Harness subprocess + vendored cordis client stack |
+| **pi agent** | `@earendil-works/pi-ai` CLI subprocess (RPC) |
 | **Git** | simple-git |
 | **Search** | ripgrep (rg) + Node.js fallback |
 | **Code graph** | `@colbymchenry/codegraph` CLI (symbol indexing / call analysis) + dagre (layout) |
@@ -138,85 +136,7 @@ Vibe IDE’s center area has three core usage modes — **Terminal**, **Claude G
 
 - Node.js >= 18
 - npm
-- pnpm (optional — only needed when rebuilding the vendored dsh harness)
 - Windows (primary target)
-
-### Repository Layout
-
-The **dsh agent mode** spawns a local
-[deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) server as a subprocess.
-The runtime is vendored under `vendor/harness/` and referenced through `file:./vendor/harness/...`,
-so a fresh clone already contains everything needed for dsh mode — no side-by-side clone required.
-
-```
-claudeui/
-├── src/             # Vibe IDE source
-└── vendor/harness/  # vendored DeepSeek Harness runtime + CLI
-```
-
-If you replace `vendor/harness` from a fresh upstream checkout, the two build
-artifacts that are NOT committed must be rebuilt — without them dsh fails to
-boot with module-resolution errors that surface as a misleading "start timeout":
-
-- `vendor/harness/native/landlock-run/packages/entry/lib/` (`.gitignore`'d)
-- `vendor/harness/apps/web/dist/` (never committed)
-
-The vendored packages use `file:` specs (rewritten from `workspace:` by
-`scripts/patch-workspace-refs.mjs` so **npm** can resolve them — use npm, NOT
-pnpm, which rejects `file:` in `peerDependencies`).
-
-```bash
-# 1. landlock-run lib (pure-JS seam; Windows doesn't use landlock at runtime)
-node node_modules/typescript/bin/tsc -b vendor/harness/native/landlock-run/packages/entry/tsconfig.json
-
-# 2. dsh web frontend dist (vite build compiles vendored client src/ directly)
-npm install --prefix vendor/harness/apps/web --ignore-scripts
-npm run --prefix vendor/harness/apps/web build
-```
-
-`npm run postinstall` runs `scripts/build-vendored-dsh.mjs`, which does both
-idempotently (skips when the artifact already exists), so a fresh `npm ci` on
-any machine yields a working dsh with no extra steps.
-
-### dsh Presets
-
-`presets/` holds ready-to-use dsh agent presets. Each preset directory is copied into the user
-preset root to activate it — no code changes needed:
-
-```bash
-cp -r presets/minimal-gitbash "$USERPROFILE/.dsh/.agent-presets/"
-```
-
-`presets/minimal-gitbash` is a **Windows-only** variant of the official `minimal` preset: a
-two-tool agent (persistent `bash` + `str_replace_editor`) that runs Git Bash explicitly. On
-macOS/Linux the shipped `minimal` preset already works out of the box (its default
-`/bin/bash` resolves to the system bash), so this preset is not needed there.
-
-Before copying, edit `agent.cordis.yml` and point `shellPath` at the Git Bash installed on that
-machine:
-
-```yaml
-- id: terminal-bash
-  name: '@deepseek-ai/dsh-terminal-bash'
-  config:
-    timeoutMs: 300000
-    shellPath: 'C:\Program Files\Git\bin\bash.exe'   # <- replace with your Git bash.exe path
-```
-
-After copying, the preset shows up in the dsh preset picker; set it as the default preset there
-(or via `~/.dsh/settings.yaml` → `agent-presets.default`).
-
-`presets/standard-gitbash` is a **Windows-only** variant of the official `standard` preset:
-it keeps every standard-mode capability (file editing, search, skills, plan, goals, subagents,
-workflows) but replaces the shell layer — instead of PowerShell, the model gets a persistent
-`bash` tool running in Git Bash, and the `pwsh` tool is disabled. On macOS/Linux the preset
-falls back to the standard bash tool automatically, so it changes nothing there.
-
-```bash
-cp -r presets/standard-gitbash "$USERPROFILE/.dsh/.agent-presets/"
-```
-
-Same `shellPath` edit applies before copying (see above).
 
 ### Install & Run (fresh machine)
 
@@ -243,44 +163,25 @@ Outside China, drop the `registry` line (keep the two `electron_*` mirrors).
 npm ci
 ```
 `npm ci` installs exactly the locked versions without re-resolving `^` ranges —
-an `npm install` re-resolves and drifts the tree (the root cause of "dsh start
-timeout" after changing machines). It also runs `postinstall`, which runs
-`scripts/build-vendored-dsh.mjs` to **automatically build the two vendored
-harness artifacts that are not in git** (`landlock-run/lib/` and
-`apps/web/dist/`) — no manual build needed.
+an `npm install` re-resolves and drifts the tree.
 
 **4. Verify dev**
 ```bash
 npm run dev
 ```
-Open the AI panel (dsh) in the app; the dev terminal should print
-`dsh web: http://127.0.0.1:PORT`.
+Open a Claude or pi session in the app and send a message to verify the AI backend works.
 
 **5. Package**
 ```bash
 npm run build:win
 ```
-Outputs `dist/Vibe IDE Setup x64.exe` (NSIS) + a 7z. Install it and open dsh
-to verify.
+Outputs `dist/Vibe IDE Setup x64.exe` (NSIS) + a 7z. Install it and open a session to verify.
 
 > **Gotchas (each was a real root cause):**
-> - Use **npm, not pnpm** — vendored packages use `file:` specs (patched by
->   `patch-workspace-refs.mjs`); pnpm rejects `file:` in `peerDependencies`.
 > - The electron **binary** must come through the mirror (step 2), or dev
 >   throws `Electron uninstall`.
 > - `node-pty` needs the VS C++ workload, or its build fails.
-> - Dev mode auto-discovers the harness at `vendor/harness/apps/cli/lib/bin.js`.
-> - If `postinstall` ever skips the dsh artifacts, run
->   `node scripts/build-vendored-dsh.mjs` by hand.
-
-### Privacy: telemetry removed
-
-The harness's only outbound channel — the `session-telemetry-otel` package (OTLP/HTTP logs
-to `harness-telemetry.deepseeksvc.com`) — has been **deleted** from the harness source and
-rebuilt. There is no analytics SDK, crash reporting, or default outbound traffic besides the
-LLM API endpoints you configure. If you ever merge upstream harness changes, re-check for
-telemetry regressions; `DSH_TELEMETRY_DISABLED=1` is also kept in `src/main/dsh.ts` as a
-defense-in-depth switch (any non-empty value hard-disables the telemetry row).
+> - The `pi` backend needs the `pi` CLI on `PATH` (or resolved from its install dir).
 
 ### Build & Package
 
@@ -291,12 +192,6 @@ npm run build
 # Package Windows installer (NSIS + 7z)
 npm run build:win
 ```
-
-**dsh runtime in packaged builds:** the harness CLI is bundled inside `resources/app.asar/vendor/harness/apps/cli`.
-The installer also places `dsh.cmd` / `dsh.ps1` / `dsh.sh` wrappers in the install root and can add them to
-`PATH`, so `dsh` (including plugin management) works outside the IDE too. `DSH_CLI_BIN` remains available
-to override the runtime path when needed.
-
 
 ### Preview Built App
 
@@ -321,7 +216,6 @@ src/
 │   ├── file.ts                    # File system read/write/tree/rename/copy/move
 │   ├── search.ts                  # ripgrep content search/replace
 │   ├── codegraph.ts               # Symbol indexing + call graph
-│   ├── dsh.ts                     # dsh subprocess server + plugin management
 │   ├── ocr.ts                     # Tesseract.js OCR
 │   └── watcher.ts                 # Filesystem watcher
 ├── preload/
@@ -334,7 +228,6 @@ src/
         ├── App.tsx                # Layout, center-view switcher, global shortcuts
         ├── aiStore.ts             # AI session state store
         ├── mujicaStore.ts         # Mujica multi-agent state store
-        ├── dsh/                   # dsh cordis assembly + theme bridge + history helpers
         ├── i18n.ts                # Chinese/English i18n
         ├── shortcuts.ts           # Keybinding definitions + persistence
         ├── themes/                # 14 themes + Monaco themes + ThemeProvider
@@ -351,9 +244,7 @@ src/
             ├── FileTab.tsx        # File explorer
             ├── SearchPanel.tsx    # Ripgrep search
             ├── AiTab.tsx          # Claude AI chat panel
-            ├── DshView.tsx        # dsh agent view (chat UI inside Vibe center)
-            ├── DshPluginTab.tsx   # dsh plugin install/uninstall UI
-            ├── HistoryView.tsx    # Session history browser (Claude + dsh)
+            ├── HistoryView.tsx    # Session history browser (Claude + pi)
             ├── BrowserView.tsx    # Embedded browser + element picker
             ├── MarkdownPreview.tsx# Markdown + mermaid preview
             ├── ImagePreview.tsx   # Image viewer
@@ -378,7 +269,7 @@ snippets/                          # CSS snippets (toggle in Settings → Snippe
 |----------|--------|
 | `Ctrl+Click` | Add file / Markdown block to chat (as `@` reference) |
 | `Ctrl+F` | Focus search panel |
-| `Ctrl+H` | Command history (terminal / dsh) |
+| `Ctrl+H` | Command history (terminal / AI) |
 | `Ctrl+S` | Save file edits |
 | `Ctrl+Enter` | Commit Git changes |
 | `Ctrl+↑` / `Ctrl+↓` | Switch terminal session |

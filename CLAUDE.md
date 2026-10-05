@@ -28,7 +28,7 @@ Vibe IDE — Electron-based desktop IDE with native terminal, git, file diff/edi
 
 ```bash
 npm run dev           # electron-vite dev，热更新
-npm run build         # gen-dsh-client-plugins.mjs（扫描 dsh 依赖生成插件清单）+ electron-vite build → ./out/
+npm run build         # electron-vite build → ./out/
 npm run typecheck     # tsc -b（本机大工程易 OOM；小验证用 esbuild 单文件转译）
 npm run build:win:7z  # build + electron-builder 打包 win 7z（镜像走 npmmirror）
 npm test              # node --test test/**/*.test.mjs
@@ -54,13 +54,12 @@ src/
 │   ├── ai-ask-resume.ts          # 断点续聊（resume）
 │   ├── ai-plan-execute.ts        # plan 模式执行
 │   ├── ai-revert.ts              # 消息回退（revert/fork，真实 user turns 为单真相源）
-│   ├── dsh.ts                    # dsh（DeepSeek harness）服务：拉起/端口/会话/插件/重启
 │   ├── computer-use.ts           # computer-use MCP 服务
 │   ├── board.ts                  # 会话看板（kanban）记录
 │   ├── ocr.ts                    # tesseract.js 图片 OCR
 │   └── …                          # 其余见 git history 命名即功能
 ├── preload/
-│   └── index.ts                  # contextBridge 桥接层（16 命名空间，见下）
+│   └── index.ts                  # contextBridge 桥接层（15 命名空间，见下）
 ├── renderer/src/
 │   ├── main.tsx                  # React 挂载入口（Monaco 预载）
 │   ├── App.tsx                   # 三栏布局、会话管理、全局快捷键
@@ -71,7 +70,6 @@ src/
 │   ├── styles/globals.css        # Tailwind + CSS 变量 + 自定义动画
 │   ├── themes/                   # 15 套主题 + Monaco 主题 + ThemeProvider Context
 │   ├── languages/                # 语法高亮 token 注入（jsx/python/shell）
-│   ├── dsh/                      # DshView 根组件、context、动态插件、主题桥
 │   └── components/
 │       ├── SessionPanel.tsx      # 左侧会话列表
 │       ├── TerminalView.tsx      # xterm.js 终端 (中栏)
@@ -82,7 +80,6 @@ src/
 │       ├── FileTab.tsx           # 文件浏览器
 │       ├── SearchPanel.tsx       # 文件内容搜索
 │       ├── AiTab/                # AI 对话（messages/markdown/permissions/tools）
-│       ├── DshView.tsx / DshPluginTab.tsx # DeepSeek harness 对话（cc GUI）+ 插件管理
 │       ├── HistoryView.tsx / CustomCommands.tsx   # 会话历史 / 自定义命令
 │       ├── CallGraphOverlay.tsx / CodeGraphSearch.tsx / CodeGraphExploreResult.tsx  # CodeGraph 交互三件套
 │       ├── BoardView.tsx         # 会话看板
@@ -100,17 +97,17 @@ src/
 
 ```
 
-**IPC 频道**（`src/shared/types.ts`，preload 暴露 16 命名空间：terminal/git/file/claudeConfig/workspace/search/theme/ocr/snippets/pet/perf/system/code/ai/board/dsh）：
+**IPC 频道**（`src/shared/types.ts`，preload 暴露 15 命名空间：terminal/git/file/claudeConfig/workspace/search/theme/ocr/snippets/pet/perf/system/code/ai/board）：
 - **pty**：create/write/resize/rename/close/getShells/refreshEnv/data/exit
 - **git**：setWorkspace/status/log/lineLog/graph/diff/add/reset/commit/amend/branches/checkout/applyBranch/stash/push/init/show/showFile/diffCommitFile/worktree/deleteBranch/setFilterRules/discard
 - **file**：read/write/readEncoding/writeEncoding/list/tree/delete/rename/createDir/openExplorer/copy/move/getDrives/find/searchByName + `fs:changed` 推送
 - **workspace**：open/current/pickDir；**search**：grep/replace
 - **code**：setWorkspace/init/searchNodes/getCallers/getCallees/isIndexing/progress/cancelInit/getStats/installMcp/findRelevantContext/explore/setEnabled/checkAvailable
 - **ai**：create/send/cancel/forceStop/destroy/checkAvailable/会话管理（list/load/delete/search，按 dir 与按 session 两套）/permissionResponse/planExecute/setPermissionMode/setModel/setContextWindow/askResume/resolveConfigDir/revert/fork/reply（init/stop/read/reply 桌宠气泡）+ 推送 streamToken/message/progress/permission/ready/modelChanged/error/fileChange
-- **dsh**：start/stop/getPort/deleteSession/plugin（管理插件）/restart/ready；**board**：records/create/finish/clear/merge/mergeAbort
+- **board**：records/create/finish/clear/merge/mergeAbort
 - **pet**：list/setActive/delete/changed；杂项：claudeConfig:dir、titlebar:update、font:adjust/list、focus:settings、startup:openPath、perf:snapshot、ocr:recognize、app:version、snippets:load/toggle
 
-**关键依赖：** `node-pty`（external from Rollup）、`@xterm/xterm`、`@monaco-editor/react`、`simple-git`、`@vscode/ripgrep`、`chokidar`、`tesseract.js`（OCR）、`iconv-lite`/`jschardet`（编码）、`sharp`、`koffi`、`@deepseek-ai/dsh harness`（vendored 于 `vendor/harness`，含 cordis 运行时，通过 `scripts/patch-*.mjs` 在 postinstall 打补丁，升级 vendor 会丢补丁需重打）
+**关键依赖：** `node-pty`（external from Rollup）、`@xterm/xterm`、`@monaco-editor/react`、`simple-git`、`@vscode/ripgrep`、`chokidar`、`tesseract.js`（OCR）、`iconv-lite`/`jschardet`（编码）、`sharp`、`koffi`、`@earendil-works/pi-ai`（pi 后端 RPC 子进程）
 - 渲染层：`@xterm/xterm` + addons（fit/webgl/search/clipboard/unicode-graphemes/web-links）、`@monaco-editor/react`、`react-markdown` + `shiki` + `katex` + micromark 系（AI 消息渲染）、`mermaid` + `dagre`（调用图/流程图）、`lucide-react`、`zustand` + `immer`、`@tanstack/react-virtual`、`turndown`（网页→markdown）、`@modelcontextprotocol/sdk`、`@earendil-works/pi-ai`
 - **终端背景图 (`--terminal-bg-image`)**：xterm.js >= 6.1.0-beta 已修复 CSS 黑底 + WebGL 透明问题（`.xterm:not(.allow-transparency) .xterm-viewport` 条件化 + PR #5561）。背景图 CSS 变量由主进程 `resolveCssUrls()` 将 `url()` 转 base64 以绕过 dev 模式跨域。详见 `terminal-bg-image` 记忆
 - **xterm 自绘滚动条**：xterm.js 6.x 使用自定义 DOM 滚动条（`.xterm-scrollable-element > .xterm-scrollbar > .xterm-slider`），而非浏览器原生滚动条。`::-webkit-scrollbar-*` 伪元素对其无效。xterm 运行时动态注入 `<style>` 设置 `.xterm-slider` 的 `background`，snippets CSS 需 `!important` 覆盖。原生 `.xterm-viewport` 滚动条应 `display: none` 隐藏，否则底部会露出多余轨道空隙
