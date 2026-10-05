@@ -1231,6 +1231,7 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   background: rgb(var(--ide-sidebar));
 }
 .session-group {
+  position: relative;
   background: transparent;
   border: none;
   border-radius: 0;
@@ -1250,23 +1251,22 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   backdrop-filter: none;
   transition: background-color .15s;
 }
-/* cwd 组头 hover = 底部横线扫入（无底色）；session 行 hover = 底色块，两种形态区分组头与行 */
-.session-group__header::after {
+/* cwd 组头 hover = 激光环整圈包裹该组（组头 + 下方 session 集合）；session 行 hover = 底色块，两种形态区分组头与行
+   z-index 必须 > 0：session 行是 position:relative + 不透明底色，伪元素不抬层会被行背景整个盖住（只剩组头那段可见） */
+.session-group::before {
   content: '';
   position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 2px;
-  height: 2px;
-  border-radius: 99px;
-  background: rgb(var(--ide-accent));
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform .2s ease-out;
+  inset: 0;
+  z-index: 1;
+  border-radius: 10px;
+  border: 1px solid rgb(var(--ide-accent));
+  box-shadow: inset 0 0 0 1px rgb(var(--ide-accent) / 0.22);
+  opacity: 0;
+  transition: opacity .24s cubic-bezier(.22, .61, .36, 1);
   pointer-events: none;
 }
-.session-group__header:hover::after {
-  transform: scaleX(1);
+.session-group:has(.session-group__header:hover)::before {
+  opacity: 1;
 }
 .session-group__path {
   font-size: 14px;
