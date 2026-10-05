@@ -1810,36 +1810,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     setDragGroupIndex(null)
                     setDropGroupIndex(null)
                   }}
-                  onClick={(e) => {
-                    if (e.target !== e.currentTarget) return
-                    if (hoverPreview?.pinned && hoverPreview.mode === 'files' && hoverPreview.cwd === group.cwd) {
-                      setHoverPreview(null)
-                      return
-                    }
-                    if (filesUnderCwd(group.cwd).length === 0) return
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    clearTimer(hoverTimerRef)
-                    setHoverPreview({ sessionId: null, cwd: group.cwd, mode: 'files', left: rect.right + 2, top: rect.top, pinned: true })
-                  }}
-                  onMouseEnter={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const headerEl = e.currentTarget
-                    const enterAt = Date.now()
-                    const mx = e.clientX
-                    const my = e.clientY
-                    clearTimer(hoverTimerRef)
-                    hoverTimerRef.current = setTimeout(() => {
-                      if (lastMouseMoveAtRef.current < enterAt - 300) return
-                      const el = document.elementFromPoint(mx, my)
-                      if (el && headerEl.contains(el) && filesUnderCwd(group.cwd).length > 0) {
-                        setHoverPreview(prev => prev?.pinned ? prev : { sessionId: null, cwd: group.cwd, mode: 'files', left: rect.right + 2, top: rect.top })
-                      }
-                    }, 500)
-                  }}
-                  onMouseLeave={() => {
-                    clearTimer(hoverTimerRef)
-                    hoverTimerRef.current = setTimeout(() => setHoverPreview(prev => prev?.pinned ? prev : null), 200)
-                  }}
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span
@@ -1945,6 +1915,19 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         >
                           <Pencil size={14} className="text-ide-text-muted" />
                           <span>{t('Rename')}</span>
+                        </button>
+                        <button
+                          className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                          onClick={(e) => {
+                            const r = e.currentTarget.getBoundingClientRect()
+                            const panelRight = panelRef.current?.getBoundingClientRect().right ?? 0
+                            setGroupMenu(null)
+                            clearTimer(hoverTimerRef)
+                            setHoverPreview({ sessionId: null, cwd: group.cwd, mode: 'files', left: panelRight, top: r.top })
+                          }}
+                        >
+                          <FolderOpen size={14} className="text-ide-text-muted" />
+                          <span>{t('Browse Files')}</span>
                         </button>
                         <button
                           className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover flex items-center gap-2"

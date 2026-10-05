@@ -245,6 +245,7 @@ const ZH_MAP: Record<string, string> = {
   'Confirm': '确认',
   'Delete {fileName}?': '确定删除 {fileName}？',
   'Recently Opened': '最近打开的文件',
+  'Browse Files': '文件浏览',
   'Remove': '移除',
   'Queued': '待发送',
   'Interject': '插话发送',

@@ -41,7 +41,7 @@ import { resolveAbsPath, toFileUrl } from './utils/filePathUtils'
 const TerminalView = lazy(() => import('./components/TerminalView'))
 
 const PANEL_TAB_RAIL_MIN_W = 700
-const RIGHT_PANEL_DEFAULT_W = 300
+const RIGHT_PANEL_DEFAULT_W = 308
 const BROWSER_DOCK_W = 860
 
 // Declare the window API type
