@@ -3428,7 +3428,7 @@ export default function App() {
           </svg>
         </button>
         )}
-        <div className={`flex items-center gap-0.5 shrink-0 ${leftPanelCollapsed ? 'ml-2' : '-ml-1'}`}>
+        <div className={`flex items-center -space-x-0.5 shrink-0 ${leftPanelCollapsed ? 'ml-2' : '-ml-1'}`}>
           {/* 三个图标按 ink 视觉权重归一：16px 盒 + 各自 scale，实测面积 25/36/28、高度 13/13/12（圆的留大） */}
           <button
             className="no-drag w-6 h-6 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors shrink-0"
@@ -3451,7 +3451,7 @@ export default function App() {
             title={t('CLI Configuration')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
-              <g transform="translate(0.24 0.24) scale(0.98)">
+              <g transform="translate(0.96 0.96) scale(0.92)">
                 <path d="M12 8V4H8" />
                 <rect width="16" height="12" x="4" y="8" rx="2" />
                 <path d="M2 14h2" />
