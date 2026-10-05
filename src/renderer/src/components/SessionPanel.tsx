@@ -1916,19 +1916,21 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                           <Pencil size={14} className="text-ide-text-muted" />
                           <span>{t('Rename')}</span>
                         </button>
-                        <button
-                          className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                          onClick={(e) => {
-                            const r = e.currentTarget.getBoundingClientRect()
-                            const panelRight = panelRef.current?.getBoundingClientRect().right ?? 0
-                            setGroupMenu(null)
-                            clearTimer(hoverTimerRef)
-                            setHoverPreview({ sessionId: null, cwd: group.cwd, mode: 'files', left: panelRight, top: r.top })
-                          }}
-                        >
-                          <FolderOpen size={14} className="text-ide-text-muted" />
-                          <span>{t('Browse Files')}</span>
-                        </button>
+                        {filesUnderCwd(group.cwd).length > 0 && (
+                          <button
+                            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                            onClick={(e) => {
+                              const r = e.currentTarget.getBoundingClientRect()
+                              const panelRight = panelRef.current?.getBoundingClientRect().right ?? 0
+                              setGroupMenu(null)
+                              clearTimer(hoverTimerRef)
+                              setHoverPreview({ sessionId: null, cwd: group.cwd, mode: 'files', left: panelRight, top: r.top })
+                            }}
+                          >
+                            <FolderOpen size={14} className="text-ide-text-muted" />
+                            <span>{t('Browse Files')}</span>
+                          </button>
+                        )}
                         <button
                           className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover flex items-center gap-2"
                           onClick={() => {
