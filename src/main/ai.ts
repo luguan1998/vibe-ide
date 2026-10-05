@@ -1744,7 +1744,7 @@ export function registerAiHandlers(): void {
 
   // 任意 agent(running)→ 暂停 .git 元数据监听(AI 每轮裸 git 命令刷 index 会反射成
   // GitTab 全套刷新风暴);全部非 running → 恢复。renderer 按 App 层 agentStatus
-  // 聚合(AI tab/dsh/主终端输出活动)上报忙闲真值。
+  // 聚合(AI tab/主终端输出活动)上报忙闲真值。
   ipcMain.on(IPC_CHANNELS.AI_SET_BUSY, (_event, busy: boolean) => {
     setGitMetaPaused(!!busy)
   })

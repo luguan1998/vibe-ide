@@ -69,15 +69,6 @@ LangString VibeCtxMenu 2052 "将$\"用 Vibe IDE 打开$\"添加到文件和文�
       WriteRegStr HKCU "Software\Classes\Directory\Background\shell\VibeIDE\command" "" '"$INSTDIR\Vibe IDE.exe" "%V"'
     ${EndIf}
 
-    ; 把安装目录加入用户 PATH（dsh.cmd/ps1/sh 在安装根目录，全局可调 dsh）
-    ReadRegStr $0 HKCU "Environment" "Path"
-    ${If} $0 == ""
-      WriteRegExpandStr HKCU "Environment" "Path" "$INSTDIR"
-    ${ElseIf} $0 != "*$INSTDIR*"
-      StrCpy $0 "$0;$INSTDIR"
-      WriteRegExpandStr HKCU "Environment" "Path" "$0"
-    ${EndIf}
-    SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=50
   !macroend
 !endif
 
@@ -86,6 +77,4 @@ LangString VibeCtxMenu 2052 "将$\"用 Vibe IDE 打开$\"添加到文件和文�
   DeleteRegKey HKCU "Software\Classes\directory\shell\VibeIDE"
   DeleteRegKey HKCU "Software\Classes\Directory\Background\shell\VibeIDE"
 
-  ; 从用户 PATH 移除安装目录（dsh 命令清理）——PowerShell 变量用 $$ 转义，防止 NSIS 误解析
-  nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -Command "$$d=''$INSTDIR''; $$p=[Environment]::GetEnvironmentVariable(''Path'',''User''); if ($$p) { $$n=(($$p -split '';'') | Where-Object { $$_ -ne $$d }) -join '';''; if ($$n -ne $$p) { [Environment]::SetEnvironmentVariable(''Path'',$$n,''User'') } }"'
 !macroend

@@ -3,11 +3,9 @@ import { useI18n } from '../i18n'
 import { readAiCliConfig } from '../aiStore'
 import { buildHistoryTurns, formatBytes } from '../historyUtils'
 import type { HistoryTurn } from '../historyUtils'
-import type { AiSessionSummary, AiSessionSearchGroup, AiSearchMatch } from '@shared/types'
+import type { AiSessionSummary, AiSessionSearchGroup } from '@shared/types'
 import { ArrowLeft, Check, ChevronDown, Filter, FolderOpen, History, Loader2, RotateCcw, Search, Trash2, X } from 'lucide-react'
-import { fetchDshSessions, fetchDshHistoryTurns, archiveDshSession, type DshHistorySession } from '../dsh/history'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
-import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 import { PiLogoIcon } from './PiLogoIcon'
 import { ToolIcon } from './AiTab/tools'
 import { getLastNewMode, toHistoryMode, type HistoryMode } from '../utils/sessionModePrefs'
@@ -16,64 +14,10 @@ interface HistoryViewProps {
   onBack: () => void
   workspacePath: string | null
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
-  onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
   onResumePiHistory?: (piSessionId: string, cwd: string, name: string) => void
 }
 
-// dsh 会话归一化为 AiSessionSummary 形状后复用同一套列表渲染；dshRunning 标记运行中会话（不可删除）
-type Summary = AiSessionSummary & { dshRunning?: boolean }
-
-// dsh 会话 cwd 与 workspacePath 的分隔符/大小写可能不一致，比较前规范化
-function samePath(a?: string, b?: string): boolean {
-  if (!a || !b) return false
-  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
-  return norm(a) === norm(b)
-}
-
-// dsh 无服务端内容搜索：对已列出的会话逐个拉 turns 做本地匹配（按最近排序取前 N 个）
-const MAX_DSH_SEARCH_SESSIONS = 30
-const MAX_DSH_MATCHES_PER_SESSION = 5
-async function searchDshSessionsLocal(
-  sessionList: DshHistorySession[],
-  query: string,
-  workspacePath: string | null,
-): Promise<{ groups: AiSessionSearchGroup[]; truncated: boolean }> {
-  const q = query.toLowerCase()
-  const pool = [...sessionList]
-    .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
-    .slice(0, MAX_DSH_SEARCH_SESSIONS)
-  const groups = (await Promise.all(pool.map(async (s) => {
-    try {
-      const turns = await fetchDshHistoryTurns(s.id, s.cwd)
-      const matches: AiSearchMatch[] = []
-      for (const tr of turns) {
-        const idx = tr.text.toLowerCase().indexOf(q)
-        if (idx < 0) continue
-        const start = Math.max(0, idx - 40)
-        const end = Math.min(tr.text.length, idx + q.length + 60)
-        matches.push({
-          role: tr.role,
-          text: (start > 0 ? '…' : '') + tr.text.slice(start, end) + (end < tr.text.length ? '…' : ''),
-        })
-        if (matches.length >= MAX_DSH_MATCHES_PER_SESSION) break
-      }
-      if (matches.length === 0) return null
-      return {
-        session_id: s.id,
-        name: s.title,
-        timestamp: s.updatedAt ?? 0,
-        model: '',
-        sizeBytes: 0,
-        cwd: s.cwd ?? '',
-        projectDir: s.cwd ?? '',
-        projectDirName: s.cwd ?? 'dsh',
-        inCurrentProject: samePath(s.cwd, workspacePath ?? undefined),
-        matches,
-      } satisfies AiSessionSearchGroup
-    } catch { return null }
-  }))).filter(Boolean) as AiSessionSearchGroup[]
-  return { groups, truncated: sessionList.length > MAX_DSH_SEARCH_SESSIONS }
-}
+type Summary = AiSessionSummary
 
 function highlightParts(text: string, query: string, caseSensitive: boolean): React.ReactNode[] {
   if (!query) return [text]
@@ -107,7 +51,7 @@ function TurnRow({ turn }: { turn: HistoryTurn }) {
   )
 }
 
-// 历史会话数据源下拉选项：tui/gui 同为 claude 历史，dsh 独立
+// 历史会话数据源下拉选项：tui/gui 同为 claude 历史，pi 独立
 const HISTORY_MODE_OPTIONS: { value: HistoryMode; label: string; icon: React.ReactNode }[] = [
   {
     value: 'tui',
@@ -115,11 +59,10 @@ const HISTORY_MODE_OPTIONS: { value: HistoryMode; label: string; icon: React.Rea
     icon: <ToolIcon category="command" />,
   },
   { value: 'gui', label: 'claude gui', icon: <ClaudeLogoIcon size={13} /> },
-  { value: 'dsh', label: 'dsh', icon: <DeepSeekLogoIcon size={13} /> },
   { value: 'pi', label: 'pi', icon: <PiLogoIcon size={13} /> },
 ]
 
-export default function HistoryView({ onBack, workspacePath, onResumeClaudeHistory, onResumeDshHistory, onResumePiHistory }: HistoryViewProps) {
+export default function HistoryView({ onBack, workspacePath, onResumeClaudeHistory, onResumePiHistory }: HistoryViewProps) {
   const { t } = useI18n()
   const [sessions, setSessions] = useState<Summary[]>([])
   const [listLoading, setListLoading] = useState(false)
@@ -128,10 +71,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [turnsById, setTurnsById] = useState<Record<string, { turns: HistoryTurn[]; loading: boolean }>>({})
   // 默认恢复类型跟随「新会话」最近勾选（term→tui 同为终端恢复；不随重启持久化）
   const [mode, setMode] = useState<HistoryMode>(() => toHistoryMode(getLastNewMode()))
-  // tui 与 gui 共享同一份 claude 历史；dsh / pi 各有独立数据源
+  // tui 与 gui 共享同一份 claude 历史；pi 独立数据源
   // 列表 fetch 依赖数据源而非 mode，避免 tui↔gui 切换重复扫描历史目录
-  const dataSource = mode === 'dsh' ? 'dsh' : mode === 'pi' ? 'pi' : 'claude'
-  const [dshSessions, setDshSessions] = useState<DshHistorySession[]>([])
+  const dataSource = mode === 'pi' ? 'pi' : 'claude'
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [searching, setSearching] = useState(false)
@@ -161,7 +103,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     return () => document.removeEventListener('keydown', handler)
   }, [modeOpen])
 
-  // 非当前项目分组默认收缩（claude 与 dsh 共用；只增不减，用户已展开的保持展开）
+  // 非当前项目分组默认收缩（只增不减，用户已展开的保持展开）
   const collapseNonCurrent = (list: Summary[]) => {
     setCollapsedProjects(prev => {
       const next = new Set(prev)
@@ -169,19 +111,6 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
       return next
     })
   }
-
-  const toSummary = useCallback((s: DshHistorySession): Summary => ({
-    session_id: s.id,
-    name: s.title,
-    timestamp: s.updatedAt ?? 0,
-    model: '',
-    sizeBytes: 0,
-    cwd: s.cwd ?? '',
-    projectDir: s.cwd ?? '',
-    projectDirName: s.cwd ?? 'dsh',
-    inCurrentProject: samePath(s.cwd, workspacePath ?? undefined),
-    dshRunning: s.running,
-  }), [workspacePath])
 
   const fetchSessions = useCallback(async () => {
     const reqId = ++fetchReqIdRef.current
@@ -201,22 +130,6 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     }
   }, [workspacePath, t])
 
-  const fetchDshList = useCallback(async () => {
-    setListLoading(true)
-    setListError('')
-    try {
-      const list = await fetchDshSessions(workspacePath || undefined)
-      const summaries = list.map(toSummary)
-      setDshSessions(list)
-      setSessions(summaries)
-      collapseNonCurrent(summaries)
-    } catch (e: any) {
-      setListError(e?.message || '加载失败')
-    } finally {
-      setListLoading(false)
-    }
-  }, [workspacePath, toSummary])
-
   const fetchPiList = useCallback(async () => {
     setListLoading(true)
     setListError('')
@@ -233,10 +146,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   }, [workspacePath, t])
 
   useEffect(() => {
-    if (dataSource === 'dsh') void fetchDshList()
-    else if (dataSource === 'pi') void fetchPiList()
+    if (dataSource === 'pi') void fetchPiList()
     else void fetchSessions()
-  }, [dataSource, fetchDshList, fetchPiList, fetchSessions])
+  }, [dataSource, fetchPiList, fetchSessions])
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), 300)
@@ -254,21 +166,6 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     const reqId = ++fetchReqIdRef.current
     setSearching(true)
     setSearchError('')
-    if (dataSource === 'dsh') {
-      void (async () => {
-        try {
-          const { groups, truncated } = await searchDshSessionsLocal(dshSessions, debouncedQuery, workspacePath)
-          if (fetchReqIdRef.current !== reqId) return
-          setSearchResults(groups)
-          setSearchTruncated(truncated)
-        } catch (e: any) {
-          if (fetchReqIdRef.current === reqId) setSearchError(e?.message || '搜索失败')
-        } finally {
-          if (fetchReqIdRef.current === reqId) setSearching(false)
-        }
-      })()
-      return
-    }
     if (dataSource === 'pi') {
       window.api.ai.searchPiSessions(debouncedQuery, { currentCwd: workspacePath || undefined })
         .then((r: any) => {
@@ -299,7 +196,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
       .finally(() => {
         if (fetchReqIdRef.current === reqId) setSearching(false)
       })
-  }, [debouncedQuery, dshSessions, dataSource, workspacePath])
+  }, [debouncedQuery, dataSource, workspacePath])
 
   const toggleExpand = useCallback(async (s: Summary) => {
     const id = s.session_id
@@ -315,11 +212,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     if (turnsById[id]) return
     setTurnsById(prev => ({ ...prev, [id]: { turns: [], loading: true } }))
     try {
-      const turns = mode === 'dsh'
-        ? await fetchDshHistoryTurns(id, s.cwd || undefined)
-        : mode === 'pi'
-          ? buildHistoryTurns((await window.api.ai.loadPiSessionMessages(id, s.projectDir))?.messages)
-          : buildHistoryTurns((await window.api.ai.loadSessionMessagesByDir(id, s.projectDir, readAiCliConfig().configDir))?.messages)
+      const turns = mode === 'pi'
+        ? buildHistoryTurns((await window.api.ai.loadPiSessionMessages(id, s.projectDir))?.messages)
+        : buildHistoryTurns((await window.api.ai.loadSessionMessagesByDir(id, s.projectDir, readAiCliConfig().configDir))?.messages)
       setTurnsById(prev => prev[id]?.loading ? { ...prev, [id]: { turns, loading: false } } : prev)
     } catch (e: any) {
       setTurnsById(prev => prev[id]?.loading ? { ...prev, [id]: { turns: [{ role: 'assistant', text: e?.message || '加载失败' }], loading: false } } : prev)
@@ -340,7 +235,6 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     const id = s.session_id
     const removeState = () => {
       setSessions(prev => prev.filter(x => x.session_id !== id))
-      setDshSessions(prev => prev.filter(x => x.id !== id))
       setSearchResults(prev => prev ? prev.filter(x => x.session_id !== id) : prev)
       setTurnsById(prev => {
         const next = { ...prev }
@@ -354,15 +248,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
       })
     }
     try {
-      if (mode === 'dsh') {
-        // attached(host 内存里还挂着)的会话 rm 文件后 session.list 仍从内存返回该行，
-        // 且后续事件会把 jsonl 写回。先 archive 进 registry 归档集：GUI 行同隐，
-        // 本列表侧靠 fetchDshSessions 的归档过滤挡住幽灵，再删文件清磁盘。
-        try { await archiveDshSession(id, s.cwd || undefined) } catch {}
-        const r = await window.api.dsh.deleteSession(id, s.cwd || undefined)
-        if (r?.ok) { removeState(); return }
-        setListError(r?.error || '删除失败')
-      } else if (mode === 'pi') {
+      if (mode === 'pi') {
         const r = await window.api.ai.deletePiSession(id, s.projectDir)
         if (r?.success) { removeState(); return }
         setListError(r?.error || '删除失败')
@@ -387,11 +273,6 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   }, [])
 
   const resume = useCallback((s: Summary) => {
-    if (mode === 'dsh') {
-      const cwd = s.cwd || workspacePath || ''
-      onResumeDshHistory?.(s.session_id, cwd, s.name && s.name !== s.session_id ? s.name : '')
-      return
-    }
     const cwd = s.cwd || (s.inCurrentProject && workspacePath ? workspacePath : s.projectDir)
     if (!cwd) return
     const name = s.name && s.name !== s.session_id ? s.name : ''
@@ -400,7 +281,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
       return
     }
     onResumeClaudeHistory(s.session_id, cwd, name, mode as 'tui' | 'gui')
-  }, [workspacePath, mode, onResumeClaudeHistory, onResumeDshHistory, onResumePiHistory])
+  }, [workspacePath, mode, onResumeClaudeHistory, onResumePiHistory])
 
   const groups = useMemo(() => {
     const map = new Map<string, Summary[]>()
@@ -473,15 +354,13 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
             {t('Resume')}
           </button>
         )}
-        {!s.dshRunning && (
-          <button
-            onClick={(e) => { e.stopPropagation(); void deleteSession(s) }}
-            className="shrink-0 w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
-            title={t('Delete')}
-          >
-            <Trash2 size={12} />
-          </button>
-        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); void deleteSession(s) }}
+          className="shrink-0 w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
+          title={t('Delete')}
+        >
+          <Trash2 size={12} />
+        </button>
       </div>
     )
   }
@@ -503,7 +382,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           </div>
           <div className="flex-1" />
           <button
-            onClick={mode === 'dsh' ? fetchDshList : mode === 'pi' ? fetchPiList : fetchSessions}
+            onClick={mode === 'pi' ? fetchPiList : fetchSessions}
             disabled={listLoading}
             className="w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title={t('Refresh')}
@@ -525,7 +404,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={mode === 'dsh' ? t('Search dsh sessions...') : t('Search Claude sessions...')}
+              placeholder={t('Search Claude sessions...')}
               className="w-full bg-ide-sidebar border border-ide-border rounded pl-7 pr-6 py-1.5 text-xs text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/50"
             />
             {query && (

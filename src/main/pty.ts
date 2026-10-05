@@ -224,8 +224,7 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUt
 }
 
 export function createTerminalSession(options: CreateTerminalOptions): TerminalSession {
-  // dsh fork 传固定 id：Vibe session id 必须等于 dsh child session id，
-  // DshView 才能用 sessions.create 收养已分叉的对话
+  // 调用方可传固定 id（用于收养已存在的会话）
   const id = options.id || `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const cwd = options.cwd || process.cwd()
   const name = options.name || `Terminal ${terminals.size + 1}`

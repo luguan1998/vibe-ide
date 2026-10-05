@@ -6,7 +6,6 @@ import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers, cleanupTerminals, setPtyMainWindow } from './pty'
 import { registerAiHandlers, cleanupAiSessions, setAiMainWindow, resolveConfigDir } from './ai'
-import { registerDshHandlers, cleanupDsh, setDshMainWindow } from './dsh'
 import { registerPlanExecuteHandlers } from './ai-plan-execute'
 import { registerAskResumeHandlers } from './ai-ask-resume'
 import { registerRevertHandlers } from './ai-revert'
@@ -36,8 +35,6 @@ let cachedFontList: string[] | null = null
 
 // Fix Windows permission issues
 app.commandLine.appendSwitch('no-sandbox')
-// dsh server 只监听 127.0.0.1，本机回环请求不得走系统代理（公司 PAC/代理未
-// bypass 本机时上层的 504 Gateway Time-out 就是这么来的）
 app.commandLine.appendSwitch('proxy-bypass-list', '<local>;127.0.0.1;localhost')
 // app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096')
 
@@ -138,7 +135,6 @@ function createWindow(): void {
 
   setPtyMainWindow(mainWindow)
   setAiMainWindow(mainWindow)
-  setDshMainWindow(mainWindow)
 
   // Center window within the work area (excludes taskbar) on first launch
   const x = Math.round(workArea.x + (workArea.width - winWidth) / 2)
@@ -153,7 +149,6 @@ function createWindow(): void {
     cleanupAndExit()
     setPtyMainWindow(null)
     setAiMainWindow(null)
-    setDshMainWindow(null)
     mainWindow = null
     if (process.platform !== 'darwin') app.exit()
   })
@@ -249,7 +244,6 @@ app.whenReady().then(() => {
   registerPtyHandlers()
   registerBoardHandlers()
   registerAiHandlers()
-  registerDshHandlers()
   registerPlanExecuteHandlers()
   registerAskResumeHandlers()
   registerRevertHandlers()
@@ -666,7 +660,6 @@ app.whenReady().then(() => {
 function cleanupAndExit(): void {
   cleanupTerminals()
   cleanupAiSessions()
-  cleanupDsh()
   stopWatching()
   closeCodeGraph()
   cleanupLsp()

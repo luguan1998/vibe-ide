@@ -1,12 +1,9 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { getDshApi } from './dsh/history'
 import { loadSessionWorkspace, saveSessionWorkspace, resolveDefaultIcon, defaultSessionName, sessionGroupKey, type Session, type SessionTab } from './sessionRestore'
 import { hasSchedTask } from './schedStore'
 import type { SessionMode } from './components/DirectoryPicker'
-const DshView = lazy(() => import('./components/DshView'))
-import type { DshViewHandle } from './components/DshView'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
 import GitTab from './components/GitTab'
@@ -283,16 +280,6 @@ declare global {
         onChanged: (callback: () => void) => any
         removeChangedListener: (handler?: any) => void
       }
-      dsh: {
-        start: (cwd?: string) => Promise<{ ok: boolean; port?: number; error?: string }>
-        stop: () => Promise<{ ok: boolean }>
-        getPort: () => Promise<number | null>
-        deleteSession: (sessionId: string, cwd?: string) => Promise<{ ok: boolean; error?: string }>
-        plugin: (args: string[]) => Promise<{ ok: boolean; code: number | null; output: string }>
-        restart: () => Promise<{ ok: boolean; port?: number; error?: string }>
-        onReady: (callback: (data: { port: number }) => void) => any
-        removeReadyListener: (handler?: any) => void
-      }
     }
   }
 }
@@ -361,7 +348,7 @@ function dispatchBtwReply(detail: { pending?: boolean; text?: string | null; err
 export default function App() {
   const { t } = useI18n()
   const [initialWorkspace] = useState(loadSessionWorkspace)
-  // 一个 cwd 只恢复一个 terminal tab（其余丢弃），gui/dsh 不变
+  // 一个 cwd 只恢复一个 terminal tab（其余丢弃），gui 不变
   const initialTabs = useMemo(() => {
     const all = initialWorkspace?.sessions.flatMap(s => s.tabs) ?? []
     const seen = new Set<string>()
@@ -510,49 +497,7 @@ export default function App() {
   const boardActive = overlayKind !== null ? overlaySnapRef.current.base === 'board' : centerView === 'board'
   // 中栏看板卡片:仅无 overlay 或 overlay 落右栏时显示(覆盖中栏时让位给文件)
   const boardCenterShown = boardActive && (overlayKind === null || overlayOnRight)
-  const [dshSidebarShown, setDshSidebarShown] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-dsh-sidebar') === '1' } catch { return false }
-  })
-  const [dshThemeOverride, setDshThemeOverride] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-dsh-theme-override') !== '0' } catch { return true }
-  })
   const [gitRefreshKey, setGitRefreshKey] = useState(0)
-
-  // dsh sidebar 收起/展开：layout stub toggleSidebar 与 DshView 展开 trigger 都 dispatch 此 event
-  useEffect(() => {
-    const onToggle = () => {
-      setDshSidebarShown(prev => {
-        const next = !prev
-        try { localStorage.setItem('vibe-ide-dsh-sidebar', next ? '1' : '0') } catch {}
-        return next
-      })
-    }
-    window.addEventListener('vibe:dsh-sidebar-toggle', onToggle)
-    return () => window.removeEventListener('vibe:dsh-sidebar-toggle', onToggle)
-  }, [])
-
-  // 空闲时预热 dsh chunk（lazy 拆分后首次进入 dsh 要现场加载 2.5MB，会卡交互）
-  useEffect(() => {
-    const t = window.setTimeout(() => {
-      const idle = (window as any).requestIdleCallback
-      if (typeof idle === 'function') {
-        idle(() => { void import('./components/DshView') }, { timeout: 2000 })
-      } else {
-        void import('./components/DshView')
-      }
-    }, 3000)
-    return () => clearTimeout(t)
-  }, [])
-
-  // 有需要恢复的 DSH 会话时，后台先把 DSH server 拉起来；具体会话仍点击后再加载
-  useEffect(() => {
-    const hasDsh = initialWorkspace?.sessions.some(s => s.tabs.some(t => t.kind === 'dsh')) ?? false
-    if (!hasDsh) return
-    const t = window.setTimeout(() => {
-      window.api.dsh.start().catch(() => {})
-    }, 1000)
-    return () => clearTimeout(t)
-  }, [initialWorkspace])
 
   const [searchFocusTrigger, setSearchFocusTrigger] = useState(0)
   // source 决定浮层数据源与左上角徽标（by CodeGraph / by LSP · tsserver）
@@ -668,7 +613,6 @@ export default function App() {
   const sessionsRef = useRef(sessions)
   sessionsRef.current = sessions
   const manuallyRenamedRef = useRef<Set<string>>(new Set())
-  const dshAutoTitledRef = useRef<Set<string>>(new Set())
   const commandHistoryRef = useRef(commandHistory)
   const historyListRef = useRef<HTMLDivElement>(null)
   const [terminalBusy, setTerminalBusy] = useState<Record<string, boolean>>({})
@@ -694,7 +638,7 @@ export default function App() {
     }
     return result
   }, [sessions, terminalBusy, aiBusy, warnSessions])
-  // 任意 session(AI tab / dsh / 主终端输出活动)处于 running → 暂停 git 元数据监听
+  // 任意 session(AI tab / 主终端输出活动)处于 running → 暂停 git 元数据监听
   // (AI 每轮裸 git 命令刷 .git/index 会反射成 GitTab 刷新风暴);全部非 running 才恢复。
   // 主进程 setGitMetaPaused 幂等,重复上报为 no-op。
   useEffect(() => {
@@ -956,7 +900,6 @@ export default function App() {
   // Terminal refs for focus management (keyed by sessionId)
   const terminalRefs = useRef<Record<string, TerminalViewHandle>>({})
   const aiTabRefs = useRef<Record<string, AiTabHandle>>({})
-  const dshRefs = useRef<Record<string, DshViewHandle>>({})
   const browserViewRef = useRef<BrowserViewHandle | null>(null)
   const [browserDocked, setBrowserDocked] = useState(false)
   const [browserDockNonce, setBrowserDockNonce] = useState(0)
@@ -1065,8 +1008,6 @@ export default function App() {
       const timer = setTimeout(() => {
         if (mode === 'gui') {
           aiTabRefs.current[activeSessionId]?.focus()
-        } else if (mode === 'dsh') {
-          dshRefs.current[activeSessionId]?.focus()
         } else {
           terminalRefs.current[activeSessionId]?.focus()
         }
@@ -1328,14 +1269,6 @@ export default function App() {
     })
   }, [])
 
-  // dsh 会话发送（宠物发送 / 右键追加 / 定时共用）：dshId 优先恢复的历史会话 id
-  const sendToDshSession = useCallback(async (sessionId: string, text: string) => {
-    handleCommandEntered(sessionId, text)
-    const api = await getDshApi(sessionsRef.current.find(s => s.id === sessionId)?.cwd)
-    const dshId = sessionsRef.current.find(s => s.id === sessionId)?.dshSessionId || sessionId
-    await api.sessions.prompt({ sessionId: dshId, mode: 'queue', content: [{ type: 'text', text }] })
-  }, [handleCommandEntered])
-
   const sendDraftLine = useCallback(async (sessionId: string | null | undefined, text: string) => {
     if (!sessionId) return
     const mode = sessionsRef.current.find(s => s.id === sessionId)?.kind
@@ -1361,40 +1294,6 @@ export default function App() {
       aiTabRefs.current[sessionId]?.focus()
       return
     }
-    if (mode === 'dsh') {
-      try {
-        const api = await getDshApi(sessionsRef.current.find(s => s.id === sessionId)?.cwd)
-        const dshId = sessionsRef.current.find(s => s.id === sessionId)?.dshSessionId || sessionId
-        // 自动命名：仅当 DSH 会话还没有任何用户问题时才用当前文本命名，
-        // 避免覆盖 DSH 自己按“最早问题”生成的标题（恢复的历史会话也保留原标题）。
-        if (!sessionsRef.current.find(s => s.id === sessionId)?.dshSessionId && !manuallyRenamedRef.current.has(sessionId) && !dshAutoTitledRef.current.has(sessionId)) {
-          const historyRes = await api.sessions.history({ sessionId: dshId, maxMessages: 200 }).catch(() => null)
-          const hasExistingUserMessage = !!historyRes?.result?.ok
-            && ((historyRes.result.value?.events ?? []) as any[]).some(
-              (e: any) => e.event?.type === 'user/message' && e.event?.data?.source?.kind === 'user'
-            )
-          if (hasExistingUserMessage) {
-            // 已有历史问题：不再自动命名，避免把标题改成最后一个问题
-            dshAutoTitledRef.current.add(sessionId)
-          } else {
-            const title = text.replace(/\s+/g, ' ').trim().slice(0, 30)
-            if (title) {
-              dshAutoTitledRef.current.add(sessionId)
-              try {
-                await api.sessions.rename({ sessionId: dshId, title })
-              } catch (e) {
-                dshAutoTitledRef.current.delete(sessionId)
-                console.error('Failed to auto-rename dsh session:', e)
-              }
-            }
-          }
-        }
-        await sendToDshSession(sessionId, text)
-      } catch (e) {
-        console.error('Failed to send to dsh session:', e)
-      }
-      return
-    }
     window.api.terminal.write(sessionId, text + '\r')
     await new Promise<void>(resolve => {
       const timer = setTimeout(() => {
@@ -1404,22 +1303,15 @@ export default function App() {
       draftSleepRef.current.set(sessionId, { timer, resolve })
     })
     await waitDraftIdle(sessionId)
-  }, [waitDraftIdle, sendToDshSession])
+  }, [waitDraftIdle])
 
 
-  // gui/dsh session 无 PTY：terminal.rename 失败时本地改名
+  // gui session 无 PTY：terminal.rename 失败时本地改名
   const applyRename = useCallback(async (id: string, name: string) => {
     const r = await window.api.terminal.rename(id, name)
     if (r.success && r.session) setSessions(prev => prev.map(s => s.id === id ? { ...s, ...r.session! } : s))
     else setSessions(prev => prev.map(s => s.id === id ? { ...s, name } : s))
   }, [])
-
-  const handleDshTitleChange = useCallback(async (sessionId: string, title: string) => {
-    if (manuallyRenamedRef.current.has(sessionId)) return
-    const cur = sessionsRef.current.find(s => s.id === sessionId)
-    if (!cur || cur.name === title) return
-    await applyRename(sessionId, title)
-  }, [applyRename])
 
   const handleAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     const v = status === 'running'
@@ -1464,7 +1356,6 @@ export default function App() {
     const command = queue.shift()!
     const target = sessionsRef.current.find(s => s.id === sessionId)
     const isGui = target?.kind === 'gui'
-    const isDsh = target?.kind === 'dsh'
     const PIPE_DETECT_DELAY = 2000
     const lines = command.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean)
     const runner = { cancelled: false, resolveIdle: null as (() => void) | null, sleepTimer: null as ReturnType<typeof setTimeout> | null, sleepResolve: null as (() => void) | null }
@@ -1494,12 +1385,6 @@ export default function App() {
       }
       if (isGui) {
         aiTabRefs.current[sessionId]?.sendText(lines[i])
-      } else if (isDsh) {
-        try {
-          await sendToDshSession(sessionId, lines[i])
-        } catch (e) {
-          console.error('Failed to pipe to dsh session:', e)
-        }
       } else {
         window.api.terminal.write(sessionId, lines[i] + '\r')
       }
@@ -1513,7 +1398,7 @@ export default function App() {
       if (runner.cancelled) break
     }
     processPipeQueue(sessionId)
-  }, [sendToDshSession])
+  }, [])
 
   const handlePipeCommand = useCallback(async (command: string) => {
     const sessionId = activeSessionId
@@ -2083,11 +1968,7 @@ export default function App() {
           e.stopImmediatePropagation()
           const idx = historySelectedIndexRef.current
           if (cmds[idx]) {
-            if (sessionsRef.current.find(s => s.id === activeSessionId)?.kind === 'dsh') {
-              void sendToDshSession(activeSessionId, cmds[idx])
-            } else {
-              window.api.terminal.write(activeSessionId, cmds[idx].replace(/\n/g, '\x1b\r') + '\r')
-            }
+            window.api.terminal.write(activeSessionId, cmds[idx].replace(/\n/g, '\x1b\r') + '\r')
           }
           setShowHistory(false)
           return
@@ -2193,7 +2074,7 @@ export default function App() {
   const leftSubmoduleNav = activeSessionId ? sessionSubmoduleNav[activeSessionId] ?? null : null
   const leftEffectiveGitPath = leftSubmoduleNav?.submodulePath || leftWorktreeNav?.worktreePath || activeSessionCwd
 
-  // 本地构造 gui/dsh session 记录（不建 PTY，三者互斥省内存）
+  // 本地构造 gui session 记录（不建 PTY，两者互斥省内存）
   function makeLocalSession(cwd: string, opts?: { name?: string; id?: string }): SessionTab {
     return {
       id: opts?.id || `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -2208,7 +2089,7 @@ export default function App() {
 
   const addSessionRecord = useCallback((session: SessionTab, parentId?: string | null, activate = true) => {
     // 新建会话按外观里的"默认会话图标"落 emoji（随机/类型/空白），克隆时父 emoji 优先；
-    // name 为空时按类型兜底（Terminal / Claude / Pi / dsh）
+    // name 为空时按类型兜底（Terminal / Claude / Pi）
     const rec = {
       ...session,
       name: session.name || defaultSessionName(session, sessionsRef.current),
@@ -2254,7 +2135,7 @@ export default function App() {
   }, [activeSessionCwd])
 
   // 右键「新建」：在当前 cwd 直接创建对应类型，不弹目录选择
-  // 新建 AI 会话：gui/dsh 落到会话 kind；pi 是 Claude GUI 的另一种后端（kind 仍是 gui）
+  // 新建 AI 会话：gui 落到会话 kind；pi 是 Claude GUI 的另一种后端（kind 仍是 gui）
   const makeAiSessionTab = useCallback((session: SessionTab, mode: Exclude<SessionMode, 'term'>): SessionTab => (
     mode === 'pi'
       ? { ...session, kind: 'gui', aiBackend: 'pi', loaded: true }
@@ -2348,7 +2229,7 @@ export default function App() {
     const parent = parentId ? sessions.find(s => s.id === parentId) : undefined
     const parentMode = parent?.kind
     const parentEmoji = parent?.emoji
-    if (parentMode === 'gui' || parentMode === 'dsh') {
+    if (parentMode === 'gui') {
       const session = makeLocalSession(cwd, { name })
       // 克隆继承父会话后端：pi 会话克隆出来仍是 pi（否则默认回落到 Claude）
       addSessionRecord({ ...session, kind: parentMode, loaded: true, emoji: parentEmoji, ...(parent?.aiBackend ? { aiBackend: parent.aiBackend } : {}) }, parentId)
@@ -2562,24 +2443,6 @@ export default function App() {
     return null
   }, [openBranchTab])
 
-  // dsh 会话内 fork（「在新对话中分支」）：dsh 侧已生成子会话（历史=分叉前缀），
-  // 这里为它建 Vibe session（id=childId 收养 dsh 子会话），插到源会话下方并切换。
-  React.useEffect(() => {
-    const onDshFork = async (e: Event): Promise<void> => {
-      const d = (e as CustomEvent).detail as { sourceId: string; childId: string; cwd?: string; title?: string } | undefined
-      if (!d?.childId || !d.cwd) return
-      try {
-        // 固定 id=childId 收养 dsh 子会话（dsh 模式无 PTY）
-        const session = makeLocalSession(d.cwd, { id: d.childId, name: d.title })
-        addSessionRecord({ ...session, kind: 'dsh', dshSessionId: d.childId, loaded: true }, d.sourceId)
-      } catch (err) {
-        console.error('Failed to fork dsh session into Vibe:', err)
-      }
-    }
-    window.addEventListener('vibe:dsh-fork', onDshFork)
-    return () => window.removeEventListener('vibe:dsh-fork', onDshFork)
-  }, [addSessionRecord])
-
   // 按需加载：deferred tab 首次成为 active 时补齐真实资源
   const ensureSessionLoaded = useCallback(async (id: string) => {
     const session = sessionsRef.current.find(s => s.id === id)
@@ -2639,7 +2502,7 @@ export default function App() {
   }, [autoUtf8])
 
   // deferred tab 经任意路径成为 active（点击 / Ctrl+方向键 / 看板）都自动加载
-  // 例外：启动恢复时的 active 若是 gui/dsh，不自动加载——否则开机即读入整段
+  // 例外：启动恢复时的 active 若是 gui，不自动加载——否则开机即读入整段
   // 会话历史并渲染 AiTab（数百 MB 内存大头）。终端恢复照旧（占用小）。
   const bootActiveIdRef = useRef(activeSessionId)
   React.useEffect(() => {
@@ -2713,10 +2576,9 @@ export default function App() {
     await window.api.terminal.close(id)
     if (twinId) await window.api.terminal.close(twinId)
     if (twinId) delete terminalRefs.current[twinId]
-    // 清理 terminalRefs / aiTabRefs / dshRefs 中已关闭 session 的 handle 引用
+    // 清理 terminalRefs / aiTabRefs 中已关闭 session 的 handle 引用
     delete terminalRefs.current[id]
     delete aiTabRefs.current[id]
-    delete dshRefs.current[id]
     setSessions(prev => prev.filter(s => s.id !== id))
     // 关闭组内最后一个 session：该 cwd 记为保留空组，位置沿用当前组序
     const closing = sessions.find(s => s.id === id)
@@ -3054,14 +2916,6 @@ export default function App() {
       manuallyRenamedRef.current.add(id)
     }
     await applyRename(id, newName)
-    if (oldSession?.kind === 'dsh') {
-      try {
-        const api = await getDshApi(oldSession?.cwd)
-        await api.sessions.rename({ sessionId: oldSession.dshSessionId || id, title: newName })
-      } catch (e) {
-        console.error('Failed to rename dsh session:', e)
-      }
-    }
   }, [applyRename])
 
   // Handle panel resizing
@@ -3346,17 +3200,6 @@ export default function App() {
     openFileView(fullPath, { mode: 'edit', lineNumber })
   }, [openFileView])
 
-  // dsh 会话内点击文件（tool 行/产物）：dsh context 把 host.openPath 重定向为本事件，
-  // 这里用编辑器打开，替代 OS 默认应用的「打开方式」弹窗
-  useEffect(() => {
-    const onDshOpenFile = (e: Event) => {
-      const path = (e as CustomEvent<{ path?: string }>).detail?.path
-      if (path) handleOpenFileFromSearch(path)
-    }
-    window.addEventListener('vibe:dsh-open-file', onDshOpenFile)
-    return () => window.removeEventListener('vibe:dsh-open-file', onDshOpenFile)
-  }, [handleOpenFileFromSearch])
-
   const openCompareTab = useCallback(async (baseTab: DiffFileTab, compareFullPath: string, contentOverride?: string) => {
     let compareContent: string
     if (contentOverride !== undefined) {
@@ -3378,18 +3221,6 @@ export default function App() {
     if (!(at?.kind === 'diff' && at.defaultEdit && !at.compareOriginalPath)) return
     await openCompareTab(at, compareFullPath)
   }, [openCompareTab])
-
-  const handleResumeDshHistory = useCallback(async (dshSessionId: string, cwd: string, name: string) => {
-    try {
-      setIsOpening(true)
-      const session = makeLocalSession(cwd, { name: name || undefined })
-      addSessionRecord({ ...session, kind: 'dsh', dshSessionId, loaded: true })
-    } catch (err) {
-      console.error('Failed to resume dsh history:', err)
-    } finally {
-      setIsOpening(false)
-    }
-  }, [addSessionRecord])
 
   // pi 历史恢复：新会话按 pi 后端建，resumeSessionId = pi 会话 id（主进程 --session 续聊 + 历史回放）
   const handleResumePiHistory = useCallback(async (piSessionId: string, cwd: string, name: string) => {
@@ -3711,10 +3542,6 @@ export default function App() {
             agentStatus={agentStatus}
             sessionWorktreeNav={sessionWorktreeNav}
             onResetCache={handleResetCache}
-            dshSidebarShown={dshSidebarShown}
-            onToggleDshSidebar={(v) => { setDshSidebarShown(v); try { localStorage.setItem('vibe-ide-dsh-sidebar', v ? '1' : '0') } catch {} }}
-            dshThemeOverride={dshThemeOverride}
-            onToggleDshThemeOverride={(v) => { setDshThemeOverride(v); try { localStorage.setItem('vibe-ide-dsh-theme-override', v ? '1' : '0') } catch {}; window.dispatchEvent(new CustomEvent('vibe:dsh-theme-override-change')) }}
             wordWrap={wordWrap}
             onToggleWordWrap={setWordWrap}
             autoUtf8={autoUtf8}
@@ -3882,7 +3709,6 @@ export default function App() {
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => {
                 const isGui = session.kind === 'gui'
-                const isDsh = session.kind === 'dsh'
                 const isDeferred = !session.loaded
                 if (isDeferred && session.id !== activeSessionId) return null
                 const isActive = session.id === activeSessionId
@@ -3945,8 +3771,6 @@ export default function App() {
                         worktreeNav={sessionWorktreeNav[session.id] ?? null}
                         onWorktreeNavChange={setWorktreeBrowseNav}
                       />
-                    ) : isDsh ? (
-                      <DshView ref={(node) => { if (node) dshRefs.current[session.id] = node }} sessionId={session.id} cwd={session.cwd} isActive={isActive} dshSessionId={session.dshSessionId} sidebarVisible={dshSidebarShown} onAgentStatusChange={handleAgentStatusChange} onTitleChange={handleDshTitleChange} onCommand={onCommandForSession(session.id)} />
                     ) : twinId ? (
                       <>
                         <div className="flex-1 min-h-0 flex flex-col overflow-hidden" style={{ flexGrow: splitRatios[session.id] ?? 0.5, flexBasis: 0 }}>
@@ -4061,7 +3885,6 @@ export default function App() {
             contentOverlay={rightOverlay}
             brushActive={brushActive}
             onResumeClaudeHistory={handleResumeClaudeHistory}
-            onResumeDshHistory={handleResumeDshHistory}
             onResumePiHistory={handleResumePiHistory}
             historyNavNonce={historyNavNonce}
             browserDocked={browserDocked}
@@ -4260,11 +4083,7 @@ export default function App() {
                         i === historySelectedIndex ? 'bg-ide-accent/20 text-ide-text' : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
                       }`}
                       onClick={() => {
-                        if (sessionsRef.current.find(s => s.id === activeSessionId)?.kind === 'dsh') {
-                          void sendToDshSession(activeSessionId, cmd)
-                        } else {
-                          window.api.terminal.write(activeSessionId, cmd.replace(/\n/g, '\x1b\r'))
-                        }
+                        window.api.terminal.write(activeSessionId, cmd.replace(/\n/g, '\x1b\r'))
                         setShowHistory(false)
                       }}
                       onMouseEnter={() => setHistorySelectedIndex(i)}
@@ -4367,8 +4186,6 @@ export default function App() {
         activeSessionId={activeSessionId}
         activeSessionCwd={activeSessionCwd}
         sessions={sessions}
-        dshActive={!!activeSessionId && sessions.find(s => s.id === activeSessionId)?.kind === 'dsh'}
-        dshSessionId={activeSessionId ? (sessions.find(s => s.id === activeSessionId)?.dshSessionId || activeSessionId) : undefined}
       />
     </div>
   )

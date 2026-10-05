@@ -9,18 +9,15 @@ import { Edit, Send, ClipboardPaste, BookOpenText, Pin, MessageSquareQuote } fro
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
 import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
-import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, getPetListenDsh } from './petSettings'
+import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi } from './petSettings'
 import { readAiCliConfig } from '../../aiStore'
-import { fetchDshLatestReply } from '../../dsh/history'
 import { AiReplyBubble } from './AiReplyBubble'
 
-export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, sessions, dshActive, dshSessionId }: {
+export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, sessions }: {
   logicalState: PetLogicalState
   activeSessionId: string | null
   activeSessionCwd: string | null
   sessions: { id: string; cwd: string; kind?: string }[]
-  dshActive?: boolean
-  dshSessionId?: string
 }) {
   const [manifest, setManifest] = useState<PetManifest | null>(null)
   const [pos, setPos] = useState(() => getPetPos())
@@ -44,7 +41,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [frameRate, setFrameRate] = useState(() => getPetFrameRate())
   const [transientState, setTransientState] = useState<PetLogicalState | null>(null)
   const [listenAi, setListenAi] = useState(() => getPetListenAi())
-  const [listenDsh, setListenDsh] = useState(() => getPetListenDsh())
   const [aiBubbleOpen, setAiBubbleOpen] = useState(false)
   const [latestReply, setLatestReply] = useState<{ messageId: string; text: string } | null>(null)
   const [replyBtw, setReplyBtw] = useState(false)
@@ -100,7 +96,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     setFrameRate(getPetFrameRate())
     setConfigTick(v => v + 1)
     setListenAi(getPetListenAi())
-    setListenDsh(getPetListenDsh())
   }), [])
 
   const sendLine = useCallback((text: string) => {
@@ -146,22 +141,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     })
     return () => window.api.ai.removeReplyListener(handler)
   }, [listenAi])
-
-  // dsh 会话激活时拉取最新回复（监听开关开启时生效；只针对当前目录的 dsh 会话）
-  useEffect(() => {
-    if (!listenDsh || !dshActive || !activeSessionId) return
-    let cancelled = false
-    void (async () => {
-      const r = await fetchDshLatestReply(dshSessionId || activeSessionId, activeSessionCwd || undefined)
-      if (cancelled || !r || r.messageId === lastShownReplyIdRef.current) return
-      lastShownReplyIdRef.current = r.messageId
-      setLatestReply(r)
-      setReplyBtw(false)
-      setPopupOpen(false)
-      setAiBubbleOpen(true)
-    })()
-    return () => { cancelled = true }
-  }, [listenDsh, dshActive, activeSessionId, activeSessionCwd, dshSessionId])
 
   // 拖拽：左键按下 → 移动改 left/top → 松开持久；未移动则视为点击开气泡
   const onPointerDown = useCallback((e: React.PointerEvent) => {
@@ -322,20 +301,11 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     return () => window.removeEventListener(BTW_REPLY_EVENT, handler)
   }, [])
 
-  // 手动查看最新一条 AI 回复（不依赖监听开关；监听未开时取完快照即清理游标）。
-  // 不要求会话是 dsh 模式：dsh 优先取当前目录最新回复，无则回退 claude jsonl
+  // 手动查看最新一条 AI 回复（不依赖监听开关；监听未开时取完快照即清理游标）
   const handleReadReply = useCallback(() => {
     if (!activeSessionId || !activeSessionCwd) return
     setContextOpen(false)
     void (async () => {
-      const r = await fetchDshLatestReply(dshSessionId || activeSessionId, activeSessionCwd)
-      if (r) {
-        lastShownReplyIdRef.current = r.messageId
-        setLatestReply(r)
-        setReplyBtw(false)
-        setAiBubbleOpen(true)
-        return
-      }
       const cfg = readAiCliConfig()
       window.api.ai.initReplyCursor(activeSessionId, activeSessionCwd, cfg.configDir).then((cr) => {
         if (cr?.text) {
@@ -347,7 +317,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         if (!listenAi) window.api.ai.stopReplyCursor(activeSessionId)
       }).catch(() => {})
     })()
-  }, [activeSessionId, activeSessionCwd, listenAi, dshSessionId])
+  }, [activeSessionId, activeSessionCwd, listenAi])
 
   const onContextKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return

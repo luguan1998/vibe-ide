@@ -1,4 +1,4 @@
-export type TabKind = 'terminal' | 'gui' | 'dsh'
+export type TabKind = 'terminal' | 'gui'
 
 // 行首图标哨兵：空白图标（emoji === undefined 表示类型图标位）
 export const ICON_NONE = ''
@@ -34,9 +34,9 @@ export function resolveDefaultIcon(): string | undefined {
   return emojiForDefaultIcon(getDefaultSessionIcon())
 }
 
-// 新建会话默认名：类型前缀 + 同类型序号（Terminal 1 / Claude 1 / Pi 1 / dsh 1）
+// 新建会话默认名：类型前缀 + 同类型序号（Terminal 1 / Claude 1 / Pi 1）
 export function defaultSessionName(s: Pick<SessionTab, 'kind' | 'aiBackend'>, existing: Pick<SessionTab, 'name'>[]): string {
-  const base = s.kind === 'gui' ? (s.aiBackend === 'pi' ? 'Pi' : 'Claude') : s.kind === 'dsh' ? 'dsh' : 'Terminal'
+  const base = s.kind === 'gui' ? (s.aiBackend === 'pi' ? 'Pi' : 'Claude') : 'Terminal'
   const used = existing.filter(e => new RegExp(`^${base} \\d+$`).test(e.name)).length
   return `${base} ${used + 1}`
 }
@@ -52,7 +52,6 @@ export interface SessionTab {
   shell?: string
   resumeSessionId?: string
   resumeCwd?: string
-  dshSessionId?: string
   aiBackend?: 'claude' | 'pi'
   // enableWorktree = 意图（首次 spawn 时让 CLI 建），worktreePath = 已落地的那棵树。
   // 两者都落盘：重启后按 worktreePath 直接 resume 进原工作树，不会又套一层新 worktree
@@ -98,7 +97,7 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
       const tabs: SessionTab[] = []
       for (const t of s.tabs) {
         if (!t || typeof t.id !== 'string' || typeof t.name !== 'string' || typeof t.cwd !== 'string') continue
-        if (t.kind !== 'terminal' && t.kind !== 'gui' && t.kind !== 'dsh') continue
+        if (t.kind !== 'terminal' && t.kind !== 'gui') continue
         tabs.push({
           id: t.id,
           kind: t.kind,
@@ -110,7 +109,6 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           shell: typeof t.shell === 'string' ? t.shell : undefined,
           resumeSessionId: typeof t.resumeSessionId === 'string' ? t.resumeSessionId : undefined,
           resumeCwd: typeof t.resumeCwd === 'string' ? t.resumeCwd : undefined,
-          dshSessionId: typeof t.dshSessionId === 'string' ? t.dshSessionId : undefined,
           aiBackend: t.aiBackend === 'pi' ? 'pi' : t.aiBackend === 'claude' ? 'claude' : undefined,
           enableWorktree: t.enableWorktree === true ? true : undefined,
           worktreePath: typeof t.worktreePath === 'string' ? t.worktreePath : undefined,

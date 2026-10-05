@@ -1,7 +1,6 @@
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
-import { dshClientSrcAlias } from './scripts/dsh-client-src-alias.mjs'
 
 export default defineConfig({
   main: {
@@ -30,8 +29,8 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
-    // dsh markdown 渲染（shiki/katex/micromark）经 dshClientSrcAlias 走 vendor 源码，
-    // 其 deep/dynamic import 在运行中被 Vite “发现” → 重新预构建 → 全页 reload（内存峰值）。
+    // markdown 渲染（shiki/katex/micromark）的 deep/dynamic import 在运行中被 Vite “发现”
+    // → 重新预构建 → 全页 reload（内存峰值）。
     // 启动时一次性预构建 + @shikijs/langs/* glob 覆盖全部语言子包，杜绝运行时发现。
     optimizeDeps: {
       include: [
@@ -57,7 +56,7 @@ export default defineConfig({
         'unified'
       ]
     },
-    plugins: [react(), dshClientSrcAlias()],
+    plugins: [react()],
     build: {
       rollupOptions: {
         output: {

@@ -23,16 +23,9 @@
   --selection-opacity: 0.3;
   --focus-outline: 0 122 204;
   --monaco-margin-bg: 30 30 30;
-  --dsh-sidebar-width: 280px;
   --ide-app-name-font: 'Segoe UI Variable Display', 'Segoe UI', Calibri, system-ui, sans-serif;
 }
 
-.dsh-view .dsh-root__sidebar { flex: 0 0 var(--dsh-sidebar-width, 280px); min-width: 0; overflow: hidden; }
-.dsh-view[data-sidebar="hidden"] .dsh-root__sidebar { display: none; }
-.dsh-sidebar-expand-trigger { position: absolute; left: 0; top: 0; bottom: 0; width: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 20; background: transparent; border: none; padding: 0; color: rgb(var(--ide-text-muted)); transition: background .15s; }
-.dsh-sidebar-expand-trigger:hover { background: rgb(var(--ide-hover)); }
-.dsh-sidebar-expand-trigger > svg { opacity: 0; transition: opacity .15s; }
-.dsh-sidebar-expand-trigger:hover > svg { opacity: 1; color: rgb(var(--ide-text)); }
 
 * {
   margin: 0;
@@ -73,43 +66,41 @@ html, body, #root {
   background: transparent;
 }
 
-/* dsh scrollbar.css 全局 ::-webkit-scrollbar 把 thumb 染成 dsh token（浅色主题下
-   l1=neutral-200 近白），覆盖了 vibe 主题色。把 #root 内、.dsh-view 子树之外的滚动条
-   钉回 vibe 颜色与宽度；dsh 自身（.dsh-view 子树 + 挂 body 的 portal）仍走 dsh 样式。 */
-#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar {
+/* #root 内容用更窄的滚动条 */
+#root ::-webkit-scrollbar {
   width: 9px;
   height: 14px;
 }
-#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-track {
+#root ::-webkit-scrollbar-track {
   background: transparent;
 }
-#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb {
+#root ::-webkit-scrollbar-thumb {
   background: rgb(var(--scrollbar-thumb));
   border-radius: 3px;
 }
-#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb:hover {
+#root ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--scrollbar-thumb-hover));
 }
-#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-corner {
+#root ::-webkit-scrollbar-corner {
   background: transparent;
 }
 
 /* 挂 body 的 vibe portal（如外观菜单）在 #root 外，同规则再钉一遍 */
-.vibe-ui :not(.dsh-view, .dsh-view *)::-webkit-scrollbar {
+.vibe-ui ::-webkit-scrollbar {
   width: 9px;
   height: 14px;
 }
-.vibe-ui :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-track {
+.vibe-ui ::-webkit-scrollbar-track {
   background: transparent;
 }
-.vibe-ui :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb {
+.vibe-ui ::-webkit-scrollbar-thumb {
   background: rgb(var(--scrollbar-thumb));
   border-radius: 3px;
 }
-.vibe-ui :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb:hover {
+.vibe-ui ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--scrollbar-thumb-hover));
 }
-.vibe-ui :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-corner {
+.vibe-ui ::-webkit-scrollbar-corner {
   background: transparent;
 }
 
@@ -360,13 +351,6 @@ html, body, #root {
   outline-offset: -2px;
 }
 
-/* dsh 视图的 textarea/select 自带 outline:none（原版聚焦无环），
-   全局 focus ring 因级联顺序在后会覆盖它，这里恢复 dsh 自己的样式 */
-.dsh-view textarea:focus-visible,
-.dsh-view select:focus-visible {
-  outline: none;
-}
-
 /* 目录选择弹窗的路径输入框：聚焦无环 */
 .dir-picker input:focus-visible {
   outline: none;
@@ -379,22 +363,6 @@ html, body, #root {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-}
-
-/* Tailwind preflight 把 svg 设为 display:block，会破坏 dsh 非 flex 上下文中
-   图标+文字的行内布局（原版 svg 是行内元素）；flex 容器内不受影响 */
-.dsh-view svg {
-  display: revert;
-}
-
-/* hero 的「选择工作区」chip：Vibe 中 session 已绑定工作区，禁止下拉交互；
-   隐藏 chevron 去掉下拉观感（同行的 Agent 预设选择器保持可选） */
-.dsh-view div:has(> [data-slot="conversation.hero.workspace"]) > button {
-  pointer-events: none;
-  cursor: default;
-}
-.dsh-view div:has(> [data-slot="conversation.hero.workspace"]) > button > svg:last-child {
-  display: none;
 }
 
 /* Animation utilities */
@@ -1257,98 +1225,7 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
 .status-badge__mode-icon { flex: none; width: 15px; height: 15px; }
 
 
-/* dsh 正文 md 渲染对齐 vibe md-preview（锚定 dsh 的 CSS Modules 类 _markdown_*，主题色跟随） */
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] {
-  color: rgb(var(--ide-text));
-  line-height: 1.7;
-  font-size: var(--md-font-size, 15px);
-  font-family: var(--md-font-family, var(--ide-font-family)), 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', monospace, sans-serif;
-}
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h1,body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h2,body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h3,
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h4,body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h5,body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h6 {
-  color: rgb(var(--ide-accent));
-  font-weight: 600;
-  font-family: inherit;
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
-  line-height: 1.3;
-}
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h1 { font-size: 1.8em; border-bottom: 2px solid rgb(var(--ide-accent)); padding-bottom: 0.3em; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h2 { font-size: 1.5em; border-bottom: 1px solid rgb(var(--ide-accent)); padding-bottom: 0.3em; opacity: 0.9; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h3 { font-size: 1.25em; opacity: 0.8; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h4 { font-size: 1.1em; color: rgb(var(--ide-warning)); }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h5 { font-size: 1em; color: rgb(var(--ide-text-muted)); }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] h6 { font-size: 0.9em; color: rgb(var(--ide-text-muted)); text-transform: uppercase; letter-spacing: 0.05em; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] p { margin-bottom: 1em; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] a { color: rgb(var(--ide-accent)); text-decoration: underline; text-underline-offset: 2px; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] a:hover { color: rgb(var(--ide-accent-hover)); }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] strong { color: rgb(var(--ide-warning)); font-weight: 700; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] em { font-style: italic; color: rgb(var(--ide-success)); }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] ul, body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] ol { margin-bottom: 1em; padding-left: 1.5em; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] ul { list-style-type: disc; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] ol { list-style-type: decimal; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] li { margin-bottom: 0.25em; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] li::marker { color: rgb(var(--ide-accent)); }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] li > ul, body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] li > ol { margin-bottom: 0; margin-top: 0.25em; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] pre {
-  background-color: rgb(var(--ide-sidebar));
-  border: 1px solid rgb(var(--ide-accent));
-  border-radius: 6px;
-  padding: 1em;
-  margin-bottom: 1em;
-  overflow-x: auto;
-  font-family: var(--ide-font-family), 'Consolas', 'Cascadia Code', monospace;
-  font-size: 13px;
-  line-height: 1.5;
-}
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] code {
-  background-color: rgb(var(--ide-accent) / 0.08);
-  border: 1px solid rgb(var(--ide-accent) / 0.15);
-  border-radius: 4px;
-  padding: 0.15em 0.4em;
-  font-size: 0.9em;
-  color: rgb(var(--ide-accent-hover));
-}
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] pre code { background: none; padding: 0; border: none; border-radius: 0; font-size: inherit; color: rgb(var(--ide-text)); }
-
-/* DSH 自带的 CodeBlock 是外层圆角容器 + 内层 pre，边框应放在外层，
-   避免内层 pre 的边框/圆角与外层 12px 容器不匹配导致底部左右缺色 */
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] .md-code-block {
-  border: 1px solid rgb(var(--ide-accent));
-  border-radius: 12px;
-}
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] .md-code-block pre {
-  border: none;
-  border-radius: 0 0 12px 12px;
-  margin: 0;
-}
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] blockquote {
-  border-left: 3px solid rgb(var(--ide-accent));
-  padding: 0.5em 1em;
-  margin-left: 0;
-  margin-bottom: 1em;
-  color: rgb(var(--ide-text) / 0.72);
-  font-style: italic;
-  background-color: rgb(var(--ide-accent) / 0.05);
-  border-radius: 0 4px 4px 0;
-}
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] table { width: 100%; border-collapse: collapse; margin-bottom: 1em; font-size: 13px; font-family: inherit; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] thead { background-color: rgb(var(--ide-sidebar)); }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] th, body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] td { border: 1px solid rgb(var(--ide-border)); padding: 0.5em 0.75em; text-align: left; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] th:first-child, body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] td:first-child { padding-left: 1em; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] th:last-child, body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] td:last-child { padding-right: 1em; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] th { font-weight: 600; color: rgb(var(--ide-accent)); }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] tbody tr:hover { background-color: rgb(var(--ide-hover)); }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] hr { border: none; border-top: 1px solid rgb(var(--ide-accent)); margin: 1.5em 0; opacity: 0.5; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] img { max-width: 100%; height: auto; border-radius: 6px; }
-body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-decoration: line-through; color: rgb(var(--ide-danger)); }
-
-/* dsh 用户消息气泡字号与 md 正文一致 */
-.dsh-view [class*="bubble"] {
-  font-size: 15px !important;
-}
-
-/* ── session-panel dsh 风格（固化自 snippets/z-session-dsh.css；unlayered 规则覆盖内联 utilities）── */
+/* ── session-panel 风格（unlayered 规则覆盖内联 utilities）── */
 .session-panel,
 .session-panel__list-wrapper {
   background: rgb(var(--ide-sidebar));
@@ -1466,7 +1343,7 @@ body[data-dsh-theme-override="on"] .dsh-view [class*="markdown"] del { text-deco
   padding-right: 32px;
 }
 
-/* 拖拽插入标记：树杈式 >— 折线（仿 dsh workspace rows 的 drop marker），
+/* 拖拽插入标记：树杈式 >— 折线（仿 workspace rows 的 drop marker），
    absolute 定位不改变布局也不像行边框；session-item 用于组内/扁平行拖动 */
 .session-item__drop-marker {
   position: relative;

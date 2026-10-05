@@ -249,10 +249,10 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const [slashFilter, setSlashFilter] = useState('')
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const userScrolledUpRef = useRef(false)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
   // 网状视图/空会话会把消息区整块卸载重挂,单靠 messages.length/streaming 无法感知
   // → 用 callback ref 把实际的滚动元素提升为 state,驱动下面几个监听 effect 重绑
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
@@ -1730,7 +1730,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       {/* Todo list — pins above input so it stays visible */}
       {todoItems.length > 0 && <TodoListPanel items={todoItems} />}
 
-      {/* Piped prompt — queued while busy, auto-sent when idle; 样式对齐 dsh QueueDock（36px 行高 / 14px 图标 / 28px 圆形动作） */}
+      {/* Piped prompt — queued while busy, auto-sent when idle; 样式对齐 QueueDock（36px 行高 / 14px 图标 / 28px 圆形动作） */}
       {state.pipedPrompt && activeSessionId && editingPiped === null && (
         <div className={`w-full ${PANEL_MAX_W} mx-auto mb-1 px-2`}>
         <div className="ai-tab__piped w-full h-9 flex items-center gap-2.5 px-3 rounded-xl bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">
@@ -1765,7 +1765,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         </div>
       )}
 
-      {/* Piped prompt edit mode — textarea 对齐 dsh editor（28px 高/描边/焦点主题色），Enter 保存 / Esc 取消 */}
+      {/* Piped prompt edit mode — textarea 对齐 editor（28px 高/描边/焦点主题色），Enter 保存 / Esc 取消 */}
       {state.pipedPrompt && activeSessionId && editingPiped !== null && (
         <div className={`w-full ${PANEL_MAX_W} mx-auto mb-1 px-2`}>
         <div className="ai-tab__piped w-full min-h-9 flex items-center gap-2.5 px-3 py-1 rounded-xl bg-ide-accent/10 border border-ide-accent/30 animate-fade-in">

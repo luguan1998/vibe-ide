@@ -14,7 +14,6 @@ interface GameLauncherProps {
   workspacePath: string | null
   panelWide?: boolean
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
-  onResumeDshHistory?: (dshSessionId: string, cwd: string, name: string) => void
   onResumePiHistory?: (piSessionId: string, cwd: string, name: string) => void
   historyNavNonce?: number
   onOpenFileFromExplorer?: (fullPath: string) => void
@@ -32,7 +31,7 @@ interface GameCard {
 
 const GAMES: GameCard[] = [
   { id: 'history', icon: <span className="text-2xl leading-none">📜</span>, name: 'Session History', desc: 'Browse & search Claude history' },
-  { id: 'skills', icon: <span className="text-2xl leading-none">✨</span>, name: 'Skills', desc: 'Manage Claude & dsh skills' },
+  { id: 'skills', icon: <span className="text-2xl leading-none">✨</span>, name: 'Skills', desc: 'Manage Claude skills' },
   { id: 'browser', icon: <span className="text-2xl leading-none">🌐</span>, name: 'Web Debug', desc: 'Built-in browser — docked right, panel widened' },
   { id: 'beads', icon: <span className="text-2xl leading-none">📿</span>, name: 'Beads', desc: 'Turn any photo into perler bead pixel art' },
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
@@ -41,7 +40,7 @@ const GAMES: GameCard[] = [
   { id: 'vampire', icon: <span className="text-2xl leading-none">🧛</span>, name: 'Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
-export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeHistory, onResumeDshHistory, onResumePiHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown, onOpenBrowser }: GameLauncherProps) {
+export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeHistory, onResumePiHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown, onOpenBrowser }: GameLauncherProps) {
   const [currentGame, setCurrentGame] = useState<GameId>('menu')
   const lastHistoryNonce = useRef(0)
   useEffect(() => {
@@ -59,7 +58,7 @@ export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeH
   if (currentGame !== 'menu') {
     const back = () => setCurrentGame('menu')
     switch (currentGame) {
-      case 'history': return <HistoryView onBack={back} workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumeDshHistory={onResumeDshHistory} onResumePiHistory={onResumePiHistory} />
+      case 'history': return <HistoryView onBack={back} workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumePiHistory={onResumePiHistory} />
       case 'skills': return <SkillView onBack={back} workspacePath={workspacePath} onOpenFile={onOpenFileFromExplorer ?? (() => {})} onPreviewFile={onPreviewMarkdown ? (p) => onPreviewMarkdown(p, p.split(/[\\/]/).pop() || p) : undefined} />
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />

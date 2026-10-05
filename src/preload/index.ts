@@ -479,31 +479,6 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.BOARD_MERGE_ABORT, workspacePath) as Promise<import('../shared/types').BoardOpResult>
   },
 
-  // DSH (deepseek harness agent service)
-  dsh: {
-    start: (cwd?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.DSH_START, cwd),
-    stop: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.DSH_STOP),
-    getPort: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.DSH_GET_PORT),
-    deleteSession: (sessionId: string, cwd?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.DSH_DELETE_SESSION, sessionId, cwd),
-    plugin: (args: string[]) =>
-      ipcRenderer.invoke(IPC_CHANNELS.DSH_PLUGIN, args),
-    restart: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.DSH_RESTART),
-    onReady: (callback: (data: { port: number }) => void) => {
-      const handler = (_event: any, data: any) => callback(data)
-      ipcRenderer.on(IPC_CHANNELS.DSH_READY, handler)
-      return handler
-    },
-    removeReadyListener: (handler?: any) => {
-      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.DSH_READY, handler)
-      else ipcRenderer.removeAllListeners(IPC_CHANNELS.DSH_READY)
-    },
-  },
-
 }
 
 contextBridge.exposeInMainWorld('api', api)

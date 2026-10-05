@@ -7,10 +7,9 @@ import { useI18n } from '../i18n'
 import { useRecentDirs } from '../cwdStore'
 import { getLastNewMode } from '../utils/sessionModePrefs'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
-import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 import { PiLogoIcon } from './PiLogoIcon'
 
-export type SessionMode = 'term' | 'gui' | 'dsh' | 'pi'
+export type SessionMode = 'term' | 'gui' | 'pi'
 
 interface DirEntry { name: string; path: string; type: string }
 
@@ -163,7 +162,6 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
   const modes: { key: SessionMode; label: string; icon: React.ReactNode }[] = [
     { key: 'term', label: t('Terminal'), icon: <ToolIcon category="command" /> },
     { key: 'gui', label: 'Claude', icon: <ClaudeLogoIcon size={14} /> },
-    { key: 'dsh', label: 'dsh', icon: <DeepSeekLogoIcon size={14} /> },
     { key: 'pi', label: 'Pi', icon: <PiLogoIcon size={14} /> },
   ]
 

@@ -23,7 +23,6 @@ import { BOARD_FOCUS } from './BoardView'
 import { SessionGlyph, renderKindIcon } from '../sessionIcon'
 import { PanelGitIcon, PanelDirIcon, PanelSessionsIcon } from '../panelIcons'
 import { useSchedTasks, setSchedTask, deleteSchedTask, markSchedFired, pruneSchedTasks } from '../schedStore'
-import { DeepSeekLogoIcon } from './DeepSeekLogoIcon'
 import iconPattern from '@renderer/assets/icon-pattern.png?inline'
 import iconBgMask from '@renderer/assets/icon-bg-mask.png?inline'
 import { ToolIcon } from './AiTab/tools'
@@ -41,23 +40,21 @@ interface ClaudeConfigStore {
   activeId: string | null
 }
 
-// ── 会话类型（term/gui/dsh/pi）图标与名称：新建会话菜单 + 会话配置弹窗 tab 共用 ──
-const MODE_LABELS: Record<SessionMode, string> = { term: 'Terminal', gui: 'Claude', pi: 'Pi', dsh: 'dsh' }
+// ── 会话类型（term/gui/pi）图标与名称：新建会话菜单 + 会话配置弹窗 tab 共用 ──
+const MODE_LABELS: Record<SessionMode, string> = { term: 'Terminal', gui: 'Claude', pi: 'Pi' }
 
 const renderModeIcon = (mode: SessionMode, cls = 'text-ide-text-muted') =>
   mode === 'term' ? (
     <ToolIcon category="command" className={cls} />
   ) : mode === 'gui' ? (
     <ClaudeLogoIcon size={14} className={`shrink-0 ${cls}`} fill="currentColor" />
-  ) : mode === 'pi' ? (
-    <PiLogoIcon size={14} className={`shrink-0 ${cls}`} />
   ) : (
-    <DeepSeekLogoIcon size={14} className={`shrink-0 ${cls}`} fill="currentColor" />
+    <PiLogoIcon size={14} className={`shrink-0 ${cls}`} />
   )
 
 // ── 会话配置弹窗 tab ──
-type CliConfigTab = 'term' | 'gui' | 'dsh'
-const CLI_CONFIG_TABS: CliConfigTab[] = ['term', 'gui', 'dsh']
+type CliConfigTab = 'term' | 'gui'
+const CLI_CONFIG_TABS: CliConfigTab[] = ['term', 'gui']
 
 function CliConfigToggle({ labelKey, descKey, checked, onChange }: {
   labelKey: string; descKey: string; checked: boolean; onChange: (v: boolean) => void
@@ -291,10 +288,6 @@ interface SessionPanelProps {
   onPanelViewChange?: (view: 'session' | 'dir' | 'git') => void
   panelContent?: React.ReactNode
   onResetCache?: (sessionId: string) => void
-  dshSidebarShown?: boolean
-  onToggleDshSidebar?: (value: boolean) => void
-  dshThemeOverride?: boolean
-  onToggleDshThemeOverride?: (value: boolean) => void
   wordWrap?: boolean
   onToggleWordWrap?: (value: boolean) => void
   autoUtf8?: boolean
@@ -574,10 +567,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onPanelViewChange,
   panelContent,
   onResetCache,
-  dshSidebarShown = false,
-  onToggleDshSidebar,
-  dshThemeOverride = true,
-  onToggleDshThemeOverride,
   wordWrap = false,
   onToggleWordWrap,
   autoUtf8 = true,
@@ -772,7 +761,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   }
   // 新建类型菜单：勾选项置顶
   const newModesSorted = useMemo(() => {
-    const all: SessionMode[] = ['term', 'gui', 'dsh', 'pi']
+    const all: SessionMode[] = ['term', 'gui', 'pi']
     return [newMode, ...all.filter(m => m !== newMode)]
   }, [newMode])
   const renderNewModeItem = (mode: SessionMode, onPick: (mode: SessionMode) => void) => (
@@ -2819,18 +2808,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 )}
               </div>
               </>)}
-              {cliConfigTab === 'dsh' && (
-                <div className="flex flex-col gap-4">
-                  {onToggleDshSidebar && (
-                    <CliConfigToggle labelKey="Show dsh Sidebar" descKey="Show the dsh sidebar (configurable models). Hidden by default."
-                      checked={dshSidebarShown} onChange={onToggleDshSidebar} />
-                  )}
-                  {onToggleDshThemeOverride && (
-                    <CliConfigToggle labelKey="Sync dsh Theme to Vibe" descKey="Map Vibe colors into dsh. Off uses dsh native theme. On by default."
-                      checked={dshThemeOverride} onChange={onToggleDshThemeOverride} />
-                  )}
-                </div>
-              )}
             </div>
             {claudeApplyMsg && (
               <div className="absolute left-1/2 -translate-x-1/2 bottom-3 max-w-[90%] px-3 py-1.5 rounded-md bg-ide-hover border border-ide-border shadow-lg text-[11px] text-ide-success break-words">

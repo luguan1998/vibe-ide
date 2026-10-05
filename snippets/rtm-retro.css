@@ -42,26 +42,26 @@
 /* ════════════════════════════════════════════════════
    按钮轮廓线 + 3D 硬阴影（rtm neubrutalism）
    1px 轮廓线 · 2px 硬阴影 · 按下时位移下沉阴影消失
-   ╚ `:not(.dsh-view *)` 挂在目标元素上，排除 dsh 子树（勿改成中间祖先）
+   ╚ :not(...) 挂在目标元素上，排除 AI 输入区子树（勿改成中间祖先）
    ════════════════════════════════════════════════════ */
-#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action) {
+#root button:not(.ai-tab__input-area *):not(.session-panel__quick-action) {
   border: 1px solid rgb(var(--rtm-btn-outline)) !important;
   border-radius: 6px !important;
   box-shadow: 2px 2px 0 0 rgb(var(--rtm-btn-shadow)) !important;
 }
 
-#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action):hover {
+#root button:not(.ai-tab__input-area *):not(.session-panel__quick-action):hover {
   border-color: rgb(var(--rtm-btn-outline)) !important;
   box-shadow: 3px 3px 0 0 rgb(var(--rtm-btn-shadow)) !important;
 }
 
-#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action):active {
+#root button:not(.ai-tab__input-area *):not(.session-panel__quick-action):active {
   border-color: rgb(var(--ide-accent) / 0.6) !important;
   box-shadow: none !important;
   transform: translate(2px, 2px);
 }
 
-#root button:not(.dsh-view *):not(.ai-tab__input-area *):not(.session-panel__quick-action):focus-visible {
+#root button:not(.ai-tab__input-area *):not(.session-panel__quick-action):focus-visible {
   outline: 1px solid rgb(var(--ide-accent)) !important;
   outline-offset: 1px !important;
 }
@@ -70,8 +70,8 @@
    ╚ 末尾 :not(.session-panel__quick-action) 不起过滤作用（这些按钮无该 class），
      只为抬升特异性到 (1,3,1) 与规则 47 平齐，恢复“后定义胜出”让其 reset 生效——
      否则规则 47 多一个 :not 会压过此处，热区按钮又被加上边框/阴影常显 */
-#root button.absolute:not(.dsh-view *):not(.session-panel__quick-action),
-#root button.fixed:not(.dsh-view *):not(.session-panel__quick-action) {
+#root button.absolute:not(.session-panel__quick-action),
+#root button.fixed:not(.session-panel__quick-action) {
   border: none !important;
   border-radius: revert !important;
   box-shadow: none !important;
@@ -80,9 +80,9 @@
 
 /* 标题栏按钮（外观/CLI/过滤/搜索/网页/面板开关）保持原生圆角图标态，不套硬阴影与位移
    ╚ 两个 :not 同上方理由只为对齐规则 47 特异性；:hover/:active 各 +1 级压规则 53/58 */
-#root .titlebar-drag button:not(.dsh-view *):not(.session-panel__quick-action),
-#root .titlebar-drag button:not(.dsh-view *):not(.session-panel__quick-action):hover,
-#root .titlebar-drag button:not(.dsh-view *):not(.session-panel__quick-action):active {
+#root .titlebar-drag button:not(.session-panel__quick-action),
+#root .titlebar-drag button:not(.session-panel__quick-action):hover,
+#root .titlebar-drag button:not(.session-panel__quick-action):active {
   border: none !important;
   box-shadow: none !important;
   transform: none !important;
@@ -115,17 +115,17 @@
 /* ════════════════════════════════════════════════════
    输入框 — 轮廓 + 内凹陷（rtm form-field）
    ════════════════════════════════════════════════════ */
-#root input[type="text"]:not(.dsh-view *):not(.ai-tab__context-input),
-#root textarea:not(.dsh-view *):not(.ai-tab__input-area *),
-.git-tab__commit-input:not(.dsh-view *) {
+#root input[type="text"]:not(.ai-tab__context-input),
+#root textarea:not(.ai-tab__input-area *),
+.git-tab__commit-input {
   border: 1px solid rgb(var(--rtm-btn-outline)) !important;
   border-radius: 6px !important;
   box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow)) !important;
 }
 
-#root input[type="text"]:not(.dsh-view *):not(.ai-tab__context-input):focus,
-#root textarea:not(.dsh-view *):not(.ai-tab__input-area *):focus,
-.git-tab__commit-input:not(.dsh-view *):focus {
+#root input[type="text"]:not(.ai-tab__context-input):focus,
+#root textarea:not(.ai-tab__input-area *):focus,
+.git-tab__commit-input:focus {
   border-color: rgb(var(--ide-accent)) !important;
   box-shadow: inset 1px 1px 0 0 rgb(var(--rtm-btn-shadow)), 0 0 6px rgb(var(--ide-accent) / 0.3) !important;
 }

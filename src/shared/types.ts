@@ -187,15 +187,6 @@ export const IPC_CHANNELS = {
   AI_ERROR: 'ai:error',                   // push: process error or crash
   AI_FILE_CHANGE: 'ai:fileChange',        // push: tool_use with file edit detected
 
-  // DSH (deepseek harness agent service)
-  DSH_START: 'dsh:start',
-  DSH_STOP: 'dsh:stop',
-  DSH_GET_PORT: 'dsh:getPort',
-  DSH_DELETE_SESSION: 'dsh:deleteSession',
-  DSH_PLUGIN: 'dsh:plugin',                   // plugin manage: [action, name]
-  DSH_RESTART: 'dsh:restart',                 // restart dsh server (plugin activation)
-  DSH_READY: 'dsh:ready',                    // push: server port ready
-
   // App
   APP_VERSION: 'app:version',
   APP_HOME: 'app:home',

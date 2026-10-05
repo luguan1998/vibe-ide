@@ -81,11 +81,9 @@ export default function SkillView({ workspacePath, onOpenFile, onPreviewFile, on
       const ws = norm(workspacePath)
       nextRoots.push({ dir: ws + '/.claude/skills', source: 'project', label: './.claude' })
       nextRoots.push({ dir: ws + '/.agents/skills', source: 'project', label: './.agents' })
-      nextRoots.push({ dir: ws + '/.dsh/skills', source: 'project', label: './.dsh' })
     }
     nextRoots.push({ dir: cfgDir + '/skills', source: 'global', label: '~/.claude' })
     nextRoots.push({ dir: home + '/.agents/skills', source: 'global', label: '~/.agents' })
-    nextRoots.push({ dir: home + '/.dsh/skills', source: 'global', label: '~/.dsh' })
     const items: SkillItem[] = []
     for (const root of nextRoots) {
       const r: any = await window.api.file.list(root.dir)

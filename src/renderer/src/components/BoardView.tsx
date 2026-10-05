@@ -4,7 +4,6 @@ import type { SessionTab } from '../sessionRestore'
 import type { WorktreeRecord, WorktreeRecordView } from '@shared/types'
 import { useI18n } from '../i18n'
 import { aiStore } from '../aiStore'
-import { getDshApi } from '../dsh/history'
 import { ChatMarkdown } from './AiTab'
 import { SessionGlyph } from '../sessionIcon'
 import { FolderIcon } from './FileIcons'
@@ -713,29 +712,6 @@ export default function BoardView({
         const lines = onReadSessionTail(s.id, 60)
         setTailEnded(lines.length < 60)
         setReplyText(shortenHrLines(truncateReply(lines.join('\n').slice(-12000), truncate) ?? ''))
-        return
-      }
-      if (s.kind === 'dsh') {
-        const sid = s.dshSessionId || s.id
-        const api = await getDshApi(s.cwd || undefined)
-        const res = await api.sessions.history({ sessionId: sid, maxMessages: 3 })
-        if (res.result?.ok) {
-          const events = ((res.result.value?.events ?? []) as any[]).map((e: any) => e.event)
-          for (let i = events.length - 1; i >= 0; i--) {
-            const ev = events[i]
-            if (ev?.type !== 'assistant/message') continue
-            const msg = ev.data?.message
-            const text = (msg?.content ?? [])
-              .filter((b: any) => b.type === 'text')
-              .map((b: any) => b.text)
-              .join('')
-            if (text.trim()) {
-              setReplyText(text)
-              return
-            }
-          }
-        }
-        setReplyText(null)
         return
       }
       setReplyText(null)

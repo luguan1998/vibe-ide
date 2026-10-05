@@ -95,16 +95,14 @@ async function snapshot(cdp, mainPid, label) {
   const tabMetrics = (main.appMetrics || []).filter(m => m.type === 'Tab').sort((a, b) => b.memory?.workingSetSize - a.memory?.workingSetSize)
   const gpuMetric = (main.appMetrics || []).find(m => m.type === 'GPU')
   const tree = procTree(mainPid)
-  const dshNode = tree.find(t => /^node/i.test(t.name)) || null
   const shells = tree.filter(t => /pwsh|cmd|powershell|bash|sh\.exe|conhost/i.test(t.name))
   const line = [
     `[${label}]`,
     `  主进程 heap=${(main.memory.heapUsed / 1048576).toFixed(0)}MB rss=${(main.memory.rss / 1048576).toFixed(0)}MB`,
     `  渲染 usedJSHeap=${(renderer.usedJSHeapSize / 1048576).toFixed(0)}MB totalJSHeap=${(renderer.totalJSHeapSize / 1048576).toFixed(0)}MB`,
     `  renderer WS=${tabMetrics[0] ? Math.round(tabMetrics[0].memory.workingSetSize / 1024) : '?'}MB  GPU WS=${gpuMetric ? Math.round(gpuMetric.memory.workingSetSize / 1024) : '?'}MB`,
-    `  dsh node WS=${dshNode ? dshNode.wsKB / 1024 .toFixed(0) : '?'}MB${dshNode ? ` (pid=${dshNode.pid})` : ''}${dshNode ? ` 子进程=${tree.filter(t => t.pid !== mainPid && t !== dshNode).length}个` : ''}`,
     `  全部进程树: ${tree.map(t => `${t.name.split('.')[0]}[${t.depth}]${(t.wsKB / 1024).toFixed(0)}M`).join(' ')}`,
-    `  主进程WS=${(main.appMetrics.find(m => m.type === 'Browser')?.memory?.workingSetSize / 1024 ?? 0).toFixed(0)}MB  dsh+pty+node合计=${(tree.filter(t => t.depth > 0).reduce((s, t) => s + t.wsKB, 0) / 1024).toFixed(0)}MB`,
+    `  主进程WS=${(main.appMetrics.find(m => m.type === 'Browser')?.memory?.workingSetSize / 1024 ?? 0).toFixed(0)}MB  pty+node合计=${(tree.filter(t => t.depth > 0).reduce((s, t) => s + t.wsKB, 0) / 1024).toFixed(0)}MB`,
   ]
   console.log(line.join('\n'))
   return { main, renderer, tree }
@@ -128,7 +126,7 @@ for (let i = 0; i < 30; i++) {
   try { if (await evalIn(cdp, `!!window.api?.perf?.snapshot`)) break } catch {}
   await new Promise(r => setTimeout(r, 1000))
 }
-// 等 dsh server 起 + session 建好 + DshView boot
+// 等 session 建好
 await new Promise(r => setTimeout(r, 8000))
 
 const mainPid = proc.pid
