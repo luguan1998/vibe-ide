@@ -83,80 +83,68 @@ const fmtTime = (s: number) => {
 }
 
 const MAGE_PALETTE: Record<string, string> = {
-  K: '#241436', I: '#9070e0', i: '#7450c8', h: '#5a35b0', u: '#3d1f7d',
-  S: '#f3d2b6', s: '#d2ab88', W: '#ffffff',
-  C: '#3b2a8f', c: '#27185f', L: '#c62828', B: '#5c6bc0',
-  G: '#ffd54f', T: '#7a5a48', O: '#ff8f00', o: '#ffe082',
-  H: '#3c2a48', J: '#54405f',
+  K: '#3f2631', P: '#9b4ca3', p: '#d176d0', b: '#8b9bb4',
+  S: '#f7c282', E: '#262b44', W: '#c0cbdc', w: '#aab7cc', n: '#bd6c4a',
+  T: '#7a5a48', O: '#ff8f00', o: '#ffe082', x: '#ffffff',
 }
+// 角色本体 16×16 取自 Kenney Tiny Dungeon（CC0）的法师瓦片，右侧一列是法杖
 const MAGE_DOWN = [
-  '.........KK.........',
-  '........KIIK........',
-  '.......KIiihK..OoO..',
-  '......KIiohhhK.oWo..',
-  '......KIGoGhhK.OoO..',
-  '.....KIiiohhhK..T...',
-  '.....KIiihhhhK..T...',
-  '...uuuuuuuuuuuuuT...',
-  '......ssSSSSs..T....',
-  '......SSKSKSS..T....',
-  '......sSSSSSs..T....',
-  '......SSsssSS..T....',
-  '.......sSSSs...T....',
-  '.....CCLCCCLCCC.....',
-  '....cCBBBBBBBCcST...',
-  '...ScCBBGGGGBCCcS...',
-  '...ScCBBBBBBBCc.T...',
-  '.....cCBBBBBCc......',
-  '......cGGGGGGc......',
-  '......KKKKKKKK......',
+  '...KKKKKK........',
+  '..KKKKKKKKK......',
+  '.KKKPPPPKKKK.....',
+  '.KKPKPPPPPKKKKOoO',
+  '.KKKKPPPPPPKKKOxO',
+  '.KKPppppppppPKOoO',
+  '.KKpPKKKKKKPpKKT.',
+  '.KKPbSSSSSSbPKKT.',
+  '.KKKbSEESEESKKKT.',
+  '.KKKKSSWWWSKKK.T.',
+  'KKKKPSbSSSbPKKKT.',
+  'KKSSPPWWWWWPSSKT.',
+  'KKSSPPWWWWWPSSKT.',
+  'KKPPKnWWWWWKPPKT.',
+  'KKPPKPPWWwPKPPKT.',
+  '.KKKPPWWWPPKKKKT.',
 ]
 const MAGE_UP = [
-  '.........KK.........',
-  '........KIIK........',
-  '.OoO...KIiihK.......',
-  '.oWo..KIiihhhK......',
-  '.OoO..KIiihhhK......',
-  '..T..KIiihhhhK......',
-  '..T..KIiihhhhK......',
-  '..Tuuuuuuuuuuuuu....',
-  '..T...KHHHHHK.......',
-  '..T...KHHJHHK.......',
-  '..T...KHHHHHK.......',
-  '..T....KHHHK........',
-  '..T.....KKK.........',
-  '..T..CCCCCCCCCC.....',
-  '..T.cCBBBBBBBCcS....',
-  '..TScCBBBBBBBCcS....',
-  '..TScCBBBBBBBCc.....',
-  '.....cCBBBBBCc......',
-  '......cGGGGGGc......',
-  '......KKKKKKKK......',
+  '...KKKKKK........',
+  '..KKKKKKKKK......',
+  '.KKKPPPPKKKK.....',
+  '.KKPKPPPPPKKKKOoO',
+  '.KKKKPPPPPPKKKOxO',
+  '.KKPppppppppPKOoO',
+  '.KKpPKKKKKKPpKKT.',
+  '.KKPbPPPPPPbPKKT.',
+  '.KKKbPPPPPPbKKKT.',
+  '.KKKKPPPPPPKKK.T.',
+  'KKKKPPPPPPPPKKKT.',
+  'KKSSPPpppppPSSKT.',
+  'KKSSPPpppppPSSKT.',
+  'KKPPKPPPPPPKPPKT.',
+  'KKPPKPPpppPKPPKT.',
+  '.KKKPPpppPPKKKKT.',
 ]
 const MAGE_SIDE = [
-  '.........KK.........',
-  '........KIIK........',
-  '.......KIiihK..OoO..',
-  '......KIiohhhK.oWo..',
-  '......KIGoGhhK.OoO..',
-  '.....KIiiohhhK..T...',
-  '.....KIiihhhhK..T...',
-  '...uuuuuuuuuuuuuT...',
-  '......KHHHSSS...T...',
-  '......KHHSSKS...T...',
-  '......KHHSSSSS..T...',
-  '......KHHSSSs...T...',
-  '.......KSSSs....T...',
-  '......CCCCCCCCC.T...',
-  '....cCBBBBBBBCcST...',
-  '....cCBBGGGGBCCcS...',
-  '....cCBBBBBBBCc.T...',
-  '.....cCBBBBBCc......',
-  '......cGGGGGGc......',
-  '......KKKKKKKK......',
+  '...KKKKKK........',
+  '..KKKKKKKKK......',
+  '.KKKPPPPKKKK.....',
+  '.KKPKPPPPPKKKKOoO',
+  '.KKKKPPPPPPKKKOxO',
+  '.KKPppppppppPKOoO',
+  '.KKpPKKKKKKPpKKT.',
+  '.KKPPPPSSSSSbKKT.',
+  '.KKPPPPSESSbKKKT.',
+  '.KKKPPSSSSSSSbKT.',
+  '.KKKKPSSSSSbKKKT.',
+  'KKSSPPWWWWWPSSKT.',
+  'KKSSPPWWWWWPSSKT.',
+  'KKPPKnWWWWWKPPKT.',
+  'KKPPKPPWWwPKPPKT.',
+  '.KKKPPWWWPPKKKKT.',
 ]
 const MAGE_GRID_W = MAGE_DOWN[0].length
 const MAGE_GRID_H = MAGE_DOWN.length
+const MAGE_ANCHOR_X = 8
 
 export const MAGE_SVG_URL = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${MAGE_GRID_W} ${MAGE_GRID_H}" shape-rendering="crispEdges">` +
@@ -1225,7 +1213,8 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
         ctx.translate(p.x, p.y + bob)
         if (p.dir === 'left') ctx.scale(-1, 1)
         ctx.imageSmoothingEnabled = false
-        ctx.drawImage(cv, -ks / 2, -ks / 2, ks, ks)
+        const cell = ks / MAGE_GRID_H
+        ctx.drawImage(cv, -MAGE_ANCHOR_X * cell, -ks / 2, MAGE_GRID_W * cell, MAGE_GRID_H * cell)
         ctx.restore()
       } else {
         ctx.fillStyle = '#ffffff'
