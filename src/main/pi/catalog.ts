@@ -37,7 +37,8 @@ function runProbe<T>(cwd: string, options: ProbeOptions, timeoutMs: number): Pro
 }
 
 let modelsPromise: Promise<PiModelInfo[] | null> | null = null
-let commandsPromise: Promise<PiCommandInfo[] | null> | null = null
+// 命令表按 cwd 缓存：项目级 .pi/prompts、.pi/skills 按 cwd 发现，不能全局共用一份
+const commandsCache = new Map<string, Promise<PiCommandInfo[] | null>>()
 
 export function resolvePiModels(): Promise<PiModelInfo[] | null> {
   if (!modelsPromise) {
@@ -48,11 +49,19 @@ export function resolvePiModels(): Promise<PiModelInfo[] | null> {
   return modelsPromise
 }
 
-export function resolvePiCommands(): Promise<PiCommandInfo[] | null> {
-  if (!commandsPromise) {
-    commandsPromise = runProbe<PiCommandInfo[]>(homedir(), { noExtensions: false, command: { type: 'get_commands' }, parse: commandsFromRpcData }, 45000)
-      .then((result) => { if (result === null) commandsPromise = null; return result })
+// cwd 决定 pi 扫描哪些项目级资源（.pi/prompts、.pi/skills），缺省退回 home（纯用户级）
+export function resolvePiCommands(cwd?: string): Promise<PiCommandInfo[] | null> {
+  const dir = cwd?.trim() || homedir()
+  let promise = commandsCache.get(dir)
+  if (!promise) {
+    promise = runProbe<PiCommandInfo[]>(dir, { noExtensions: false, command: { type: 'get_commands' }, parse: commandsFromRpcData }, 45000)
+      .then((result) => {
+        // A failed probe must not be cached forever: a later open retries.
+        if (result === null) commandsCache.delete(dir)
+        return result
+      })
+    commandsCache.set(dir, promise)
   }
-  return commandsPromise
+  return promise
 }
 

@@ -10,7 +10,7 @@ import { send, setAiMainWindow, setRendererVisible, sanitizeEnvForCli } from './
 import {
   hasPiSession, createPiSession, sendPiTurn, cancelPiTurn, forceStopPi, destroyPiSession, cleanupPiSessions,
   setPiModel, piContextInfo, setPiContextWindow, respondPiPermission, resolvePiModels, resolvePiCommands, findPiBinary,
-  piThinkingLevels, setPiThinkingLevel,
+  piThinkingLevels, setPiThinkingLevel, piSessionCwd,
 } from './pi'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS, DEFAULT_AI_CONTEXT_WINDOW, asToolArray } from '../shared/types'
 import type { AiBackend, AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, AiSideQuestionPayload, AiSetContextWindowPayload, AiSlashCommand, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
@@ -2006,7 +2006,7 @@ export function registerAiHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.AI_RESOLVE_SKILLS, async (_event, sessionId?: string, cwdArg?: string) => {
     if (sessionId && hasPiSession(sessionId)) {
-      const commands = await resolvePiCommands()
+      const commands = await resolvePiCommands(cwdArg || piSessionCwd(sessionId) || undefined)
       return commands ?? []
     }
     const session = sessionId ? aiSessions.get(sessionId) : undefined

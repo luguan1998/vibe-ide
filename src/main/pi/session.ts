@@ -44,6 +44,12 @@ export function hasPiSession(sessionId: string): boolean {
   return piSessions.has(sessionId)
 }
 
+// 命令探测需要会话 cwd（决定项目级 .pi/prompts、.pi/skills 的发现范围）；
+// 不像 piSessionMeta 那样依赖 get_state 回来的 piSessionId，创建即可用
+export function piSessionCwd(sessionId: string): string | null {
+  return piSessions.get(sessionId)?.cwd ?? null
+}
+
 // fork/revert 需要源会话在 pi 侧的 id（文件按它定位）与其 cwd（决定 sessions 子目录）；
 // piSessionId 要等 get_state 回来才有，创建窗口期内为 undefined
 export function piSessionMeta(sessionId: string): { piSessionId: string; cwd: string; model?: string } | null {
