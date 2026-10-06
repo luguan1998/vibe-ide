@@ -23,6 +23,7 @@ import {
   getProjectsRoot,
   normalizeCwdToProjectDir,
   parseUserTurns,
+  readUserTurnsCached,
 } from './ai'
 import { forkPiSession } from './pi/fork'
 import { piSessionMeta, resumePiSessionFrom } from './pi/session'
@@ -373,9 +374,6 @@ export function registerRevertHandlers(): void {
     const projectDir = resolveProjectDir(effectiveCwd, prev?.configDir)
     if (!projectDir) return [] as UserTurn[]
     const jsonlPath = join(projectDir, `${claudeSessionId}.jsonl`)
-    let content: string
-    try { content = await readFile(jsonlPath, 'utf-8') } catch { return [] as UserTurn[] }
-    const lines = content.split('\n').filter(Boolean)
-    return parseUserTurns(lines)
+    return readUserTurnsCached(jsonlPath)
   })
 }

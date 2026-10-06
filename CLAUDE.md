@@ -114,6 +114,19 @@ src/
 
 **路径别名：** `@renderer/*` → `src/renderer/src/*`、`@shared/*` → `src/shared/*`
 
+## 会话转录读取（主进程内存陷阱）
+
+**禁止"每次要用就整读整本 jsonl"**。会话 jsonl 是唯一真源，但一次 agent run 里**每个回合末**、**每次 `Edit`/`Write`** 都会去取派生量（turnIndex / 用户轮清单 / 最后一条回复 / 列表 meta）；转录 3MB 级时一次整读的瞬时垃圾是文件大小数倍，连续发生 GC 追不上 → 主进程堆冲到 GB、整机卡死（2026-10-06 实测 0.6→3.5GB）。分析见 `docs/memory-analysis.md §13`。
+
+已有可复用件，**不要再各写一份**：
+
+- `readUserTurnsCached(jsonlPath)` — 按 `(size, mtime)` 缓存 turns，`extractFileChange` 与 `AI_LIST_USER_TURNS` 共用
+- `readSessionHeadLines(filePath, maxLines)` — 只读到前 N 行（列表 meta 只用前 40 行，别整读）
+- `toolResultText(content)` — 工具结果转文本；图片块换占位，别把整段 base64 `JSON.stringify` 出来
+- stdout 切行用 `session.lineBuffer: Buffer` 按字节找 `\n` 再逐行 decode（`toString('utf-8')` 后整份 `split` 会重切 + 切断多字节字符）
+
+内存问题只认打包版 + private bytes。
+
 ## Session Independence
 
 Each terminal session owns its RightPanel/GitTab state independently — **no global singletons in renderer state.**

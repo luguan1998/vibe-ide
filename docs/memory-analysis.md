@@ -490,3 +490,79 @@ A/B（临时禁用预热 → 重新 build/打包，独立 output 目录，**打�
 v0.11.8 已含同一预热代码（App.tsx:473）→ 占 0.10.7→v0.11.8 增长（+66MB）约 1/3。
 **优化方向**：预热改条件式（有 dsh 会话才预热 / 悬停或点击 dsh 区域时再加载）——不用 dsh 的用户直接省 21.5MB；
 代价 = 首次打开 dsh 多等 chunk 加载（可折中为 hover 预热）。
+
+---
+
+## 13. 主进程内存爆炸：会话转录被反复整读（2026-10-06）
+
+> 症状：AI 跑长任务时**主进程**从 ~0.6GB 冲到 3.5GB，整机卡死；对话一结束数字回落。
+> 口径：打包版 + 任务管理器"内存"列（private bytes）。对象是**主进程**（browser），不是渲染进程。
+
+### 13.1 实测
+
+**进程树现场**（Task Manager 截图）：main **1335.8MB** / renderer 415.8 / GPU 223.4 / utility 6.5 —— 无终端 shell 进程，
+claude CLI 子进程另有 3 个（315~463MB，属 CLI 自身，非本案）。
+
+**同进程两次转储对比**（`dmp-peek --summary`）：
+
+| 时刻 | heap-other | private 合计 | 说明 |
+|---|---|---|---|
+| 22:14（`dump-process.ps1` 自取） | **517MB** | 828MB | 会话进行中 |
+| 22:29（Task Manager 取） | **2649MB** | 2913MB | 15 分钟后，同一进程 |
+
+**同进程判定**：两次转储的 V8 cage 大区地址重合（都有 `0x36c02e80000`）⇒ 同一进程实例，可直接比大小。
+**身份判定**（native 转储里认进程）：`node-pty` 1230 / `conpty` 462 / `pty.node` 21 / `browser_init` 24 / `[ai:term-` 5 = **main**；
+`Minified React error` = 0 排除 renderer。⚠️ xterm/monaco/aiStore 等串会因 **asar 被映射**混入，**不能**当身份依据。
+
+**堆内容指纹**：
+- 各区最大块是 **V8 ValueSerializer 输出**（IPC 报文序列化，特征是 `$` + 长度前缀 + 逐字段字符串），内含
+  `tool_use` 输入（Bash 命令原文）、工具输出、转录行 `{"parentUuid":…,"isSidechain":false,…}`、会话 id
+- **重复度量化**（在 3.67GB 转储里 indexOf 计唯一串的存活份数）：`"parentUuid":` **90,839** 次、
+  本会话 `6a794c0a-…` **130,843** 次、`"tool_use_id":` 22,134 次、某条 bash 输出 **794** 份
+  → 份数 ≫ 来源数 = "同一份文件被反复整读"的铁证
+- `dmp-payload.mjs` 载荷重估：各区 zero% 45~60% ⇒ private 2913MB 里 **~1.2GB 有字节 / ~1.4GB 是已提交空容量**
+
+### 13.2 机制：为什么"正常使用"就会反复整读
+
+1. 会话 jsonl 是**唯一真源**（可能被终端里的 claude / 别的窗口改写；revert/fork 必须按磁盘序列切）。
+2. 但有 4 个**派生量没有内存副本**，取值方式写成"每次要用就整读一遍"：
+   ①第几轮用户输入（`parseUserTurns(整个文件).length-1`）②用户轮清单（回退索引 + hover 弹窗）
+   ③最后一条 assistant 回复（桌宠气泡）④会话 meta（列表名/时间/模型）。
+3. **触发点全挂在 agent 干活的节奏上**，所以正常使用即高频：
+
+| 事件 | 一次普通 run | 读多少 |
+|---|---|---|
+| 回合结束 result | ~10 次 | 整本 jsonl |
+| **每次 Edit / Write** | **~50 次** | 整本（只为算 turnIndex） |
+| busy→idle（桌宠） | ~10 次（**默认关**，见下） | 整本 |
+| 开会话历史下拉 / 恢复会话 | 每次操作 × 全部会话 | 每文件一份（只取前 40 行） |
+
+⚠️ 桌宠那条有开关：`vibe-ide-pet-listen-ai` **默认 false**（`petSettings.ts:134`），未开监听不注册游标
+（`DesktopPet/index.tsx:121`），`readReplyIncrement` 直接 return、零 IO。**排查先查 localStorage 有没有这个键**，
+别默认它在跑（本机没开 → 该项实贡献 0）。
+
+**为什么贵**：一次整读的瞬时垃圾 ≈ 文件大小数倍（`readFile` 字符串 + `split('\n')` 切片数组 + 每行 `JSON.parse` 对象树）。
+单次几 MB，但运行期连续且并发（一回合里编辑 5 次 = 5 次整读）→ **GC 追不上产垃圾速度**，堆高水位冲到 GB 级。
+**"对话完回落" ≠ 没泄漏**：回落说明垃圾可回收（活数据不多），但**峰值已足够 OOM**；V8 已提交的页不还给 OS，
+所以空闲读数停在 1.3GB（只有重启进程才还）。
+
+**引入时间**：全部是 6-8 月的老代码（`6ed7cdbe` 06-17 图片 stringify 与 stdout 切行 / `86b1423e` 07-11 oldContent /
+`a8ab597d` 07-13 turns 整读 / `5f58da02` 08-09 桌宠读整本），**不是某笔变坏**——是转录库长到 **316 本 / 304MB**
++ 会话开始带图 + agent 长跑（几十次编辑）把老代价放大。佐证：13:51 的 2.82GB 转储早于当天所有提交。
+
+### 13.3 修复（2026-10-06，打包版实测有效）
+
+| 位置 | 修前（每次都发生） | 修后 |
+|---|---|---|
+| `ai.ts` tool_result 三处 → `toolResultText()` | 带图结果整份 `JSON.stringify`（每张几百 KB）后再截到 16KB 丢掉 | 图片块换 `{type:'image',note:'[image]'}` 占位，几十字节 |
+| `ai.ts` / `ai-revert.ts` → `readUserTurnsCached()` | `extractFileChange`（每次编辑）+ `AI_LIST_USER_TURNS`（每回合末）各自整读整本 | 按 `(size,mtime)` 共享缓存，未变零 IO |
+| `ai.ts` `scanActiveJsonl` | 桌宠每次转闲整读最新 jsonl | 只读文件尾部（64KB 起，不够×4 递增，最多到文件头） |
+| `ai.ts` stdout 分块 | 每 chunk 重切整缓冲（O(n²)）+ 跨块多字节被切坏（乱码） | `lineBuffer` 改 Buffer，只留未闭合行，按字节找 `\n` 逐行 decode |
+| `ai.ts` `extractSessionMeta` | 列表扫描整读每个 jsonl 只为前 40 行 | `readSessionHeadLines()` 只读到前 40 行（**235MB→42MB**，316 个真实 jsonl 全量比对 meta 逐字一致） |
+| `aiStore.onFileChange` | 同回合对同一文件每次改动都存一份整文件 `oldContent` | 同回合同文件只留首次（回退语义等价：消费方取 Map 首次命中） |
+
+### 13.4 未做（下次若要继续）
+
+- 渲染层"已加载会话不卸载"（每个常驻 AiTab 一份 DOM+memo；属渲染进程，非本案崩因）
+- `buildSessionGraph` 每次刷新重读**未变过**的分支文件（只在开网状图时）
+- 流式 token 一条一 IPC（改批处理会影响打字机手感）

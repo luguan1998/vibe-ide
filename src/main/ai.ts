@@ -1,7 +1,7 @@
 import { ipcMain, app } from 'electron'
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { randomUUID } from 'crypto'
-import { readFile, readdir, stat, rm, mkdir, writeFile } from 'fs/promises'
+import { readFile, readdir, stat, rm, mkdir, writeFile, open } from 'fs/promises'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join, isAbsolute, relative, basename } from 'path'
 import { setGitMetaPaused } from './watcher'
@@ -22,7 +22,7 @@ export interface ManagedAiSession {
   process: ChildProcess
   sessionId: string
   cwd: string
-  lineBuffer: string
+  lineBuffer: Buffer
   ready: boolean
   claudeSessionId?: string
   contextWindow?: number
@@ -125,6 +125,23 @@ export function parseUserTurns(lines: string[]): UserTurn[] {
     }
     i = j
   }
+  return turns
+}
+
+// 转录的 user turns 查询：同一文件（size+mtime 未变）直接吃缓存。
+// 文件编辑（extractFileChange）与回合末（AI_LIST_USER_TURNS）都走这里，一次回合里
+// 同一份 3MB 级转录原本会被整读多次，现在只有文件真变了才重读一次。
+const turnsCache = new Map<string, { size: number; mtimeMs: number; turns: UserTurn[] }>()
+
+export async function readUserTurnsCached(jsonlPath: string): Promise<UserTurn[]> {
+  const st = await stat(jsonlPath).catch(() => null)
+  if (!st) return []
+  const hit = turnsCache.get(jsonlPath)
+  if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit.turns
+  const content = await readFile(jsonlPath, 'utf-8').catch(() => null)
+  if (content === null) return hit?.turns ?? []
+  const turns = parseUserTurns(content.split('\n').filter(Boolean))
+  turnsCache.set(jsonlPath, { size: st.size, mtimeMs: st.mtimeMs, turns })
   return turns
 }
 
@@ -407,6 +424,14 @@ function truncateToolResult(text: string): string {
   return text.slice(0, MAX_TOOL_RESULT_CHARS) + `\n…(truncated ${text.length - MAX_TOOL_RESULT_CHARS} chars, see session jsonl)`
 }
 
+// tool_result 转文本：数组内容里若带图片块，JSON.stringify 会把整段 base64 拷一份出来
+// （贴图/截图会话每张几百 KB），而下游一律 truncate 到 16KB —— 先把图片块换占位再序列化
+function toolResultText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return JSON.stringify(content)
+  return JSON.stringify(content.map((b: any) => (b?.type === 'image' ? { type: 'image', note: '[image]' } : b)))
+}
+
 // Calculate context percentage from usage token counts.
 // Claude CLI stream-json does NOT include context_window in output.
 // modelUsage block (used by newer CLI versions) has not been observed in practice.
@@ -492,11 +517,8 @@ async function extractFileChange(sessionId: string, block: any, cwd: string): Pr
   if (claudeSessionId) {
     const projectDir = resolveProjectDir(cwd, session?.configDir)
     if (projectDir) {
-      try {
-        const jsonl = await readFile(join(projectDir, `${claudeSessionId}.jsonl`), 'utf-8')
-        const turns = parseUserTurns(jsonl.split('\n').filter(Boolean))
-        if (turns.length > 0) turnIndex = turns.length - 1
-      } catch { /* jsonl not yet written; leave turnIndex 0 */ }
+      const turns = await readUserTurnsCached(join(projectDir, `${claudeSessionId}.jsonl`))
+      if (turns.length > 0) turnIndex = turns.length - 1
     }
   }
 
@@ -781,7 +803,7 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         for (const block of content) {
           if (block.type === 'tool_result') {
             const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
-            const resultContent = typeof block.content === 'string' ? block.content : JSON.stringify(block.content)
+            const resultContent = toolResultText(block.content)
             send(IPC_CHANNELS.AI_MESSAGE, {
               sessionId,
               type: 'user',
@@ -905,7 +927,7 @@ function emitSidecarMessage(sessionId: string, msg: any, parentToolUseId: string
           role: 'user',
           toolResult: {
             toolUseId: block.tool_use_id,
-            content: truncateToolResult(typeof block.content === 'string' ? block.content : JSON.stringify(block.content)),
+            content: truncateToolResult(toolResultText(block.content)),
             isError: block.is_error || false,
           },
           parentToolUseId,
@@ -988,15 +1010,47 @@ export function normalizeCwdToProjectDir(cwd: string): string {
 
 export type AiSessionMeta = Omit<AiSessionSummary, 'projectDir' | 'projectDirName' | 'inCurrentProject'>
 
+// 元信息最多只用前 40 行，整份 readFile 会让主进程把整个转录库反复吞进堆
+// （实测 316 个 jsonl / 304MB：一次会话列表扫描就是几百 MB 临时字符串，V8 堆涨上去不还）
+const META_LINES = 40
+const READ_CHUNK = 64 * 1024
+
+// 只读到前 maxLines 个非空行，语义与整份读一致（调用方只取 slice(0,40)/slice(0,20)）。
+// 按字节找 \n 再逐行解码：分块边界落在多字节字符（中文正文）中间时不会解出替换字符
+async function readSessionHeadLines(filePath: string, maxLines = META_LINES): Promise<string[]> {
+  const fh = await open(filePath, 'r')
+  try {
+    const buf = Buffer.alloc(READ_CHUNK)
+    const out: string[] = []
+    let carry = Buffer.alloc(0)
+    while (out.length < maxLines) {
+      const { bytesRead } = await fh.read(buf, 0, READ_CHUNK)
+      if (bytesRead === 0) break
+      const chunk = carry.length ? Buffer.concat([carry, buf.subarray(0, bytesRead)]) : Buffer.from(buf.subarray(0, bytesRead))
+      let start = 0
+      for (let nl = chunk.indexOf(10, start); nl >= 0; nl = chunk.indexOf(10, start)) {
+        const line = chunk.subarray(start, nl).toString('utf-8')
+        start = nl + 1
+        if (line && out.length < maxLines) out.push(line)
+      }
+      carry = Buffer.from(chunk.subarray(start))
+    }
+    if (carry.length && out.length < maxLines) {
+      const line = carry.toString('utf-8') // 末行无换行
+      if (line) out.push(line)
+    }
+    return out
+  } finally {
+    await fh.close().catch(() => {})
+  }
+}
+
 // Read metadata from a single session JSONL file (first few lines only).
 // Shared by listSessionsForCwd and the cross-project history/搜索 IPC in ai-history.ts.
 // `lines` may be passed in when the caller already read the file (search), avoiding a double read.
 export async function extractSessionMeta(filePath: string, sizeBytes: number, lines?: string[]): Promise<AiSessionMeta | null> {
   try {
-    if (!lines) {
-      const content = await readFile(filePath, 'utf-8')
-      lines = content.split('\n').filter(Boolean)
-    }
+    if (!lines) lines = await readSessionHeadLines(filePath)
     const sessionId = basename(filePath).replace('.jsonl', '')
 
     // parseUserTurns 跳过 <local-command-*> 等命令标签，优先取真实正文作 name
@@ -1174,33 +1228,56 @@ function extractReplyText(msg: any): { messageId: string; text: string } | null 
   return { messageId: msg.message.id || '', text: cleanText(parts.join('\n')) }
 }
 
-function readJsonlLines(filePath: string): Promise<string[] | null> {
-  return readFile(filePath, 'utf-8').then((content) => content.split('\n').filter(Boolean)).catch(() => null)
-}
-
 // 扫项目目录，返回 mtime 最新 jsonl 的最后一条 assistant 回复（快照用）。
 // 不做 size 跳过：TUI 模式的 CLI 可能整文件重写 jsonl（非 append），size 相同不等于内容未变。
-// 事件驱动触发频率低，每次全量读的成本可接受。未闭合行 JSON.parse 失败自动跳过。
+// 只读文件尾部（不够再翻倍）：整份读会让 3MB 级转录每次转闲都被完整复制进堆。
+const REPLY_TAIL_BYTES = 64 * 1024
+
 async function scanActiveJsonl(projectDir: string): Promise<{ messageId: string; text: string } | null> {
   const files = await readdir(projectDir).catch(() => [] as string[])
   const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
   if (jsonlFiles.length === 0) return null
-  let best: { name: string; mtime: number } | null = null
+  let best: { name: string; mtime: number; size: number } | null = null
   for (const f of jsonlFiles) {
     const st = await stat(join(projectDir, f)).catch(() => null)
     if (!st) continue
-    if (!best || st.mtimeMs > best.mtime) best = { name: f, mtime: st.mtimeMs }
+    if (!best || st.mtimeMs > best.mtime) best = { name: f, mtime: st.mtimeMs, size: st.size }
   }
-  if (!best) return null
-  const lines = await readJsonlLines(join(projectDir, best.name))
-  if (lines === null) return null
-  for (let i = lines.length - 1; i >= 0; i--) {
-    let msg: any
-    try { msg = JSON.parse(lines[i]) } catch { continue }
-    const r = extractReplyText(msg)
-    if (r) return r
+  if (!best || best.size === 0) return null
+
+  const fh = await open(join(projectDir, best.name), 'r').catch(() => null)
+  if (!fh) return null
+  try {
+    for (let len = REPLY_TAIL_BYTES; ; len *= 4) {
+      const start = Math.max(0, best.size - len)
+      const buf = Buffer.alloc(best.size - start)
+      // 定位读可能短读，补读到达标或 EOF（否则会静默丢掉尾部 → 取到旧回复）
+      let filled = 0
+      while (filled < buf.length) {
+        const { bytesRead } = await fh.read(buf, filled, buf.length - filled, start + filled)
+        if (bytesRead === 0) break
+        filled += bytesRead
+      }
+      let text = buf.subarray(0, filled).toString('utf-8')
+      if (start > 0) {
+        // 起始位置可能落在半行：丢掉第一个不完整的行
+        const nl = text.indexOf('\n')
+        if (nl < 0) continue
+        text = text.slice(nl + 1)
+      }
+      const lines = text.split('\n').filter(Boolean)
+      for (let i = lines.length - 1; i >= 0; i--) {
+        let msg: any
+        try { msg = JSON.parse(lines[i]) } catch { continue }
+        const r = extractReplyText(msg)
+        if (r) return r
+      }
+      if (start === 0) break
+    }
+    return null
+  } finally {
+    await fh.close().catch(() => {})
   }
-  return null
 }
 
 // 事件驱动读取：后台会话 busy→idle（warn 场景）时调用，取最新 jsonl 的最后一条
@@ -1341,7 +1418,7 @@ function parseTranscriptLines(
         for (const block of userContent) {
           if (block.type === 'tool_result') {
             const toolUseId = block.tool_use_id
-            const resultContent = typeof block.content === 'string' ? block.content : JSON.stringify(block.content)
+            const resultContent = toolResultText(block.content)
             const result: AiToolResult = { toolUseId, content: truncateToolResult(resultContent), isError: block.is_error || false }
 
             const pos = toolUseIndex.get(toolUseId)
@@ -1512,7 +1589,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     process: proc,
     sessionId,
     cwd,
-    lineBuffer: '',
+    lineBuffer: Buffer.alloc(0),
     ready: true,
     model,
     configDir,
@@ -1531,11 +1608,15 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
   const stderrChunks: string[] = []
   send(IPC_CHANNELS.AI_READY, { sessionId })
 
+  // 逐行切 NDJSON：残留只留"未闭合的那一行"（Buffer），既不做整缓冲反复 split
+  // （一行几 MB 的 tool_result 会让每次分块都重切一遍整行），也不让分块边界切断多字节字符
   proc.stdout!.on('data', (chunk: Buffer) => {
-    session.lineBuffer += chunk.toString('utf-8')
-    const lines = session.lineBuffer.split('\n')
-    session.lineBuffer = lines.pop() || ''
-    for (const line of lines) {
+    const carry = session.lineBuffer
+    const combined = carry.length ? Buffer.concat([carry, chunk]) : chunk
+    let start = 0
+    for (let nl = combined.indexOf(10, start); nl >= 0; nl = combined.indexOf(10, start)) {
+      const line = combined.subarray(start, nl).toString('utf-8')
+      start = nl + 1
       const trimmed = line.trim()
       if (!trimmed) continue
       if (trimmed.includes('No conversation found with session ID')) session.resumeTargetMissing = true
@@ -1545,6 +1626,7 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
         console.warn(`[ai:${sessionId}] NDJSON parse failed:`, trimmed.slice(0, 200))
       }
     }
+    session.lineBuffer = start === 0 ? Buffer.from(combined) : Buffer.from(combined.subarray(start))
   })
 
   proc.stderr!.on('data', (chunk: Buffer) => {

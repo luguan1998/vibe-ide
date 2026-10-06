@@ -671,6 +671,9 @@ function initListeners() {
       const turnIndex = Math.max(0, data.turnIndex ?? 0)
 
       const turnChanges = [...(s.fileChangesByTurn[turnIndex] || [])]
+      // 回退只认「该文件在本回合首次改动前的旧内容」（AiTab 的 filesToRevert 用 Map 取首次命中），
+      // 同一回合对同一文件的后续改动再存一份整文件全文纯属重复占用
+      if (turnChanges.some(c => c.relativePath === data.relativePath)) return s
       turnChanges.push({
         toolUseId: data.toolUseId,
         sessionId: data.sessionId,
