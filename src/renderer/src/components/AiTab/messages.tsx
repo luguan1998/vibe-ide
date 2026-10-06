@@ -263,49 +263,37 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
 
   // 平滑流式：每次 flush 增量段挂一个 span 做整段柔和淡入（动画 keyframes 见 globals.css .ai-tab__think-seg）。
   //
-  // 省 CPU 的两件事（视觉不变）：
-  // 1) 段只存字符偏移，DOM 里只渲染最近 TAIL_LOW~TAIL_MAX 字符的滑动窗口。旧实现把全部已收文本
-  //    常驻一个 <pre>，每次 flush 触发整块文本重排 + cleanMessageContent 全文 6 趟正则 → O(n²)。
-  //    窗口化后 layout/paint/正则面积恒定。
-  // 2) 段的淡入时长在创建时刻固化（不再按下标推断）：动画播完前摘掉 class 会让旧段中途硬跳到不透明。
-  // 3) 淡入时长按段长自适应：flush 节流固定 200ms，段长即正比于模型速度。快模型一段几百字若仍按
+  // 1) 段的淡入时长在创建时刻固化（不再按下标推断）：动画播完前摘掉 class 会让旧段中途硬跳到不透明。
+  // 2) 淡入时长按段长自适应：flush 节流固定 200ms，段长即正比于模型速度。快模型一段几百字若仍按
   //    600ms 淡入，尾部会长期停在雾里（读到的是 0.1~0.7 的文字）；段越大时长压得越短。
   //    压到 SEG_DUR_MIN（200ms，一次 flush）及以下就不淡入（dur=0）：淡入不比下一次落字更晚结束时，
   //    逐段淡入连成持续闪烁——这种速率直接落字反而省眼
-  const TAIL_MAX = 6000
-  const TAIL_LOW = 4000
+  const shown = stripCommandTags(text)
   const SEG_KEEP = 24
   const SEG_REF = 24
   const SEG_DUR_MIN = 200
   const SEG_DUR_MAX = 600
-  const segStreamRef = useRef<{ last: string; win: number; seq: number; segs: { id: number; start: number; end: number; dur: number }[] }>(
-    { last: '', win: 0, seq: 0, segs: [] })
-  let segView: { cut: boolean; segs: { id: number; text: string; dur: number }[] } | null = null
-  if (smoothStream) {
+  const segStreamRef = useRef<{ last: string; seq: number; segs: { id: number; start: number; end: number; dur: number }[] }>(
+    { last: '', seq: 0, segs: [] })
+  let segView: { segs: { id: number; text: string; dur: number }[] } | null = null
+  if (smoothStream && shown) {
     const st = segStreamRef.current
-    const clean = stripCommandTags(text)
-    if (!st.segs.length || !clean.startsWith(st.last)) {
-      st.segs = clean ? [{ id: st.seq++, start: 0, end: clean.length, dur: 0 }] : []
-      st.win = 0
-    } else if (clean.length > st.last.length) {
-      const len = clean.length - st.last.length
+    if (!st.segs.length || !shown.startsWith(st.last)) {
+      st.segs = [{ id: st.seq++, start: 0, end: shown.length, dur: 0 }]
+    } else if (shown.length > st.last.length) {
+      const len = shown.length - st.last.length
       const rawDur = Math.round((SEG_REF * SEG_DUR_MAX) / len)
-      st.segs.push({ id: st.seq++, start: st.last.length, end: clean.length,
+      st.segs.push({ id: st.seq++, start: st.last.length, end: shown.length,
         dur: rawDur <= SEG_DUR_MIN ? 0 : Math.min(SEG_DUR_MAX, rawDur) })
     }
-    st.last = clean
-    if (clean.length - st.win > TAIL_MAX) st.win = clean.length - TAIL_LOW
-    while (st.segs.length > 1 && st.segs[0].end <= st.win) st.segs.shift()
+    st.last = shown
     if (st.segs.length > SEG_KEEP) {
       const drop = st.segs.length - SEG_KEEP + 1
       // 最旧 drop 段并成一条，且沿用首段 id → React 复用同一 DOM 节点，只改文本不重挂载，
       // 已播完的淡入不会被重新触发
       st.segs.splice(0, drop, { id: st.segs[0].id, start: st.segs[0].start, end: st.segs[drop - 1].end, dur: st.segs[0].dur })
     }
-    segView = {
-      cut: st.win > 0,
-      segs: st.segs.map((s) => ({ id: s.id, text: clean.slice(s.start > st.win ? s.start : st.win, s.end), dur: s.dur })),
-    }
+    segView = { segs: st.segs.map((s) => ({ id: s.id, text: shown.slice(s.start, s.end), dur: s.dur })) }
   }
 
   useEffect(() => {
@@ -338,7 +326,6 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
 
   // 清洗后为空（纯空白/纯标签，如 buffer 只累计了换行、历史恢复的标签态 thinking）→ 整块不渲染，
   // 只留一个空的 "Thinking" 折叠条没有意义。hooks 已在上方无条件执行，此处早退不破坏顺序
-  const shown = stripCommandTags(text)
   if (!shown) return null
 
   return (
@@ -358,7 +345,6 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
           <div ref={contentRef} className="ai-tab__thinking-content px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
             {segView ? (
               <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">
-                {segView.cut && <span className="text-ide-text-muted/40 select-none">…</span>}
                 {segView.segs.map((s) => (
                   <span key={s.id} className={s.dur > 0 ? 'ai-tab__think-seg' : undefined}
                     style={s.dur > 0 ? { animationDuration: `${s.dur}ms` } : undefined}>{s.text}</span>
