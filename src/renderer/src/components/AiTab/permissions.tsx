@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import type { AiPermissionRequest } from '@shared/types'
 import { asToolArray } from '@shared/types'
 import { useI18n } from '../../i18n'
-import { ChevronDown, ChevronUp, HelpCircle, Check, FileText } from 'lucide-react'
+import { ChevronDown, ChevronUp, Check, FileText } from 'lucide-react'
 import { displayLabel, getShortcuts } from '../../shortcuts'
 import { ChatMarkdown } from './markdown'
 import { PANEL_MAX_W } from './layout'
@@ -32,7 +32,51 @@ function parseAskQuestions(input: Record<string, any> | undefined): AskQuestion[
     .filter(q => q.question)
 }
 
+type AskQuestionOption = AskQuestion['options'][number]
+
 const QUESTION_PREVIEW_CLS = 'px-2 py-1.5 text-[11px] leading-snug font-mono whitespace-pre overflow-auto max-h-48 rounded bg-ide-bg/80 border border-ide-border text-ide-text'
+const QUESTION_ROW_CLS = 'ai-tab__question-option w-full text-left px-2.5 py-2 rounded border transition-colors'
+
+function QuestionHeader({ header, multi }: { header: string; multi?: boolean }) {
+  const { t } = useI18n()
+  if (!header && !multi) return null
+  return (
+    <div className="ai-tab__question-header flex items-end gap-2 mb-1.5">
+      {header && (
+        <span className="text-[13px] font-medium text-ide-text leading-none pb-1 border-b-2 border-ide-accent">
+          {header}
+        </span>
+      )}
+      {multi && (
+        <span className="text-[11px] text-ide-text-muted/60 leading-none pb-1">{t('multi-select')}</span>
+      )}
+    </div>
+  )
+}
+
+function QuestionMarker({ selected, multi, dashed, active }: { selected: boolean; multi?: boolean; dashed?: boolean; active?: boolean }) {
+  return (
+    <span className={`w-4 h-4 shrink-0 mt-[3px] flex items-center justify-center border transition-colors ${multi ? 'rounded' : 'rounded-full'} ${dashed ? 'border-dashed' : ''} ${selected || active ? 'border-ide-accent' : 'border-ide-border'} ${selected ? 'bg-ide-accent' : ''}`}>
+      {selected && (multi
+        ? <Check size={11} strokeWidth={3} className="text-white" />
+        : <span className="w-1.5 h-1.5 rounded-full bg-white" />)}
+    </span>
+  )
+}
+
+function QuestionOptionBody({ opt, withPreview }: { opt: AskQuestionOption; withPreview?: boolean }) {
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="text-[13px] text-ide-text leading-snug break-words">{opt.label}</div>
+      {opt.description && (
+        <div className="mt-0.5 text-[11px] text-ide-text-muted leading-snug break-words">{opt.description}</div>
+      )}
+      {withPreview && opt.preview && (
+        <pre className={`ai-tab__question-preview mt-1.5 ${QUESTION_PREVIEW_CLS}`}>{opt.preview}</pre>
+      )}
+    </div>
+  )
+}
 
 export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, sessionId, onRespond }: {
   perm: AiPermissionRequest
@@ -43,9 +87,6 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
 
   const questions = parseAskQuestions(perm.toolInput)
 
-  // 单题单选 → 点击选项立即提交；多题或多选 → Submit 统一提交
-  const quickSubmit = questions.length === 1 && !questions[0].multiSelect
-
   const [selections, setSelections] = useState<Record<string, Set<string>>>(() => {
     const init: Record<string, Set<string>> = {}
     for (const q of questions) init[q.question] = new Set<string>()
@@ -53,7 +94,7 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
   })
   const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({})
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
-  const [preview, setPreview] = useState<{ qi: number; text: string } | null>(null)
+  const [activeOpt, setActiveOpt] = useState<Record<number, string>>({})
 
   // 全脏数据（清洗后无可用题目）→ 降级为普通 Approve/Deny 卡,不阻塞会话
   if (questions.length === 0) {
@@ -84,15 +125,15 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
   }
 
   const toggleCustom = (qText: string) => {
+    const opening = !customOpen[qText]
+    if (opening && !questions.find(q => q.question === qText)?.multiSelect) {
+      setSelections(prev => ({ ...prev, [qText]: new Set() }))
+    }
     setCustomOpen(prev => ({ ...prev, [qText]: !prev[qText] }))
   }
 
   const commitCustom = (qText: string) => {
     const val = (customValues[qText] || '').trim()
-    if (quickSubmit && val) {
-      onRespond(sessionId, perm.requestId, true, perm.tool, { ...perm.toolInput, answers: { [qText]: val } })
-      return
-    }
     if (val) {
       const isMulti = questions.find(q => q.question === qText)?.multiSelect
       if (!isMulti) setSelections(prev => ({ ...prev, [qText]: new Set() }))
@@ -110,77 +151,60 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
       else next.add(label)
     } else {
       next.add(label)
+      setCustomValues(prev => ({ ...prev, [qText]: '' }))
     }
     setSelections(prev => ({ ...prev, [qText]: next }))
-
-    // quickSubmit 模式下，单题单选点击即提交
-    if (quickSubmit) {
-      onRespond(sessionId, perm.requestId, true, perm.tool, {
-        ...perm.toolInput,
-        answers: { [qText]: label },
-      })
-    }
   }
 
   return (
     <div className={`ai-tab__question-card shrink-0 border-t border-ide-accent/40 bg-ide-accent/5 px-3 py-2.5 animate-fade-in w-full ${PANEL_MAX_W} mx-auto`}>
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <HelpCircle size={15} className="text-ide-accent shrink-0" />
-        <span className="ai-tab__question-title text-[13px] font-medium text-ide-accent">{t('AI has a question')}</span>
-      </div>
-
-      {questions.map((q, qi) => (
+      {questions.map((q, qi) => {
+        const shown = q.options.find(o => o.label === (activeOpt[qi] ?? q.options.find(op => op.preview)?.label))
+        const customVal = (customValues[q.question] || '').trim()
+        const customActive = !!customOpen[q.question] || !!customVal
+        return (
         <div key={qi} className="mb-3 last:mb-0">
-          <div className="ai-tab__question-header flex items-center gap-1.5 mb-1">
-            <span className="px-2 py-1 text-[11px] font-medium rounded bg-ide-accent/15 text-ide-accent border border-ide-accent/25">
-              {q.header}
-            </span>
-            {q.multiSelect && (
-              <span className="text-[11px] text-ide-text-muted/60">{t('multi-select')}</span>
-            )}
-          </div>
+          <QuestionHeader header={q.header} multi={q.multiSelect} />
           <div className="text-[13px] text-ide-text mb-1.5">{q.question}</div>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-col gap-1">
             {q.options.map((opt, oi) => {
               const selected = selections[q.question]?.has(opt.label) ?? false
               return (
                 <button
                   key={oi}
-                  title={opt.description}
-                  onMouseEnter={() => { if (opt.preview) setPreview({ qi, text: opt.preview }) }}
-                  onFocus={() => { if (opt.preview) setPreview({ qi, text: opt.preview }) }}
-                  onClick={() => toggle(q.question, opt.label, q.multiSelect)}
-                  className={`ai-tab__question-option px-3 py-1.5 text-[12px] rounded border transition-colors ${
+                  type="button"
+                  onClick={() => {
+                    if (opt.preview) setActiveOpt(prev => ({ ...prev, [qi]: opt.label }))
+                    toggle(q.question, opt.label, q.multiSelect)
+                  }}
+                  className={`${QUESTION_ROW_CLS} flex items-start gap-2 ${
                     selected
-                      ? 'ai-tab__question-option--selected bg-ide-accent/20 border-ide-accent/50 text-ide-text'
-                      : 'border-ide-border hover:bg-ide-hover text-ide-text-muted'
+                      ? 'ai-tab__question-option--selected bg-ide-accent/15 border-ide-accent/50'
+                      : 'border-ide-border hover:bg-ide-hover'
                   }`}
                 >
-                  {opt.label}
+                  <QuestionMarker selected={selected} multi={q.multiSelect} />
+                  <QuestionOptionBody opt={opt} />
                 </button>
               )
             })}
-            {(() => {
-              const customVal = (customValues[q.question] || '').trim()
-              return (
-                <button
-                  onClick={() => toggleCustom(q.question)}
-                  title={customVal || undefined}
-                  className={`ai-tab__question-option px-3 py-1.5 text-[12px] rounded border max-w-[180px] transition-colors ${
-                    customOpen[q.question]
-                      ? 'bg-ide-accent/15 border-ide-accent/50 text-ide-text'
-                      : customVal
-                        ? 'border-ide-accent/40 bg-ide-accent/10 text-ide-text'
-                        : 'border-dashed border-ide-border hover:bg-ide-hover text-ide-text-muted'
-                  }`}
-                >
-                  <span className="block truncate">{customVal || t('Other')}</span>
-                </button>
-              )
-            })()}
+            <button
+              type="button"
+              onClick={() => toggleCustom(q.question)}
+              className={`${QUESTION_ROW_CLS} flex items-start gap-2 ${
+                customActive
+                  ? 'bg-ide-accent/15 border-ide-accent/50'
+                  : 'border-dashed border-ide-border hover:bg-ide-hover'
+              }`}
+            >
+              <QuestionMarker selected={!!customVal} active={!!customOpen[q.question]} multi={q.multiSelect} dashed={!customActive} />
+              <div className={`flex-1 min-w-0 text-[13px] leading-snug truncate ${customActive ? 'text-ide-text' : 'text-ide-text-muted'}`}>
+                {customVal || t('Other')}
+              </div>
+            </button>
           </div>
-          {preview?.qi === qi && (
-            <pre className={`ai-tab__question-preview mt-1.5 ${QUESTION_PREVIEW_CLS}`}>{preview.text}</pre>
+          {shown?.preview && (q.multiSelect || !customActive) && (
+            <pre className={`ai-tab__question-preview mt-1.5 ${QUESTION_PREVIEW_CLS}`}>{shown.preview}</pre>
           )}
           {customOpen[q.question] && (
             <div className="flex items-center gap-1.5 mt-1.5 animate-fade-in">
@@ -211,22 +235,22 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
             </div>
           )}
         </div>
-      ))}
+        )
+      })}
 
       <div className="flex gap-1.5 mt-2">
-        {!quickSubmit && (
-          <button
-            disabled={!allAnswered}
-            onClick={handleSubmit}
-            className={`ai-tab__question-submit-btn px-4 py-1.5 text-[13px] font-medium rounded transition-colors ${
-              allAnswered
-                ? 'bg-ide-accent hover:bg-ide-accent-hover text-white'
-                : 'bg-ide-accent/30 text-white/50 cursor-not-allowed'
-            }`}
-          >
-            {t('Submit')}
-          </button>
-        )}
+        <button
+          type="button"
+          disabled={!allAnswered}
+          onClick={handleSubmit}
+          className={`ai-tab__question-submit-btn px-4 py-1.5 text-[13px] font-medium rounded transition-colors ${
+            allAnswered
+              ? 'bg-ide-accent hover:bg-ide-accent-hover text-white'
+              : 'bg-ide-accent/30 text-white/50 cursor-not-allowed'
+          }`}
+        >
+          {t('Submit')}
+        </button>
         <button
           onClick={() => onRespond(sessionId, perm.requestId, false, perm.tool, perm.toolInput)}
           className="ai-tab__question-deny-btn px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
@@ -239,37 +263,21 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
 })
 
 export const AiAskQuestionDetail = React.memo(function AiAskQuestionDetail({ input }: { input: Record<string, any> }) {
-  const { t } = useI18n()
   const questions = parseAskQuestions(input)
   if (questions.length === 0) return null
   return (
     <div className="ai-tab__question-detail font-sans">
       {questions.map((q, qi) => (
         <div key={qi} className="mb-2.5 last:mb-0">
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className="px-2 py-1 text-[11px] font-medium rounded bg-ide-accent/15 text-ide-accent border border-ide-accent/25">
-              {q.header}
-            </span>
-            {q.multiSelect && (
-              <span className="text-[11px] text-ide-text-muted/60">{t('multi-select')}</span>
-            )}
-          </div>
+          <QuestionHeader header={q.header} multi={q.multiSelect} />
           <div className="text-[13px] text-ide-text mb-1.5">{q.question}</div>
-          {q.options.map((opt, oi) => (
-            <div key={oi} className="mb-1.5 last:mb-0">
-              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                <span className="ai-tab__question-detail-option px-2 py-0.5 text-[12px] rounded border border-ide-border text-ide-text-muted">
-                  {opt.label}
-                </span>
-                {opt.description && (
-                  <span className="text-[11px] text-ide-text-muted/70">{opt.description}</span>
-                )}
+          <div className="flex flex-col gap-1">
+            {q.options.map((opt, oi) => (
+              <div key={oi} className={`${QUESTION_ROW_CLS} flex items-start gap-2 border-ide-border`}>
+                <QuestionOptionBody opt={opt} withPreview />
               </div>
-              {opt.preview && (
-                <pre className={`ai-tab__question-preview mt-1 ${QUESTION_PREVIEW_CLS}`}>{opt.preview}</pre>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       ))}
     </div>

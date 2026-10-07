@@ -663,7 +663,6 @@ const ZH_MAP: Record<string, string> = {
   'Execution failed': '执行失败',
   'Agent': '智能体',
   // AI AskUserQuestion card
-  'AI has a question': 'AI 有一个问题',
   'Submit': '提交',
   'multi-select': '可多选',
   'Other': '其他',
