@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react'
 import { useI18n } from '../i18n'
+import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitSubmodule, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
 import { ModalOverlay } from './ModalOverlay'
 import GitGraph from './GitGraph'
@@ -25,6 +26,7 @@ interface GitTabProps {
   onWorktreeNavChange: (updater: (prev: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>) => void
   onSubmoduleNavChange: (updater: (prev: Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>) => Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>) => void
   onDiffScroll?: (delta: number) => void
+  onHunkNav?: () => void
   onNavigateToFile?: (filePath: string) => void
   lineHistoryPayload?: { filePath: string; lineNumber: number; rev?: string; staged?: boolean } | null
   onReplaySourceChange?: (files: GitFileStatus[], toFullPath: (path: string) => string) => void
@@ -147,12 +149,13 @@ const collectLeafPaths = (node: TreeNode): string[] => {
 
 const GRAPH_PAGE_SIZE = 50
 
-export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, submoduleNav, onFileSelect, refreshKey, activeSessionId, isActive, pauseWhenHidden, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onSubmoduleNavChange, onDiffScroll, onNavigateToFile, lineHistoryPayload, onReplaySourceChange, replayActive, replayPaused, onReplayClick }: GitTabProps) {
+export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, submoduleNav, onFileSelect, refreshKey, activeSessionId, isActive, pauseWhenHidden, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onSubmoduleNavChange, onDiffScroll, onHunkNav, onNavigateToFile, lineHistoryPayload, onReplaySourceChange, replayActive, replayPaused, onReplayClick }: GitTabProps) {
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
   const { t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [commitInputFocused, setCommitInputFocused] = useState(false)
   const [stagedExpanded, setStagedExpanded] = useState(true)
   const [changesExpanded, setChangesExpanded] = useState(true)
   const [untrackedExpanded, setUntrackedExpanded] = useState(true)
@@ -1030,12 +1033,19 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
     return () => window.removeEventListener('click', handleClick)
   }, [showSubDropdown])
 
-  // Keyboard navigation: ArrowUp/Down 遍历标题栏+文件行，文件行自动打开 diff；Enter 触发标题栏批量操作
+  // Keyboard navigation: ArrowUp/Down 遍历标题栏+文件行，文件行自动打开 diff；Enter 触发标题栏批量操作；Space 跳到下一处改动
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
       if (!isActiveRef.current) return
+
+      if (eventMatchesBinding(e, getShortcuts()['git.hunkNext'])) {
+        e.preventDefault()
+        onHunkNav?.()
+        return
+      }
+
       if (e.ctrlKey || e.metaKey || e.altKey) return
 
       if (e.key === 'PageDown' || e.key === 'PageUp') {
@@ -1045,10 +1055,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
         if (navigableItems.length === 0) return
         e.preventDefault()
         setFocusedIndex(prev => {
-          const next = e.key === 'ArrowDown'
-            ? (prev === null ? 0 : Math.min(prev + 1, navigableItems.length - 1))
-            : (prev === null ? navigableItems.length - 1 : Math.max(prev - 1, 0))
-          return next
+          const len = navigableItems.length
+          if (prev === null) return e.key === 'ArrowDown' ? 0 : len - 1
+          return e.key === 'ArrowDown' ? (prev + 1) % len : (prev - 1 + len) % len
         })
       } else if (e.key === 'Enter') {
         const idx = focusedIndexRef.current
@@ -1078,7 +1087,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
 
     window.addEventListener('keydown', handleKey, true)
     return () => window.removeEventListener('keydown', handleKey, true)
-  }, [navigableItems, onDiffScroll])
+  }, [navigableItems, onDiffScroll, onHunkNav])
 
   // focusedIndex 落到文件行时自动打开 diff（仅响应用户键盘导航）
   useEffect(() => {
@@ -1979,8 +1988,10 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
             ref={textareaRef}
             value={commitMessage}
             onChange={(e) => setCommitMessage(e.target.value)}
+            onFocus={() => setCommitInputFocused(true)}
+            onBlur={() => setCommitInputFocused(false)}
             disabled={busy}
-            placeholder={t('Commit message...')}
+            placeholder={focusedCommit && !commitInputFocused ? t('Press Enter to type') : t('Commit message...')}
             onContextMenu={async (e) => {
               e.preventDefault()
               e.stopPropagation()

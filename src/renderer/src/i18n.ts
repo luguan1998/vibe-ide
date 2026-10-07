@@ -166,6 +166,7 @@ const ZH_MAP: Record<string, string> = {
 
   // Shortcut labels
   'Focus Search': '聚焦搜索',
+  'Next Change': '下一处改动',
   'Next Session': '下一个会话',
   'Previous Session': '上一个会话',
   'Font Size Increase': '字体放大',
@@ -383,6 +384,7 @@ const ZH_MAP: Record<string, string> = {
 
   // GitTab - Commit area
   'Commit message...': '输入提交信息...',
+  'Press Enter to type': '按 Enter 输入',
   'Commit (Ctrl+Enter)': '提交 (Ctrl+Enter)',
   'Amend: fold {count} staged file(s) into last commit and rewrite message': 'Amend：将 {count} 个暂存文件并入上次提交并改写提交信息',
   'Amend: fold {count} staged file(s) into last commit, keep original message': 'Amend：将 {count} 个暂存文件并入上次提交，保留原提交信息',

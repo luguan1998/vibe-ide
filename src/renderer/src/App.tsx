@@ -613,6 +613,7 @@ export default function App() {
 
   const [focusSettingsTrigger, setFocusSettingsTrigger] = useState(0)
   const [diffScrollTrigger, setDiffScrollTrigger] = useState(0)
+  const [diffHunkNavTrigger, setDiffHunkNavTrigger] = useState(0)
   const [commandHistory, setCommandHistory] = useState<Record<string, string[]>>({})
   const [clearAuxBufferTrigger, setClearAuxBufferTrigger] = useState<{ sid: string; n: number }>({ sid: '', n: 0 })
   const [showHistory, setShowHistory] = useState(false)
@@ -3099,6 +3100,10 @@ export default function App() {
     setDiffScrollTrigger(prev => prev + delta)
   }, [])
 
+  const handleHunkNav = useCallback(() => {
+    setDiffHunkNavTrigger(prev => prev + 1)
+  }, [])
+
   const handleNavigateToFile = useCallback((filePath: string) => {
     setNavigateToFilePayload({ trigger: Date.now(), filePath })
   }, [])
@@ -3439,6 +3444,7 @@ export default function App() {
           inlineDiff={inlineDiff}
           diffSplitRatio={diffSplitRatio}
           scrollTrigger={diffScrollTrigger}
+          hunkNavTrigger={diffHunkNavTrigger}
           cursorRef={cursorRef}
           visibleLineRef={visibleLineRef}
           onOpenCallGraph={handleOpenCallGraphFromEditor}
@@ -3484,7 +3490,7 @@ export default function App() {
         brushActive={brushActive}
       />
     )
-  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, activeSessionCwd, lspLangs, lspMultiDef, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading, handleUnreadableChange])
+  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, diffHunkNavTrigger, activeSessionCwd, lspLangs, lspMultiDef, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading, handleUnreadableChange])
 
   const fileTabsNode = (
     <FileTabsView
@@ -3740,6 +3746,7 @@ export default function App() {
                     onWorktreeNavChange={setWorktreeBrowseNav}
                     onSubmoduleNavChange={setSessionSubmoduleNav}
                     onDiffScroll={handleDiffScroll}
+                    onHunkNav={handleHunkNav}
                     onNavigateToFile={handleNavigateToFile}
                     lineHistoryPayload={lineHistoryPayload}
                     onReplaySourceChange={handleReplaySourceChange}
@@ -4018,6 +4025,7 @@ export default function App() {
             onSubmoduleNavChange={setSessionSubmoduleNav}
             onWorktreeNavChange={setWorktreeBrowseNav}
             onDiffScroll={handleDiffScroll}
+            onHunkNav={handleHunkNav}
             onToggleCollapse={handleToggleRightPanel}
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}

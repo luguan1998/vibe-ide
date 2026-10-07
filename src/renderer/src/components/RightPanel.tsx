@@ -35,6 +35,7 @@ interface RightPanelProps {
   onPreviewImage?: (fullPath: string, fileName: string) => void
   onOpenFileInBrowser?: (fullPath: string) => void
   onDiffScroll?: (delta: number) => void
+  onHunkNav?: () => void
   onToggleCollapse?: () => void
   capsuleTabs?: boolean
   onToggleCapsuleTabs?: () => void
@@ -451,6 +452,7 @@ function RightPanel({
   activeAuxIndex, onCloseAuxTerminal, onSelectAuxTab, onSplitAuxTerminal, onResizeAuxSplit,
   clearAuxBufferTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenFileInBrowser,
   onDiffScroll,
+  onHunkNav,
   onToggleCollapse,
   capsuleTabs = true,
   onToggleCapsuleTabs,
@@ -697,6 +699,7 @@ function RightPanel({
           onWorktreeNavChange={onWorktreeNavChange}
           onSubmoduleNavChange={onSubmoduleNavChange}
           onDiffScroll={onDiffScroll}
+          onHunkNav={onHunkNav}
           onNavigateToFile={onNavigateToFile}
           lineHistoryPayload={lineHistoryPayload}
           onReplaySourceChange={onReplaySourceChange}

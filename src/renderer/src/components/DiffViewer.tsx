@@ -225,6 +225,7 @@ interface DiffViewerProps {
   fontSize?: number         // 编辑器字体大小
   wordWrap?: boolean        // 是否自动换行
   scrollTrigger?: number    // PageUp/PageDown 触发滚动，变化时滚动一页
+  hunkNavTrigger?: number   // 递增以跳到下一处改动（Git 面板空格，等价 Ctrl+PageDown）
   revision?: number         // 递增以强制重新加载内容
   onDismiss?: () => void  // 收起文件区回终端（ESC / 标题栏返回钮），tab 保活不关闭
   onOpenPreview?: () => void  // md 文件：编辑态用眼睛钮替换 Diff 钮，切回预览 tab
@@ -379,7 +380,7 @@ type JumpRow =
   | { kind: 'group'; key: string; label: string; count: number }
   | { kind: 'item'; item: JumpItem }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onOpenCallHierarchy, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange, onUnreadableChange, replayHunkNav, onHunkCount }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, hunkNavTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onOpenCallHierarchy, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange, onUnreadableChange, replayHunkNav, onHunkCount }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -585,6 +586,15 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       editor.setScrollTop(Math.max(0, newScrollTop))
     } catch {}
   }, [scrollTrigger, viewMode])
+
+  // Git 面板空格：跳到下一处改动（等价 Ctrl+PageDown）
+  const prevHunkNavTrigger = useRef(hunkNavTrigger)
+  useEffect(() => {
+    if (hunkNavTrigger === undefined || prevHunkNavTrigger.current === undefined || prevHunkNavTrigger.current === hunkNavTrigger) return
+    if (!containerRef.current?.offsetParent) return
+    prevHunkNavTrigger.current = hunkNavTrigger
+    try { diffEditorRef.current?.goToDiff('next') } catch {}
+  }, [hunkNavTrigger])
 
   const loadContents = useCallback(async () => {
     setDiffLoading(true)

@@ -150,6 +150,11 @@ const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     readonly: true,
   },
   {
+    id: 'git.hunkNext',
+    label: 'Next Change',
+    defaultKeys: 'Space',
+  },
+  {
     id: 'terminal.newline',
     label: 'Terminal Newline',
     defaultKeys: 'Shift+Enter',
