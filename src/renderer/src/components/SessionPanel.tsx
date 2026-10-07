@@ -17,6 +17,7 @@ import AppearancePanel from './AppearancePanel'
 import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand } from './CustomCommands'
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
 import { FileIcon } from './FileIcons'
+import { displayLabel, getShortcuts } from '../shortcuts'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { PiLogoIcon } from './PiLogoIcon'
 import { BOARD_FOCUS } from './BoardView'
@@ -782,6 +783,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [groupQuickNewSubmenu, setGroupQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const groupQuickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [groupMenu, setGroupMenu] = useState<{ x: number; y: number; cwd: string } | null>(null)
+  const navigateBackKey = useMemo(() => displayLabel(getShortcuts()['navigate.back']), [])
   const [groupCloseAsk, setGroupCloseAsk] = useState<{ cwd: string; count: number } | null>(null)
   const quickNewCwd = sessions.find(s => s.id === activeSessionId)?.cwd
   const handleQuickNewSession = (mode: SessionMode) => {
@@ -1918,7 +1920,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         </button>
                         {filesUnderCwd(group.cwd).length > 0 && (
                           <button
-                            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                            className="group/browse w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
                             onClick={(e) => {
                               const r = e.currentTarget.getBoundingClientRect()
                               const panelRight = panelRef.current?.getBoundingClientRect().right ?? 0
@@ -1928,7 +1930,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                             }}
                           >
                             <FolderOpen size={14} className="text-ide-text-muted" />
-                            <span>{t('Browse Files')}</span>
+                            <span className="group-hover/browse:hidden">{t('Browse Files')}</span>
+                            <span className="hidden group-hover/browse:inline text-ide-text-muted">{navigateBackKey}</span>
                           </button>
                         )}
                         <button

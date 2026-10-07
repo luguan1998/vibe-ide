@@ -102,7 +102,7 @@ function RecentInline({
                   onClick={() => onOpen(f.path, f.line)}
                   className="group/chip flex items-center gap-1 pl-1.5 pr-2 rounded text-xs cursor-pointer shrink-0 bg-ide-hover/30 hover:bg-ide-hover/60 text-ide-text-muted hover:text-ide-text transition-colors file-tabs__recent-item"
                 >
-                  <FileIcon name={name} className="w-4 h-4 shrink-0" />
+                  <FileIcon name={name} className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate max-w-[76px]">{name}</span>
                   {f.line ? <span className="text-[10px] text-ide-accent shrink-0">{f.line}</span> : null}
                 </div>
@@ -198,7 +198,7 @@ export function FileTabsView({
                     : 'bg-ide-hover/25 h-6 text-ide-text-muted hover:bg-ide-hover/45 hover:text-ide-text'
                 }`}
               >
-                <FileIcon name={tab.fileName} className="w-4 h-4 shrink-0" />
+                <FileIcon name={tab.fileName} className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate max-w-[120px]">{tab.fileName}</span>
                 {diffMode && (
                   <svg viewBox="0 0 16 16" fill="none" className="w-3 h-3 shrink-0">
