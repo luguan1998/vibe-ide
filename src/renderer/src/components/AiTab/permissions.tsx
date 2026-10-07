@@ -6,19 +6,16 @@ import { ChevronDown, ChevronUp, HelpCircle, Check, FileText } from 'lucide-reac
 import { displayLabel, getShortcuts } from '../../shortcuts'
 import { ChatMarkdown } from './markdown'
 import { PANEL_MAX_W } from './layout'
-export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, sessionId, onRespond }: {
-  perm: AiPermissionRequest
-  sessionId: string
-  onRespond: (sid: string, rid: string, approved: boolean, tool: string, toolInput?: Record<string, any>) => void
-}) {
-  const { t } = useI18n()
 
-  const questions: Array<{
-    question: string
-    header: string
-    multiSelect: boolean
-    options: Array<{ label: string; description?: string }>
-  }> = asToolArray<unknown>(perm.toolInput?.questions)
+type AskQuestion = {
+  question: string
+  header: string
+  multiSelect: boolean
+  options: Array<{ label: string; description?: string; preview?: string }>
+}
+
+function parseAskQuestions(input: Record<string, any> | undefined): AskQuestion[] {
+  return asToolArray<unknown>(input?.questions)
     .filter((q): q is Record<string, any> => !!q && typeof q === 'object')
     .map(q => ({
       question: q.question == null ? '' : String(q.question),
@@ -29,9 +26,22 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
         .map(o => ({
           label: o.label == null ? '' : String(o.label),
           description: typeof o.description === 'string' ? o.description : undefined,
+          preview: typeof o.preview === 'string' && o.preview.trim() ? o.preview : undefined,
         })),
     }))
     .filter(q => q.question)
+}
+
+const QUESTION_PREVIEW_CLS = 'px-2 py-1.5 text-[11px] leading-snug font-mono whitespace-pre overflow-auto max-h-48 rounded bg-ide-bg/80 border border-ide-border text-ide-text'
+
+export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, sessionId, onRespond }: {
+  perm: AiPermissionRequest
+  sessionId: string
+  onRespond: (sid: string, rid: string, approved: boolean, tool: string, toolInput?: Record<string, any>) => void
+}) {
+  const { t } = useI18n()
+
+  const questions = parseAskQuestions(perm.toolInput)
 
   // 单题单选 → 点击选项立即提交；多题或多选 → Submit 统一提交
   const quickSubmit = questions.length === 1 && !questions[0].multiSelect
@@ -43,6 +53,7 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
   })
   const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({})
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
+  const [preview, setPreview] = useState<{ qi: number; text: string } | null>(null)
 
   // 全脏数据（清洗后无可用题目）→ 降级为普通 Approve/Deny 卡,不阻塞会话
   if (questions.length === 0) {
@@ -136,6 +147,8 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
                 <button
                   key={oi}
                   title={opt.description}
+                  onMouseEnter={() => { if (opt.preview) setPreview({ qi, text: opt.preview }) }}
+                  onFocus={() => { if (opt.preview) setPreview({ qi, text: opt.preview }) }}
                   onClick={() => toggle(q.question, opt.label, q.multiSelect)}
                   className={`ai-tab__question-option px-3 py-1.5 text-[12px] rounded border transition-colors ${
                     selected
@@ -166,6 +179,9 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
               )
             })()}
           </div>
+          {preview?.qi === qi && (
+            <pre className={`ai-tab__question-preview mt-1.5 ${QUESTION_PREVIEW_CLS}`}>{preview.text}</pre>
+          )}
           {customOpen[q.question] && (
             <div className="flex items-center gap-1.5 mt-1.5 animate-fade-in">
               <input
@@ -218,6 +234,44 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
           {t('Deny')}
         </button>
       </div>
+    </div>
+  )
+})
+
+export const AiAskQuestionDetail = React.memo(function AiAskQuestionDetail({ input }: { input: Record<string, any> }) {
+  const { t } = useI18n()
+  const questions = parseAskQuestions(input)
+  if (questions.length === 0) return null
+  return (
+    <div className="ai-tab__question-detail font-sans">
+      {questions.map((q, qi) => (
+        <div key={qi} className="mb-2.5 last:mb-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="px-2 py-1 text-[11px] font-medium rounded bg-ide-accent/15 text-ide-accent border border-ide-accent/25">
+              {q.header}
+            </span>
+            {q.multiSelect && (
+              <span className="text-[11px] text-ide-text-muted/60">{t('multi-select')}</span>
+            )}
+          </div>
+          <div className="text-[13px] text-ide-text mb-1.5">{q.question}</div>
+          {q.options.map((opt, oi) => (
+            <div key={oi} className="mb-1.5 last:mb-0">
+              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                <span className="ai-tab__question-detail-option px-2 py-0.5 text-[12px] rounded border border-ide-border text-ide-text-muted">
+                  {opt.label}
+                </span>
+                {opt.description && (
+                  <span className="text-[11px] text-ide-text-muted/70">{opt.description}</span>
+                )}
+              </div>
+              {opt.preview && (
+                <pre className={`ai-tab__question-preview mt-1 ${QUESTION_PREVIEW_CLS}`}>{opt.preview}</pre>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   )
 })

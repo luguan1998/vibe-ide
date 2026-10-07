@@ -4,6 +4,7 @@ import { AI_FILE_EDIT_TOOLS } from '@shared/types'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../../themes'
 import { Bot, ChevronDown, HelpCircle } from 'lucide-react'
+import { AiAskQuestionDetail } from './permissions'
 import { CONTENT_MAX_W } from './layout'
 // ── Tool type classification ──────────────────────────────────────
 
@@ -27,6 +28,12 @@ export function getToolCategory(name: string): 'file' | 'command' | 'search' | '
   if (QUESTION_TOOLS.has(name)) return 'question'
   if (TASK_TOOLS.has(name)) return 'task'
   return 'default'
+}
+
+function toolToggleTone(category: ReturnType<typeof getToolCategory>): string {
+  if (category === 'file') return 'bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25'
+  if (category === 'question') return 'bg-ide-warning/15 text-ide-warning hover:bg-ide-warning/25'
+  return 'bg-ide-hover text-ide-text-muted hover:bg-ide-active'
 }
 
 export function isPureToolMessage(msg: AiMessage): boolean {
@@ -250,9 +257,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
     <div className={`ai-tab__tool-call block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in cursor-pointer select-none`} onClick={() => setExpanded(v => !v)}>
       <button
         type="button"
-        className={`ai-tab__tool-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${
-          isFileEdit ? 'bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25' : 'bg-ide-hover text-ide-text-muted hover:bg-ide-active'
-        }`}
+        className={`ai-tab__tool-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${toolToggleTone(category)}`}
       >
         <span className="shrink-0"><ToolIcon category={category} /></span>
         <span className="shrink-0 leading-none">{tool.name}</span>
@@ -264,7 +269,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
         )}
       </button>
       {expanded && (
-        <div onClick={(e) => e.stopPropagation()} className={`ai-tab__tool-detail-panel select-text mt-0.5 px-2 py-1 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-0.5 ${isFileEdit ? 'p-1' : 'max-h-48 overflow-y-auto'}`}>
+        <div onClick={(e) => e.stopPropagation()} className={`ai-tab__tool-detail-panel select-text mt-0.5 px-2 py-1 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-0.5 ${isFileEdit ? 'p-1' : 'overflow-y-auto'} ${category === 'question' ? 'max-h-[26rem]' : 'max-h-48'}`}>
           {isFileEdit && newContent ? (
             <>
               <div className="ai-tab__tool-file-header text-ide-text-muted text-[10px] font-sans">
@@ -290,9 +295,13 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
                   <pre className="whitespace-pre-wrap break-words text-[11px]">{tool.result!.content}</pre>
                 </div>
               )}
-              <div className="text-ide-text-muted">
-                <pre className="whitespace-pre-wrap break-words text-[11px]">{JSON.stringify(tool.input, null, 2)}</pre>
-              </div>
+              {category === 'question' ? (
+                <AiAskQuestionDetail input={tool.input} />
+              ) : (
+                <div className="text-ide-text-muted">
+                  <pre className="whitespace-pre-wrap break-words text-[11px]">{JSON.stringify(tool.input, null, 2)}</pre>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -309,9 +318,7 @@ export function CompactToolSummary({ tools }: { tools: AiToolUse[] }) {
     <div className={`ai-tab__tools-summary ai-tab__tools-summary--compact block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in`}>
       <button
         onClick={() => setExpanded(v => !v)}
-        className={`ai-tab__tools-summary-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${
-          getToolCategory(last.name) === 'file' ? 'bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25' : 'bg-ide-hover text-ide-text-muted hover:bg-ide-active'
-        }`}
+        className={`ai-tab__tools-summary-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${toolToggleTone(getToolCategory(last.name))}`}
       >
         <span className="shrink-0"><ToolIcon category={getToolCategory(last.name)} /></span>
         <span className="shrink-0 leading-none">{last.name}</span>
