@@ -739,6 +739,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [showInfoMenu, setShowInfoMenu] = useState(false)
   const [appName, setAppName] = useState('ClownCode')
   const [editingAppName, setEditingAppName] = useState(false)
+  // 隐藏图标后标题左移 4px：px-3(12) + 4 = 16 = 快捷行 mx-2(8) + pl-2(8) 的图标左缘
+  const [hideAppIcon, setHideAppIcon] = useState(false)
   useEffect(() => {
     if (!showInfoMenu) return
     const onDocClick = (e: MouseEvent) => {
@@ -1480,7 +1482,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {/* App 信息行：放在 .session-panel 内部，好让各主题既有的面板底（玻璃/贴图）自动覆盖到这一栏 */}
       {showAppInfo && (
       <div className="app-info group/app-info relative h-10 px-3 flex items-center select-none shrink-0">
-        <span className="relative w-[22px] h-[22px] mr-2 shrink-0 block">
+        <span className={`relative w-[22px] h-[22px] mr-2 shrink-0 ${hideAppIcon ? 'hidden' : 'block'}`}>
           <span
             className="app-info__icon-bg absolute inset-0 bg-ide-accent"
             style={{ maskImage: `url(${iconBgMask})`, WebkitMaskImage: `url(${iconBgMask})`, maskSize: 'contain', WebkitMaskSize: 'contain', maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat', maskPosition: 'center', WebkitMaskPosition: 'center' }}
@@ -1497,11 +1499,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
               if (e.key === 'Escape') setEditingAppName(false)
             }}
-            className="bg-ide-bg border border-ide-accent rounded px-1 text-base font-semibold tracking-wide text-ide-text outline-none min-w-0"
+            className={`bg-ide-bg border border-ide-accent rounded px-1 text-base font-semibold tracking-wide text-ide-text outline-none min-w-0${hideAppIcon ? ' ml-1' : ''}`}
             style={{ fontFamily: 'var(--ide-app-name-font)' }}
           />
         ) : (
-          <span className="text-ide-text text-base font-semibold tracking-wide truncate" style={{ fontFamily: 'var(--ide-app-name-font)' }}>{appName}</span>
+          <span className={`text-ide-text text-base font-semibold tracking-wide truncate${hideAppIcon ? ' ml-1' : ''}`} style={{ fontFamily: 'var(--ide-app-name-font)' }}>{appName}</span>
         )}
         <button
           className={`app-info-menu w-5 h-5 ml-1 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-all shrink-0 ${showInfoMenu ? 'opacity-100' : 'opacity-0 pointer-events-none group-hover/app-info:opacity-100 group-hover/app-info:pointer-events-auto'}`}
@@ -1521,13 +1523,23 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         </button>
         {showInfoMenu && (
           <div className="app-info-menu absolute left-3 top-full z-50 min-w-[180px] bg-ide-bg border border-ide-border rounded shadow-lg py-1">
-            <button
-              className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-              onClick={() => { setShowInfoMenu(false); setEditingAppName(true) }}
-            >
-              <Pencil size={14} className="text-ide-text-muted" />
-              <span>{t('Rename App')}</span>
-            </button>
+            <div className="group/rename w-full px-3 py-1.5 text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2">
+              <button
+                className="flex-1 min-w-0 text-left flex items-center gap-2"
+                onClick={() => { setShowInfoMenu(false); setEditingAppName(true) }}
+              >
+                <Pencil size={14} className="text-ide-text-muted" />
+                <span>{t('Rename')}</span>
+              </button>
+              <label
+                className="shrink-0 cursor-pointer relative inline-flex items-center opacity-0 pointer-events-none group-hover/rename:opacity-100 group-hover/rename:pointer-events-auto transition-opacity"
+                title={t('Hide App Icon')}
+              >
+                <input type="checkbox" checked={hideAppIcon} onChange={(e) => setHideAppIcon(e.target.checked)} className="accent-ide-accent sr-only peer" />
+                <span className="w-7 h-4 rounded-full bg-ide-hover border border-ide-border peer-checked:bg-ide-accent peer-checked:border-ide-accent transition-colors" />
+                <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white transition-transform peer-checked:translate-x-3" />
+              </label>
+            </div>
             {appVersion && (
               <div className="w-full px-3 py-1.5 text-sm text-ide-text flex items-center gap-2">
                 <Info size={14} className="text-ide-text-muted" />

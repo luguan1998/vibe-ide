@@ -122,7 +122,7 @@ const ZH_MAP: Record<string, string> = {
   'You can reopen it from Recent Directories by right-clicking the blank area of the session list.': '可在会话列表空白处右键，从「最近打开的目录」重新打开。',
   'Clone': '克隆',
   'Rename': '重命名',
-  'Rename App': '重命名应用',
+  'Hide App Icon': '隐藏应用图标',
   'Language': '语言',
   'Close': '关闭',
   'Back': '后退',
