@@ -8,11 +8,11 @@ export function buildHistoryTurns(messages: any[]): HistoryTurn[] {
   for (const m of messages || []) {
     if (m.type !== 'user' && m.type !== 'assistant') continue
     const role: 'user' | 'assistant' = m.role === 'user' ? 'user' : 'assistant'
-    let text = typeof m.content === 'string' ? m.content.replace(/\s+/g, ' ').trim() : ''
-    if (!text && Array.isArray(m.toolUse) && m.toolUse.length > 0) text = `工具 ×${m.toolUse.length}`
+    const text = typeof m.content === 'string' ? m.content.replace(/\s+/g, ' ').trim() : ''
     if (!text) continue
     const last = turns[turns.length - 1]
-    if (last && last.role === role) last.text += ' ' + text
+    // 连续同角色合并；答只取最后一段正文，中间的工具调用/思考不算正文
+    if (last && last.role === role) last.text = role === 'assistant' ? text : `${last.text} ${text}`
     else turns.push({ role, text })
   }
   return turns

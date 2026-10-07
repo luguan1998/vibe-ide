@@ -37,14 +37,17 @@ function highlightParts(text: string, query: string, caseSensitive: boolean): Re
   return parts
 }
 
+// 问=高亮色、答=暗淡（问字与正文同色）
+const roleCls = (role: string) => (role === 'user' ? 'text-ide-accent' : 'text-ide-text-muted/60')
+
 function TurnRow({ turn }: { turn: HistoryTurn }) {
   const { t } = useI18n()
   return (
     <div className="flex items-start gap-1 text-[11px] leading-snug" title={turn.text}>
-      <span className={`shrink-0 w-4 text-center select-none rounded ${turn.role === 'user' ? 'text-ide-accent' : 'text-ide-success'}`}>
+      <span className={`shrink-0 w-4 text-center select-none ${roleCls(turn.role)}`}>
         {turn.role === 'user' ? t('User') : t('Assistant')}
       </span>
-      <span className="min-w-0 flex-1 truncate text-ide-text-muted/80">
+      <span className={`min-w-0 flex-1 truncate ${roleCls(turn.role)}`}>
         {turn.text.length > 60 ? `${turn.text.slice(0, 60)}…` : turn.text}
       </span>
     </div>
@@ -472,10 +475,10 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
                   {!expanded.has(g.session_id) && (
                     g.matches.map((m, mi) => (
                       <div key={mi} className="px-2.5 py-1 border-t border-ide-border/50 flex items-start gap-1 text-[11px] leading-snug">
-                        <span className={`shrink-0 w-4 text-center select-none rounded ${m.role === 'user' ? 'text-ide-accent' : 'text-ide-success'}`}>
+                        <span className={`shrink-0 w-4 text-center select-none ${roleCls(m.role)}`}>
                           {m.role === 'user' ? t('User') : t('Assistant')}
                         </span>
-                        <span className="min-w-0 flex-1 text-ide-text-muted/80 break-words">{highlightParts(m.text, debouncedQuery, false)}</span>
+                        <span className={`min-w-0 flex-1 break-words ${roleCls(m.role)}`}>{highlightParts(m.text, debouncedQuery, false)}</span>
                       </div>
                     ))
                   )}
