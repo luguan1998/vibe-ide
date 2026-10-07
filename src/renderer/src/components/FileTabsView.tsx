@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { MutableRefObject, ReactNode } from 'react'
+import type { MutableRefObject, ReactNode, WheelEvent } from 'react'
 import { Clock } from 'lucide-react'
 import { FileIcon } from './FileIcons'
 import { useAdaptiveMenuPos } from '../utils/useAdaptiveMenuPos'
@@ -18,6 +18,13 @@ interface FileTabsViewProps {
   popoverGuardRef: MutableRefObject<null | (() => boolean)>
   renderTab: (tab: FileTab, isActive: boolean, headerLeading: ReactNode) => ReactNode
   t: (s: string) => string
+}
+
+// tab 条溢出时滚轮横向滚动：滚动条隐藏，靠滚轮/触控板访问被裁掉的 tab
+function onStripWheel(e: WheelEvent<HTMLDivElement>) {
+  const el = e.currentTarget
+  if (el.scrollWidth <= el.clientWidth) return
+  el.scrollLeft += e.deltaY
 }
 
 function tabTooltip(tab: FileTab): string {
@@ -175,7 +182,7 @@ export function FileTabsView({
             <polyline points="15 4 7 12 15 20" />
           </svg>
         </button>
-        <div ref={stripRef} className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto aux-tab__scroll file-tabs__strip">
+        <div ref={stripRef} onWheel={onStripWheel} className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto aux-tab__scroll file-tabs__strip">
           {tabs.map(tab => {
             const active = tab.id === activeTabId
             const diffMode = tab.kind === 'diff' && (tab.viewMode ?? (tab.defaultEdit ? 'edit' : 'diff')) === 'diff'
