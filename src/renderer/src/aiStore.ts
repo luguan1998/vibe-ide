@@ -387,6 +387,19 @@ export const aiStore = {
     sessionId: string, requestId: string, approved: boolean,
     tool: string, toolInput?: Record<string, any>
   ) {
+    // 拒绝 = 直接暂停本轮：不再 resume 送答案（任何形式的续跑都会让模型接着干活）。
+    // 提问时进程已被 kill，走 forceStop 的 kill + --resume 重开——进程停在空闲，
+    // 会话保住，等下一条用户消息，且不产生任何模型输出。
+    // 补一条 isAborted result：被 kill 的进程不会自己发 result，不补就没有「暂停」标记
+    if (!approved) {
+      aiStore.updateSession(sessionId, s => ({
+        ...s,
+        pendingPermission: null,
+        messages: [...s.messages, { sessionId, type: 'result', subtype: 'success', isAborted: true, timestamp: Date.now() } as AiMessage],
+      }))
+      void aiStore.forceStop(sessionId)
+      return
+    }
     const answers = (toolInput?.answers || {}) as Record<string, string>
     aiStore.updateSession(sessionId, s => ({
       ...s,

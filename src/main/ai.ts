@@ -1741,7 +1741,7 @@ export function killAiProcess(proc: ChildProcess): void {
 function formatAskUserAnswer(answers: Record<string, string>): string {
   const entries = Object.entries(answers).filter(([, v]) => v && v.trim())
   if (entries.length === 0) {
-    return 'The user skipped this AskUserQuestion without selecting an option. Do not ask the same question again; continue the original task using the available context and reasonable assumptions.'
+    return 'The user skipped this AskUserQuestion without selecting an option. Stop and wait for the next user instruction — do not continue the original task, do not make assumptions, do not call further tools.'
   }
   // Match reference impl: "questionText=answer" pairs joined by "; "
   // Keys here are question text (not question IDs) — LLM only uses these for natural-language hint

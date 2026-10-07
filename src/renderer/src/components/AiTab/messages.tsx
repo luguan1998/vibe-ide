@@ -590,7 +590,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
               <span className="inline-flex items-center gap-0.5 mr-2">
                 <span className="text-sm">✻</span>
                 {churnedBits.length > 0 && <span>{churnedBits.join(' · ')}</span>}
-                {message.isAborted && <span className="text-ide-text-muted/40"> · paused by user</span>}
+                {message.isAborted && <span className="text-ide-text-muted/40">{churnedBits.length > 0 ? ' · paused by user' : 'paused by user'}</span>}
               </span>
             )}
           </div>
