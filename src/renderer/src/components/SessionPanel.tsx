@@ -1607,15 +1607,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 handleQuickNewSession(m)
                 setQuickNewSubmenu(null)
               }))}
-              <div className="border-t border-ide-border my-1" />
-              <button
-                className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                onClick={() => { onCreateSession(termType); setQuickNewSubmenu(null) }}
-              >
-                <FolderPlus size={14} className="text-ide-text-muted" />
-                <span>{t('New Workspace')}</span>
-                <span className="ml-auto w-3.5 h-3.5 shrink-0" />
-              </button>
             </div>
           )}
         </div>
@@ -2002,9 +1993,16 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         {dropGroupIndex !== null && dropGroupIndex < sessionGroups.length && dropGroupIndex !== dragGroupIndex && groupMarkerTop !== null && (
           <div className="group-drop-overlay" style={{ top: groupMarkerTop }} />
         )}
-        {sessions.length === 1 && (
-          <div className="text-center text-[11px] text-ide-text-muted/50 py-3 select-none">
-            {t('Right-click blank area to open a new session')}
+        {/* 悬停列表空白处才浮出：新建工作区（虚线框），占位常在避免 hover 时列表跳动；显隐判定见 globals.css */}
+        {sessionGroups.length > 0 && (
+          <div className="session-panel__new-workspace pt-2 transition-opacity">
+            <button
+              onClick={() => onCreateSession(termType)}
+              className="w-full h-8 flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-ide-border text-xs text-ide-text-muted hover:text-ide-text hover:border-ide-accent hover:bg-ide-hover transition-colors"
+            >
+              <FolderPlus size={12} />
+              {t('New Workspace')}
+            </button>
           </div>
         )}
         </div>

@@ -30,8 +30,6 @@ const EN_MAP: Record<string, string> = {
   'Open CSS Config': 'Open CSS',
   // 右键菜单双列按钮，完整词过长
   'Clear Screen': 'Clear',
-  // 会话列表空态提示
-  'Right-click blank area to open a new session': 'Right-click for new session',
 }
 
 const ZH_MAP: Record<string, string> = {
@@ -108,7 +106,6 @@ const ZH_MAP: Record<string, string> = {
   'Favorite': '收藏',
   'Opening folder...': '正在打开文件夹…',
   'No sessions yet': '暂无会话',
-  'Right-click blank area to open a new session': '右键空白处打开新会话',
   'New Workspace': '新建工作区',
   'Folder Selection': '目录文件夹选择',
   'Parent': '上一级',

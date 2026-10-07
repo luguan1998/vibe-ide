@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { FolderPlus, FolderUp, HardDrive } from 'lucide-react'
 import { ModalOverlay } from './ModalOverlay'
 import { FolderIcon } from './FileIcons'
@@ -13,52 +13,17 @@ export type SessionMode = 'term' | 'gui' | 'pi'
 
 interface DirEntry { name: string; path: string; type: string }
 
-let middleTextCtx: CanvasRenderingContext2D | null = null
-const measureMiddleText = (text: string, font: string) => {
-  middleTextCtx ||= document.createElement('canvas').getContext('2d')
-  if (!middleTextCtx) return text.length * 6
-  middleTextCtx.font = font
-  return middleTextCtx.measureText(text).width
-}
-
-const middleDisplay = (text: string, headLen: number, tailLen: number) =>
-  headLen <= 0 && tailLen <= 0 ? '...' : text.slice(0, headLen) + '...' + (tailLen > 0 ? text.slice(text.length - tailLen) : '')
-
-const MiddlePathText = ({ text }: { text: string }) => {
-  const ref = useRef<HTMLSpanElement>(null)
-  const [display, setDisplay] = useState(text)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let raf = 0
-    const fit = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
-        const cs = window.getComputedStyle(el)
-        const font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
-        const avail = el.clientWidth
-        if (avail <= 0) return
-        if (measureMiddleText(text, font) <= avail) { setDisplay(text); return }
-        let lo = 0
-        let hi = text.length
-        while (lo < hi) {
-          const mid = Math.ceil((lo + hi) / 2)
-          const headLen = Math.ceil(mid / 2)
-          const tailLen = mid - headLen
-          if (measureMiddleText(middleDisplay(text, headLen, tailLen), font) <= avail) lo = mid
-          else hi = mid - 1
-        }
-        const headLen = Math.ceil(lo / 2)
-        const tailLen = lo - headLen
-        setDisplay(middleDisplay(text, headLen, tailLen))
-      })
-    }
-    fit()
-    const ro = new ResizeObserver(fit)
-    ro.observe(el)
-    return () => { ro.disconnect(); cancelAnimationFrame(raf) }
-  }, [text])
-  return <span ref={ref} className="dir-picker__recent-path">{display}</span>
+// 最近目录路径：父路径吃剩余宽度按需省略，目录名（叶子）恒完整——宽度交给浏览器排版，随弹窗改大小自适应
+const RecentDirPath = ({ path }: { path: string }) => {
+  const idx = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'))
+  const head = idx < 0 ? '' : path.slice(0, idx)
+  const name = idx < 0 ? path : path.slice(idx)
+  return (
+    <span className="flex-1 min-w-0 overflow-hidden flex items-center">
+      {head && <span className="truncate">{head}</span>}
+      <span className="shrink-0">{name}</span>
+    </span>
+  )
 }
 
 export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
@@ -174,7 +139,7 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
           <span className="text-sm font-medium text-ide-text">{t('New Workspace')}</span>
         </div>
         {recentDirs.length > 0 && (
-          <div className="px-2 py-1.5 border-b border-ide-border shrink-0 grid grid-cols-2 gap-0.5 overflow-y-auto overflow-x-auto max-h-[96px]">
+          <div className="px-2 py-1.5 border-b border-ide-border shrink-0 grid grid-cols-2 gap-0.5 overflow-y-auto overflow-x-auto max-h-[120px]">
             {recentDirs.map(d => (
               <button
                 key={d}
@@ -182,8 +147,8 @@ export function DirectoryPicker({ initialDir, onConfirm, onCancel }: {
                 title={d}
                 className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors min-w-0"
               >
-                <FolderIcon name={d.split(/[\\/]/).filter(Boolean).pop() || ''} className="w-3 h-3 text-ide-text-muted" />
-                <MiddlePathText text={d} />
+                <FolderIcon name={d.split(/[\\/]/).filter(Boolean).pop() || ''} className="w-3 h-3 shrink-0 text-ide-text-muted" />
+                <RecentDirPath path={d} />
               </button>
             ))}
           </div>

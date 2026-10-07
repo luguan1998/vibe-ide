@@ -319,15 +319,6 @@ html, body, #root {
   outline: none;
 }
 
-/* 最近目录两列路径中间省略：MiddlePathText 用 canvas 实测宽度均摊截取头尾，
-   这里只需保证盒子被 flex 约束且可测宽（span 需显式块级化） */
-.dir-picker__recent-path {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
 /* Animation utilities */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
@@ -1108,6 +1099,20 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
 .session-panel,
 .session-panel__list-wrapper {
   background: rgb(var(--ide-sidebar));
+}
+/* 「新建工作区」按钮：仅在列表空白处（会话组卡片之外）hover 时浮出，
+   悬停任一会话组（组头 / 会话行）即隐去，不压住会话行 */
+.session-panel__new-workspace {
+  opacity: 0;
+  pointer-events: none;
+}
+.session-panel__list:hover .session-panel__new-workspace {
+  opacity: 1;
+  pointer-events: auto;
+}
+.session-panel__list:has(.session-group:hover) .session-panel__new-workspace {
+  opacity: 0;
+  pointer-events: none;
 }
 .session-group {
   position: relative;
