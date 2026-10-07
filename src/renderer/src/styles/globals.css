@@ -141,12 +141,12 @@ html, body, #root {
   transform: translateY(calc(-100% - 26px));
 }
 
-/* Ctrl+hover 可跳转单词的下划线（VS Code 同款交互）。不用 !important：
-   笔刷模式下 .diff-brush-code 的笔形光标应继续保持覆盖 */
-.monaco-editor .vibe-def-link {
+/* Ctrl+hover 可跳转单词的下划线（VS Code 同款交互）。多带一层 .view-lines：
+   笔刷模式下编辑器正文改用系统光标，这里得压过它 */
+.monaco-editor .view-lines .vibe-def-link {
   text-decoration: underline;
   text-underline-position: under;
-  cursor: pointer;
+  cursor: pointer !important;
 }
 
 /* Brush mode: feather pen cursor */
@@ -156,10 +156,11 @@ html, body, #root {
 .brush-copy-mode * {
   cursor: var(--brush-cursor, crosshair) !important;
 }
-/* Monaco editor overlay: feather pen cursor */
-.diff-brush-code .monaco-editor,
-.diff-brush-code .monaco-editor * {
-  cursor: var(--brush-cursor, crosshair) !important;
+/* 编辑器正文改用系统光标：跳转词的手型要等 LSP 往返才出，笔会先抢跑闪一下。
+   行号槽、滚动条、文件末尾空白等 .view-lines 之外仍是笔 */
+.diff-brush-mode .view-lines,
+.diff-brush-mode .view-lines * {
+  cursor: auto !important;
 }
 
 .ai-tab__plan-content {
@@ -598,7 +599,7 @@ html, body, #root {
 .md-preview h5 { font-size: 1em; color: rgb(var(--ide-text-muted)); }
 .md-preview h6 { font-size: 0.9em; color: rgb(var(--ide-text-muted)); text-transform: uppercase; letter-spacing: 0.05em; }
 .md-preview p { margin-bottom: 1em; }
-.md-preview a { color: rgb(var(--ide-accent)); text-decoration: underline; text-underline-offset: 2px; }
+.md-preview a { color: rgb(var(--ide-accent)); text-decoration: underline; text-underline-offset: 2px; cursor: pointer !important; }
 .md-preview a:hover { color: rgb(var(--ide-accent-hover)); }
 .md-preview strong { color: rgb(var(--ide-warning)); font-weight: 700; }
 .md-preview em { font-style: italic; color: rgb(var(--ide-success)); }
