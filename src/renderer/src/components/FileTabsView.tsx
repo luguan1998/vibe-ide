@@ -185,13 +185,13 @@ export function FileTabsView({
                 data-tab-id={tab.id}
                 title={tabTooltip(tab)}
                 onClick={() => onActivate(tab.id)}
-                className={`group relative flex items-center gap-1 pl-2 pr-1 rounded-t-md text-xs cursor-pointer shrink-0 transition-colors file-tabs__tab ${
+                className={`group relative flex items-center gap-1 pl-2.5 pr-1.5 rounded-t-md text-[13px] cursor-pointer shrink-0 transition-colors file-tabs__tab ${
                   active
-                    ? 'bg-ide-sidebar border-t border-x border-ide-border border-b-2 border-b-ide-accent h-6 text-ide-text'
-                    : 'bg-ide-hover/25 h-5 text-ide-text-muted hover:bg-ide-hover/45 hover:text-ide-text'
+                    ? 'bg-ide-sidebar border-t border-x border-ide-border border-b-2 border-b-ide-accent h-7 text-ide-text'
+                    : 'bg-ide-hover/25 h-6 text-ide-text-muted hover:bg-ide-hover/45 hover:text-ide-text'
                 }`}
               >
-                <FileIcon name={tab.fileName} className="w-3.5 h-3.5 shrink-0" />
+                <FileIcon name={tab.fileName} className="w-4 h-4 shrink-0" />
                 <span className="truncate max-w-[120px]">{tab.fileName}</span>
                 {diffMode && (
                   <svg viewBox="0 0 16 16" fill="none" className="w-3 h-3 shrink-0">
