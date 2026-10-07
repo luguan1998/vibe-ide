@@ -11,11 +11,7 @@ import FileTab from './components/FileTab'
 import DiffViewer, { type CallGraphRequest } from './components/DiffViewer'
 import { FileTabsView } from './components/FileTabsView'
 import { useFileTabs } from './utils/useFileTabs'
-import { useGitReplay } from './utils/useGitReplay'
-import { buildReplayList } from './utils/gitReplay'
-import type { ReplayFile } from './utils/gitReplay'
-import GitReplayBar from './components/GitReplayBar'
-import { FileTab as FileTabState, DiffFileTab, baseName, makeTabId, autoViewKind, tabKey } from './fileTabs'
+import { FileTab as FileTabState, DiffFileTab, baseName, makeTabId, autoViewKind } from './fileTabs'
 import type { TabSnapshot, TabRuntime } from './fileTabs'
 import MarkdownPreview, { MD_SEARCH_OPEN } from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
@@ -34,7 +30,7 @@ import { aiStore, readAiCliConfig, queuePendingSend } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, toRelPath } from './components/vibeEvents'
-import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode, LSP_SERVERS, LSP_LANG_TO_SERVER, GitFileStatus } from '@shared/types'
+import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode, LSP_SERVERS, LSP_LANG_TO_SERVER } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
 import { cwdStore, useKeptGroups, mergeGroupOrder } from './cwdStore'
@@ -452,11 +448,6 @@ export default function App() {
   // ── 文件 Tab 系统（全局共享一份，见 doc/file-tabs）──
   const [tabDirtyMap, setTabDirtyMap] = useState<Record<string, boolean>>({})
   const tabRuntimeRef = useRef(new Map<string, TabRuntime>())
-  // Git 修改回放：activeRef 提前声明，供下方 overlayOnRight / ESC 链在渲染期读取
-  const replayActiveRef = useRef(false)
-  // 只存 GitTab 推上来的原料引用，起播时才 buildReplayList；未开启回放时不产生任何列表分配
-  const replayFilesRef = useRef<GitFileStatus[]>([])
-  const replayToFullPathRef = useRef<(path: string) => string>((p) => p)
   const tabSnapshotsRef = useRef<Record<string, TabSnapshot>>({})
   const [closeAsk, setCloseAsk] = useState<{ tabId: string } | null>(null)
   const closeAskRef = useRef(false); closeAskRef.current = closeAsk !== null
@@ -493,14 +484,14 @@ export default function App() {
     const base = firstOpen && centerViewRef.current === 'board' ? 'board' : overlaySnapRef.current.base
     overlaySnapRef.current = {
       key: overlayKind,
-      right: !replayActiveRef.current && !rightPanelCollapsed && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W,
+      right: !rightPanelCollapsed && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W,
       base,
     }
   }
   if (!overlayKind && overlaySnapRef.current.key !== null) {
     overlaySnapRef.current = { key: null, right: false, base: 'terminal' }
   }
-  const overlayOnRight = overlayKind !== null && overlaySnapRef.current.right && !rightPanelCollapsed && !replayActiveRef.current
+  const overlayOnRight = overlayKind !== null && overlaySnapRef.current.right && !rightPanelCollapsed
   const overlayOnRightRef = useRef(false); overlayOnRightRef.current = overlayOnRight
   // 左栏「看板激活」随 base 保持(overlay 期间不回落 session)
   const boardActive = overlayKind !== null ? overlaySnapRef.current.base === 'board' : centerView === 'board'
@@ -1587,7 +1578,6 @@ export default function App() {
     }
     if (opts.record !== false) recordRecentFile(fullPath, opts.lineNumber)
     setCenterView('files')
-    return opened.id
   }, [openTab, updateTab, recordRecentFile, relFromCwd, currentNavPos, navPush])
 
   // 沿历史移动：抑制 openFileView 自己的记录，否则会边走边改写栈
@@ -1634,99 +1624,6 @@ export default function App() {
   const returnToBaseView = useCallback(() => {
     setCenterView(overlaySnapRef.current.base === 'board' ? 'board' : 'terminal')
   }, [])
-
-  // ═══ Git 修改回放 ═══
-  // 回放 tab 不参与 dirty 询问、不写最近文件（flushTabVisibleLine 会读 visibleLineRef 回写）
-  const closeReplayTab = useCallback((tabId: string) => {
-    closeTab(tabId)
-    delete tabSnapshotsRef.current[tabId]
-    tabRuntimeRef.current.delete(tabId)
-    setTabDirtyMap(prev => {
-      if (!(tabId in prev)) return prev
-      const n = { ...prev }
-      delete n[tabId]
-      return n
-    })
-  }, [closeTab])
-
-  // 返回 tabId；已有的同名 dirty tab 不收养（会被后续滚动关掉，丢未保存内容）
-  const openReplayFile = useCallback((file: ReplayFile): string | null => {
-    const key = `diff|${file.fullPath.replace(/\\/g, '/')}|${file.isStaged ? 'staged' : 'working'}|`
-    const existing = tabsRef.current.find(t => tabKey(t) === key)
-    if (existing && tabRuntimeRef.current.get(existing.id)?.dirty) return null
-    navSuppressRef.current = true
-    try {
-      return openFileView(file.fullPath, {
-        mode: 'diff',
-        relPath: file.filePath,
-        record: false,
-        git: { isStaged: file.isStaged, gitStats: file.gitStats },
-      })
-    } finally {
-      navSuppressRef.current = false
-    }
-  }, [openFileView])
-
-  const {
-    active: replayRunning, paused: replayPaused, index: replayIndex, total: replayTotal,
-    speed: replaySpeed, dwellMs: replayDwellMs, skipped: replaySkipped, skipListOpen: replaySkipListOpen,
-    skipListOpenRef: replaySkipListOpenRef, tabIdRef: replayTabIdRef,
-    start: startReplay, stop: stopReplay, toggle: toggleReplay, prev: prevReplay, next: nextReplay,
-    setSpeed: setReplaySpeed, notifyUnreadable: notifyReplayUnreadable, notifyHunkCount: notifyReplayHunkCount,
-    toggleSkipList: toggleReplaySkipList, closeSkipList: closeReplaySkipList,
-  } = useGitReplay({
-    activeRef: replayActiveRef,
-    openReplayFile,
-    closeReplayTab,
-    onFinish: returnToBaseView,
-  })
-
-  const startGitReplay = useCallback(() => {
-    startReplay(buildReplayList(replayFilesRef.current, replayToFullPathRef.current))
-  }, [startReplay])
-
-  // GitTab 把工作区文件列表与路径解析器推上来，供快捷键路径起播
-  const handleReplaySourceChange = useCallback((files: GitFileStatus[], toFullPath: (path: string) => string) => {
-    replayFilesRef.current = files
-    replayToFullPathRef.current = toFullPath
-  }, [])
-
-  // 回放期间用户手动切到别的 tab → 停住，保留当前 diff tab
-  useEffect(() => {
-    if (!replayActiveRef.current) return
-    if (activeTabId === replayTabIdRef.current) return
-    stopReplay()
-  }, [activeTabId, stopReplay, replayTabIdRef])
-
-  useEffect(() => {
-    if (replayActiveRef.current) stopReplay()
-  }, [activeSessionId, stopReplay])
-
-  // DiffViewer 报「不可读」（二进制/过大）→ 回放跳过该文件并提前推进
-  const handleReplayUnreadable = useCallback((fullPath: string, unreadable: boolean) => {
-    handleUnreadableChange(fullPath, unreadable)
-    if (unreadable) notifyReplayUnreadable(fullPath)
-  }, [handleUnreadableChange, notifyReplayUnreadable])
-
-  // 对象引用稳定，避免 DiffViewer 的 React.memo 因新对象而逐帧失效
-  const replayHunkNavValue = useMemo(
-    () => (replayRunning ? { dwellMs: replayDwellMs, paused: replayPaused, speed: replaySpeed } : null),
-    [replayRunning, replayDwellMs, replayPaused, replaySpeed]
-  )
-  // renderTab 是 useCallback，不会因回放状态重建；经 ref 传值才拿得到最新一帧
-  const replayHunkNavRef = useRef(replayHunkNavValue)
-  replayHunkNavRef.current = replayHunkNavValue
-
-  const handleTabDismiss = useCallback(() => {
-    if (replayActiveRef.current) stopReplay()
-    else returnToBaseView()
-  }, [stopReplay, returnToBaseView])
-
-  // GitTab 头部按钮：未播放 → 起播；播放中 → 暂停；已暂停 → 继续
-  const handleReplayClick = useCallback(() => {
-    if (replayActiveRef.current) toggleReplay()
-    else startGitReplay()
-  }, [toggleReplay, startGitReplay])
 
   const getTabSnapshot = useCallback((tabId: string): TabSnapshot | null => tabSnapshotsRef.current[tabId] ?? null, [])
   const pushTabSnapshot = useCallback((tabId: string, s: TabSnapshot) => { tabSnapshotsRef.current[tabId] = s }, [])
@@ -1921,14 +1818,6 @@ export default function App() {
         e.preventDefault()
         e.stopImmediatePropagation()
         navForwardRef.current()
-        return
-      }
-
-      // gitReplay.start → 回放工作区未提交改动
-      if (eventMatchesBinding(e, bindings['gitReplay.start'])) {
-        e.preventDefault()
-        e.stopImmediatePropagation()
-        startGitReplay()
         return
       }
 
@@ -2130,12 +2019,6 @@ export default function App() {
         if (showSearchDropdownRef.current) {
           e.preventDefault(); e.stopImmediatePropagation()
           setShowSearchDropdown(false)
-          return
-        }
-        if (replayActiveRef.current) {
-          e.preventDefault(); e.stopImmediatePropagation()
-          if (replaySkipListOpenRef.current) closeReplaySkipList()
-          else stopReplay()
           return
         }
         const active = document.activeElement as HTMLElement | null
@@ -3433,9 +3316,7 @@ export default function App() {
           lineNumber={tab.lineNumber}
           jumpNonce={tab.jumpNonce}
           revision={tab.revision}
-          replayHunkNav={tab.id === replayTabIdRef.current ? replayHunkNavRef.current : null}
-          onHunkCount={tab.id === replayTabIdRef.current ? notifyReplayHunkCount : undefined}
-          onDismiss={handleTabDismiss}
+          onDismiss={returnToBaseView}
           onOpenPreview={tab.defaultEdit && autoViewKind(tab.fullPath) === 'markdown' ? () => openMarkdownPreview(tab) : undefined}
           onSaved={handleRefreshGit}
           defaultEdit={tab.defaultEdit}
@@ -3459,7 +3340,7 @@ export default function App() {
           onAnnotationTrigger={handleAnnotationTrigger}
           brushActive={brushActive}
           onOutlineNavigate={handleOutlineNavigate}
-          onUnreadableChange={handleReplayUnreadable}
+          onUnreadableChange={handleUnreadableChange}
         />
       )
     }
@@ -3732,7 +3613,7 @@ export default function App() {
             onPanelViewChange={handleLeftPanelViewChange}
             panelContent={leftPanelsReady ? (
               <>
-                <div style={{ display: leftPanelView === 'git' ? 'flex' : 'none' }} className="group flex-1 min-h-0 flex flex-col">
+                <div style={{ display: leftPanelView === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col">
                   <GitTab
                     workspacePath={activeSessionCwd}
                     effectiveGitPath={leftEffectiveGitPath}
@@ -3749,10 +3630,6 @@ export default function App() {
                     onHunkNav={handleHunkNav}
                     onNavigateToFile={handleNavigateToFile}
                     lineHistoryPayload={lineHistoryPayload}
-                    onReplaySourceChange={handleReplaySourceChange}
-                    replayActive={replayRunning}
-                    replayPaused={replayPaused}
-                    onReplayClick={handleReplayClick}
                   />
                 </div>
                 <div style={{ display: leftPanelView === 'dir' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -3813,21 +3690,6 @@ export default function App() {
             <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay`}>
               {fileTabsNode}
             </div>
-          )}
-          {replayRunning && centerView === 'files' && !overlayOnRight && (
-            <GitReplayBar
-              paused={replayPaused}
-              index={replayIndex}
-              total={replayTotal}
-              speed={replaySpeed}
-              skipped={replaySkipped}
-              skipListOpen={replaySkipListOpen}
-              onToggle={toggleReplay}
-              onPrev={prevReplay}
-              onNext={nextReplay}
-              onSpeed={setReplaySpeed}
-              onToggleSkipList={toggleReplaySkipList}
-            />
           )}
           {/* Browser */}
           {centerView === 'browser' && !browserDocked && (
@@ -3995,10 +3857,6 @@ export default function App() {
             activeSessionId={activeSessionId}
             onFileSelect={handleFileSelect}
             refreshKey={gitRefreshKey}
-            onReplaySourceChange={handleReplaySourceChange}
-            replayActive={replayRunning}
-            replayPaused={replayPaused}
-            onReplayClick={handleReplayClick}
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
             onOpenFileFromSearch={handleOpenSearchResult}
             onOpenFileFromExplorer={handleOpenFileFromExplorer}
