@@ -95,15 +95,19 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
   const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({})
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [activeOpt, setActiveOpt] = useState<Record<number, string>>({})
+  const [activeQ, setActiveQ] = useState(0)
 
   // 全脏数据（清洗后无可用题目）→ 降级为普通 Approve/Deny 卡,不阻塞会话
   if (questions.length === 0) {
     return <AiPermissionCard perm={perm} sessionId={sessionId} onRespond={onRespond} />
   }
 
-  const allAnswered = questions.every(q =>
+  const tabbed = questions.length > 1
+
+  const isAnswered = (q: AskQuestion) =>
     (selections[q.question]?.size ?? 0) >= 1 || (customValues[q.question] || '').trim().length > 0
-  )
+
+  const allAnswered = questions.every(isAnswered)
 
   const buildAnswers = (selOverride?: Record<string, Set<string>>): Record<string, string> => {
     const sel = selOverride ?? selections
@@ -156,88 +160,108 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
     setSelections(prev => ({ ...prev, [qText]: next }))
   }
 
-  return (
-    <div className={`ai-tab__question-card shrink-0 flex flex-col max-h-[60vh] border-t border-ide-accent/40 bg-ide-accent/5 px-3 py-2.5 animate-fade-in w-full ${PANEL_MAX_W} mx-auto`}>
-      <div className="ai-tab__question-body flex-1 min-h-0 overflow-y-auto">
-        {questions.map((q, qi) => {
-          const shown = q.options.find(o => o.label === (activeOpt[qi] ?? q.options.find(op => op.preview)?.label))
-          const customVal = (customValues[q.question] || '').trim()
-          const customActive = !!customOpen[q.question] || !!customVal
-          return (
-          <div key={qi} className="mb-3 last:mb-0">
-            <QuestionHeader header={q.header} multi={q.multiSelect} />
-            <div className="text-[13px] text-ide-text mb-1.5">{q.question}</div>
-            <div className="flex flex-col gap-1">
-              {q.options.map((opt, oi) => {
-                const selected = selections[q.question]?.has(opt.label) ?? false
-                return (
-                  <button
-                    key={oi}
-                    type="button"
-                    onClick={() => {
-                      if (opt.preview) setActiveOpt(prev => ({ ...prev, [qi]: opt.label }))
-                      toggle(q.question, opt.label, q.multiSelect)
-                    }}
-                    className={`${QUESTION_ROW_CLS} flex items-start gap-2 ${
-                      selected
-                        ? 'ai-tab__question-option--selected bg-ide-accent/15 border-ide-accent/50'
-                        : 'border-ide-border hover:bg-ide-hover'
-                    }`}
-                  >
-                    <QuestionMarker selected={selected} multi={q.multiSelect} />
-                    <QuestionOptionBody opt={opt} />
-                  </button>
-                )
-              })}
+  const renderQuestion = (q: AskQuestion, qi: number) => {
+    const shown = q.options.find(o => o.label === (activeOpt[qi] ?? q.options.find(op => op.preview)?.label))
+    const customVal = (customValues[q.question] || '').trim()
+    const customActive = !!customOpen[q.question] || !!customVal
+    return (
+      <div key={qi} className={tabbed ? '' : 'mb-3 last:mb-0'}>
+        <QuestionHeader header={tabbed ? '' : q.header} multi={q.multiSelect} />
+        <div className="text-[13px] text-ide-text mb-1.5">{q.question}</div>
+        <div className="flex flex-col gap-1">
+          {q.options.map((opt, oi) => {
+            const selected = selections[q.question]?.has(opt.label) ?? false
+            return (
               <button
+                key={oi}
                 type="button"
-                onClick={() => toggleCustom(q.question)}
+                onClick={() => {
+                  if (opt.preview) setActiveOpt(prev => ({ ...prev, [qi]: opt.label }))
+                  toggle(q.question, opt.label, q.multiSelect)
+                }}
                 className={`${QUESTION_ROW_CLS} flex items-start gap-2 ${
-                  customActive
-                    ? 'bg-ide-accent/15 border-ide-accent/50'
-                    : 'border-dashed border-ide-border hover:bg-ide-hover'
+                  selected
+                    ? 'ai-tab__question-option--selected bg-ide-accent/15 border-ide-accent/50'
+                    : 'border-ide-border hover:bg-ide-hover'
                 }`}
               >
-                <QuestionMarker selected={!!customVal} active={!!customOpen[q.question]} multi={q.multiSelect} dashed={!customActive} />
-                <div className={`flex-1 min-w-0 text-[13px] leading-snug truncate ${customActive ? 'text-ide-text' : 'text-ide-text-muted'}`}>
-                  {customVal || t('Other')}
-                </div>
+                <QuestionMarker selected={selected} multi={q.multiSelect} />
+                <QuestionOptionBody opt={opt} />
               </button>
+            )
+          })}
+          <button
+            type="button"
+            onClick={() => toggleCustom(q.question)}
+            className={`${QUESTION_ROW_CLS} flex items-start gap-2 ${
+              customActive
+                ? 'bg-ide-accent/15 border-ide-accent/50'
+                : 'border-dashed border-ide-border hover:bg-ide-hover'
+            }`}
+          >
+            <QuestionMarker selected={!!customVal} active={!!customOpen[q.question]} multi={q.multiSelect} dashed={!customActive} />
+            <div className={`flex-1 min-w-0 text-[13px] leading-snug truncate ${customActive ? 'text-ide-text' : 'text-ide-text-muted'}`}>
+              {customVal || t('Other')}
             </div>
-            {shown?.preview && (q.multiSelect || !customActive) && (
-              <pre className={`ai-tab__question-preview mt-1.5 ${QUESTION_PREVIEW_CLS}`}>{shown.preview}</pre>
-            )}
-            {customOpen[q.question] && (
-              <div className="flex items-center gap-1.5 mt-1.5 animate-fade-in">
-                <input
-                  autoFocus
-                  value={customValues[q.question] || ''}
-                  onChange={(e) => setCustomValues(prev => ({ ...prev, [q.question]: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      commitCustom(q.question)
-                    } else if (e.key === 'Escape') {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setCustomOpen(prev => ({ ...prev, [q.question]: false }))
-                    }
-                  }}
-                  placeholder={t('Enter custom answer...')}
-                  className="flex-1 min-w-0 px-2 py-1.5 text-[12px] bg-ide-bg/80 border border-ide-accent/50 rounded focus:outline-none focus:border-ide-accent text-ide-text placeholder:text-ide-text-muted/50"
-                />
-                <button
-                  onClick={() => commitCustom(q.question)}
-                  className="px-3 py-1.5 text-[12px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
-                >
-                  {t('OK')}
-                </button>
-              </div>
-            )}
+          </button>
+        </div>
+        {shown?.preview && (q.multiSelect || !customActive) && (
+          <pre className={`ai-tab__question-preview mt-1.5 ${QUESTION_PREVIEW_CLS}`}>{shown.preview}</pre>
+        )}
+        {customOpen[q.question] && (
+          <div className="flex items-center gap-1.5 mt-1.5 animate-fade-in">
+            <input
+              autoFocus
+              value={customValues[q.question] || ''}
+              onChange={(e) => setCustomValues(prev => ({ ...prev, [q.question]: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  commitCustom(q.question)
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setCustomOpen(prev => ({ ...prev, [q.question]: false }))
+                }
+              }}
+              placeholder={t('Enter custom answer...')}
+              className="flex-1 min-w-0 px-2 py-1.5 text-[12px] bg-ide-bg/80 border border-ide-accent/50 rounded focus:outline-none focus:border-ide-accent text-ide-text placeholder:text-ide-text-muted/50"
+            />
+            <button
+              onClick={() => commitCustom(q.question)}
+              className="px-3 py-1.5 text-[12px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+            >
+              {t('OK')}
+            </button>
           </div>
-          )
-        })}
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className={`ai-tab__question-card shrink-0 flex flex-col max-h-[60vh] border-t border-ide-accent/40 bg-ide-accent/5 px-3 py-2.5 animate-fade-in w-full ${PANEL_MAX_W} mx-auto`}>
+      {tabbed && (
+        <div className="ai-tab__question-tabs flex items-end gap-3 shrink-0 mb-2 border-b border-ide-border/60 overflow-x-auto">
+          {questions.map((q, qi) => (
+            <button
+              key={qi}
+              type="button"
+              onClick={() => setActiveQ(qi)}
+              className={`ai-tab__question-tab shrink-0 pb-1.5 text-[13px] leading-none whitespace-nowrap border-b-2 transition-colors ${
+                qi === activeQ
+                  ? 'border-ide-accent text-ide-text font-medium'
+                  : 'border-transparent text-ide-text-muted hover:text-ide-text'
+              }`}
+            >
+              {q.header || `Q${qi + 1}`}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="ai-tab__question-body flex-1 min-h-0 overflow-y-auto">
+        {tabbed ? renderQuestion(questions[activeQ], activeQ) : questions.map((q, qi) => renderQuestion(q, qi))}
       </div>
 
       <div className="flex gap-1.5 mt-2 shrink-0">
@@ -251,7 +275,7 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
               : 'bg-ide-accent/30 text-white/50 cursor-not-allowed'
           }`}
         >
-          {t('Submit')}
+          {tabbed ? `${questions.filter(isAnswered).length}/${questions.length} ${t('Submit')}` : t('Submit')}
         </button>
         <button
           onClick={() => onRespond(sessionId, perm.requestId, false, perm.tool, perm.toolInput)}
