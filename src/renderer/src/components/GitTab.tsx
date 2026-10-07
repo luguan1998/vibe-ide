@@ -6,7 +6,7 @@ import GitGraph from './GitGraph'
 import PrProvidersModal from './PrProvidersModal'
 import CreatePrModal from './CreatePrModal'
 import { ContextMenuItem } from './FileTab'
-import { FolderOpen, Route, Check, FileText, GitPullRequest } from 'lucide-react'
+import { FolderOpen, Route, Check, FileText, GitPullRequest, Play, Pause } from 'lucide-react'
 import { FolderIcon } from './FileIcons'
 import { PanelGitIcon } from '../panelIcons'
 
@@ -27,6 +27,10 @@ interface GitTabProps {
   onDiffScroll?: (delta: number) => void
   onNavigateToFile?: (filePath: string) => void
   lineHistoryPayload?: { filePath: string; lineNumber: number; rev?: string; staged?: boolean } | null
+  onReplaySourceChange?: (files: GitFileStatus[], toFullPath: (path: string) => string) => void
+  replayActive?: boolean
+  replayPaused?: boolean
+  onReplayClick?: () => void
 }
 
 const getStatusIcon = (file: GitFileStatus): string => {
@@ -143,7 +147,7 @@ const collectLeafPaths = (node: TreeNode): string[] => {
 
 const GRAPH_PAGE_SIZE = 50
 
-export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, submoduleNav, onFileSelect, refreshKey, activeSessionId, isActive, pauseWhenHidden, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onSubmoduleNavChange, onDiffScroll, onNavigateToFile, lineHistoryPayload }: GitTabProps) {
+export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, submoduleNav, onFileSelect, refreshKey, activeSessionId, isActive, pauseWhenHidden, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onSubmoduleNavChange, onDiffScroll, onNavigateToFile, lineHistoryPayload, onReplaySourceChange, replayActive, replayPaused, onReplayClick }: GitTabProps) {
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
   const { t } = useI18n()
@@ -507,6 +511,11 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
   }, [onFileSelect, resolveFullPath])
   const handleFileClickRef = useRef(handleFileClick)
   handleFileClickRef.current = handleFileClick
+
+  // 只把「怎么建列表」的原料（引用）推给 App，起播时才真正遍历；未开启回放时零遍历零分配
+  useEffect(() => {
+    onReplaySourceChange?.(status?.files ?? [], resolveFullPath)
+  }, [status, resolveFullPath, onReplaySourceChange])
 
   // Handle commit click - show expanded files and diff
   const handleCommitClick = useCallback(async (hash: string) => {
@@ -1290,8 +1299,18 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
             {status.ahead > 0 && <span className="text-ide-success text-[11px]">↑{status.ahead}</span>}
           </div>
           <button
+            onClick={() => onReplayClick?.()}
+            disabled={!replayActive && !status?.files?.length}
+            className={`transition-colors shrink-0 w-5 flex items-center justify-center focus:outline-none ${replayActive ? 'text-ide-accent' : status?.files?.length ? 'text-ide-text-muted hover:text-ide-text' : 'text-ide-text-muted opacity-40 cursor-default'}`}
+            title={replayActive ? (replayPaused ? t('Resume replay') : t('Pause replay')) : t('Replay Git Changes')}
+          >
+            {replayActive && !replayPaused
+              ? <Pause className="w-3.5 h-3.5" />
+              : <Play className="w-3.5 h-3.5" />}
+          </button>
+          <button
             onClick={() => setTreeView(v => !v)}
-            className={`transition-colors shrink-0 w-5 flex items-center justify-center ${treeView ? 'text-ide-accent' : 'text-ide-text-muted hover:text-ide-text'}`}
+            className={`transition-colors shrink-0 w-5 flex items-center justify-center focus:outline-none ${treeView ? 'text-ide-accent' : 'text-ide-text-muted hover:text-ide-text'}`}
             title={t('Toggle Tree View')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
@@ -1303,7 +1322,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
           </button>
           <button
             onClick={() => { refreshStatus(); refreshGraph(); refreshBranches(); probeSubmodules(); if (subLoadedRef.current) refreshSubmodules(true) }}
-            className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
+            className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center focus:outline-none"
             title={t('Refresh')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">

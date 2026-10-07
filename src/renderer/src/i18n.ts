@@ -35,6 +35,18 @@ const EN_MAP: Record<string, string> = {
 }
 
 const ZH_MAP: Record<string, string> = {
+  // Git 修改回放
+  'Replay Git Changes': '回放 Git 改动',
+  'Pause replay': '暂停',
+  'Resume replay': '继续',
+  'Previous file': '上一个文件',
+  'Next file': '下一个文件',
+  'Replay speed': '播放速度',
+  'Skipped': '已跳过',
+  '{n} skipped': '已跳过 {n} 个',
+  'skip-image': '图片',
+  'skip-unreadable': '二进制/过大',
+  'skip-unsaved': '未保存',
   // SessionPanel
   'running': '正在运行',
   'Idle': '空闲',

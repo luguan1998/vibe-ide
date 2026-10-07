@@ -281,6 +281,11 @@ const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     label: 'Quick Open File',
     defaultKeys: 'Ctrl+KeyE',
   },
+  {
+    id: 'gitReplay.start',
+    label: 'Replay Git Changes',
+    defaultKeys: 'Ctrl+Alt+KeyP',
+  },
 ]
 
 const STORAGE_KEY = 'vibe-ide-keybindings'

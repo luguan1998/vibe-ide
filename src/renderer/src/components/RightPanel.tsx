@@ -2,13 +2,14 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useI18n } from '../i18n'
 
 import GitTab from './GitTab'
+
 import AuxTab from './AuxTab'
 import FileTab from './FileTab'
 import { PanelGitIcon, PanelDirIcon } from '../panelIcons'
 import GameLauncher from './GameLauncher'
 import BrowserView, { BrowserViewHandle } from './BrowserView'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
-import { AuxTerminalTab } from '@shared/types'
+import { AuxTerminalTab, GitFileStatus } from '@shared/types'
 
 interface RightPanelProps {
   workspacePath: string | null
@@ -39,6 +40,10 @@ interface RightPanelProps {
   onToggleCapsuleTabs?: () => void
   navigateToFilePayload?: { trigger: number; filePath: string } | null
   onNavigateToFile?: (filePath: string) => void
+  onReplaySourceChange?: (files: GitFileStatus[], toFullPath: (path: string) => string) => void
+  replayActive?: boolean
+  replayPaused?: boolean
+  onReplayClick?: () => void
   onExploreNode?: (node: any) => void
   lineHistoryPayload?: { filePath: string; lineNumber: number; rev?: string; staged?: boolean } | null
   brushActive?: boolean
@@ -450,6 +455,7 @@ function RightPanel({
   capsuleTabs = true,
   onToggleCapsuleTabs,
   navigateToFilePayload, onNavigateToFile,
+  onReplaySourceChange, replayActive, replayPaused, onReplayClick,
   onExploreNode,
   lineHistoryPayload,
   brushActive,
@@ -693,6 +699,10 @@ function RightPanel({
           onDiffScroll={onDiffScroll}
           onNavigateToFile={onNavigateToFile}
           lineHistoryPayload={lineHistoryPayload}
+          onReplaySourceChange={onReplaySourceChange}
+          replayActive={replayActive}
+          replayPaused={replayPaused}
+          onReplayClick={onReplayClick}
         />
       </div>
 

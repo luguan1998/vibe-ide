@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Editor, DiffEditor } from '@monaco-editor/react'
 import { useTheme } from '../themes'
+import { MIN_HUNK_DWELL_MS } from '../utils/gitReplay'
 import { ENCODING_GROUPS, DEFAULT_ENCODING } from '@shared/encodings'
 import { useI18n } from '../i18n'
 import { FileIcon } from './FileIcons'
@@ -254,6 +255,9 @@ interface DiffViewerProps {
   onRuntimeChange?: (rt: TabRuntime | null) => void
   onViewModeChange?: (mode: ViewMode) => void
   onUnreadableChange?: (fullPath: string, unreadable: boolean) => void  // 过大/二进制读不出内容（只剩 Force Open 占位）
+  // Git 回放：非空表示当前 tab 正在被回放，按改动处数把停留时长均分，依次滚过每一处
+  replayHunkNav?: { dwellMs: number; paused: boolean; speed: number } | null
+  onHunkCount?: (n: number) => void  // 改动处数上报（回放据此延长该文件停留）
 }
 
 type ViewMode = 'diff' | 'edit'
@@ -375,7 +379,7 @@ type JumpRow =
   | { kind: 'group'; key: string; label: string; count: number }
   | { kind: 'item'; item: JumpItem }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onOpenCallHierarchy, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange, onUnreadableChange }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onOpenCallHierarchy, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange, onUnreadableChange, replayHunkNav, onHunkCount }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -440,6 +444,11 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const revertingRef = useRef(false)
   const lineChangesRef = useRef<any[]>([])
   const changedModifiedLinesRef = useRef<Set<number>>(new Set())
+  // 改动处数（供回放逐处滚动均分时长）
+  const [diffHunkCount, setDiffHunkCount] = useState(0)
+  const hunkNavRef = useRef<{ timer: ReturnType<typeof setTimeout> | null; idx: number; key: string }>({ timer: null, idx: 0, key: '' })
+  const onHunkCountRef = useRef(onHunkCount)
+  onHunkCountRef.current = onHunkCount
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const enabledRef = useRef(false)
   const diffDisposablesRef = useRef<Array<{ dispose?: () => void }>>([])
@@ -1163,6 +1172,30 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     return () => document.removeEventListener('keydown', handlePageNav, true)
   }, [])
 
+  // 回放逐处滚动：把该文件的停留时长按改动处数均分，依次 goToDiff；暂停/调速跟随回放
+  useEffect(() => {
+    const h = hunkNavRef.current
+    if (h.timer) { clearTimeout(h.timer); h.timer = null }
+    if (h.key !== tabId) { h.key = tabId ?? ''; h.idx = 0 }
+    if (!replayHunkNav || replayHunkNav.paused || diffHunkCount < 2) return
+    const per = Math.max(MIN_HUNK_DWELL_MS, replayHunkNav.dwellMs / diffHunkCount) / replayHunkNav.speed
+    const tick = () => {
+      h.timer = setTimeout(() => {
+        h.timer = null
+        if (h.idx >= diffHunkCount - 1) return
+        h.idx += 1
+        try { diffEditorRef.current?.goToDiff('next') } catch {}
+        tick()
+      }, per)
+    }
+    tick()
+    return () => { if (h.timer) { clearTimeout(h.timer); h.timer = null } }
+  }, [tabId, replayHunkNav?.dwellMs, replayHunkNav?.speed, replayHunkNav?.paused, diffHunkCount])
+
+  useEffect(() => {
+    onHunkCountRef.current?.(diffHunkCount)
+  }, [diffHunkCount])
+
   // Encoding context menu outside-click dismissal
   useEffect(() => {
     if (!encodingContextMenu) return
@@ -1568,6 +1601,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                 const changes = editor.getLineChanges()
                 lineChangesRef.current = changes ? changes.slice() : []
                 changedModifiedLinesRef.current = buildChangedModifiedLines(lineChangesRef.current)
+                if (onHunkCountRef.current) setDiffHunkCount(lineChangesRef.current.length)
                 // 首次 diff 就绪：无指定行号时自动跳到第一处修改
                 if (!autoJumpedRef.current && !lineNumber && changes && changes.length > 0) {
                   autoJumpedRef.current = true
@@ -1580,6 +1614,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                   if (changes) {
                     lineChangesRef.current = changes.slice()
                     changedModifiedLinesRef.current = buildChangedModifiedLines(changes)
+                    if (onHunkCountRef.current) setDiffHunkCount(changes.length)
                   }
                 } catch {}
               }, 0)
