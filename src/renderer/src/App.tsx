@@ -3732,7 +3732,7 @@ export default function App() {
             onPanelViewChange={handleLeftPanelViewChange}
             panelContent={leftPanelsReady ? (
               <>
-                <div style={{ display: leftPanelView === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col">
+                <div style={{ display: leftPanelView === 'git' ? 'flex' : 'none' }} className="group flex-1 min-h-0 flex flex-col">
                   <GitTab
                     workspacePath={activeSessionCwd}
                     effectiveGitPath={leftEffectiveGitPath}

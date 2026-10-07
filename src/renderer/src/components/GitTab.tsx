@@ -1307,16 +1307,17 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
             )}
             {status.ahead > 0 && <span className="text-ide-success text-[11px]">↑{status.ahead}</span>}
           </div>
-          <button
-            onClick={() => onReplayClick?.()}
-            disabled={!replayActive && !status?.files?.length}
-            className={`transition-colors shrink-0 w-5 flex items-center justify-center focus:outline-none ${replayActive ? 'text-ide-accent' : status?.files?.length ? 'text-ide-text-muted hover:text-ide-text' : 'text-ide-text-muted opacity-40 cursor-default'}`}
-            title={replayActive ? (replayPaused ? t('Resume replay') : t('Pause replay')) : t('Replay Git Changes')}
-          >
-            {replayActive && !replayPaused
-              ? <Pause className="w-3.5 h-3.5" />
-              : <Play className="w-3.5 h-3.5" />}
-          </button>
+          {(replayActive || !!status?.files?.length) && (
+            <button
+              onClick={() => onReplayClick?.()}
+              className={`shrink-0 w-5 flex items-center justify-center focus:outline-none transition-opacity opacity-0 group-hover:opacity-100 ${replayActive ? 'text-ide-accent' : 'text-ide-text-muted hover:text-ide-text'}`}
+              title={replayActive ? (replayPaused ? t('Resume replay') : t('Pause replay')) : t('Replay Git Changes')}
+            >
+              {replayActive && !replayPaused
+                ? <Pause className="w-3.5 h-3.5" />
+                : <Play className="w-3.5 h-3.5" />}
+            </button>
+          )}
           <button
             onClick={() => setTreeView(v => !v)}
             className={`transition-colors shrink-0 w-5 flex items-center justify-center focus:outline-none ${treeView ? 'text-ide-accent' : 'text-ide-text-muted hover:text-ide-text'}`}
