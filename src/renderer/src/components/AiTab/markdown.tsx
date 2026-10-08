@@ -55,20 +55,28 @@ export const ChatMarkdown = React.memo(function ChatMarkdown({ text, className =
   )
 })
 
-// 流式渲染：只渲染到最后一个 CLOSED 代码围栏，未闭合代码块按 raw 展示，
-// 防止每个 token 导致 CodeBlock remount + 重新 colorize（闪烁）。
+// 流式渲染：切点落在最后一个「整行 ``` 起点」处，之后按 raw 展示，防止每个 token
+// 导致 CodeBlock remount + 重新 colorize（闪烁）。切点前的内容照常走块级 markdown。
 function splitStreamSegments(clean: string): { blocks: string[]; rawPart: string } {
   const fenceRe = /```/g
   let count = 0
-  let lastCloseIdx = -1
+  let lastFenceIdx = -1
   let m: RegExpExecArray | null
   while ((m = fenceRe.exec(clean)) !== null) {
+    // 只认「整行围栏」（行首可有缩进），与下方分块逻辑 /^\s*```/ 一致；
+    // 行内 ``` 不算围栏，否则会把一段正文从中间劈开
+    if (!/^\s*$/.test(clean.slice(clean.lastIndexOf('\n', m.index - 1) + 1, m.index))) continue
     count++
-    if (count % 2 === 0) lastCloseIdx = m.index + 3
+    lastFenceIdx = m.index
   }
+  // 切点取【最后一个围栏的起点】而非最后一个闭合点的末尾：未闭合时它前面的内容
+  // （含已闭合代码块、正文）照常块级渲染，只有从该围栏起才是 raw。用闭合点切会把
+  // 「已闭合块 + 其后的正文」一并卷进 raw，导致遇到第一个未闭合代码段时前面已渲染
+  // 好的 md 也退化成代码块外观。
   const isCodeOpen = count % 2 !== 0
-  const safePart = isCodeOpen ? (lastCloseIdx >= 0 ? clean.slice(0, lastCloseIdx) : '') : clean
-  const rawPart = isCodeOpen ? clean.slice(lastCloseIdx >= 0 ? lastCloseIdx : 0) : ''
+  const cut = isCodeOpen ? lastFenceIdx : clean.length
+  const safePart = clean.slice(0, cut)
+  const rawPart = clean.slice(cut)
 
   const blocks: string[] = []
   let cur = ''
