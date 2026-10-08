@@ -802,10 +802,12 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   useEffect(() => {
     if (editingPiped === null) return
     const el = pipedEditRef.current
-    if (el) {
-      el.focus({ preventScroll: true })
-      el.setSelectionRange(el.value.length, el.value.length)
-    }
+    if (!el) return
+    // editingPiped 每敲一个字都会变，本 effect 随之重跑；若不守门会把光标反复拽回末尾、无法编辑前文。
+    // 仅在刚进入编辑态（尚未聚焦）时聚焦并把光标置末，之后交由用户自由定位。
+    if (document.activeElement === el) return
+    el.focus({ preventScroll: true })
+    el.setSelectionRange(el.value.length, el.value.length)
   }, [editingPiped])
 
   useEffect(() => { setEditingPiped(null) }, [activeSessionId])

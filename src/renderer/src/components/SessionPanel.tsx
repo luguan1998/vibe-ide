@@ -2000,7 +2000,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               onClick={() => onCreateSession(termType)}
               className="w-full h-8 flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-ide-border text-xs text-ide-text-muted hover:text-ide-text hover:border-ide-accent hover:bg-ide-hover transition-colors"
             >
-              <FolderPlus size={12} />
+              <FolderPlus size={14} />
               {t('New Workspace')}
             </button>
           </div>
