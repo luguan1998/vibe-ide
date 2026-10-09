@@ -1969,7 +1969,7 @@ export default function App() {
           e.stopImmediatePropagation()
           const idx = historySelectedIndexRef.current
           if (cmds[idx]) {
-            window.api.terminal.write(activeSessionId, cmds[idx].replace(/\n/g, '\x1b\r') + '\r')
+            window.api.terminal.write(activeSessionId, cmds[idx] + '\r')
           }
           setShowHistory(false)
           return
@@ -4091,7 +4091,7 @@ export default function App() {
                         i === historySelectedIndex ? 'bg-ide-accent/20 text-ide-text' : 'text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
                       }`}
                       onClick={() => {
-                        window.api.terminal.write(activeSessionId, cmd.replace(/\n/g, '\x1b\r'))
+                        window.api.terminal.write(activeSessionId, cmd)
                         setShowHistory(false)
                       }}
                       onMouseEnter={() => setHistorySelectedIndex(i)}

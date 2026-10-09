@@ -262,16 +262,6 @@ const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: 'Alt+KeyF',
   },
   {
-    id: 'terminal.jumpPrevPrompt',
-    label: 'Jump to Previous Prompt',
-    defaultKeys: 'Alt+ArrowUp',
-  },
-  {
-    id: 'terminal.jumpNextPrompt',
-    label: 'Jump to Next Prompt',
-    defaultKeys: 'Alt+ArrowDown',
-  },
-  {
     id: 'view.togglePreview',
     label: 'Toggle Preview / Edit',
     defaultKeys: 'Ctrl+KeyL',

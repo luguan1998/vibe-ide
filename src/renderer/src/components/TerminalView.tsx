@@ -123,7 +123,7 @@ async function resolveAndOpenFile(
  * 清洗捕获的原始输入字节流，模拟 readline 行内编辑，还原用户意图的可见文本。
  * 回放时发干净文本，不再依赖运行时补全/调历史；Ctrl+C 取消的输入不进历史，避免乱码。
  * 已知退化：Tab 补全/方向键调历史的结果不在输入流中，清洗后记为补全/调出前的文本。
- * 保留 \n（Shift+Enter 换行标记，回放时由调用方还原为 \x1b\r）。
+ * 保留 \n（Ctrl+J 换行标记）。
  */
 function sanitizeTrackedCommand(raw: string): string {
   let out = ''
@@ -164,7 +164,7 @@ function sanitizeTrackedCommand(raw: string): string {
       continue
     }
     if (code < 0x20 && ch !== '\n') {
-      i++  // \t 等控制符丢弃，保留 \n（Shift+Enter 换行标记）
+      i++  // \t 等控制符丢弃，保留 \n（Ctrl+J 换行标记）
       continue
     }
     out += ch
@@ -176,7 +176,7 @@ function sanitizeTrackedCommand(raw: string): string {
 /**
  * 剥掉行首的 shell prompt / 水印前缀（如 ">|xterm.js(6.1.0-beta.290)"），只留命令本体。
  * 仅当行首疑似 prompt 字符(> $ # ❯ ┃ ▶ → λ ] ))时才剥，避免误伤行首为字母的纯命令。
- * 只处理第一行，保留 \n 续行（Shift+Enter 多行）。
+ * 只处理第一行，保留 \n 续行（Ctrl+J 多行）。
  */
 function stripPromptPrefix(s: string): string {
   const nl = s.indexOf('\n')
@@ -553,7 +553,9 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       allowProposedApi: true,
       drawBoldTextInBrightColors: false,
       rescaleOverlappingGlyphs: true,
-      vtExtensions: { kittyKeyboard: true },
+      // kittyKeyboard 关：ConPTY 会丢弃带冒号的 CSI，长按方向键的重复事件到不了子进程；
+      // 换行改发 Ctrl+J(0x0a)，claude code / pi 等 TUI 原生支持。
+      vtExtensions: { kittyKeyboard: false },
     } as any)
 
     const fitAddon = new FitAddon()
@@ -668,7 +670,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       if (eventMatchesBinding(e, newlineShortcutRef.current)) {
         e.preventDefault()
         e.stopImmediatePropagation()
-        window.api.terminal.write(sessionId, '\x1b\r')
+        window.api.terminal.write(sessionId, '\n')
         if (onCommand && term.buffer.active.type !== 'alternate') pendingInputRef.current += '\n'
         return
       }
@@ -856,7 +858,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         window.api.terminal.write(sessionId, data)
       }
 
-      // Capture actual sent bytes; flush on Enter (\r). Shift+Enter injects '\n' as newline marker, restored to \x1b\r on replay.
+      // Capture actual sent bytes; flush on Enter (\r). Ctrl+J injects '\n' as newline marker, replayed as-is.
       // flush 时清洗 readline 行内编辑控制符并剥 prompt 前缀，避免取消/补全/水印污染历史记录。
       if (onCommand && term.buffer.active.type !== 'alternate') {
         if (sent) pendingInputRef.current += data
