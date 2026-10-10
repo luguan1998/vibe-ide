@@ -44,7 +44,8 @@
   --dsh-accent: 65 118 230;
   --dsh-bubble: 237 243 254;                      /* deepseek-50 气泡 */
   --dsh-surface: 242 240 236;                      /* 暖灰，配暖米白主区 */
-  --dsh-shadow-lv1: 0 2px 4px 0 rgba(0 0 0 / 0.05);
+  /* lv1 不带 y 偏移：卡片在 6px 紧凑节奏里上下相邻，向下拖影会被读成"下方多一截间隔" */
+  --dsh-shadow-lv1: 0 0 4px 0 rgba(0 0 0 / 0.05);
   --dsh-shadow-lv2: 0 4px 12px 0 rgba(0 0 0 / 0.02), 0 2px 8px 0 rgba(0 0 0 / 0.04);
   --dsh-shadow-lv3: 0 0 1px 0 rgba(0 0 0 / 0.20), 0 0 4px 0 rgba(0 0 0 / 0.02), 0 12px 32px 0 rgba(0 0 0 / 0.08);
   --dsh-think: linear-gradient(180deg, #fff 20.19%, rgba(255 255 255 0) 100%); /* 顶部高光签名 */

@@ -6,7 +6,7 @@ import { cleanMessageContent } from '../../utils/aiConversationFormatter'
 import { ChevronDown, Check, Undo2, MessageSquare, GitBranch, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
 import { ToolIcon, AiToolCallCard, CompactToolSummary, isPureToolMessage } from './tools'
 import { ChatMarkdown } from './markdown'
-import { CONTENT_MAX_W, PANEL_MAX_W } from './layout'
+import { CONTENT_MAX_W, PANEL_MAX_W, MSG_GAP } from './layout'
 interface TodoItem {
   id: string
   subject: string
@@ -466,17 +466,17 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
   const toolCount = messages.reduce((acc, m) => acc + (m.toolUse ? m.toolUse.length : 0), 0)
   return (
     <div className={`ai-tab__agent-group w-full ${CONTENT_MAX_W} mx-auto animate-fade-in`}>
-      <div className="ml-2 pl-2 border-l-[3px] border-ide-accent/40 space-y-1">
+      <div className={`ml-2 pl-2 border-l-[3px] border-ide-accent/40 ${MSG_GAP}`}>
         <button
           onClick={() => setExpanded(v => !v)}
-          className="ai-tab__agent-toggle inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
+          className="ai-tab__agent-toggle flex w-fit items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 border border-ide-accent/20 transition-colors"
         >
           <span className="shrink-0"><ToolIcon category="agent" /></span>
           <span className="shrink-0 leading-none">Agent{(toolCount > 0) && ` (${toolCount} tools)`}</span>
           <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </button>
         {expanded && (
-          <div className="space-y-1">
+          <div className={MSG_GAP}>
             {messages.map((msg, i) => (
               <AiMessageBubble
                 key={i}
@@ -549,14 +549,14 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   }
 
   return (
-    <div className={`ai-tab__message ai-tab__message--assistant flex flex-col items-center space-y-1 ${isLive || wasLiveRef.current ? '' : 'animate-fade-in'}`}>
+    <div className={`ai-tab__message ai-tab__message--assistant flex flex-col items-center ${MSG_GAP} ${isLive || wasLiveRef.current ? '' : 'animate-fade-in'}`}>
       {errorStatus && (
         <div className={`ai-tab__status-pill w-full ${CONTENT_MAX_W} text-[9px] font-medium px-1 ${errorStatus.color}`}>
           {errorStatus!.label}
         </div>
       )}
       {hasContent && (
-        <div className={`ai-tab__message-content w-full ${CONTENT_MAX_W} space-y-1.5`}>
+        <div className={`ai-tab__message-content w-full ${CONTENT_MAX_W} ${MSG_GAP}`}>
           {/* isLive = 当前正在流式生成的那条消息（提交时 busy）。autoFold 让它展开态挂载无缝交接 busy 区
               thinking、下一帧平滑收起；历史消息 isLive=false 折叠挂载。isLive 另让本消息 root 跳过 fade-in（接管不透明）。
               精简模式：同样展开态挂载无缝交接，改由 Dwell 驻留 2s 后整块收起卸载；历史 / resume 的 stamp 已过期 → 整块不挂载 */}
@@ -874,7 +874,7 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     const uIdx = isRealUserInput(messages, item.index)
       ? userMessages.indexOf(msg)
       : -1
-    return (
+    const bubble = (
       <AiMessageBubble
         key={item.index}
         message={msg}
@@ -895,5 +895,13 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
         dwellContent={concise && !finalContentIdx.has(item.index)}
       />
     )
+    // 精简模式：整条都是过程噪音（thinking / 非末段正文 / 工具）的消息，连壳一起驻留收起。
+    // 壳本身不走 Dwell 时，内层块收起后会剩一个 0 高空壳，而列表的 MSG_GAP 照旧按它计一份间距——
+    // 一趟 30+ 步的长回合能堆出几百 px 空白。live 那条与末条 result 不裹（思考要交接给 busy 区、result 承载按钮）
+    if (concise && !(item.index === messages.length - 1 && busy) && msg.type !== 'result'
+      && msg.role === 'assistant' && !finalContentIdx.has(item.index)) {
+      return <Dwell key={item.index} dwell stamp={msg.timestamp ?? 0}>{bubble}</Dwell>
+    }
+    return bubble
   })}</>
 })

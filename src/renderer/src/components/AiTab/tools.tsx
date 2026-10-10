@@ -257,7 +257,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
     <div className={`ai-tab__tool-call block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in cursor-pointer select-none`} onClick={() => setExpanded(v => !v)}>
       <button
         type="button"
-        className={`ai-tab__tool-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${toolToggleTone(category)}`}
+        className={`ai-tab__tool-toggle flex w-fit items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${toolToggleTone(category)}`}
       >
         <span className="shrink-0"><ToolIcon category={category} /></span>
         <span className="shrink-0 leading-none">{tool.name}</span>
@@ -318,7 +318,7 @@ export function CompactToolSummary({ tools }: { tools: AiToolUse[] }) {
     <div className={`ai-tab__tools-summary ai-tab__tools-summary--compact block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in`}>
       <button
         onClick={() => setExpanded(v => !v)}
-        className={`ai-tab__tools-summary-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${toolToggleTone(getToolCategory(last.name))}`}
+        className={`ai-tab__tools-summary-toggle flex w-fit items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${toolToggleTone(getToolCategory(last.name))}`}
       >
         <span className="shrink-0"><ToolIcon category={getToolCategory(last.name)} /></span>
         <span className="shrink-0 leading-none">{last.name}</span>

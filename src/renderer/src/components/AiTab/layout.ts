@@ -6,3 +6,7 @@ export const CONTENT_W_MIN = 560
 export const CONTENT_W_MAX = 1400
 export const CONTENT_W_DEFAULT = 680
 
+// 会话流统一纵向节奏：消息内块间距(think 胶囊/正文/工具卡) / 消息之间 / 列表项之间 共用一份,
+// 否则 think↔tool 与 tool↔think 用的是两个不同数值,同一列里肉眼可见不等
+export const MSG_GAP = 'space-y-2'
+

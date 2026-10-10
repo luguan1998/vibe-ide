@@ -18,7 +18,7 @@ import type { MentionItem } from './inputArea'
 import { ClaudeLogoIcon } from '../ClaudeLogoIcon'
 import { PiLogoIcon } from '../PiLogoIcon'
 import type { AiBackend } from '@shared/types'
-import { CONTENT_MAX_W, PANEL_MAX_W, CONTENT_W_MIN, CONTENT_W_MAX, CONTENT_W_DEFAULT } from './layout'
+import { CONTENT_MAX_W, PANEL_MAX_W, CONTENT_W_MIN, CONTENT_W_MAX, CONTENT_W_DEFAULT, MSG_GAP } from './layout'
 function formatBytes(n: number): string {
   if (n < 1000) return `${n} B`
   if (n < 1000000) return `${(n / 1000).toFixed(1)} kB`
@@ -1612,7 +1612,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         <>
         <div className="ai-tab__scroll-wrap relative flex-1 min-h-0" onMouseMove={onScrollWrapMouseMove} onMouseLeave={() => setBottomBarHover(false)}>
         <div ref={attachScrollContainer} className={`ai-tab__messages h-full min-h-0 overflow-y-auto overflow-x-hidden px-2 pt-2 ${!atBottom ? 'pb-9' : 'pb-2'}`}>
-        <div ref={scrollContentRef} className="space-y-1">
+        <div ref={scrollContentRef} className={MSG_GAP}>
         <MessageList
           messages={state.messages}
           userTurns={state.userTurns}
@@ -1635,7 +1635,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         {/* isActive=false 的 AiTab 挂在 DOM 里但 display:none：不挂载 live 区，后台会话每次 flush 不再
             产生 markdown/thinking 渲染、动画与滚动量测（store 仍是唯一真相源，切回即补全 live 视图） */}
         <FadeOutOnUnmount visible={state.busy && isActive} duration={200}>
-          <div className={`ai-tab__busy w-full ${CONTENT_MAX_W} mx-auto space-y-1.5`}>
+          <div className={`ai-tab__busy w-full ${CONTENT_MAX_W} mx-auto ${MSG_GAP}`}>
             {Object.keys(state.runningTools).length > 0 && (
               viewMode === 0 ? (
                 <div className="ai-tab__live-tools flex items-center gap-1">
