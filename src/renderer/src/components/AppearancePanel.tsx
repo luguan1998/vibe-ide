@@ -717,7 +717,7 @@ const AppearancePanel = function AppearancePanel({
                       <div className="flex-1 border-t border-ide-border/60" />
                     </div>
                     <p className="text-[12px] text-ide-text-muted pb-1">
-                      {t('Precise go-to-definition. Nothing is loaded until you jump; the server is killed after 15 min idle.')}
+                      {t('Precise go-to-definition. Nothing is loaded until you jump; the server is killed after 60 min idle.')}
                     </p>
                     {onSetLspMultiDef && (
                       <SelectRow labelKey="Multiple Definitions" value={lspMultiDef} onChange={onSetLspMultiDef}

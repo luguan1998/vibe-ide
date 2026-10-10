@@ -11,7 +11,7 @@ import {
   type LspDefinitionArgs, type LspDefinitionResult, type LspLocation, type LspStatus
 } from '../shared/types'
 
-const IDLE_KILL_MS = 15 * 60 * 1000
+const IDLE_KILL_MS = 60 * 60 * 1000
 const INIT_TIMEOUT_MS = 30_000
 const REQUEST_TIMEOUT_MS = 20_000
 // 引用查找要扫整个工程，比单点 definition 慢得多
