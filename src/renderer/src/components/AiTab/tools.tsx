@@ -5,7 +5,7 @@ import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../../themes'
 import { Bot, ChevronDown, HelpCircle } from 'lucide-react'
 import { AiAskQuestionDetail } from './permissions'
-import { CONTENT_MAX_W } from './layout'
+import { CONTENT_MAX_W, MSG_GAP } from './layout'
 // ── Tool type classification ──────────────────────────────────────
 
 const COMMAND_TOOLS = new Set(['Bash', 'bash', 'terminal', 'run_command', 'execute_command'])
@@ -315,7 +315,7 @@ export function CompactToolSummary({ tools }: { tools: AiToolUse[] }) {
   const errors = tools.filter(t => t.result?.isError).length
   const detail = getToolDetail(last)
   return (
-    <div className={`ai-tab__tools-summary ai-tab__tools-summary--compact block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in`}>
+    <div className={`ai-tab__tools-summary ai-tab__tools-summary--compact block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in ${MSG_GAP}`}>
       <button
         onClick={() => setExpanded(v => !v)}
         className={`ai-tab__tools-summary-toggle flex w-fit items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${toolToggleTone(getToolCategory(last.name))}`}
@@ -328,7 +328,7 @@ export function CompactToolSummary({ tools }: { tools: AiToolUse[] }) {
         <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
       {expanded && (
-        <div className="ai-tab__tools-summary-list mt-px flex flex-col gap-px animate-fade-in">
+        <div className={`ai-tab__tools-summary-list flex flex-col ${MSG_GAP} animate-fade-in`}>
           {tools.map(tool => <AiToolCallCard key={tool.id} tool={tool} />)}
         </div>
       )}

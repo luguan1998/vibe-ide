@@ -10,6 +10,7 @@
   --ide-border: 48 42 38 !important;       /* 铁钉镶边 */
   --ide-hover: 30 26 23 !important;        /* 悬停点亮铁灰 */
   --ide-accent: 140 20 20 !important;      /* 注入血疗的陈血红 */
+  --ide-accent-hover: 78 201 176 !important; /* md 内联代码/悬停色：夺魂青绿，压掉主题自带电光蓝 */
   --ide-text: 175 165 145 !important;      /* 游戏原生淡金色/水银骨粉色 */
 }
 

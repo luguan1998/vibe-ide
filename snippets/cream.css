@@ -1,18 +1,12 @@
 /*
-  dsh 亮色融合复刻
+  cream 🍦
   设计语言：暖米白主区 #FAF9F6 + 纯白侧栏（"奶+白"双色分区，ChatGPT 签名）· DeepSeek 蓝 #4176E6 点缀
            · 极淡半透明边框(近乎零硬边) · 软分层阴影 · 8px 薄滚动条 · 22px 胶囊输入卡 + 聚焦蓝 glow
            · 选中蓝 tint 块 · 用户消息蓝底气泡 vs AI 透明 · 大圆角卡片
-  dsh 令牌源：vendor/harness/packages/client/ui-theme/lib/styles/*.css
-  ChatGPT 风格（sonnet 联网调研）：暖米白画布 / 白侧栏 / 药丸输入条+圆发送钮 / 用户消息着色块 / 零硬边框
-  自包含：覆盖 --ide-* 主题变量（!important 钉过 ThemeProvider 内联 1000 优先级）+ 结构构件，作用于整个 IDE chrome
-  不覆盖全局 UI 字体（保留 Consolas 偏好 [[project_ui-font-consolas-first]]），仅做配色与构件
-  终端画布钉 dsh 暗底 #151517，亮 chrome + 深终端 = 行业惯例，暗调色板可读
-  滚动条隔离 .dsh-view（[[reference-dsh-global-scrollbar-pollution]]），不染真 dsh 视图
 */
 
 :root {
-  /* ── dsh light 调色板（取自 design-platform.css body 块）── */
+  /* ── cream light 调色板（取自 design-platform.css body 块）── */
   --ide-bg: 250 249 246 !important;              /* 暖米白 #FAF9F6 主区（ChatGPT 签名画布）*/
   --ide-sidebar: 255 255 255 !important;          /* 纯白侧栏（奶+白双色分区）*/
   --ide-panel: 250 249 246 !important;             /* 暖米白右面板 */
@@ -34,30 +28,30 @@
   --focus-outline: 65 118 230 !important;
   --monaco-margin-bg: 250 249 246 !important;
 
-  /* ── dsh 结构令牌（复用，勿加 !important——非主题变量）── */
-  --dsh-border: rgba(0 0 0 / 0.04);               /* border-l1 近零硬边（ChatGPT 风）*/
-  --dsh-border-input: rgba(0 0 0 / 0.10);         /* border-l2 输入卡 */
-  --dsh-hover: rgba(38 49 72 / 0.05);             /* interactive-bg-hover 淡 wash */
-  --dsh-hover-strong: rgba(38 49 72 / 0.10);      /* interactive-bg-active */
-  --dsh-selected: rgba(65 118 230 / 0.16);        /* 选中蓝 tint（dsh nav-active）*/
-  --dsh-selected-soft: rgba(65 118 230 / 0.10);
-  --dsh-accent: 65 118 230;
-  --dsh-bubble: 237 243 254;                      /* deepseek-50 气泡 */
-  --dsh-surface: 242 240 236;                      /* 暖灰，配暖米白主区 */
+  /* ── cream 结构令牌（复用，勿加 !important——非主题变量）── */
+  --cream-border: rgba(0 0 0 / 0.04);               /* border-l1 近零硬边（ChatGPT 风）*/
+  --cream-border-input: rgba(0 0 0 / 0.10);         /* border-l2 输入卡 */
+  --cream-hover: rgba(38 49 72 / 0.05);             /* interactive-bg-hover 淡 wash */
+  --cream-hover-strong: rgba(38 49 72 / 0.10);      /* interactive-bg-active */
+  --cream-selected: rgba(65 118 230 / 0.16);        /* 选中蓝 tint（cream nav-active）*/
+  --cream-selected-soft: rgba(65 118 230 / 0.10);
+  --cream-accent: 65 118 230;
+  --cream-bubble: 237 243 254;                      /* deepseek-50 气泡 */
+  --cream-surface: 242 240 236;                      /* 暖灰，配暖米白主区 */
   /* lv1 不带 y 偏移：卡片在 6px 紧凑节奏里上下相邻，向下拖影会被读成"下方多一截间隔" */
-  --dsh-shadow-lv1: 0 0 4px 0 rgba(0 0 0 / 0.05);
-  --dsh-shadow-lv2: 0 4px 12px 0 rgba(0 0 0 / 0.02), 0 2px 8px 0 rgba(0 0 0 / 0.04);
-  --dsh-shadow-lv3: 0 0 1px 0 rgba(0 0 0 / 0.20), 0 0 4px 0 rgba(0 0 0 / 0.02), 0 12px 32px 0 rgba(0 0 0 / 0.08);
-  --dsh-think: linear-gradient(180deg, #fff 20.19%, rgba(255 255 255 0) 100%); /* 顶部高光签名 */
-  --dsh-r-card: 14px;
-  --dsh-r-chip: 8px;
-  --dsh-r-capsule: 22px;
+  --cream-shadow-lv1: 0 0 4px 0 rgba(0 0 0 / 0.05);
+  --cream-shadow-lv2: 0 4px 12px 0 rgba(0 0 0 / 0.02), 0 2px 8px 0 rgba(0 0 0 / 0.04);
+  --cream-shadow-lv3: 0 0 1px 0 rgba(0 0 0 / 0.20), 0 0 4px 0 rgba(0 0 0 / 0.02), 0 12px 32px 0 rgba(0 0 0 / 0.08);
+  --cream-think: linear-gradient(180deg, #fff 20.19%, rgba(255 255 255 0) 100%); /* 顶部高光签名 */
+  --cream-r-card: 14px;
+  --cream-r-chip: 8px;
+  --cream-r-capsule: 22px;
 }
 
 /* ── 标题栏 — 米白 + 极淡底边 ── */
 .titlebar-drag {
   background: rgb(var(--ide-bg)) !important;
-  border-bottom: 1px solid var(--dsh-border) !important;
+  border-bottom: 1px solid var(--cream-border) !important;
 }
 
 /* ── 会话面板 — 冷灰侧栏，session 项白卡片浮其上 ── */
@@ -70,44 +64,44 @@
 .session-panel__new-btn {
   border: none !important;
   background: transparent !important;
-  border-radius: var(--dsh-r-chip) !important;
+  border-radius: var(--cream-r-chip) !important;
   transition: background-color .12s, color .12s !important;
 }
 .session-panel__settings-btn:hover,
 .session-panel__new-btn:hover {
-  background: var(--dsh-hover) !important;
+  background: var(--cream-hover) !important;
   color: rgb(var(--ide-text)) !important;
 }
 .session-panel__settings-btn[class*="bg-ide-accent"] {
-  background: var(--dsh-selected) !important;
+  background: var(--cream-selected) !important;
   color: rgb(var(--ide-accent)) !important;
 }
 /* 配置菜单 — 白卡 + lv3 软影 + 极淡边 */
 .session-panel__settings-menu {
   background: rgb(255 255 255) !important;
-  border: 1px solid var(--dsh-border) !important;
-  border-radius: var(--dsh-r-card) !important;
-  box-shadow: var(--dsh-shadow-lv3) !important;
+  border: 1px solid var(--cream-border) !important;
+  border-radius: var(--cream-r-card) !important;
+  box-shadow: var(--cream-shadow-lv3) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
-.session-panel__settings-menu button { border-radius: var(--dsh-r-chip) !important; border: none !important; }
+.session-panel__settings-menu button { border-radius: var(--cream-r-chip) !important; border: none !important; }
 .session-panel__settings-menu button:hover {
-  background: var(--dsh-hover) !important;
+  background: var(--cream-hover) !important;
   color: rgb(var(--ide-text)) !important;
 }
 
-/* 会话项 — 白底圆角卡，hover 淡 wash，选中蓝 tint（dsh nav-active 语言）*/
+/* 会话项 — 白底圆角卡，hover 淡 wash，选中蓝 tint（cream nav-active 语言）*/
 .session-item {
   border: none !important;
   background: transparent !important;            /* 融入白侧栏，hover/选中块更突出（ChatGPT 风）*/
-  border-radius: var(--dsh-r-chip) !important;
+  border-radius: var(--cream-r-chip) !important;
   box-shadow: none !important;
   transition: background-color .12s, color .12s !important;
 }
-.session-item:hover { background: var(--dsh-hover) !important; }
+.session-item:hover { background: var(--cream-hover) !important; }
 .session-item--active {
-  background: var(--dsh-selected) !important;
+  background: var(--cream-selected) !important;
   color: rgb(var(--ide-accent)) !important;
   border-left: none !important;
   box-shadow: inset 0 0 0 1px rgba(65 118 230 / 0.12) !important;
@@ -122,7 +116,7 @@
 }
 /* 运行中非选中 — 淡蓝 wash + 极淡 inset 线 */
 .session-item.border-ide-accent\/60:not(.session-item--active) {
-  background: var(--dsh-selected-soft) !important;
+  background: var(--cream-selected-soft) !important;
   border-left: none !important;
   box-shadow: inset 0 0 0 1px rgba(65 118 230 / 0.10) !important;
 }
@@ -130,7 +124,7 @@
   background: rgba(65 118 230 / 0.14) !important;
 }
 
-/* 会话分组 — 平头小标题（dsh 风格，无大写无背景）*/
+/* 会话分组 — 平头小标题（cream 风格，无大写无背景）*/
 .session-group { border: none !important; background: transparent !important; }
 .session-group + .session-group { margin-top: 4px !important; }
 .session-group__header { border: none !important; background: transparent !important; }
@@ -144,37 +138,37 @@
 .session-group__path { color: rgb(var(--ide-text)) !important; font-weight: 600 !important; }
 .session-panel__flat-list { background: transparent !important; border: none !important; }
 
-/* ── 终端 — dsh 暗底画布 + 极淡边 + 软影（亮 chrome / 深终端惯例）── */
+/* ── 终端 — cream 暗底画布 + 极淡边 + 软影（亮 chrome / 深终端惯例）── */
 .term-view__canvas {
-  background: rgb(21 21 23) !important;            /* dsh dark bg-base neutral-bluish-950 */
-  border: 1px solid var(--dsh-border) !important;
-  border-radius: var(--dsh-r-chip) !important;
-  box-shadow: var(--dsh-shadow-lv1) !important;
+  background: rgb(21 21 23) !important;            /* cream dark bg-base neutral-bluish-950 */
+  border: 1px solid var(--cream-border) !important;
+  border-radius: var(--cream-r-chip) !important;
+  box-shadow: var(--cream-shadow-lv1) !important;
 }
-.term-view__header { border-bottom: 1px solid var(--dsh-border) !important; background: transparent !important; }
+.term-view__header { border-bottom: 1px solid var(--cream-border) !important; background: transparent !important; }
 .term-view__search {
   background: rgb(255 255 255) !important;
-  border: 1px solid var(--dsh-border-input) !important;
-  border-radius: var(--dsh-r-chip) !important;
+  border: 1px solid var(--cream-border-input) !important;
+  border-radius: var(--cream-r-chip) !important;
 }
 
 /* ── 文件树 — 源列表：8px 圆角项 + 淡 wash + 蓝 tint 选中 ── */
-.file-tab__header { border-bottom: 1px solid var(--dsh-border) !important; }
+.file-tab__header { border-bottom: 1px solid var(--cream-border) !important; }
 .file-tree-item {
   border: none !important;
-  border-radius: var(--dsh-r-chip) !important;
+  border-radius: var(--cream-r-chip) !important;
   transition: background-color .12s !important;
 }
-.file-tree-item:hover { background: var(--dsh-hover) !important; }
+.file-tree-item:hover { background: var(--cream-hover) !important; }
 .file-tree-item--active {
-  background: var(--dsh-selected) !important;
+  background: var(--cream-selected) !important;
   border-left: none !important;
-  border-radius: var(--dsh-r-chip) !important;
+  border-radius: var(--cream-r-chip) !important;
   box-shadow: inset 0 0 0 1px rgba(65 118 230 / 0.12) !important;
 }
 .file-tree-item--active .file-tree-item__name { color: rgb(var(--ide-accent)) !important; }
 .file-tree-item--folder > .file-tree-item__name { color: rgb(var(--ide-text)) !important; font-weight: 600 !important; }
-.file-tab__section { border-top: 1px solid var(--dsh-border) !important; }
+.file-tab__section { border-top: 1px solid var(--cream-border) !important; }
 .file-tab__section-header {
   border: none !important;
   background: transparent !important;
@@ -186,9 +180,9 @@
 }
 
 /* ── Git 面板 ── */
-.git-tab__header { border-bottom: 1px solid var(--dsh-border) !important; }
+.git-tab__header { border-bottom: 1px solid var(--cream-border) !important; }
 .git-tab__branch-name { color: rgb(var(--ide-accent)) !important; font-weight: 600 !important; }
-.git-tab__section { border-bottom: 1px solid var(--dsh-border) !important; }
+.git-tab__section { border-bottom: 1px solid var(--cream-border) !important; }
 .git-tab__section-header {
   border: none !important;
   text-transform: none !important;
@@ -199,19 +193,19 @@
 }
 .git-tab__file-item {
   border: none !important;
-  border-radius: var(--dsh-r-chip) !important;
+  border-radius: var(--cream-r-chip) !important;
   transition: background-color .12s !important;
 }
-.git-tab__file-item:hover { background: var(--dsh-hover) !important; }
+.git-tab__file-item:hover { background: var(--cream-hover) !important; }
 .git-tab__file-item[class*="bg-ide-accent"] {
-  background: var(--dsh-selected) !important;
+  background: var(--cream-selected) !important;
   box-shadow: inset 0 0 0 1px rgba(65 118 230 / 0.12) !important;
 }
-.git-tab__commit-area { border-top: 1px solid var(--dsh-border) !important; background: transparent !important; }
+.git-tab__commit-area { border-top: 1px solid var(--cream-border) !important; background: transparent !important; }
 .git-tab__commit-input {
   background: rgb(255 255 255) !important;
-  border: 1px solid var(--dsh-border-input) !important;
-  border-radius: var(--dsh-r-chip) !important;
+  border: 1px solid var(--cream-border-input) !important;
+  border-radius: var(--cream-r-chip) !important;
   color: rgb(var(--ide-text)) !important;
   transition: border-color .12s, box-shadow .12s !important;
 }
@@ -225,9 +219,9 @@
   border: none !important;
   background: rgb(var(--ide-accent)) !important;
   color: #fff !important;
-  border-radius: var(--dsh-r-chip) !important;
+  border-radius: var(--cream-r-chip) !important;
   font-weight: 500 !important;
-  box-shadow: var(--dsh-shadow-lv1) !important;
+  box-shadow: var(--cream-shadow-lv1) !important;
   transition: background-color .12s !important;
 }
 .git-tab__commit-btn:hover { background: rgb(var(--ide-accent-hover)) !important; }
@@ -235,29 +229,29 @@
 /* ── 右侧面板 — 白卡 + 分段 tab ── */
 .right-panel__content {
   background: rgb(var(--ide-panel)) !important;
-  border: 1px solid var(--dsh-border) !important;
+  border: 1px solid var(--cream-border) !important;
   border-top: none !important; /* tab 与内容页之间不留横线 */
-  border-radius: var(--dsh-r-card) !important;
-  box-shadow: var(--dsh-shadow-lv1) !important;
+  border-radius: var(--cream-r-card) !important;
+  box-shadow: var(--cream-shadow-lv1) !important;
 }
 .right-panel__tab-bar { border-bottom: none !important; }
 .right-panel__tab {
   border: none !important;
   background: transparent !important;
-  border-radius: var(--dsh-r-chip) !important;
+  border-radius: var(--cream-r-chip) !important;
   font-size: 12px !important;
   font-weight: 500 !important;
   transition: background-color .12s, color .12s !important;
 }
-.right-panel__tab:hover { background: var(--dsh-hover) !important; }
+.right-panel__tab:hover { background: var(--cream-hover) !important; }
 .right-panel__tab--active {
-  background: var(--dsh-selected) !important;
+  background: var(--cream-selected) !important;
   color: rgb(var(--ide-accent)) !important;
   box-shadow: inset 0 0 0 1px rgba(65 118 230 / 0.12) !important;
 }
 
 /* ── AiTab — 发送圆钮/气泡/卡片（输入框本身不覆写，保留组件原样）── */
-.ai-tab__header { border-bottom: 1px solid var(--dsh-border) !important; }
+.ai-tab__header { border-bottom: 1px solid var(--cream-border) !important; }
 .ai-tab__send-btn {
   background: rgb(var(--ide-accent)) !important;
   color: #fff !important;
@@ -273,7 +267,7 @@
 .ai-tab__send-btn:disabled { opacity: 0.4 !important; }
 /* 用户气泡 — deepseek-50 蓝底块（着色块 vs AI 透明，ChatGPT 对比模式）*/
 .ai-tab__user-bubble {
-  background: rgb(var(--dsh-bubble)) !important;
+  background: rgb(var(--cream-bubble)) !important;
   border-radius: 16px !important;
   color: rgb(var(--ide-text)) !important;
 }
@@ -285,20 +279,20 @@
 .ai-tab__model-btn {
   border: none !important;
   background: transparent !important;
-  border-radius: var(--dsh-r-chip) !important;
+  border-radius: var(--cream-r-chip) !important;
   transition: background-color .12s !important;
 }
 .ai-tab__mode-btn:hover,
-.ai-tab__model-btn:hover { background: var(--dsh-hover) !important; }
+.ai-tab__model-btn:hover { background: var(--cream-hover) !important; }
 /* 工具/计划/问题/权限 卡片 — 白卡 + lv1 软影 */
 .ai-tab__tool-call,
 .ai-tab__plan-overlay,
 .ai-tab__question-card,
 .ai-tab__permission-card {
   background: rgb(255 255 255) !important;
-  border: 1px solid var(--dsh-border) !important;
-  border-radius: var(--dsh-r-card) !important;
-  box-shadow: var(--dsh-shadow-lv1) !important;
+  border: 1px solid var(--cream-border) !important;
+  border-radius: var(--cream-r-card) !important;
+  box-shadow: var(--cream-shadow-lv1) !important;
 }
 /* tool 卡 — 白底 pill + 整卡点击展开：toggle pill 纯白底无装饰（简洁，融入白卡）；
    点击回调在整卡（cursor:pointer），药丸冒泡触发不双开；折叠态整卡 hover 浅米白提示可点
@@ -319,42 +313,42 @@
 }
 .ai-tab__tool-call > .ai-tab__tool-detail-panel { width: 100% !important; }
 /* thinking 胶囊与工具白卡对齐：工具 pill 无边框（icon 在 6px），thinking 自带 1px 边框会把 icon 挤右 1px，
-   dsh 语言近零硬边，去边框后左边缘与 icon 同时归位 */
+   cream 语言近零硬边，去边框后左边缘与 icon 同时归位 */
 .ai-tab__thinking-toggle { border: none !important; }
 /* 空态 — 蓝色图标 + 描边示例按钮 */
 .ai-tab__empty-icon { color: rgb(var(--ide-accent)) !important; }
 .ai-tab__example-btn {
-  border: 1px solid var(--dsh-border) !important;
+  border: 1px solid var(--cream-border) !important;
   background: transparent !important;
-  border-radius: var(--dsh-r-chip) !important;
+  border-radius: var(--cream-r-chip) !important;
   color: rgb(var(--ide-text-muted)) !important;
   transition: background-color .12s, border-color .12s, color .12s !important;
 }
 .ai-tab__example-btn:hover {
-  background: var(--dsh-hover) !important;
+  background: var(--cream-hover) !important;
   border-color: rgb(65 118 230 / 0.3) !important;
   color: rgb(var(--ide-accent)) !important;
 }
 
-/* ── 滚动条 — dsh 8px 薄轨/透明底/中性灰细圆头，默认隐藏 hover 才显
-   （隔离 .dsh-view，不染真 dsh 视图）── */
-#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
-#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-track { background: transparent !important; }
-#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb {
+/* ── 滚动条 — cream 8px 薄轨/透明底/中性灰细圆头，默认隐藏 hover 才显
+   （隔离 .cream-view，不染真 cream 视图）── */
+#root :not(.cream-view, .cream-view *)::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+#root :not(.cream-view, .cream-view *)::-webkit-scrollbar-track { background: transparent !important; }
+#root :not(.cream-view, .cream-view *)::-webkit-scrollbar-thumb {
   background: transparent !important;
   border-radius: 999px !important;
   border: 2px solid transparent !important;
   background-clip: content-box !important;
 }
-#root :not(.dsh-view, .dsh-view *):hover::-webkit-scrollbar-thumb {
+#root :not(.cream-view, .cream-view *):hover::-webkit-scrollbar-thumb {
   background: rgb(var(--scrollbar-thumb)) !important;
   background-clip: content-box !important;
 }
-#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-thumb:hover {
+#root :not(.cream-view, .cream-view *)::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--scrollbar-thumb-hover)) !important;
   background-clip: content-box !important;
 }
-#root :not(.dsh-view, .dsh-view *)::-webkit-scrollbar-corner { background: transparent !important; }
+#root :not(.cream-view, .cream-view *)::-webkit-scrollbar-corner { background: transparent !important; }
 /* xterm 自绘滚动条同款（runtime 注入 .xterm-slider background，需 !important 覆盖）*/
 .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
   background: rgb(var(--scrollbar-thumb)) !important;
@@ -371,18 +365,18 @@
 /* ── 模态/弹层 — 白卡 + lv3 软影 + 极淡边 ── */
 .fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
   background: rgb(255 255 255) !important;
-  border: 1px solid var(--dsh-border) !important;
-  border-radius: var(--dsh-r-card) !important;
-  box-shadow: var(--dsh-shadow-lv3) !important;
+  border: 1px solid var(--cream-border) !important;
+  border-radius: var(--cream-r-card) !important;
+  box-shadow: var(--cream-shadow-lv3) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
-.fixed.inset-0.z-50 button { border-radius: var(--dsh-r-chip) !important; }
+.fixed.inset-0.z-50 button { border-radius: var(--cream-r-chip) !important; }
 .fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
   background: rgb(255 255 255) !important;
-  border: 1px solid var(--dsh-border) !important;
-  border-radius: var(--dsh-r-card) !important;
-  box-shadow: var(--dsh-shadow-lv2) !important;
+  border: 1px solid var(--cream-border) !important;
+  border-radius: var(--cream-r-card) !important;
+  box-shadow: var(--cream-shadow-lv2) !important;
 }
 
 /* ── 全局复选/选中/聚焦 ── */
