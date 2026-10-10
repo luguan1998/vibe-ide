@@ -104,7 +104,8 @@
       "node_modules/@tesseract.js-data/**",
       "node_modules/pyright/**",
       "node_modules/typescript/**",
-      "node_modules/typescript-language-server/**"
+      "node_modules/typescript-language-server/**",
+      "node_modules/node-pty/**"
     ]
   },
   "dependencies": {

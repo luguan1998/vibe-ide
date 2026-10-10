@@ -5,6 +5,24 @@ import { join, dirname } from 'path'
 import * as pty from 'node-pty'
 import { IPC_CHANNELS, CreateTerminalOptions, TerminalSession } from '../shared/types'
 
+// node-pty 默认走系统 ConPTY，它会吞掉 1049/1000/1002/1003/1006，只透传 1004：于是 xterm 进不了
+// alternate screen、mouseTrackingMode 恒为 none → 全屏 TUI(pi 等) 的滚轮既不上报也不滚 scrollback。
+// 改用 node-pty 自带的 conpty.dll(支持 passthrough)，这些 mode 原样到达外层终端，xterm 回落到
+// 标准协议：滚轮上报 + 原生视口滚动都能用。
+// 该 dll 由 conpty.cc 从 pty.node 同目录的 conpty\conpty.dll 加载，故守卫按 node-pty 自己的
+// 原生模块查找顺序(build/Release → build/Debug → prebuilds)定位同一目录，缺任一文件即退回系统 ConPTY。
+// 打包版依赖 node_modules/node-pty/** 走 asarUnpack，否则 dll 困在 asar 内加载不到(见 package.json)。
+function nativeModuleRoots(): string[] {
+  const root = join(dirname(require.resolve('node-pty')), '..')
+  return [
+    join(root, 'build', 'Release'),
+    join(root, 'build', 'Debug'),
+    join(root, 'prebuilds', `${process.platform}-${process.arch}`)
+  ]
+}
+const useConptyDll = process.platform === 'win32' &&
+  nativeModuleRoots().some(d => existsSync(join(d, 'pty.node')) && existsSync(join(d, 'conpty', 'conpty.dll')))
+
 interface ManagedPty {
   pty: pty.IPty
   session: TerminalSession
@@ -141,14 +159,23 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUt
       // (win32 + WT_SESSION)或 VS Code/mintty 环境下启用 bracketed paste,
       // 而 CC 的图片拖入识别必须以 bracketed paste 帧送达为前提
       WT_SESSION: process.env.WT_SESSION || 'vibe-ide'
-    }) as Record<string, string>
+    }) as Record<string, string>,
+    useConptyDll,
   })
 
   const doStartupInit = autoUtf8 !== false || !!initCommand
   let startupDone = !doStartupInit
 
   ptyProcess.onData((data: string) => {
-    if (!startupDone) return
+    if (!startupDone) {
+      // conpty.dll 起手会发 \x1b[c(DA1) 设备查询并等终端应答，收不到应答就卡到 ~3s 超时才出
+      // 提示符。主进程就地应答，不依赖渲染层(xterm)；门内照旧把这段吞掉，xterm 见不到 \x1b[c
+      // 就不会重复应答。系统 ConPTY 不发这些查询，故仅 dll 路径需要。
+      if (useConptyDll && data.includes('\x1b[c')) {
+        try { ptyProcess.write('\x1b[?1;2c') } catch {}
+      }
+      return
+    }
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, { id, data })
     }
