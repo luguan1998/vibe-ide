@@ -30,6 +30,8 @@ const EN_MAP: Record<string, string> = {
   'Open CSS Config': 'Open CSS',
   // 右键菜单双列按钮，完整词过长
   'Clear Screen': 'Clear',
+  // 输入框白字提示补操作说明，key 本身不含
+  'Type a message...': 'Type a message, Shift+Enter newline, Ctrl+Enter interject...',
 }
 
 const ZH_MAP: Record<string, string> = {
@@ -509,7 +511,7 @@ const ZH_MAP: Record<string, string> = {
   'Exclude folders': '排除文件夹',
   // AI Tab
   'Ask AI to help with your code...': '让 AI 帮你写代码...',
-  'Type a message...': '输入消息，Shift+Enter 换行...',
+  'Type a message...': '输入消息，Shift+Enter 换行，Ctrl+Enter 插话...',
   'Initializing...': '初始化中...',
   'Approve': '批准',
   'Deny': '拒绝',

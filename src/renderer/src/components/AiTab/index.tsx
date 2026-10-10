@@ -838,13 +838,19 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     setEditingPiped(null)
   }, [activeSessionId, editingPiped, updateSession])
 
-  // ── Send handler (immediate, idle only) ──
-  const handleSend = useCallback(async () => {
-    if (!activeSessionId || !inputValue.trim() || state.busy) return
+  // ── 立即派发输入框内容（busy 时即插话，不排队）──
+  const dispatchInput = useCallback(async () => {
     const message = inputValue.trim()
+    if (!activeSessionId || !message) return
     setInputValue('')
     await dispatchMessage(message)
-  }, [activeSessionId, inputValue, state.busy, setInputValue, dispatchMessage])
+  }, [activeSessionId, inputValue, setInputValue, dispatchMessage])
+
+  // ── Send handler (immediate, idle only) ──
+  const handleSend = useCallback(async () => {
+    if (state.busy) return
+    await dispatchInput()
+  }, [state.busy, dispatchInput])
 
   // ── Enter key: pipe while busy, send when idle ──
   // While the agent is running, Enter appends the draft to a per-session
@@ -1213,7 +1219,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   }
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
-                    handleEnter()
+                    if (e.ctrlKey || e.metaKey) void dispatchInput()
+                    else handleEnter()
                   }
                 }}
                 placeholder={state.ready ? t('Type a message...') : t('Initializing...')}
