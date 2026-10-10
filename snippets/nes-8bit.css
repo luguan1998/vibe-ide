@@ -171,26 +171,10 @@ html, body, #root {
 .session-group:first-child {
   margin-top: 0.5rem !important;
 }
-/* 右下角 NES 像素 <> 按钮 — 挂在 sessions 容器上避免被遮挡 */
-.session-group > div:last-child {
-  position: relative !important;
+/* 组间距 — app 默认 mt-3(12px) 被标题栏的 -0.6rem 上提吃掉大半，视觉上几乎贴住 */
+.session-group + .session-group {
+  margin-top: 1.25rem !important;
 }
-.session-group > div:last-child::after {
-  content: '' !important;
-  position: absolute !important;
-  right: 1px !important;
-  bottom: 1px !important;
-  z-index: 10 !important;
-  width: 18px !important;
-  height: 18px !important;
-  border: 2px solid rgb(var(--ide-border)) !important;
-  background-color: #209cee !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Crect width='14' height='14' fill='%23209cee'/%3E%3Crect x='4' y='4' width='2' height='1' fill='white'/%3E%3Crect x='3' y='5' width='2' height='1' fill='white'/%3E%3Crect x='2' y='6' width='2' height='1' fill='white'/%3E%3Crect x='1' y='7' width='2' height='1' fill='white'/%3E%3Crect x='2' y='8' width='2' height='1' fill='white'/%3E%3Crect x='3' y='9' width='2' height='1' fill='white'/%3E%3Crect x='4' y='10' width='2' height='1' fill='white'/%3E%3Crect x='8' y='4' width='2' height='1' fill='white'/%3E%3Crect x='9' y='5' width='2' height='1' fill='white'/%3E%3Crect x='10' y='6' width='2' height='1' fill='white'/%3E%3Crect x='11' y='7' width='2' height='1' fill='white'/%3E%3Crect x='10' y='8' width='2' height='1' fill='white'/%3E%3Crect x='9' y='9' width='2' height='1' fill='white'/%3E%3Crect x='8' y='10' width='2' height='1' fill='white'/%3E%3C/svg%3E") !important;
-  background-size: 14px 14px !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-}
-
 /* 分组标题栏 — 嵌在上边框上（仿 nes-container with-title）
    左沿对齐组内会话行图标：标题 x = 2px 边框 + margin-left + 6.4px padding，须 = 行内 2px 边框 + 18px padding（改一处必须同改 .session-item 的 padding-left） */
 .session-group__header {
@@ -202,20 +186,26 @@ html, body, #root {
   border-bottom: none !important;
   border-radius: 0 !important;
 }
-/* 标题右侧按钮（历史会话/新建终端）— hover 才显示；隐藏时 absolute 脱流 + 透明 + 点击穿透，标题保持窄，不挡边框线 */
-.session-group__header { position: relative !important; }
+/* 标题右侧按钮（省略号/新建会话）— hover 才显示；隐藏时绝对定位脱流 + 透明 + 点击穿透
+   包含块必须是 .session-group（标题栏 fit-content，挂它身上按钮只能跟着标题跑）：
+   标题栏 position 改 static 才轮得到组容器，globals.css 里那个 relative 不然会继续吃掉定位
+   禁用 transform：本 div 内的 + 号菜单是 position:fixed，祖先一旦有 transform 就成为它的包含块，
+   视口坐标的 left/top 全错位，且被 .session-panel__list 的 overflow 裁掉 → 弹窗彻底不显示。
+   垂直用 margin：top:0 是内容顶（边框内 2px），标题上提 0.6rem + 8px 半高 → 再减 10px（h-5 图标一半）对齐标题中线 */
+.session-group__header {
+  position: static !important;
+}
 .session-group__header > div:last-child {
   position: absolute !important;
-  left: 100% !important;
-  top: 50% !important;
-  /* 居中禁用 transform：本 div 内的 + 号菜单是 position:fixed，祖先一旦有 transform 就成为它的包含块，
-     视口坐标的 left/top 全错位，且被 .session-panel__list 的 overflow 裁掉 → 弹窗彻底不显示。
-     改用 margin 上提 10px（= h-5 图标 20px 的一半） */
-  margin-top: -10px !important;
+  right: 2px !important;
+  top: 0 !important;
+  margin-top: -11.6px !important;
   opacity: 0 !important;
   pointer-events: none !important;
   transition: opacity 0.12s ease !important;
 }
+/* 触发区放大到整组（标题栏被 fit-content 收窄，原先要压到名字上才出按钮） */
+.session-group:hover > .session-group__header > div:last-child,
 .session-group__header:hover > div:last-child,
 .session-group__header > div:last-child:hover {
   opacity: 1 !important;
