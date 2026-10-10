@@ -348,18 +348,11 @@ function dispatchBtwReply(detail: { pending?: boolean; text?: string | null; err
 export default function App() {
   const { t } = useI18n()
   const [initialWorkspace] = useState(loadSessionWorkspace)
-  // 一个 cwd 只恢复一个 terminal tab（其余丢弃），gui 不变
-  const initialTabs = useMemo(() => {
-    const all = initialWorkspace?.sessions.flatMap(s => s.tabs) ?? []
-    const seen = new Set<string>()
-    return all.filter(t => {
-      if (t.kind !== 'terminal') return true
-      const key = t.cwd.replace(/\\/g, '/').replace(/\/+$/, '')
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-  }, [initialWorkspace])
+  // 所有 terminal 一律恢复（按需加载：首次成为 active 时才建真实 PTY，见 ensureSessionLoaded）
+  const initialTabs = useMemo(
+    () => initialWorkspace?.sessions.flatMap(s => s.tabs) ?? [],
+    [initialWorkspace],
+  )
   const [sessions, setSessions] = useState<SessionTab[]>(initialTabs)
   const keptGroups = useKeptGroups()
   // 稳定分组顺序:会话数组按创建序混杂插入,组序若按"首现位置"推导,删除组内会话会令该组位置跳变导致排布错位。
@@ -623,6 +616,8 @@ export default function App() {
   const pipeRunnersRef = useRef<Map<string, { cancelled: boolean; resolveIdle: (() => void) | null; sleepTimer: ReturnType<typeof setTimeout> | null; sleepResolve: (() => void) | null }>>(new Map())
   const pipeQueueRef = useRef<Map<string, string[]>>(new Map())
   const pipeProcessingRef = useRef<Map<string, boolean>>(new Map())
+  // pipe 前需确保目标 session 已加载出真实 PTY（定时任务命中未点开过的会话时用）
+  const ensureSessionLoadedRef = useRef<((id: string) => Promise<void>) | null>(null)
   const terminalBusyRef = useRef<Record<string, boolean>>({})
   const aiBusyRef = useRef<Record<string, boolean>>({})
   const [warnSessions, setWarnSessions] = useState<Record<string, boolean>>({})
@@ -835,48 +830,6 @@ export default function App() {
     }
     saveSessionWorkspace({ activeTabId: activeSessionId, sessions: sessionContainers })
   }, [stableSessions, activeSessionId])
-
-  // 恢复的终端 tab 直接后台创建真实 PTY，不需要用户点击
-  React.useEffect(() => {
-    const terminalTabs = initialTabs.filter(t => t.kind === 'terminal')
-    if (terminalTabs.length === 0) return
-    let cancelled = false
-    void (async () => {
-      for (const tab of terminalTabs) {
-        if (cancelled) break
-        try {
-          if (!sessionsRef.current.some(s => s.id === tab.id)) continue
-          const real = await window.api.terminal.create({
-            cwd: tab.cwd,
-            shell: getMainShellType(),
-            autoUtf8,
-            initCommand: readDefaultAgent(),
-          })
-          const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true, emoji: tab.emoji }
-          if (cancelled) {
-            await window.api.terminal.close(real.id)
-            break
-          }
-          if (!sessionsRef.current.some(s => s.id === tab.id)) {
-            await window.api.terminal.close(real.id)
-            continue
-          }
-          setSessions(prev => {
-            if (!prev.some(s => s.id === tab.id)) return prev
-            const idx = prev.findIndex(s => s.id === tab.id)
-            const next = prev.filter(s => s.id !== tab.id)
-            next.splice(Math.min(idx, next.length), 0, realTab)
-            return next
-          })
-          setActiveSessionId(prev => prev === tab.id ? real.id : prev)
-        } catch (err) {
-          console.error('Failed to restore terminal session:', err)
-        }
-      }
-    })()
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // AI ready 时记录 CC GUI 的真实 Claude session id，供重启后 --resume 恢复
   React.useEffect(() => {
@@ -1363,6 +1316,11 @@ export default function App() {
     pipeRunnersRef.current.set(sessionId, runner)
     setPipeRunning(prev => ({ ...prev, [sessionId]: true }))
     setPipeProgress(prev => ({ ...prev, [sessionId]: { current: 0, total: lines.length + queue.reduce((s, c) => s + c.split('\n').filter(Boolean).length, 0) } }))
+    // 未加载的恢复会话（无真实 PTY）先补资源，否则写入丢失；加载前后都校验 runner 未取消
+    if (!target?.loaded) {
+      await ensureSessionLoadedRef.current?.(sessionId)
+      if (runner.cancelled) return
+    }
     const sleep = (ms: number) => new Promise<void>(resolve => {
       runner.sleepResolve = resolve
       runner.sleepTimer = setTimeout(() => { runner.sleepResolve = null; resolve() }, ms)
@@ -2449,16 +2407,17 @@ export default function App() {
     const session = sessionsRef.current.find(s => s.id === id)
     if (!session || session.loaded) return
 
-    // 恢复出来的 Terminal tab 没有真实 PTY，加载时新建一个并替换占位 tab
+    // 恢复出来的 Terminal tab 没有真实 PTY，加载时新建一个并替换占位 tab（透传 id 保稳定）
     if (session.kind === 'terminal') {
       try {
         const real = await window.api.terminal.create({
+          id: session.id,
           cwd: session.cwd,
           shell: getMainShellType(),
           autoUtf8,
           initCommand: readDefaultAgent(),
         })
-        const realTab: SessionTab = { ...real, kind: 'terminal', loaded: true, emoji: session.emoji }
+        const realTab: SessionTab = { ...session, ...real, kind: 'terminal', loaded: true }
         setSessions(prev => {
           const idx = prev.findIndex(s => s.id === id)
           if (idx === -1) return prev
@@ -2501,10 +2460,11 @@ export default function App() {
       } catch {}
     }
   }, [autoUtf8])
+  ensureSessionLoadedRef.current = ensureSessionLoaded
 
   // deferred tab 经任意路径成为 active（点击 / Ctrl+方向键 / 看板）都自动加载
   // 例外：启动恢复时的 active 若是 gui，不自动加载——否则开机即读入整段
-  // 会话历史并渲染 AiTab（数百 MB 内存大头）。终端恢复照旧（占用小）。
+  // 会话历史并渲染 AiTab（数百 MB 内存大头）。终端只多起一个 PTY，开机即用。
   const bootActiveIdRef = useRef(activeSessionId)
   React.useEffect(() => {
     if (!activeSessionId) return

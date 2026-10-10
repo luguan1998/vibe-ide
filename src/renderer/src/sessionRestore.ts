@@ -115,7 +115,7 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           worktreeOriginalPath: typeof t.worktreeOriginalPath === 'string' ? t.worktreeOriginalPath : undefined,
           worktreeBranch: typeof t.worktreeBranch === 'string' ? t.worktreeBranch : undefined,
           worktreeBaseBranch: typeof t.worktreeBaseBranch === 'string' ? t.worktreeBaseBranch : undefined,
-          loaded: t.kind === 'terminal' ? !!t.loaded : false,
+          loaded: false,
         })
       }
       if (tabs.length === 0) {
