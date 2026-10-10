@@ -342,7 +342,7 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
       </button>
       <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="min-h-0 overflow-hidden">
-          <div ref={contentRef} className="ai-tab__thinking-content px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
+          <div ref={contentRef} className="ai-tab__thinking-content mt-1.5 px-3 py-2 text-xs bg-ide-accent/5 border border-ide-accent/15 rounded space-y-1 max-h-64 overflow-y-auto">
             {segView ? (
               <pre className="ai-tab__thinking-text whitespace-pre-wrap break-words text-[13px] text-ide-text-muted">
                 {segView.segs.map((s) => (

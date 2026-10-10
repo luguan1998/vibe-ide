@@ -237,9 +237,11 @@ function getFileEditContent(tool: AiToolUse): { filePath: string; oldContent?: s
 }
 
 function getToolDetail(tool: AiToolUse): string {
-  const rawPath = tool.input?.file_path || ''
-  if (!rawPath) return tool.input?.command || ''
-  return rawPath.length > 32 ? rawPath.slice(0, 15) + '...' + rawPath.slice(-14) : rawPath
+  const input = tool.input || {}
+  if (SKILL_TOOLS.has(tool.name)) return input.skill || input.command || ''
+  const rawPath = input.file_path || ''
+  if (rawPath) return rawPath.length > 32 ? rawPath.slice(0, 15) + '...' + rawPath.slice(-14) : rawPath
+  return input.pattern || input.command || ''
 }
 
 export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
