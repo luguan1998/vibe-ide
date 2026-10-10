@@ -2666,6 +2666,21 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   ))}
                 </select>
               </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('Default Agent')}</span>
+                <input
+                  type="text"
+                  value={defaultAgentDraft}
+                  onChange={(e) => setDefaultAgentDraft(e.target.value)}
+                  onBlur={() => {
+                    const val = defaultAgentDraft.trim()
+                    setDefaultAgent(val)
+                    try { localStorage.setItem('vibe-ide-default-agent', val) } catch {}
+                  }}
+                  placeholder={t('Optional. Auto-run on new session (empty = disabled)')}
+                  className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                />
+              </label>
               {onToggleOcrEnabled && (
                 <CliConfigToggle labelKey="OCR Image to Text" descKey="Drag image or Ctrl+V to extract text from images and paste into terminal"
                   checked={ocrEnabled} onChange={onToggleOcrEnabled} />
@@ -2723,21 +2738,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                     try { localStorage.setItem('vibe-ide-ai-config-dir', val) } catch {}
                   }}
                   placeholder="可选: .openclaude, .opencc, .cac"
-                  className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-ide-text-muted">{t('Default Agent')}</span>
-                <input
-                  type="text"
-                  value={defaultAgentDraft}
-                  onChange={(e) => setDefaultAgentDraft(e.target.value)}
-                  onBlur={() => {
-                    const val = defaultAgentDraft.trim()
-                    setDefaultAgent(val)
-                    try { localStorage.setItem('vibe-ide-default-agent', val) } catch {}
-                  }}
-                  placeholder={t('Optional. Auto-run on new session (empty = disabled)')}
                   className="w-full px-3 py-2 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
                 />
               </label>
