@@ -291,8 +291,6 @@ interface SessionPanelProps {
   onResetCache?: (sessionId: string) => void
   wordWrap?: boolean
   onToggleWordWrap?: (value: boolean) => void
-  autoUtf8?: boolean
-  onToggleAutoUtf8?: (value: boolean) => void
   cgEnabled?: boolean
   onToggleCgEnabled?: (value: boolean) => void
   lspLangs?: string[]
@@ -570,8 +568,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onResetCache,
   wordWrap = false,
   onToggleWordWrap,
-  autoUtf8 = true,
-  onToggleAutoUtf8,
   cgEnabled = true,
   onToggleCgEnabled,
   lspLangs,
@@ -2670,10 +2666,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   ))}
                 </select>
               </label>
-              {onToggleAutoUtf8 && (
-                <CliConfigToggle labelKey="Auto UTF-8" descKey="Run chcp 65001 on terminal start to set UTF-8 encoding"
-                  checked={autoUtf8} onChange={onToggleAutoUtf8} />
-              )}
               {onToggleOcrEnabled && (
                 <CliConfigToggle labelKey="OCR Image to Text" descKey="Drag image or Ctrl+V to extract text from images and paste into terminal"
                   checked={ocrEnabled} onChange={onToggleOcrEnabled} />

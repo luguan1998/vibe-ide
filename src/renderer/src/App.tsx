@@ -50,7 +50,7 @@ declare global {
     api: {
       terminal: {
         rename(id: string, newName: string): Promise<RenameTerminalResult>
-        create: (options?: { id?: string; cwd?: string; name?: string; shell?: string; autoUtf8?: boolean; initCommand?: string }) => Promise<TerminalSession>
+        create: (options?: { id?: string; cwd?: string; name?: string; shell?: string; initCommand?: string }) => Promise<TerminalSession>
         getShells: () => Promise<{ value: string; label: string }[]>
         refreshEnv: () => Promise<{ success: boolean; count?: number; error?: string }>
         write: (id: string, data: string) => void
@@ -718,9 +718,6 @@ export default function App() {
   const [wordWrap, setWordWrap] = useState(() => {
     try { return localStorage.getItem('vibe-ide-word-wrap') === 'true' } catch { return false }
   })
-  const [autoUtf8, setAutoUtf8] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-auto-utf8') !== 'false' } catch { return true }
-  })
   const [inlineDiff, setInlineDiff] = useState(() => {
     try { return localStorage.getItem('vibe-ide-inline-diff') !== 'false' } catch { return true }
   })
@@ -998,9 +995,6 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-word-wrap', String(wordWrap)) } catch {}
   }, [wordWrap])
-  React.useEffect(() => {
-    try { localStorage.setItem('vibe-ide-auto-utf8', String(autoUtf8)) } catch {}
-  }, [autoUtf8])
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-ocr-enabled', ocrEnabled ? '1' : '0') } catch {}
   }, [ocrEnabled])
@@ -2069,11 +2063,11 @@ export default function App() {
   }, [applySessionTabPolicy])
 
   const createTermSession = useCallback(async (cwd: string, shell: string = getMainShellType(), initOverride?: string, activate = true) => {
-    const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: initOverride ?? readDefaultAgent() })
+    const session = await window.api.terminal.create({ cwd, shell, initCommand: initOverride ?? readDefaultAgent() })
     const tab: SessionTab = { ...session, kind: 'terminal', loaded: true }
     addSessionRecord(tab, null, activate)
     return session
-  }, [autoUtf8, addSessionRecord])
+  }, [addSessionRecord])
 
   // Create a new session — 打开自建目录选择弹窗（选目录 + 类型）
   const [isOpening, setIsOpening] = useState(false)
@@ -2195,12 +2189,12 @@ export default function App() {
       return
     }
     try {
-      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name, initCommand: readDefaultAgent() })
+      const session = await window.api.terminal.create({ cwd, shell, name, initCommand: readDefaultAgent() })
       addSessionRecord({ ...session, kind: 'terminal', loaded: true, emoji: parentEmoji }, parentId)
     } catch (err) {
       console.error('Failed to clone terminal session:', err)
     }
-  }, [autoUtf8, sessions, addSessionRecord])
+  }, [sessions, addSessionRecord])
 
   // 分屏：仅 terminal 生效。主 session 视图下方新增同 cwd 的副屏 PTY；
   // 副屏不进 sessions（左侧列表无感知），也不参与 running/idle/OSC 检测
@@ -2237,13 +2231,13 @@ export default function App() {
     if (!session || session.kind !== 'terminal' || !session.loaded) return
     if (splitTwins[sessionId]) return
     try {
-      const twin = await window.api.terminal.create({ cwd: session.cwd, shell: session.shell, autoUtf8, initCommand: readDefaultAgent() })
+      const twin = await window.api.terminal.create({ cwd: session.cwd, shell: session.shell, initCommand: readDefaultAgent() })
       setSplitTwins(prev => ({ ...prev, [sessionId]: twin.id }))
       applySessionTabPolicy(sessionId)
     } catch (err) {
       console.error('Failed to split terminal session:', err)
     }
-  }, [autoUtf8, splitTwins, applySessionTabPolicy])
+  }, [splitTwins, applySessionTabPolicy])
 
   // Fork AI conversation at a specific user message
   const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number, content?: string, occurrence?: number) => {
@@ -2278,7 +2272,7 @@ export default function App() {
     } catch (err) {
       console.error('Failed to fork session:', err)
     }
-  }, [sessions, autoUtf8])
+  }, [sessions])
 
   // ── 网状对话：分支会话按 claudeSessionId 找/建（隐藏，不进左侧列表）──
   // cwd 即该分支实际的工作目录：普通分支 = 源会话目录，worktree 分支 = 那棵树
@@ -2414,7 +2408,6 @@ export default function App() {
           id: session.id,
           cwd: session.cwd,
           shell: getMainShellType(),
-          autoUtf8,
           initCommand: readDefaultAgent(),
         })
         const realTab: SessionTab = { ...session, ...real, kind: 'terminal', loaded: true }
@@ -2459,7 +2452,7 @@ export default function App() {
         }
       } catch {}
     }
-  }, [autoUtf8])
+  }, [])
   ensureSessionLoadedRef.current = ensureSessionLoaded
 
   // deferred tab 经任意路径成为 active（点击 / Ctrl+方向键 / 看板）都自动加载
@@ -2506,7 +2499,7 @@ export default function App() {
 
   const handleCloneWithInit = useCallback(async (sessionId: string, cwd: string, shell: string | undefined, command: string) => {
     try {
-      const session = await window.api.terminal.create({ cwd, shell, autoUtf8, initCommand: command })
+      const session = await window.api.terminal.create({ cwd, shell, initCommand: command })
       const parentEmoji = sessionsRef.current.find(s => s.id === sessionId)?.emoji
       const tab: SessionTab = { ...session, kind: 'terminal', loaded: true, emoji: parentEmoji ?? resolveDefaultIcon() }
       setSessions(prev => {
@@ -2521,7 +2514,7 @@ export default function App() {
     } catch (err) {
       console.error('Failed to clone with init:', err)
     }
-  }, [autoUtf8, applySessionTabPolicy])
+  }, [applySessionTabPolicy])
 
   const handleInitCommand = useCallback(async (command: string) => {
     const activeSession = sessions.find(s => s.id === activeSessionId)
@@ -3047,7 +3040,7 @@ export default function App() {
     if (!cwd) return
     try {
       const shell = getAuxShellType()
-      const term = await window.api.terminal.create({ cwd, shell, autoUtf8 })
+      const term = await window.api.terminal.create({ cwd, shell })
       const prevLen = rightTerminalSessions[sessionId]?.length ?? 0
       const newTab: AuxTerminalTab = { id: term.id, terminals: [term], sizes: [1], launchCommand }
       setRightTerminalSessions(prev => ({
@@ -3058,7 +3051,7 @@ export default function App() {
     } catch (err) {
       console.error('Failed to create right terminal:', err)
     }
-  }, [sessions, autoUtf8, rightTerminalSessions])
+  }, [sessions, rightTerminalSessions])
 
   // 关闭该 session 全部右侧终端（worktree 切换/返回用）
   const handleCloseRightTerminal = useCallback(async (sessionId: string) => {
@@ -3116,7 +3109,7 @@ export default function App() {
     if (!cwd) return
     try {
       const shell = getAuxShellType()
-      const term = await window.api.terminal.create({ cwd, shell, autoUtf8 })
+      const term = await window.api.terminal.create({ cwd, shell })
       setRightTerminalSessions(prev => {
         const arr = prev[sessionId] || []
         const next = arr.map((t, i) => i === tabIndex
@@ -3128,7 +3121,7 @@ export default function App() {
     } catch (err) {
       console.error('Failed to split aux terminal:', err)
     }
-  }, [rightTerminalSessions, autoUtf8])
+  }, [rightTerminalSessions])
 
   // 拖拽调整分屏比例
   const handleResizeAuxSplit = useCallback((sessionId: string, tabId: string, sizes: number[]) => {
@@ -3219,7 +3212,7 @@ export default function App() {
           : shell === 'cmd' ? `set "CLAUDE_CONFIG_DIR=${resolvedConfigDir}" && ${base}`
           : isPosix ? `CLAUDE_CONFIG_DIR='${resolvedConfigDir}' ${base}`
           : `$env:CLAUDE_CONFIG_DIR='${resolvedConfigDir}'; ${base}`
-        const session = await window.api.terminal.create({ cwd, shell, autoUtf8, name: name || undefined, initCommand })
+        const session = await window.api.terminal.create({ cwd, shell, name: name || undefined, initCommand })
         addSessionRecord({ ...session, kind: 'terminal', loaded: true })
       } else {
         const session: SessionTab = {
@@ -3243,7 +3236,7 @@ export default function App() {
     } finally {
       setIsOpening(false)
     }
-  }, [autoUtf8, addSessionRecord])
+  }, [addSessionRecord])
 
   const handlePreviewMarkdown = useCallback((fullPath: string, _fileName: string) => {
     openFileView(fullPath, { mode: 'auto' })
@@ -3510,8 +3503,6 @@ export default function App() {
             onResetCache={handleResetCache}
             wordWrap={wordWrap}
             onToggleWordWrap={setWordWrap}
-            autoUtf8={autoUtf8}
-            onToggleAutoUtf8={setAutoUtf8}
             cgEnabled={cgEnabled}
             onToggleCgEnabled={setCgEnabled}
             lspLangs={lspLangs}

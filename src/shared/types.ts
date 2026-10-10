@@ -406,7 +406,6 @@ export interface CreateTerminalOptions {
   cwd?: string
   name?: string
   shell?: string
-  autoUtf8?: boolean
   initCommand?: string
 }
 

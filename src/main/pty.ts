@@ -26,7 +26,6 @@ const useConptyDll = process.platform === 'win32' &&
 interface ManagedPty {
   pty: pty.IPty
   session: TerminalSession
-  autoUtf8: boolean
   cols: number
   rows: number
   restarts: number[]
@@ -143,7 +142,7 @@ function resolveShell(shellType?: string): { shell: string; args: string[] } {
 // entry is still in `terminals`: PTY_CLOSE / cleanupTerminals delete the entry
 // synchronously before kill()'s async onExit fires, so a missing entry means the
 // user intended to close — emit PTY_EXIT and don't restart.
-function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUtf8: boolean, cols = 80, rows = 24, initCommand?: string): pty.IPty {
+function spawnPty(id: string, cwd: string, shellType: string | undefined, cols = 80, rows = 24, initCommand?: string): pty.IPty {
   const { shell, args } = resolveShell(shellType)
   const ptyProcess = pty.spawn(shell, args, {
     name: 'xterm-256color',
@@ -163,8 +162,7 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUt
     useConptyDll,
   })
 
-  const doStartupInit = autoUtf8 !== false || !!initCommand
-  let startupDone = !doStartupInit
+  let startupDone = false
 
   ptyProcess.onData((data: string) => {
     if (!startupDone) {
@@ -181,34 +179,28 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUt
     }
   })
 
-  if (doStartupInit) {
-    setTimeout(() => {
-      const managed = terminals.get(id)
-      if (!managed) return
-      startupDone = true
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, {
-          id,
-          data: '\x1b[2J\x1b[3J\x1b[H'
-        })
-      }
-      const shellName = shell.toLowerCase()
-      if (autoUtf8) {
-        if (shellName.includes('powershell') || shellName.includes('pwsh')) {
-          try { managed.pty.write('chcp 65001 >$null\r') } catch {}
-          try { managed.pty.write('Clear-Host\r') } catch {}
-        } else if (shellName.includes('cmd')) {
-          try { managed.pty.write('chcp 65001 >nul\r') } catch {}
-          try { managed.pty.write('cls\r') } catch {}
-        }
-      }
-      if (initCommand) {
-        let cmd = initCommand.replace(/\r\n/g, '\n').replace(/\n/g, '\r')
-        if (!cmd.endsWith('\r')) cmd += '\r'
-        try { managed.pty.write(cmd) } catch {}
-      }
-    }, 600)
-  }
+  setTimeout(() => {
+    const managed = terminals.get(id)
+    if (!managed) return
+    startupDone = true
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, {
+        id,
+        data: '\x1b[2J\x1b[3J\x1b[H'
+      })
+    }
+    const shellName = shell.toLowerCase()
+    if (shellName.includes('powershell') || shellName.includes('pwsh')) {
+      try { managed.pty.write('Clear-Host\r') } catch {}
+    } else if (shellName.includes('cmd')) {
+      try { managed.pty.write('cls\r') } catch {}
+    }
+    if (initCommand) {
+      let cmd = initCommand.replace(/\r\n/g, '\n').replace(/\n/g, '\r')
+      if (!cmd.endsWith('\r')) cmd += '\r'
+      try { managed.pty.write(cmd) } catch {}
+    }
+  }, 600)
 
   ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
     const managed = terminals.get(id)
@@ -244,7 +236,7 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, autoUt
         data: '\x1b[?1049l\x1b[?25h\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1l\x1b[0m\r\n[Process exited, restarting shell...]\r\n'
       })
     }
-    managed.pty = spawnPty(id, managed.session.cwd, managed.session.shell, managed.autoUtf8, managed.cols, managed.rows)
+    managed.pty = spawnPty(id, managed.session.cwd, managed.session.shell, managed.cols, managed.rows)
   })
 
   return ptyProcess
@@ -255,9 +247,8 @@ export function createTerminalSession(options: CreateTerminalOptions): TerminalS
   const id = options.id || `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const cwd = options.cwd || process.cwd()
   const name = options.name || `Terminal ${terminals.size + 1}`
-  const autoUtf8 = options.autoUtf8 !== false
 
-  const ptyProcess = spawnPty(id, cwd, options.shell, autoUtf8, 80, 24, options.initCommand)
+  const ptyProcess = spawnPty(id, cwd, options.shell, 80, 24, options.initCommand)
 
   const session: TerminalSession = {
     id,
@@ -268,7 +259,7 @@ export function createTerminalSession(options: CreateTerminalOptions): TerminalS
     createdAt: Date.now()
   }
 
-  terminals.set(id, { pty: ptyProcess, session, autoUtf8, cols: 80, rows: 24, restarts: [] })
+  terminals.set(id, { pty: ptyProcess, session, cols: 80, rows: 24, restarts: [] })
 
   return session
 }
