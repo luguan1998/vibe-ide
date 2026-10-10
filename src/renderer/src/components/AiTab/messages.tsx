@@ -332,7 +332,7 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
     <div className={`ai-tab__thinking max-w-full ${autoFold || noAnimate ? '' : 'animate-fade-in'}`}>
       <button
         onClick={() => setOpen(v => !v)}
-        className="ai-tab__thinking-toggle inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 ring-1 ring-inset ring-ide-accent/20 transition-colors"
+        className="ai-tab__thinking-toggle flex w-fit items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 ring-1 ring-inset ring-ide-accent/20 transition-colors"
       >
         <span className="shrink-0 flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 block" aria-labelledby="thinkIconTitle">
           <title id="thinkIconTitle">Thinking</title>
