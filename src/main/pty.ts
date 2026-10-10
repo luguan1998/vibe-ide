@@ -191,7 +191,10 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, cols =
     }
     const shellName = shell.toLowerCase()
     if (shellName.includes('powershell') || shellName.includes('pwsh')) {
-      try { managed.pty.write('Clear-Host\r') } catch {}
+      // 用 Ctrl+L(PSReadLine ClearScreen) 而非 Clear-Host：后者得打进输入行，PSReadLine 会先
+      // 把 "Clear-Host" 回显出来再执行 → 肉眼一闪。Ctrl+L 走绑定键，出屏同样是真清屏
+      // (\x1b[2J + 重绘)，且零回显。PSReadLine 未起时该键留在输入队列，起来后照样生效。
+      try { managed.pty.write('\x0c') } catch {}
     } else if (shellName.includes('cmd')) {
       try { managed.pty.write('cls\r') } catch {}
     }
