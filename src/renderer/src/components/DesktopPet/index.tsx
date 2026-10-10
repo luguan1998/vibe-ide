@@ -104,6 +104,10 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const appendInput = useCallback((text: string) => {
     ;(window as any).__vibeAppendInput?.(text)
   }, [])
+  const readCenterDraft = useCallback(() => {
+    const v = (window as any).__vibeGetInput?.()
+    return typeof v === 'string' ? v.trim() : ''
+  }, [])
 
   const triggerTransient = useCallback((state: PetLogicalState) => {
     if (!TRANSIENT_LOGICAL_STATES.includes(state)) return
@@ -218,10 +222,12 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     setDraftCmd(prev => {
       if (prev.trim()) return prev
       const pfx = loadBtwPrefix()
-      return pfx && !pfx.endsWith(' ') ? pfx + ' ' : pfx
+      const head = pfx && !pfx.endsWith(' ') ? pfx + ' ' : pfx
+      // 前缀是模式标记（如 /btw）须留在最前，中栏草稿紧跟其后
+      return head + readCenterDraft()
     })
     setContextOpen(true)
-  }, [aiBubbleOpen, latestReply, contextOpen])
+  }, [aiBubbleOpen, latestReply, contextOpen, readCenterDraft])
 
   // AI 回复气泡与右键输入同时打开时，输入框改左右弹（右键时可能 AI 气泡还没弹出）
   useEffect(() => {
@@ -371,7 +377,10 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         ? (d.start === d.end ? `@${d.rel}:${d.start}` : `@${d.rel}:${d.start}-${d.end}`)
         : `@${d.rel}`
       setDraftCmd(prev => {
-        if (!prev.trim()) return ref + ' → '
+        if (!prev.trim()) {
+          const mid = readCenterDraft()
+          return mid ? mid + '\n' + ref + ' → ' : ref + ' → '
+        }
         const lastSep = prev.lastIndexOf('; ')
         const lastAnno = lastSep > -1 ? prev.slice(lastSep + 2) : prev
         if (/^@.+? →\s*$/.test(lastAnno)) {
@@ -390,7 +399,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     }
     window.addEventListener(ADD_ANNOTATION_EVENT, handler)
     return () => window.removeEventListener(ADD_ANNOTATION_EVENT, handler)
-  }, [])
+  }, [readCenterDraft])
 
   useEffect(() => {
     const el = contextInputRef.current

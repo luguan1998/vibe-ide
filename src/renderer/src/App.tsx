@@ -1415,6 +1415,12 @@ export default function App() {
         terminalRefs.current[sid]?.focus()
       }
     }
+    ;(window as any).__vibeGetInput = () => {
+      const sid = activeSessionIdRef.current
+      if (!sid) return ''
+      if (sessionsRef.current.find(s => s.id === sid)?.kind !== 'gui') return ''
+      return aiTabRefs.current[sid]?.getInputValue() ?? ''
+    }
     ;(window as any).__vibeBrowse = handleBrowseUrl
   }, [waitDraftIdle, sendDraftLine, handleBrowseUrl])
 

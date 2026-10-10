@@ -66,6 +66,7 @@ export interface AiTabHandle {
   setValue: (text: string) => void
   appendText: (text: string) => void
   sendText: (text: string) => void
+  getInputValue: () => string
   // 图挂在右栏时按 content+occurrence 滚到该轮（本组件持有消息态与滚动容器）
   revealTurn: (content: string, occurrence: number) => void
   // session hover 弹窗按轮次下标滚到该轮
@@ -238,6 +239,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const activeSessionIdRef = useRef(activeSessionId)
   activeSessionIdRef.current = activeSessionId
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
+  const inputValuesRef = useRef(inputValues)
+  inputValuesRef.current = inputValues
   const inputValue = activeSessionId ? (inputValues[activeSessionId] || '') : ''
   const setInputValue = useCallback((v: string) => {
     const sid = activeSessionIdRef.current
@@ -429,6 +432,10 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     sendText: (text: string) => {
       if (!text.trim()) return
       dispatchMessageRef.current?.(text.trim())
+    },
+    getInputValue: () => {
+      const sid = activeSessionIdRef.current
+      return sid ? (inputValuesRef.current[sid] || '') : ''
     },
     revealTurn: (content: string, occurrence: number) => {
       revealTurnRef.current?.(content, occurrence)
