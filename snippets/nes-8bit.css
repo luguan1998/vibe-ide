@@ -306,7 +306,6 @@ html, body, #root {
 }
 
 .file-tree-item--folder > .file-tree-item__name {
-  text-transform: uppercase !important;
   font-weight: 700 !important;
 }
 
