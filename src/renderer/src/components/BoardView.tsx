@@ -212,6 +212,7 @@ function LiveCardView({ card, active, finishable, finishLabel, mergeLabel, selec
           session={card.session}
           status={card.status}
           worktreeNav={worktreeNav}
+          hideEmpty
         />
         <span className="text-xs text-ide-text truncate flex-1">{stripTaskMark(card.session.name)}</span>
       </div>
@@ -1223,6 +1224,7 @@ export default function BoardView({
               session={replyFor}
               status={statusOf(replyFor, agentStatus)}
               worktreeNav={sessionWorktreeNav?.[replyFor.id] ?? null}
+              hideEmpty
             />
             <span className="text-xs text-ide-text truncate flex-1" title={replyFor.name}>{stripTaskMark(replyFor.name)}</span>
             <CornerDownLeft size={13} className="shrink-0 text-ide-text-muted group-hover:text-ide-accent transition-colors" />

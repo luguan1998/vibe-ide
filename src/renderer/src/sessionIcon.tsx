@@ -21,6 +21,7 @@ export function renderKindIcon(kind: SessionTab['kind'], aiBackend?: SessionTab[
 
 // 行首图标状态机：scheduled > worktree > running > warn > idle（照抄 SessionPanel 原渲染结构）
 // emoji 存于 SessionTab.emoji（undefined=类型位 / ICON_NONE=空白 / 具体 emoji）
+// hideEmpty：图标位为空白时不占位（看板卡片用，避免名字前多出一截空位）
 // scheduled 由组件自订阅 schedStore，调用方无需传入
 export type SessionIconStatus = 'running' | 'idle' | 'warn'
 
@@ -37,11 +38,12 @@ export interface SessionGlyphInfo {
   blankIcon: boolean
 }
 
-export function SessionGlyph({ session, status, worktreeNav, reveal, onClick, onContextMenu }: {
+export function SessionGlyph({ session, status, worktreeNav, reveal, hideEmpty, onClick, onContextMenu }: {
   session: SessionTab
   status: SessionIconStatus
   worktreeNav?: { worktreePath: string } | null
   reveal?: boolean
+  hideEmpty?: boolean
   onClick?: (info: SessionGlyphInfo) => void
   onContextMenu?: (e: ReactMouseEvent) => void
 }) {
@@ -82,6 +84,7 @@ export function SessionGlyph({ session, status, worktreeNav, reveal, onClick, on
         )
       : state === 'warn' ? '⚠️'
       : idleGlyph
+  if (hideEmpty && glyph === '') return null
   const title = state === 'scheduled' ? t('Scheduled Task')
     : state === 'worktree' ? (worktreePath || 'Worktree')
     : state === 'running' ? t('Running')
