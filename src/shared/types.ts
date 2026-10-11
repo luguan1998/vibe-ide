@@ -168,6 +168,7 @@ export const IPC_CHANNELS = {
   AI_SET_BUSY: 'ai:setBusy',             // send: 任意 AI 会话 busy 变化 → main 暂停/恢复 git 元数据监听
   AI_ASK_RESUME: 'ai:askResume',
   AI_RESOLVE_CONFIG_DIR: 'ai:resolveConfigDir',
+  AI_RESOLVE_PROJECT_DIR: 'ai:resolveProjectDir',  // invoke: cwd → ~/.claude/projects/<slug>（记忆目录的父目录）
   AI_REVERT: 'ai:revert',
   AI_FORK: 'ai:fork',
   AI_FORK_TURN: 'ai:forkTurn',             // invoke: 从任意一轮分叉（源文件可能没有活跃 GUI 会话）

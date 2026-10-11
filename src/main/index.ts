@@ -5,7 +5,7 @@ import { createHash } from 'crypto'
 import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers, cleanupTerminals, setPtyMainWindow } from './pty'
-import { registerAiHandlers, cleanupAiSessions, setAiMainWindow, resolveConfigDir } from './ai'
+import { registerAiHandlers, cleanupAiSessions, setAiMainWindow, resolveConfigDir, resolveProjectDir } from './ai'
 import { registerPlanExecuteHandlers } from './ai-plan-execute'
 import { registerAskResumeHandlers } from './ai-ask-resume'
 import { registerRevertHandlers } from './ai-revert'
@@ -311,6 +311,11 @@ app.whenReady().then(() => {
   // Claude 配置目录：renderer 无 homedir，由 main 返回路径后用 file 读写 settings.json / 配置组文件。
   // 与 ai.ts 共用 resolveConfigDir：未显式配置时按 ~/.claude → ~/.openclaude → ~/.opencc 探测
   ipcMain.handle(IPC_CHANNELS.CLAUDE_CONFIG_DIR, (_e, configDir?: string) => resolveConfigDir(configDir))
+
+  // 项目会话目录：与 ai.ts 共用 resolveProjectDir，避免 renderer 重写路径归一化规则
+  ipcMain.handle(IPC_CHANNELS.AI_RESOLVE_PROJECT_DIR, (_e, cwd: string, configDir?: string) =>
+    resolveProjectDir(cwd, configDir)
+  )
 
   // CSS snippets — dev 用项目根目录，打包后用 exe 同目录
   const snippetsDir = app.isPackaged

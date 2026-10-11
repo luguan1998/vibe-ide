@@ -567,6 +567,18 @@ const ZH_MAP: Record<string, string> = {
   'No skills yet': '暂无技能',
   'Skills folder': '技能目录',
   'Skills hint': '在下列目录中创建 <名称>/SKILL.md，即可被 Claude CLI 加载',
+  // Memory
+  'Memory': '记忆',
+  'Browse Claude memory notes': '浏览 Claude 的记忆笔记',
+  'Memory folder': '记忆目录',
+  'Edit memory': '编辑记忆',
+  'No memory yet': '暂无记忆',
+  'Memory hint': 'Claude 会把值得长期记住的事实写入下列目录，每个 .md 是一条记忆，MEMORY.md 为索引',
+  'Index of all memories': '全部记忆索引',
+  'user': '用户',
+  'feedback': '反馈',
+  'project': '项目',
+  'reference': '参考',
   'All': '全部',
   'Filter by directory': '按目录筛选',
   // Task Board (session kanban)
