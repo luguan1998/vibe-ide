@@ -267,8 +267,8 @@ html, body, #root {
 .term-view__canvas {
   --term-bg: 255 255 255;
   background: #fff !important;
-  border: 4px solid #fff !important;
-  border-radius: 0 0 12px 12px !important;
+  border: none !important;
+  border-radius: 0 !important;
 }
 
 .term-view__header {
@@ -285,7 +285,6 @@ html, body, #root {
 
 .file-tab__header {
   border-bottom: 2px solid rgb(var(--ide-border)) !important;
-  text-transform: uppercase !important;
   letter-spacing: 1px !important;
   font-weight: 700 !important;
 }
