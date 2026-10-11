@@ -481,12 +481,6 @@ html, body, #root {
   color: rgb(var(--ide-accent)) !important;
 }
 
-/* 工具调用 */
-.ai-tab__tool-call {
-  border-left: 2px solid rgb(var(--ide-accent)) !important;
-  border-bottom: 2px solid rgb(var(--ide-border)) !important;
-}
-
 /* 用户气泡 — 圆角像素风 */
 .ai-tab__user-bubble {
   border: 2px solid rgb(var(--ide-border)) !important;
