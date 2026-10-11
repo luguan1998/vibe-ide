@@ -6,10 +6,9 @@ import GameBalatro from './GameBalatro'
 import GameVampire from './GameVampire'
 import GameBeads from './GameBeads'
 import HistoryView from './HistoryView'
-import SkillView from './SkillView'
-import MemoryView from './MemoryView'
+import SkillMemoryView from './SkillMemoryView'
 
-type GameId = 'menu' | 'history' | 'skills' | 'memory' | 'browser' | '2048' | 'sandspiel' | 'balatro' | 'vampire' | 'beads'
+type GameId = 'menu' | 'history' | 'skills' | 'browser' | '2048' | 'sandspiel' | 'balatro' | 'vampire' | 'beads'
 
 interface GameLauncherProps {
   workspacePath: string | null
@@ -32,8 +31,7 @@ interface GameCard {
 
 const GAMES: GameCard[] = [
   { id: 'history', icon: <span className="text-2xl leading-none">📜</span>, name: 'Session History', desc: 'Browse & search Claude history' },
-  { id: 'skills', icon: <span className="text-2xl leading-none">✨</span>, name: 'Skills', desc: 'Manage Claude skills' },
-  { id: 'memory', icon: <span className="text-2xl leading-none">🧠</span>, name: 'Memory', desc: 'Browse Claude memory notes' },
+  { id: 'skills', icon: <span className="text-2xl leading-none">✨</span>, name: 'Skills / Memory', desc: 'Manage Claude skills and memory' },
   { id: 'browser', icon: <span className="text-2xl leading-none">🌐</span>, name: 'Web Debug', desc: 'Built-in browser — docked right, panel widened' },
   { id: 'beads', icon: <span className="text-2xl leading-none">📿</span>, name: 'Beads', desc: 'Turn any photo into perler bead pixel art' },
   { id: 'balatro', icon: <span className="text-2xl leading-none">🃏</span>, name: 'Balatro', desc: 'Poker roguelike — build hands to beat the ante' },
@@ -61,8 +59,7 @@ export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeH
     const back = () => setCurrentGame('menu')
     switch (currentGame) {
       case 'history': return <HistoryView onBack={back} workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumePiHistory={onResumePiHistory} />
-      case 'skills': return <SkillView onBack={back} workspacePath={workspacePath} onOpenFile={onOpenFileFromExplorer ?? (() => {})} onPreviewFile={onPreviewMarkdown ? (p) => onPreviewMarkdown(p, p.split(/[\\/]/).pop() || p) : undefined} />
-      case 'memory': return <MemoryView onBack={back} workspacePath={workspacePath} onOpenFile={onOpenFileFromExplorer ?? (() => {})} onPreviewFile={onPreviewMarkdown ? (p) => onPreviewMarkdown(p, p.split(/[\\/]/).pop() || p) : undefined} />
+      case 'skills': return <SkillMemoryView onBack={back} workspacePath={workspacePath} onOpenFile={onOpenFileFromExplorer ?? (() => {})} onPreviewFile={onPreviewMarkdown ? (p) => onPreviewMarkdown(p, p.split(/[\\/]/).pop() || p) : undefined} />
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />
       case '2048': return <Game2048 onBack={back} />

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Brain, FileText, RotateCcw, FolderOpen, Pencil, ArrowLeft, Folder } from 'lucide-react'
 import { useI18n } from '../i18n'
 
@@ -15,6 +15,7 @@ interface MemoryViewProps {
   onOpenFile: (fullPath: string) => void
   onPreviewFile?: (fullPath: string) => void
   onBack: () => void
+  tabs?: ReactNode
 }
 
 const TYPE_ORDER = ['user', 'feedback', 'project', 'reference']
@@ -47,7 +48,7 @@ function parseMemoryMd(raw: string, fallbackName: string): { name: string; descr
   return { name, description, type }
 }
 
-export default function MemoryView({ workspacePath, onOpenFile, onPreviewFile, onBack }: MemoryViewProps) {
+export default function MemoryView({ workspacePath, onOpenFile, onPreviewFile, onBack, tabs }: MemoryViewProps) {
   const { t } = useI18n()
   const [items, setItems] = useState<MemoryItem[]>([])
   const [dir, setDir] = useState('')
@@ -110,8 +111,8 @@ export default function MemoryView({ workspacePath, onOpenFile, onPreviewFile, o
             <path d="M4 6l4 4 4-4" />
           </svg>
         </button>
-        <span className="text-[11px] font-bold uppercase tracking-wider text-ide-text-muted shrink-0">{type ? t(type) : t('Other')}</span>
-        <span className="text-[11px] text-ide-text-muted/60 shrink-0">{count}</span>
+        <span className="text-xs font-bold uppercase tracking-wider text-ide-text shrink-0">{type ? t(type) : t('Other')}</span>
+        <span className="text-xs text-ide-text-muted shrink-0">{count}</span>
         <button
           onClick={() => openExplorer(dir)}
           title={dir}
@@ -168,8 +169,12 @@ export default function MemoryView({ workspacePath, onOpenFile, onPreviewFile, o
           >
             <ArrowLeft size={13} />
           </button>
-          <Brain size={13} className="text-ide-accent shrink-0" />
-          <span className="text-xs font-medium text-ide-text">{t('Memory')}</span>
+          {tabs ?? (
+            <>
+              <Brain size={13} className="text-ide-accent shrink-0" />
+              <span className="text-xs font-medium text-ide-text">{t('Memory')}</span>
+            </>
+          )}
           {items.length > 0 && <span className="text-[10px] text-ide-text-muted">({items.length})</span>}
         </div>
         <div className="flex items-center gap-1 shrink-0">

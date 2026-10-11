@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Sparkles, Plus, RotateCcw, FolderOpen, Pencil, Trash2, ArrowLeft, X, Check, Folder } from 'lucide-react'
 import { useI18n } from '../i18n'
 
@@ -21,6 +21,7 @@ interface SkillViewProps {
   onOpenFile: (fullPath: string) => void
   onPreviewFile?: (fullPath: string) => void
   onBack: () => void
+  tabs?: ReactNode
 }
 
 function norm(path: string): string {
@@ -57,7 +58,7 @@ function isValidSkillName(name: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(name)
 }
 
-export default function SkillView({ workspacePath, onOpenFile, onPreviewFile, onBack }: SkillViewProps) {
+export default function SkillView({ workspacePath, onOpenFile, onPreviewFile, onBack, tabs }: SkillViewProps) {
   const { t } = useI18n()
   const [skills, setSkills] = useState<SkillItem[]>([])
   const [roots, setRoots] = useState<SkillRoot[]>([])
@@ -195,8 +196,8 @@ export default function SkillView({ workspacePath, onOpenFile, onPreviewFile, on
             <path d="M4 6l4 4 4-4" />
           </svg>
         </button>
-        <span className="text-[11px] font-bold uppercase tracking-wider text-ide-text-muted shrink-0">{t(root.source === 'project' ? 'Project' : 'Global')}</span>
-        {seg && <span className="text-[11px] font-mono text-ide-text-muted/70 shrink-0">{seg}</span>}
+        <span className="text-xs font-bold uppercase tracking-wider text-ide-text shrink-0">{t(root.source === 'project' ? 'Project' : 'Global')}</span>
+        {seg && <span className="text-xs font-mono text-ide-text-muted shrink-0">{seg}</span>}
         <button
           onClick={() => openExplorer(dir)}
           title={dir}
@@ -260,18 +261,21 @@ export default function SkillView({ workspacePath, onOpenFile, onPreviewFile, on
           >
             <ArrowLeft size={13} />
           </button>
-          <Sparkles size={13} className="text-ide-accent shrink-0" />
-          <span className="text-xs font-medium text-ide-text">{t('Skills')}</span>
+          {tabs ?? (
+            <>
+              <Sparkles size={13} className="text-ide-accent shrink-0" />
+              <span className="text-xs font-medium text-ide-text">{t('Skills')}</span>
+            </>
+          )}
           {skills.length > 0 && <span className="text-[10px] text-ide-text-muted">({skills.length})</span>}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => { setShowForm(v => !v); setFormError(null) }}
-            className={`h-5 px-2 rounded flex items-center gap-1 text-[11px] transition-colors ${showForm ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+            className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${showForm ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
             title={t('New Skill')}
           >
-            <Plus size={11} />
-            <span>{t('New Skill')}</span>
+            <Plus size={13} />
           </button>
           <button
             onClick={() => void load()}

@@ -552,7 +552,8 @@ const ZH_MAP: Record<string, string> = {
   'Task Board': '任务看板',
   // Skills
   'Skills': '技能',
-  'Manage Claude skills': '管理 Claude 技能',
+  'Skills / Memory': '技能 / 记忆',
+  'Manage Claude skills and memory': '管理 Claude 技能与记忆',
   'New Skill': '新建技能',
   'Skill name': '技能名称',
   'Skill description (optional)': '技能描述（可选）',
@@ -569,7 +570,6 @@ const ZH_MAP: Record<string, string> = {
   'Skills hint': '在下列目录中创建 <名称>/SKILL.md，即可被 Claude CLI 加载',
   // Memory
   'Memory': '记忆',
-  'Browse Claude memory notes': '浏览 Claude 的记忆笔记',
   'Memory folder': '记忆目录',
   'Edit memory': '编辑记忆',
   'No memory yet': '暂无记忆',
