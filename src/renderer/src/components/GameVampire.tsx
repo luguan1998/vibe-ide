@@ -8,6 +8,7 @@ const MAX_LV = 4
 const PASSIVE_MAX_LV = 5
 const BEST_KEY = 'vampire-best'
 const WAVE_SEC = 30
+const HUD_MIN_SCALE = 0.6
 const EMOJI_FONT = '"Segoe UI Emoji", "Apple Color Emoji", sans-serif'
 
 interface EnemyDef { name: string; emoji: string; hp: number; speed: number; r: number; dmg: number; xp: number; color: string }
@@ -174,8 +175,26 @@ const shuffle = <T,>(arr: T[]): T[] => {
 export default function GameVampire({ onBack }: { onBack?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const hudLeftRef = useRef<HTMLDivElement>(null)
+  const hudRightRef = useRef<HTMLDivElement>(null)
   const onBackRef = useRef(onBack)
   onBackRef.current = onBack
+
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const apply = (w: number) => {
+      if (!w) return
+      const t = `scale(${Math.max(HUD_MIN_SCALE, Math.min(1, w / W))})`
+      if (hudLeftRef.current) hudLeftRef.current.style.transform = t
+      if (hudRightRef.current) hudRightRef.current.style.transform = t
+    }
+    apply(el.clientWidth)
+    const ro = new ResizeObserver(entries => apply(entries[0].contentRect.width))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const mageSpritesRef = useRef<{ down: HTMLCanvasElement; up: HTMLCanvasElement; side: HTMLCanvasElement } | null>(null)
   useEffect(() => {
@@ -1583,7 +1602,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       </div>
 
       <div className="relative flex-1 flex items-center justify-center p-2 bg-ide-bg/40 overflow-hidden min-h-0">
-        <div className="relative shrink-0 max-w-full max-h-full" style={{ aspectRatio: `${W} / ${H}` }}>
+        <div ref={stageRef} className="relative shrink-0 max-w-full max-h-full" style={{ aspectRatio: `${W} / ${H}` }}>
           <canvas
             ref={canvasRef}
             width={W}
@@ -1592,7 +1611,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
             style={{ borderRadius: 8, outline: '1px solid rgba(255,255,255,0.06)' }}
           />
           <div className="absolute inset-x-2 top-2 flex items-center gap-2 pointer-events-none z-10">
-            <div className="bg-black/45 rounded-lg px-2.5 py-1.5 backdrop-blur-[2px] w-36">
+            <div ref={hudLeftRef} className="bg-black/45 rounded-lg px-2.5 py-1.5 backdrop-blur-[2px] w-36 origin-top-left">
               <div className="flex items-center gap-2">
                 <span className="text-xs leading-none">❤️</span>
                 <div className="flex-1 h-2 bg-black/60 rounded-full overflow-hidden border border-white/10">
@@ -1612,7 +1631,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
               </div>
             </div>
             <div className="flex-1" />
-            <div className="flex items-start gap-2 bg-black/35 rounded-lg px-2 py-1.5 backdrop-blur-[2px]">
+            <div ref={hudRightRef} className="flex items-start gap-2 bg-black/35 rounded-lg px-2 py-1.5 backdrop-blur-[2px] origin-top-right">
               {unlockedWeapons.map(w => {
                 const ready = w.lv === MAX_LV && evoReady.some(e => e.base === w.id)
                 const evo = EVOLUTIONS.find(e => e.base === w.id)
