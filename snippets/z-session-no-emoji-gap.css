@@ -1,0 +1,7 @@
+/*
+  blank 图标（ICON_NONE）会话：类型图标位不占位，文字前不留白
+*/
+
+.session-item__icon:has(> span:empty) {
+  display: none;
+}
