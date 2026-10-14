@@ -40,6 +40,10 @@ function highlightParts(text: string, query: string, caseSensitive: boolean): Re
 // 问=高亮色、答=暗淡（问字与正文同色）
 const roleCls = (role: string) => (role === 'user' ? 'text-ide-accent' : 'text-ide-text-muted/60')
 
+// 展开区（轮次 / 搜索匹配）统一底盘：底色 + 实色分隔，与标题行拉开层次
+// 底色用 accent 低透明度：accent 属主题自带配色，任何主题下都不会撞色（active 在 Monkey King 是猩红，不搭）
+const expandedBodyCls = 'border-t border-ide-border bg-ide-accent/12 px-2.5'
+
 function TurnRow({ turn }: { turn: HistoryTurn }) {
   const { t } = useI18n()
   return (
@@ -84,6 +88,8 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [searchTruncated, setSearchTruncated] = useState(false)
   const [searchError, setSearchError] = useState('')
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
+  // 搜索分组用独立折叠态：默认全展开，避免搜到的匹配被折叠藏起来
+  const [collapsedSearchProjects, setCollapsedSearchProjects] = useState<Set<string>>(new Set())
   const [onlyCurrent, setOnlyCurrent] = useState(false)
   const [modeOpen, setModeOpen] = useState(false)
   const modeRef = useRef<HTMLDivElement>(null)
@@ -266,8 +272,9 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     }
   }, [mode])
 
-  const toggleGroup = useCallback((dirName: string) => {
-    setCollapsedProjects(prev => {
+  const toggleGroup = useCallback((dirName: string, searchMode = false) => {
+    const setter = searchMode ? setCollapsedSearchProjects : setCollapsedProjects
+    setter(prev => {
       const next = new Set(prev)
       if (next.has(dirName)) next.delete(dirName)
       else next.add(dirName)
@@ -305,11 +312,21 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     return onlyCurrent ? searchResults.filter(g => g.inCurrentProject) : searchResults
   }, [searchResults, onlyCurrent])
 
+  const visibleSearchGroups = useMemo(() => {
+    const map = new Map<string, AiSessionSearchGroup[]>()
+    for (const g of visibleSearchResults || []) {
+      const arr = map.get(g.projectDirName) ?? []
+      arr.push(g)
+      map.set(g.projectDirName, arr)
+    }
+    return [...map.entries()]
+  }, [visibleSearchResults])
+
   const renderTurns = (sessionId: string) => {
     const item = turnsById[sessionId]
     if (!item) return null
     return (
-      <div className="border-t border-ide-border/50 max-h-40 overflow-y-auto px-2.5 py-1.5 space-y-0.5">
+      <div className={`${expandedBodyCls} max-h-40 overflow-y-auto py-1.5 space-y-0.5`}>
         {item.loading ? (
           <div className="flex items-center gap-1.5 text-[11px] text-ide-text-muted py-0.5">
             <Loader2 size={11} className="animate-spin" /><span>{t('Loading...')}</span>
@@ -329,44 +346,69 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     const canResume = !!workspacePath && (s.inCurrentProject || !!s.projectDir)
     return (
       <div
-        className="px-2.5 py-0.5 flex items-center gap-2 cursor-pointer hover:bg-ide-hover transition-colors group"
+        className="relative pl-2 pr-2.5 py-0.5 flex items-center gap-2 cursor-pointer hover:bg-ide-hover transition-colors group"
         onClick={searchMode ? () => toggleSearchCollapse(s) : () => toggleExpand(s)}
       >
         <button
-          className={`w-5 h-5 shrink-0 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-transform ${arrowDown ? '' : '-rotate-90'}`}
+          className={`w-3.5 h-3.5 shrink-0 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-transform ${arrowDown ? '' : '-rotate-90'}`}
           title={t('Expand')}
         >
           <ChevronDown size={12} />
         </button>
         <div className="flex-1 min-w-0">
-          <div className="truncate text-xs text-ide-text">{s.name || s.session_id}</div>
+          <div className="truncate text-xs font-medium text-ide-text">{s.name || s.session_id}</div>
           <div className="text-[10px] text-ide-text-muted/60 truncate">
-            {s.cwd && searchMode ? <span className="text-ide-text/70">{s.cwd}</span> : null}
-            {s.cwd && searchMode ? ' · ' : ''}
             {s.timestamp ? new Date(s.timestamp).toLocaleString() : ''}
             {s.sizeBytes > 0 ? ` · ${formatBytes(s.sizeBytes)}` : ''}
             {s.model ? ` · ${s.model}` : ''}
           </div>
         </div>
-        {canResume && (
+        <div className="absolute inset-y-0 right-0 flex items-center gap-1 pl-3 pr-2.5 bg-ide-hover opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+          {canResume && (
+            <button
+              onClick={(e) => { e.stopPropagation(); resume(s) }}
+              className="shrink-0 px-2 py-0.5 text-[10px] rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 transition-colors"
+              title={t('Resume')}
+            >
+              {t('Resume')}
+            </button>
+          )}
           <button
-            onClick={(e) => { e.stopPropagation(); resume(s) }}
-            className="shrink-0 px-2 py-0.5 text-[10px] rounded bg-ide-accent/15 text-ide-accent hover:bg-ide-accent/25 transition-colors"
-            title={t('Resume')}
+            onClick={(e) => { e.stopPropagation(); void deleteSession(s) }}
+            className="shrink-0 w-5 h-5 rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
+            title={t('Delete')}
           >
-            {t('Resume')}
+            <Trash2 size={12} />
           </button>
-        )}
-        <button
-          onClick={(e) => { e.stopPropagation(); void deleteSession(s) }}
-          className="shrink-0 w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 hover:text-ide-danger hover:bg-ide-hover flex items-center justify-center transition-all"
-          title={t('Delete')}
-        >
-          <Trash2 size={12} />
-        </button>
+        </div>
       </div>
     )
   }
+
+  // 普通列表与搜索结果共用同一套骨架：项目分组头（可折叠）+ 会话卡片
+  const renderGroupHeader = (dirName: string, list: Summary[], isCollapsed: boolean, onToggle: () => void) => (
+    <div
+      className={`flex items-center gap-1 px-1 pt-1 pb-1.5 cursor-pointer select-none rounded hover:bg-ide-hover/50 transition-colors ${isCollapsed ? 'bg-ide-hover/40' : ''}`}
+      onClick={onToggle}
+    >
+      <ChevronDown size={13} className={`text-ide-text-muted shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+      <span className="text-xs font-bold flex-1 min-w-0 flex items-center gap-1.5">
+        <FolderOpen size={14} className="text-ide-accent/70 shrink-0" />
+        <span className="truncate font-mono text-ide-text/80">{list[0]?.cwd || dirName}</span>
+      </span>
+      {list[0]?.inCurrentProject && (
+        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-ide-accent/15 text-ide-accent">{t('Current')}</span>
+      )}
+      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted">{list.length}</span>
+    </div>
+  )
+
+  const renderSessionCard = (s: Summary, searchMode: boolean, content: React.ReactNode) => (
+    <div key={s.session_id} className="rounded-lg bg-ide-sidebar border border-ide-border overflow-hidden">
+      {renderSessionHead(s, { searchMode })}
+      {content}
+    </div>
+  )
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none">
@@ -462,28 +504,37 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
             </div>
           ) : searchError ? (
             <div className="py-8 text-center text-xs text-ide-danger px-4">{searchError}</div>
-          ) : visibleSearchResults && visibleSearchResults.length === 0 ? (
+          ) : visibleSearchGroups.length === 0 ? (
             <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No matching sessions')}</div>
           ) : (
             <>
               {searchTruncated && (
                 <div className="text-[10px] text-ide-text-muted px-1">{t('Results truncated')}</div>
               )}
-              {(visibleSearchResults || []).map((g) => (
-                <div key={g.session_id} className="rounded-lg bg-ide-sidebar border border-ide-border overflow-hidden">
-                  {renderSessionHead(g, { searchMode: true })}
-                  {!expanded.has(g.session_id) && (
-                    g.matches.map((m, mi) => (
-                      <div key={mi} className="px-2.5 py-1 border-t border-ide-border/50 flex items-start gap-1 text-[11px] leading-snug">
-                        <span className={`shrink-0 w-4 text-center select-none ${roleCls(m.role)}`}>
-                          {m.role === 'user' ? t('User') : t('Assistant')}
-                        </span>
-                        <span className={`min-w-0 flex-1 break-words ${roleCls(m.role)}`}>{highlightParts(m.text, debouncedQuery, false)}</span>
+              {visibleSearchGroups.map(([dirName, list]) => {
+                const isCollapsed = collapsedSearchProjects.has(dirName)
+                return (
+                  <div key={dirName}>
+                    {renderGroupHeader(dirName, list, isCollapsed, () => toggleGroup(dirName, true))}
+                    {!isCollapsed && (
+                      <div className="space-y-1">
+                        {list.map((g) => renderSessionCard(g, true, !expanded.has(g.session_id) && (
+                          <div className={`${expandedBodyCls} py-1.5 space-y-0.5`}>
+                            {g.matches.map((m, mi) => (
+                              <div key={mi} className="flex items-start gap-1 text-[11px] leading-snug">
+                                <span className={`shrink-0 w-4 text-center select-none ${roleCls(m.role)}`}>
+                                  {m.role === 'user' ? t('User') : t('Assistant')}
+                                </span>
+                                <span className={`min-w-0 flex-1 break-words ${roleCls(m.role)}`}>{highlightParts(m.text, debouncedQuery, false)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )))}
                       </div>
-                    ))
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                )
+              })}
             </>
           )
         ) : listLoading ? (
@@ -499,28 +550,10 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
             const isCollapsed = collapsedProjects.has(dirName)
             return (
               <div key={dirName}>
-                <div
-                  className={`flex items-center gap-1 px-1 pt-1 pb-1.5 cursor-pointer select-none rounded hover:bg-ide-hover/50 transition-colors ${isCollapsed ? 'bg-ide-hover/40' : ''}`}
-                  onClick={() => toggleGroup(dirName)}
-                >
-                  <ChevronDown size={13} className={`text-ide-text-muted shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                  <span className="text-xs font-bold flex-1 min-w-0 flex items-center gap-1.5">
-                    <FolderOpen size={14} className="text-ide-accent/70 shrink-0" />
-                    <span className="truncate font-mono text-ide-text/80">{list[0]?.cwd || dirName}</span>
-                  </span>
-                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-ide-hover text-ide-text-muted">{list.length}</span>
-                  {list[0]?.inCurrentProject && (
-                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-ide-accent/15 text-ide-accent">{t('Current')}</span>
-                  )}
-                </div>
+                {renderGroupHeader(dirName, list, isCollapsed, () => toggleGroup(dirName))}
                 {!isCollapsed && (
                   <div className="space-y-1">
-                    {list.map((s) => (
-                      <div key={s.session_id} className="rounded-lg bg-ide-sidebar border border-ide-border overflow-hidden">
-                        {renderSessionHead(s)}
-                        {expanded.has(s.session_id) && renderTurns(s.session_id)}
-                      </div>
-                    ))}
+                    {list.map((s) => renderSessionCard(s, false, expanded.has(s.session_id) && renderTurns(s.session_id)))}
                   </div>
                 )}
               </div>
