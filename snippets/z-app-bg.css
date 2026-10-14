@@ -1,0 +1,123 @@
+/*
+  全应用动态背景图
+  ─────────────────────────────────────────────────
+  换图：改 --app-bg-image 的 url()（静态图 / gif / webp 动图都能放）
+  通透度：--app-bg-alpha 越小，卡片/浮层越透、图越明显（0 = 全透）
+  压暗：--app-bg-dim 越大整体越暗、文字越好读（0 = 完全不压暗）
+  动效：--app-bg-anim 是缓慢漂移一轮的时长，不要动效就写 0s
+  生效：终端需「新开 session」才吃到本次开关（xterm 只在 mount 时读一次）
+*/
+:root {
+  --app-bg-image: url('assets/night.jpg');
+  --app-bg-alpha: 0.55;
+  --app-bg-dim: 0.4;
+  --app-bg-anim: 120s;
+  /* 复用终端背景图开关，仅作“开”的标记：xterm 走透明分支，图由下面的全屏层统一提供 */
+  --terminal-bg-image: none;
+}
+
+/* ── 全屏背景层（图 + 压暗） ─────────────────────── */
+html,
+body,
+#root {
+  background-color: transparent !important;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: -4%;
+  z-index: -2;
+  background-image: var(--app-bg-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  animation: app-bg-drift var(--app-bg-anim) ease-in-out infinite alternate;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: rgb(var(--ide-bg) / var(--app-bg-dim));
+  pointer-events: none;
+}
+
+@keyframes app-bg-drift {
+  from { transform: scale(1) translate3d(0, 0, 0); }
+  to   { transform: scale(1.08) translate3d(-1.5%, -1%, 0); }
+}
+
+/* ── 容器层透明：图从最底部一路透到内容区 ──────────
+   .session-panel / .session-panel__list-wrapper / .center-panel 是 globals.css 里
+   写死的不透明底色（不带 Tailwind 类），必须点名覆盖，否则左栏和中栏全是实底 */
+#root > div,
+.session-panel,
+.session-panel__list-wrapper,
+.center-panel {
+  background: transparent !important;
+}
+
+/* ── 卡片 / 浮层底色半透明 ──────────────────────── */
+.bg-ide-bg {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-alpha)) !important;
+}
+
+.bg-ide-sidebar {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-alpha)) !important;
+}
+
+.bg-ide-panel {
+  background-color: rgb(var(--ide-panel) / var(--app-bg-alpha)) !important;
+}
+
+.session-group .session-item {
+  background: rgb(var(--ide-bg) / var(--app-bg-alpha)) !important;
+}
+
+/* 标题栏保持原样，不参与透明化 */
+.titlebar-drag {
+  background-color: rgb(var(--ide-sidebar)) !important;
+}
+
+/* ── 会话栏：去掉块状底色，只留文字与 hover/激活反馈 ──
+   .session-group 原本靠 globals.css 的 unlayered 规则压成透明，会被上面的
+   !important 顶回来，所以这里显式还原 */
+.session-group {
+  background: transparent !important;
+}
+
+.session-panel__quick-action {
+  background-color: transparent !important;
+}
+
+.session-panel__quick-action:hover {
+  background-color: rgb(var(--ide-hover) / var(--app-bg-alpha)) !important;
+}
+
+.session-panel__quick-action.bg-ide-accent\/15 {
+  background-color: rgb(var(--ide-accent) / 0.15) !important;
+}
+
+/* ── 终端：容器透明 + xterm 各层透明 ─────────────── */
+.term-view__canvas {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+.xterm .xterm-viewport,
+.xterm .xterm-screen,
+.xterm .xterm-screen canvas {
+  background: transparent !important;
+}
+
+/* ── Monaco（文件 diff / 编辑）：不要就整段删掉 ──── */
+.monaco-editor,
+.monaco-editor .monaco-editor-background,
+.monaco-editor .margin,
+.monaco-editor .minimap,
+.monaco-editor .decorationsOverviewRuler {
+  background-color: transparent !important;
+}

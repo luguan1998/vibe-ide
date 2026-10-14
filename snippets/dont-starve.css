@@ -69,12 +69,7 @@ html, body, #root {
   font-family: 'Belwe', 'Burbank', 'Caudex', 'UnifrakturCook', 'Noto Serif SC', 'SimSun', 'Cascadia Code', monospace !important;
 }
 
-/* ════════════════════════════════════════════════════
-   標題欄 — 深洋漸層
-   ════════════════════════════════════════════════════ */
-.titlebar-drag {
-  background: linear-gradient(180deg, rgb(20 50 65), rgb(31 94 107)) !important;
-}
+
 
 /* ════════════════════════════════════════════════════
    會話面板 — Klei btn-bg 風格
