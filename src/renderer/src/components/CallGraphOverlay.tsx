@@ -761,11 +761,9 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
             {notice}
           </div>
         )}
-        {isEmpty && !notice && (
+        {isEmpty && !notice && source !== 'lsp' && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="text-xs text-ide-text-muted">
-              {source === 'lsp' ? t('No calls found for this symbol') : t('No callers or callees in the index')}
-            </span>
+            <span className="text-xs text-ide-text-muted">{t('No callers or callees in the index')}</span>
           </div>
         )}
         <div className="absolute left-3 bottom-2 text-[10px] text-ide-text-muted/70 pointer-events-none select-none">
