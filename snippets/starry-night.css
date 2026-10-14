@@ -39,11 +39,6 @@
 /* 微量圆角 — 仅列 UI 容器，不命中 .monaco-editor 内部节点
    通配符 * 会扫描 Monaco 渲染文件时的数千 DOM 节点（view-line/span/装饰），
    开文件瞬间 style recalc 成本被放大成 CPU 抖升；改用具体容器即可断掉扫描路径 */
-.status-badge,
-.session-panel__settings-btn,
-.session-panel__new-btn,
-.session-panel__settings-menu,
-.session-panel__settings-menu button,
 .session-group,
 .session-group__header,
 .file-tab__header,
@@ -91,45 +86,6 @@ textarea {
 .status-badge {
   border: 2px solid rgb(60 55 80) !important;
   text-transform: none !important; letter-spacing: 0 !important;
-  font-size: 11px !important;
-}
-.session-panel__settings-btn, .session-panel__new-btn {
-  border: 1px solid rgb(var(--ide-border)) !important;
-  transition: all 0.2s !important;
-}
-.session-panel__settings-btn:hover, .session-panel__new-btn:hover {
-  border-color: rgb(var(--ide-accent) / 0.4) !important;
-}
-.session-panel__settings-btn svg { display: none !important; }
-.session-panel__settings-btn::after {
-  content: '🎨' !important;
-  font-size: 13px !important;
-  line-height: 1 !important;
-}
-.session-panel__new-btn svg { display: none !important; }
-.session-panel__new-btn::after {
-  content: '🌟' !important;
-  font-size: 13px !important;
-  line-height: 1 !important;
-}
-.session-panel__new-btn:not(:disabled) {
-  background: transparent !important;
-  color: rgb(var(--ide-text-muted)) !important;
-  border-color: rgb(var(--ide-border)) !important;
-  font-weight: 400 !important;
-}
-.session-panel__new-btn:not(:disabled):hover {
-  background: rgb(var(--ide-accent)) !important;
-  color: rgb(var(--ide-bg)) !important;
-  border-color: rgb(var(--ide-accent)) !important;
-  font-weight: 700 !important;
-}
-.session-panel__settings-menu {
-  border: 1px solid rgb(var(--ide-border)) !important;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.6) !important;
-}
-.session-panel__settings-menu button {
-  border-bottom: 1px solid rgb(40 42 68);
   font-size: 11px !important;
 }
 
@@ -189,13 +145,6 @@ textarea {
 .session-group {
   border: none !important;
   background: transparent !important;
-  position: relative !important;
-  overflow: hidden !important;
-}
-.session-panel__flat-list {
-  border: 1px dashed rgb(255 195 40 / 0.2) !important;
-  background: transparent !important;
-  border-radius: 0 !important;
   position: relative !important;
   overflow: hidden !important;
 }

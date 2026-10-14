@@ -47,42 +47,9 @@
 
 
 /* 工具栏按钮 — 浅灰底圆角，悬停加深（提高区分度） */
-.session-panel__settings-btn,
-.session-panel__new-btn {
-  border: none !important;
-  background: rgba(0 0 0 / 0.05) !important;
-  box-shadow: none !important;
-  border-radius: 6px !important;
-  transition: background-color 0.15s, color 0.15s !important;
-}
-.session-panel__settings-btn:hover,
-.session-panel__new-btn:hover {
-  background: rgba(0 0 0 / 0.09) !important;
-  color: rgb(var(--ide-text)) !important;
-}
 /* 配置按钮菜单打开态 — 浅蓝激活（精确命中 bg-ide-accent/20，不误伤 hover:bg-ide-accent） */
-.session-panel__settings-btn[class*="bg-ide-accent/20"] {
-  background: rgba(0 122 255 / 0.16) !important;
-  color: rgb(var(--ide-accent)) !important;
-}
 
 /* 配置菜单 — 白色毛玻璃 + 蓝色菜单高亮 */
-.session-panel__settings-menu {
-  background: rgba(255 255 255 / 0.8) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  border: 1px solid rgba(0 0 0 / 0.08) !important;
-  border-radius: 10px !important;
-  box-shadow: 0 8px 28px rgba(0 0 0 / 0.18) !important;
-}
-.session-panel__settings-menu button {
-  border-radius: 6px !important;
-  border: none !important;
-}
-.session-panel__settings-menu button:hover {
-  background: rgb(var(--ide-accent)) !important;
-  color: #fff !important;
-}
 
 /* 会话项 — macOS 源列表：圆角内缩选中块，无左条 */
 .session-item {
@@ -189,7 +156,6 @@
   color: rgb(var(--ide-text)) !important;
   font-weight: 600 !important;
 }
-.session-panel__flat-list { background: transparent !important; border: none !important; }
 
 /* 终端 — 深底圆角 + 发丝边 + 柔影（深终端嵌亮 chrome） */
 .term-view__canvas {

@@ -44,10 +44,6 @@ body::before {
 /* ════════════════════════════════════════════════════
    全局 — 微圓角 · 哥特手繪字體
    ════════════════════════════════════════════════════ */
-.status-badge,
-.session-panel__settings-btn,
-.session-panel__new-btn,
-.session-panel__settings-menu,
 .file-tab__header,
 .file-tab__section,
 .file-tab__section-header,
@@ -85,20 +81,6 @@ html, body, #root {
   letter-spacing: 0 !important;
   background: rgb(20 50 65) !important;
   color: rgb(228 204 159) !important;
-}
-.session-panel__settings-btn, .session-panel__new-btn {
-  border: 1px solid rgb(32 27 24 / 0.6) !important;
-  transition: all 0.3s !important;
-  color: rgb(228 204 159) !important;
-}
-.session-panel__settings-btn:hover, .session-panel__new-btn:hover {
-  border-color: rgb(38 223 162 / 0.5) !important;
-  color: rgb(38 223 162) !important;
-}
-.session-panel__settings-menu {
-  border: 1px solid rgb(32 27 24) !important;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.5) !important;
-  background: rgb(20 50 65) !important;
 }
 
 /* ── 狀態圖標替換：running 💀 骷髏 · idle 🦜 鸚鵡 · warn 💰 錢袋 ── */
@@ -268,9 +250,6 @@ html, body, #root {
 }
 
 /* ═══════════════ 會話分組 — 深海暗底 ═══════════════ */
-.session-panel__flat-list {
-  background: rgb(15 36 48) !important;
-}
 
 /* ════════════════════════════════════════════════════
    終端 — 深海暗底 · 炭黑邊框

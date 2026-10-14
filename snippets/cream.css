@@ -60,36 +60,7 @@
   background: rgb(var(--ide-sidebar)) !important;
   border: none !important;
 }
-.session-panel__settings-btn,
-.session-panel__new-btn {
-  border: none !important;
-  background: transparent !important;
-  border-radius: var(--cream-r-chip) !important;
-  transition: background-color .12s, color .12s !important;
-}
-.session-panel__settings-btn:hover,
-.session-panel__new-btn:hover {
-  background: var(--cream-hover) !important;
-  color: rgb(var(--ide-text)) !important;
-}
-.session-panel__settings-btn[class*="bg-ide-accent"] {
-  background: var(--cream-selected) !important;
-  color: rgb(var(--ide-accent)) !important;
-}
 /* 配置菜单 — 白卡 + lv3 软影 + 极淡边 */
-.session-panel__settings-menu {
-  background: rgb(255 255 255) !important;
-  border: 1px solid var(--cream-border) !important;
-  border-radius: var(--cream-r-card) !important;
-  box-shadow: var(--cream-shadow-lv3) !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
-.session-panel__settings-menu button { border-radius: var(--cream-r-chip) !important; border: none !important; }
-.session-panel__settings-menu button:hover {
-  background: var(--cream-hover) !important;
-  color: rgb(var(--ide-text)) !important;
-}
 
 /* 会话项 — 白底圆角卡，hover 淡 wash，选中蓝 tint（cream nav-active 语言）*/
 .session-item {
@@ -136,7 +107,6 @@
   box-shadow: none !important;
 }
 .session-group__path { color: rgb(var(--ide-text)) !important; font-weight: 600 !important; }
-.session-panel__flat-list { background: transparent !important; border: none !important; }
 
 /* ── 终端 — cream 暗底画布 + 极淡边 + 软影（亮 chrome / 深终端惯例）── */
 .term-view__canvas {

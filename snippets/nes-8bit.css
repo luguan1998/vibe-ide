@@ -53,8 +53,6 @@ html, body, #root {
 }
 
 /* 全局图标放大 */
-.session-panel__settings-btn svg,
-.session-panel__new-btn svg { width: 15px !important; height: 15px !important; }
 .right-panel__tab svg { width: 16px !important; height: 16px !important; }
 
 /* ════════════════════════════════════════════════════
@@ -145,20 +143,6 @@ html, body, #root {
 }
 
 /* 设置 / 新建按钮 — 凸起 */
-.session-panel__settings-btn,
-.session-panel__new-btn {
-  border: 2px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
-  width: 26px !important;
-  height: 26px !important;
-  border-radius: 0 !important;
-  /* NES 像素四角缺口 */
-  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
-}
-.session-panel__settings-btn:active,
-.session-panel__new-btn:active {
-  box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
-}
 
 /* Session 分组容器 — NES 4px 粗框像素容器（直角） */
 .session-group {
@@ -253,11 +237,6 @@ html, body, #root {
 }
 
 /* 设置菜单 — 4px 粗框 + 硬阴影 */
-.session-panel__settings-menu {
-  border: 2px solid rgb(var(--ide-border)) !important;
-  box-shadow: 2px 2px 0 rgba(33, 37, 41, 0.4) !important;
-  background: #fff !important;
-}
 
 
 /* ════════════════════════════════════════════════════

@@ -160,41 +160,6 @@
   box-shadow: 0 0 6px rgb(242 140 245 / 0.08) !important;
 }
 
-.session-panel__settings-btn,
-.session-panel__new-btn {
-  border: 1px solid rgb(40 58 90) !important;
-  transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s !important;
-}
-
-.session-panel__settings-btn:hover,
-.session-panel__new-btn:hover {
-  border-color: rgb(242 140 245 / 0.4) !important;
-}
-
-.session-panel__settings-btn svg { display: none !important; }
-.session-panel__settings-btn::after {
-  content: '🎀' !important;
-  font-size: 13px !important;
-  line-height: 1 !important;
-}
-
-.session-panel__new-btn svg { display: none !important; }
-.session-panel__new-btn::after {
-  content: '✨' !important;
-  font-size: 13px !important;
-  line-height: 1 !important;
-}
-
-.session-panel__settings-menu {
-  border: 1px solid rgb(40 58 90) !important;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.6) !important;
-}
-
-.session-panel__settings-menu button {
-  border-bottom: 1px solid rgb(30 44 72) !important;
-  font-size: 11px !important;
-}
-
 /* 统计图标替换：running 🌈 · idle ⭐ · warn 💎 */
 .status-badge__segment--running .status-badge__icon {
   display: none !important;
@@ -317,11 +282,6 @@
 .session-group__path {
   color: rgb(170 180 210) !important;
   font-weight: 600 !important;
-}
-
-.session-panel__flat-list {
-  border: none !important;
-  background: transparent !important;
 }
 
 /* ════════════════════════════════════════════════════

@@ -4,8 +4,14 @@
   换图：改 --app-bg-image 的 url()（静态图 / gif / webp 动图都能放）
   通透度：--app-bg-alpha 越小，卡片/浮层越透、图越明显（0 = 全透）
   压暗：--app-bg-dim 越大整体越暗、文字越好读（0 = 完全不压暗）
-  动效：--app-bg-anim 是缓慢漂移一轮的时长，不要动效就写 0s
+  动效：--app-bg-anim 是缓慢漂移一轮的时长。配 codex 等带毛玻璃的主题时建议 0s：
+        底下每帧在动，backdrop-filter 就没法复用模糊结果，得整块重算
   生效：终端需「新开 session」才吃到本次开关（xterm 只在 mount 时读一次）
+
+  与主题类 snippet（codex / dont-starve 等）共存：
+    · 图挂 #root::before，让开 body::before（饥荒用它画精神值暗角）
+    · 透明化规则加 body 前缀抬高特异性 → 不靠 snippet 顺序决胜，也压得过主题写死的实底
+    · 主题里高特异性的规则（弹窗玻璃 .fixed[class*=…]、画布 .focus-frame[class*=…]）仍归主题管
 */
 :root {
   --app-bg-image: url('assets/night.jpg');
@@ -16,33 +22,29 @@
   --terminal-bg-image: none;
 }
 
-/* ── 全屏背景层（图 + 压暗） ─────────────────────── */
+/* 窗口底透明：codex 会把窗口底画成近白渐变，清掉换成背景图 */
 html,
 body,
 #root {
-  background-color: transparent !important;
+  background: transparent !important;
 }
 
-body::before {
-  content: '';
-  position: fixed;
-  inset: -4%;
-  z-index: -2;
-  background-image: var(--app-bg-image);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  pointer-events: none;
-  animation: app-bg-drift var(--app-bg-anim) ease-in-out infinite alternate;
-}
-
-body::after {
+/* ── 全屏背景层：压暗并进同一层（fixed 会独占合成层，层数越少越省），
+   inset 保持 0 —— 动画自带放大余量（8% > 位移 1.5%），漂移时不会露边 ── */
+#root::before {
   content: '';
   position: fixed;
   inset: 0;
-  z-index: -1;
-  background: rgb(var(--ide-bg) / var(--app-bg-dim));
+  z-index: -2;
+  background-image:
+    linear-gradient(rgb(var(--ide-bg) / var(--app-bg-dim)), rgb(var(--ide-bg) / var(--app-bg-dim))),
+    var(--app-bg-image);
+  background-size: 100% 100%, cover;
+  background-position: center, center;
+  background-repeat: no-repeat;
   pointer-events: none;
+  will-change: transform;
+  animation: app-bg-drift var(--app-bg-anim) ease-in-out infinite alternate;
 }
 
 @keyframes app-bg-drift {
@@ -50,67 +52,56 @@ body::after {
   to   { transform: scale(1.08) translate3d(-1.5%, -1%, 0); }
 }
 
-/* ── 容器层透明：图从最底部一路透到内容区 ──────────
-   .session-panel / .session-panel__list-wrapper / .center-panel 是 globals.css 里
-   写死的不透明底色（不带 Tailwind 类），必须点名覆盖，否则左栏和中栏全是实底 */
-#root > div,
-.session-panel,
-.session-panel__list-wrapper,
-.center-panel {
+/* ── 容器与内容区透明，让图一路透上来 ──────────────
+   globals.css 里这些是写死的实底（不带 Tailwind 类），主题还会再刷一层，必须点名；
+   带 bg-ide-* 类的元素不在其列 —— 它们由下面那条半透明规则管 */
+#root > div {
   background: transparent !important;
 }
 
-/* ── 卡片 / 浮层底色半透明 ──────────────────────── */
-.bg-ide-bg {
+body :is(.session-panel, .session-panel__list-wrapper, .session-group,
+         .center-panel, .center-card, .center-overlay, .ai-tab) {
+  background: transparent !important;
+}
+
+/* ── 卡片底色半透明。下面这条的 :not() 会把特异性顶到 (0,4,1)，凡是自带
+   bg-ide-sidebar 类、却又不想有底色的元素都得在这里排掉：
+     .titlebar-drag           标题栏保持实底
+     .session-group           cwd 组容器（原设计就是透明）
+     .session-panel__quick-action  会话栏快捷按钮（下面单独给 transparent）── */
+body .bg-ide-bg,
+body .session-group .session-item {
   background-color: rgb(var(--ide-bg) / var(--app-bg-alpha)) !important;
 }
 
-.bg-ide-sidebar {
+body .bg-ide-sidebar:not(.titlebar-drag):not(.session-group):not(.session-panel__quick-action) {
   background-color: rgb(var(--ide-sidebar) / var(--app-bg-alpha)) !important;
 }
 
-.bg-ide-panel {
+body .bg-ide-panel {
   background-color: rgb(var(--ide-panel) / var(--app-bg-alpha)) !important;
 }
 
-.session-group .session-item {
-  background: rgb(var(--ide-bg) / var(--app-bg-alpha)) !important;
-}
-
-/* 标题栏保持原样，不参与透明化 */
-.titlebar-drag {
-  background-color: rgb(var(--ide-sidebar)) !important;
-}
-
-/* ── 会话栏：去掉块状底色，只留文字与 hover/激活反馈 ──
-   .session-group 原本靠 globals.css 的 unlayered 规则压成透明，会被上面的
-   !important 顶回来，所以这里显式还原 */
-.session-group {
-  background: transparent !important;
-}
-
-.session-panel__quick-action {
+/* ── 会话栏快捷按钮：去掉默认底色，只留 hover / 激活反馈 ── */
+body .session-panel__quick-action {
   background-color: transparent !important;
 }
 
-.session-panel__quick-action:hover {
+body .session-panel__quick-action:hover {
   background-color: rgb(var(--ide-hover) / var(--app-bg-alpha)) !important;
 }
 
-.session-panel__quick-action.bg-ide-accent\/15 {
+body .session-panel__quick-action.bg-ide-accent\/15 {
   background-color: rgb(var(--ide-accent) / 0.15) !important;
 }
 
-/* ── 终端：容器透明 + xterm 各层透明 ─────────────── */
-.term-view__canvas {
-  background-color: transparent !important;
-  background-image: none !important;
-}
-
+/* ── 终端 + xterm 各层透明（codex 会给终端刷深色画布，一并放掉）── */
+body .term-view__canvas,
 .xterm .xterm-viewport,
 .xterm .xterm-screen,
 .xterm .xterm-screen canvas {
   background: transparent !important;
+  background-image: none !important;
 }
 
 /* ── Monaco（文件 diff / 编辑）：不要就整段删掉 ──── */

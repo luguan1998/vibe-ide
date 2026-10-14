@@ -76,9 +76,6 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 }
 
 /* 未分组平铺列表：同款浅血红浸润打底（默认边框/圆角结构不动） */
-.session-panel__flat-list {
-  background: linear-gradient(90deg, rgba(140, 20, 20, 0.18) 0%, rgb(15 14 13) 100%) !important;
-}
 
 /* 三态所在横栏：贴图打底；暖色罩染与贴图同尺寸同位置，只染图形内部不外溢 */
 .session-panel__header {
@@ -174,7 +171,7 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 }
 
 /* 计划卡片：羊皮纸契约卷轴（Covenants Panel） */
-.ai-tab__plan-card, .ai-tab__question-card {
+.ai-tab__question-card {
   background: rgb(20 16 16) !important;
   border-radius: 0px !important;
   /* 游戏内仪式面板特有的血红镶边 */
@@ -185,7 +182,7 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
 }
 
 /* 底部核心提交大按钮（Commit / Execute）：猎杀开始的印章（Wax Seal） */
-.ai-tab__plan-execute-btn, .git-tab__commit-btn, .ai-tab__question-submit-btn {
+.git-tab__commit-btn, .ai-tab__question-submit-btn {
   background: linear-gradient(180deg, rgb(130 18 18) 0%, rgb(60 8 8) 100%) !important;
   color: rgb(240 225 200) !important;
   border: 1px solid rgb(165 30 30) !important;
@@ -197,7 +194,7 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
 }
 
-.ai-tab__plan-execute-btn:hover, .git-tab__commit-btn:hover, .ai-tab__question-submit-btn:hover {
+.git-tab__commit-btn:hover, .ai-tab__question-submit-btn:hover {
   background: linear-gradient(180deg, rgb(155 24 24) 0%, rgb(80 12 12) 100%) !important;
   box-shadow: 0 0 12px rgba(155, 24, 24, 0.6) !important;
 }
