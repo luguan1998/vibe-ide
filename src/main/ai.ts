@@ -56,6 +56,22 @@ export function cleanText(s: string): string {
   return s.replace(LOCAL_CMD_TAG_RE, '').trim()
 }
 
+// 命中片段窗口：向前留少量上下文，命中词后留主展示区
+const SNIPPET_CONTEXT_BEFORE = 20
+const SNIPPET_CONTEXT_AFTER = 160
+
+// 关键词落在长文本中后段时，直接从头截断会让关键词被裁掉看不见，
+// 故以命中位置为中心取窗口，两端加省略号。claude/pi 会话搜索共用。
+export function buildMatchSnippet(text: string, index: number, queryLen: number): string {
+  if (index <= SNIPPET_CONTEXT_BEFORE) {
+    const end = queryLen + SNIPPET_CONTEXT_AFTER
+    return text.length > end ? `${text.slice(0, end)}…` : text
+  }
+  const start = index - SNIPPET_CONTEXT_BEFORE
+  const end = Math.min(text.length, index + queryLen + SNIPPET_CONTEXT_AFTER)
+  return `…${text.slice(start, end)}${end < text.length ? '…' : ''}`
+}
+
 const COMMAND_NAME_RE = /<command-name>([\s\S]*?)<\/command-name>/
 const COMMAND_ARGS_RE = /<command-args>([\s\S]*?)<\/command-args>/
 

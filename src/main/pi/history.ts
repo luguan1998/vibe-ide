@@ -5,6 +5,7 @@ import { join, resolve, sep } from 'path'
 import { IPC_CHANNELS, type AiMessage, type AiSearchOptions, type AiSearchMatch, type AiSessionSearchGroup, type AiSessionSummary, type AiSlashCommand } from '../../shared/types'
 import { asRecord, stringField, textFromContent } from './protocol'
 import { piRecordToMessage } from './messages'
+import { buildMatchSnippet } from '../ai'
 
 // pi 的会话存储：~/.pi/agent/sessions/<dashed-cwd>/<ISO时间>_<sessionId>.jsonl，
 // 首行是 {type:'session', id, cwd, timestamp} 头，其余为 model_change / thinking_level_change / message 行。
@@ -13,7 +14,6 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MAX_SESSIONS_PER_PROJECT = 100
 const MAX_TOTAL_SESSIONS = 1000
 const MAX_MATCHES_PER_SESSION = 20
-const MATCH_TEXT_MAX = 400
 
 function samePath(a?: string, b?: string): boolean {
   if (!a || !b) return false
@@ -165,7 +165,7 @@ async function searchPiSessions(query: string, opts?: AiSearchOptions): Promise<
   if (!q) return { sessions: [], truncated: false }
   const caseSensitive = !!opts?.caseSensitive
   const needle = caseSensitive ? q : q.toLowerCase()
-  const matches = (text: string) => (caseSensitive ? text.includes(q) : text.toLowerCase().includes(needle))
+  const indexOf = (text: string) => (caseSensitive ? text.indexOf(q) : text.toLowerCase().indexOf(needle))
 
   const entries = await listPiFiles()
   const results: AiSessionSearchGroup[] = []
@@ -182,11 +182,13 @@ async function searchPiSessions(query: string, opts?: AiSearchOptions): Promise<
       let rec: any
       try { rec = JSON.parse(line) } catch { continue }
       const text = lineMatchText(rec)
-      if (!text || !matches(text)) continue
+      if (!text) continue
+      const at = indexOf(text)
+      if (at < 0) continue
       const message = asRecord(rec.message)
       found.push({
         role: stringField(message, 'role') === 'user' ? 'user' : 'assistant',
-        text: text.length > MATCH_TEXT_MAX ? `${text.slice(0, MATCH_TEXT_MAX)}…` : text,
+        text: buildMatchSnippet(text, at, q.length),
       })
     }
     if (found.length > 0) results.push({ ...toSummary(entry, opts?.currentCwd), matches: found })

@@ -3,7 +3,10 @@ import { readFile, readdir, stat, rm } from 'fs/promises'
 import { join, resolve, sep } from 'path'
 import { IPC_CHANNELS } from '../shared/types'
 import type { AiSearchOptions, AiSessionSummary, AiSessionSearchGroup, AiSearchMatch } from '../shared/types'
-import { extractSessionMeta, getProjectsRoot, cleanText, loadSessionMessagesFromProject, normalizeCwdToProjectDir } from './ai'
+import {
+  extractSessionMeta, getProjectsRoot, cleanText, loadSessionMessagesFromProject, normalizeCwdToProjectDir,
+  buildMatchSnippet,
+} from './ai'
 
 const DEFAULT_MAX_FILE_BYTES = 10 * 1024 * 1024
 const DEFAULT_MAX_MATCHES_PER_SESSION = 20
@@ -11,7 +14,6 @@ const DEFAULT_MAX_SESSIONS_PER_PROJECT = 100
 const DEFAULT_MAX_TOTAL_MATCHES = 2000
 const MAX_SESSIONS_PER_PROJECT_LIST = 100
 const MAX_TOTAL_SESSIONS_LIST = 1000
-const MATCH_TEXT_MAX = 400
 
 function isWithinProjectsRoot(projectDir: string, projectsRoot: string): boolean {
   const resolved = resolve(projectDir)
@@ -39,7 +41,7 @@ function extractLineText(msg: any): string | null {
 }
 
 // 逐行匹配；assistant 流式多行（同 message.id）只计第一条，避免重复匹配
-function collectMatches(lines: string[], match: (text: string) => boolean, max: number): AiSearchMatch[] {
+function collectMatches(lines: string[], indexOf: (text: string) => number, queryLen: number, max: number): AiSearchMatch[] {
   const out: AiSearchMatch[] = []
   const seenAssistant = new Set<string>()
   for (const line of lines) {
@@ -50,11 +52,12 @@ function collectMatches(lines: string[], match: (text: string) => boolean, max: 
     if (!text) continue
     const msgId = msg.type === 'assistant' ? msg.message?.id : undefined
     if (msgId && seenAssistant.has(msgId)) continue
-    if (!match(text)) continue
+    const at = indexOf(text)
+    if (at < 0) continue
     if (msgId) seenAssistant.add(msgId)
     out.push({
       role: msg.type === 'user' ? 'user' : 'assistant',
-      text: text.length > MATCH_TEXT_MAX ? `${text.slice(0, MATCH_TEXT_MAX)}…` : text,
+      text: buildMatchSnippet(text, at, queryLen),
     })
   }
   return out
@@ -66,7 +69,7 @@ async function searchSessions(query: string, opts?: AiSearchOptions): Promise<{ 
 
   const caseSensitive = !!opts?.caseSensitive
   const needle = caseSensitive ? q : q.toLowerCase()
-  const match = (text: string) => (caseSensitive ? text.includes(q) : text.toLowerCase().includes(needle))
+  const indexOf = (text: string) => (caseSensitive ? text.indexOf(q) : text.toLowerCase().indexOf(needle))
 
   const maxFileBytes = opts?.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES
   const maxMatchesPerSession = opts?.maxMatchesPerSession ?? DEFAULT_MAX_MATCHES_PER_SESSION
@@ -102,7 +105,7 @@ async function searchSessions(query: string, opts?: AiSearchOptions): Promise<{ 
       const lines = content.split('\n').filter(Boolean)
       const meta = await extractSessionMeta(filePath, fileStat.size, lines)
       if (!meta) continue
-      const sessionMatches = collectMatches(lines, match, maxMatchesPerSession)
+      const sessionMatches = collectMatches(lines, indexOf, q.length, maxMatchesPerSession)
       if (sessionMatches.length === 0) continue
       results.push({ ...meta, projectDir, projectDirName: dirName, inCurrentProject: inCurrent, matches: sessionMatches })
       projectCount++
