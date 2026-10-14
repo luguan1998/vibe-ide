@@ -9,7 +9,7 @@ import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import { getMainShellType, setMainShellType, getAuxShellType, setAuxShellType } from '@renderer/utils/shellPrefs'
-import { setLastNewMode } from '@renderer/utils/sessionModePrefs'
+import { getLastNewMode, setLastNewMode } from '@renderer/utils/sessionModePrefs'
 import type { SessionMode } from './DirectoryPicker'
 import SettingsPanel from './SettingsPanel'
 import { ModalOverlay } from './ModalOverlay'
@@ -752,8 +752,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   // 换 emoji 反馈：一次性扫描显像动画
   const [revealSessionId, setRevealSessionId] = useState<string | null>(null)
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [newMode, setNewMode] = useState<SessionMode>('term')
-  // 勾选即记入内存，历史会话打开时按此默认
+  const [newMode, setNewMode] = useState<SessionMode>(() => getLastNewMode())
+  // 勾选即持久化，重启后新建菜单勾选项/历史会话默认都跟它
   const pickNewMode = (mode: SessionMode) => {
     setNewMode(mode)
     setLastNewMode(mode)
