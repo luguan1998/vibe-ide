@@ -500,6 +500,13 @@ html, body, #root {
   background-color: rgb(var(--ide-bg));
 }
 
+/* 右栏收起时中栏是最后一栏（.center-panel--last）：右侧那条竖线加粗一档，
+   卡片贴着窗口缘，2px 边框在边上显得太细 */
+.center-panel--last .center-card,
+.center-panel--last .center-overlay {
+  border-right-width: 3px;
+}
+
 /* 会话栏圆角缺口 — 中间栏左侧往左「长」出 8px，正好压在会话栏右缘上：
    卡片圆角外露出的就是会话栏自己的底色（--ide-sidebar / 主题玻璃），即会话栏填了圆角位。
    只挪这一下，不动会话栏的内边距与宽度 */
