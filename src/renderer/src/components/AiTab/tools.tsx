@@ -271,7 +271,7 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
         )}
       </button>
       {expanded && (
-        <div onClick={(e) => e.stopPropagation()} className={`ai-tab__tool-detail-panel select-text mt-0.5 px-2 py-1 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-0.5 ${isFileEdit ? 'p-1' : 'overflow-y-auto'} ${category === 'question' ? 'max-h-[26rem]' : 'max-h-48'}`}>
+        <div onClick={(e) => e.stopPropagation()} className={`ai-tab__tool-detail-panel select-text mt-0.5 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-0.5 ${isFileEdit ? 'p-1' : `px-2 py-1 overflow-y-auto ${category === 'question' ? 'max-h-[26rem]' : 'max-h-48'}`}`}>
           {isFileEdit && newContent ? (
             <>
               <div className="ai-tab__tool-file-header text-ide-text-muted text-[10px] font-sans">
