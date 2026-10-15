@@ -487,6 +487,19 @@ html, body, #root {
   -webkit-backdrop-filter: none;
 }
 
+/* ── 中间栏画布：只在左侧 12px 铺会话栏底色（= 卡片 ml-1 4px + 圆角 8px）──
+   卡片左缘紧贴会话栏，圆角缺口正好落在这一条上，填成会话栏同色就不露缺损；
+   右边不铺（那一侧底本来就同色，铺了反而多一条色带）。
+   卡片自己铺实底，内部视图（终端 / AiTab / diff）颜色不受画布影响。
+   一律用 background 简写：z-app-bg 那类 snippet 按名清 .center-panel 时能连背景图一起清掉 */
+.center-panel {
+  background: linear-gradient(90deg, rgb(var(--ide-sidebar)) 0 12px, transparent 12px);
+}
+.center-card,
+.center-overlay {
+  background-color: rgb(var(--ide-bg));
+}
+
 /* 会话栏圆角缺口 — 中间栏左侧往左「长」出 8px，正好压在会话栏右缘上：
    卡片圆角外露出的就是会话栏自己的底色（--ide-sidebar / 主题玻璃），即会话栏填了圆角位。
    只挪这一下，不动会话栏的内边距与宽度 */

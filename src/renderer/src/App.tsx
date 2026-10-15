@@ -3645,13 +3645,13 @@ export default function App() {
           onBlur={handleCenterBlur}>
           {/* File Tabs (diff / edit / markdown / image) */}
           {centerView === 'files' && tabs.length > 0 && !overlayOnRight && (
-            <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay`}>
+            <div className={`flex-1 ${centerGapX} border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay`}>
               {fileTabsNode}
             </div>
           )}
           {/* Browser */}
           {centerView === 'browser' && !browserDocked && (
-            <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border border-ide-border rounded-lg overflow-hidden flex flex-col center-card`}>
+            <div className={`flex-1 ${centerGapX} border border-ide-border rounded-lg overflow-hidden flex flex-col center-card`}>
               <BrowserView
                 ref={browserViewRef}
                 onBack={handleCloseBrowser}
@@ -3670,7 +3670,7 @@ export default function App() {
             />
           )}
           {/* Terminal sessions / AI GUI mode — overlayOnRight 时回落 base 视图(terminal/board)而非恒显示 terminal */}
-          <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`} style={{ display: (centerView === 'terminal' || (overlayOnRight && overlaySnapRef.current.base === 'terminal')) && sessions.length > 0 ? 'flex' : 'none' }}>
+          <div className={`flex-1 ${centerGapX} border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`} style={{ display: (centerView === 'terminal' || (overlayOnRight && overlaySnapRef.current.base === 'terminal')) && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => {
                 const isGui = session.kind === 'gui'
@@ -3759,7 +3759,7 @@ export default function App() {
           </div>
           {/* 看板仅可见时挂载：隐藏后常驻的 reload 会随 sessions 抖动反复 spawn git rev-parse（board.records），切走 session 直接关闭 */}
           {boardCenterShown && (
-          <div className={`flex-1 ${centerGapX} mb-0.5 mt-0.5 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`}>
+          <div className={`flex-1 ${centerGapX} border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`}>
             <BoardView
               workspacePath={activeSessionCwd}
               sessions={stableSessions}
