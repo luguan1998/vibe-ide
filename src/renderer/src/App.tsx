@@ -287,15 +287,8 @@ declare global {
 
 type CenterView = 'terminal' | 'files' | 'browser' | 'search' | 'board'
 
-// 网页调试停靠位置偏好（中栏 / 右栏覆盖 Nga tab），localStorage 持久化，默认右栏
-function loadBrowserDockPref(): 'center' | 'right' {
-  try { return localStorage.getItem('vibe-ide-browser-dock') === 'center' ? 'center' : 'right' } catch {}
-  return 'right'
-}
-
-function saveBrowserDockPref(pos: 'center' | 'right') {
-  try { localStorage.setItem('vibe-ide-browser-dock', pos) } catch {}
-}
+// 右栏是否处于宽栏模式（承当主内容区）：文件 tab / 网页调试落右栏的同一判据
+const isRightPanelWide = (collapsed: boolean, width: number) => !collapsed && width >= PANEL_TAB_RAIL_MIN_W
 
 type OpenFileMode = 'auto' | 'edit' | 'diff'
 
@@ -478,7 +471,7 @@ export default function App() {
     const base = firstOpen && centerViewRef.current === 'board' ? 'board' : overlaySnapRef.current.base
     overlaySnapRef.current = {
       key: overlayKind,
-      right: !rightPanelCollapsed && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W,
+      right: isRightPanelWide(rightPanelCollapsed, rightPanelWidth),
       base,
     }
   }
@@ -1380,6 +1373,10 @@ export default function App() {
   const activeSessionIdRef = useRef(activeSessionId)
   activeSessionIdRef.current = activeSessionId
 
+  // 与文件 tab 落栏同判据：右栏宽栏时浏览器默认停靠右栏
+  const rightPanelWideRef = useRef(false)
+  rightPanelWideRef.current = isRightPanelWide(rightPanelCollapsed, rightPanelWidth)
+
   const handleBrowseUrl = useCallback((url: string) => {
     if (!url) return
     if (browserDockedRef.current) {
@@ -1388,7 +1385,7 @@ export default function App() {
       return
     }
     if (centerViewRef.current === 'browser') { browserViewRef.current?.loadURL(url); return }
-    if (loadBrowserDockPref() === 'right' && sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd) {
+    if (rightPanelWideRef.current && sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd) {
       setBrowserStartUrl(url)
       browserDockedRef.current = true
       setBrowserDocked(true)
@@ -2970,7 +2967,6 @@ export default function App() {
     const next = !browserDockedRef.current
     browserDockedRef.current = next
     setBrowserDocked(next)
-    saveBrowserDockPref(next ? 'right' : 'center')
     if (next) {
       if (centerViewRef.current === 'browser') setCenterView('terminal')
       setBrowserDockNonce(n => n + 1)
@@ -2980,27 +2976,27 @@ export default function App() {
     }
   }, [restoreBrowserDockWidth])
 
-  // 打开网页调试：按停靠偏好决定落点（右侧时直接覆盖 Nga tab）
+  // 打开网页调试：默认跟随右栏模式（宽栏则落右栏覆盖 Nga tab，否则落中栏），之后仍可在浏览器内手动切换停靠
   const handleOpenWebDebug = useCallback(() => {
     if (browserDockedRef.current) {
       setBrowserDockNonce(n => n + 1)
       return
     }
-    if (loadBrowserDockPref() === 'right' && activeSessionCwd) {
+    if (isRightPanelWide(rightPanelCollapsed, rightPanelWidth) && activeSessionCwd) {
+      if (centerViewRef.current === 'browser') setCenterView('terminal')
       browserDockedRef.current = true
       setBrowserDocked(true)
       setBrowserDockNonce(n => n + 1)
       return
     }
     setCenterView('browser')
-  }, [activeSessionCwd])
+  }, [activeSessionCwd, rightPanelCollapsed, rightPanelWidth])
 
-  // Nga 内置浏览器入口：不受停靠偏好影响，直接停靠右栏并加宽右栏
+  // Nga 内置浏览器入口：不受右栏模式影响，直接停靠右栏并加宽右栏
   const handleOpenBrowserRight = useCallback(() => {
     if (centerViewRef.current === 'browser') setCenterView('terminal')
     browserDockedRef.current = true
     setBrowserDocked(true)
-    saveBrowserDockPref('right')
     if (browserDockPrevWidth.current === null) {
       browserDockPrevWidth.current = rightPanelWidth
       setRightPanelWidth(BROWSER_DOCK_W)
