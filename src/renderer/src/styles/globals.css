@@ -498,6 +498,12 @@ html, body, #root {
 .center-card,
 .center-overlay {
   background-color: rgb(var(--ide-bg));
+  /* 顶边厚度：卡片贴到 .app__main 顶边，两者上边框是叠着画的，各自按
+     floor(css × dpr) 取整到物理像素再相加（无混色）。本机 dpr=1.5（150% 缩放）：
+     1px → 2 物理像素（偏细）、1.6px → 3（正好）、2px → 4（最初那版，偏粗）。
+     取 1.6 而非 1.5：125% 屏上 floor(1.5×1.25)=1 会退化成 2 物理像素，1.6 能保住 3。
+     各缩放档位实测见 test/probe-border-stack.cjs */
+  border-top-width: 1.6px;
 }
 
 /* 右栏收起时中栏是最后一栏（.center-panel--last）：右侧那条竖线加粗一档，
