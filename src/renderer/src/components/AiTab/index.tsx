@@ -6,8 +6,9 @@ import { useI18n } from '../../i18n'
 import { loadFilterRules } from '../FileTab'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig, takePendingSend } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, Check, MessageSquarePlus, Eye, EyeOff, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown, Copy } from 'lucide-react'
+import { SquareArrowUp, Square, Check, MessageSquarePlus, Eye, EyeOff, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown, Copy, Sparkles } from 'lucide-react'
 import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
+import { toFileUrl } from '../../utils/filePathUtils'
 import { StreamingMarkdown } from './markdown'
 import ConversationGraph from './ConversationGraph'
 import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput, deriveUserTurns, countTurnTools } from './messages'
@@ -19,6 +20,9 @@ import { ClaudeLogoIcon } from '../ClaudeLogoIcon'
 import { PiLogoIcon } from '../PiLogoIcon'
 import type { AiBackend } from '@shared/types'
 import { CONTENT_MAX_W, PANEL_MAX_W, CONTENT_W_MIN, CONTENT_W_MAX, CONTENT_W_DEFAULT, MSG_GAP } from './layout'
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i
+const isImageFile = (f: File) => f.type.startsWith('image/') || IMAGE_EXT_RE.test(f.name)
+
 function formatBytes(n: number): string {
   if (n < 1000) return `${n} B`
   if (n < 1000000) return `${(n / 1000).toFixed(1)} kB`
@@ -247,6 +251,46 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     if (!sid) return
     setInputValues(prev => ({ ...prev, [sid]: v }))
   }, [])
+
+  // 输入框气泡：快捷提示词/图片以 chip 展示，textarea 只留手打文字；发送时再拼回完整文本
+  type DraftAttachment =
+    | { id: string; kind: 'prompt'; label: string; text: string }
+    | { id: string; kind: 'image'; label: string; text: string; src: string; path: string; ephemeral?: boolean }
+  const [inputAttachments, setInputAttachments] = useState<Record<string, DraftAttachment[]>>({})
+  const inputAttachmentsRef = useRef(inputAttachments)
+  inputAttachmentsRef.current = inputAttachments
+  const attachments = activeSessionId ? (inputAttachments[activeSessionId] || []) : []
+  const addAttachment = useCallback((att: DraftAttachment) => {
+    const sid = activeSessionIdRef.current
+    if (!sid) return
+    setInputAttachments(prev => {
+      const list = prev[sid] || []
+      if (att.kind === 'prompt' && list.some(a => a.kind === 'prompt' && a.text === att.text)) return prev
+      return { ...prev, [sid]: [...list, att] }
+    })
+  }, [])
+  const removeAttachment = useCallback((id: string) => {
+    const sid = activeSessionIdRef.current
+    if (!sid) return
+    const att = (inputAttachmentsRef.current[sid] || []).find(a => a.id === id)
+    // 仅清理本应用落盘的粘贴图；拖拽/粘贴进来的外部原图只移除气泡，绝不删用户文件
+    if (att?.kind === 'image' && att.ephemeral) {
+      window.api.file.delete(att.path).catch(() => {})
+    }
+    setInputAttachments(prev => {
+      const list = prev[sid]
+      if (!list) return prev
+      return { ...prev, [sid]: list.filter(a => a.id !== id) }
+    })
+  }, [])
+  const clearAttachments = useCallback(() => {
+    const sid = activeSessionIdRef.current
+    if (!sid) return
+    setInputAttachments(prev => {
+      if (!prev[sid]?.length) return prev
+      return { ...prev, [sid]: [] }
+    })
+  }, [])
   const [dragOverInput, setDragOverInput] = useState(false)
   const [slashMenuOpen, setSlashMenuOpen] = useState(false)
   const [slashFilter, setSlashFilter] = useState('')
@@ -325,6 +369,20 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     insertTextAtCursor(paths.map(toAtPath).join(' ') + ' ')
   }, [insertTextAtCursor, toAtPath])
 
+  const addImagePaths = useCallback((files: { path: string; name: string }[], ephemeral = false) => {
+    for (const f of files) {
+      addAttachment({
+        id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        kind: 'image',
+        label: f.name,
+        text: toAtPath(f.path),
+        src: toFileUrl(f.path),
+        path: f.path,
+        ephemeral,
+      })
+    }
+  }, [addAttachment, toAtPath])
+
   const insertDroppedPaths = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
@@ -332,27 +390,34 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     const files = e.dataTransfer?.files
     if (!files || files.length === 0) return
     const paths: string[] = []
+    const images: { path: string; name: string }[] = []
     for (const f of Array.from(files)) {
       const p = window.api.file.getPathForFile(f) || ((f as any).path as string | undefined)
-      if (p) paths.push(p)
+      if (!p) continue
+      if (isImageFile(f)) images.push({ path: p, name: f.name })
+      else paths.push(p)
     }
+    addImagePaths(images)
     insertPathsAtCursor(paths)
-  }, [insertPathsAtCursor])
+  }, [insertPathsAtCursor, addImagePaths])
 
-  // 剪贴板图片（截图工具）没有磁盘路径 → 存到 userData/pasted-images 再复用 @path 链路
+  // 剪贴板图片（截图工具）没有磁盘路径 → 存到 userData/pasted-images 再转 @path 文本，界面只显示缩略气泡
   const saveClipboardImage = useCallback(async (file: File) => {
     const buffer = new Uint8Array(await file.arrayBuffer())
     const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
     const res = await window.api.ai.savePastedImage({ buffer, ext })
-    if (res?.path) insertPathsAtCursor([res.path])
-  }, [insertPathsAtCursor])
+    if (res?.path) addImagePaths([{ path: res.path, name: file.name || `paste.${ext}` }], true)
+  }, [addImagePaths])
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(e.clipboardData?.files || [])
-    const paths = files.map(f => window.api.file.getPathForFile(f)).filter((p): p is string => !!p)
-    if (paths.length > 0) {
+    const withPaths = files
+      .map(f => ({ file: f, path: window.api.file.getPathForFile(f) }))
+      .filter((x): x is { file: File; path: string } => !!x.path)
+    if (withPaths.length > 0) {
       e.preventDefault()
-      insertPathsAtCursor(paths)
+      addImagePaths(withPaths.filter(x => isImageFile(x.file)).map(x => ({ path: x.path, name: x.file.name })))
+      insertPathsAtCursor(withPaths.filter(x => !isImageFile(x.file)).map(x => x.path))
       return
     }
     // 有文本时让浏览器默认粘贴文本；纯图片剪贴板（截图）落盘后插入 @path
@@ -363,7 +428,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     if (!image) return
     e.preventDefault()
     saveClipboardImage(image).catch(() => {})
-  }, [insertPathsAtCursor, saveClipboardImage])
+  }, [insertPathsAtCursor, addImagePaths, saveClipboardImage])
 
   // 右键菜单粘贴（无 ClipboardEvent，走 async clipboard API）
   const pasteFromClipboard = useCallback(async (): Promise<boolean> => {
@@ -838,13 +903,24 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     setEditingPiped(null)
   }, [activeSessionId, editingPiped, updateSession])
 
+  // 气泡文本 + 手打文本 = 真正发送的内容（气泡在前，与快捷提示词原先前置追加的行为一致）
+  const composeDraft = useCallback((text: string, atts: DraftAttachment[]) => {
+    const parts = atts.map(a => a.text)
+    const body = text.trim()
+    if (body) parts.push(body)
+    return parts.join('\n')
+  }, [])
+
   // ── 立即派发输入框内容（busy 时即插话，不排队）──
   const dispatchInput = useCallback(async () => {
-    const message = inputValue.trim()
-    if (!activeSessionId || !message) return
+    const sid = activeSessionId
+    const atts = sid ? (inputAttachmentsRef.current[sid] || []) : []
+    const message = composeDraft(inputValue, atts).trim()
+    if (!sid || !message) return
     setInputValue('')
+    clearAttachments()
     await dispatchMessage(message)
-  }, [activeSessionId, inputValue, setInputValue, dispatchMessage])
+  }, [activeSessionId, inputValue, setInputValue, clearAttachments, composeDraft, dispatchMessage])
 
   // ── Send handler (immediate, idle only) ──
   const handleSend = useCallback(async () => {
@@ -857,10 +933,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // pipedPrompt buffer (shown as a "piped" chip) instead of sending; the
   // buffer is auto-dispatched when the session returns to idle.
   const handleEnter = useCallback(() => {
-    if (!activeSessionId || !inputValue.trim()) return
+    if (!activeSessionId) return
+    const atts = inputAttachmentsRef.current[activeSessionId] || []
+    const text = composeDraft(inputValue, atts).trim()
+    if (!text) return
     if (state.busy) {
-      const text = inputValue.trim()
       setInputValue('')
+      clearAttachments()
       updateSession(activeSessionId, (s) => {
         const prev = s.pipedPrompt || ''
         const sep = prev ? '\n' : ''
@@ -869,7 +948,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       return
     }
     handleSend()
-  }, [activeSessionId, inputValue, state.busy, setInputValue, updateSession, handleSend])
+  }, [activeSessionId, inputValue, state.busy, setInputValue, clearAttachments, composeDraft, updateSession, handleSend])
 
   // ── Auto-dispatch piped prompt when session returns to idle ──
   // busy true→false (turn done) and no pending permission → flush piped.
@@ -1122,6 +1201,47 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             onDrop={insertDroppedPaths}
           >
 
+            {/* Attachment chips — 气泡只做展示，完整文本在发送时拼回 */}
+            {attachments.length > 0 && (
+              <div className="ai-tab__input-chips flex flex-wrap gap-1.5 px-3 pt-2">
+                {attachments.map((att) => (
+                  att.kind === 'image' ? (
+                    <span key={att.id} className="ai-tab__input-chip ai-tab__input-chip--image group relative inline-flex shrink-0 animate-fade-in">
+                      <img src={att.src} alt={att.label} className="w-14 h-14 rounded-lg object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(att.id)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 grid place-items-center rounded-full
+                                   bg-ide-sidebar border border-ide-border text-ide-text-muted opacity-0
+                                   group-hover:opacity-100 hover:text-ide-text transition-opacity"
+                        title={t('Remove')}
+                      >
+                        <X size={11} strokeWidth={2.5} />
+                      </button>
+                    </span>
+                  ) : (
+                    <span
+                      key={att.id}
+                      className="ai-tab__input-chip ai-tab__input-chip--prompt group inline-flex items-center gap-1.5 h-7 pl-2 pr-1 rounded-full
+                                 border border-ide-accent/30 bg-ide-accent/10 max-w-[220px] animate-fade-in"
+                    >
+                      <Sparkles size={11} strokeWidth={2} className="shrink-0 text-ide-accent" />
+                      <span className="truncate text-[11px] text-ide-accent">{att.label}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(att.id)}
+                        className="shrink-0 w-5 h-5 grid place-items-center rounded-full text-ide-accent/70 opacity-60
+                                   group-hover:opacity-100 hover:bg-ide-accent/15 hover:text-ide-accent transition-all"
+                        title={t('Remove')}
+                      >
+                        <X size={11} strokeWidth={2} />
+                      </button>
+                    </span>
+                  )
+                ))}
+              </div>
+            )}
+
             {/* Textarea zone */}
             <div className="ai-tab__input-zone px-3 pt-1.5 pb-0">
               <textarea
@@ -1344,7 +1464,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   <button
                     type="button"
                     onClick={handleSend}
-                    disabled={!inputValue.trim() || !state.ready}
+                    disabled={(!inputValue.trim() && attachments.length === 0) || !state.ready}
                     className="ai-tab__send-btn w-7 h-7 shrink-0 flex items-center justify-center rounded-lg
                                bg-ide-accent hover:bg-ide-accent-hover text-white
                                transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
@@ -1603,18 +1723,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 <button
                   key={i}
                   onClick={() => {
-                    const text = t(item.prompt)
-                    const el = inputRef.current
-                    const existing = el ? el.value : inputValue
-                    const next = existing.trim() ? `${text}\n${existing}` : text
-                    setInputValue(next)
-                    if (el) {
-                      el.value = next
-                      el.dispatchEvent(new Event('input', { bubbles: true }))
-                      el.focus()
-                      el.selectionStart = el.selectionEnd = next.length
-                      el.scrollTop = el.scrollHeight
-                    }
+                    addAttachment({
+                      id: `prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                      kind: 'prompt',
+                      label: t(item.label),
+                      text: t(item.prompt),
+                    })
+                    inputRef.current?.focus({ preventScroll: true })
                   }}
                   className="ai-tab__example-btn px-3 py-1.5 text-xs border border-ide-border rounded-full text-ide-text-muted hover:text-ide-text hover:bg-ide-hover hover:border-ide-accent/30 transition-colors"
                 >
