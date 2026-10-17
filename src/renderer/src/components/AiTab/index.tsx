@@ -1604,13 +1604,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   key={i}
                   onClick={() => {
                     const text = t(item.prompt)
-                    setInputValue(text)
                     const el = inputRef.current
+                    const existing = el ? el.value : inputValue
+                    const next = existing.trim() ? `${text}\n${existing}` : text
+                    setInputValue(next)
                     if (el) {
-                      el.value = text
+                      el.value = next
                       el.dispatchEvent(new Event('input', { bubbles: true }))
                       el.focus()
-                      el.selectionStart = el.selectionEnd = text.length
+                      el.selectionStart = el.selectionEnd = next.length
                       el.scrollTop = el.scrollHeight
                     }
                   }}
