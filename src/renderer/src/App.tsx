@@ -206,6 +206,8 @@ declare global {
       removeFocusSettingsListener: (handler?: any) => void
       onStartupOpenPath: (callback: (data: { type: 'directory' | 'file'; path: string }) => void) => any
       removeStartupOpenPathListener: (handler?: any) => void
+      onBrowserOpen: (callback: (data: { url?: string } | undefined) => void) => any
+      removeBrowserOpenListener: (handler?: any) => void
       ai: {
         checkAvailable: (cliCommand?: string, backend?: 'claude' | 'pi') => Promise<{ available: boolean; installCmd?: string; error?: string }>
         create: (options: { sessionId: string; cwd: string; autoApprove?: boolean; permissionMode?: string; backend: 'claude' | 'pi'; resumeSessionId?: string; cliCommand?: string; configDir?: string; model?: string; enableWorktree?: boolean; computerUse?: boolean; browserUse?: boolean }) => Promise<{ success: boolean; error?: string }>
@@ -3003,6 +3005,18 @@ export default function App() {
     }
     setBrowserDockNonce(n => n + 1)
   }, [rightPanelWidth])
+
+  useEffect(() => {
+    const handler = window.api.onBrowserOpen((data) => {
+      if (data?.url) setBrowserStartUrl(data.url)
+      if (rightPanelCollapsed) {
+        window.resizeBy(rightPanelWidth + 1, 0)
+        setRightPanelCollapsed(false)
+      }
+      handleOpenBrowserRight()
+    })
+    return () => window.api.removeBrowserOpenListener(handler)
+  }, [handleOpenBrowserRight, rightPanelCollapsed, rightPanelWidth])
 
   const handleRefreshGit = useCallback(async () => {
     setGitRefreshKey(k => k + 1)

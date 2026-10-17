@@ -192,6 +192,19 @@ const api = {
     }
   },
 
+  onBrowserOpen: (callback: (data: { url?: string } | undefined) => void) => {
+    const handler = (_event: any, data: any) => callback(data)
+    ipcRenderer.on(IPC_CHANNELS.BROWSER_OPEN, handler)
+    return handler
+  },
+  removeBrowserOpenListener: (handler?: any) => {
+    if (handler) {
+      ipcRenderer.removeListener(IPC_CHANNELS.BROWSER_OPEN, handler)
+    } else {
+      ipcRenderer.removeAllListeners(IPC_CHANNELS.BROWSER_OPEN)
+    }
+  },
+
   // Theme operations
   theme: {
     setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) =>

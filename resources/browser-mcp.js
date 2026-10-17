@@ -2,7 +2,7 @@
 
 // Vibe browser-control MCP bridge: stdio JSON-RPC (cc side) <-> named pipe (Electron main side).
 // Auto-answers initialize/tools/list; forwards tools/call to the main process via named pipe.
-// Loaded in every Claude session (tools error out when no embedded browser is open).
+// Loaded in every Claude session (the embedded browser opens automatically on first call).
 
 const net = require('net')
 const readline = require('readline')

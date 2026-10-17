@@ -4,6 +4,8 @@ import { createServer } from 'net'
 import { join } from 'path'
 import { unlinkSync, writeFileSync } from 'fs'
 import { randomBytes } from 'crypto'
+import { IPC_CHANNELS } from '../shared/types'
+import { send } from './ai-shared'
 
 export interface BrowserToolResult {
   content: any[]
@@ -46,9 +48,31 @@ function textResult(s: string, isError = false): BrowserToolResult {
 
 function noBrowser(): BrowserToolResult {
   return textResult(
-    'No embedded browser is open. Ask the user to click the globe "Web Debug" (网页调试) button on the right side of the top title bar (next to the search icon) — the browser opens docked on the right by default — then navigate it to the target page and try again.',
+    'Could not open the embedded browser automatically — the right panel needs an active session/workspace. Open a workspace, then retry.',
     true,
   )
+}
+
+function normalizeNavUrl(raw: unknown): string {
+  const u = String(raw ?? '').trim()
+  if (!u) return ''
+  return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u) || u.startsWith('//') ? u : 'https://' + u
+}
+
+async function ensureBrowser(url?: string): Promise<{ c: WebContents | null; opened: boolean }> {
+  const cur = active()
+  if (cur) return { c: cur, opened: false }
+  send(IPC_CHANNELS.BROWSER_OPEN, url ? { url } : {})
+  const t0 = Date.now()
+  while (Date.now() - t0 < 5000) {
+    await sleep(120)
+    const c = active()
+    if (c) {
+      await settlePageShort(c)
+      return { c, opened: !!url }
+    }
+  }
+  return { c: null, opened: false }
 }
 
 function okRef(ref: unknown): string | null {
@@ -903,7 +927,7 @@ async function clickRef(c: WebContents, ref: string, button: string, count: numb
 // ---------- tool dispatch ----------
 
 export async function handleCall(name: string, args: any): Promise<BrowserToolResult> {
-  const c = active()
+  const { c, opened } = await ensureBrowser(name === 'navigate' ? normalizeNavUrl(args.url) : '')
   if (!c) return noBrowser()
   try {
     switch (name) {
@@ -1072,10 +1096,9 @@ return { ok: 1 };
         return combine(textResult(`${args.ref ? `scrolled ${args.ref} into view` : `scrolled dx=${args.dx || 0} dy=${args.dy || 0}`}${note ? ` [${note}]` : ''}`), snaps)
       }
       case 'navigate': {
-        let url = String(args.url ?? '').trim()
+        const url = normalizeNavUrl(args.url)
         if (!url) return textResult('url required', true)
-        if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) && !url.startsWith('//')) url = 'https://' + url
-        c.loadURL(url)
+        if (!opened) c.loadURL(url)
         await settlePage(c, 25000)
         return doSnapshot(c, false, 250)
       }

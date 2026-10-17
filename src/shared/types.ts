@@ -193,6 +193,7 @@ export const IPC_CHANNELS = {
   APP_HOME: 'app:home',
   SNIPPETS_LOAD: 'app:snippetsLoad',
   SNIPPETS_TOGGLE: 'app:snippetsToggle',
+  BROWSER_OPEN: 'browser:open',           // push: 浏览器操控无 webview 时请求前端打开右栏浏览器
 
   // Board (session kanban)
   BOARD_RECORDS: 'board:records',
