@@ -436,11 +436,11 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           </button>
           <button
             onClick={() => setOnlyCurrent(v => !v)}
-            className={`flex items-center gap-1.5 h-5 px-2 rounded text-xs transition-colors ${onlyCurrent ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+            className={`flex items-center gap-1.5 h-5 px-2 rounded text-xs whitespace-nowrap transition-colors ${onlyCurrent ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
             title={t('Current project only')}
           >
             <Filter size={13} />
-            <span>{t('Current only')}</span>
+            <span>{t('Current')}</span>
           </button>
         </div>
         <div className="flex items-center gap-1.5">
