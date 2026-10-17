@@ -18,14 +18,16 @@ const ENEMY_TYPES: Record<string, EnemyDef> = {
   skel: { name: '骷髅', emoji: '💀', hp: 22, speed: 72, r: 14, dmg: 13, xp: 2, color: '#bdbdbd' },
   elite: { name: '精英', emoji: '👹', hp: 110, speed: 52, r: 26, dmg: 32, xp: 25, color: '#ef5350' },
   ghost: { name: '幽灵', emoji: '👻', hp: 14, speed: 120, r: 12, dmg: 8, xp: 1, color: '#e1bee7' },
-  wolf: { name: '野狼', emoji: '🐺', hp: 30, speed: 85, r: 14, dmg: 15, xp: 2, color: '#a1887f' },
-  snake: { name: '毒蛇', emoji: '🐍', hp: 18, speed: 105, r: 12, dmg: 12, xp: 1, color: '#9ccc65' },
-  spider: { name: '毒蛛', emoji: '🕷️', hp: 60, speed: 35, r: 18, dmg: 22, xp: 4, color: '#455a64' },
+  boar: { name: '冲锋野猪', emoji: '🐗', hp: 34, speed: 82, r: 14, dmg: 16, xp: 2, color: '#8d6e63' },
+  cultist: { name: '邪术师', emoji: '🧙‍♂️', hp: 22, speed: 66, r: 13, dmg: 10, xp: 2, color: '#7e57c2' },
+  slime: { name: '分裂史莱姆', emoji: '🦠', hp: 52, speed: 40, r: 18, dmg: 20, xp: 3, color: '#7cb342' },
   golem: { name: '石魔', emoji: '🗿', hp: 95, speed: 30, r: 22, dmg: 26, xp: 6, color: '#b0bec5' },
   giant: { name: '巨兽', emoji: '🦍', hp: 200, speed: 38, r: 30, dmg: 45, xp: 40, color: '#8d6e63' },
   boss: { name: '恶魔领主', emoji: '👿', hp: 340, speed: 55, r: 30, dmg: 25, xp: 100, color: '#d32f2f' },
   dino: { name: '恐龙领主', emoji: '🦖', hp: 320, speed: 60, r: 30, dmg: 34, xp: 100, color: '#558b2f' },
+  vampire: { name: '吸血鬼亲王', emoji: '🧛', hp: 360, speed: 50, r: 30, dmg: 30, xp: 120, color: '#b71c1c' },
 }
+const BOSS_CYCLE = ['boss', 'dino', 'vampire']
 
 interface WeaponDef { id: string; name: string; desc: string; icon: string }
 const WEAPONS: WeaponDef[] = [
@@ -53,15 +55,16 @@ const EVOLUTIONS: EvolutionDef[] = [
   { base: 'blade', passive: 'boots', id: 'bladex', name: '瓦尔玛努斯', icon: '🌀', desc: '巨型环绕之刃·数量更多' },
 ]
 
-interface Enemy { id: number; type: string; x: number; y: number; hp: number; maxHp: number; speed: number; r: number; dmg: number; xp: number; emoji: string; color: string; hitFlash: number; kbx: number; kby: number; phase: number; atkCd: number; charge: number; glv: number; wind: number; burrow: number; dead?: boolean }
+interface Enemy { id: number; type: string; x: number; y: number; hp: number; maxHp: number; speed: number; r: number; dmg: number; xp: number; emoji: string; color: string; hitFlash: number; kbx: number; kby: number; phase: number; atkCd: number; charge: number; glv: number; wind: number; burrow: number; rage?: boolean; dvx?: number; dvy?: number; gen?: number; dead?: boolean }
 interface Shot { x: number; y: number; vx: number; vy: number; dmg: number; kind: 'wand' | 'dagger'; life: number; pierce: number; evo?: boolean }
-interface EnemyShot { x: number; y: number; vx: number; vy: number; ttl: number; r: number; dmg: number; rot: number }
+interface EnemyShot { x: number; y: number; vx: number; vy: number; ttl: number; r: number; dmg: number; rot: number; noGrav?: boolean; emoji?: string }
 interface AoE { x: number; y: number; r: number; dmg: number; ttl: number; tickAcc: number; pulse: number; follow?: boolean }
 interface Zap { start: { x: number; y: number }; pts: { x: number; y: number }[]; ttl: number; maxTtl: number }
 interface Gem { x: number; y: number; v: number; t: number }
 interface Blade { angle: number; dist: number; hitCd: number }
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number }
 interface Trail { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number }
+interface MistFx { x: number; y: number; tx: number; ty: number; t: number; maxT: number }
 interface DeathFx { x: number; y: number; emoji: string; size: number; color: string; t: number; maxT: number; big: boolean }
 interface FloatText { x: number; y: number; text: string; color: string; t: number }
 interface Decoration { x: number; y: number; emoji: string; size: number; alpha: number }
@@ -231,10 +234,13 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
   const bladesRef = useRef<Blade[]>([])
   const partsRef = useRef<Particle[]>([])
   const trailsRef = useRef<Trail[]>([])
+  const mistsRef = useRef<MistFx[]>([])
   const deathsRef = useRef<DeathFx[]>([])
   const textsRef = useRef<FloatText[]>([])
   const animRef = useRef(0)
   const enemyIdRef = useRef(1)
+  const deadAnyRef = useRef(false)
+  const slimeSpawnsRef = useRef<{ x: number; y: number; gen: number }[]>([])
 
   const playerRef = useRef({
     x: W / 2, y: H / 2, hp: 100, maxHp: 100, speed: 150,
@@ -380,24 +386,30 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     }
   }, [])
 
-  const spawnEnemy = useCallback((type: string) => {
+  const spawnEnemy = useCallback((type: string, at?: { x: number; y: number }, gen = 0) => {
     const def = ENEMY_TYPES[type]
     const wave = waveRef.current.n
     const mul = 1 + Math.max(0, wave - 1) * 0.18
-    const side = Math.random() * 4 | 0
     const pad = 50
     let x = 0, y = 0
-    if (side === 0) { x = Math.random() * W; y = -pad }
-    else if (side === 1) { x = Math.random() * W; y = H + pad }
-    else if (side === 2) { x = -pad; y = Math.random() * H }
-    else { x = W + pad; y = Math.random() * H }
-    const hpMul = type === 'elite' || type === 'boss' || type === 'dino' ? 1 + Math.max(0, wave - 1) * 0.22 : mul
+    if (at) {
+      x = at.x
+      y = at.y
+    } else {
+      const side = Math.random() * 4 | 0
+      if (side === 0) { x = Math.random() * W; y = -pad }
+      else if (side === 1) { x = Math.random() * W; y = H + pad }
+      else if (side === 2) { x = -pad; y = Math.random() * H }
+      else { x = W + pad; y = Math.random() * H }
+    }
+    const hpMul = type === 'elite' || type === 'boss' || type === 'dino' || type === 'vampire' ? 1 + Math.max(0, wave - 1) * 0.22 : mul
     let hp = def.hp * hpMul
     let speed = def.speed * (1 + wave * 0.02)
     let r = def.r
     let dmg = def.dmg
+    let xp = def.xp
     let glv = 0
-    if (type === 'boss' || type === 'dino') {
+    if (type === 'boss' || type === 'dino' || type === 'vampire') {
       glv = bossCountRef.current++
       const g = Math.min(7, glv)
       hp *= 1 + 0.25 * g
@@ -405,14 +417,21 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       r = Math.min(44, def.r + 2.5 * g)
       dmg = def.dmg + 2 * g
     }
+    if (type === 'slime' && gen > 0) {
+      hp *= Math.pow(0.45, gen)
+      r *= Math.pow(0.72, gen)
+      dmg = Math.max(1, Math.round(dmg * Math.pow(0.75, gen)))
+      speed *= 1.15
+      xp = Math.max(1, Math.round(xp * Math.pow(0.5, gen)))
+    }
     enemiesRef.current.push({
       id: enemyIdRef.current++,
       type, x, y,
       hp,
       maxHp: hp,
       speed,
-      r, dmg, xp: def.xp, emoji: def.emoji, color: def.color,
-      hitFlash: 0, kbx: 0, kby: 0, phase: Math.random() * Math.PI * 2, atkCd: type === 'dino' ? 1.3 : 1.5 + Math.random() * 1.5, charge: 0, glv, wind: 0, burrow: 0,
+      r, dmg, xp, emoji: def.emoji, color: def.color,
+      hitFlash: 0, kbx: 0, kby: 0, phase: Math.random() * Math.PI * 2, atkCd: type === 'dino' ? 1.3 : type === 'vampire' ? 2.4 : 1.5 + Math.random() * 1.5, charge: type === 'vampire' ? 2.5 : 0, glv, wind: 0, burrow: 0, gen,
     })
   }, [])
 
@@ -427,8 +446,10 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
 
   const addParts = useCallback((x: number, y: number, color: string, n: number, speed: number) => {
     const parts = partsRef.current
-    if (parts.length > 350) return
-    for (let i = 0; i < n; i++) {
+    const room = 320 - parts.length
+    if (room <= 0) return
+    const count = Math.min(n, room)
+    for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2
       const s = speed * (0.3 + Math.random() * 0.9)
       parts.push({
@@ -439,9 +460,33 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
   }, [])
 
   const addText = useCallback((x: number, y: number, text: string, color: string) => {
-    if (textsRef.current.length > 40) textsRef.current.shift()
+    if (textsRef.current.length >= 32) return
     textsRef.current.push({ x, y, text, color, t: 0.8 })
   }, [])
+
+  const gemSpriteRef = useRef<HTMLCanvasElement | null>(null)
+  if (!gemSpriteRef.current) {
+    const cv = document.createElement('canvas')
+    cv.width = 44
+    cv.height = 44
+    const g2 = cv.getContext('2d')
+    if (g2) {
+      const glow = g2.createRadialGradient(22, 22, 1, 22, 22, 12)
+      glow.addColorStop(0, 'rgba(255,215,64,0.12)')
+      glow.addColorStop(1, 'rgba(255,215,64,0)')
+      g2.fillStyle = glow
+      g2.fillRect(0, 0, 44, 44)
+      g2.translate(22, 22)
+      g2.rotate(Math.PI / 4)
+      g2.fillStyle = 'rgba(0,0,0,0.35)'
+      g2.fillRect(-5, -5, 10, 10)
+      g2.fillStyle = '#e8bf3c'
+      g2.fillRect(-4.5, -4.5, 9, 9)
+      g2.fillStyle = 'rgba(255,255,255,0.6)'
+      g2.fillRect(-2.5, -2.5, 3.5, 3.5)
+    }
+    gemSpriteRef.current = cv
+  }
 
   const emojiSpritesRef = useRef(new Map<string, HTMLCanvasElement>())
   const emojiSprite = useCallback((emoji: string, size: number) => {
@@ -490,25 +535,34 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
   const killEnemy = useCallback((e: Enemy) => {
     if (e.dead) return
     e.dead = true
-    enemiesRef.current = enemiesRef.current.filter(x => x.id !== e.id)
+    deadAnyRef.current = true
     killsRef.current++
     setKills(killsRef.current)
     dropGems(e.x, e.y, e.xp)
-    const boss = e.type === 'elite' || e.type === 'giant' || e.type === 'boss' || e.type === 'dino'
+    if (e.type === 'slime' && (e.gen || 0) < 2) {
+      const gen = (e.gen || 0) + 1
+      if (enemiesRef.current.length + slimeSpawnsRef.current.length < 180) {
+        slimeSpawnsRef.current.push({ x: e.x - 8, y: e.y, gen }, { x: e.x + 8, y: e.y, gen })
+      }
+      addParts(e.x, e.y, '#aed581', 10, 3)
+    }
+    const boss = e.type === 'elite' || e.type === 'giant' || e.type === 'boss' || e.type === 'dino' || e.type === 'vampire'
     addParts(e.x, e.y, e.color, boss ? (e.type === 'boss' ? 44 : 26) : 12, boss ? (e.type === 'boss' ? 7 : 5) : 3.5)
     addParts(e.x, e.y, '#ffffff', boss ? (e.type === 'boss' ? 22 : 14) : 6, boss ? (e.type === 'boss' ? 8 : 6.5) : 4.5)
-    deathsRef.current.push({ x: e.x, y: e.y, emoji: e.emoji, size: e.r * 2.3, color: e.color, t: boss ? (e.type === 'boss' ? 0.8 : 0.6) : 0.42, maxT: boss ? (e.type === 'boss' ? 0.8 : 0.6) : 0.42, big: boss })
-    if (boss) shakeRef.current = Math.max(shakeRef.current, e.type === 'boss' ? 6 : 3)
+    if (deathsRef.current.length < 40) {
+      deathsRef.current.push({ x: e.x, y: e.y, emoji: e.emoji, size: e.r * 2.3, color: e.color, t: boss ? (e.type === 'boss' ? 0.8 : 0.6) : 0.42, maxT: boss ? (e.type === 'boss' ? 0.8 : 0.6) : 0.42, big: boss })
+    }
+    if (boss) shakeRef.current = Math.max(shakeRef.current, e.type === 'boss' || e.type === 'vampire' ? 6 : 3)
     addText(e.x, e.y - e.r - 6, `+${e.xp}`, '#ffd740')
   }, [addParts, addText, dropGems])
 
   const dmgEnemy = useCallback((e: Enemy, dmg: number, kbx: number, kby: number) => {
-    if (e.burrow > 0) return
+    if (e.dead || e.burrow > 0) return
     e.hp -= dmg
     e.hitFlash = 0.12
     e.kbx += kbx
     e.kby += kby
-    addText(e.x + (Math.random() - 0.5) * 14, e.y - e.r - 4, `${Math.round(dmg)}`, '#ffe082')
+    if (textsRef.current.length < 24) addText(e.x + (Math.random() - 0.5) * 14, e.y - e.r - 4, `${Math.round(dmg)}`, '#ffe082')
     if (e.hp <= 0) killEnemy(e)
   }, [addText, killEnemy])
 
@@ -520,7 +574,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     let target: Enemy | null = null
     let bestD = 240
     for (const e of enemiesRef.current) {
-      if (e.burrow > 0) continue
+      if (e.dead || e.burrow > 0) continue
       const d = Math.hypot(e.x - p.x, e.y - p.y)
       if (d < bestD) { bestD = d; target = e }
     }
@@ -578,27 +632,30 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     const radius = evo ? 99999 : 150 + 22 * lv
     const hits: Enemy[] = []
     for (const e of enemiesRef.current) {
+      if (e.dead) continue
       if (Math.hypot(e.x - p.x, e.y - p.y) < radius + e.r) hits.push(e)
     }
     if (hits.length === 0) return
     const zaps: Zap[] = []
     for (const e of hits) {
-      const start = evo ? { x: e.x, y: e.y - 90 } : { x: p.x, y: p.y }
-      const pts: { x: number; y: number }[] = []
-      if (evo) {
-        for (let i = 1; i < 4; i++) {
-          pts.push({ x: e.x + (Math.random() - 0.5) * 24, y: e.y - 90 * (1 - i / 4) + (Math.random() - 0.5) * 12 })
+      if (zaps.length < 24) {
+        const start = evo ? { x: e.x, y: e.y - 90 } : { x: p.x, y: p.y }
+        const pts: { x: number; y: number }[] = []
+        if (evo) {
+          for (let i = 1; i < 4; i++) {
+            pts.push({ x: e.x + (Math.random() - 0.5) * 24, y: e.y - 90 * (1 - i / 4) + (Math.random() - 0.5) * 12 })
+          }
+        } else {
+          const segs = 3
+          for (let i = 1; i < segs; i++) {
+            pts.push({
+              x: p.x + (e.x - p.x) * (i / segs) + (Math.random() - 0.5) * 26,
+              y: p.y + (e.y - p.y) * (i / segs) + (Math.random() - 0.5) * 26,
+            })
+          }
         }
-      } else {
-        const segs = 3
-        for (let i = 1; i < segs; i++) {
-          pts.push({
-            x: p.x + (e.x - p.x) * (i / segs) + (Math.random() - 0.5) * 26,
-            y: p.y + (e.y - p.y) * (i / segs) + (Math.random() - 0.5) * 26,
-          })
-        }
+        zaps.push({ start, pts, ttl: 0.14, maxTtl: 0.14 })
       }
-      zaps.push({ start, pts, ttl: 0.14, maxTtl: 0.14 })
       dmgEnemy(e, dmg, 0, 0)
     }
     zapsRef.current.push(...zaps)
@@ -616,6 +673,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       const bx = p.x + Math.cos(b.angle) * b.dist
       const by = p.y + Math.sin(b.angle) * b.dist
       for (const e of enemiesRef.current) {
+        if (e.dead) continue
         if (Math.hypot(e.x - bx, e.y - by) < e.r + hitR) {
           if (b.hitCd <= 0) {
             b.hitCd = evo ? 0.38 : 0.5
@@ -681,6 +739,10 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
 
   const update = useCallback((dt: number) => {
     if (phaseRef.current !== 'playing') return
+    if (deadAnyRef.current) {
+      deadAnyRef.current = false
+      enemiesRef.current = enemiesRef.current.filter(e => !e.dead)
+    }
     const p = playerRef.current
     elapsedRef.current += dt
     setTime(Math.floor(elapsedRef.current))
@@ -744,7 +806,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       finalBossAccRef.current += dt
       if (finalBossAccRef.current >= 8) {
         finalBossAccRef.current = 0
-        spawnEnemy(bossCountRef.current % 2 === 0 ? 'boss' : 'dino')
+        spawnEnemy(BOSS_CYCLE[bossCountRef.current % BOSS_CYCLE.length])
         bossBannerRef.current = 2
         shakeRef.current = Math.max(shakeRef.current, 5)
       }
@@ -759,13 +821,13 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       const wv = waveRef.current.n
       if (wv <= 2) type = 'bat'
       else if (wv <= 4) type = r < 0.55 ? 'bat' : 'zombie'
-      else if (wv <= 6) type = r < 0.3 ? 'bat' : r < 0.6 ? 'zombie' : r < 0.85 ? 'wolf' : 'ghost'
-      else if (wv <= 9) type = r < 0.25 ? 'bat' : r < 0.5 ? 'zombie' : r < 0.65 ? 'skel' : r < 0.8 ? 'wolf' : r < 0.92 ? 'snake' : r < 0.98 ? 'spider' : 'ghost'
-      else type = r < 0.18 ? 'bat' : r < 0.35 ? 'zombie' : r < 0.5 ? 'skel' : r < 0.62 ? 'wolf' : r < 0.72 ? 'snake' : r < 0.82 ? 'ghost' : r < 0.9 ? 'spider' : r < 0.97 ? 'golem' : 'elite'
+      else if (wv <= 6) type = r < 0.3 ? 'bat' : r < 0.6 ? 'zombie' : r < 0.85 ? 'boar' : 'ghost'
+      else if (wv <= 9) type = r < 0.25 ? 'bat' : r < 0.5 ? 'zombie' : r < 0.65 ? 'skel' : r < 0.8 ? 'boar' : r < 0.92 ? 'cultist' : r < 0.98 ? 'slime' : 'ghost'
+      else type = r < 0.18 ? 'bat' : r < 0.35 ? 'zombie' : r < 0.5 ? 'skel' : r < 0.62 ? 'boar' : r < 0.72 ? 'cultist' : r < 0.82 ? 'ghost' : r < 0.9 ? 'slime' : r < 0.97 ? 'golem' : 'elite'
       spawnEnemy(type)
       if (wv >= 5 && Math.random() < 0.3) {
         const extra = Math.random()
-        spawnEnemy(extra < 0.4 ? 'zombie' : extra < 0.7 ? 'wolf' : extra < 0.9 ? 'snake' : 'skel')
+        spawnEnemy(extra < 0.4 ? 'zombie' : extra < 0.7 ? 'boar' : extra < 0.9 ? 'cultist' : 'skel')
       }
     }
     eliteAccRef.current += dt
@@ -784,7 +846,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     bossAccRef.current += dt
     if (bossAccRef.current >= 90 && !noSpawn) {
       bossAccRef.current = 0
-      spawnEnemy(bossCountRef.current % 2 === 0 ? 'boss' : 'dino')
+      spawnEnemy(BOSS_CYCLE[bossCountRef.current % BOSS_CYCLE.length])
       bossBannerRef.current = 2.2
       shakeRef.current = Math.max(shakeRef.current, 6)
     }
@@ -839,10 +901,15 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
 
     const enemies = enemiesRef.current
     for (const e of enemies) {
+      if (e.dead) continue
       const dx = p.x - e.x, dy = p.y - e.y
       const d = Math.hypot(dx, dy) || 1
       const sway = Math.sin(elapsedRef.current * 3 + e.phase) * 0.4
-      const sp = e.type === 'boss' && e.charge > 0 ? 235 + 5 * Math.min(7, e.glv) : e.speed
+      let sp = e.speed
+      if (e.type === 'boss' && e.charge > 0) sp = 235 + 5 * Math.min(7, e.glv)
+      else if (e.type === 'vampire') sp = e.wind > 0 ? 0 : e.speed * (e.rage ? 1.35 : 1)
+      else if (e.type === 'boar' && (e.wind > 0 || e.charge > 0)) sp = 0
+      else if (e.type === 'cultist' && e.wind > 0) sp = 0
       e.x += (dx / d + sway * -dy / d) * sp * dt
       e.y += (dy / d + sway * dx / d) * sp * dt
       if (e.type === 'boss' && e.charge > 0) {
@@ -901,7 +968,90 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
           }
         }
       }
-      if (!(e.type === 'dino' && e.burrow > 0) && d < e.r + PLAYER_R) {
+      if (e.type === 'boar') {
+        if (e.wind > 0) {
+          e.wind -= dt
+          if (e.wind <= 0) {
+            const a = Math.atan2(p.y - e.y, p.x - e.x)
+            e.dvx = Math.cos(a) * 340
+            e.dvy = Math.sin(a) * 340
+            e.charge = 0.5
+            addParts(e.x, e.y, '#a1887f', 8, 3)
+          }
+        } else if (e.charge > 0) {
+          e.charge -= dt
+          e.x += (e.dvx || 0) * dt
+          e.y += (e.dvy || 0) * dt
+          if (trailsRef.current.length < 320) {
+            trailsRef.current.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0.2, maxLife: 0.2, color: '#d7ccc8', size: 3 })
+          }
+        } else {
+          e.atkCd -= dt
+          if (e.atkCd <= 0 && d < 260) {
+            e.wind = 0.55
+            e.atkCd = 3.6 + Math.random() * 1.2
+          }
+        }
+      }
+      if (e.type === 'cultist') {
+        if (e.wind > 0) {
+          e.wind -= dt
+          if (e.wind <= 0) {
+            const a = Math.atan2(p.y - e.y, p.x - e.x)
+            enemyShotsRef.current.push({ x: e.x, y: e.y, vx: Math.cos(a) * 130, vy: Math.sin(a) * 130, ttl: 4, r: 7, dmg: e.dmg, rot: 0, noGrav: true, emoji: '🔮' })
+            addParts(e.x, e.y, '#b39ddb', 6, 3)
+            e.atkCd = 2.6 + Math.random() * 0.8
+          }
+        } else {
+          e.atkCd -= dt
+          if (e.atkCd <= 0 && d < 300) e.wind = 0.55
+        }
+      }
+      if (e.type === 'vampire') {
+        if (!e.rage && e.hp <= e.maxHp * 0.5) {
+          e.rage = true
+          addText(e.x, e.y - e.r - 18, '狂暴!', '#ff5252')
+          addParts(e.x, e.y, '#ff5252', 18, 5)
+          shakeRef.current = Math.max(shakeRef.current, 4)
+        }
+        e.charge -= dt
+        if (e.charge <= 0) {
+          e.charge = e.rage ? 5.5 : 7
+          const ox = e.x, oy = e.y
+          const ta = Math.random() * Math.PI * 2
+          const td = 150 + Math.random() * 80
+          e.x = Math.max(40, Math.min(W - 40, p.x + Math.cos(ta) * td))
+          e.y = Math.max(70, Math.min(H - 70, p.y + Math.sin(ta) * td))
+          mistsRef.current.push({ x: ox, y: oy, tx: e.x, ty: e.y, t: 0.45, maxT: 0.45 })
+          addParts(ox, oy, '#b39ddb', 22, 7)
+          addParts(ox, oy, '#7e57c2', 14, 3.5)
+          addParts(e.x, e.y, '#b39ddb', 22, 7)
+          addParts(e.x, e.y, '#7e57c2', 14, 3.5)
+          addText(ox, oy - e.r - 10, '血雾!', '#ce93d8')
+          shakeRef.current = Math.max(shakeRef.current, 2.5)
+          for (let i = 0; i < 2; i++) {
+            spawnEnemy('bat', { x: e.x + (Math.random() - 0.5) * 50, y: e.y + (Math.random() - 0.5) * 50 })
+          }
+          e.wind = 0
+          e.atkCd = Math.max(e.atkCd, 0.6)
+        } else if (e.wind > 0) {
+          e.wind -= dt
+          if (e.wind <= 0) {
+            const n = e.rage ? 16 : 12
+            const base = Math.random() * Math.PI * 2
+            for (let i = 0; i < n; i++) {
+              const va = base + i / n * Math.PI * 2
+              enemyShotsRef.current.push({ x: e.x, y: e.y, vx: Math.cos(va) * 165, vy: Math.sin(va) * 165, ttl: 3.2, r: 6, dmg: Math.round(e.dmg * 0.5), rot: Math.random() * Math.PI * 2, noGrav: true, emoji: '🦇' })
+            }
+            addParts(e.x, e.y, '#b39ddb', 12, 5)
+            e.atkCd = e.rage ? 2.4 : 3.4
+          }
+        } else {
+          e.atkCd -= dt
+          if (e.atkCd <= 0) e.wind = e.rage ? 0.6 : 0.8
+        }
+      }
+      if (!(e.type === 'dino' && e.burrow > 0) && Math.hypot(p.x - e.x, p.y - e.y) < e.r + PLAYER_R) {
         hurtPlayer(e.dmg, e.x, e.y)
         e.x -= dx / d * 8
         e.y -= dy / d * 8
@@ -911,7 +1061,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     const eShots = enemyShotsRef.current
     for (let i = eShots.length - 1; i >= 0; i--) {
       const es = eShots[i]
-      es.vy += 320 * dt
+      if (!es.noGrav) es.vy += 320 * dt
       es.x += es.vx * dt
       es.y += es.vy * dt
       es.ttl -= dt
@@ -931,7 +1081,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
         let tgt: Enemy | null = null
         let bd = 1e9
         for (const e of enemies) {
-          if (e.burrow > 0) continue
+          if (e.dead || e.burrow > 0) continue
           const d = Math.hypot(e.x - s.x, e.y - s.y)
           if (d < bd) { bd = d; tgt = e }
         }
@@ -956,6 +1106,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       let dead = s.life <= 0 || s.x < -20 || s.x > W + 20 || s.y < -20 || s.y > H + 20
       if (!dead) {
         for (const e of enemies) {
+          if (e.dead) continue
           if (Math.hypot(e.x - s.x, e.y - s.y) < e.r + 5) {
             if (trailsRef.current.length < 320) {
               for (let j = 0; j < 3; j++) {
@@ -988,6 +1139,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
         a.tickAcc = 0
         a.pulse = 0
         for (const e of enemies) {
+          if (e.dead) continue
           if (Math.hypot(e.x - a.x, e.y - a.y) < a.r + e.r) dmgEnemy(e, a.dmg, 0, 0)
         }
       }
@@ -1002,7 +1154,10 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
 
     const gems = gemsRef.current
     const magnetR = 45 + 30 * (passivesRef.current.magnet || 0)
-    for (let i = gems.length - 1; i >= 0; i--) {
+    let pickedXp = 0
+    let pickedN = 0
+    let w = 0
+    for (let i = 0; i < gems.length; i++) {
       const g = gems[i]
       g.t += dt * 3
       const d = Math.hypot(p.x - g.x, p.y - g.y)
@@ -1012,9 +1167,20 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
         g.y += (p.y - g.y) / d * sp
       }
       if (d < 16) {
-        gems.splice(i, 1)
-        gainXp(g.v)
+        pickedXp += g.v
+        pickedN++
+      } else {
+        gems[w++] = g
       }
+    }
+    gems.length = w
+    if (pickedXp > 0) {
+      const n = Math.min(6, pickedN * 2)
+      for (let j = 0; j < n && trailsRef.current.length < 320; j++) {
+        const fa = Math.random() * Math.PI * 2
+        trailsRef.current.push({ x: p.x + (Math.random() - 0.5) * 18, y: p.y + (Math.random() - 0.5) * 18, vx: Math.cos(fa) * 40, vy: Math.sin(fa) * 40 - 25, life: 0.28, maxLife: 0.28, color: '#ffd740', size: 2 })
+      }
+      gainXp(pickedXp)
     }
 
     const parts = partsRef.current
@@ -1035,6 +1201,12 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       if (tr.life <= 0) trails.splice(i, 1)
     }
 
+    const mists = mistsRef.current
+    for (let i = mists.length - 1; i >= 0; i--) {
+      mists[i].t -= dt
+      if (mists[i].t <= 0) mists.splice(i, 1)
+    }
+
     const deaths = deathsRef.current
     for (let i = deaths.length - 1; i >= 0; i--) {
       deaths[i].t -= dt
@@ -1049,11 +1221,17 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       if (t.t <= 0) texts.splice(i, 1)
     }
 
+    const slimeSpawns = slimeSpawnsRef.current
+    if (slimeSpawns.length > 0) {
+      for (const s of slimeSpawns) spawnEnemy('slime', { x: s.x, y: s.y }, s.gen)
+      slimeSpawns.length = 0
+    }
+
     if (!endlessRef.current && elapsedRef.current >= DURATION) {
       saveBest(elapsedRef.current)
       setPhaseBoth('win')
     }
-  }, [bladeHits, dmgEnemy, dropHoly, fireDagger, fireWand, gainXp, hurtPlayer, saveBest, setHpBoth, setPhaseBoth, skelThrow, spawnEnemy, zapOrb])
+  }, [addParts, addText, bladeHits, dmgEnemy, dropHoly, fireDagger, fireWand, gainXp, hurtPlayer, saveBest, setHpBoth, setPhaseBoth, skelThrow, spawnEnemy, zapOrb])
 
   const render = useCallback(() => {
     const c = canvasRef.current
@@ -1102,18 +1280,12 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       ctx.globalAlpha = 1
     }
 
-    for (const g of gemsRef.current) {
-      const bob = Math.sin(g.t) * 3
-      ctx.save()
-      ctx.translate(g.x, g.y + bob)
-      ctx.rotate(Math.PI / 4)
-      ctx.fillStyle = 'rgba(0,0,0,0.35)'
-      ctx.fillRect(-5, -5, 10, 10)
-      ctx.fillStyle = '#ffd740'
-      ctx.fillRect(-4.5, -4.5, 9, 9)
-      ctx.fillStyle = 'rgba(255,255,255,0.75)'
-      ctx.fillRect(-2.5, -2.5, 3.5, 3.5)
-      ctx.restore()
+    const gemSprite = gemSpriteRef.current
+    if (gemSprite) {
+      for (const g of gemsRef.current) {
+        const bob = Math.sin(g.t) * 3
+        ctx.drawImage(gemSprite, g.x - 22, g.y + bob - 22)
+      }
     }
 
     const bladeEvo = !!weaponsRef.current.bladex
@@ -1141,6 +1313,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     }
 
     for (const e of enemiesRef.current) {
+      if (e.dead) continue
       if (e.type === 'dino' && e.burrow > 0) {
         const hsp = emojiSprite('🕳️', e.r * 1.9)
         ctx.drawImage(hsp, e.x - hsp.width / 2, e.y - hsp.height / 2)
@@ -1161,6 +1334,37 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       const esp = emojiSprite(e.emoji, e.r * 2.3)
       ctx.drawImage(esp, e.x - esp.width / 2, e.y - esp.height / 2)
       ctx.restore()
+      if (e.type === 'boar' && e.wind > 0) {
+        ctx.fillStyle = '#ffb74d'
+        ctx.font = 'bold 15px "Segoe UI", sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('!', e.x, e.y - e.r - 14)
+      }
+      if (e.type === 'cultist' && e.wind > 0) {
+        ctx.strokeStyle = `rgba(179,157,219,${0.5 + 0.4 * Math.sin(elapsedRef.current * 20)})`
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.arc(e.x, e.y, e.r + 6 + 3 * (1 - e.wind / 0.55), 0, Math.PI * 2)
+        ctx.stroke()
+      }
+      if (e.type === 'vampire' && (e.rage || e.wind > 0)) {
+        const pulse = e.wind > 0
+          ? 0.45 + 0.45 * Math.sin(elapsedRef.current * 18)
+          : 0.25 + 0.15 * Math.sin(elapsedRef.current * 4)
+        ctx.strokeStyle = e.wind > 0 ? `rgba(179,157,219,${pulse})` : `rgba(255,82,82,${pulse})`
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.arc(e.x, e.y, e.r + 7 + Math.max(0, 1 - e.wind / 0.8) * 4, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+      if (e.type === 'vampire' && e.wind > 0) {
+        ctx.fillStyle = '#ce93d8'
+        ctx.font = 'bold 14px "Segoe UI", sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('血咒!', e.x, e.y - e.r - 16)
+      }
       if (e.type === 'dino' && e.wind > 0) {
         ctx.fillStyle = '#ffb74d'
         ctx.font = 'bold 14px "Segoe UI", sans-serif'
@@ -1178,7 +1382,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       }
     }
 
-    const bossE = enemiesRef.current.find(en => en.type === 'boss' || en.type === 'dino')
+    const bossE = enemiesRef.current.find(en => !en.dead && (en.type === 'boss' || en.type === 'dino' || en.type === 'vampire'))
     if (bossE) {
       ctx.fillStyle = 'rgba(0,0,0,0.6)'
       ctx.fillRect(W / 2 - 120, H - 34, 240, 10)
@@ -1216,6 +1420,48 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       ctx.fillText(d.emoji, d.x, d.y)
     }
     ctx.globalAlpha = 1
+
+    for (const m of mistsRef.current) {
+      const k = Math.max(0, m.t / m.maxT)
+      ctx.save()
+      ctx.lineCap = 'round'
+      ctx.globalAlpha = k * 0.45
+      ctx.strokeStyle = '#7e57c2'
+      ctx.lineWidth = 4 + 20 * k
+      ctx.beginPath()
+      ctx.moveTo(m.x, m.y)
+      ctx.lineTo(m.tx, m.ty)
+      ctx.stroke()
+      ctx.globalAlpha = k * 0.85
+      ctx.strokeStyle = '#ce93d8'
+      ctx.lineWidth = 2 + 6 * k
+      ctx.beginPath()
+      ctx.moveTo(m.x, m.y)
+      ctx.lineTo(m.tx, m.ty)
+      ctx.stroke()
+      for (const [px, py] of [[m.x, m.y], [m.tx, m.ty]]) {
+        ctx.globalAlpha = k * 0.9
+        ctx.strokeStyle = '#e1bee7'
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.arc(px, py, 8 + (1 - k) * 46, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.globalAlpha = k * 0.22
+        ctx.fillStyle = '#7e57c2'
+        ctx.beginPath()
+        ctx.arc(px, py, 18 + (1 - k) * 20, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      const bsp = emojiSprite('🦇', 26)
+      for (let i = 1; i <= 3; i++) {
+        const bp = Math.min(1, (1 - k) * 1.4 + i * 0.15)
+        const px = m.x + (m.tx - m.x) * bp
+        const py = m.y + (m.ty - m.y) * bp
+        ctx.globalAlpha = k * 0.9
+        ctx.drawImage(bsp, px - bsp.width / 2, py - bsp.height / 2)
+      }
+      ctx.restore()
+    }
 
     const invulnBlink = p.invuln > 0 && Math.floor(p.invuln * 12) % 2 === 0
     if (!invulnBlink) {
@@ -1272,7 +1518,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       ctx.arc(0, 1.5, 10, 0, Math.PI * 2)
       ctx.fill()
       ctx.rotate(es.rot)
-      const bsp = emojiSprite('🦴', 22)
+      const bsp = emojiSprite(es.emoji ?? '🦴', 22)
       ctx.drawImage(bsp, -bsp.width / 2, -bsp.height / 2)
       ctx.restore()
     }
@@ -1339,7 +1585,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     }
 
     if (bossBannerRef.current > 0) {
-      const bE = enemiesRef.current.find(en => en.type === 'boss' || en.type === 'dino')
+      const bE = enemiesRef.current.find(en => !en.dead && (en.type === 'boss' || en.type === 'dino' || en.type === 'vampire'))
       if (bE) {
         const bName = `⚠ ${ENEMY_TYPES[bE.type].name} Lv.${bE.glv + 1} 来袭 ⚠`
         const a = Math.min(1, bossBannerRef.current / 0.8)
@@ -1421,6 +1667,10 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
   }, [loop])
 
   const applyOption = useCallback((opt: Option) => {
+    const p = playerRef.current
+    const isEvo = opt.kind === 'evolve'
+    addParts(p.x, p.y, isEvo ? '#ffd54f' : '#fff59d', isEvo ? 26 : 14, isEvo ? 6 : 3.5)
+    addParts(p.x, p.y, '#ffffff', isEvo ? 12 : 6, isEvo ? 8 : 5)
     if (opt.kind === 'evolve') {
       const evo = EVOLUTIONS.find(e => e.id === opt.id)
       if (evo) {
@@ -1448,7 +1698,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       }
     }
     setPhaseBoth('playing')
-  }, [setHpBoth, setPhaseBoth])
+  }, [addParts, setHpBoth, setPhaseBoth])
 
   const startEndless = useCallback(() => {
     endlessRef.current = true
@@ -1470,6 +1720,8 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     p.weaponTimers = {}
     p.regenAcc = 0
     enemiesRef.current = []
+    deadAnyRef.current = false
+    slimeSpawnsRef.current = []
     shotsRef.current = []
     enemyShotsRef.current = []
     aoeRef.current = []
@@ -1478,6 +1730,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     bladesRef.current = []
     partsRef.current = []
     trailsRef.current = []
+    mistsRef.current = []
     deathsRef.current = []
     textsRef.current = []
     weaponsRef.current = { wand: 1 }
