@@ -1381,7 +1381,7 @@ export default function App() {
   activeSessionIdRef.current = activeSessionId
   const handleProgramStatusChange = useCallback((sessionId: string, status: ProgramStatus | null) => {
     // 全屏 TUI 走 alternate screen，启发式的 running→idle 边沿被旁路，done 只能由协议自己点亮未读
-    if (status?.state === 'done' && sessionId !== activeSessionIdRef.current) {
+    if (status?.state === 'done' && sessionId !== activeSessionIdRef.current && !warnSessionsRef.current[sessionId]) {
       setWarnSessions(prev => prev[sessionId] ? prev : { ...prev, [sessionId]: true })
       window.api.ai.readReply(sessionId).catch(() => {})
     }
