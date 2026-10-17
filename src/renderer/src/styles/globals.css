@@ -126,6 +126,9 @@ html, body, #root {
 }
 .xterm .xterm-viewport::-webkit-scrollbar-track { background: transparent !important; }
 .xterm .xterm-viewport::-webkit-scrollbar { display: none !important; }
+/* 设了 scrollbar.width 后 xterm 会创建 overview ruler canvas 并在其左缘画 1px 全高前景色线（终端右缘白线）；
+   本项目未用终端 overview ruler，直接隐藏 */
+.xterm .xterm-decoration-overview-ruler { display: none !important; }
 
 /* Monaco editor overrides */
 .monaco-editor .margin {
