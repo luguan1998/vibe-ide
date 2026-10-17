@@ -236,7 +236,8 @@ function spawnPty(id: string, cwd: string, shellType: string | undefined, cols =
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, {
         id,
-        data: '\x1b[?1049l\x1b[?25h\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1l\x1b[0m\r\n[Process exited, restarting shell...]\r\n'
+        // 重启替掉了旧程序，OSC 7501 记录必须清掉，否则旧程序的 working/blocked 永久陈留
+        data: '\x1b]7501;state=clear\x1b\\\x1b[?1049l\x1b[?25h\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1l\x1b[0m\r\n[Process exited, restarting shell...]\r\n'
       })
     }
     managed.pty = spawnPty(id, managed.session.cwd, managed.session.shell, managed.cols, managed.rows)

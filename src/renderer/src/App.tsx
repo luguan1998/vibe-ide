@@ -37,6 +37,7 @@ import { cwdStore, useKeptGroups, mergeGroupOrder } from './cwdStore'
 import type { TerminalViewHandle } from './components/TerminalView'
 import { getMainShellType, getAuxShellType } from './utils/shellPrefs'
 import { resolveAbsPath, toFileUrl } from './utils/filePathUtils'
+import type { ProgramStatus } from './programStatus'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
 
@@ -619,17 +620,21 @@ export default function App() {
   const [warnSessions, setWarnSessions] = useState<Record<string, boolean>>({})
   const warnSessionsRef = useRef<Record<string, boolean>>({})
   warnSessionsRef.current = warnSessions
+  const [programStatus, setProgramStatus] = useState<Record<string, ProgramStatus>>({})
   const prevBusyRef = useRef<Record<string, boolean>>({})
   // 整个 app 是否聚焦（window blur / 最小化 → false），用于宠物 unfocused 状态
   const [appFocused, setAppFocused] = useState(true)
   const agentStatus = useMemo(() => {
     const result: Record<string, 'running' | 'idle' | 'warn'> = {}
     for (const s of sessions) {
-      const busy = terminalBusy[s.id] || aiBusy[s.id]
-      result[s.id] = busy ? 'running' : (warnSessions[s.id] ? 'warn' : 'idle')
+      const prog = programStatus[s.id]
+      const waiting = prog?.state === 'blocked' || prog?.state === 'error'
+      const busy = prog?.state === 'done' ? false : (terminalBusy[s.id] || aiBusy[s.id] || prog?.state === 'working')
+      // blocked/error 优先于启发式 busy：权限弹窗等待期 TUI 若有重绘，旧逻辑会一直显示 running
+      result[s.id] = waiting ? 'warn' : busy ? 'running' : (warnSessions[s.id] ? 'warn' : 'idle')
     }
     return result
-  }, [sessions, terminalBusy, aiBusy, warnSessions])
+  }, [sessions, terminalBusy, aiBusy, warnSessions, programStatus])
   // 任意 session(AI tab / 主终端输出活动)处于 running → 暂停 git 元数据监听
   // (AI 每轮裸 git 命令刷 .git/index 会反射成 GitTab 刷新风暴);全部非 running 才恢复。
   // 主进程 setGitMetaPaused 幂等,重复上报为 no-op。
@@ -1374,6 +1379,24 @@ export default function App() {
   cancelPipeRef.current = cancelPipe
   const activeSessionIdRef = useRef(activeSessionId)
   activeSessionIdRef.current = activeSessionId
+  const handleProgramStatusChange = useCallback((sessionId: string, status: ProgramStatus | null) => {
+    // 全屏 TUI 走 alternate screen，启发式的 running→idle 边沿被旁路，done 只能由协议自己点亮未读
+    if (status?.state === 'done' && sessionId !== activeSessionIdRef.current) {
+      setWarnSessions(prev => prev[sessionId] ? prev : { ...prev, [sessionId]: true })
+      window.api.ai.readReply(sessionId).catch(() => {})
+    }
+    setProgramStatus(prev => {
+      if (!status || status.state === 'clear') {
+        if (!(sessionId in prev)) return prev
+        const next = { ...prev }
+        delete next[sessionId]
+        return next
+      }
+      const cur = prev[sessionId]
+      if (cur && cur.state === status.state && cur.kind === status.kind && cur.msg === status.msg && cur.title === status.title) return prev
+      return { ...prev, [sessionId]: status }
+    })
+  }, [])
 
   // 与文件 tab 落栏同判据：右栏宽栏时浏览器默认停靠右栏
   const rightPanelWideRef = useRef(false)
@@ -2559,6 +2582,12 @@ export default function App() {
       delete next[id]
       return next
     })
+    setProgramStatus(prev => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
     setAiBusy(prev => {
       const next = { ...prev }
       delete next[id]
@@ -3520,6 +3549,7 @@ export default function App() {
             commandHistory={commandHistory}
             onRevealUserTurn={handleRevealUserTurn}
             agentStatus={agentStatus}
+            programStatus={programStatus}
             sessionWorktreeNav={sessionWorktreeNav}
             onResetCache={handleResetCache}
             wordWrap={wordWrap}
@@ -3753,7 +3783,7 @@ export default function App() {
                     ) : twinId ? (
                       <>
                         <div className="flex-1 min-h-0 flex flex-col overflow-hidden" style={{ flexGrow: splitRatios[session.id] ?? 0.5, flexBasis: 0 }}>
-                          <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={isActive} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
+                          <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={isActive} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onProgramStatus={handleProgramStatusChange} onOscTitle={handleOscTitleChange} />
                         </div>
                         <div
                           className="shrink-0 h-1 cursor-ns-resize bg-ide-border hover:bg-ide-accent/60 transition-colors"
@@ -3764,7 +3794,7 @@ export default function App() {
                         </div>
                       </>
                     ) : (
-                      <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={isActive} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onOscTitle={handleOscTitleChange} />
+                      <TerminalView ref={(node) => { if (node) terminalRefs.current[session.id] = node }} sessionId={session.id} sessionName={session.name} sessionCwd={session.cwd} onOpenFile={handleOpenFileFromTerminal} onCommand={onCommandForSession(session.id)} showHeader={false} fontSize={terminalFontSize} fontFamily={termFontFamily} isActive={isActive} ocrEnabled={ocrEnabled} newlineShortcut={getShortcuts()['terminal.newline']} pageDownShortcut={getShortcuts()['terminal.pageDown']} pageUpShortcut={getShortcuts()['terminal.pageUp']} onAgentStatusChange={handleAgentStatusChange} onProgramStatus={handleProgramStatusChange} onOscTitle={handleOscTitleChange} />
                     )}
                   </div>
                 )

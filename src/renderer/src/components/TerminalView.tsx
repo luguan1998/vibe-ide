@@ -11,6 +11,7 @@ import { SearchAddon } from '@xterm/addon-search'
 import { useTheme } from '../themes'
 import { loadFilterRules } from './FileTab'
 import { FILE_PATH_REGEX, parseFilePath, isBareFilename } from '../utils/filePathUtils'
+import { PROGRAM_STATUS_OSC, PROGRAM_STATUS_QUERY_REPLY, parseProgramStatus, ProgramStatus } from '../programStatus'
 import '@xterm/xterm/css/xterm.css'
 
 function readTerminalBgImage(): string {
@@ -48,6 +49,7 @@ interface TerminalViewProps {
   isActive?: boolean
   onAgentStatusChange?: (sessionId: string, status: 'running' | 'idle') => void
   onOscTitle?: (sessionId: string, title: string) => void
+  onProgramStatus?: (sessionId: string, status: ProgramStatus | null) => void
   ocrEnabled?: boolean
   newlineShortcut?: string // e.g. "Shift+Enter"
   pageDownShortcut?: string // e.g. "PageDown"
@@ -365,7 +367,7 @@ function findNextPrompt(buf: IBuffer, fromY: number): number {
   return -1
 }
 
-const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, fontFamily = 'Consolas', isAux = false, isActive = true, ocrEnabled = false, onAgentStatusChange, onOscTitle, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
+const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, fontFamily = 'Consolas', isAux = false, isActive = true, ocrEnabled = false, onAgentStatusChange, onOscTitle, onProgramStatus, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -394,6 +396,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   onOscTitleRef.current = onOscTitle
   const onAgentStatusChangeRef = useRef(onAgentStatusChange)
   onAgentStatusChangeRef.current = onAgentStatusChange
+  const onProgramStatusRef = useRef(onProgramStatus)
+  onProgramStatusRef.current = onProgramStatus
   // File picker modal — ref ensures fresh callback without effect re-runs
   const [filePicker, setFilePicker] = useState<{
     matches: string[]
@@ -1012,6 +1016,18 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       idleTimerRef.current = null
     }
 
+    // OSC 7501 由 xterm 切帧（含 BEL/ST 与跨包切分），这里只处理 body
+    // aux 不注册：不回应查询，程序按规范判定 unsupported，避免持续上报与解析开销
+    const programStatusDisposable = isAux ? null : xtermRef.current.parser.registerOscHandler(PROGRAM_STATUS_OSC, (body: string) => {
+      if (body.trim() === '?') {
+        try { window.api.terminal.write(sessionId, PROGRAM_STATUS_QUERY_REPLY) } catch {}
+        return true
+      }
+      const parsed = parseProgramStatus(body)
+      if (parsed) onProgramStatusRef.current?.(sessionId, parsed)
+      return true
+    })
+
     // Register new listeners and store handlers for cleanup
     dataHandlerRef.current = window.api.terminal.onData((data: { id: string; data: string }) => {
       if (data.id === sessionId && xtermRef.current) {
@@ -1073,6 +1089,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     exitHandlerRef.current = window.api.terminal.onExit((data: { id: string; exitCode: number }) => {
       if (data.id === sessionId && xtermRef.current) {
         const term = xtermRef.current
+        if (!isAux) onProgramStatusRef.current?.(sessionId, null)
         // Restore xterm out of any TUI leftover state a force-killed TUI failed to reset
         // (alt screen / hidden cursor / mouse tracking), then show exit line.
         term.write('\x1b[?1049l\x1b[?25h\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1l\x1b[0m')
@@ -1094,6 +1111,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     }, DETECTION_DELAY)
 
     return () => {
+      programStatusDisposable?.dispose()
       onAgentStatusChangeRef.current?.(sessionId, 'idle')
       if (dataHandlerRef.current) {
         window.api.terminal.removeDataListener(dataHandlerRef.current)

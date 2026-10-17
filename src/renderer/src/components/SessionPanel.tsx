@@ -18,6 +18,7 @@ import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from './FileTab'
 import { FileIcon } from './FileIcons'
 import { displayLabel, getShortcuts } from '../shortcuts'
+import type { ProgramStatus } from '../programStatus'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { PiLogoIcon } from './PiLogoIcon'
 import { BOARD_FOCUS } from './BoardView'
@@ -282,6 +283,7 @@ interface SessionPanelProps {
   commandHistory?: Record<string, string[]>
   onRevealUserTurn?: (sessionId: string, turnIdx: number) => void
   agentStatus?: Record<string, 'running' | 'idle' | 'warn'>
+  programStatus?: Record<string, ProgramStatus>
   sessionWorktreeNav?: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onOpenHistoryTab?: () => void
   boardActive?: boolean
@@ -559,6 +561,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   commandHistory = {},
   onRevealUserTurn,
   agentStatus = {},
+  programStatus = {},
   sessionWorktreeNav = {},
   onOpenHistoryTab,
   boardActive = false,
@@ -1386,6 +1389,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               />
               <span
                 className={`text-sm min-w-0 cursor-pointer ${opts.nameClass} session-item__name ${agentStatus[session.id] === 'running' ? 'animate-text-wave' : ''}`}
+                title={programStatus[session.id]?.msg}
                 onDoubleClick={(e) => { e.stopPropagation(); startRename(session) }}
               >{session.name}</span>
               {session.worktreePath && (
