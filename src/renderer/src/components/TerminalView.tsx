@@ -581,7 +581,8 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     // aux terminal skips URL linking, search, and file-path linking — saves CPU & memory
     let searchResultDisposer: { dispose(): void } | null = null
     const webLinksAddon = new WebLinksAddon((_event, uri) => {
-      if ((window as any).__vibeBrowse) (window as any).__vibeBrowse(uri)
+      const browse = (window as any).__vibeBrowse
+      if (browse && (isAux || (window as any).__vibeIsBrowserOpen?.())) browse(uri)
       else window.open(uri, '_blank')
     })
     term.loadAddon(webLinksAddon)

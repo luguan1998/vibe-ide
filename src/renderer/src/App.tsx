@@ -1447,6 +1447,7 @@ export default function App() {
       return aiTabRefs.current[sid]?.getInputValue() ?? ''
     }
     ;(window as any).__vibeBrowse = handleBrowseUrl
+    ;(window as any).__vibeIsBrowserOpen = () => browserDockedRef.current || centerViewRef.current === 'browser'
   }, [waitDraftIdle, sendDraftLine, handleBrowseUrl])
 
   const handleAiAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
