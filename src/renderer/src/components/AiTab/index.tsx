@@ -143,11 +143,21 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // Stop button two-stage: 点过一次软中断后 5s 内仍 busy 才升级强杀，未点击不自动武装
   const [interruptTried, setInterruptTried] = useState(false)
   const [forceArmed, setForceArmed] = useState(false)
+  const stopPrevBusyRef = useRef(state.busy)
   useEffect(() => {
+    const wasBusy = stopPrevBusyRef.current
+    stopPrevBusyRef.current = state.busy
     if (!state.busy) {
       // busy 可能因中断切轮/排队短暂闪 false；延迟确认再复位，避免"插话后停不下来"
       const t = setTimeout(() => { setInterruptTried(false); setForceArmed(false) }, 1500)
       return () => clearTimeout(t)
+    }
+    // 软中断后 busy 掉下又快速回升 = 用户已发起新一轮，上一轮的中断意图作废；
+    // 否则复位定时器被清理后 interruptTried 残留，5s 后会误武装强杀
+    if (!wasBusy && interruptTried) {
+      setInterruptTried(false)
+      setForceArmed(false)
+      return
     }
     if (!interruptTried) return
     const t = setTimeout(() => setForceArmed(true), 5000)
