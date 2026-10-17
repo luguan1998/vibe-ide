@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from
 import { SnippetInfo, SnippetsLoadResult, PetManifest, PetListResult, LSP_SERVERS, type LspStatus } from '@shared/types'
 import { useTheme } from '../themes'
 import { useI18n } from '../i18n'
-import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, PanelRightClose, SlidersHorizontal, SwatchBook, Info, PawPrint, Trash2 } from 'lucide-react'
+import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, PanelRightClose, SlidersHorizontal, SwatchBook, HelpCircle, PawPrint, Trash2 } from 'lucide-react'
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { ModalOverlay } from './ModalOverlay'
 import { DEFAULT_SESSION_EMOJIS, type DefaultSessionIcon } from '../sessionRestore'
@@ -496,10 +496,10 @@ const AppearancePanel = function AppearancePanel({
                     </button>
                     <span className="flex items-center">
                       <button
-                        title={t('Higher-numbered snippets override lower-numbered ones.') + '\n' + t('Some terminal-related CSS effects require a new terminal session to take effect.')}
+                        title={t('Higher-numbered snippets override lower-numbered ones.') + '\n' + t('Some terminal-related appearance effects require a new terminal session to take effect.')}
                         className="shrink-0 pl-1.5 pr-0.5 py-1.5 text-ide-text-muted hover:text-ide-text rounded transition-colors"
                       >
-                        <Info className="size-3.5" />
+                        <HelpCircle className="size-3.5" />
                       </button>
                       <button
                         onClick={() => handleSnippetReload()}
@@ -673,7 +673,7 @@ const AppearancePanel = function AppearancePanel({
                     value={terminalFontSize} display={String(terminalFontSize)} onDelta={(d) => onAdjustTerminalFontSize(d)}
                     min={8} max={30} zone="terminal" />
                 )}
-                <StepperRow labelKey="Terminal Font Weight"
+                <StepperRow labelKey="Terminal Font Weight" descKey="Requires a new terminal session to take effect."
                   value={Number(effectiveTermWeight)} display={effectiveTermWeight}
                   onDelta={(d) => changeTermWeight(String(Math.max(300, Math.min(700, Number(effectiveTermWeight) + d * 100))))}
                   min={300} max={700} zone="terminal" />
