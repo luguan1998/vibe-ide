@@ -560,26 +560,14 @@ html, body, #root {
 
 
 /* ════════════════════════════════════════════════════
-   ESC 关闭的覆盖面板 — Markdown/Image/Diff 预览统一
+   覆盖面板内返回按钮（卡片外框统一走上面的 .center-card）
    ════════════════════════════════════════════════════ */
-.center-overlay.border-ide-border {
-  border: 2px solid rgb(var(--ide-border)) !important;
-  border-radius: 0 !important;
-}
-
-/* 覆盖面板内 header — 内层分隔线，不与外框叠加 */
-.center-overlay > div:first-child[class*="h-10"] {
-  border-bottom: 1px solid rgb(var(--ide-border)) !important;
-  background: #fff !important;
-}
-
-/* 覆盖面板内返回按钮 */
-.center-overlay button[title="Esc"] {
+.center-card button[title="Esc"] {
   border: 2px solid rgb(var(--ide-border)) !important;
   box-shadow: inset -2px -2px 0 #adafbc, inset 2px 2px 0 #fff !important;
   border-radius: 0 !important;
 }
-.center-overlay button[title="Esc"]:active {
+.center-card button[title="Esc"]:active {
   box-shadow: inset 2px 2px 0 #adafbc, inset -2px -2px 0 #fff !important;
 }
 

@@ -773,7 +773,7 @@ ${clone.innerHTML}
   }, [])
 
   return (
-            <div className={`flex flex-col h-full animate-fade-in relative center-overlay${brushActive ? ' diff-brush-mode' : ''}`} ref={containerRef}>
+            <div className={`flex flex-col h-full animate-fade-in relative${brushActive ? ' diff-brush-mode' : ''}`} ref={containerRef}>
               <div className="h-8 px-3 flex items-center justify-between gap-2 bg-ide-sidebar border-b border-ide-border shrink-0" title="Ctrl+L 切换编辑模式 · 双击段落进入编辑"
                 onClick={(e) => {
                   if (!brushActive) return

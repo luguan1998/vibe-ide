@@ -203,8 +203,8 @@ body,
 }
 
 /* ── 中栏 — 白卡浮在青色画布上（对齐 Codex：卡内纯白，圆角外的缝透窗口青晕）
-   卡（.center-card/.center-overlay）铺不透明白 → 视图内部是干净的白；
-   画布（.focus-frame[bg-ide-bg]）保持透明 → 圆角外那圈缝跟侧栏同色（都吃窗口青晕），
+   卡（.center-card）铺不透明白 → 视图内部是干净的白；
+   画布（.center-panel / .focus-frame[bg-ide-bg]）保持透明 → 圆角外那圈缝跟侧栏同色（都吃窗口青晕），
    Codex 的「白卡 + 青底」就还原了。右栏同为 .focus-frame 但不带该类，不受影响
    画布不挂 backdrop-filter：会给内部 AiTab fixed 菜单建包含块；底是平滑色晕，虚化也无视觉差 ── */
 .focus-frame {
@@ -213,8 +213,13 @@ body,
 .focus-frame[class*="bg-ide-bg"] {
   background-color: transparent !important;
 }
-.center-card,
-.center-overlay {
+/* app 给中栏画布铺了左侧 12px 会话栏底色条（linear-gradient，用来补卡片圆角缺口），
+   实色条会在玻璃侧栏右缘压出一条白带 → 用 background 简写整条清掉
+   （只清 background-color 清不掉背景图；形状/边距都不动）*/
+.center-panel {
+  background: transparent !important;
+}
+.center-card {
   border: none !important;
   background-color: #fff !important;
   border-radius: 12px !important;

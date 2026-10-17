@@ -1,9 +1,8 @@
 /*
-  中间栏卡片去掉最外边框 — center-card 覆盖 terminal/AiTab/browser/diff/board，center-overlay 覆盖 markdown/image
+  中间栏卡片去掉最外边框 — 终端 / AiTab / 浏览器 / 文件（diff·md·图片）/ 看板同一张卡
 */
 
-.center-card,
-.center-overlay {
+.center-card {
   border: none !important;
 }
 

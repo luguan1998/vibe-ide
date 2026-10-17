@@ -68,7 +68,7 @@ body,
 }
 
 body :is(.session-panel, .session-panel__list-wrapper, .session-group,
-         .center-panel, .center-card, .center-overlay, .ai-tab) {
+         .center-panel, .center-card, .ai-tab) {
   background: transparent !important;
 }
 

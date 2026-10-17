@@ -3373,6 +3373,8 @@ export default function App() {
   // 右栏收起时中间栏就是最后一栏，右侧不再留缝（否则卡片右边空出 4px + 边框 + 圆角，贴窗口缘看着像缺口）
   // 左栏可见时中间栏整体左移压住会话栏右缘（圆角缺口由会话栏底色补齐，见 globals.css .center-panel--flush-left）
   const centerGapX = panelWide || !rightPanelShown ? 'ml-1 mr-0' : 'mx-1'
+  // 中间栏所有内容块同一套卡片：终端 / AiTab / 浏览器 / 文件（diff·md·图片）/ 看板
+  const centerCardCls = `flex-1 ${centerGapX} border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`
 
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
@@ -3643,13 +3645,13 @@ export default function App() {
           onBlur={handleCenterBlur}>
           {/* File Tabs (diff / edit / markdown / image) */}
           {centerView === 'files' && tabs.length > 0 && !overlayOnRight && (
-            <div className={`flex-1 ${centerGapX} border border-ide-border rounded-lg overflow-hidden flex flex-col center-overlay`}>
+            <div className={centerCardCls}>
               {fileTabsNode}
             </div>
           )}
           {/* Browser */}
           {centerView === 'browser' && !browserDocked && (
-            <div className={`flex-1 ${centerGapX} border border-ide-border rounded-lg overflow-hidden flex flex-col center-card`}>
+            <div className={centerCardCls}>
               <BrowserView
                 ref={browserViewRef}
                 onBack={handleCloseBrowser}
@@ -3668,7 +3670,7 @@ export default function App() {
             />
           )}
           {/* Terminal sessions / AI GUI mode — overlayOnRight 时回落 base 视图(terminal/board)而非恒显示 terminal */}
-          <div className={`flex-1 ${centerGapX} border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`} style={{ display: (centerView === 'terminal' || (overlayOnRight && overlaySnapRef.current.base === 'terminal')) && sessions.length > 0 ? 'flex' : 'none' }}>
+          <div className={centerCardCls} style={{ display: (centerView === 'terminal' || (overlayOnRight && overlaySnapRef.current.base === 'terminal')) && sessions.length > 0 ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="flex-1 flex items-center justify-center text-ide-text-muted">Loading...</div>}>
               {sessions.map(session => {
                 const isGui = session.kind === 'gui'
@@ -3757,7 +3759,7 @@ export default function App() {
           </div>
           {/* 看板仅可见时挂载：隐藏后常驻的 reload 会随 sessions 抖动反复 spawn git rev-parse（board.records），切走 session 直接关闭 */}
           {boardCenterShown && (
-          <div className={`flex-1 ${centerGapX} border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`}>
+          <div className={centerCardCls}>
             <BoardView
               workspacePath={activeSessionCwd}
               sessions={stableSessions}

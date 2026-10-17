@@ -37,7 +37,7 @@ const ImagePreview = React.memo(function ImagePreview({
   }, [onDismiss])
 
   return (
-        <div ref={containerRef} className={`flex flex-col h-full animate-fade-in center-overlay image-preview${brushActive ? ' diff-brush-mode' : ''}`}>
+        <div ref={containerRef} className={`flex flex-col h-full animate-fade-in image-preview${brushActive ? ' diff-brush-mode' : ''}`}>
           <div className="h-8 px-3 flex items-center justify-between gap-2 bg-ide-sidebar border-b border-ide-border shrink-0"
             onClick={(e) => {
               if (!brushActive) return

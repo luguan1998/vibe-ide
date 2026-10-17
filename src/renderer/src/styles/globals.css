@@ -476,8 +476,7 @@ html, body, #root {
 }
 
 /* 右面板宽形态（TabRail）时中间栏去边框，与右面板融为一体 */
-.center-no-border .center-card,
-.center-no-border .center-overlay {
+.center-no-border .center-card {
   border: none;
 }
 
@@ -495,8 +494,9 @@ html, body, #root {
 .center-panel {
   background: linear-gradient(90deg, rgb(var(--ide-sidebar)) 0 12px, transparent 12px);
 }
-.center-card,
-.center-overlay {
+/* 中间栏卡片外框只有一套：终端 / AiTab / 浏览器 / 文件（diff·md·图片）/ 看板
+   都是 App.tsx 里同一个 centerCardCls，内层视图根不再带卡片类 */
+.center-card {
   background-color: rgb(var(--ide-bg));
   /* 顶边厚度：卡片贴到 .app__main 顶边，两者上边框是叠着画的，各自按
      floor(css × dpr) 取整到物理像素再相加（无混色）。本机 dpr=1.5（150% 缩放）：
@@ -508,8 +508,7 @@ html, body, #root {
 
 /* 右栏收起时中栏是最后一栏（.center-panel--last）：右侧那条竖线加粗一档，
    卡片贴着窗口缘，2px 边框在边上显得太细 */
-.center-panel--last .center-card,
-.center-panel--last .center-overlay {
+.center-panel--last .center-card {
   border-right-width: 3px;
 }
 

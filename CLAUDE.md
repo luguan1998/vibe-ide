@@ -23,6 +23,8 @@ Vibe IDE — Electron-based desktop IDE with native terminal, git, file diff/edi
    上层命中即 `stopImmediatePropagation()`，下层不再执行
 10. **Modal/Overlay 按键拦截用 capture + stopImmediatePropagation** — xterm.js 冒泡阶段会消费按键，capture 阶段拦截方可阻止泄漏。参考 `TerminalView.tsx` filePicker handler
 11. **Caps Lock 安全** — 字母键判断必须 `.toLowerCase()`：`e.key.toLowerCase() === 's'`，不得直接 `e.key === 's'`。Caps Lock 时 `e.key` 为大写，直接比较会漏匹配
+12. **同语义只留一套** — 一个视觉构件不并存两个类/两档值；中间栏统一 `centerCardCls`
+13. **主题适配优先减法** — 颜色修改优先，几何修改要讨论
 
 ## Commands
 
