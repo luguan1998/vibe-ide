@@ -47,9 +47,6 @@ const ImagePreview = React.memo(function ImagePreview({
               window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: rel || fileName } }))
             }}>
             {headerLeading}
-            <div className="flex items-center rounded-md bg-ide-hover overflow-hidden shrink-0">
-              <span className="px-2.5 py-1 text-xs bg-ide-accent/15 text-ide-accent">View</span>
-            </div>
           </div>
 
       <div className="flex-1 overflow-auto flex items-center justify-center p-6 bg-ide-bg">
