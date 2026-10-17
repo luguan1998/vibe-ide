@@ -36,6 +36,7 @@ type AskQuestionOption = AskQuestion['options'][number]
 
 const QUESTION_PREVIEW_CLS = 'px-2 py-1.5 text-[11px] leading-snug font-mono whitespace-pre overflow-auto max-h-48 rounded bg-ide-bg/80 border border-ide-border text-ide-text'
 const QUESTION_ROW_CLS = 'ai-tab__question-option w-full text-left px-2.5 py-2 rounded border transition-colors'
+const FLOATING_CARD_WRAP_CLS = `shrink-0 w-full ${PANEL_MAX_W} mx-auto px-2 mb-1 animate-fade-in`
 
 function QuestionHeader({ header, multi }: { header: string; multi?: boolean }) {
   const { t } = useI18n()
@@ -241,48 +242,50 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
   }
 
   return (
-    <div className={`ai-tab__question-card shrink-0 flex flex-col max-h-[60vh] border-t border-ide-accent/40 bg-ide-accent/5 px-3 py-2.5 animate-fade-in w-full ${PANEL_MAX_W} mx-auto`}>
-      {tabbed && (
-        <div className="ai-tab__question-tabs flex items-end gap-3 shrink-0 mb-2 border-b border-ide-border/60 overflow-x-auto">
-          {questions.map((q, qi) => (
-            <button
-              key={qi}
-              type="button"
-              onClick={() => setActiveQ(qi)}
-              className={`ai-tab__question-tab shrink-0 pb-1.5 text-[13px] leading-none whitespace-nowrap border-b-2 transition-colors ${
-                qi === activeQ
-                  ? 'border-ide-accent text-ide-text font-medium'
-                  : 'border-transparent text-ide-text-muted hover:text-ide-text'
-              }`}
-            >
-              {q.header || `Q${qi + 1}`}
-            </button>
-          ))}
+    <div className={FLOATING_CARD_WRAP_CLS}>
+      <div className="ai-tab__question-card flex flex-col max-h-[60vh] rounded-xl border border-ide-accent/40 bg-ide-sidebar shadow-md px-3 py-2.5">
+        {tabbed && (
+          <div className="ai-tab__question-tabs flex items-end gap-3 shrink-0 mb-2 border-b border-ide-border/60 overflow-x-auto">
+            {questions.map((q, qi) => (
+              <button
+                key={qi}
+                type="button"
+                onClick={() => setActiveQ(qi)}
+                className={`ai-tab__question-tab shrink-0 pb-1.5 text-[13px] leading-none whitespace-nowrap border-b-2 transition-colors ${
+                  qi === activeQ
+                    ? 'border-ide-accent text-ide-text font-medium'
+                    : 'border-transparent text-ide-text-muted hover:text-ide-text'
+                }`}
+              >
+                {q.header || `Q${qi + 1}`}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="ai-tab__question-body flex-1 min-h-0 overflow-y-auto">
+          {tabbed ? renderQuestion(questions[activeQ], activeQ) : questions.map((q, qi) => renderQuestion(q, qi))}
         </div>
-      )}
-      <div className="ai-tab__question-body flex-1 min-h-0 overflow-y-auto">
-        {tabbed ? renderQuestion(questions[activeQ], activeQ) : questions.map((q, qi) => renderQuestion(q, qi))}
-      </div>
 
-      <div className="flex gap-1.5 mt-2 shrink-0">
-        <button
-          type="button"
-          disabled={!allAnswered}
-          onClick={handleSubmit}
-          className={`ai-tab__question-submit-btn px-4 py-1.5 text-[13px] font-medium rounded transition-colors ${
-            allAnswered
-              ? 'bg-ide-accent hover:bg-ide-accent-hover text-white'
-              : 'bg-ide-accent/30 text-white/50 cursor-not-allowed'
-          }`}
-        >
-          {tabbed ? `${questions.filter(isAnswered).length}/${questions.length} ${t('Submit')}` : t('Submit')}
-        </button>
-        <button
-          onClick={() => onRespond(sessionId, perm.requestId, false, perm.tool, perm.toolInput)}
-          className="ai-tab__question-deny-btn px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
-        >
-          {t('Deny')}
-        </button>
+        <div className="flex gap-1.5 mt-2 shrink-0">
+          <button
+            type="button"
+            disabled={!allAnswered}
+            onClick={handleSubmit}
+            className={`ai-tab__question-submit-btn px-4 py-1.5 text-[13px] font-medium rounded transition-colors ${
+              allAnswered
+                ? 'bg-ide-accent hover:bg-ide-accent-hover text-white'
+                : 'bg-ide-accent/30 text-white/50 cursor-not-allowed'
+            }`}
+          >
+            {tabbed ? `${questions.filter(isAnswered).length}/${questions.length} ${t('Submit')}` : t('Submit')}
+          </button>
+          <button
+            onClick={() => onRespond(sessionId, perm.requestId, false, perm.tool, perm.toolInput)}
+            className="ai-tab__question-deny-btn px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
+          >
+            {t('Deny')}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -317,32 +320,34 @@ export const AiPermissionCard = React.memo(function AiPermissionCard({ perm, ses
 }) {
   const { t } = useI18n()
   return (
-    <div className={`ai-tab__permission-card shrink-0 border-t border-ide-warning/40 bg-ide-warning/5 px-3 py-2.5 animate-fade-in w-full ${PANEL_MAX_W} mx-auto`}>
-      <div className="flex items-start gap-2">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-ide-warning shrink-0 mt-0.5">
-          <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-        </svg>
-        <div className="flex-1 min-w-0">
-          <div className="ai-tab__permission-title text-[13px] font-medium text-ide-warning">{t('AI wants permission to run:')}</div>
-          <div className="ai-tab__permission-cmd mt-1 px-1.5 py-1 bg-ide-bg/80 rounded text-[12px] font-mono text-ide-text truncate">
-            <span className="text-ide-accent">{perm.tool}</span>
-            {perm.command && <span className="text-ide-text-muted"> → {perm.command}</span>}
+    <div className={FLOATING_CARD_WRAP_CLS}>
+      <div className="ai-tab__permission-card rounded-xl border border-ide-warning/40 bg-ide-sidebar shadow-md px-3 py-2.5">
+        <div className="flex items-start gap-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-ide-warning shrink-0 mt-0.5">
+            <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <div className="ai-tab__permission-title text-[13px] font-medium text-ide-warning">{t('AI wants permission to run:')}</div>
+            <div className="ai-tab__permission-cmd mt-1 px-1.5 py-1 bg-ide-bg/80 rounded text-[12px] font-mono text-ide-text truncate">
+              <span className="text-ide-accent">{perm.tool}</span>
+              {perm.command && <span className="text-ide-text-muted"> → {perm.command}</span>}
+            </div>
           </div>
         </div>
-      </div>
-      <div className="flex gap-1.5 mt-2 ml-7">
-        <button
-          onClick={() => onRespond(sessionId, perm.requestId, true, perm.tool, perm.toolInput)}
-          className="ai-tab__permission-approve-btn px-4 py-1.5 text-[13px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
-        >
-          {t('Approve')}
-        </button>
-        <button
-          onClick={() => onRespond(sessionId, perm.requestId, false, perm.tool, perm.toolInput)}
-          className="ai-tab__permission-deny-btn px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
-        >
-          {t('Deny')}
-        </button>
+        <div className="flex gap-1.5 mt-2 ml-7">
+          <button
+            onClick={() => onRespond(sessionId, perm.requestId, true, perm.tool, perm.toolInput)}
+            className="ai-tab__permission-approve-btn px-4 py-1.5 text-[13px] font-medium bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors"
+          >
+            {t('Approve')}
+          </button>
+          <button
+            onClick={() => onRespond(sessionId, perm.requestId, false, perm.tool, perm.toolInput)}
+            className="ai-tab__permission-deny-btn px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
+          >
+            {t('Deny')}
+          </button>
+        </div>
       </div>
     </div>
   )
