@@ -559,6 +559,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       cursorBlink: false,
       cursorStyle: 'bar',
       scrollback: isAux ? 500 : 10000,
+      scrollbar: { width: 9 },
       allowTransparency: bgImage ? true : (currentTheme.terminal.allowTransparency ?? true),
       allowProposedApi: true,
       drawBoldTextInBrightColors: false,
