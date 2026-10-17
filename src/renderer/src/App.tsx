@@ -3686,7 +3686,7 @@ export default function App() {
                   >
                     {isDeferred ? (
                       <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
-                        {t('Loading...')}
+                        {t('Session not loaded — click the session to load')}
                       </div>
                     ) : isGui ? (
                       <AiTab

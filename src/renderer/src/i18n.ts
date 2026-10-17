@@ -486,6 +486,7 @@ const ZH_MAP: Record<string, string> = {
   'Not initialized — click Init': '未初始化 — 点击 Init',
   'Indexing...': '正在索引...',
   'Loading...': '加载中...',
+  'Session not loaded — click the session to load': '会话未载入 — 点击该会话即可加载',
   'No outline': '无大纲',
   'Search symbols...': '搜索符号...',
   'Search symbols... (Enter to jump, Esc to close)': '搜索符号...（回车跳转，Esc 关闭）',
