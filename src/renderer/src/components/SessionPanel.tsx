@@ -739,7 +739,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [appName, setAppName] = useState('Sessions')
   const [editingAppName, setEditingAppName] = useState(false)
   // 隐藏图标后标题左移 4px：px-3(12) + 4 = 16 = 快捷行 mx-2(8) + pl-2(8) 的图标左缘
-  const [hideAppIcon, setHideAppIcon] = useState(false)
+  const [hideAppIcon, setHideAppIcon] = useState(true)
   useEffect(() => {
     if (!showInfoMenu) return
     const onDocClick = (e: MouseEvent) => {
