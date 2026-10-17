@@ -294,7 +294,6 @@ const solarizedLight: IDETheme = {
     brightBlack: '#586e75', brightRed: '#dc322f', brightGreen: '#859900',
     brightYellow: '#b58900', brightBlue: '#268bd2', brightMagenta: '#6c71c4',
     brightCyan: '#2aa198', brightWhite: '#fdf6e3',
-    fontWeight: '500',
     allowTransparency: false
   },
   monacoTheme: 'vibe-ide-solarized-light',
@@ -337,7 +336,6 @@ const rtmRetroViolet: IDETheme = {
     brightBlack: '#a3a0ad', brightRed: '#b8685f', brightGreen: '#5c905d',
     brightYellow: '#977f28', brightBlue: '#5f86c4', brightMagenta: '#b45ab4',
     brightCyan: '#5794b8', brightWhite: '#2b2e3d',
-    fontWeight: '500',
     allowTransparency: false
   },
   monacoTheme: 'vibe-ide-rtm-retro-violet',
@@ -483,7 +481,6 @@ const githubLight: IDETheme = {
     brightBlack: '#57606a', brightRed: '#a40e26', brightGreen: '#1a7f37',
     brightYellow: '#9a6700', brightBlue: '#0969da', brightMagenta: '#8250df',
     brightCyan: '#1b7c83', brightWhite: '#1f2328',
-    fontWeight: '500',
     allowTransparency: false
   },
   monacoTheme: 'vibe-ide-github-light',
@@ -524,7 +521,6 @@ const monkeyKing: IDETheme = {
     brightBlack: '#503c23', brightRed: '#e63c32', brightGreen: '#509655',
     brightYellow: '#c89628', brightBlue: '#4a8aac', brightMagenta: '#b54a6a',
     brightCyan: '#4a9a9a', brightWhite: '#231e0f',
-    fontWeight: '500',
     allowTransparency: false
   },
   monacoTheme: 'vibe-ide-monkey-king',
@@ -654,7 +650,6 @@ const mikuLight: IDETheme = {
     brightMagenta: '#c8a8f0',
     brightCyan: '#6de0d8',
     brightWhite: '#0a1a17',
-    fontWeight: '500',
     allowTransparency: false
   },
   monacoTheme: 'vibe-ide-miku-light',
@@ -706,7 +701,6 @@ const retroChinese: IDETheme = {
     brightBlack: '#9aa59c', brightRed: '#c84a3a', brightGreen: '#5a9168',
     brightYellow: '#b8862e', brightBlue: '#5a8aa8', brightMagenta: '#9a6a9a',
     brightCyan: '#5a9a9a', brightWhite: '#1a1e1a',
-    fontWeight: '500',
     allowTransparency: false
   },
   monacoTheme: 'vibe-ide-retro-chinese',
@@ -758,7 +752,6 @@ const claudeCream: IDETheme = {
     brightBlack: '#696860', brightRed: '#C5544A', brightGreen: '#6A9A78',
     brightYellow: '#D0A040', brightBlue: '#6A8DAB', brightMagenta: '#B06A8A',
     brightCyan: '#5A9A9A', brightWhite: '#000000',
-    fontWeight: '500',
     allowTransparency: false
   },
   monacoTheme: 'vibe-ide-claude-cream',

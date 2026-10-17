@@ -36,6 +36,12 @@ function isElementVisible(el: Element | null | undefined): boolean {
   return rect.width > 0 && rect.height > 0
 }
 
+type TerminalFontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900'
+
+function storedTerminalFontWeight(): TerminalFontWeight | null {
+  try { return (localStorage.getItem('vibe-ide-terminal-font-weight') as TerminalFontWeight) || null } catch { return null }
+}
+
 interface TerminalViewProps {
   sessionId: string
   sessionName?: string
@@ -367,7 +373,7 @@ function findNextPrompt(buf: IBuffer, fromY: number): number {
   return -1
 }
 
-const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, fontFamily = 'Consolas', isAux = false, isActive = true, ocrEnabled = false, onAgentStatusChange, onOscTitle, onProgramStatus, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
+const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({ sessionId, sessionName, sessionCwd, onOpenFile, onCommand, showHeader = true, fontSize = 14, fontFamily = 'Cascadia Code', isAux = false, isActive = true, ocrEnabled = false, onAgentStatusChange, onOscTitle, onProgramStatus, newlineShortcut = 'Shift+Enter', pageDownShortcut = 'PageDown', pageUpShortcut = 'PageUp'}: TerminalViewProps, ref) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -547,7 +553,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       theme: bgImage ? { ...currentTheme.terminal, background: 'transparent' } : { ...currentTheme.terminal, background: termBackground },
       fontFamily: `${fontFamily}, Consolas, JetBrains Mono, Fira Code, PingFang SC, Microsoft YaHei, Noto Sans CJK SC, monospace`,
       fontSize,
-      fontWeight: currentTheme.terminal.fontWeight || '400',
+      fontWeight: storedTerminalFontWeight() ?? '400',
       letterSpacing: 0,
       lineHeight: 1.0,
       cursorBlink: false,
@@ -939,7 +945,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
         ? { ...currentTheme.terminal, background: 'transparent' }
         : { ...currentTheme.terminal, background: termBackground }
       xtermRef.current.options.allowTransparency = bgImage ? true : (currentTheme.terminal.allowTransparency ?? true)
-      xtermRef.current.options.fontWeight = currentTheme.terminal.fontWeight || '400'
+      xtermRef.current.options.fontWeight = storedTerminalFontWeight() ?? '400'
       if (!bgImage) {
         const el = terminalRef.current?.querySelector('.xterm') as HTMLElement | null
         if (el) el.style.backgroundColor = termBackground

@@ -209,7 +209,7 @@ const AppearancePanel = function AppearancePanel({
   editorFontSize = 14, onAdjustEditorFontSize,
   fontFamily = 'Consolas', onSetFontFamily,
   uiFontFamily = 'Consolas', onSetUiFontFamily,
-  termFontFamily = 'Consolas', onSetTermFontFamily,
+  termFontFamily = 'Cascadia Code', onSetTermFontFamily,
   terminalFontSize = 14, onAdjustTerminalFontSize,
   cgEnabled = true, onToggleCgEnabled,
   lspLangs = [], onToggleLspLang,
@@ -220,6 +220,14 @@ const AppearancePanel = function AppearancePanel({
 }: AppearancePanelProps) {
   const { themes, currentThemeId, setTheme } = useTheme()
   const { t } = useI18n()
+  const [terminalFontWeight, setTerminalFontWeight] = useState<string | null>(() => {
+    try { return localStorage.getItem('vibe-ide-terminal-font-weight') } catch { return null }
+  })
+  const effectiveTermWeight = terminalFontWeight || '400'
+  const changeTermWeight = (weight: string) => {
+    setTerminalFontWeight(weight)
+    try { localStorage.setItem('vibe-ide-terminal-font-weight', weight) } catch {}
+  }
   const [mdFontFamily, setMdFontFamily] = useState(() => {
     try { return localStorage.getItem('vibe-ide-md-font') || '' } catch { return '' }
   })
@@ -419,7 +427,12 @@ const AppearancePanel = function AppearancePanel({
               <button
                 className="px-2.5 py-1 text-xs text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover rounded transition-colors flex items-center gap-1"
                 onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => { onResetUiStyle?.(); setMdFontFamily(''); setMdFontSize(15) }}
+                onClick={() => {
+                  onResetUiStyle?.()
+                  setMdFontFamily(''); setMdFontSize(15)
+                  setTerminalFontWeight(null)
+                  try { localStorage.removeItem('vibe-ide-terminal-font-weight') } catch {}
+                }}
               ><RotateCcw className="size-3" />{t('Reset Defaults')}</button>
             )}
             <button
@@ -445,10 +458,10 @@ const AppearancePanel = function AppearancePanel({
             }`}>{t('Affects: Editor')} · {t('Affects: Terminal')}</button>
           <button
             onClick={() => setActiveCategory('panel')}
-            className={`w-28 shrink-0 h-7 rounded-r border text-xs flex items-center justify-center transition-all ${
+            className={`w-32 shrink-0 h-7 rounded-r border text-xs flex items-center justify-center transition-all ${
               zones.panel ? 'border-ide-accent bg-ide-accent/15 text-ide-accent font-medium'
                           : 'border-ide-border bg-ide-hover/30 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-            }`}>{t('Affects: Panel')}</button>
+            }`}>{t('Affects: Panel')} · MD</button>
         </div>
 
         <div className="flex flex-1 min-h-0">
@@ -660,8 +673,12 @@ const AppearancePanel = function AppearancePanel({
                     value={terminalFontSize} display={String(terminalFontSize)} onDelta={(d) => onAdjustTerminalFontSize(d)}
                     min={8} max={30} zone="terminal" />
                 )}
+                <StepperRow labelKey="Terminal Font Weight"
+                  value={Number(effectiveTermWeight)} display={effectiveTermWeight}
+                  onDelta={(d) => changeTermWeight(String(Math.max(300, Math.min(700, Number(effectiveTermWeight) + d * 100))))}
+                  min={300} max={700} zone="terminal" />
                 {onSetTermFontFamily && (
-                  <FontRow labelKey="Terminal Font" value={termFontFamily} recommended="Consolas" monoOnly onChange={onSetTermFontFamily} zone="terminal" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
+                  <FontRow labelKey="Terminal Font" value={termFontFamily} recommended="Cascadia Code" monoOnly onChange={onSetTermFontFamily} zone="terminal" loadFonts={loadSystemFonts} renderOptions={renderFontOptions} />
                 )}
               </div>
             )}

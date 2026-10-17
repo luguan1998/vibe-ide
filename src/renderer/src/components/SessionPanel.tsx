@@ -611,7 +611,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onSetFontFamily,
   uiFontFamily = 'Consolas',
   onSetUiFontFamily,
-  termFontFamily = 'Consolas',
+  termFontFamily = 'Cascadia Code',
   onSetTermFontFamily,
   onResetUiStyle,
   recentFiles = [],

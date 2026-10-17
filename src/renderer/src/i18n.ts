@@ -301,6 +301,7 @@ const ZH_MAP: Record<string, string> = {
   'Shown when any session has a pending warning. Overrides busy.': '任一会话有未处理警告时显示，优先级高于忙碌。',
   'Shown when the app window is not focused.': '应用窗口未聚焦时显示。',
   'Terminal Font Size': '终端字体大小',
+  'Terminal Font Weight': '终端字体粗细',
   'Editor Font Size': '编辑器字体大小',
   'Diff Split Ratio': 'Diff 左右占比',
   'Left/right ratio of the diff editor. Smaller = narrower left (original). Side-by-side only.': 'Diff 编辑器左右占比。越小则左侧（原文）越窄。仅并排模式生效。',

@@ -791,8 +791,8 @@ export default function App() {
   })
   const [termFontFamily, setTermFontFamily] = useState(() => {
     try {
-      return localStorage.getItem('vibe-ide-term-font') || 'Consolas'
-    } catch { return 'Consolas' }
+      return localStorage.getItem('vibe-ide-term-font') || 'Cascadia Code'
+    } catch { return 'Cascadia Code' }
   })
   // Keep ref in sync so IPC listener always sees latest centerView
   React.useEffect(() => {
@@ -3600,7 +3600,7 @@ export default function App() {
               setDiffSplitRatio(0.3)
               setSessionFontFamily('Consolas')
               setFontFamily('Consolas')
-              setTermFontFamily('Consolas')
+              setTermFontFamily('Cascadia Code')
             }}
             focusSettingsTrigger={focusSettingsTrigger}
             onExecuteCommand={handleExecuteCommand}
