@@ -75,6 +75,7 @@ interface ConversationGraphProps {
   workspacePath: string
   isActive: boolean
   refreshSignal: string
+  busy?: boolean
   onForkSend: (node: AiGraphNode, text: string) => Promise<boolean>
   onSendInThisSession: (text: string) => void
   onSendToBranch: (claudeSessionId: string, cwd: string, text: string) => Promise<boolean>
@@ -85,7 +86,7 @@ interface ConversationGraphProps {
 }
 
 export default function ConversationGraph({
-  sessionId, workspacePath, isActive, refreshSignal,
+  sessionId, workspacePath, isActive, refreshSignal, busy = false,
   onForkSend, onSendInThisSession, onSendToBranch, onOpenBranch, onRevealTurn, onForkWorktree,
 }: ConversationGraphProps): React.ReactElement {
   const { t } = useI18n()
@@ -102,21 +103,33 @@ export default function ConversationGraph({
   const [panning, setPanning] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!sessionId || !workspacePath) return
     const { configDir } = readAiCliConfig()
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const g: AiGraph | null = await window.api.ai.sessionGraph(sessionId, workspacePath, configDir)
       setGraph(g)
     } catch {
       setGraph(null)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [sessionId, workspacePath])
 
-  useEffect(() => { if (isActive) load() }, [isActive, load, refreshSignal])
+  useEffect(() => { if (isActive) load() }, [isActive, load])
+
+  // 发送/落轮边沿先于 CLI 写入转录：立即读会拿到旧图，且 busy 期间信号钉住不再变，
+  // 于是新轮次一直不出现。延后一档再读，busy 中再补读一次兜住慢落盘。
+  const lastSignalRef = useRef(refreshSignal)
+  useEffect(() => {
+    if (lastSignalRef.current === refreshSignal) return
+    lastSignalRef.current = refreshSignal
+    if (!isActive) return
+    const t1 = setTimeout(() => { void load(true) }, 500)
+    const t2 = busy ? setTimeout(() => { void load(true) }, 1600) : null
+    return () => { clearTimeout(t1); if (t2) clearTimeout(t2) }
+  }, [isActive, load, refreshSignal, busy])
 
   const { items, width, height } = useMemo(() => layoutGraph(graph?.nodes ?? []), [graph])
   const posById = useMemo(() => new Map(items.map(i => [i.node.id, i])), [items])
@@ -204,6 +217,11 @@ export default function ConversationGraph({
       .filter((b): b is NonNullable<typeof b> => !!b),
   [graph, branchById])
 
+  // 当前正在执行的活跃分支末端：busy 时给节点上的强调圆点加脉冲，表示这条线还在跑
+  const runningTipId = busy && graph
+    ? graph.nodes.find(n => n.active && n.tipBranchIds.includes(graph.activeClaudeSessionId))?.id ?? null
+    : null
+
   const selected = selectedId ? graph?.nodes.find(n => n.id === selectedId) ?? null : null
   // worktree 起点节点不承载轮次，它的分支归属直接看 branchIds
   const tipBranch = selected?.worktreeStart ? selected.branchIds[0] ?? null : selected?.tipBranchIds[0] ?? null
@@ -256,11 +274,16 @@ export default function ConversationGraph({
         <GitBranch className="w-3.5 h-3.5" />
         <span className="font-medium text-ide-text">{t('Branch Graph')}</span>
         {graph && <span>{graph.nodes.length} {t('turns')} · {graph.branches.length} {t('branches')}</span>}
+        {busy && (
+          <span className="flex items-center gap-1 text-ide-accent">
+            <Loader2 className="w-3 h-3 animate-spin" />{t('Running')}
+          </span>
+        )}
         <div className="flex-1" />
         <button className="p-1 rounded hover:bg-ide-hover hover:text-ide-text transition-colors" title={t('Fit to view')} onClick={fit}>
           <Maximize2 className="w-3.5 h-3.5" />
         </button>
-        <button className="p-1 rounded hover:bg-ide-hover hover:text-ide-text transition-colors" title={t('Refresh')} onClick={load}>
+        <button className="p-1 rounded hover:bg-ide-hover hover:text-ide-text transition-colors" title={t('Refresh')} onClick={() => { void load() }}>
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -338,7 +361,12 @@ export default function ConversationGraph({
                 }`}
               >
                 <div className="flex items-start gap-1.5">
-                  {node.active && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-ide-accent shrink-0" />}
+                  {node.active && (
+                    <span
+                      className={`mt-1.5 w-1.5 h-1.5 rounded-full bg-ide-accent shrink-0${node.id === runningTipId ? ' animate-pulse' : ''}`}
+                      title={node.id === runningTipId ? t('Running') : undefined}
+                    />
+                  )}
                   {node.worktreeStart && <FolderGit2 className="mt-0.5 w-3 h-3 text-ide-accent shrink-0" />}
                   <div className="text-[11px] leading-snug text-ide-text font-medium line-clamp-2 break-words">{node.title || t('(empty)')}</div>
                 </div>

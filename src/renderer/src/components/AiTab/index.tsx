@@ -823,7 +823,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   dispatchMessageRef.current = dispatchMessage
 
   // 图只在轮次落定后重扫盘：busy 期间钉住不变，避免每条 assistant 分段都重读 JSONL；
-  // graphSentTick 让"就在图里发的这条"立刻带出新节点，不用等整轮跑完
+  // graphSentTick 让"就在图里发的这条"触发一次重读（CLI 落盘滞后，由 ConversationGraph 延迟执行）
   const graphRefreshSignal = useMemo(
     () => (state.busy ? 0 : state.messages.length) + ':' + (branchRevision ?? 0) + ':' + graphSentTick,
     [state.busy, state.messages.length, branchRevision, graphSentTick],
@@ -1137,6 +1137,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     return { label, ref }
   }, [lastOpenedFile, workspacePath])
 
+  // 分支/恢复会话的首屏：历史还没读回来时别渲染空态（大图标+居中输入），
+  // 否则新开的分支会话会先闪一帧空页面再跳到对话
+  const awaitingHistory = !state.ready && !!resumeSessionId && state.messages.length === 0
   const showEmptyCenter = state.messages.length === 0 && !state.streaming
   // pi 的 select/input/editor 复用问答卡，但回执走 extension_ui_response（普通权限通道），
   // claude 的 AskUserQuestion 才需要 kill+resume；按 piUiId 标记分流。
@@ -1652,12 +1655,18 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         </div>
       )}
       {/* New conversation: 输入框居中,上方 icon + prompts 保持原位置 */}
-      {graphOpen && !graphDockedRight && !showEmptyCenter ? (
+      {awaitingHistory ? (
+        <div className="flex-1 flex items-center justify-center min-h-0 gap-2 text-xs text-ide-text-muted animate-fade-in">
+          <span className="h-3.5 w-3.5 rounded-full border-2 border-ide-accent/30 border-t-ide-accent animate-spin shrink-0" />
+          <span>{t('Resuming session...')}</span>
+        </div>
+      ) : graphOpen && !graphDockedRight && !showEmptyCenter ? (
         <ConversationGraph
           sessionId={activeSessionId}
           workspacePath={workspacePath || ''}
           isActive={isActive}
           refreshSignal={graphRefreshSignal}
+          busy={state.busy}
           onForkSend={handleGraphForkSend}
           onSendInThisSession={handleGraphSendHere}
           onSendToBranch={handleGraphSendToBranch}

@@ -463,6 +463,7 @@ export default function App() {
   // 网状视图按会话绑定：分支即会话，切分支必然切会话，放 AiTab 局部会被切没；
   // 但做成全局开关会漏给所有会话（空会话发第一条消息时凭空跳进图），所以记"图开在哪个会话上"
   const [graphOpenFor, setGraphOpenFor] = useState<string | null>(null)
+  const [graphSentTick, setGraphSentTick] = useState(0)
   const graphOpenForRef = useRef<string | null>(null)
   graphOpenForRef.current = graphOpenFor
   // 会落右栏 overlay 的中栏视图：文件 tab（优先占位）与网状图（AI tab 顶栏开）
@@ -615,6 +616,7 @@ export default function App() {
   const pipeProcessingRef = useRef<Map<string, boolean>>(new Map())
   // pipe 前需确保目标 session 已加载出真实 PTY（定时任务命中未点开过的会话时用）
   const ensureSessionLoadedRef = useRef<((id: string) => Promise<void>) | null>(null)
+  const switchSessionRef = useRef<((id: string) => Promise<void>) | null>(null)
   const terminalBusyRef = useRef<Record<string, boolean>>({})
   const aiBusyRef = useRef<Record<string, boolean>>({})
   const [warnSessions, setWarnSessions] = useState<Record<string, boolean>>({})
@@ -1836,6 +1838,19 @@ export default function App() {
       // terminal.next / terminal.prev → blur right panel, switch session, focus terminal
       // 用 stableSessions(稳定组序),与左侧面板视觉排布一致:删除会话不改变组序
       const visualOrder = stableSessions
+      // 与左侧点击共用 handleSwitchSession：先读历史再切 active，避免新 tab 先闪空态
+      const switchTo = (nextId: string) => {
+        const nextMode = sessionsRef.current.find(s => s.id === nextId)?.kind
+        void (switchSessionRef.current?.(nextId) ?? Promise.resolve()).then(() => {
+          setTimeout(() => {
+            if (nextMode === 'gui') {
+              aiTabRefs.current[nextId]?.focus()
+            } else {
+              terminalRefs.current[nextId]?.focus()
+            }
+          }, 0)
+        })
+      }
 
       if (eventMatchesBinding(e, bindings['terminal.next'])) {
         e.preventDefault()
@@ -1843,19 +1858,7 @@ export default function App() {
         ;(document.activeElement as HTMLElement)?.blur()
         const idx = visualOrder.findIndex(s => s.id === activeSessionId)
         const next = (idx + 1) % visualOrder.length
-        if (visualOrder[next]) {
-          const nextId = visualOrder[next].id
-          const nextMode = sessionsRef.current.find(s => s.id === nextId)?.kind
-          setActiveSessionId(nextId)
-          applySessionTabPolicy(nextId)
-          setTimeout(() => {
-            if (nextMode === 'gui') {
-              aiTabRefs.current[nextId]?.focus()
-            } else {
-              terminalRefs.current[nextId]?.focus()
-            }
-          }, 0)
-        }
+        if (visualOrder[next]) switchTo(visualOrder[next].id)
       }
       if (eventMatchesBinding(e, bindings['terminal.prev'])) {
         e.preventDefault()
@@ -1863,19 +1866,7 @@ export default function App() {
         ;(document.activeElement as HTMLElement)?.blur()
         const idx = visualOrder.findIndex(s => s.id === activeSessionId)
         const next = (idx - 1 + visualOrder.length) % visualOrder.length
-        if (visualOrder[next]) {
-          const nextId = visualOrder[next].id
-          const nextMode = sessionsRef.current.find(s => s.id === nextId)?.kind
-          setActiveSessionId(nextId)
-          applySessionTabPolicy(nextId)
-          setTimeout(() => {
-            if (nextMode === 'gui') {
-              aiTabRefs.current[nextId]?.focus()
-            } else {
-              terminalRefs.current[nextId]?.focus()
-            }
-          }, 0)
-        }
+        if (visualOrder[next]) switchTo(visualOrder[next].id)
       }
 
 
@@ -2498,17 +2489,26 @@ export default function App() {
   }, [activeSessionId, ensureSessionLoaded])
 
   // Switch active session
-  const handleSwitchSession = useCallback((id: string) => {
-    void ensureSessionLoaded(id)
+  // 先把历史读回 aiStore 再切 active：新 tab 首帧就带着完整内容，不会先闪空态/转圈再跳内容。
+  // seq 防连点：等待期间又点了别的会话时，旧的那次切过去作废。
+  const switchSeqRef = useRef(0)
+  const handleSwitchSession = useCallback(async (id: string) => {
+    const seq = ++switchSeqRef.current
+    await ensureSessionLoaded(id)
+    if (switchSeqRef.current !== seq) return
     setActiveSessionId(id)
     applySessionTabPolicy(id)
   }, [applySessionTabPolicy, ensureSessionLoaded])
+  switchSessionRef.current = handleSwitchSession
 
   // session hover 弹窗点某轮：切到该会话 → 回对话视图 → 滚到该轮（等 React 提交后再量 rect）
   const handleRevealUserTurn = useCallback((sessionId: string, turnIdx: number) => {
-    if (sessionId !== activeSessionIdRef.current) handleSwitchSession(sessionId)
-    setCenterView('terminal')
-    setTimeout(() => aiTabRefs.current[sessionId]?.revealTurnIndex(turnIdx), 0)
+    const reveal = () => {
+      setCenterView('terminal')
+      setTimeout(() => aiTabRefs.current[sessionId]?.revealTurnIndex(turnIdx), 0)
+    }
+    if (sessionId !== activeSessionIdRef.current) void handleSwitchSession(sessionId).then(reveal)
+    else reveal()
   }, [handleSwitchSession])
 
   // Execute a custom command — sends to AI input in GUI mode, terminal otherwise
@@ -3391,15 +3391,20 @@ export default function App() {
   // 网状图落右栏：props 都在 App 侧可得，只有「滚到该轮/就地发送」走 AiTab 句柄（消息态与滚动容器在那边）。
   // 刷新信号用 agentStatus（busy 边沿，等价于 AiTab 里的 busy?0:messages.length）+ branchRevision
   const graphDockSession = graphOpenFor ? sessions.find(s => s.id === graphOpenFor) : undefined
+  const graphDockStatus = graphOpenFor ? agentStatus[graphOpenFor] || 'idle' : 'idle'
   const graphOnRight = overlayKind === 'graph' && overlayOnRight && graphOpenFor === activeSessionId
   const graphDockNode = graphOnRight && graphOpenFor && graphDockSession ? (
     <ConversationGraph
       sessionId={graphOpenFor}
       workspacePath={graphDockSession.cwd}
       isActive
-      refreshSignal={`${agentStatus[graphOpenFor] || 'idle'}:${branchRevision}`}
+      refreshSignal={`${graphDockStatus}:${branchRevision}:${graphSentTick}`}
+      busy={graphDockStatus === 'running'}
       onForkSend={(node, text) => handleGraphForkSend(graphOpenFor, node, text)}
-      onSendInThisSession={(text) => aiTabRefs.current[graphOpenFor]?.sendText(text)}
+      onSendInThisSession={(text) => {
+        setGraphSentTick(v => v + 1)
+        aiTabRefs.current[graphOpenFor]?.sendText(text)
+      }}
       onSendToBranch={async (claudeSessionId, cwd, text) => handleGraphSendToBranch(graphOpenFor, claudeSessionId, cwd, text)}
       onOpenBranch={(claudeSessionId, cwd) => handleGraphOpenBranch(graphOpenFor, claudeSessionId, cwd, true)}
       onRevealTurn={(content, occurrence) => aiTabRefs.current[graphOpenFor]?.revealTurn(content, occurrence)}
