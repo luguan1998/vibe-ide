@@ -16,10 +16,14 @@
 */
 :root {
   --app-bg-image: url('assets/swim.png');
-  --app-bg-alpha: 0.55;
+  --app-bg-alpha: 0.4;
   /* AI 对话区标题条单独一档：比卡片还透，不再是主题写死的 0.82 实底 */
   --app-bg-title-alpha: 0.3;
   --app-bg-dim: 0.4;
+  /* 文字区补底：AI 对话区 / 左侧会话栏铺一层薄底，muted 文字不再跟图案比细节 */
+  --app-bg-wash: 0.22;
+  /* AI 正文单独一档：草地这类亮区域需要更实的底，否则浅色字仍看不清 */
+  --app-bg-text-alpha: 0.5;
   --app-bg-anim: 120s;
   /* ↑ 只有恢复漂移后才用得上 */
   /* 复用终端背景图开关，仅作“开”的标记：xterm 走透明分支，图由下面的全屏层统一提供 */
@@ -77,9 +81,13 @@ body :is(.session-panel, .session-panel__list-wrapper, .session-group,
      .titlebar-drag           标题栏保持实底
      .session-group           cwd 组容器（原设计就是透明）
      .session-panel__quick-action  会话栏快捷按钮（下面单独给 transparent）── */
-body .bg-ide-bg,
-body .session-group .session-item {
+body .bg-ide-bg {
   background-color: rgb(var(--ide-bg) / var(--app-bg-alpha)) !important;
+}
+
+/* 会话行单独一档：名字是灰字，底要比按钮实。排除状态态，hover/选中/运行中仍走 globals 原样 */
+body .session-group .session-item:not(:hover):not(.session-item--active):not(.session-item--running) {
+  background-color: rgb(var(--ide-bg) / 0.7) !important;
 }
 
 body .bg-ide-sidebar:not(.titlebar-drag):not(.session-group):not(.session-panel__quick-action) {
@@ -98,7 +106,7 @@ body .ai-tab__header {
   -webkit-backdrop-filter: none;
 }
 
-/* ── 会话栏快捷按钮：去掉默认底色，只留 hover / 激活反馈 ── */
+/* ── 会话栏快捷按钮：不要默认底色，只留 hover / 激活反馈 ── */
 body .session-panel__quick-action {
   background-color: transparent !important;
 }
@@ -116,8 +124,49 @@ body .ai-tab__thinking-content {
   background-color: color-mix(in srgb, rgb(var(--ide-bg)), rgb(var(--ide-accent)) 5%) !important;
 }
 
-/* ── 终端 + xterm 各层透明（codex 会给终端刷深色画布，一并放掉）── */
-body .term-view__canvas,
+/* ── 文字区可读性 ───────────────────────────────
+   正文/会话名直接压在图上；行内代码原来的 accent/8 底几乎等于透明，代码名和云、树叶糊在一起。
+   AI tab 整块一次铺底，消息区/输入区不再各自铺、左右不留缝；会话栏只铺薄底 */
+body .ai-tab {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-text-alpha)) !important;
+}
+
+body .session-panel {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-wash)) !important;
+}
+
+/* 输入框比按钮实一档；占位符原为 muted/50，提回全值保读 */
+body .ai-tab__input-pill {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-text-alpha)) !important;
+}
+
+body .ai-tab__input-pill textarea::placeholder {
+  color: rgb(var(--ide-text-muted)) !important;
+}
+
+/* 空状态的胶囊按钮本身透明、灰字：补实底并提回正常文字色（激活态 text-ide-accent 不动） */
+body .ai-tab__empty-gui button:not(.text-ide-accent),
+body .ai-tab__example-btn {
+  background-color: rgb(var(--ide-sidebar) / 0.3);
+  color: rgb(var(--ide-text));
+}
+
+body .ai-tab__empty-gui button:not(.text-ide-accent):hover {
+  background-color: rgb(var(--ide-hover) / 0.55);
+}
+
+body .md-preview :not(pre) > code {
+  background-color: color-mix(in srgb, rgb(var(--ide-bg)), rgb(var(--ide-accent)) 12%) !important;
+  border-color: rgb(var(--ide-accent) / 0.3) !important;
+}
+
+/* ── 终端底：和 AI 正文同档，终端文字不再直接压在图上 ── */
+body .term-view__canvas {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-text-alpha)) !important;
+  background-image: none !important;
+}
+
+/* ── xterm 各层透明（codex 会给终端刷深色画布，一并放掉），透出上面的底 ── */
 .xterm .xterm-viewport,
 .xterm .xterm-screen,
 .xterm .xterm-screen canvas {

@@ -1,0 +1,199 @@
+/*
+  全应用背景图
+  ─────────────────────────────────────────────────
+  换图：改 --app-bg-image 的 url()（静态图 / gif / webp 动图都能放）
+  通透度：--app-bg-alpha 越小，卡片/浮层越透、图越明显（0 = 全透）
+         AI 对话区标题条另走 --app-bg-title-alpha（默认比卡片更透）
+  压暗：--app-bg-dim 越大整体越暗、文字越好读（0 = 完全不压暗）
+  动效：默认关闭（静态图，图不漂）。漂移 = 整窗每帧出帧、背景层常驻合成层、GPU 缓存
+        没法回收，还会让带毛玻璃的主题每帧重算 backdrop-filter。要开见下方 #root::before 注释
+  生效：终端需「新开 session」才吃到本次开关（xterm 只在 mount 时读一次）
+
+  与主题类 snippet（codex / dont-starve 等）共存：
+    · 图挂 #root::before，让开 body::before（饥荒用它画精神值暗角）
+    · 透明化规则加 body 前缀抬高特异性 → 不靠 snippet 顺序决胜，也压得过主题写死的实底
+    · 主题里高特异性的规则（弹窗玻璃 .fixed[class*=…]、画布 .focus-frame[class*=…]）仍归主题管
+*/
+:root {
+  --app-bg-image: url('assets/summerdays.jpg');
+  --app-bg-alpha: 0.4;
+  /* AI 对话区标题条单独一档：比卡片还透，不再是主题写死的 0.82 实底 */
+  --app-bg-title-alpha: 0.3;
+  --app-bg-dim: 0.4;
+  /* 文字区补底：AI 对话区 / 左侧会话栏铺一层薄底，muted 文字不再跟图案比细节 */
+  --app-bg-wash: 0.22;
+  /* AI 正文单独一档：草地这类亮区域需要更实的底，否则浅色字仍看不清 */
+  --app-bg-text-alpha: 0.5;
+  --app-bg-anim: 120s;
+  /* ↑ 只有恢复漂移后才用得上 */
+  /* 复用终端背景图开关，仅作“开”的标记：xterm 走透明分支，图由下面的全屏层统一提供 */
+  --terminal-bg-image: none;
+}
+
+/* 窗口底透明：codex 会把窗口底画成近白渐变，清掉换成背景图 */
+html,
+body,
+#root {
+  background: transparent !important;
+}
+
+/* ── 全屏背景层：压暗并进同一层（fixed 会独占合成层，层数越少越省）──
+   静态：不挂 will-change/animation 时这层并回文档主层，不常驻合成层、不每帧出帧。
+   恢复漂移：解注释下面两行 + 文末 @keyframes；inset: 0 两种状态都够用
+   （漂移时图层被放大 8% > 最大位移 1.5%，不会露边）── */
+#root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(rgb(var(--ide-bg) / var(--app-bg-dim)), rgb(var(--ide-bg) / var(--app-bg-dim))),
+    var(--app-bg-image);
+  background-size: 100% 100%, cover;
+  background-position: center, center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  /* will-change: transform; */
+  /* animation: app-bg-drift var(--app-bg-anim) ease-in-out infinite alternate; */
+}
+
+/* 缓慢漂移关键帧 — 随上面 animation 一起解注释才生效
+@keyframes app-bg-drift {
+  from { transform: scale(1) translate3d(0, 0, 0); }
+  to   { transform: scale(1.08) translate3d(-1.5%, -1%, 0); }
+}
+*/
+
+/* ── 容器与内容区透明，让图一路透上来 ──────────────
+   globals.css 里这些是写死的实底（不带 Tailwind 类），主题还会再刷一层，必须点名；
+   带 bg-ide-* 类的元素不在其列 —— 它们由下面那条半透明规则管 */
+#root > div {
+  background: transparent !important;
+}
+
+body :is(.session-panel, .session-panel__list-wrapper, .session-group,
+         .center-panel, .center-card, .ai-tab) {
+  background: transparent !important;
+}
+
+/* ── 卡片底色半透明。下面这条的 :not() 会把特异性顶到 (0,4,1)，凡是自带
+   bg-ide-sidebar 类、却又不想有底色的元素都得在这里排掉：
+     .titlebar-drag           标题栏保持实底
+     .session-group           cwd 组容器（原设计就是透明）
+     .session-panel__quick-action  会话栏快捷按钮（下面单独给 transparent）── */
+body .bg-ide-bg {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-alpha)) !important;
+}
+
+/* 会话行单独一档：名字是灰字，底要比按钮实。排除状态态，hover/选中/运行中仍走 globals 原样 */
+body .session-group .session-item:not(:hover):not(.session-item--active):not(.session-item--running) {
+  background-color: rgb(var(--ide-bg) / 0.7) !important;
+}
+
+body .bg-ide-sidebar:not(.titlebar-drag):not(.session-group):not(.session-panel__quick-action) {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-alpha)) !important;
+}
+
+body .bg-ide-panel {
+  background-color: rgb(var(--ide-panel) / var(--app-bg-alpha)) !important;
+}
+
+/* ── AI 对话区标题条（acrylic-titlebar-clean 写死的 sidebar/0.82 + 毛玻璃）──
+   去毛玻璃：底图每帧在漂移，blur 得整块重算，且糊掉后图反而看不清 */
+body .ai-tab__header {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-title-alpha)) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ── 会话栏快捷按钮：不要默认底色，只留 hover / 激活反馈 ── */
+body .session-panel__quick-action {
+  background-color: transparent !important;
+}
+
+body .session-panel__quick-action:hover {
+  background-color: rgb(var(--ide-hover) / var(--app-bg-alpha)) !important;
+}
+
+body .session-panel__quick-action.bg-ide-accent\/15 {
+  background-color: rgb(var(--ide-accent) / 0.15) !important;
+}
+
+/* ── AI 思考区：原 bg-ide-accent/5 自带透明会透出背景图，换成同色实底混合 ── */
+body .ai-tab__thinking-content {
+  background-color: color-mix(in srgb, rgb(var(--ide-bg)), rgb(var(--ide-accent)) 5%) !important;
+}
+
+/* ── 文字区可读性 ───────────────────────────────
+   正文/会话名直接压在图上；行内代码原来的 accent/8 底几乎等于透明，代码名和云、树叶糊在一起。
+   AI tab 整块一次铺底，消息区/输入区不再各自铺、左右不留缝；会话栏只铺薄底 */
+body .ai-tab {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-text-alpha)) !important;
+}
+
+body .session-panel {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-wash)) !important;
+}
+
+/* 输入框比按钮实一档；占位符原为 muted/50，提回全值保读 */
+body .ai-tab__input-pill {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-text-alpha)) !important;
+}
+
+body .ai-tab__input-pill textarea::placeholder {
+  color: rgb(var(--ide-text-muted)) !important;
+}
+
+/* 空状态的胶囊按钮本身透明、灰字：补实底并提回正常文字色（激活态 text-ide-accent 不动） */
+body .ai-tab__empty-gui button:not(.text-ide-accent),
+body .ai-tab__example-btn {
+  background-color: rgb(var(--ide-sidebar) / 0.3);
+  color: rgb(var(--ide-text));
+}
+
+body .ai-tab__empty-gui button:not(.text-ide-accent):hover {
+  background-color: rgb(var(--ide-hover) / 0.55);
+}
+
+body .md-preview :not(pre) > code {
+  background-color: color-mix(in srgb, rgb(var(--ide-bg)), rgb(var(--ide-accent)) 12%) !important;
+  border-color: rgb(var(--ide-accent) / 0.3) !important;
+}
+
+/* ── 终端底：和 AI 正文同档，终端文字不再直接压在图上 ── */
+body .term-view__canvas {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-text-alpha)) !important;
+  background-image: none !important;
+}
+
+/* ── xterm 各层透明（codex 会给终端刷深色画布，一并放掉），透出上面的底 ── */
+.xterm .xterm-viewport,
+.xterm .xterm-screen,
+.xterm .xterm-screen canvas {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* ── Monaco（文件 diff / 编辑）：不要就整段删掉 ────
+   已注释：右栏 Monaco 透明时底层 rightPanel 会透上来，与编辑文本重叠 */
+/*
+.monaco-editor,
+.monaco-editor .monaco-editor-background,
+.monaco-editor .margin,
+.monaco-editor .minimap,
+.monaco-editor .decorationsOverviewRuler {
+  background-color: transparent !important;
+}
+*/
+
+/* ── Monaco 实底补全 ──────────────────────────────
+   Monaco 只给正文（.monaco-editor-background）和行号（.margin）自绘底色，
+   diff 中间 gutter、增删行按钮条、inline 左侧留白等区域没有底色，
+   停用透明规则后会继续透出背景图，表现为行号旁的一条透明竖线 */
+.monaco-editor,
+.monaco-diff-editor,
+.monaco-diff-editor .gutter,
+.monaco-diff-editor .gutter .gutterItem,
+.diff-inline {
+  background-color: rgb(var(--ide-bg)) !important;
+}
