@@ -48,6 +48,10 @@
       {
         "from": "resources/browser-mcp.js",
         "to": "browser-mcp.js"
+      },
+      {
+        "from": "resources/pi-mcp-bridge.mjs",
+        "to": "pi-mcp-bridge.mjs"
       }
     ],
     "extraFiles": [

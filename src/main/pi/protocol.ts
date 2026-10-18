@@ -73,6 +73,8 @@ export function buildPiSpawnArgs(input: {
   noSession?: boolean
   noExtensions?: boolean
   isolated?: boolean
+  extensionPath?: string
+  appendSystemPrompt?: string
 }): string[] {
   const args = ['--mode', 'rpc']
   if (input.isolated || input.noSession) args.push('--no-session')
@@ -81,6 +83,8 @@ export function buildPiSpawnArgs(input: {
   if (input.resume?.trim()) args.push('--session', input.resume.trim())
   const model = input.model?.trim()
   if (model) args.push('--model', model)
+  if (input.extensionPath) args.push('--extension', input.extensionPath)
+  if (input.appendSystemPrompt) args.push('--append-system-prompt', input.appendSystemPrompt)
   return args
 }
 

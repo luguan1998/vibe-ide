@@ -1703,7 +1703,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               </svg>
               )}
             </div>
-            {!isPi && (
             <div className="ai-tab__empty-gui flex items-center gap-2">
               <button
                 onClick={() => toggleGuiTool('computerUse')}
@@ -1728,7 +1727,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 <Globe size={13} />
                 <span>{t('Enable Browser Use')}</span>
               </button>
-              {!worktreeNav?.worktreePath && (
+              {!isPi && !worktreeNav?.worktreePath && (
                 <button
                   onClick={toggleWorktreeSession}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-full transition-colors ${
@@ -1742,7 +1741,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 </button>
               )}
             </div>
-            )}
             {inputArea}
             <div className={`ai-tab__empty-prompts flex flex-wrap justify-center gap-1.5 ${PANEL_MAX_W}`}>
               {EXAMPLE_PROMPTS.map((item, i) => (

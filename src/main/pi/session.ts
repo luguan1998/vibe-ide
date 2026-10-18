@@ -1,7 +1,11 @@
 import { randomUUID } from 'crypto'
 import type { ChildProcess } from 'child_process'
+import { app } from 'electron'
+import { join } from 'path'
 import { IPC_CHANNELS, type AiCreateOptions, type AiMessage, type AiPermissionRequest } from '../../shared/types'
-import { send } from '../ai-shared'
+import { mcpUsageHint, send } from '../ai-shared'
+import { startForSession as startCuSession, stopForSession as stopCuSession } from '../computer-use'
+import { startForSession as startBmSession, stopForSession as stopBmSession } from '../browser-use'
 import { PiRpc } from './rpc'
 import { attachPiLineReader, findPiBinary, killPiProcess, spawnPi, writePiLine } from './process'
 import {
@@ -68,6 +72,44 @@ function emitMessage(session: PiSession, message: Omit<AiMessage, 'sessionId' | 
   send(IPC_CHANNELS.AI_MESSAGE, { sessionId: session.sessionId, timestamp: Date.now(), ...message })
 }
 
+function resourceScript(file: string): string {
+  return app.isPackaged ? join(process.resourcesPath, file) : join(app.getAppPath(), 'resources', file)
+}
+
+function setupGuiMcp(options: AiCreateOptions): { extensionPath?: string; env?: NodeJS.ProcessEnv } {
+  const servers: Record<string, unknown> = {}
+  if (options.computerUse) {
+    try {
+      const r = startCuSession(options.sessionId)
+      servers['vibe-cu'] = {
+        command: process.execPath,
+        args: [resourceScript('computer-use-mcp.js')],
+        env: { ELECTRON_RUN_AS_NODE: '1', VIBE_CU_PIPE: r.pipeName, VIBE_CU_TOKEN: r.token },
+        exposure: 'direct',
+        description: "Control the user's desktop: screenshot displays and click/type in any GUI application.",
+      }
+    } catch (e) {
+      console.error(`[pi:${options.sessionId}] computer-use start failed:`, e)
+    }
+  }
+  if (options.browserUse) {
+    try {
+      const r = startBmSession(options.sessionId)
+      servers['vibe-browser'] = {
+        command: process.execPath,
+        args: [resourceScript('browser-mcp.js')],
+        env: { ELECTRON_RUN_AS_NODE: '1', VIBE_BM_PIPE: r.pipeName, VIBE_BM_TOKEN: r.token },
+        exposure: 'direct',
+        description: 'Drive the embedded browser: navigate, snapshot, click, fill, run page JS, read console logs.',
+      }
+    } catch (e) {
+      console.error(`[pi:${options.sessionId}] browser-use start failed:`, e)
+    }
+  }
+  if (!Object.keys(servers).length) return {}
+  return { extensionPath: resourceScript('pi-mcp-bridge.mjs'), env: { VIBE_PI_MCP_SERVERS: JSON.stringify(servers) } }
+}
+
 export async function createPiSession(options: AiCreateOptions): Promise<{ success: boolean; error?: string; installCmd?: string }> {
   destroyPiSession(options.sessionId)
   const resolved = findPiBinary()
@@ -75,10 +117,23 @@ export async function createPiSession(options: AiCreateOptions): Promise<{ succe
     send(IPC_CHANNELS.AI_ERROR, { sessionId: options.sessionId, error: resolved.error, installCmd: resolved.installCmd })
     return { success: false, error: resolved.error, installCmd: resolved.installCmd }
   }
+  const guiMcp = setupGuiMcp(options)
   let proc: ChildProcess
   try {
-    proc = spawnPi(resolved.binary, buildPiSpawnArgs({ resume: options.resumeSessionId, model: options.model }), options.cwd)
+    proc = spawnPi(
+      resolved.binary,
+      buildPiSpawnArgs({
+        resume: options.resumeSessionId,
+        model: options.model,
+        extensionPath: guiMcp.extensionPath,
+        appendSystemPrompt: mcpUsageHint(options) || undefined,
+      }),
+      options.cwd,
+      guiMcp.env,
+    )
   } catch (error: any) {
+    stopCuSession(options.sessionId)
+    stopBmSession(options.sessionId)
     const message = error?.message ?? String(error)
     send(IPC_CHANNELS.AI_ERROR, { sessionId: options.sessionId, error: message })
     return { success: false, error: message }
@@ -187,10 +242,8 @@ export async function forceStopPi(sessionId: string): Promise<{ success: boolean
   const resumeId = session.piSessionId
   if (!resumeId) return { success: false, error: 'No pi session id cached' }
   const options: AiCreateOptions = {
+    ...session.createOptions,
     sessionId,
-    cwd: session.cwd,
-    autoApprove: false,
-    permissionMode: 'bypassPermissions',
     backend: 'pi',
     resumeSessionId: resumeId,
     ...(session.model ? { model: session.model } : {}),
@@ -215,6 +268,8 @@ export function resumePiSessionFrom(sessionId: string, resumeSessionId: string |
 }
 
 export function destroyPiSession(sessionId: string): boolean {
+  stopCuSession(sessionId)
+  stopBmSession(sessionId)
   const session = piSessions.get(sessionId)
   if (!session) return false
   piSessions.delete(sessionId)
@@ -225,6 +280,8 @@ export function destroyPiSession(sessionId: string): boolean {
 
 export function cleanupPiSessions(): void {
   for (const session of piSessions.values()) {
+    stopCuSession(session.sessionId)
+    stopBmSession(session.sessionId)
     session.rpc?.close()
     killPiProcess(session.child)
   }
@@ -475,6 +532,8 @@ async function settle(session: PiSession): Promise<void> {
 function handleProcessExit(session: PiSession, code: number | null): void {
   if (piSessions.get(session.sessionId) !== session) return
   piSessions.delete(session.sessionId)
+  stopCuSession(session.sessionId)
+  stopBmSession(session.sessionId)
   session.rpc?.close()
   send(IPC_CHANNELS.AI_ERROR, {
     sessionId: session.sessionId,

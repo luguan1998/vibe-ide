@@ -40,10 +40,10 @@ export function findPiBinary(): PiBinaryResult {
   return { error: `Pi CLI not found. Install with: ${PI_INSTALL_CMD}`, installCmd: PI_INSTALL_CMD }
 }
 
-export function spawnPi(binary: string, args: string[], cwd: string): ChildProcess {
+export function spawnPi(binary: string, args: string[], cwd: string, extraEnv?: NodeJS.ProcessEnv): ChildProcess {
   return spawn(binary, args, {
     cwd,
-    env: sanitizeEnvForCli(),
+    env: { ...sanitizeEnvForCli(), ...extraEnv },
     stdio: ['pipe', 'pipe', 'pipe'],
     shell: process.platform === 'win32',
   })
