@@ -11,6 +11,10 @@ const DEFAULT_KEYPAD_ITEMS: KeypadItem[] = [
   { code: 'Numpad3', key: '3', text: '检视无误并提交', directSend: true },
 ]
 
+export function getDefaultKeypadItems(): KeypadItem[] {
+  return DEFAULT_KEYPAD_ITEMS.map(d => ({ ...d }))
+}
+
 export function loadKeypadItems(): KeypadItem[] {
   try {
     const raw = localStorage.getItem(KEYPAD_STORAGE_KEY)

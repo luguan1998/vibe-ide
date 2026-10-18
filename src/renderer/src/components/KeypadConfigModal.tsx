@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Send, ClipboardPaste } from 'lucide-react'
-import { loadKeypadItems, saveKeypadItems, loadBtwPrefix, saveBtwPrefix, type KeypadItem } from './keypadItems'
+import { X, Send, ClipboardPaste, RotateCcw } from 'lucide-react'
+import { loadKeypadItems, saveKeypadItems, loadBtwPrefix, saveBtwPrefix, getDefaultKeypadItems, type KeypadItem } from './keypadItems'
 import { ModalOverlay } from './ModalOverlay'
 
 export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -32,9 +32,18 @@ export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: (
       >
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-bold text-ide-text-muted tracking-wider">配置速发键</span>
-          <button onClick={onClose} className="text-ide-text-muted hover:text-ide-text transition-colors">
-            <X size={14} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDraft(getDefaultKeypadItems())}
+              title="恢复默认提示词"
+              className="text-ide-text-muted hover:text-ide-text transition-colors"
+            >
+              <RotateCcw size={14} />
+            </button>
+            <button onClick={onClose} className="text-ide-text-muted hover:text-ide-text transition-colors">
+              <X size={14} />
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-4 mb-2 text-[10px] text-ide-text-muted/70">
           <span className="flex items-center gap-1"><Send size={11} className="-scale-x-100" /> 点击即发送</span>
