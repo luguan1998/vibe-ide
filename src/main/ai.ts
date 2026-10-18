@@ -218,12 +218,25 @@ function findBinary(customCommand?: string): BinaryResult {
 // Build the standard Claude CLI arg list (stream-json + permission-prompt-tool stdio).
 // Explicit platform description is appended to --append-system-prompt as a safety net
 // in case env sanitization is incomplete.
+function mcpUsageHint(opts: { computerUse?: boolean; browserUse?: boolean }): string {
+  const parts: string[] = []
+  if (opts.computerUse) {
+    parts.push('The user has explicitly enabled Computer Use in this session, granting you the `mcp__vibe-cu__*` MCP tools (screenshot / click / type_text / press_key / scroll). Treat that as a request to operate the desktop yourself: when the task involves interacting with a GUI application, reading something on screen, or clicking/typing outside the filesystem, call these tools instead of asking the user to do it. Take a screenshot first, then act on normalized coordinates.')
+  }
+  if (opts.browserUse) {
+    parts.push('The user has explicitly enabled the embedded Browser MCP in this session, granting you the `mcp__vibe-browser__browser_*` tools. Treat that as a request to drive that browser yourself: when the task involves opening or inspecting a web page, testing a web app, filling forms, checking console errors, or anything the user should see rendered, start with browser_navigate and browser_snapshot instead of curl/fetch or telling the user to open the page. The user sees the same browser tab.')
+  }
+  return parts.join('\n\n')
+}
+
 function buildClaudeArgs(opts: {
   cwd: string
   permissionMode: AiPermissionMode
   resumeSessionId?: string
   model?: string
   enableWorktree?: boolean
+  computerUse?: boolean
+  browserUse?: boolean
   mcpConfigPath?: string
   browserMcpConfigPath?: string
 }): string[] {
@@ -241,7 +254,10 @@ function buildClaudeArgs(opts: {
     '--verbose',
     '--include-partial-messages',
     '--permission-mode', opts.permissionMode,
-    '--append-system-prompt', `You are running on ${platformDesc}. The workspace directory is: ${opts.cwd}`,
+    '--append-system-prompt', [
+      `You are running on ${platformDesc}. The workspace directory is: ${opts.cwd}`,
+      mcpUsageHint(opts),
+    ].filter(Boolean).join('\n\n'),
   ]
   if (opts.resumeSessionId) {
     args.push('--resume', opts.resumeSessionId)
