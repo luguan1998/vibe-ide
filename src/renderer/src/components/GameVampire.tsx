@@ -19,13 +19,13 @@ const ENEMY_TYPES: Record<string, EnemyDef> = {
   elite: { name: '精英', emoji: '👹', hp: 110, speed: 52, r: 26, dmg: 32, xp: 25, color: '#ef5350' },
   ghost: { name: '幽灵', emoji: '👻', hp: 14, speed: 120, r: 12, dmg: 8, xp: 1, color: '#e1bee7' },
   boar: { name: '冲锋野猪', emoji: '🐗', hp: 34, speed: 82, r: 14, dmg: 16, xp: 2, color: '#8d6e63' },
-  cultist: { name: '邪术师', emoji: '🧙‍♂️', hp: 22, speed: 66, r: 13, dmg: 10, xp: 2, color: '#7e57c2' },
+  cultist: { name: '邪术师', emoji: '🧙‍♂️', hp: 42, speed: 66, r: 13, dmg: 10, xp: 2, color: '#7e57c2' },
   slime: { name: '分裂史莱姆', emoji: '🦠', hp: 52, speed: 40, r: 18, dmg: 20, xp: 3, color: '#7cb342' },
   golem: { name: '石魔', emoji: '🗿', hp: 95, speed: 30, r: 22, dmg: 26, xp: 6, color: '#b0bec5' },
   giant: { name: '巨兽', emoji: '🦍', hp: 200, speed: 38, r: 30, dmg: 45, xp: 40, color: '#8d6e63' },
   boss: { name: '恶魔领主', emoji: '👿', hp: 340, speed: 55, r: 30, dmg: 25, xp: 100, color: '#d32f2f' },
   dino: { name: '恐龙领主', emoji: '🦖', hp: 320, speed: 60, r: 30, dmg: 34, xp: 100, color: '#558b2f' },
-  vampire: { name: '吸血鬼亲王', emoji: '🧛', hp: 360, speed: 50, r: 30, dmg: 30, xp: 120, color: '#b71c1c' },
+  vampire: { name: '吸血鬼亲王', emoji: '🧛', hp: 620, speed: 50, r: 30, dmg: 30, xp: 120, color: '#b71c1c' },
 }
 const BOSS_CYCLE = ['boss', 'dino', 'vampire']
 
@@ -553,8 +553,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       deathsRef.current.push({ x: e.x, y: e.y, emoji: e.emoji, size: e.r * 2.3, color: e.color, t: boss ? (e.type === 'boss' ? 0.8 : 0.6) : 0.42, maxT: boss ? (e.type === 'boss' ? 0.8 : 0.6) : 0.42, big: boss })
     }
     if (boss) shakeRef.current = Math.max(shakeRef.current, e.type === 'boss' || e.type === 'vampire' ? 6 : 3)
-    addText(e.x, e.y - e.r - 6, `+${e.xp}`, '#ffd740')
-  }, [addParts, addText, dropGems])
+  }, [addParts, dropGems])
 
   const dmgEnemy = useCallback((e: Enemy, dmg: number, kbx: number, kby: number) => {
     if (e.dead || e.burrow > 0) return
@@ -906,12 +905,18 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       const d = Math.hypot(dx, dy) || 1
       const sway = Math.sin(elapsedRef.current * 3 + e.phase) * 0.4
       let sp = e.speed
+      let approach = 1
       if (e.type === 'boss' && e.charge > 0) sp = 235 + 5 * Math.min(7, e.glv)
       else if (e.type === 'vampire') sp = e.wind > 0 ? 0 : e.speed * (e.rage ? 1.35 : 1)
       else if (e.type === 'boar' && (e.wind > 0 || e.charge > 0)) sp = 0
-      else if (e.type === 'cultist' && e.wind > 0) sp = 0
-      e.x += (dx / d + sway * -dy / d) * sp * dt
-      e.y += (dy / d + sway * dx / d) * sp * dt
+      else if (e.type === 'cultist') {
+        if (e.wind > 0) sp = 0
+        else if (d > 240) approach = 1
+        else if (d < 140) approach = -1
+        else approach = 0
+      }
+      e.x += (dx / d * approach + sway * -dy / d) * sp * dt
+      e.y += (dy / d * approach + sway * dx / d) * sp * dt
       if (e.type === 'boss' && e.charge > 0) {
         e.charge -= dt
         if (trailsRef.current.length < 320) {
@@ -1155,7 +1160,6 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     const gems = gemsRef.current
     const magnetR = 45 + 30 * (passivesRef.current.magnet || 0)
     let pickedXp = 0
-    let pickedN = 0
     let w = 0
     for (let i = 0; i < gems.length; i++) {
       const g = gems[i]
@@ -1168,20 +1172,12 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
       }
       if (d < 16) {
         pickedXp += g.v
-        pickedN++
       } else {
         gems[w++] = g
       }
     }
     gems.length = w
-    if (pickedXp > 0) {
-      const n = Math.min(6, pickedN * 2)
-      for (let j = 0; j < n && trailsRef.current.length < 320; j++) {
-        const fa = Math.random() * Math.PI * 2
-        trailsRef.current.push({ x: p.x + (Math.random() - 0.5) * 18, y: p.y + (Math.random() - 0.5) * 18, vx: Math.cos(fa) * 40, vy: Math.sin(fa) * 40 - 25, life: 0.28, maxLife: 0.28, color: '#ffd740', size: 2 })
-      }
-      gainXp(pickedXp)
-    }
+    if (pickedXp > 0) gainXp(pickedXp)
 
     const parts = partsRef.current
     for (let i = parts.length - 1; i >= 0; i--) {
