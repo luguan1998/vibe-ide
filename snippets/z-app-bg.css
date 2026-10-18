@@ -111,6 +111,11 @@ body .session-panel__quick-action.bg-ide-accent\/15 {
   background-color: rgb(var(--ide-accent) / 0.15) !important;
 }
 
+/* ── AI 思考区：原 bg-ide-accent/5 自带透明会透出背景图，换成同色实底混合 ── */
+body .ai-tab__thinking-content {
+  background-color: color-mix(in srgb, rgb(var(--ide-bg)), rgb(var(--ide-accent)) 5%) !important;
+}
+
 /* ── 终端 + xterm 各层透明（codex 会给终端刷深色画布，一并放掉）── */
 body .term-view__canvas,
 .xterm .xterm-viewport,
@@ -120,11 +125,26 @@ body .term-view__canvas,
   background-image: none !important;
 }
 
-/* ── Monaco（文件 diff / 编辑）：不要就整段删掉 ──── */
+/* ── Monaco（文件 diff / 编辑）：不要就整段删掉 ────
+   已注释：右栏 Monaco 透明时底层 rightPanel 会透上来，与编辑文本重叠 */
+/*
 .monaco-editor,
 .monaco-editor .monaco-editor-background,
 .monaco-editor .margin,
 .monaco-editor .minimap,
 .monaco-editor .decorationsOverviewRuler {
   background-color: transparent !important;
+}
+*/
+
+/* ── Monaco 实底补全 ──────────────────────────────
+   Monaco 只给正文（.monaco-editor-background）和行号（.margin）自绘底色，
+   diff 中间 gutter、增删行按钮条、inline 左侧留白等区域没有底色，
+   停用透明规则后会继续透出背景图，表现为行号旁的一条透明竖线 */
+.monaco-editor,
+.monaco-diff-editor,
+.monaco-diff-editor .gutter,
+.monaco-diff-editor .gutter .gutterItem,
+.diff-inline {
+  background-color: rgb(var(--ide-bg)) !important;
 }
