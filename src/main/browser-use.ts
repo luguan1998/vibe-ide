@@ -16,17 +16,161 @@ export interface BrowserToolResult {
 
 const live = new Map<number, WebContents>()
 const order: number[] = []
+const consoleBuf = new Map<number, ConsoleEntry[]>()
+const dialogBuf = new Map<number, DialogEntry[]>()
+const dbgHeld = new Set<number>()
+const dialogWaiters = new Map<number, Set<() => void>>()
+const CONSOLE_MAX = 200
+const DIALOG_MAX = 20
+
+interface ConsoleEntry {
+  ts: number
+  level: 'debug' | 'info' | 'warning' | 'error'
+  message: string
+  source: string
+  line: number
+}
+
+interface DialogEntry {
+  ts: number
+  type: string
+  message: string
+  defaultPrompt: string
+  handled: boolean
+}
+
+function pushConsole(contents: WebContents, entry: ConsoleEntry): void {
+  let buf = consoleBuf.get(contents.id)
+  if (!buf) {
+    buf = []
+    consoleBuf.set(contents.id, buf)
+  }
+  buf.push(entry)
+  if (buf.length > CONSOLE_MAX) buf.splice(0, buf.length - CONSOLE_MAX)
+}
+
+function pushDialog(contents: WebContents, entry: DialogEntry): void {
+  let buf = dialogBuf.get(contents.id)
+  if (!buf) {
+    buf = []
+    dialogBuf.set(contents.id, buf)
+  }
+  buf.push(entry)
+  if (buf.length > DIALOG_MAX) buf.splice(0, buf.length - DIALOG_MAX)
+  const set = dialogWaiters.get(contents.id)
+  if (set) {
+    dialogWaiters.delete(contents.id)
+    for (const fn of [...set]) fn()
+  }
+}
+
+function hasPendingDialog(c: WebContents): boolean {
+  return (dialogBuf.get(c.id) || []).some((d) => !d.handled)
+}
+
+function waitDialogOnce(c: WebContents, fn: () => void): () => void {
+  let set = dialogWaiters.get(c.id)
+  if (!set) {
+    set = new Set()
+    dialogWaiters.set(c.id, set)
+  }
+  set.add(fn)
+  return () => {
+    const s = dialogWaiters.get(c.id)
+    if (!s) return
+    s.delete(fn)
+    if (!s.size) dialogWaiters.delete(c.id)
+  }
+}
+
+// 输入命令会一直等到 dialog 被应答；先放手，让工具结果立刻返回给模型去调 browser_dialog
+async function cdpStep<T>(c: WebContents, run: () => Promise<T>): Promise<{ v?: T; dialog?: boolean; err?: string }> {
+  if (hasPendingDialog(c)) return { dialog: true }
+  let cancel = () => {}
+  const hit = new Promise<{ dialog: true }>((resolve) => {
+    cancel = waitDialogOnce(c, () => resolve({ dialog: true }))
+  })
+  try {
+    return await Promise.race([
+      run().then((v) => ({ v })).catch((e: any) => ({ err: String(e?.message || e) })),
+      hit,
+    ])
+  } finally {
+    cancel()
+  }
+}
+
+// dialog 在两次工具调用之间异步弹出，短连接的 withCdp 接不到，必须常驻 attach
+function attachPersistentDebugger(contents: WebContents): void {
+  const dbg: any = (contents as any).debugger
+  if (!dbg) return
+  if (!dbgHeld.has(contents.id)) {
+    try {
+      if (dbg.isAttached?.()) return
+      dbg.attach('1.3')
+    } catch {
+      return
+    }
+    dbgHeld.add(contents.id)
+    dbg.on('message', (_event: any, method: string, params: any) => {
+      if (method === 'Page.javascriptDialogOpening') {
+        pushDialog(contents, {
+          ts: Date.now(),
+          type: String(params?.type || 'alert'),
+          message: String(params?.message || '').slice(0, 2000),
+          defaultPrompt: String(params?.defaultPrompt || ''),
+          handled: false,
+        })
+      } else if (method === 'Page.javascriptDialogClosed') {
+        const buf = dialogBuf.get(contents.id) || []
+        for (let i = buf.length - 1; i >= 0; i--) {
+          if (!buf[i].handled) {
+            buf[i].handled = true
+            break
+          }
+        }
+      }
+    })
+  }
+  dbg.sendCommand('Page.enable').catch(() => {})
+}
 
 export function trackWebview(contents: WebContents): void {
   live.set(contents.id, contents)
   order.push(contents.id)
   contents.on('did-navigate', () => {
     refFrames.clear()
+    consoleBuf.delete(contents.id)
+    dialogBuf.delete(contents.id)
   })
+  contents.on('console-message', (details: any) => {
+    const raw = String(details?.level || 'info')
+    const level = raw === 'warning' || raw === 'error' || raw === 'debug' ? raw : 'info'
+    pushConsole(contents, {
+      ts: Date.now(),
+      level,
+      message: String(details?.message ?? '').slice(0, 2000),
+      source: String(details?.sourceId || ''),
+      line: Number(details?.lineNumber) || 0,
+    })
+  })
+  contents.on('did-fail-load', (_e: any, code: number, desc: string, url: string, isMain: boolean) => {
+    if (!isMain || code === -3) return
+    pushConsole(contents, { ts: Date.now(), level: 'error', message: `navigation failed: ${desc} (${code}) ${url}`, source: '', line: 0 })
+  })
+  contents.on('render-process-gone', (_e: any, details: any) => {
+    pushConsole(contents, { ts: Date.now(), level: 'error', message: `renderer gone: ${details?.reason || 'unknown'} (exit ${details?.exitCode ?? '?'})`, source: '', line: 0 })
+  })
+  attachPersistentDebugger(contents)
+  contents.on('dom-ready', () => attachPersistentDebugger(contents))
   contents.once('destroyed', () => {
     live.delete(contents.id)
     const i = order.indexOf(contents.id)
     if (i >= 0) order.splice(i, 1)
+    consoleBuf.delete(contents.id)
+    dialogBuf.delete(contents.id)
+    dialogWaiters.delete(contents.id)
+    dbgHeld.delete(contents.id)
   })
 }
 
@@ -109,9 +253,18 @@ function framesOf(c: WebContents): WebFrameMain[] {
   return out
 }
 
+const PAGE_BLOCKED_MSG = 'page is blocked by a dialog — call browser_dialog with action "accept" or "dismiss"'
+
+function withTimeout<T>(p: Promise<T>, ms = 8000): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(PAGE_BLOCKED_MSG)), ms)),
+  ])
+}
+
 async function safeExec<T = any>(f: WebFrameMain, js: string, ug = false): Promise<{ v?: T; err?: string }> {
   try {
-    return { v: (await f.executeJavaScript(js, ug)) as T }
+    return { v: (await withTimeout(f.executeJavaScript(js, ug))) as T }
   } catch (e: any) {
     return { err: String(e?.message || e) }
   }
@@ -161,8 +314,8 @@ async function execOnRef(c: WebContents, ref: string, job: string): Promise<any>
     }
     return r.v
   }
-  if (f) return await f.executeJavaScript(job)
-  return await c.executeJavaScript(job)
+  if (f) return await withTimeout(f.executeJavaScript(job))
+  return await withTimeout(c.executeJavaScript(job))
 }
 
 function normUrl(u: string): string {
@@ -251,7 +404,7 @@ async function frameOffsetCss(c: WebContents, f: WebFrameMain): Promise<{ x: num
 
 async function viewportCss(c: WebContents): Promise<{ w: number; h: number }> {
   try {
-    const v = await c.executeJavaScript('({ w: innerWidth, h: innerHeight })')
+    const v = await withTimeout(c.executeJavaScript('({ w: innerWidth, h: innerHeight })'))
     if (v && Number(v.w) > 0 && Number(v.h) > 0) return { w: Number(v.w), h: Number(v.h) }
   } catch { /* ignore */ }
   return { w: 800, h: 600 }
@@ -278,43 +431,68 @@ async function withCdp<T>(c: WebContents, fn: (dbg: any) => Promise<T>): Promise
   const dbg: any = (c as any).debugger
   if (!dbg) return { err: 'no debugger' }
   let attachedHere = false
-  try {
-    dbg.attach('1.3')
-    attachedHere = true
-  } catch (e: any) {
-    const msg = String(e?.message || e)
-    if (!/already attached/i.test(msg)) return { err: msg }
+  const held = dbgHeld.has(c.id) && (typeof dbg.isAttached !== 'function' || dbg.isAttached())
+  if (!held) {
+    try {
+      dbg.attach('1.3')
+      attachedHere = true
+    } catch (e: any) {
+      const msg = String(e?.message || e)
+      return { err: /already attached/i.test(msg) ? 'debugger attached elsewhere' : msg }
+    }
   }
-  if (!attachedHere) return { err: 'debugger attached elsewhere' }
   try {
     return { v: await fn(dbg) }
   } catch (e: any) {
     return { err: String(e?.message || e) }
   } finally {
-    try {
-      dbg.detach()
-    } catch { /* ignore */ }
+    if (attachedHere && !dbgHeld.has(c.id)) {
+      try {
+        dbg.detach()
+      } catch { /* ignore */ }
+    }
   }
 }
 
 async function mouseClick(c: WebContents, x: number, y: number, button: string, count: number): Promise<string | null> {
   const btn = button === 'right' ? 'right' : 'left'
+  let dialogHit = false
   const r = await withCdp(c, async (dbg) => {
-    await dbg.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
-    const down = (cc: number) => dbg.sendCommand('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: btn, clickCount: cc })
-    const up = (cc: number) => dbg.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: btn, clickCount: cc })
+    const step = async (params: any): Promise<boolean> => {
+      const s = await cdpStep(c, () => dbg.sendCommand('Input.dispatchMouseEvent', params))
+      if (s.dialog) return false
+      if (s.err) throw new Error(s.err)
+      return true
+    }
+    if (!(await step({ type: 'mouseMoved', x, y }))) {
+      dialogHit = true
+      return
+    }
+    const down = (cc: number) => step({ type: 'mousePressed', x, y, button: btn, clickCount: cc })
+    const up = (cc: number) => step({ type: 'mouseReleased', x, y, button: btn, clickCount: cc })
     if (count >= 2) {
-      await down(1)
-      await up(1)
+      if (!(await down(1)) || !(await up(1))) {
+        dialogHit = true
+        return
+      }
       await sleep(60)
-      await down(2)
-      await up(2)
+      if (!(await down(2)) || !(await up(2))) {
+        dialogHit = true
+        return
+      }
     } else {
-      await down(1)
+      if (!(await down(1))) {
+        dialogHit = true
+        return
+      }
       await sleep(40)
-      await up(1)
+      if (!(await up(1))) {
+        dialogHit = true
+        return
+      }
     }
   })
+  if (dialogHit) return null
   if (!r.err) return null
   // CDP 输入坐标是（缩放后）主框架 CSS px；sendInputEvent 是 DIP，须乘 zoomFactor — 反复踩点
   const z = await zoomOf(c)
@@ -876,6 +1054,7 @@ async function settlePageShort(c: WebContents): Promise<void> {
 
 async function afterAct(c: WebContents, quiet: boolean): Promise<BrowserToolResult[]> {
   if (quiet) return []
+  if (hasPendingDialog(c)) return []
   await settlePage(c)
   return [await doSnapshot(c, false, 250)]
 }
@@ -897,7 +1076,7 @@ async function clickRef(c: WebContents, ref: string, button: string, count: numb
     pos = r.v
   } else {
     const job = `(${CLICK_FN})(${JSON.stringify(ref)},${JSON.stringify(button || 'left')},${count})`
-    pos = frame ? await frame.executeJavaScript(job) : await c.executeJavaScript(job)
+    pos = frame ? await withTimeout(frame.executeJavaScript(job)) : await withTimeout(c.executeJavaScript(job))
   }
   if (pos?.lost) return { result: lostResult(ref) }
   if (pos?.err) return { result: textResult(pos.err, true) }
@@ -926,9 +1105,33 @@ async function clickRef(c: WebContents, ref: string, button: string, count: numb
 
 // ---------- tool dispatch ----------
 
+const ACTION_TOOLS = new Set(['click', 'click_xy', 'fill', 'fill_form', 'press', 'type', 'scroll', 'navigate', 'back', 'forward', 'reload', 'dialog'])
+
+function withActionHints(c: WebContents, errBefore: number, res: BrowserToolResult): BrowserToolResult {
+  const notes: string[] = []
+  const pending = (dialogBuf.get(c.id) || []).filter((d) => !d.handled)
+  if (pending.length) {
+    const d = pending[pending.length - 1]
+    notes.push(`[page dialog open: ${d.type}${d.message ? ` "${d.message.slice(0, 160)}"` : ''} — call browser_dialog with action "accept" or "dismiss"; page JS is blocked until then]`)
+  }
+  const errs = (consoleBuf.get(c.id) || []).filter((e) => e.level === 'error')
+  if (errs.length > errBefore) {
+    const fresh = errs.slice(errBefore).slice(-3).map((e) => e.message.slice(0, 200))
+    notes.push(`[${errs.length - errBefore} new console error(s) — call browser_console for details]\n  ${fresh.join('\n  ')}`)
+  }
+  if (!notes.length) return res
+  return { content: [...res.content, { type: 'text', text: notes.join('\n') }], isError: res.isError }
+}
+
 export async function handleCall(name: string, args: any): Promise<BrowserToolResult> {
   const { c, opened } = await ensureBrowser(name === 'navigate' ? normalizeNavUrl(args.url) : '')
   if (!c) return noBrowser()
+  const errBefore = (consoleBuf.get(c.id) || []).filter((e) => e.level === 'error').length
+  const res = await dispatch(c, name, args, opened)
+  return ACTION_TOOLS.has(name) ? withActionHints(c, errBefore, res) : res
+}
+
+async function dispatch(c: WebContents, name: string, args: any, opened: boolean): Promise<BrowserToolResult> {
   try {
     switch (name) {
       case 'snapshot': {
@@ -1027,13 +1230,26 @@ export async function handleCall(name: string, args: any): Promise<BrowserToolRe
         const base = cdpKeyEvent(parsed.keyCode, parsed.mods)
         let note: string | null = null
         const act = await activateTypingInput(c, focusRef, focusFrame)
+        let dialogHit = false
         const r = base
           ? await withCdp(c, async (dbg) => {
-              await dbg.sendCommand('Input.dispatchKeyEvent', { ...base, type: 'keyDown' })
-              await dbg.sendCommand('Input.dispatchKeyEvent', { ...base, type: 'keyUp', text: undefined })
+              const down = await cdpStep(c, () => dbg.sendCommand('Input.dispatchKeyEvent', { ...base, type: 'keyDown' }))
+              if (down.dialog) {
+                dialogHit = true
+                return
+              }
+              if (down.err) throw new Error(down.err)
+              const up = await cdpStep(c, () => dbg.sendCommand('Input.dispatchKeyEvent', { ...base, type: 'keyUp', text: undefined }))
+              if (up.dialog) {
+                dialogHit = true
+                return
+              }
+              if (up.err) throw new Error(up.err)
             })
           : { err: 'no CDP mapping' }
-        if (r.err) {
+        if (dialogHit) {
+          note = null
+        } else if (r.err) {
           const ev: any = { type: 'keyDown', keyCode: parsed.keyCode }
           if (parsed.mods.length) ev.modifiers = parsed.mods
           c.sendInputEvent(ev)
@@ -1157,7 +1373,7 @@ return { ok: 1 };
           r = await execOnRef(c, sel.slice(1), `(${EXTRACT_FN})(${JSON.stringify(sel)},${cap})`)
           if (r?.lost) return lostResult(sel.slice(1))
         } else {
-          r = await c.executeJavaScript(`(${EXTRACT_FN})(${JSON.stringify(sel)},${cap})`)
+          r = await withTimeout(c.executeJavaScript(`(${EXTRACT_FN})(${JSON.stringify(sel)},${cap})`))
         }
         if (r?.err) return textResult(r.err, true)
         if (!sel && !(String(r.v || '').trim())) {
@@ -1199,11 +1415,55 @@ return { ok: 1 };
           if (rr.err) return textResult(`eval error: ${rr.err}`, true)
           r = rr.v
         } else {
-          r = await c.executeJavaScript(js, true)
+          r = await withTimeout(c.executeJavaScript(js, true))
         }
         if (r?.err) return textResult(`eval error: ${r.err}`, true)
         const label = inSub ? `\n(evaluated in frame ${frameUrl(target!)})` : ''
         return textResult(`(async function(el){...}) returned:\n${r?.v ?? 'undefined'}` + label)
+      }
+      case 'console': {
+        const rank = { debug: 0, info: 1, warning: 2, error: 3 }
+        const raw = String(args.level || 'warning').toLowerCase()
+        const min = raw === 'all' || raw === 'debug' ? 0 : raw === 'info' || raw === 'log' ? 1 : raw === 'error' ? 3 : 2
+        const all = consoleBuf.get(c.id) || []
+        let list = all.filter((e) => rank[e.level] >= min)
+        const since = Number(args.since)
+        if (Number.isFinite(since)) list = list.filter((e) => e.ts > since)
+        const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 100)
+        const total = list.length
+        if (list.length > limit) list = list.slice(-limit)
+        if (!list.length) {
+          return textResult(`no console messages${raw === 'all' ? '' : ` at ${raw}+`} (buffer ${all.length}, URL: ${c.getURL()})`)
+        }
+        const lines = list.map((e) => {
+          const t = new Date(e.ts).toISOString().slice(11, 23)
+          const src = e.source ? ` (${e.source}${e.line ? ':' + e.line : ''})` : ''
+          return `${t} ${e.level.padEnd(7)} ${e.message}${src}`
+        })
+        const shown = total > list.length ? ` — showing last ${list.length} of ${total}` : ''
+        return textResult(`console messages${shown} (latestTs: ${Date.now()}):\n${lines.join('\n')}`)
+      }
+      case 'dialog': {
+        const pending = (dialogBuf.get(c.id) || []).filter((d) => !d.handled)
+        const action = String(args.action || '').toLowerCase()
+        if (!action) {
+          if (!pending.length) return textResult('no dialog is open — the page is not blocked')
+          const list = pending.map((d, i) => `${i + 1}. ${d.type}${d.message ? `: "${d.message}"` : ''}${d.defaultPrompt ? ` (default: "${d.defaultPrompt}")` : ''}`).join('\n')
+          return textResult(`${list}\n\ncall browser_dialog with action "accept" or "dismiss" to answer the oldest dialog.`)
+        }
+        if (!pending.length) return textResult('no dialog is open — the page is not blocked', true)
+        const accept = action === 'accept'
+        const d = pending[0]
+        const r = await withCdp(c, async (dbg) => {
+          await dbg.sendCommand('Page.handleJavaScriptDialog', {
+            accept,
+            ...(args.text != null ? { promptText: String(args.text) } : {}),
+          })
+        })
+        if (r.err) return textResult(`failed to ${accept ? 'accept' : 'dismiss'} dialog: ${r.err}`, true)
+        d.handled = true
+        const snaps = await afterAct(c, !!args.quiet)
+        return combine(textResult(`${accept ? 'accepted' : 'dismissed'} ${d.type} dialog${d.message ? ` "${d.message}"` : ''}`), snaps)
       }
       default:
         return textResult(`unknown browser tool: ${name}`, true)

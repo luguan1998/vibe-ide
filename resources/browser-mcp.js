@@ -216,6 +216,32 @@ const TOOLS = [
       required: ['code'],
       additionalProperties: false
     }
+  },
+  {
+    name: 'browser_console',
+    description: 'Read recent console messages plus runtime failures (failed navigations and renderer crashes are recorded as level "error") for the embedded browser page. Call this after changing a page served by a local dev server to verify it actually works before telling the user the fix is done, or when the page looks broken. Keeps a 200-message ring buffer per page; a full navigation clears it. Default returns warnings+errors. Use "since" with a previous result\'s latestTs to poll only new lines.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        level: { type: 'string', enum: ['all', 'debug', 'info', 'warning', 'error'], default: 'warning', description: 'minimum severity: warning = warnings+errors, error = errors only, all = everything' },
+        limit: { type: 'integer', default: 30, description: 'max lines to return (last N), max 100' },
+        since: { type: 'integer', description: 'optional: only entries newer than this ms-epoch timestamp (from a previous result\'s latestTs)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'browser_dialog',
+    description: 'Handle a native JS dialog (alert/confirm/prompt/beforeunload) that is blocking the page. Without "action" it only lists open dialogs, changing nothing. With action "accept" or "dismiss" it answers the oldest open dialog (prompt input = text). IMPORTANT: after a click that opens a confirm()/alert(), page JS is blocked — call this before any other page action. The result includes a fresh snapshot like other actions (pass quiet:true to suppress).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['accept', 'dismiss'] },
+        text: { type: 'string', description: 'prompt input value; only meaningful for action "accept" on a prompt dialog' },
+        quiet: { type: 'boolean', default: false }
+      },
+      additionalProperties: false
+    }
   }
 ]
 
