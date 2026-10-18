@@ -169,6 +169,7 @@ export const IPC_CHANNELS = {
   AI_ASK_RESUME: 'ai:askResume',
   AI_RESOLVE_CONFIG_DIR: 'ai:resolveConfigDir',
   AI_RESOLVE_PROJECT_DIR: 'ai:resolveProjectDir',  // invoke: cwd → ~/.claude/projects/<slug>（记忆目录的父目录）
+  AI_SESSION_FILE_PATH: 'ai:sessionFilePath',     // invoke: 会话转录 jsonl 的绝对路径（claude / pi）
   AI_REVERT: 'ai:revert',
   AI_FORK: 'ai:fork',
   AI_FORK_TURN: 'ai:forkTurn',             // invoke: 从任意一轮分叉（源文件可能没有活跃 GUI 会话）

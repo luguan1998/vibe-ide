@@ -661,6 +661,7 @@ const ZH_MAP: Record<string, string> = {
   'New': '新建',
   'New Session': '新会话',
   'Copy as Markdown': '复制为 Markdown',
+  'Copy Session Path': '复制会话路径',
   'Compact Tools': '精简工具',
   'Hide Tools & Think': '隐藏工具和思考',
   'Plan': '计划',

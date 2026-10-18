@@ -26,6 +26,7 @@ import {
   readUserTurnsCached,
 } from './ai'
 import { forkPiSession } from './pi/fork'
+import { findPiSessionFile } from './pi/history'
 import { piSessionMeta, resumePiSessionFrom } from './pi/session'
 
 // ── JSONL truncation ──────────────────────────────────────────────
@@ -359,6 +360,15 @@ export function registerRevertHandlers(): void {
       return { success: false, error: `Failed to write forked session: ${(err as Error).message}` }
     }
     return { success: true, newClaudeSessionId }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.AI_SESSION_FILE_PATH, async (_event, sessionId: string) => {
+    const piMeta = piSessionMeta(sessionId)
+    if (piMeta) return await findPiSessionFile(piMeta.piSessionId)
+    const prev = aiSessions.get(sessionId)
+    if (!prev?.claudeSessionId) return null
+    const projectDir = resolveProjectDir(prev.cwd, prev.configDir)
+    return projectDir ? join(projectDir, `${prev.claudeSessionId}.jsonl`) : null
   })
 
   // ── LIST USER TURNS ─────────────────────────────────────────────

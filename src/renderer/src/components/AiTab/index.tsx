@@ -6,7 +6,7 @@ import { useI18n } from '../../i18n'
 import { loadFilterRules } from '../FileTab'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig, takePendingSend } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, Check, MessageSquarePlus, Eye, EyeOff, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown, Copy, Sparkles } from 'lucide-react'
+import { SquareArrowUp, Square, Check, MessageSquarePlus, Eye, EyeOff, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown, Copy, FileText, Sparkles } from 'lucide-react'
 import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { toFileUrl } from '../../utils/filePathUtils'
 import { StreamingMarkdown } from './markdown'
@@ -245,6 +245,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       setTimeout(() => setConversationCopied(false), 1500)
     })
   }, [state.messages, state.userTurns, state.name, viewMode])
+
+  const handleCopySessionPath = useCallback(async () => {
+    setTabContextMenu(null)
+    if (!activeSessionId) return
+    const filePath = await window.api.ai.sessionFilePath(activeSessionId)
+    if (filePath) await navigator.clipboard.writeText(filePath)
+  }, [activeSessionId])
 
   // Input
   // Per-session draft keyed by sessionId — survives session switching.
@@ -1980,6 +1987,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           >
             {conversationCopied ? <Check size={12} className="shrink-0 text-ide-accent" /> : <Copy size={12} className="shrink-0" />}
             {t('Copy as Markdown')}
+          </button>
+          <button
+            disabled={!activeSessionId}
+            onClick={handleCopySessionPath}
+            className="ai-tab__context-menu-item w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent whitespace-nowrap"
+          >
+            <FileText size={12} className="shrink-0" />
+            {t('Copy Session Path')}
           </button>
           <button
             disabled={state.messages.length === 0}

@@ -345,6 +345,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_RESOLVE_CONFIG_DIR, configDir),
     resolveProjectDir: (cwd: string, configDir?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_RESOLVE_PROJECT_DIR, cwd, configDir),
+    sessionFilePath: (sessionId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AI_SESSION_FILE_PATH, sessionId),
     setModel: (sessionId: string, model: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_MODEL, { sessionId, model }),
     resolveModels: (sessionId?: string) =>

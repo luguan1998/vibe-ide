@@ -103,6 +103,16 @@ type PiFileEntry = {
   sizeBytes: number
 }
 
+export async function findPiSessionFile(sessionId: string): Promise<string | null> {
+  const dirs = await readdir(PI_SESSIONS_ROOT).catch(() => [] as string[])
+  for (const dir of dirs) {
+    const files = await readdir(join(PI_SESSIONS_ROOT, dir)).catch(() => [] as string[])
+    const file = files.find((f) => f.endsWith(`_${sessionId}.jsonl`))
+    if (file) return join(PI_SESSIONS_ROOT, dir, file)
+  }
+  return null
+}
+
 async function listPiFiles(): Promise<PiFileEntry[]> {
   const dirs = await readdir(PI_SESSIONS_ROOT).catch(() => [] as string[])
   const entries: PiFileEntry[] = []
