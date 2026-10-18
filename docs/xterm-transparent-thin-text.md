@@ -27,6 +27,7 @@
 
 - 本项目当前版本：`@xterm/xterm 6.1.0-beta.302` + `@xterm/addon-webgl 0.20.0-beta.298`；
 - 上游 6.0.0 有相关 alpha 改动（#5335 `webgl: Ignore alpha channel when allowTransparency is false`），但**不是** #4212 的修复；
+- **2026-10-18 复核最新版仍未修复**：`@xterm/addon-webgl 0.20.0-beta.309` 的 `TextureAtlas.ts` 与本地 beta.298 完全一致（第 101 行仍是 `alpha: allowTransparency`）；issue 仍 open、无关联 PR。升级 xterm 不能解决；
 - 触发场景：所有需要终端透明的配置（背景图 snippet `summerdays.css` / `nailong.css`），亮色主题下最明显。
 
 ## 可选方案
