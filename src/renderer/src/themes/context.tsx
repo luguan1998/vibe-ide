@@ -23,6 +23,11 @@ function applyCSSVariables(theme: IDETheme): void {
   for (const [key, value] of Object.entries(theme.css)) {
     root.style.setProperty(`--${key}`, value)
   }
+  const bg = theme.css['ide-bg'].split(/\s+/).map(Number)
+  if (bg.length === 3 && bg.every(Number.isFinite)) {
+    const luma = (0.2126 * bg[0] + 0.7152 * bg[1] + 0.0722 * bg[2]) / 255
+    root.dataset.themeTone = luma > 0.5 ? 'light' : 'dark'
+  }
   // Brush cursor: generated per theme accent at runtime (CSS url() cannot read variables)
   const accent = theme.css['ide-accent']
   const rgb = accent.split(/\s+/).map(Number)

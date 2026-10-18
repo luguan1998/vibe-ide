@@ -24,10 +24,23 @@
   --app-bg-wash: 0.22;
   /* AI 正文单独一档：草地这类亮区域需要更实的底，否则浅色字仍看不清 */
   --app-bg-text-alpha: 0.5;
+  /* 中间栏（AI / 终端画布）铺底，比输入框透一档 */
+  --app-bg-center-alpha: 0.2;
   --app-bg-anim: 120s;
   /* ↑ 只有恢复漂移后才用得上 */
   /* 复用终端背景图开关，仅作“开”的标记：xterm 走透明分支，图由下面的全屏层统一提供 */
   --terminal-bg-image: none;
+}
+
+/* 亮色主题：各层底都是 theme bg（近白），同档 alpha 的白纱压不住图里的暗部和细节，
+   深色正文会糊在图上；亮色下整体加厚一档。tone 由 ThemeProvider 写到 <html data-theme-tone> */
+:root[data-theme-tone="light"] {
+  --app-bg-dim: 0.55;
+  --app-bg-alpha: 0.55;
+  --app-bg-title-alpha: 0.5;
+  --app-bg-wash: 0.45;
+  --app-bg-text-alpha: 0.7;
+  --app-bg-center-alpha: 0.5;
 }
 
 /* 窗口底透明：codex 会把窗口底画成近白渐变，清掉换成背景图 */
@@ -126,9 +139,23 @@ body .ai-tab__thinking-content {
 
 /* ── 文字区可读性 ───────────────────────────────
    正文/会话名直接压在图上；行内代码原来的 accent/8 底几乎等于透明，代码名和云、树叶糊在一起。
-   AI tab 整块一次铺底，消息区/输入区不再各自铺、左右不留缝；会话栏只铺薄底 */
-body .ai-tab {
-  background-color: rgb(var(--ide-bg) / var(--app-bg-text-alpha)) !important;
+   中间栏/右栏在面板层铺底：卡片 margin、圆角缺口这些缝隙也吃到同一层色，
+   内部 AiTab / 终端保持透明即可，不会叠两层；会话栏只铺薄底 */
+/* 左栏展开时中间栏被 margin-left:-8px 往左拉：左缘 4px 压在会话栏上、另 4px 压在拖动条下。
+   填充从 4px 处才开始，否则会和会话栏 wash 叠成一条更深的竖影（圆角缺口从卡片左缘起，仍吃得到） */
+body .center-panel:not(.center-panel--flush-left),
+body [data-panel="right"] {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-center-alpha)) !important;
+}
+
+body .center-panel--flush-left {
+  background: linear-gradient(90deg, transparent 0 4px, rgb(var(--ide-bg) / var(--app-bg-center-alpha)) 4px) !important;
+}
+
+/* 只有右栏那条拖动条落在面板之外，需要补同色底盖住原图；左栏那条压在中间面板上，
+   再填一层会叠深；:where 压掉特异性，hover 主题 accent 照常生效 */
+body :where(.center-panel ~ .cursor-col-resize) {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-center-alpha));
 }
 
 body .session-panel {
@@ -160,9 +187,9 @@ body .md-preview :not(pre) > code {
   border-color: rgb(var(--ide-accent) / 0.3) !important;
 }
 
-/* ── 终端底：和 AI 正文同档，终端文字不再直接压在图上 ── */
+/* ── 终端底：由 .center-panel 统一铺，内部保持透明 ── */
 body .term-view__canvas {
-  background-color: rgb(var(--ide-bg) / var(--app-bg-text-alpha)) !important;
+  background: transparent !important;
   background-image: none !important;
 }
 
