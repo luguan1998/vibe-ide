@@ -9,8 +9,9 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { SearchAddon } from '@xterm/addon-search'
 
 import { useTheme } from '../themes'
-import { loadFilterRules } from './FileTab'
-import { FILE_PATH_REGEX, parseFilePath, isBareFilename } from '../utils/filePathUtils'
+import { FILE_PATH_REGEX, parseFilePath } from '../utils/filePathUtils'
+import { resolveAndOpenFile } from '../utils/filePathOpen'
+import { FileMatchPicker } from './FileMatchPicker'
 import { PROGRAM_STATUS_OSC, PROGRAM_STATUS_QUERY_REPLY, parseProgramStatus, ProgramStatus } from '../programStatus'
 import '@xterm/xterm/css/xterm.css'
 
@@ -69,63 +70,6 @@ export interface TerminalViewHandle {
   readTail: (maxLines?: number) => string[]
 }
 
-
-/**
- * 解析路径文本并尝试打开文件
- * - 先用 parseFilePath 解析
- * - 直接读文件，成功则跳转
- * - 若失败且原始文本是裸文件名，递归搜索 cwd 子目录
- * - 搜索唯一匹配则跳转，否则静默失败（不触发 App.tsx ENONET 报错）
- */
-async function resolveAndOpenFile(
-  rawText: string,
-  cwd: string,
-  onOpenFile: (fullPath: string, lineNumber?: number) => void,
-  onMultipleMatches?: (matches: string[], lineNumber?: number) => void
-): Promise<boolean> {
-  const parsed = parseFilePath(rawText, cwd)
-  if (!parsed) return false
-
-  // 尝试直接读文件验证路径存在
-  try {
-    const result = await window.api.file.read(parsed.fullPath)
-    if (!result.error) {
-      onOpenFile(parsed.fullPath, parsed.lineNumber)
-      return true
-    }
-    // 文件存在但不可读（超大/二进制）→ 仍打开，DiffViewer 会展示 Force Open 按钮
-    if (result.error.startsWith('File too large') || result.error === 'Cannot display binary file') {
-      onOpenFile(parsed.fullPath, parsed.lineNumber)
-      return true
-    }
-  } catch {
-    // 读失败，继续尝试搜索
-  }
-
-  // 直接路径不存在 → 检查是否为裸文件名，递归搜索
-  // 从 parseFilePath 已清理的 fullPath 中提取文件名，避免 rawText 尾部标点干扰搜索
-  const cleanFileName = parsed.fullPath.split(/[\\\/]/).pop() || ''
-
-  if (isBareFilename(cleanFileName) && cwd) {
-    try {
-      const findResult = await window.api.file.find(cwd, cleanFileName, loadFilterRules())
-      if (findResult.matches) {
-        if (findResult.matches.length === 1) {
-          onOpenFile(findResult.matches[0], parsed.lineNumber)
-          return true
-        }
-        if (findResult.matches.length >= 2) {
-          onMultipleMatches?.(findResult.matches, parsed.lineNumber)
-          return true
-        }
-      }
-    } catch {
-      // find 不可用（例如 preload 未更新），静默失败
-    }
-  }
-
-  return false
-}
 
 /**
  * 清洗捕获的原始输入字节流，模拟 readline 行内编辑，还原用户意图的可见文本。
@@ -411,7 +355,7 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
   } | null>(null)
   const filePickerRef = useRef<((matches: string[], lineNumber?: number) => void) | null>(null)
   filePickerRef.current = (matches: string[], lineNumber?: number) => {
-    setFilePicker({ matches: matches.slice(0, 10), lineNumber })
+    setFilePicker({ matches, lineNumber })
   }
   const detectionReadyRef = useRef(false)    // 1s 延时后才开始检测
   const lastPromptJumpRef = useRef<number>(-1) // Alt+↑↓ 上次跳转到的提示行索引
@@ -1192,19 +1136,6 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     return () => el.removeEventListener('mousedown', handleMouseDown, true)
   }, [sessionCwd, isReady, onOpenFile])
 
-  // Escape 键关闭文件选择器（capture 阶段拦截，防止 Esc 传递到终端）
-  useEffect(() => {
-    if (!filePicker) return
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopImmediatePropagation()
-        setFilePicker(null)
-      }
-    }
-    document.addEventListener('keydown', handleKey, true)
-    return () => document.removeEventListener('keydown', handleKey, true)
-  }, [filePicker])
-
   // Auto-fit on mount and when container resizes (debounced 100ms)
   useEffect(() => {
     if (!fitAddonRef.current) return
@@ -1422,51 +1353,13 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
 
       {/* File Picker Modal — 多文件匹配选择器 */}
       {filePicker && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 term-view__filepicker"
-          onClick={() => setFilePicker(null)}
-        >
-          <div
-            className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[500px] max-h-[400px] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-4 py-3 border-b border-ide-border shrink-0 flex items-center justify-between">
-              <span className="text-sm font-medium text-ide-text">
-                {filePicker.matches.length} 个匹配文件
-              </span>
-              <button
-                className="text-ide-text-muted hover:text-ide-text text-lg leading-none w-5 h-5 flex items-center justify-center rounded hover:bg-ide-hover"
-                onClick={() => setFilePicker(null)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-2">
-              {filePicker.matches.map((fullPath) => {
-                const cwdNorm = (sessionCwd || '').replace(/\\/g, '/')
-                const pathNorm = fullPath.replace(/\\/g, '/')
-                const relativePath = cwdNorm
-                  ? pathNorm.startsWith(cwdNorm)
-                    ? pathNorm.slice(cwdNorm.length).replace(/^\//, '')
-                    : pathNorm
-                  : pathNorm
-                return (
-                  <button
-                    key={fullPath}
-                    className="w-full text-left px-3 py-2 rounded hover:bg-ide-hover transition-colors term-view__filepicker-item"
-                    onClick={() => {
-                      if (onOpenFile) onOpenFile(fullPath, filePicker.lineNumber)
-                      setFilePicker(null)
-                    }}
-                  >
-                    <div className="text-sm text-ide-text truncate">{relativePath}</div>
-                    <div className="text-xs text-ide-text-muted truncate mt-0.5">{fullPath}</div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
+        <FileMatchPicker
+          matches={filePicker.matches}
+          lineNumber={filePicker.lineNumber}
+          cwd={sessionCwd}
+          onSelect={(fullPath, lineNumber) => onOpenFile?.(fullPath, lineNumber)}
+          onClose={() => setFilePicker(null)}
+        />
       )}
     </div>
   )

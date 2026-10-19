@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useStableCodeOverrides } from '../MarkdownCodeBlock'
+import { useOpenPath } from './useOpenPath'
 import { FILE_PATH_REGEX, parseFilePath } from '../../utils/filePathUtils'
 import { cleanMessageContent } from '../../utils/aiConversationFormatter'
 
@@ -10,7 +11,7 @@ import { cleanMessageContent } from '../../utils/aiConversationFormatter'
 const GFM_PLUGINS: [[typeof remarkGfm, { singleTilde: boolean }]] = [[remarkGfm, { singleTilde: false }]]
 const DelPassthrough = ({ children }: { children?: ReactNode }) => <>{children}</>
 
-function findFilePathAtPoint(x: number, y: number, cwd: string): { fullPath: string; lineNumber?: number } | null {
+function findFilePathAtPoint(x: number, y: number, cwd: string): { raw: string; fullPath: string; lineNumber?: number } | null {
   const doc = document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null }
   const range = doc.caretRangeFromPoint?.(x, y) ?? null
   const node = range?.startContainer
@@ -22,10 +23,28 @@ function findFilePathAtPoint(x: number, y: number, cwd: string): { fullPath: str
   while ((match = FILE_PATH_REGEX.exec(text)) !== null) {
     if (offset >= match.index && offset <= match.index + match[0].length) {
       const parsed = parseFilePath(match[0], cwd)
-      if (parsed) return parsed
+      if (parsed) return { raw: match[0], ...parsed }
     }
   }
   return null
+}
+
+// 坐标命中路径 → 复用 useOpenPath（与终端同一套校验/搜索/多命中选择器）
+// ChatMarkdown 与 StreamingMarkdown 共用，避免两份重复 handler
+function useFilePathClick(workspacePath: string | null, onOpenFile?: (fullPath: string, lineNumber?: number) => void) {
+  const { openPath, pickerNode } = useOpenPath(workspacePath, onOpenFile)
+  const onFilePathClick = useCallback((e: React.MouseEvent) => {
+    if (!workspacePath || !onOpenFile) return
+    const target = e.target as HTMLElement
+    if (target.closest('a, pre')) return
+    if (window.getSelection()?.toString().trim()) return
+    const parsed = findFilePathAtPoint(e.clientX, e.clientY, workspacePath)
+    if (!parsed) return
+    e.preventDefault()
+    openPath(parsed.raw)
+  }, [workspacePath, onOpenFile, openPath])
+
+  return { onFilePathClick, pickerNode }
 }
 
 export const ChatMarkdown = React.memo(function ChatMarkdown({ text, className = '', workspacePath, onOpenFile }: {
@@ -35,22 +54,14 @@ export const ChatMarkdown = React.memo(function ChatMarkdown({ text, className =
 }) {
   const codeOverrides = useStableCodeOverrides()
   const components = useMemo(() => ({ ...codeOverrides, del: DelPassthrough }), [codeOverrides])
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    if (!workspacePath || !onOpenFile) return
-    const target = e.target as HTMLElement
-    if (target.closest('a, pre')) return
-    if (window.getSelection()?.toString().trim()) return
-    const parsed = findFilePathAtPoint(e.clientX, e.clientY, workspacePath)
-    if (!parsed) return
-    e.preventDefault()
-    onOpenFile(parsed.fullPath, parsed.lineNumber)
-  }, [workspacePath, onOpenFile])
+  const { onFilePathClick, pickerNode } = useFilePathClick(workspacePath, onOpenFile)
 
   return (
-    <div className={`ai-tab__markdown md-preview ${className}`} onClick={handleClick}>
+    <div className={`ai-tab__markdown md-preview ${className}`} onClick={onFilePathClick}>
       <ReactMarkdown remarkPlugins={GFM_PLUGINS} components={components}>
         {cleanMessageContent(text)}
       </ReactMarkdown>
+      {pickerNode}
     </div>
   )
 })
@@ -174,20 +185,12 @@ export function StreamingMarkdown({ text, className = '', workspacePath, onOpenF
     return nodes
   }, [revealed, components])
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    if (!workspacePath || !onOpenFile) return
-    const target = e.target as HTMLElement
-    if (target.closest('a, pre')) return
-    if (window.getSelection()?.toString().trim()) return
-    const parsed = findFilePathAtPoint(e.clientX, e.clientY, workspacePath)
-    if (!parsed) return
-    e.preventDefault()
-    onOpenFile(parsed.fullPath, parsed.lineNumber)
-  }, [workspacePath, onOpenFile])
+  const { onFilePathClick, pickerNode } = useFilePathClick(workspacePath, onOpenFile)
 
   return (
-    <div className={`ai-tab__markdown ai-tab__markdown--streaming md-preview ${className}`} onClick={handleClick}>
+    <div className={`ai-tab__markdown ai-tab__markdown--streaming md-preview ${className}`} onClick={onFilePathClick}>
       {rendered}
+      {pickerNode}
     </div>
   )
 }

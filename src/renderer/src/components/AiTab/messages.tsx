@@ -571,8 +571,8 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
           {message.toolUse && message.toolUse.length > 0 && (
             <Dwell dwell={concise} stamp={dwellStamp}>
               {message.toolUse.length === 1
-                ? <AiToolCallCard key={message.toolUse[0].id} tool={message.toolUse[0]} />
-                : <CompactToolSummary tools={message.toolUse} />}
+                ? <AiToolCallCard key={message.toolUse[0].id} tool={message.toolUse[0]} workspacePath={workspacePath} onOpenFile={onOpenFile} />
+                : <CompactToolSummary tools={message.toolUse} workspacePath={workspacePath} onOpenFile={onOpenFile} />}
             </Dwell>
           )}
         </div>
@@ -865,10 +865,10 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
       return <CollapsibleAgentGroup key={`agent-${item.startIndex}`} messages={item.messages} workspacePath={workspacePath} onOpenFile={onOpenFile} viewMode={viewMode} />
     }
     if (item.type === 'readSummary') {
-      return <Dwell key={`read-${item.firstToolId}`} dwell={concise} stamp={item.stamp}><CompactToolSummary tools={item.tools} /></Dwell>
+      return <Dwell key={`read-${item.firstToolId}`} dwell={concise} stamp={item.stamp}><CompactToolSummary tools={item.tools} workspacePath={workspacePath} onOpenFile={onOpenFile} /></Dwell>
     }
     if (item.type === 'toolCard') {
-      return <Dwell key={`tool-${item.tool.id}`} dwell={concise} stamp={item.stamp}><AiToolCallCard tool={item.tool} /></Dwell>
+      return <Dwell key={`tool-${item.tool.id}`} dwell={concise} stamp={item.stamp}><AiToolCallCard tool={item.tool} workspacePath={workspacePath} onOpenFile={onOpenFile} /></Dwell>
     }
     const msg = item.message
     const uIdx = isRealUserInput(messages, item.index)

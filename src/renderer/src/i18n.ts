@@ -419,6 +419,7 @@ const ZH_MAP: Record<string, string> = {
   'Type to search files...': '输入以搜索文件...',
   'No matches': '无匹配',
   'Type to search': '输入以搜索',
+  '{n} matching files': '{n} 个匹配文件',
 
   // Custom Commands
   'Custom Command': '自定义命令',

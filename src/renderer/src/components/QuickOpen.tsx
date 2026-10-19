@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { FileIcon, FolderIcon } from './FileIcons'
-import { loadFilterRules } from './FileTab'
+import { loadFilterRules } from '../utils/fileFilter'
 import { useI18n } from '../i18n'
 import { ModalOverlay } from './ModalOverlay'
 

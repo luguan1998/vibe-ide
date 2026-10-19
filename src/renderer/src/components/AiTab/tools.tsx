@@ -3,8 +3,9 @@ import type { AiMessage, AiToolUse } from '@shared/types'
 import { AI_FILE_EDIT_TOOLS } from '@shared/types'
 import { DiffEditor, Editor } from '@monaco-editor/react'
 import { useTheme } from '../../themes'
-import { Bot, ChevronDown, HelpCircle } from 'lucide-react'
+import { Bot, ChevronDown, HelpCircle, Paperclip } from 'lucide-react'
 import { AiAskQuestionDetail } from './permissions'
+import { useOpenPath } from './useOpenPath'
 import { CONTENT_MAX_W, MSG_GAP } from './layout'
 // ── Tool type classification ──────────────────────────────────────
 
@@ -244,12 +245,24 @@ function getToolDetail(tool: AiToolUse): string {
   return input.pattern || input.command || ''
 }
 
-export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
+// 工具输入里可跳转的文件路径（Edit/Write 的 file_path、Read 等的 path）
+function getToolFilePath(tool: AiToolUse): string {
+  const input = tool.input || {}
+  return input.file_path || input.path || input.filePath || ''
+}
+
+export function AiToolCallCard({ tool, workspacePath, onOpenFile }: {
+  tool: AiToolUse
+  workspacePath?: string | null
+  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+}) {
   const [expanded, setExpanded] = useState(false)
   const category = getToolCategory(tool.name)
   const isFileEdit = category === 'file'
   const hasResult = !!tool.result
   const detail = getToolDetail(tool)
+  const toolFilePath = getToolFilePath(tool)
+  const { openPath, pickerNode } = useOpenPath(workspacePath ?? null, onOpenFile)
 
   const editContent = (expanded && isFileEdit) ? getFileEditContent(tool) : null
   const oldContent = editContent?.oldContent
@@ -257,19 +270,32 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
 
   return (
     <div className={`ai-tab__tool-call block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in cursor-pointer select-none`} onClick={() => setExpanded(v => !v)}>
-      <button
-        type="button"
-        className={`ai-tab__tool-toggle flex w-fit items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${toolToggleTone(category)}`}
-      >
-        <span className="shrink-0"><ToolIcon category={category} /></span>
-        <span className="shrink-0 leading-none">{tool.name}</span>
-        {detail && <span className="ai-tab__tool-detail-preview truncate flex-1 min-w-0 ml-0.5 opacity-60 text-[10px] leading-none">{detail}</span>}
-        {hasResult && (
-          <span className={`ai-tab__tool-status shrink-0 text-[10px] leading-none ${tool.result!.isError ? 'text-ide-danger' : 'text-ide-success'}`}>
-            {tool.result!.isError ? '✗' : '✓'}
-          </span>
+      <div className="ai-tab__tool-row group/tool flex items-center gap-1 w-fit max-w-full">
+        <button
+          type="button"
+          className={`ai-tab__tool-toggle flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${toolToggleTone(category)}`}
+        >
+          <span className="shrink-0"><ToolIcon category={category} /></span>
+          <span className="shrink-0 leading-none">{tool.name}</span>
+          {detail && <span className="ai-tab__tool-detail-preview truncate flex-1 min-w-0 ml-0.5 opacity-60 text-[10px] leading-none">{detail}</span>}
+          {hasResult && (
+            <span className={`ai-tab__tool-status shrink-0 text-[10px] leading-none ${tool.result!.isError ? 'text-ide-danger' : 'text-ide-success'}`}>
+              {tool.result!.isError ? '✗' : '✓'}
+            </span>
+          )}
+        </button>
+        {toolFilePath && (
+          <button
+            type="button"
+            title={toolFilePath}
+            onClick={(e) => { e.stopPropagation(); openPath(toolFilePath) }}
+            className="ai-tab__tool-open shrink-0 p-0.5 rounded text-ide-text-muted/50 opacity-0 group-hover/tool:opacity-100 hover:text-ide-accent transition-opacity"
+          >
+            <Paperclip size={11} />
+          </button>
         )}
-      </button>
+      </div>
+      {pickerNode}
       {expanded && (
         <div onClick={(e) => e.stopPropagation()} className={`ai-tab__tool-detail-panel select-text mt-0.5 text-[11px] font-mono bg-ide-bg border border-ide-border rounded space-y-0.5 ${isFileEdit ? 'p-1' : `px-2 py-1 overflow-y-auto ${category === 'question' ? 'max-h-[26rem]' : 'max-h-48'}`}`}>
           {isFileEdit && newContent ? (
@@ -311,27 +337,46 @@ export function AiToolCallCard({ tool }: { tool: AiToolUse }) {
     </div>
   )
 }
-export function CompactToolSummary({ tools }: { tools: AiToolUse[] }) {
+export function CompactToolSummary({ tools, workspacePath, onOpenFile }: {
+  tools: AiToolUse[]
+  workspacePath?: string | null
+  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+}) {
   const [expanded, setExpanded] = useState(false)
   const last = tools[tools.length - 1]
   const errors = tools.filter(t => t.result?.isError).length
   const detail = getToolDetail(last)
+  const lastFilePath = getToolFilePath(last)
+  const { openPath, pickerNode } = useOpenPath(workspacePath ?? null, onOpenFile)
   return (
     <div className={`ai-tab__tools-summary ai-tab__tools-summary--compact block w-full ${CONTENT_MAX_W} mx-auto animate-fade-in ${MSG_GAP}`}>
-      <button
-        onClick={() => setExpanded(v => !v)}
-        className={`ai-tab__tools-summary-toggle flex w-fit items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${toolToggleTone(getToolCategory(last.name))}`}
-      >
-        <span className="shrink-0"><ToolIcon category={getToolCategory(last.name)} /></span>
-        <span className="shrink-0 leading-none">{last.name}</span>
-        {detail && <span className="ai-tab__tool-detail-preview truncate flex-1 min-w-0 opacity-60 text-[10px] leading-none">{detail}</span>}
-        {tools.length >= 2 && <span className="shrink-0 leading-none">· {tools.length} steps</span>}
-        {errors > 0 && <span className="shrink-0 leading-none">· {errors} <span className="text-ide-danger">✗</span></span>}
-        <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-      </button>
+      <div className="ai-tab__tool-row group/tool flex items-center gap-1 w-fit max-w-full">
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className={`ai-tab__tools-summary-toggle flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono transition-colors max-w-full overflow-hidden ${toolToggleTone(getToolCategory(last.name))}`}
+        >
+          <span className="shrink-0"><ToolIcon category={getToolCategory(last.name)} /></span>
+          <span className="shrink-0 leading-none">{last.name}</span>
+          {detail && <span className="ai-tab__tool-detail-preview truncate flex-1 min-w-0 opacity-60 text-[10px] leading-none">{detail}</span>}
+          {tools.length >= 2 && <span className="shrink-0 leading-none">· {tools.length} steps</span>}
+          {errors > 0 && <span className="shrink-0 leading-none">· {errors} <span className="text-ide-danger">✗</span></span>}
+          <ChevronDown size={10} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        </button>
+        {lastFilePath && (
+          <button
+            type="button"
+            title={lastFilePath}
+            onClick={() => openPath(lastFilePath)}
+            className="ai-tab__tool-open shrink-0 p-0.5 rounded text-ide-text-muted/50 opacity-0 group-hover/tool:opacity-100 hover:text-ide-accent transition-opacity"
+          >
+            <Paperclip size={11} />
+          </button>
+        )}
+      </div>
+      {pickerNode}
       {expanded && (
         <div className={`ai-tab__tools-summary-list flex flex-col ${MSG_GAP} animate-fade-in`}>
-          {tools.map(tool => <AiToolCallCard key={tool.id} tool={tool} />)}
+          {tools.map(tool => <AiToolCallCard key={tool.id} tool={tool} workspacePath={workspacePath} onOpenFile={onOpenFile} />)}
         </div>
       )}
     </div>
