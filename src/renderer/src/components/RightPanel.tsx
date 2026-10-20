@@ -696,6 +696,7 @@ function RightPanel({
           onHunkNav={onHunkNav}
           onNavigateToFile={onNavigateToFile}
           lineHistoryPayload={lineHistoryPayload}
+          brushActive={brushActive}
         />
       </div>
 
