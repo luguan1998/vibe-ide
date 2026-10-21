@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment, type MouseEvent as ReactMouseEvent } from 'react'
 import { useI18n } from '../i18n'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitSubmodule, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
@@ -7,6 +7,7 @@ import GitGraph from './GitGraph'
 import PrProvidersModal from './PrProvidersModal'
 import CreatePrModal from './CreatePrModal'
 import { ContextMenuItem } from './FileTab'
+import { ADD_ANNOTATION_EVENT, toRelPath } from './vibeEvents'
 import { FolderOpen, Route, Check, FileText, GitPullRequest } from 'lucide-react'
 import { FolderIcon } from './FileIcons'
 import { PanelGitIcon } from '../panelIcons'
@@ -29,6 +30,7 @@ interface GitTabProps {
   onHunkNav?: () => void
   onNavigateToFile?: (filePath: string) => void
   lineHistoryPayload?: { filePath: string; lineNumber: number; rev?: string; staged?: boolean } | null
+  brushActive?: boolean
 }
 
 const getStatusIcon = (file: GitFileStatus): string => {
@@ -145,7 +147,7 @@ const collectLeafPaths = (node: TreeNode): string[] => {
 
 const GRAPH_PAGE_SIZE = 50
 
-export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, submoduleNav, onFileSelect, refreshKey, activeSessionId, isActive, pauseWhenHidden, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onSubmoduleNavChange, onDiffScroll, onHunkNav, onNavigateToFile, lineHistoryPayload }: GitTabProps) {
+export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, submoduleNav, onFileSelect, refreshKey, activeSessionId, isActive, pauseWhenHidden, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onSubmoduleNavChange, onDiffScroll, onHunkNav, onNavigateToFile, lineHistoryPayload, brushActive }: GitTabProps) {
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
   const { t } = useI18n()
@@ -511,6 +513,20 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
   const handleFileClickRef = useRef(handleFileClick)
   handleFileClickRef.current = handleFileClick
 
+  // 羽毛笔(Ctrl)+左键点击文件行 → 插入到当前会话输入框（与文件树/编辑器一致）
+  const handleFileRowClick = useCallback((e: ReactMouseEvent, file: GitFileStatus, section: Section) => {
+    if (brushActive) {
+      e.preventDefault()
+      e.stopPropagation()
+      const rel = toRelPath(resolveFullPath(file.path), workspacePath)
+      window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel } }))
+      return
+    }
+    const idx = navigableItemsRef.current.findIndex(item => item.type === 'file' && item.section === section && item.file.path === file.path)
+    if (idx >= 0) setFocusedIndex(idx)
+    handleFileClick(file)
+  }, [brushActive, workspacePath, resolveFullPath, handleFileClick])
+
   // Handle commit click - show expanded files and diff
   const handleCommitClick = useCallback(async (hash: string) => {
     if (expandedCommit === hash) {
@@ -538,14 +554,21 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
   }, [expandedCommit])
 
   // Handle commit file click - show in main view, contents load on demand inside DiffViewer
-  const handleCommitFileClick = useCallback((file: GitCommitFile) => {
+  const handleCommitFileClick = useCallback((e: ReactMouseEvent, file: GitCommitFile) => {
+    if (brushActive) {
+      e.preventDefault()
+      e.stopPropagation()
+      const rel = toRelPath(resolveFullPath(file.path), workspacePath)
+      window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel } }))
+      return
+    }
     if (!onFileSelect || !expandedCommit) return
     const resolvedFullPath = resolveFullPath(file.path)
     onFileSelect(file.path, false, expandedCommit, resolvedFullPath, {
       additions: file.additions || 0,
       deletions: file.deletions || 0
     })
-  }, [onFileSelect, expandedCommit, resolveFullPath])
+  }, [brushActive, workspacePath, onFileSelect, expandedCommit, resolveFullPath])
 
   // Stage a file
   const handleStage = useCallback(async (filePath: string) => {
@@ -1118,7 +1141,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
         key={`${section}-${file.path}`}
         style={{ paddingLeft: 4 + depth * 12 + 16 }}
         className={`pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 git-tab__file-item ${focused ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'}`}
-        onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === section && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
+        onClick={(e) => handleFileRowClick(e, file, section)}
         onContextMenu={(e) => {
           e.preventDefault()
           const fullPath = resolveFullPath(file.path)
@@ -1361,7 +1384,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
       )}
 
       {/* Content */}
-      <div ref={containerRef} tabIndex={-1} className="git-tab-container flex-1 min-h-0 overflow-y-auto flex flex-col outline-none focus:outline-none focus:ring-0 git-tab">
+      <div ref={containerRef} tabIndex={-1} className={`git-tab-container flex-1 min-h-0 overflow-y-auto flex flex-col outline-none focus:outline-none focus:ring-0 git-tab${brushActive ? ' brush-copy-mode' : ''}`}>
         {message && (
           <div className="px-3 py-2 text-sm text-ide-accent bg-ide-accent/10 animate-fade-in">
             <p>{message}</p>
@@ -1443,7 +1466,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
                     className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 git-tab__file-item ${
                       focusedFileKey === `staged:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
-                    onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'staged' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
+                    onClick={(e) => handleFileRowClick(e, file, 'staged')}
                     onContextMenu={(e) => {
                       e.preventDefault()
                       const fullPath = resolveFullPath(file.path)
@@ -1526,7 +1549,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
                     className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 git-tab__file-item ${
                       focusedFileKey === `unstaged:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
-                    onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'unstaged' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
+                    onClick={(e) => handleFileRowClick(e, file, 'unstaged')}
                     onContextMenu={(e) => {
                       e.preventDefault()
                       const fullPath = resolveFullPath(file.path)
@@ -1613,7 +1636,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
                     className={`pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1 git-tab__file-item ${
                       focusedFileKey === `untracked:${file.path}` ? 'bg-ide-accent/10 text-ide-text' : 'text-ide-text'
                     }`}
-                    onClick={() => { const idx = navigableItems.findIndex(item => item.type === 'file' && item.section === 'untracked' && item.file.path === file.path); if (idx >= 0) setFocusedIndex(idx); handleFileClick(file) }}
+                    onClick={(e) => handleFileRowClick(e, file, 'untracked')}
                     onContextMenu={(e) => {
                       e.preventDefault()
                       const fullPath = resolveFullPath(file.path)
@@ -1729,7 +1752,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
                               <div
                                 key={file.path}
                                 className="pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1"
-                                onClick={() => handleCommitFileClick(file)}
+                                onClick={(e) => handleCommitFileClick(e, file)}
                               >
                                 <span className={`text-xs font-bold w-3.5 text-center shrink-0 ${
                                   file.status === 'added' ? 'text-ide-success' :
@@ -1807,7 +1830,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
                         <div
                           key={file.path}
                           className="pl-5 pr-2 py-1 text-xs cursor-pointer hover:bg-ide-hover flex items-center gap-1"
-                          onClick={() => handleCommitFileClick(file)}
+                          onClick={(e) => handleCommitFileClick(e, file)}
                         >
                           <span className={`text-xs font-bold w-3.5 text-center shrink-0 ${
                             file.status === 'added' ? 'text-ide-success' :

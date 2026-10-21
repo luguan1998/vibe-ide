@@ -65,6 +65,72 @@ function mergeToolResultIntoMessages(
   return null
 }
 
+// ── thinking / 正文分段合并 ───────────────────────────────────────
+// 同一 messageId 的 assistant 事件是分段到达的（每个 content block 一条），thinking 也随之分片。
+// 判定"这段是否已经出现过"要剥掉全部空白再比：主进程把多个 thinking block 用 '\n' 拼起来
+// （thinkingParts.join('\n')），而渲染层累积的是原始 token 流（无分隔符），同一段在这两处的换行/缩进
+// 必然对不齐；只按 includes 比对会把重复段判成新内容。
+function squash(s: string): string {
+  return s.replace(/\s+/g, '')
+}
+
+function mergePiece(oldS: string | undefined, newS: string | undefined, sep: string): string | undefined {
+  const o = oldS || ''
+  const n = newS || ''
+  if (!n.trim()) return oldS
+  if (!o.trim()) return newS
+  // 原文就互为包含（流式重发的常见情形）先用 O(n) indexOf 判定，省掉两次去空白复制
+  if (n.includes(o)) return n
+  if (o.includes(n)) return o
+  const os = squash(o)
+  const ns = squash(n)
+  if (ns === os) return n.length >= o.length ? n : o
+  if (ns.includes(os)) return n
+  if (os.includes(ns)) return o
+  return o + sep + n
+}
+
+// 剥掉 thinking 后既无正文、无工具、也无错误：这条只剩空壳，整条丢弃
+function isEmptyShell(m: AiMessage): boolean {
+  return !m.content && !m.error && !m.toolResult && !(m.toolUse && m.toolUse.length > 0)
+}
+
+// 跨消息去重：相邻两条 assistant 消息的 thinking 互为包含（同一段被拆成两条、同一个 block 被重复
+// 投递、流式残段被后来的完整段覆盖等）时只保留完整的那段，残段清空 thinking；清空后既无正文又无
+// 工具的空壳整条丢弃。
+// 只比最新一条与它前面最近的一条：本函数在每个 message 事件后都跑一次，任何一对在"刚成为相邻"
+// 那一刻就已判过，重复回扫整个尾部窗口只是白算（实测 3.5 倍开销、结果完全一致）。
+// 丢壳会让再前面两条变成新的相邻对，故剥完一轮再回看，直到没有变化
+function mergeAdjacentThinking(messages: AiMessage[], i: number): AiMessage[] {
+  const cur = messages[i]
+  if (i <= 0 || cur.role !== 'assistant' || !cur.thinking) return messages
+  let prevIdx = -1
+  for (let j = i - 1; j >= 0; j--) {
+    const jm = messages[j]
+    if (jm.role === 'assistant' && jm.thinking) { prevIdx = j; break }
+    // 之间夹着的 tool_result / result 回填不是回合边界，真实用户输入才是；跨回合的两段相同思考
+    // （同一句话反复说）不作去重
+    if (jm.role === 'user' && jm.type === 'user' && !jm.toolResult && jm.content) return messages
+  }
+  if (prevIdx < 0) return messages
+  const prev = messages[prevIdx]
+  if (prev.parentToolUseId !== cur.parentToolUseId) return messages
+  const a = squash(prev.thinking!)
+  const b = squash(cur.thinking)
+  if (!b.includes(a) && !a.includes(b)) return messages
+  // 互为包含时留 thinking 更完整的那条；完全相等则留先到的那条（不重排顺序、不丢正文/工具）
+  const lostIdx = a !== b && b.includes(a) ? prevIdx : i
+  const lost = messages[lostIdx]
+  const next = isEmptyShell(lost)
+    ? messages.slice(0, lostIdx).concat(messages.slice(lostIdx + 1))
+    : (() => { const c = messages.slice(); c[lostIdx] = { ...lost, thinking: undefined }; return c })()
+  return mergeAdjacentThinking(next, next.length - 1)
+}
+
+function dedupeThinking(messages: AiMessage[]): AiMessage[] {
+  return mergeAdjacentThinking(messages, messages.length - 1)
+}
+
 // Find last tool_use in messages that has no result yet (for merging session-level errors)
 function findPendingToolIndex(messages: AiMessage[]): { msgIdx: number; toolIdx: number } | null {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -511,6 +577,9 @@ function initListeners() {
         if (!b) return ''
         const target = covered ?? ''
         if (target.includes(b)) return ''
+        // 只差空白（'A\n\nB' vs 'A\nB'）时逐字符前缀走会停在换行处 → 补出 "B" 这类重复残段，
+        // 故再按去空白口径比一次：已覆盖就整段算覆盖
+        if (target && squash(target).includes(squash(b))) return ''
         let i = 0
         const max = Math.min(b.length, target.length)
         while (i < max && b[i] === target[i]) i++
@@ -534,32 +603,12 @@ function initListeners() {
 
       let messages: AiMessage[]
       if (isSameMessageId && lastMsg) {
-        // 去重:new 已含于 old（CLI 重发/前缀清洗差异）则不追加；old 已含于 new 则直接取 new，
+        // 去重:new 与 old 互为包含（含只差空白的重复段）时不拼接，直接取更完整的那份，
         // 防 o+n 拼出重复正文；空白 new 视为无更新
-        const mergeContent = (oldC: string | undefined, newC: string | undefined): string | undefined => {
-          const o = oldC || ''
-          const n = newC || ''
-          if (!n.trim()) return oldC
-          if (!o.trim()) return newC
-          if (n.startsWith(o)) return n
-          if (o.includes(n)) return oldC
-          if (n.includes(o)) return n
-          return o + n
-        }
-        const mergeThinking = (oldT: string | undefined, newT: string | undefined): string | undefined => {
-          const o = oldT || ''
-          const n = newT || ''
-          if (!n.trim()) return oldT
-          if (!o.trim()) return newT
-          if (n.startsWith(o)) return n
-          if (o.includes(n)) return oldT
-          if (n.includes(o)) return n
-          return o + '\n\n' + n
-        }
         const merged: AiMessage = {
           ...lastMsg,
-          content: mergeContent(lastMsg.content, msg.content) || undefined,
-          thinking: mergeThinking(lastMsg.thinking, msg.thinking) || undefined,
+          content: mergePiece(lastMsg.content, msg.content, '') || undefined,
+          thinking: mergePiece(lastMsg.thinking, msg.thinking, '\n\n') || undefined,
           thinkingDurationMs: lastMsg.thinkingDurationMs ?? thinkDuration,
           toolUse: msg.toolUse?.length ? [...(lastMsg.toolUse || []), ...msg.toolUse] : lastMsg.toolUse,
         }
@@ -572,6 +621,7 @@ function initListeners() {
       } else {
         messages = [...s0.messages, ...flushedMsg, isAssistant ? { ...msg, thinkingDurationMs: thinkDuration } : msg]
       }
+      messages = dedupeThinking(messages)
 
       const clearThinking = isAssistant && (!!msg.thinking || (isSameMessageId && !!lastMsg?.thinking))
       const clearText = isAssistant && (!!msg.content || (isSameMessageId && !!lastMsg?.content))

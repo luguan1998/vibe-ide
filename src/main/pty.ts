@@ -309,38 +309,67 @@ export function registerPtyHandlers(): void {
   })
 
   ipcMain.handle(IPC_CHANNELS.PTY_REFRESH_ENV, () => {
+    if (process.platform !== 'win32') return { success: true, count: 0 }
     try {
-      let count = 0
-      const regKeys = [
-        'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment',
-        'HKCU\\Environment'
-      ]
-      // PATH 不能逐键覆盖：Windows 会话 PATH = 系统(HKLM) + 用户(HKCU) 拼接。
-      // HKCU 后写会整体顶掉 HKLM 值，丢 System32/Git\cmd 等条目，主进程之后
-      // 所有裸名 spawn（git/reg/taskkill/where）全部 ENOENT，git 页面瘫痪
-      const pathParts: string[] = []
-      for (const regKey of regKeys) {
-        let output: string
-        try {
-          output = execFileSync('reg.exe', ['query', regKey], { encoding: 'utf8', timeout: 5000 })
-        } catch { continue }
-        for (const line of output.split(/\r?\n/)) {
-          const m = line.match(/^\s{4}(.+?)\s{4,}REG\S+\s{4,}(.+)$/)
-          if (!m) continue
-          const key = m[1]
-          let value = m[2]
-          if (value === '(value not set)') continue
-          value = value.replace(/%([^%]+)%/g, (_m, varName) => process.env[varName] ?? `%${varName}%`)
-          if (key.toLowerCase() === 'path') {
-            pathParts.push(value)
-            count++
-            continue
-          }
-          process.env[key] = value
-          count++
+      // 不用 reg.exe：它按 OEM 代码页（简中 = 936）输出，Node 按 utf8 解码会把路径里的非 ASCII
+      // 段变成乱码（C:\Users\xx\工具 → C:\Users\xx\????），刷新后该段直接失效，终端里找不到命令。
+      // PowerShell 输出走 UTF-8。返回的是未展开原值，%VAR% 由下面按字典统一展开——Windows 自己的
+      // GetEnvironmentVariables 解不开「新建变量 + PATH 引用它」这种同批前向引用（实测留字面量）。
+      const script = [
+        '[Console]::OutputEncoding=[Text.Encoding]::UTF8',
+        '$o=@{}',
+        "foreach($s in 'Machine','User'){",
+        "$k=if($s -eq 'Machine'){'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'}else{'HKCU:\\Environment'}",
+        // 只滤 PowerShell 注入的元数据属性（PSPath/PSDrive…）；不能写 -notlike 'PS*'，
+        // 那会连 PSModulePath 一起误杀——用户级 PSModulePath 就再也进不了 process.env
+        "(Get-ItemProperty -Path $k).PSObject.Properties|Where-Object{$_.MemberType -eq 'NoteProperty' -and $_.Name -ne 'PSPath' -and $_.Name -ne 'PSParentPath' -and $_.Name -ne 'PSChildName' -and $_.Name -ne 'PSDrive' -and $_.Name -ne 'PSProvider'}|ForEach-Object{$o[$s+':'+$_.Name]=[string]$_.Value}",
+        '}',
+        '$o|ConvertTo-Json -Compress'
+      ].join(';')
+      const raw = execFileSync(
+        'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        { encoding: 'utf8', timeout: 10000 }
+      )
+      const scoped = JSON.parse(raw) as Record<string, string>
+
+      const pick = (scope: string, name: string): string => {
+        for (const [k, v] of Object.entries(scoped)) {
+          const i = k.indexOf(':')
+          if (i > 0 && k.slice(0, i) === scope && k.slice(i + 1).toLowerCase() === name) return v
         }
+        return ''
       }
-      if (pathParts.length > 0) process.env.PATH = pathParts.join(';')
+      // 变量名大小写不敏感：当前进程环境兜底（%SystemRoot% 这类），用户级同名覆盖
+      const lookup: Record<string, string> = {}
+      for (const [k, v] of Object.entries(process.env)) if (v !== undefined) lookup[k.toUpperCase()] = v
+      for (const [k, v] of Object.entries(scoped)) {
+        if (k.startsWith('User:')) lookup[k.slice(5).toUpperCase()] = v
+      }
+      const expand = (s: string): string => {
+        let cur = s
+        for (let i = 0; i < 10; i++) {
+          const next = cur.replace(/%([^%]+)%/g, (m, n) => lookup[n.toUpperCase()] ?? m)
+          if (next === cur) return cur
+          cur = next
+        }
+        return cur
+      }
+
+      let count = 0
+      for (const [k, v] of Object.entries(scoped)) {
+        if (!k.startsWith('User:') || !v) continue
+        const name = k.slice(5)
+        if (name.toLowerCase() === 'path') continue
+        process.env[name] = expand(v)
+        count++
+      }
+      // PATH = 系统段 + 用户段；不灌 Machine 独有的 USERNAME(=SYSTEM)/ComSpec
+      const pathValue = [pick('Machine', 'path'), pick('User', 'path')].map(expand).filter(Boolean).join(';')
+      if (pathValue) {
+        process.env.PATH = pathValue
+        count++
+      }
       return { success: true, count }
     } catch (err: any) {
       console.error('Failed to refresh env:', err)
