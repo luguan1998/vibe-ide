@@ -128,6 +128,10 @@ declare global {
       claudeConfig: {
         dir: (configDir?: string) => Promise<string>
       }
+      piConfig: {
+        modelsPath: () => Promise<string>
+        applyModelConfig: (payload: import('@shared/types').PiModelConfigPayload) => Promise<{ success: boolean; error?: string }>
+      }
       workspace: {
         open: () => Promise<any>
         current: () => Promise<{ path: string }>

@@ -76,6 +76,10 @@ export const IPC_CHANNELS = {
   // Claude config (model/provider groups switcher)
   CLAUDE_CONFIG_DIR: 'claudeConfig:dir',
 
+  // Pi config: models.json 绝对路径（主进程用 join 拼，避免 renderer 猜分隔符）+ 写入一组模型配置
+  PI_MODELS_PATH: 'pi:modelsPath',
+  PI_APPLY_MODEL_CONFIG: 'pi:applyModelConfig',
+
   // Workspace
   WORKSPACE_OPEN: 'workspace:open',
   WORKSPACE_CURRENT: 'workspace:current',
@@ -844,6 +848,25 @@ export interface AiPiModelRow {
   name: string
   provider: string
   contextWindow?: number
+}
+
+// 一组 pi 模型配置 → 写入 agentDir 下 models.json 的 providers.<providerId>，
+// 并为同一 provider 声明默认模型 / 思考等级（写入 settings.json，留空则不动）。
+// 每个模型带可选 contextWindow / maxTokens（"128k"/"1m"/纯数字），留空则继承该模型原有值
+export interface PiModelConfigEntry {
+  id: string
+  contextWindow?: string
+  maxTokens?: string
+}
+
+export interface PiModelConfigPayload {
+  providerId: string
+  baseUrl?: string
+  api?: string
+  apiKey?: string
+  models: PiModelConfigEntry[]
+  defaultModel?: string
+  thinkingLevel?: string
 }
 
 export interface AiSessionState {

@@ -4,5 +4,6 @@ export {
   piThinkingLevels, setPiThinkingLevel, piSessionCwd,
 } from './session'
 export { resolvePiModels, resolvePiCommands } from './catalog'
-export { findPiBinary } from './process'
+export { findPiBinary, resolvePiAgentDir } from './process'
+export { registerPiConfigHandlers } from './config'
 export { registerPiHistoryHandlers } from './history'

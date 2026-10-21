@@ -12,7 +12,7 @@ import { registerRevertHandlers } from './ai-revert'
 import { registerTreeHandlers } from './ai-tree'
 import { registerWorktreeHandlers } from './ai-worktree'
 import { registerHistoryHandlers } from './ai-history'
-import { registerPiHistoryHandlers } from './pi'
+import { registerPiHistoryHandlers, registerPiConfigHandlers, resolvePiAgentDir } from './pi'
 import { registerGitHandlers } from './git'
 import { registerPrHandlers } from './pr'
 import { registerBoardHandlers } from './board'
@@ -251,6 +251,7 @@ app.whenReady().then(() => {
   registerWorktreeHandlers()
   registerHistoryHandlers()
   registerPiHistoryHandlers()
+  registerPiConfigHandlers()
 
   // Clamp zoom to 100% — prevents Chromium's built-in page zoom from eating Ctrl+= / Ctrl+-
   if (mainWindow) {
@@ -311,6 +312,10 @@ app.whenReady().then(() => {
   // Claude 配置目录：renderer 无 homedir，由 main 返回路径后用 file 读写 settings.json / 配置组文件。
   // 与 ai.ts 共用 resolveConfigDir：未显式配置时按 ~/.claude → ~/.openclaude → ~/.opencc 探测
   ipcMain.handle(IPC_CHANNELS.CLAUDE_CONFIG_DIR, (_e, configDir?: string) => resolveConfigDir(configDir))
+
+  // Pi models.json 绝对路径：renderer 无 homedir，打开链接需要真实平台路径。
+  // 用 join 在主进程拼，renderer 不猜分隔符。
+  ipcMain.handle(IPC_CHANNELS.PI_MODELS_PATH, () => join(resolvePiAgentDir(), 'models.json'))
 
   // 项目会话目录：与 ai.ts 共用 resolveProjectDir，避免 renderer 重写路径归一化规则
   ipcMain.handle(IPC_CHANNELS.AI_RESOLVE_PROJECT_DIR, (_e, cwd: string, configDir?: string) =>

@@ -2,10 +2,22 @@ import { spawn, execSync, type ChildProcess } from 'child_process'
 import { StringDecoder } from 'string_decoder'
 import { existsSync } from 'fs'
 import { homedir } from 'os'
-import { join } from 'path'
+import { isAbsolute, join } from 'path'
 import { sanitizeEnvForCli } from '../ai-shared'
 
 export const PI_INSTALL_CMD = 'npm install -g @earendil-works/pi-coding-agent'
+
+// Pi 的 agent 目录（models.json / settings.json / sessions 全在这里）：
+// PI_CODING_AGENT_DIR 优先，否则 ~/.pi/agent —— 与 pi 自身 getAgentDir() 保持一致
+export function resolvePiAgentDir(): string {
+  const envDir = process.env.PI_CODING_AGENT_DIR?.trim()
+  if (envDir) {
+    if (envDir === '~') return homedir()
+    if (envDir.startsWith('~/') || envDir.startsWith('~\\')) return join(homedir(), envDir.slice(2))
+    return isAbsolute(envDir) ? envDir : join(homedir(), envDir)
+  }
+  return join(homedir(), '.pi', 'agent')
+}
 
 // Pi installs land in a few conventional places; `where`/`which` misses them
 // when the npm global bin dir is absent from the app's PATH (GUI launch).

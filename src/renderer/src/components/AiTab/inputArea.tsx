@@ -427,7 +427,6 @@ export function PiModelBadge({
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const [models, setModels] = useState<AiPiModelRow[] | null>(null)
-  const [filter, setFilter] = useState('')
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -447,8 +446,13 @@ export function PiModelBadge({
   }, [open])
 
   useEffect(() => {
-    if (!open) { setFilter(''); return }
-    if (models) return
+    const handler = () => setModels(null)
+    window.addEventListener('pi-models-changed', handler)
+    return () => window.removeEventListener('pi-models-changed', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!open || models) return
     window.api.ai.resolvePiModels()
       .then((rows: AiPiModelRow[]) => setModels(rows || []))
       .catch(() => setModels([]))
@@ -462,8 +466,6 @@ export function PiModelBadge({
 
   const provider = model.includes('/') ? model.slice(0, model.indexOf('/')) : ''
   const label = model.includes('/') ? model.slice(model.indexOf('/') + 1) : (model || 'default')
-  const needle = filter.trim().toLowerCase()
-  const rows = (models || []).filter(r => !needle || r.id.toLowerCase().includes(needle) || r.name.toLowerCase().includes(needle))
 
   return (
     <div ref={ref} className="ai-tab__model relative min-w-0">
@@ -484,20 +486,10 @@ export function PiModelBadge({
       {open && (
         <div className="ai-tab__model-dropdown absolute bottom-full right-0 mb-1.5 z-30
           bg-ide-sidebar border border-ide-border rounded-lg shadow-lg min-w-[220px] max-w-[320px] w-max py-0.5 animate-fade-in">
-          <div className="px-2 py-1">
-            <input
-              autoFocus
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
-              placeholder="筛选模型…"
-              className="ai-tab__model-filter w-full bg-transparent text-[11px] text-ide-text border-b border-ide-accent/60
-                         focus:outline-none focus:border-ide-accent placeholder:text-ide-text-muted/40"
-            />
-          </div>
           <div className="max-h-[16rem] overflow-y-auto">
             {models === null && <div className="px-2.5 py-1.5 text-[11px] text-ide-text-muted/60">加载中…</div>}
-            {models !== null && rows.length === 0 && <div className="px-2.5 py-1.5 text-[11px] text-ide-text-muted/60">无匹配模型</div>}
-            {rows.map(row => {
+            {models !== null && models.length === 0 && <div className="px-2.5 py-1.5 text-[11px] text-ide-text-muted/60">无可用模型</div>}
+            {(models || []).map(row => {
               const marked = row.id === model || (!model && provider === '')
               return (
                 <button

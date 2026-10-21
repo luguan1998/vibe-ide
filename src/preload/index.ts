@@ -136,6 +136,12 @@ const api = {
     dir: (configDir?: string) => ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_CONFIG_DIR, configDir),
   },
 
+  piConfig: {
+    modelsPath: () => ipcRenderer.invoke(IPC_CHANNELS.PI_MODELS_PATH) as Promise<string>,
+    applyModelConfig: (payload: import('../shared/types').PiModelConfigPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PI_APPLY_MODEL_CONFIG, payload),
+  },
+
   workspace: {
     open: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_OPEN),
     current: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_CURRENT),

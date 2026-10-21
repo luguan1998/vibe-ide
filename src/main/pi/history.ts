@@ -1,15 +1,15 @@
 import { ipcMain } from 'electron'
 import { open, readFile, readdir, rm, stat } from 'fs/promises'
-import { homedir } from 'os'
 import { join, resolve, sep } from 'path'
 import { IPC_CHANNELS, type AiMessage, type AiSearchOptions, type AiSearchMatch, type AiSessionSearchGroup, type AiSessionSummary, type AiSlashCommand } from '../../shared/types'
 import { asRecord, stringField, textFromContent } from './protocol'
 import { piRecordToMessage } from './messages'
 import { buildMatchSnippet } from '../ai'
+import { resolvePiAgentDir } from './process'
 
-// pi 的会话存储：~/.pi/agent/sessions/<dashed-cwd>/<ISO时间>_<sessionId>.jsonl，
+// pi 的会话存储：<agentDir>/sessions/<dashed-cwd>/<ISO时间>_<sessionId>.jsonl，
 // 首行是 {type:'session', id, cwd, timestamp} 头，其余为 model_change / thinking_level_change / message 行。
-export const PI_SESSIONS_ROOT = join(homedir(), '.pi', 'agent', 'sessions')
+export const PI_SESSIONS_ROOT = join(resolvePiAgentDir(), 'sessions')
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MAX_SESSIONS_PER_PROJECT = 100
 const MAX_TOTAL_SESSIONS = 1000

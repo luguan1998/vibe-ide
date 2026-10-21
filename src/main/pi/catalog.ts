@@ -49,6 +49,11 @@ export function resolvePiModels(): Promise<PiModelInfo[] | null> {
   return modelsPromise
 }
 
+// 写完 models.json 后调用：下一次打开模型列表重新探测
+export function invalidatePiModels(): void {
+  modelsPromise = null
+}
+
 // cwd 决定 pi 扫描哪些项目级资源（.pi/prompts、.pi/skills），缺省退回 home（纯用户级）
 export function resolvePiCommands(cwd?: string): Promise<PiCommandInfo[] | null> {
   const dir = cwd?.trim() || homedir()

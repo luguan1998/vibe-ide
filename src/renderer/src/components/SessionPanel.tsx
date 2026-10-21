@@ -42,6 +42,37 @@ interface ClaudeConfigStore {
   activeId: string | null
 }
 
+// ── Pi 模型配置组（一组 provider + 模型清单，应用时写入 ~/.pi/agent/models.json）──
+interface PiModelEntry {
+  id: string
+  contextWindow: string
+  maxTokens: string
+}
+interface PiModelConfigGroup {
+  id: string
+  providerId: string
+  baseUrl: string
+  api: string
+  apiKey: string
+  models: PiModelEntry[]
+  defaultModel: string
+  thinkingLevel: string
+}
+interface PiModelConfigStore {
+  groups: PiModelConfigGroup[]
+  activeId: string | null
+}
+
+// pi 支持的 API 实现（models.json 里 provider.api 的取值）——只列常用的三类；
+// 其余实现（azure / google / bedrock / mistral）要接时手改 models.json
+const PI_API_TYPES = [
+  'openai-completions',
+  'anthropic-messages',
+  'openai-responses',
+]
+
+const PI_THINKING_LEVELS = ['', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
 // ── 会话类型（term/gui/pi）图标与名称：新建会话菜单 + 会话配置弹窗 tab 共用 ──
 const MODE_LABELS: Record<SessionMode, string> = { term: 'Terminal', gui: 'Claude', pi: 'Pi' }
 
@@ -55,8 +86,8 @@ const renderModeIcon = (mode: SessionMode, cls = 'text-ide-text-muted') =>
   )
 
 // ── 会话配置弹窗 tab ──
-type CliConfigTab = 'term' | 'gui'
-const CLI_CONFIG_TABS: CliConfigTab[] = ['term', 'gui']
+type CliConfigTab = 'term' | 'gui' | 'pi'
+const CLI_CONFIG_TABS: CliConfigTab[] = ['term', 'gui', 'pi']
 
 function CliConfigToggle({ labelKey, descKey, checked, onChange }: {
   labelKey: string; descKey: string; checked: boolean; onChange: (v: boolean) => void
@@ -153,6 +184,55 @@ async function applyClaudeGroup(group: ClaudeConfigGroup): Promise<void> {
   for (const [k, v] of Object.entries(group.env)) if (v !== '') env[k] = v
   obj.env = env
   await writeTextFile(`${dir}/settings.json`, JSON.stringify(obj, null, 2) + '\n')
+}
+
+function piGroupSummary(g: PiModelConfigGroup, modelsLabel: string): string {
+  let host = g.baseUrl || ''
+  try { if (host) host = new URL(host).host } catch {}
+  return [host, `${g.models.length} ${modelsLabel}`].filter(Boolean).join(' · ')
+}
+// 组列表是 vibe-ide 自己的偏好，不进 pi 的目录（pi 路径固定，无切换场景）
+const PI_GROUPS_KEY = 'vibe-ide-pi-model-groups'
+function loadPiGroups(): PiModelConfigStore {
+  try {
+    const raw = localStorage.getItem(PI_GROUPS_KEY)
+    if (raw) {
+      const obj = JSON.parse(raw)
+      if (obj && Array.isArray(obj.groups)) {
+        return {
+          groups: obj.groups
+            .filter((g: any) => g && typeof g.id === 'string')
+            .map((g: any) => ({
+              ...g,
+              models: (Array.isArray(g.models) ? g.models : [])
+                .filter((m: any) => m && typeof m.id === 'string')
+                .map((m: any) => ({
+                  id: m.id,
+                  contextWindow: typeof m.contextWindow === 'string' ? m.contextWindow : '',
+                  maxTokens: typeof m.maxTokens === 'string' ? m.maxTokens : '',
+                })),
+            })),
+          activeId: typeof obj.activeId === 'string' ? obj.activeId : null,
+        }
+      }
+    }
+  } catch {}
+  return { groups: [], activeId: null }
+}
+function savePiGroups(store: PiModelConfigStore): void {
+  try { localStorage.setItem(PI_GROUPS_KEY, JSON.stringify(store)) } catch {}
+}
+async function applyPiGroup(group: PiModelConfigGroup): Promise<void> {
+  const result = await window.api.piConfig.applyModelConfig({
+    providerId: group.providerId,
+    baseUrl: group.baseUrl,
+    api: group.api,
+    apiKey: group.apiKey,
+    models: group.models.map((m) => ({ id: m.id, contextWindow: m.contextWindow, maxTokens: m.maxTokens })),
+    defaultModel: group.defaultModel,
+    thinkingLevel: group.thinkingLevel,
+  })
+  if (!result?.success) throw new Error(result?.error || '写入失败')
 }
 
 // CWD 图标：按目录分配（标题行）
@@ -645,6 +725,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     })
     return () => { cancelled = true }
   }, [cliConfigDirDraft])
+  // pi 目录固定，但 renderer 无 homedir：路径由主进程 join 好返回，原样透传（不重排分隔符）
+  const [piModelsPath, setPiModelsPath] = useState('')
+  useEffect(() => {
+    let cancelled = false
+    window.api.piConfig.modelsPath().then((p) => {
+      if (!cancelled) setPiModelsPath(p)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
   const [defaultAgent, setDefaultAgent] = useState(() => {
     try { return localStorage.getItem('vibe-ide-default-agent') || '' } catch { return '' }
   })
@@ -655,6 +744,18 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [editingGroup, setEditingGroup] = useState<ClaudeConfigGroup | null>(null)
   const [editName, setEditName] = useState('')
   const [editEnv, setEditEnv] = useState<{ key: string; value: string }[]>([])
+  const [piGroups, setPiGroups] = useState<PiModelConfigGroup[]>([])
+  const [piActiveGroupId, setPiActiveGroupId] = useState<string | null>(null)
+  const [showPiGroupEditModal, setShowPiGroupEditModal] = useState(false)
+  const [editingPiGroup, setEditingPiGroup] = useState<PiModelConfigGroup | null>(null)
+  const [editProviderId, setEditProviderId] = useState('')
+  const [editPiBaseUrl, setEditPiBaseUrl] = useState('')
+  const [editPiApi, setEditPiApi] = useState(PI_API_TYPES[0])
+  const [editPiApiKey, setEditPiApiKey] = useState('')
+  const [editPiModels, setEditPiModels] = useState<PiModelEntry[]>([])
+  const [editPiDefaultModel, setEditPiDefaultModel] = useState('')
+  const [editPiThinking, setEditPiThinking] = useState('')
+  const [piApplyMsg, setPiApplyMsg] = useState('')
   const [claudeApplyMsg, setClaudeApplyMsg] = useState('')
   const [termType, setTermType] = useState(() => getMainShellType())
   const [auxTermType, setAuxTermType] = useState(() => getAuxShellType())
@@ -1092,6 +1193,27 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     return () => window.removeEventListener('keydown', handler, true)
   }, [showClaudeGroupEditModal])
 
+  // ── Pi 模型配置组：与 Claude 组同构（弹窗打开时加载；子编辑弹窗 ESC 分层）──
+  useEffect(() => {
+    if (!showCliConfigModal) return
+    const s = loadPiGroups()
+    setPiGroups(s.groups)
+    setPiActiveGroupId(s.activeId)
+  }, [showCliConfigModal])
+
+  useEffect(() => {
+    if (!showPiGroupEditModal) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setShowPiGroupEditModal(false)
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [showPiGroupEditModal])
+
   const persistClaudeGroups = (groups: ClaudeConfigGroup[], activeId: string | null) => {
     setClaudeGroups(groups)
     setActiveGroupId(activeId)
@@ -1151,6 +1273,68 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     const next = exists ? claudeGroups.map(x => (x.id === id ? group : x)) : [...claudeGroups, group]
     persistClaudeGroups(next, activeGroupId)
     setShowClaudeGroupEditModal(false)
+  }
+
+  const persistPiGroups = (groups: PiModelConfigGroup[], activeId: string | null) => {
+    setPiGroups(groups)
+    setPiActiveGroupId(activeId)
+    savePiGroups({ groups, activeId })
+  }
+  const handlePiApply = async (g: PiModelConfigGroup) => {
+    try {
+      await applyPiGroup(g)
+      persistPiGroups(piGroups, g.id)
+      // 模型清单变了：让已打开的模型选择器丢掉旧缓存
+      window.dispatchEvent(new CustomEvent('pi-models-changed'))
+      setPiApplyMsg(t('Written to models.json · effective after pi restarts'))
+      window.setTimeout(() => setPiApplyMsg(''), 4000)
+    } catch (e: any) {
+      setPiApplyMsg(t('Write failed: {err}').replace('{err}', e?.message || t('Settings preserved')))
+    }
+  }
+  const handlePiDelete = (g: PiModelConfigGroup) => {
+    const next = piGroups.filter(x => x.id !== g.id)
+    persistPiGroups(next, piActiveGroupId === g.id ? null : piActiveGroupId)
+  }
+  const handlePiEdit = (g: PiModelConfigGroup) => {
+    setEditingPiGroup(g)
+    setEditProviderId(g.providerId)
+    setEditPiBaseUrl(g.baseUrl)
+    setEditPiApi(g.api || PI_API_TYPES[0])
+    setEditPiApiKey(g.apiKey)
+    setEditPiModels(g.models.map((m) => ({ ...m })))
+    setEditPiDefaultModel(g.defaultModel)
+    setEditPiThinking(g.thinkingLevel)
+    setShowPiGroupEditModal(true)
+  }
+  const handlePiNew = () => {
+    setEditingPiGroup(null)
+    setEditProviderId('')
+    setEditPiBaseUrl('')
+    setEditPiApi(PI_API_TYPES[0])
+    setEditPiApiKey('')
+    setEditPiModels([{ id: '', contextWindow: '', maxTokens: '' }])
+    setEditPiDefaultModel('')
+    setEditPiThinking('')
+    setShowPiGroupEditModal(true)
+  }
+  const handlePiEditSave = () => {
+    const providerId = editProviderId.trim()
+    if (!providerId) return
+    const group: PiModelConfigGroup = {
+      id: editingPiGroup?.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+      providerId,
+      baseUrl: editPiBaseUrl.trim(),
+      api: editPiApi,
+      apiKey: editPiApiKey.trim(),
+      models: editPiModels.filter((m) => m.id.trim()),
+      defaultModel: editPiDefaultModel.trim(),
+      thinkingLevel: editPiThinking,
+    }
+    const exists = piGroups.some(x => x.id === group.id)
+    const next = exists ? piGroups.map(x => (x.id === group.id ? group : x)) : [...piGroups, group]
+    persistPiGroups(next, piActiveGroupId)
+    setShowPiGroupEditModal(false)
   }
 
   // Menu → Settings → Keyboard Shortcuts opens the shortcuts modal
@@ -2748,7 +2932,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               {/* Claude 配置组：多组 model/provider 预设，一键切换写入 ~/.claude/settings.json */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-ide-text-muted">{t('Claude Provider Config')}</span>
+                  <span className="text-xs text-ide-text-muted">{t('Model Config')}</span>
                   <button
                     onClick={handleClaudeNew}
                     className="text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors"
@@ -2756,7 +2940,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 </div>
                 {claudeGroups.length === 0 ? (
                   <div className="text-[11px] text-ide-text-muted/60 py-2 text-center border border-dashed border-ide-border rounded">
-                    {t('No provider config. Click "+ New" to add')}
+                    {t('No model config. Click "+ New" to add')}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
@@ -2802,10 +2986,78 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 )}
               </div>
               </>)}
+              {cliConfigTab === 'pi' && (<>
+              {/* Pi 模型配置组：多组 provider + 模型清单，一键写入 ~/.pi/agent/models.json */}
+              <p className="text-[11px] text-ide-text-muted">
+                {t('Writes to')}{' '}
+                <button
+                  type="button"
+                  onClick={() => piModelsPath && onOpenRecentFile?.(piModelsPath)}
+                  title={piModelsPath}
+                  className="text-ide-accent hover:underline cursor-pointer"
+                >~/.pi/agent/models.json</button>
+                {' · '}{t('effective after pi restarts')}
+              </p>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-ide-text-muted">{t('Model Config')}</span>
+                  <button
+                    onClick={handlePiNew}
+                    className="text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors"
+                  >+ {t('New')}</button>
+                </div>
+                {piGroups.length === 0 ? (
+                  <div className="text-[11px] text-ide-text-muted/60 py-2 text-center border border-dashed border-ide-border rounded">
+                    {t('No model config. Click "+ New" to add')}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                    {piGroups.map(g => {
+                      const isActive = g.id === piActiveGroupId
+                      return (
+                        <div
+                          key={g.id}
+                          className={`group flex items-center gap-2 px-2 py-1.5 rounded border transition-colors ${isActive ? 'border-ide-accent/60 bg-ide-accent/10' : 'border-ide-border hover:bg-ide-hover/40'}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium text-ide-text truncate">{g.providerId}</span>
+                              {isActive && <span className="text-[10px] text-ide-accent shrink-0">{t('Active')}</span>}
+                            </div>
+                            <div className="text-[10px] text-ide-text-muted truncate">{piGroupSummary(g, t('models'))}</div>
+                          </div>
+                          <button
+                            onClick={() => handlePiApply(g)}
+                            title={t('Apply (write models.json, effective after pi restarts)')}
+                            className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/15 transition-colors"
+                          >
+                            <Zap size={12} />
+                          </button>
+                          <button
+                            onClick={() => handlePiEdit(g)}
+                            title={t('Edit')}
+                            className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            onClick={() => handlePiDelete(g)}
+                            title={t('Delete')}
+                            className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              </>)}
             </div>
-            {claudeApplyMsg && (
+            {(cliConfigTab === 'pi' ? piApplyMsg : claudeApplyMsg) && (
               <div className="absolute left-1/2 -translate-x-1/2 bottom-3 max-w-[90%] px-3 py-1.5 rounded-md bg-ide-hover border border-ide-border shadow-lg text-[11px] text-ide-success break-words">
-                {claudeApplyMsg}
+                {cliConfigTab === 'pi' ? piApplyMsg : claudeApplyMsg}
               </div>
             )}
           </div>
@@ -2817,7 +3069,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         <ModalOverlay onClose={() => setShowClaudeGroupEditModal(false)} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[460px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-              <span className="text-sm font-semibold text-ide-text">{editingGroup ? t('Edit Provider Config') : t('New Provider Config')}</span>
+              <span className="text-sm font-semibold text-ide-text">{editingGroup ? t('Edit Model Config') : t('New Model Config')}</span>
               <button
                 className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
                 onClick={() => setShowClaudeGroupEditModal(false)}
@@ -2878,6 +3130,134 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 disabled={!editName.trim()}
                 onClick={handleClaudeEditSave}
+              >{t('Save')}</button>
+            </div>
+          </div>
+        </ModalOverlay>
+      , document.body)}
+
+      {/* Pi 模型配置组 编辑子弹窗 */}
+      {showPiGroupEditModal && createPortal(
+        <ModalOverlay onClose={() => setShowPiGroupEditModal(false)} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[460px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+              <span className="text-sm font-semibold text-ide-text">{editingPiGroup ? t('Edit Model Config') : t('New Model Config')}</span>
+              <button
+                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                onClick={() => setShowPiGroupEditModal(false)}
+              >×</button>
+            </div>
+            <div className="p-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('Provider ID')}</span>
+                <input
+                  type="text"
+                  value={editProviderId}
+                  onChange={e => setEditProviderId(e.target.value)}
+                  placeholder={t('e.g. aliyun-token-plan')}
+                  autoFocus
+                  className="w-full px-3 py-1.5 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('Base URL')}</span>
+                <input
+                  type="text"
+                  value={editPiBaseUrl}
+                  onChange={e => setEditPiBaseUrl(e.target.value)}
+                  placeholder="https://.../v1"
+                  className="w-full px-3 py-1.5 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('API Type')}</span>
+                <select
+                  value={editPiApi}
+                  onChange={e => setEditPiApi(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text focus:outline-none focus:border-ide-accent/60"
+                >
+                  {PI_API_TYPES.map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('API Key')}</span>
+                <input
+                  type="text"
+                  value={editPiApiKey}
+                  onChange={e => setEditPiApiKey(e.target.value)}
+                  placeholder="$OPENAI_API_KEY"
+                  className="w-full px-3 py-1.5 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                />
+              </label>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-ide-text-muted">{t('Models')}</span>
+                  <button
+                    onClick={() => setEditPiModels(prev => [...prev, { id: '', contextWindow: '', maxTokens: '' }])}
+                    className="text-[11px] text-ide-accent hover:text-ide-accent-hover transition-colors"
+                  >+ {t('Add')}</button>
+                </div>
+                {editPiModels.map((row, i) => (
+                  <div key={i} className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={row.id}
+                      onChange={e => setEditPiModels(prev => prev.map((r, j) => j === i ? { ...r, id: e.target.value } : r))}
+                      placeholder="deepseek-v3.2"
+                      className="flex-1 min-w-0 px-2 py-1 text-[11px] font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/40 focus:outline-none focus:border-ide-accent/60"
+                    />
+                    <input
+                      type="text"
+                      value={row.contextWindow}
+                      onChange={e => setEditPiModels(prev => prev.map((r, j) => j === i ? { ...r, contextWindow: e.target.value } : r))}
+                      placeholder={t('Context Window')}
+                      className="w-[92px] shrink-0 px-2 py-1 text-[11px] font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/40 focus:outline-none focus:border-ide-accent/60"
+                    />
+                    <input
+                      type="text"
+                      value={row.maxTokens}
+                      onChange={e => setEditPiModels(prev => prev.map((r, j) => j === i ? { ...r, maxTokens: e.target.value } : r))}
+                      placeholder={t('Max Output')}
+                      className="w-[92px] shrink-0 px-2 py-1 text-[11px] font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/40 focus:outline-none focus:border-ide-accent/60"
+                    />
+                    <button
+                      onClick={() => setEditPiModels(prev => prev.filter((_, j) => j !== i))}
+                      className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover transition-colors"
+                    ><X size={12} /></button>
+                  </div>
+                ))}
+              </div>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('Default Model')}</span>
+                <input
+                  type="text"
+                  value={editPiDefaultModel}
+                  onChange={e => setEditPiDefaultModel(e.target.value)}
+                  placeholder={t('Optional. Leave empty to keep current settings')}
+                  className="w-full px-3 py-1.5 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/60"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-ide-text-muted">{t('Thinking Level')}</span>
+                <select
+                  value={editPiThinking}
+                  onChange={e => setEditPiThinking(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text focus:outline-none focus:border-ide-accent/60"
+                >
+                  <option value="">{t('Default')}</option>
+                  {PI_THINKING_LEVELS.filter(Boolean).map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-ide-border shrink-0">
+              <button
+                className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded transition-colors"
+                onClick={() => setShowPiGroupEditModal(false)}
+              >{t('Cancel')}</button>
+              <button
+                className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={!editProviderId.trim()}
+                onClick={handlePiEditSave}
               >{t('Save')}</button>
             </div>
           </div>
