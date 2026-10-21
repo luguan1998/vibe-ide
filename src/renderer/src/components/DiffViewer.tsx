@@ -1228,7 +1228,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     scrollBeyondLastLine: false,
     fontSize,
     lineNumbers: 'on' as const,
-    lineNumbersMinChars: 3,
+    lineNumbersMinChars: 4,
     lineDecorationsWidth: 2,
     glyphMargin: false,
     wordWrap: (wordWrap ? 'on' : 'off') as 'on' | 'off',
