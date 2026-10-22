@@ -80,7 +80,9 @@ export function buildPiSpawnArgs(input: {
   if (input.isolated || input.noSession) args.push('--no-session')
   if (input.isolated || input.noExtensions) args.push('--no-extensions')
   if (input.isolated) args.push('--no-tools', '--no-skills', '--no-context-files')
-  if (input.resume?.trim()) args.push('--session', input.resume.trim())
+  // --session-id 而非 --session：pi 的 --session 找不到 id 时直接 exit 1（空会话不落盘，
+  // 但 get_state 已上报 id → 重启必崩）；--session-id 找不到就按该 id 新建会话，等价于开新会话
+  if (input.resume?.trim()) args.push('--session-id', input.resume.trim())
   const model = input.model?.trim()
   if (model) args.push('--model', model)
   if (input.extensionPath) args.push('--extension', input.extensionPath)

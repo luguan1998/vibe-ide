@@ -3775,7 +3775,10 @@ export default function App() {
                     style={{ display: isActive ? 'flex' : 'none' }}
                   >
                     {isDeferred ? (
-                      <div className="flex-1 flex items-center justify-center text-ide-text-muted text-sm">
+                      <div
+                        className="flex-1 flex items-center justify-center text-ide-text-muted text-sm cursor-pointer"
+                        onClick={() => void ensureSessionLoaded(session.id)}
+                      >
                         {t('Session not loaded — click the session to load')}
                       </div>
                     ) : isGui ? (
