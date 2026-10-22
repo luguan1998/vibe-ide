@@ -5,13 +5,18 @@ import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
-import { Edit, Send, ClipboardPaste, BookOpenText, Pin, MessageSquareQuote } from 'lucide-react'
+import { Edit, Send, MessageSquareQuote, X } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
 import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
 import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi } from './petSettings'
 import { readAiCliConfig } from '../../aiStore'
 import { AiReplyBubble } from './AiReplyBubble'
+import { ChatMarkdown } from '../AiTab'
+import { addInterjectRecord, loadInterjectRecords, removeInterjectRecord, setInterjectReply, type InterjectRecord } from './interjectHistory'
+
+const CONTEXT_SIDE_SPACE = 228
+const CONTEXT_SIDE_MARGIN = 90
 
 export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, sessions }: {
   logicalState: PetLogicalState
@@ -26,15 +31,14 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [popupOpen, setPopupOpen] = useState(false)
   const [popupAbove, setPopupAbove] = useState(true)
   const [contextDir, setContextDir] = useState<'above' | 'below' | 'left' | 'right'>('above')
+  const [contextVAlign, setContextVAlign] = useState<'center' | 'top' | 'bottom'>('center')
   const [aiBubbleAlign, setAiBubbleAlign] = useState<'center' | 'left' | 'right'>('center')
   const [bubblesAlign, setBubblesAlign] = useState<'default' | 'left' | 'right'>('default')
   const [contextAlign, setContextAlign] = useState<'default' | 'left' | 'right'>('default')
   const [contextOpen, setContextOpen] = useState(false)
-  const [contextPinned, setContextPinned] = useState(false)
-  const [contextFocused, setContextFocused] = useState(false)
+  const [contextBtw, setContextBtw] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [draftCmd, setDraftCmd] = useState('')
-  const [btwMode, setBtwMode] = useState(false)
   const activeKind = sessions.find(s => s.id === activeSessionId)?.kind
   const [keypadItems, setKeypadItems] = useState<ReturnType<typeof loadKeypadItems>>([])
   const [, setConfigTick] = useState(0)
@@ -44,14 +48,18 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [aiBubbleOpen, setAiBubbleOpen] = useState(false)
   const [latestReply, setLatestReply] = useState<{ messageId: string; text: string } | null>(null)
   const [replyBtw, setReplyBtw] = useState(false)
+  const [interjectRecords, setInterjectRecords] = useState<InterjectRecord[]>(() => activeSessionId ? loadInterjectRecords(activeSessionId) : [])
+  const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null)
   const [dragDir, setDragDir] = useState<'left' | 'right' | null>(null)
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const contextInputRef = useRef<HTMLTextAreaElement>(null)
+  const inlineInputRef = useRef<HTMLTextAreaElement>(null)
   const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number; lastX: number; moved: boolean } | null>(null)
   const singleClickTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const transientTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const lastShownReplyIdRef = useRef<string | null>(null)
+  const pendingBtwRecordRef = useRef<{ sessionId: string; id: string } | null>(null)
 
   // 加载 active manifest + 订阅 PET_CHANGED（设置里切换/删除后热重载）
   useEffect(() => {
@@ -79,6 +87,11 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     }
   }, [])
 
+  useEffect(() => {
+    setInterjectRecords(activeSessionId ? loadInterjectRecords(activeSessionId) : [])
+    setExpandedRecordId(null)
+  }, [activeSessionId])
+
   const prevVisibleRef = useRef(visible)
   useEffect(() => {
     if (visible && !prevVisibleRef.current) {
@@ -100,9 +113,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
 
   const sendLine = useCallback((text: string) => {
     ;(window as any).__vibeSendLine?.(text)
-  }, [])
-  const appendInput = useCallback((text: string) => {
-    ;(window as any).__vibeAppendInput?.(text)
   }, [])
   const readCenterDraft = useCallback(() => {
     const v = (window as any).__vibeGetInput?.()
@@ -145,6 +155,15 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     })
     return () => window.api.ai.removeReplyListener(handler)
   }, [listenAi])
+
+  const placeContextSide = useCallback((rect: DOMRect) => {
+    const roomRight = window.innerWidth - rect.right
+    const roomLeft = rect.left
+    setContextDir(roomRight >= CONTEXT_SIDE_SPACE || roomRight >= roomLeft ? 'right' : 'left')
+    setContextAlign('default')
+    const cy = rect.top + rect.height / 2
+    setContextVAlign(cy > window.innerHeight - CONTEXT_SIDE_MARGIN ? 'bottom' : cy < CONTEXT_SIDE_MARGIN ? 'top' : 'center')
+  }, [])
 
   // 拖拽：左键按下 → 移动改 left/top → 松开持久；未移动则视为点击开气泡
   const onPointerDown = useCallback((e: React.PointerEvent) => {
@@ -194,24 +213,27 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         singleClickTimerRef.current = undefined
         setKeypadItems(loadKeypadItems())
         setPopupAbove(rect.top > 240)
-        setContextOpen(false)
         setAiBubbleOpen(false)
-        setPopupOpen(v => !v)
+        const next = !popupOpen
+        setPopupOpen(next)
+        setContextOpen(next && activeKind === 'gui')
+        if (next && activeKind === 'gui') setContextBtw(true)
       }, 300)
     } else if (d && d.moved) {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
       setPetPos({ left: rect.left, top: rect.top })
     }
-  }, [triggerTransient])
+  }, [triggerTransient, popupOpen, activeKind])
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    if (contextOpen) {
+    if (contextOpen && !contextBtw) {
       // 输入框已打开：再次右键只聚焦，不打断编辑
       contextInputRef.current?.focus({ preventScroll: true })
       return
     }
     setPopupOpen(false)
+    setContextBtw(false)
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     // AI 回复气泡固定在宠物上方时，右键输入改左右弹避免重叠；否则按上下自适应
     if (aiBubbleOpen && latestReply) {
@@ -227,16 +249,15 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       return head + readCenterDraft()
     })
     setContextOpen(true)
-  }, [aiBubbleOpen, latestReply, contextOpen, readCenterDraft])
+  }, [aiBubbleOpen, latestReply, contextOpen, contextBtw, readCenterDraft])
 
-  // AI 回复气泡与右键输入同时打开时，输入框改左右弹（右键时可能 AI 气泡还没弹出）
+  // AI 回复气泡与输入框同时打开时，输入框改左右弹（右键时可能 AI 气泡还没弹出）
   useEffect(() => {
     if (!aiBubbleOpen || !contextOpen) return
     const el = wrapperRef.current
     if (!el) return
-    const rect = el.getBoundingClientRect()
-    setContextDir(rect.left + rect.width / 2 < window.innerWidth / 2 ? 'right' : 'left')
-  }, [aiBubbleOpen, contextOpen])
+    placeContextSide(el.getBoundingClientRect())
+  }, [aiBubbleOpen, contextOpen, placeContextSide])
 
   // 回复气泡靠屏幕边缘时贴边弹出，避免出屏（按 max-width 320 预估）
   useEffect(() => {
@@ -278,16 +299,25 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     else setContextAlign('default')
   }, [contextOpen, contextDir])
 
+  const recordSend = useCallback((text: string, trackReply: boolean) => {
+    if (activeKind !== 'gui' || !activeSessionId) return
+    const added = addInterjectRecord(activeSessionId, text)
+    setInterjectRecords(added.records)
+    if (trackReply && added.id) pendingBtwRecordRef.current = { sessionId: activeSessionId, id: added.id }
+  }, [activeKind, activeSessionId])
+
   const handleSend = useCallback(() => {
     const text = draftCmd.trim()
     if (text) {
-      const body = btwMode && !/^\s*\/btw\b/i.test(text) ? `/btw ${text}` : text
+      const body = contextBtw && !/^\s*\/btw\b/i.test(text) ? `/btw ${text}` : text
       ;(window as any).__vibeSendLine?.(body)
+      recordSend(text, /^\s*\/btw\b/i.test(body))
       triggerTransient('sendMessage')
     }
     setDraftCmd('')
     setContextOpen(false)
-  }, [draftCmd, btwMode, triggerTransient])
+    setPopupOpen(false)
+  }, [draftCmd, contextBtw, recordSend, triggerTransient])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -295,38 +325,25 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       const stamp = `btw-${Date.now()}`
       if (d.pending) {
         setLatestReply({ messageId: `${stamp}-pending`, text: '旁路提问思考中…' })
-      } else if (d.error) {
-        setLatestReply({ messageId: stamp, text: `⚠️ ${d.error}` })
       } else {
-        setLatestReply({ messageId: stamp, text: (d.text || '').trim() || '（无回答）' })
+        const reply = d.error ? `⚠️ ${d.error}` : (d.text || '').trim() || '（无回答）'
+        setLatestReply({ messageId: stamp, text: reply })
+        const pending = pendingBtwRecordRef.current
+        if (pending) {
+          pendingBtwRecordRef.current = null
+          const next = setInterjectReply(pending.sessionId, pending.id, reply)
+          if (pending.sessionId === activeSessionId) setInterjectRecords(next)
+        }
       }
       setReplyBtw(true)
       setAiBubbleOpen(true)
     }
     window.addEventListener(BTW_REPLY_EVENT, handler)
     return () => window.removeEventListener(BTW_REPLY_EVENT, handler)
-  }, [])
+  }, [activeSessionId])
 
-  // 手动查看最新一条 AI 回复（不依赖监听开关；监听未开时取完快照即清理游标）
-  const handleReadReply = useCallback(() => {
-    if (!activeSessionId || !activeSessionCwd) return
-    setContextOpen(false)
-    void (async () => {
-      const cfg = readAiCliConfig()
-      window.api.ai.initReplyCursor(activeSessionId, activeSessionCwd, cfg.configDir).then((cr) => {
-        if (cr?.text) {
-          lastShownReplyIdRef.current = cr.messageId
-          setLatestReply({ messageId: cr.messageId, text: cr.text })
-          setReplyBtw(false)
-          setAiBubbleOpen(true)
-        }
-        if (!listenAi) window.api.ai.stopReplyCursor(activeSessionId)
-      }).catch(() => {})
-    })()
-  }, [activeSessionId, activeSessionCwd, listenAi])
-
-  const onContextKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
+  const onContextKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.nativeEvent.isComposing) return
     e.preventDefault()
     handleSend()
   }, [handleSend])
@@ -334,13 +351,13 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   useEffect(() => {
     if (!contextOpen) return
     const id = requestAnimationFrame(() => {
-      const el = contextInputRef.current
+      const el = contextBtw ? inlineInputRef.current : contextInputRef.current
       if (!el) return
       el.focus({ preventScroll: true })
       el.selectionStart = el.selectionEnd = el.value.length
     })
     return () => cancelAnimationFrame(id)
-  }, [contextOpen])
+  }, [contextOpen, contextBtw])
 
   // 点面板外关闭 popup/context；旁路气泡只能叉号/ESC 关，其余来源气泡点外仍关
   useEffect(() => {
@@ -348,13 +365,13 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     const onDown = (ev: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(ev.target as Node)) {
         setPopupOpen(false)
-        if (!contextPinned) setContextOpen(false)
+        setContextOpen(false)
         if (!replyBtw) setAiBubbleOpen(false)
       }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [popupOpen, contextOpen, aiBubbleOpen, contextPinned, replyBtw])
+  }, [popupOpen, contextOpen, aiBubbleOpen, replyBtw])
 
   useLayoutEffect(() => {
     if (!contextOpen && !configOpen && !aiBubbleOpen) return
@@ -363,12 +380,14 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       e.preventDefault()
       e.stopImmediatePropagation()
       if (configOpen) setConfigOpen(false)
-      else if (contextOpen) setContextOpen(false)
-      else setAiBubbleOpen(false)
+      else if (contextOpen) {
+        setContextOpen(false)
+        if (contextBtw) setPopupOpen(false)
+      } else setAiBubbleOpen(false)
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [contextOpen, configOpen, aiBubbleOpen])
+  }, [contextOpen, contextBtw, configOpen, aiBubbleOpen])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -402,14 +421,14 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   }, [readCenterDraft])
 
   useEffect(() => {
-    const el = contextInputRef.current
+    const el = contextBtw ? inlineInputRef.current : contextInputRef.current
     if (!el) return
     el.style.height = 'auto'
-    const maxH = window.innerHeight * 0.4
+    const maxH = contextBtw ? 120 : window.innerHeight * 0.4
     const h = el.scrollHeight
     el.style.height = Math.min(h, maxH) + 'px'
     el.style.overflowY = h > maxH ? '' : 'hidden'
-  }, [draftCmd, contextOpen])
+  }, [draftCmd, contextOpen, contextBtw])
 
   if (!manifest) return null
 
@@ -434,11 +453,15 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         <span className="desktop-pet__bubble-key">
           <span className="desktop-pet__bubble-key-num">{i + 1}</span>
           <span className="desktop-pet__bubble-key-action">
-            {k.directSend ? <Send size={10} className="-scale-x-100" /> : <ClipboardPaste size={10} />}
+            {k.mode === 'btw' ? <MessageSquareQuote size={10} /> : <Send size={10} className="-scale-x-100" />}
           </span>
         </span>
       ),
-      onAction: () => k.directSend ? sendLine(k.text) : appendInput(k.text),
+      onAction: () => {
+        const btw = k.mode === 'btw' && activeKind === 'gui'
+        sendLine(btw ? `/btw ${k.text}` : k.text)
+        if (btw) recordSend(k.text, true)
+      },
     }))
   }
   const sections: PetBubbleSection[] = [keypadSection]
@@ -447,6 +470,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     if (it.disabled) return
     it.onAction()
     setPopupOpen(false)
+    setContextOpen(false)
   }
 
   return (
@@ -479,27 +503,67 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                 </button>
               ))}
               {si === 0 && (
-                <button
-                  className="desktop-pet__context-gear justify-self-end"
-                  style={{ gridColumn: 2 }}
-                  onClick={() => { setConfigOpen(true); setPopupOpen(false) }}
-                  title="配置速发键"
-                >
-                  <Edit size={14} />
-                </button>
+                <div className="desktop-pet__interject-row">
+                  {contextOpen && contextBtw && (
+                    <textarea
+                      ref={inlineInputRef}
+                      className="desktop-pet__interject-input"
+                      rows={1}
+                      value={draftCmd}
+                      onChange={(e) => setDraftCmd(e.target.value)}
+                      onKeyDown={onContextKeyDown}
+                      placeholder="旁路提问，Enter 发送"
+                    />
+                  )}
+                  <button
+                    className="desktop-pet__context-gear"
+                    onClick={() => { setConfigOpen(true); setPopupOpen(false); setContextOpen(false) }}
+                    title="配置速发键"
+                  >
+                    <Edit size={14} />
+                  </button>
+                </div>
               )}
             </div>
           ))}
+          {interjectRecords.length > 0 && (
+            <div className="desktop-pet__bubble-section desktop-pet__bubble-section--history">
+              {interjectRecords.map(r => (
+                <div key={r.id} className="desktop-pet__history-item">
+                  <div
+                    className={`desktop-pet__bubble desktop-pet__bubble--history${r.reply ? ' desktop-pet__bubble--history-clickable' : ''}`}
+                    title={r.text}
+                    onClick={r.reply ? () => setExpandedRecordId(v => v === r.id ? null : r.id) : undefined}
+                  >
+                    <span className="desktop-pet__bubble-text">{r.text}</span>
+                    <button
+                      className="desktop-pet__bubble-remove"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (expandedRecordId === r.id) setExpandedRecordId(null)
+                        if (activeSessionId) setInterjectRecords(removeInterjectRecord(activeSessionId, r.id))
+                      }}
+                      title="删除记录"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                  {expandedRecordId === r.id && r.reply && (
+                    <div className="desktop-pet__ai-reply desktop-pet__ai-reply--inline">
+                      <ChatMarkdown text={r.reply} workspacePath={null} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {visible && activeSessionId && aiBubbleOpen && latestReply && (
         <AiReplyBubble text={latestReply.text} align={aiBubbleAlign} closable={replyBtw} onClose={() => setAiBubbleOpen(false)} />
       )}
-      {contextOpen && (
-        <div className={`desktop-pet__context desktop-pet__context--${contextDir}${contextAlign !== 'default' ? ` desktop-pet__context--align-${contextAlign}` : ''}`}>
-          {contextPinned && contextFocused && (
-            <div className="desktop-pet__context-hint">按 Enter 发送</div>
-          )}
+      {contextOpen && !contextBtw && (
+        <div className={`desktop-pet__context desktop-pet__context--${contextDir}${contextAlign !== 'default' ? ` desktop-pet__context--align-${contextAlign}` : ''}${(contextDir === 'left' || contextDir === 'right') && contextVAlign !== 'center' ? ` desktop-pet__context--v-${contextVAlign}` : ''}`}>
           <textarea
             ref={contextInputRef}
             className="desktop-pet__context-input"
@@ -507,31 +571,8 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
             value={draftCmd}
             onChange={(e) => setDraftCmd(e.target.value)}
             onKeyDown={onContextKeyDown}
-            placeholder="输入命令，Enter 发送"
-            onFocus={() => setContextFocused(true)}
-            onBlur={() => setContextFocused(false)}
+            placeholder="插话 Enter 发送"
           />
-          <div className="flex items-center gap-1 self-end">
-            {activeKind === 'gui' && (
-              <button
-                className={`desktop-pet__context-gear${btwMode ? ' desktop-pet__context-gear--active' : ''}`}
-                onClick={() => setBtwMode(v => !v)}
-                title={btwMode ? '旁路提问已开启：不打断当前任务，答案只在气泡显示' : '旁路提问已关闭：普通插话（会打断当前任务）'}
-              >
-                <MessageSquareQuote size={14} />
-              </button>
-            )}
-            <button
-              className={`desktop-pet__context-gear${contextPinned ? ' desktop-pet__context-gear--active' : ''}`}
-              onClick={() => setContextPinned(v => !v)}
-              title={contextPinned ? '取消固定' : '固定输入框'}
-            >
-              <Pin size={14} fill={contextPinned ? 'currentColor' : 'none'} />
-            </button>
-            <button className="desktop-pet__context-gear" onClick={handleReadReply} title="显示最新回复">
-              <BookOpenText size={14} />
-            </button>
-          </div>
         </div>
       )}
       <KeypadConfigModal open={configOpen} onClose={() => setConfigOpen(false)} />

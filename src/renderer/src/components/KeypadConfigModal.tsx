@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Send, ClipboardPaste, RotateCcw } from 'lucide-react'
+import { X, Send, MessageSquareQuote, RotateCcw } from 'lucide-react'
 import { loadKeypadItems, saveKeypadItems, loadBtwPrefix, saveBtwPrefix, getDefaultKeypadItems, type KeypadItem } from './keypadItems'
 import { ModalOverlay } from './ModalOverlay'
 
@@ -23,7 +23,7 @@ export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: (
   }, [open, draft])
   if (!open) return null
   const change = (code: string, text: string) => setDraft(prev => prev.map(k => k.code === code ? { ...k, text } : k))
-  const toggleDirectSend = (code: string) => setDraft(prev => prev.map(k => k.code === code ? { ...k, directSend: !k.directSend } : k))
+  const toggleMode = (code: string) => setDraft(prev => prev.map(k => k.code === code ? { ...k, mode: k.mode === 'btw' ? 'interject' : 'btw' } : k))
   return (
     <ModalOverlay onClose={onClose}>
       <div
@@ -46,8 +46,8 @@ export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: (
           </div>
         </div>
         <div className="flex items-center gap-4 mb-2 text-[10px] text-ide-text-muted/70">
-          <span className="flex items-center gap-1"><Send size={11} className="-scale-x-100" /> 点击即发送</span>
-          <span className="flex items-center gap-1"><ClipboardPaste size={11} /> 仅填入输入框</span>
+          <span className="flex items-center gap-1"><Send size={11} className="-scale-x-100" /> 插话发送</span>
+          <span className="flex items-center gap-1"><MessageSquareQuote size={11} /> 旁路发送</span>
         </div>
         <div className="flex flex-col gap-2" ref={listRef}>
           {draft.map(k => (
@@ -59,18 +59,14 @@ export function KeypadConfigModal({ open, onClose }: { open: boolean; onClose: (
                 className="min-w-56 text-xs leading-4 [field-sizing:content] bg-ide-bg border border-dashed border-ide-border rounded-[4px_8px_5px_7px] px-2 py-1 text-ide-text focus:outline-none focus:border-ide-accent resize-none overflow-hidden"
               />
               <button
-                onClick={() => toggleDirectSend(k.code)}
-                className={`shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors ${
-                  k.directSend
-                    ? 'text-ide-accent hover:bg-ide-accent/15'
-                    : 'text-ide-text-muted/50 hover:text-ide-text-muted hover:bg-ide-hover'
-                }`}
-                title={k.directSend ? '这条命令会立刻发送给agent' : '仅填入：只写入输入框，不回车发送'}
+                onClick={() => toggleMode(k.code)}
+                className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                title={k.mode === 'btw' ? '旁路发送：不打断当前任务，答案仅在宠物气泡显示，不占上下文' : '插话发送：直接发送给当前会话'}
               >
-                {k.directSend ? (
-                  <Send size={14} className="-scale-x-100" />
+                {k.mode === 'btw' ? (
+                  <MessageSquareQuote size={14} />
                 ) : (
-                  <ClipboardPaste size={14} />
+                  <Send size={14} className="-scale-x-100" />
                 )}
               </button>
             </div>

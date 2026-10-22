@@ -1,14 +1,16 @@
 const KEYPAD_STORAGE_KEY = 'vibe-ide-keypad-items'
 
-export interface KeypadItem { code: string; key: string; text: string; directSend: boolean }
+export type KeypadMode = 'interject' | 'btw'
+
+export interface KeypadItem { code: string; key: string; text: string; mode: KeypadMode }
 
 const DEFAULT_KEYPAD_ITEMS: KeypadItem[] = [
-  { code: 'Numpad4', key: '4', text: '用户视角解释', directSend: true },
-  { code: 'Numpad5', key: '5', text: '继续', directSend: true },
-  { code: 'Numpad6', key: '6', text: '反问我需求', directSend: true },
-  { code: 'Numpad1', key: '1', text: '给出多个方案，陈述利弊', directSend: true },
-  { code: 'Numpad2', key: '2', text: '清理相关死代码', directSend: true },
-  { code: 'Numpad3', key: '3', text: '检视无误并提交', directSend: true },
+  { code: 'Numpad4', key: '4', text: '用户视角解释', mode: 'btw' },
+  { code: 'Numpad5', key: '5', text: '继续', mode: 'interject' },
+  { code: 'Numpad6', key: '6', text: '反问我需求', mode: 'interject' },
+  { code: 'Numpad1', key: '1', text: '给出多个方案，陈述利弊', mode: 'interject' },
+  { code: 'Numpad2', key: '2', text: '清理相关死代码', mode: 'interject' },
+  { code: 'Numpad3', key: '3', text: '检视无误并提交', mode: 'interject' },
 ]
 
 export function getDefaultKeypadItems(): KeypadItem[] {
@@ -26,7 +28,7 @@ export function loadKeypadItems(): KeypadItem[] {
           return {
             ...d,
             text: typeof item?.text === 'string' ? item.text : d.text,
-            directSend: typeof item?.directSend === 'boolean' ? item.directSend : d.directSend,
+            mode: item?.mode === 'btw' || item?.mode === 'interject' ? item.mode : d.mode,
           }
         })
       }
@@ -35,7 +37,7 @@ export function loadKeypadItems(): KeypadItem[] {
   return DEFAULT_KEYPAD_ITEMS
 }
 
-export function saveKeypadItems(items: { code: string; key: string; text: string; directSend: boolean }[]) {
+export function saveKeypadItems(items: KeypadItem[]) {
   try { localStorage.setItem(KEYPAD_STORAGE_KEY, JSON.stringify(items)) } catch {}
 }
 

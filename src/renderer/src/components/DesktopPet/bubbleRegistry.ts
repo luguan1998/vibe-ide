@@ -11,6 +11,5 @@ export interface PetBubbleItem {
 
 export interface PetBubbleSection {
   id: string
-  title?: string
   items: PetBubbleItem[]
 }
