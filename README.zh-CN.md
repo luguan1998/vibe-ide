@@ -189,6 +189,18 @@ npm run build
 npm run build:win
 ```
 
+### 内置 clangd（影响编译）
+
+C/C++ 跳转使用内置 clangd。仓库只存压缩包 `vendor/clangd-23.1.2.7z`（12MB），解压目录 `vendor/clangd/` 不进版本控制。
+
+`npm run dev` / `npm run build` / `npm start` 会自动执行 `scripts/prepare-clangd.mjs` 解压，已存在则直接跳过。若绕过 npm 脚本直接运行 `npx electron-vite build` 或 `npx electron-builder`，必须先手动解压一次：
+
+```bash
+node scripts/prepare-clangd.mjs
+```
+
+否则安装包里没有 clangd，运行时会回落到用户系统安装的 clangd（没装则 C/C++ 跳转不可用）。
+
 ### 预览构建产物
 
 ```bash

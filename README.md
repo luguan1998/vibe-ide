@@ -193,6 +193,24 @@ npm run build
 npm run build:win
 ```
 
+### Bundled clangd (affects builds)
+
+C/C++ navigation uses a bundled clangd. The repo only stores the archive
+`vendor/clangd-23.1.2.7z` (12MB); the extracted `vendor/clangd/` directory is
+not version-controlled.
+
+`npm run dev` / `npm run build` / `npm start` run `scripts/prepare-clangd.mjs`
+automatically and skip extraction when the directory already exists. If you
+bypass the npm scripts and run `npx electron-vite build` or `npx electron-builder`
+directly, extract it first:
+
+```bash
+node scripts/prepare-clangd.mjs
+```
+
+Otherwise the package ships without clangd and falls back to a system-installed
+clangd at runtime (C/C++ navigation is unavailable if none is installed).
+
 ### Preview Built App
 
 ```bash

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+vendor/clangd/
 out/
 .DS_Store
 *.log

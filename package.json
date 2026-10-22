@@ -6,12 +6,15 @@
   "description": "A vibe coding IDE with terminal session management, native terminal, and git management",
   "main": "./out/main/index.js",
   "scripts": {
+    "predev": "node scripts/prepare-clangd.mjs",
     "dev": "electron-vite dev",
+    "prebuild": "node scripts/prepare-clangd.mjs",
     "build": "electron-vite build",
     "typecheck": "tsc -b",
     "preview": "electron-vite preview",
     "test": "node --test --test-reporter=spec test/**/*.test.mjs",
     "test:perf": "node test/perf-file-switch.mjs",
+    "prestart": "node scripts/prepare-clangd.mjs",
     "start": "electron-vite preview",
     "build:win": "npm run build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win --x64",
     "build:win:7z": "npm run build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win 7z --x64"
@@ -52,6 +55,10 @@
       {
         "from": "resources/pi-mcp-bridge.mjs",
         "to": "pi-mcp-bridge.mjs"
+      },
+      {
+        "from": "vendor/clangd",
+        "to": "clangd"
       }
     ],
     "extraFiles": [
@@ -148,6 +155,7 @@
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
+    "7zip-bin": "^5.2.0",
     "autoprefixer": "^10.4.20",
     "cross-env": "^10.1.0",
     "electron": "^37.10.3",

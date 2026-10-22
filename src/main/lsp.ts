@@ -78,7 +78,17 @@ function clangdCandidates(): string[] {
   return out.filter(Boolean)
 }
 
+function resolveBundledClangd(): Resolved | null {
+  const dir = app.isPackaged
+    ? join(process.resourcesPath, 'clangd')
+    : join(app.getAppPath(), 'vendor', 'clangd')
+  const cmd = join(dir, 'bin', process.platform === 'win32' ? 'clangd.exe' : 'clangd')
+  return existsSync(cmd) ? { cmd, args: [] } : null
+}
+
 function resolveClangd(): Resolved | null {
+  const bundled = resolveBundledClangd()
+  if (bundled) return bundled
   try {
     const probe = process.platform === 'win32' ? 'where.exe clangd' : 'which clangd'
     const out = execSync(probe, { encoding: 'utf-8', timeout: 5000, stdio: 'pipe' }).trim().split(/\r?\n/)[0]
