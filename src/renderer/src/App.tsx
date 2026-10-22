@@ -45,6 +45,7 @@ const TerminalView = lazy(() => import('./components/TerminalView'))
 const PANEL_TAB_RAIL_MIN_W = 700
 const RIGHT_PANEL_DEFAULT_W = 308
 const BROWSER_DOCK_W = 860
+const BROWSER_DOCK_MIN_CENTER_W = 450
 
 // Declare the window API type
 declare global {
@@ -3067,10 +3068,12 @@ export default function App() {
     setBrowserDocked(true)
     if (browserDockPrevWidth.current === null) {
       browserDockPrevWidth.current = rightPanelWidth
-      setRightPanelWidth(BROWSER_DOCK_W)
+      const leftW = leftPanelCollapsed ? 0 : leftPanelWidth + 1
+      const maxW = window.innerWidth - leftW - BROWSER_DOCK_MIN_CENTER_W - 1
+      setRightPanelWidth(Math.max(RIGHT_PANEL_DEFAULT_W, Math.min(BROWSER_DOCK_W, maxW)))
     }
     setBrowserDockNonce(n => n + 1)
-  }, [rightPanelWidth])
+  }, [rightPanelWidth, leftPanelWidth, leftPanelCollapsed])
 
   useEffect(() => {
     const handler = window.api.onBrowserOpen((data) => {
