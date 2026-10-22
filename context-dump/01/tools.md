@@ -1,0 +1,1148 @@
+## Agent
+
+Launch a new agent to handle complex, multi-step tasks. Each agent type has specific capabilities and tools available to it.
+
+Available agent types are listed in <system-reminder> messages in the conversation.
+
+When using the Agent tool, specify a subagent_type parameter to select which agent type to use. If omitted, the general-purpose agent is used.
+
+## When to use
+
+Reach for this when the task matches an available agent type, when you have independent work to run in parallel, or when answering would mean reading across several files — delegate it and you keep the conclusion, not the file dumps. For a single-fact lookup where you already know the file, symbol, or value, search directly. Once you've delegated a search, don't also run it yourself — wait for the result.
+
+- The agent's final report is not shown to the user — relay what matters.
+- Use SendMessage with the agent's ID or name to continue a previously spawned agent with its context intact; a new Agent call starts fresh.
+- Each agent type's model, reasoning effort, and tools come from its definition (`.claude/agents/*.md` frontmatter or SDK `agents`).
+- `isolation: "worktree"` gives the agent its own git worktree (auto-cleaned if unchanged).
+- Subagents run in the background by default; you'll be notified when one completes. Pass `run_in_background: false` only when your very next action depends on the result and nothing else could usefully happen while it runs — otherwise background it so the user can interject. Never fabricate or predict a pending agent's results — the notification is never something you write yourself; if the user asks before it arrives, say it's still running.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "description": {
+      "description": "A short (3-5 word) description of the task",
+      "type": "string"
+    },
+    "prompt": {
+      "description": "The task for the agent to perform",
+      "type": "string"
+    },
+    "subagent_type": {
+      "description": "The type of specialized agent to use for this task",
+      "type": "string"
+    },
+    "model": {
+      "description": "Optional model override for this agent. Takes precedence over the agent definition's model frontmatter and the configured default subagent model. If omitted, uses the agent definition's model, else the default (inherits from the parent unless a default subagent model is configured). Ignored for subagent_type: \"fork\" — forks always inherit the parent model.",
+      "type": "string",
+      "enum": [
+        "sonnet",
+        "opus",
+        "haiku",
+        "fable"
+      ]
+    },
+    "run_in_background": {
+      "description": "Agents run in the background by default; you will be notified when one completes. Set to false only when your very next action depends on this agent's result and nothing else could usefully happen while it runs — otherwise leave it in the background so the user can hand you other work.",
+      "type": "boolean"
+    },
+    "isolation": {
+      "description": "Isolation mode. \"worktree\" creates a temporary git worktree so the agent works on an isolated copy of the repo. \"remote\" launches the agent in a remote cloud environment (always runs in background; availability is gated).",
+      "type": "string",
+      "enum": [
+        "worktree",
+        "remote"
+      ]
+    }
+  },
+  "required": [
+    "description",
+    "prompt"
+  ],
+  "additionalProperties": false
+}
+```
+
+## Bash
+
+Executes a bash command and returns its output.
+
+This tool runs Git Bash (POSIX sh), not cmd.exe or PowerShell. Use Unix shell syntax: `/dev/null` not `NUL`, forward slashes, `$VAR` not `%VAR%` or `$env:VAR`.
+
+- Working directory persists between calls, but prefer absolute paths — `cd` in a compound command can trigger a permission prompt. Shell state (env vars, functions) does not persist; the shell is initialized from the user's profile.
+- IMPORTANT: Avoid using this tool to run `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk`, or `echo` commands, unless explicitly instructed or after you have verified that a dedicated tool cannot accomplish your task. Instead, use the appropriate dedicated tool as this will provide a much better experience for the user.
+- Command output is displayed to you, not reliably to the user.
+- `timeout` is in milliseconds: default 120000, max 600000 for a foreground command.
+- `run_in_background` runs the command detached: it keeps running across turns and re-invokes you when it exits. With it, `timeout` is how long the command may run in the background (default 1800000, max 7200000); at that limit it is stopped and you are re-invoked. No `&` needed.
+
+# Git
+- Interactive flags (`-i`, e.g. `git rebase -i`, `git add -i`) are not supported in this environment.
+- Use the `gh` CLI for GitHub operations (PRs, issues, API).
+- Commit or push only when the user asks. If on the default branch, branch first.
+- End git commit messages and PR bodies with the attribution lines given in the conversation's system-reminder, when one is present.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "command": {
+      "description": "The command to execute",
+      "type": "string"
+    },
+    "timeout": {
+      "description": "Optional timeout in milliseconds (max 600000 for a foreground command)",
+      "type": "number"
+    },
+    "description": {
+      "description": "Clear, concise description of what this command does in active voice. Never use words like \"complex\" or \"risk\" in the description - just describe what it does.\n\nSay what the command does in plain words: do not echo the command's text, its flags, or file paths - the user reads this description, often without seeing the command.\n\nFor simple commands (git, npm, standard CLI tools), keep it brief (5-10 words):\n- ls → \"List files in current directory\"\n- git status → \"Show working tree status\"\n- npm install → \"Install package dependencies\"\n\nFor commands that are harder to parse at a glance (piped commands, obscure flags, etc.), add enough context to clarify what it does:\n- find . -name \"*.tmp\" -exec rm {} \\; → \"Find and delete all .tmp files recursively\"\n- git reset --hard origin/main → \"Discard all local changes and match remote main\"\n- curl -s url | jq '.data[]' → \"Fetch JSON from URL and extract data array elements\"",
+      "type": "string"
+    },
+    "run_in_background": {
+      "description": "Set to true to run this command in the background. With it, `timeout` limits how long the command may run in the background before it is stopped (default 1800000 ms, max 7200000 ms).",
+      "type": "boolean"
+    },
+    "dangerouslyDisableSandbox": {
+      "description": "Set this to true to dangerously override sandbox mode and run commands without sandboxing.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "command"
+  ],
+  "additionalProperties": false
+}
+```
+
+## CronCreate
+
+Schedule a prompt to be enqueued at a future time. Use for both recurring schedules and one-shot reminders.
+
+Uses standard 5-field cron in the user's local timezone: minute hour day-of-month month day-of-week. "0 9 * * *" means 9am local — no timezone conversion needed.
+
+## One-shot tasks (recurring: false)
+
+For "remind me at X" or "at <time>, do Y" requests — fire once then auto-delete.
+Pin minute/hour/day-of-month/month to specific values:
+  "remind me at 2:30pm today to check the deploy" → cron: "30 14 <today_dom> <today_month> *", recurring: false
+  "tomorrow morning, run the smoke test" → cron: "57 8 <tomorrow_dom> <tomorrow_month> *", recurring: false
+
+## Recurring jobs (recurring: true, the default)
+
+For "every N minutes" / "every hour" / "weekdays at 9am" requests:
+  "*/5 * * * *" (every 5 min), "0 * * * *" (hourly), "0 9 * * 1-5" (weekdays at 9am local)
+
+## Avoid the :00 and :30 minute marks when the task allows it
+
+Every user who asks for "9am" gets `0 9`, and every user who asks for "hourly" gets `0 *` — which means requests from across the planet land on the API at the same instant. When the user's request is approximate, pick a minute that is NOT 0 or 30:
+  "every morning around 9" → "57 8 * * *" or "3 9 * * *" (not "0 9 * * *")
+  "hourly" → "7 * * * *" (not "0 * * * *")
+  "in an hour or so, remind me to..." → pick whatever minute you land on, don't round
+
+Only use minute 0 or 30 when the user names that exact time and clearly means it ("at 9:00 sharp", "at half past", coordinating with a meeting). When in doubt, nudge a few minutes early or late — the user will not notice, and the fleet will.
+
+## Durability
+
+By default (durable: false) the job lives only in this Claude session — nothing is written to disk, and the job is gone when Claude exits. Pass durable: true to write to .claude/scheduled_tasks.json so the job survives restarts. Only use durable: true when the user explicitly asks for the task to persist ("keep doing this every day", "set this up permanently"). Most "remind me in 5 minutes" / "check back in an hour" requests should stay session-only.
+
+## Runtime behavior
+
+Jobs only fire while the REPL is idle (not mid-query). Durable jobs persist to .claude/scheduled_tasks.json and survive session restarts — on next launch they resume automatically. One-shot durable tasks that were missed while the REPL was closed are surfaced for catch-up. Session-only jobs die with the process. The scheduler adds a small deterministic jitter on top of whatever you pick: recurring tasks fire up to 10% of their period late (max 15 min); one-shot tasks landing on :00 or :30 fire up to 90 s early. Picking an off-minute is still the bigger lever.
+
+Recurring tasks auto-expire after 7 days — they fire one final time, then are deleted. This bounds session lifetime. Tell the user about the 7-day limit when scheduling recurring jobs.
+
+Returns a job ID you can pass to CronDelete.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "cron": {
+      "description": "Standard 5-field cron expression in local time: \"M H DoM Mon DoW\" (e.g. \"*/5 * * * *\" = every 5 minutes, \"30 14 28 2 *\" = Feb 28 at 2:30pm local once).",
+      "type": "string"
+    },
+    "prompt": {
+      "description": "The prompt to enqueue at each fire time.",
+      "type": "string"
+    },
+    "recurring": {
+      "description": "true (default) = fire on every cron match until deleted or auto-expired after 7 days. false = fire once at the next match, then auto-delete. Use false for \"remind me at X\" one-shot requests with pinned minute/hour/dom/month.",
+      "type": "boolean"
+    },
+    "durable": {
+      "description": "true = persist to .claude/scheduled_tasks.json and survive restarts. false (default) = in-memory only, dies when this Claude session ends. Use true only when the user asks the task to survive across sessions.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "cron",
+    "prompt"
+  ],
+  "additionalProperties": false
+}
+```
+
+## CronDelete
+
+Cancel a cron job previously scheduled with CronCreate. Removes it from .claude/scheduled_tasks.json (durable jobs) or the in-memory session store (session-only jobs).
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "description": "Job ID returned by CronCreate.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false
+}
+```
+
+## CronList
+
+List all cron jobs scheduled via CronCreate, both durable (.claude/scheduled_tasks.json) and session-only.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}
+```
+
+## Edit
+
+Performs exact string replacement in a file.
+
+- You must Read the file in this conversation before editing, or the call will fail.
+- `old_string` must match the file exactly, including indentation, and be unique — the edit fails otherwise. Strip the Read line prefix (line number + tab) before matching.
+- `replace_all: true` replaces every occurrence instead.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "description": "The absolute path to the file to modify",
+      "type": "string"
+    },
+    "old_string": {
+      "description": "The text to replace",
+      "type": "string"
+    },
+    "new_string": {
+      "description": "The text to replace it with (must be different from old_string)",
+      "type": "string"
+    },
+    "replace_all": {
+      "description": "Replace all occurrences of old_string (default false)",
+      "default": false,
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "file_path",
+    "old_string",
+    "new_string"
+  ],
+  "additionalProperties": false
+}
+```
+
+## EnterWorktree
+
+Use this tool ONLY when explicitly instructed to work in a worktree — either by the user directly, or by project instructions (CLAUDE.md / memory). This tool creates an isolated git worktree and switches the current session into it.
+
+## When to Use
+
+- The user explicitly says "worktree" (e.g., "start a worktree", "work in a worktree", "create a worktree", "use a worktree")
+- CLAUDE.md or memory instructions direct you to work in a worktree for the current task
+
+## When NOT to Use
+
+- The user asks to create a branch, switch branches, or work on a different branch — use git commands instead
+- The user asks to fix a bug or work on a feature — use normal git workflow unless worktrees are explicitly requested by the user or project instructions
+- Never use this tool unless "worktree" is explicitly mentioned by the user or in CLAUDE.md / memory instructions
+
+## Requirements
+
+- Must be in a git repository, OR have WorktreeCreate/WorktreeRemove hooks configured in settings.json
+- Must not already be in a worktree session when creating a new worktree (`name`); switching into another existing worktree via `path` is allowed
+
+## Behavior
+
+- In a git repository: creates a new git worktree inside `.claude/worktrees/` on a new branch. The base ref is governed by the `worktree.baseRef` setting: `fresh` (default) branches from origin/<default-branch>; `head` branches from your current local HEAD
+- Outside a git repository: delegates to WorktreeCreate/WorktreeRemove hooks for VCS-agnostic isolation
+- Switches the session's working directory to the new worktree
+- Use ExitWorktree to leave the worktree mid-session (keep or remove). On session exit, if still in the worktree, the user will be prompted to keep or remove it
+
+## Entering an existing worktree
+
+Pass `path` instead of `name` to switch the session into a worktree that already exists (e.g., one you just created with `git worktree add`). On first entry from the launch directory, the path must appear in `git worktree list` for the repository that owns it — the current repository or, in a multi-repo workspace, a repository nested inside it; paths registered by neither are rejected. ExitWorktree will not remove a worktree entered this way; use `action: "keep"` to return to the original directory.
+
+Switching with `path` also works when the session is already in a worktree (the previous worktree is left on disk, untouched, and only the new one is tracked for exit-time cleanup), and from agents whose working directory was pinned at launch (subagent isolation or explicit cwd). In both cases the target must be a worktree under `.claude/worktrees/` of the same repository, and from a pinned agent the switch only affects this agent, not the parent session. After a further switch, previously-visited worktrees are no longer writable — re-issue EnterWorktree with `path` to return to one.
+
+## Parameters
+
+- `name` (optional): A name for a new worktree. If neither `name` nor `path` is provided, a random name is generated.
+- `path` (optional): Path to an existing worktree to enter instead of creating one — of the current repository, or (on first entry from the launch directory) of a repository nested inside it. Mutually exclusive with `name`.
+
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "description": "Optional name for a new worktree. Each \"/\"-separated segment may contain only letters, digits, dots, underscores, and dashes; max 64 chars total. A random name is generated if not provided. Mutually exclusive with `path`.",
+      "type": "string"
+    },
+    "path": {
+      "description": "Path to an existing worktree to switch into instead of creating a new one. Must appear in `git worktree list` for the current repo — or, on first entry from the launch directory, for a repo nested inside it (multi-repo workspace). Mutually exclusive with `name`.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+## ExitWorktree
+
+Exit a worktree session created by EnterWorktree and return the session to the original working directory.
+
+## Scope
+
+This tool ONLY operates on worktrees created by EnterWorktree in this session. It will NOT touch:
+- Worktrees you created manually with `git worktree add`
+- Worktrees from a previous session (even if created by EnterWorktree then)
+- The directory you're in if EnterWorktree was never called
+
+If called outside an EnterWorktree session, the tool is a **no-op**: it reports that no worktree session is active and takes no action. Filesystem state is unchanged.
+
+## When to Use
+
+- The user explicitly asks to "exit the worktree", "leave the worktree", "go back", or otherwise end the worktree session
+- Do NOT call this proactively — only when the user asks
+
+## Parameters
+
+- `action` (required): `"keep"` or `"remove"`
+  - `"keep"` — leave the worktree directory and branch intact on disk. Use this if the user wants to come back to the work later, or if there are changes to preserve.
+  - `"remove"` — delete the worktree directory and its branch. Use this for a clean exit when the work is done or abandoned.
+- `discard_changes` (optional, default false): only meaningful with `action: "remove"`. If the worktree has uncommitted files or commits not on the original branch, the tool will REFUSE to remove it unless this is set to `true`. If the tool returns an error listing changes, confirm with the user before re-invoking with `discard_changes: true`.
+
+## Behavior
+
+- Restores the session's working directory to where it was before EnterWorktree
+- Clears CWD-dependent caches (system prompt sections, memory files, plans directory) so the session state reflects the original directory
+- If a tmux session was attached to the worktree: killed on `remove`, left running on `keep` (its name is returned so the user can reattach)
+- Once exited, EnterWorktree can be called again to create a fresh worktree
+
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "action": {
+      "description": "\"keep\" leaves the worktree and branch on disk; \"remove\" deletes both.",
+      "type": "string",
+      "enum": [
+        "keep",
+        "remove"
+      ]
+    },
+    "discard_changes": {
+      "description": "Required true when action is \"remove\" and the worktree has uncommitted files or unmerged commits. The tool will refuse and list them otherwise.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "additionalProperties": false
+}
+```
+
+## Glob
+
+Fast file pattern matching. Supports glob patterns like "**/*.js" or "src/**/*.ts". Returns matching file paths sorted by modification time.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "pattern": {
+      "description": "The glob pattern to match files against",
+      "type": "string"
+    },
+    "path": {
+      "description": "The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter \"undefined\" or \"null\" - simply omit it for the default behavior. Must be a valid directory path if provided.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "pattern"
+  ],
+  "additionalProperties": false
+}
+```
+
+## Grep
+
+Content search built on ripgrep. Prefer this over `grep`/`rg` via Bash — results integrate with the permission UI and file links.
+
+- Full regex syntax (e.g. "log.*Error", "function\s+\w+"). Ripgrep, not grep — escape literal braces (`interface\{\}`).
+- Filter with `glob` (e.g. "**/*.tsx") or `type` (e.g. "js", "py", "rust").
+- `output_mode`: "content" (matching lines), "files_with_matches" (paths only, default), or "count".
+- `multiline: true` for patterns that span lines.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "pattern": {
+      "description": "The regular expression pattern to search for in file contents",
+      "type": "string"
+    },
+    "path": {
+      "description": "File or directory to search in (rg PATH). Defaults to current working directory.",
+      "type": "string"
+    },
+    "glob": {
+      "description": "Glob pattern to filter files (e.g. \"*.js\", \"*.{ts,tsx}\") - maps to rg --glob",
+      "type": "string"
+    },
+    "output_mode": {
+      "description": "Output mode: \"content\" shows matching lines (supports -A/-B/-C context, -n line numbers, head_limit), \"files_with_matches\" shows file paths (supports head_limit), \"count\" shows match counts (supports head_limit). Defaults to \"files_with_matches\".",
+      "type": "string",
+      "enum": [
+        "content",
+        "files_with_matches",
+        "count"
+      ]
+    },
+    "-B": {
+      "description": "Number of lines to show before each match (rg -B). Requires output_mode: \"content\", ignored otherwise.",
+      "type": "number"
+    },
+    "-A": {
+      "description": "Number of lines to show after each match (rg -A). Requires output_mode: \"content\", ignored otherwise.",
+      "type": "number"
+    },
+    "-C": {
+      "description": "Alias for context.",
+      "type": "number"
+    },
+    "context": {
+      "description": "Number of lines to show before and after each match (rg -C). Requires output_mode: \"content\", ignored otherwise.",
+      "type": "number"
+    },
+    "-n": {
+      "description": "Show line numbers in output (rg -n). Requires output_mode: \"content\", ignored otherwise. Defaults to true.",
+      "type": "boolean"
+    },
+    "-i": {
+      "description": "Case insensitive search (rg -i)",
+      "type": "boolean"
+    },
+    "-o": {
+      "description": "Print only the matched (non-empty) parts of each matching line, one match per output line (rg -o / --only-matching). Requires output_mode: \"content\", ignored otherwise. Defaults to false.",
+      "type": "boolean"
+    },
+    "type": {
+      "description": "File type to search (rg --type). Common types: js, py, rust, go, java, etc. More efficient than include for standard file types.",
+      "type": "string"
+    },
+    "head_limit": {
+      "description": "Limit output to first N lines/entries, equivalent to \"| head -N\". Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count (limits count entries). Defaults to 250 when unspecified. Pass 0 for unlimited (use sparingly — large result sets waste context).",
+      "type": "number"
+    },
+    "offset": {
+      "description": "Skip first N lines/entries before applying head_limit, equivalent to \"| tail -n +N | head -N\". Works across all output modes. Defaults to 0.",
+      "type": "number"
+    },
+    "multiline": {
+      "description": "Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall). Default: false.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "pattern"
+  ],
+  "additionalProperties": false
+}
+```
+
+## ListAgents
+
+Lists agents you can SendMessage to — in-process subagents you spawned, the teammates on your team, other local Claude sessions on this machine, your Claude sessions running in the cloud (when this session has cloud access; a cloud session receives your message but cannot message any session back yet — do not ask it to reply, read its answer in its own transcript), and (when Remote Control is connected here) your account's other sessions — Remote Control sessions on other machines and cloud sessions, each row labeled by kind. Names are the address: send with `SendMessage({to: "<name>", message: "..."})`, copying the name exactly as a row prints it. Append a row's ` [ref]` only when the bare name is not enough — two rows share it, or an error asks you to disambiguate.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "channel": {
+      "description": "Not available in this build; leave unset.",
+      "type": "string",
+      "maxLength": 256
+    },
+    "q": {
+      "description": "Not available in this build; leave unset.",
+      "type": "string",
+      "maxLength": 256
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+## LSP
+
+Interact with Language Server Protocol (LSP) servers to get code intelligence features.
+
+Supported operations:
+- goToDefinition: Find where a symbol is defined
+- findReferences: Find all references to a symbol
+- hover: Get hover information (documentation, type info) for a symbol
+- documentSymbol: Get all symbols (functions, classes, variables) in a document
+- workspaceSymbol: Search for symbols matching a query across the entire workspace
+- goToImplementation: Find implementations of an interface or abstract method
+- prepareCallHierarchy: Get call hierarchy item at a position (functions/methods)
+- incomingCalls: Find all functions/methods that call the function at a position
+- outgoingCalls: Find all functions/methods called by the function at a position
+
+All operations require:
+- filePath: The file to operate on
+- line: The line number (1-based, as shown in editors)
+- character: The character offset (1-based, as shown in editors)
+
+The workspaceSymbol operation also takes:
+- query: The symbol name or partial name to search for. Always provide it — most language servers return no results for an empty query.
+
+Note: LSP servers must be configured for the file type. If no server is available, an error will be returned.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "operation": {
+      "description": "The LSP operation to perform",
+      "type": "string",
+      "enum": [
+        "goToDefinition",
+        "findReferences",
+        "hover",
+        "documentSymbol",
+        "workspaceSymbol",
+        "goToImplementation",
+        "prepareCallHierarchy",
+        "incomingCalls",
+        "outgoingCalls"
+      ]
+    },
+    "filePath": {
+      "description": "The absolute or relative path to the file",
+      "type": "string"
+    },
+    "line": {
+      "description": "The line number (1-based, as shown in editors)",
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "character": {
+      "description": "The character offset (1-based, as shown in editors)",
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "query": {
+      "description": "The symbol name or partial name to search for (workspaceSymbol only). Most language servers return no results for an empty query, so always provide it when using workspaceSymbol.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "operation",
+    "filePath",
+    "line",
+    "character"
+  ],
+  "additionalProperties": false
+}
+```
+
+## NotebookEdit
+
+Replaces, inserts, or deletes a single cell in a Jupyter notebook (.ipynb file).
+
+Usage:
+- You must use the Read tool on the notebook in this conversation before editing — this tool will fail otherwise.
+- `notebook_path` must be an absolute path.
+- `cell_id` is the `id` attribute shown in the Read tool's `<cell id="...">` output. It is required for `replace` and `delete`.
+- `edit_mode` defaults to `replace`. Use `insert` to add a new cell after the cell with the given `cell_id` (or at the beginning of the notebook if `cell_id` is omitted) — `cell_type` is required when inserting. Use `delete` to remove the cell.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "notebook_path": {
+      "description": "The absolute path to the Jupyter notebook file to edit (must be absolute, not relative)",
+      "type": "string"
+    },
+    "cell_id": {
+      "description": "The ID of the cell to edit. When inserting a new cell, the new cell will be inserted after the cell with this ID, or at the beginning if not specified.",
+      "type": "string"
+    },
+    "new_source": {
+      "description": "The new source for the cell",
+      "type": "string"
+    },
+    "cell_type": {
+      "description": "The type of the cell (code or markdown). If not specified, it defaults to the current cell type. If using edit_mode=insert, this is required.",
+      "type": "string",
+      "enum": [
+        "code",
+        "markdown"
+      ]
+    },
+    "edit_mode": {
+      "description": "The type of edit to make (replace, insert, delete). Defaults to replace.",
+      "type": "string",
+      "enum": [
+        "replace",
+        "insert",
+        "delete"
+      ]
+    }
+  },
+  "required": [
+    "notebook_path",
+    "new_source"
+  ],
+  "additionalProperties": false
+}
+```
+
+## Read
+
+Reads a file from the local filesystem.
+
+- `file_path` must be an absolute path.
+- Reads up to 2000 lines by default.
+- When you already know which part of the file you need, only read that part. This can be important for larger files.
+- Results are returned using cat -n format, with line numbers starting at 1
+- Reads images (PNG, JPG, …) and presents them visually. Reads PDFs via the `pages` parameter (e.g. "1-5", max 20 pages/request; required for PDFs over 10 pages). Reads Jupyter notebooks (.ipynb) as cells with outputs.
+- Reading a directory, a missing file, or an empty file returns an error or system reminder rather than content.
+- Do NOT re-read a file you just edited to verify — Edit/Write would have errored if the change failed, and the harness tracks file state for you.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "description": "The absolute path to the file to read",
+      "type": "string"
+    },
+    "offset": {
+      "description": "The line number to start reading from. Only provide if the file is too large to read at once",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "limit": {
+      "description": "The number of lines to read. Only provide if the file is too large to read at once.",
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "pages": {
+      "description": "Page range for PDF files (e.g., \"1-5\", \"3\", \"10-20\"). Only applicable to PDF files. Maximum 20 pages per request.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "file_path"
+  ],
+  "additionalProperties": false
+}
+```
+
+## ReportFindings
+
+Report code-review findings as a typed list so the host UI can render them. Use this only when the active code-review instructions tell you to report findings with this tool; otherwise follow whatever output format those instructions specify. When reporting a review's results, call it once with the verified findings ranked most-severe first (empty array if nothing survived verification) and do not also print the findings as text. When re-reporting after applying fixes (only if the apply instructions ask for it), set `outcome` on each finding to what actually happened.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "level": {
+      "description": "Effort level the review ran at",
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "findings": {
+      "description": "Verified findings, most-severe first; empty if none survived",
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "description": "Repo-relative path of the file the finding is in",
+            "type": "string"
+          },
+          "line": {
+            "description": "1-indexed line the finding anchors to",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "summary": {
+            "description": "One-sentence statement of the defect",
+            "type": "string"
+          },
+          "short_summary": {
+            "description": "Compressed label for compact UI (≤60 chars): the claim alone, no rationale or consequence clause",
+            "type": "string",
+            "maxLength": 60
+          },
+          "failure_scenario": {
+            "description": "Concrete inputs/state → wrong output/crash",
+            "type": "string"
+          },
+          "category": {
+            "description": "Short kebab-case slug of the finding type, e.g. \"correctness\", \"simplification\", \"efficiency\", \"test-coverage\"",
+            "type": "string",
+            "maxLength": 40
+          },
+          "verdict": {
+            "description": "Set when a verify pass ran; absent on inline-only reviews",
+            "type": "string",
+            "enum": [
+              "CONFIRMED",
+              "PLAUSIBLE"
+            ]
+          },
+          "outcome": {
+            "description": "Set ONLY when re-reporting after applying fixes: what happened to this finding",
+            "type": "string",
+            "enum": [
+              "fixed",
+              "skipped",
+              "no_change_needed"
+            ]
+          }
+        },
+        "required": [
+          "file",
+          "summary",
+          "failure_scenario"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "findings"
+  ],
+  "additionalProperties": false
+}
+```
+
+## ScheduleWakeup
+
+Schedule when to resume work in /loop dynamic mode — the user invoked /loop without an interval, asking you to self-pace iterations of a specific task.
+
+Do NOT schedule a short-interval wakeup to poll for background work you started — when harness-tracked work finishes, you are re-invoked automatically, so polling is wasted. Instead schedule a long fallback (1200s+) so the loop survives if the work hangs or never notifies. The exception is external work the harness cannot track (a CI run, a deploy, a remote queue) — there, pick a delay matched to how fast that state actually changes.
+
+Pass the same /loop prompt back via `prompt` each turn so the next firing repeats the task. For an autonomous /loop (no user prompt), pass the literal sentinel `<<autonomous-loop-dynamic>>` as `prompt` instead — the runtime resolves it back to the autonomous-loop instructions at fire time. (There is a similar `<<autonomous-loop>>` sentinel for CronCreate-based autonomous loops; do not confuse the two — ScheduleWakeup always uses the `-dynamic` variant.) To end the loop, call this tool with `stop: true` (omit every other field) — the loop ends immediately and no further wakeups fire.
+
+Set `noop: true` if nothing changed — you checked and there's nothing to report ("no change", "still waiting", "quiet hold"). Set `noop: false` if something happened worth keeping — you edited a file, posted a message, advanced state, or surfaced a finding. Consecutive `noop: true` ticks are collapsed in the user's terminal view and tracked as a streak, so long quiet holds stay legible to the user without scrolling. Omit `noop` when stopping (`stop: true`).
+
+## Picking delaySeconds
+
+This session's requests use the default 5-minute Anthropic prompt-cache TTL. Sleeping past 300 seconds means the next wake-up reads your full conversation context uncached — slower and more expensive. So the natural breakpoints:
+
+- **Under 5 minutes (60s–270s)**: cache stays warm. Right for actively polling external state the harness can't notify you about — a CI run, a deploy, a remote queue.
+- **5 minutes to 1 hour (300s–3600s)**: pay the cache miss. Right when there's no point checking sooner — waiting on something that takes minutes to change, genuinely idle, or as the long fallback heartbeat when something else is the primary wake signal.
+
+**Don't pick 300s.** It's the worst-of-both: you pay the cache miss without amortizing it. If you're tempted to "wait 5 minutes," either drop to 270s (stay in cache) or commit to 1200s+ (one cache miss buys a much longer wait). Don't think in round-number minutes — think in cache windows.
+
+For idle ticks with no specific signal to watch, default to **1200s–1800s** (20–30 min). The loop checks back, you don't burn cache 12× per hour for nothing, and the user can always interrupt if they need you sooner.
+
+Think about what you're actually waiting for, not just "how long should I sleep." If you're polling a CI run that takes ~8 minutes, sleeping 60s burns the cache 8 times before it finishes — sleep ~270s twice instead.
+
+The runtime clamps to [60, 3600], so you don't need to clamp yourself.
+
+## The reason field
+
+One short sentence on what you chose and why. Goes to telemetry and is shown back to the user. "watching CI run" beats "waiting." The user reads this to understand what you're doing without having to predict your cadence in advance — make it specific.
+
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "delaySeconds": {
+      "description": "Seconds from now to wake up. Clamped to [60, 3600] by the runtime. Required unless `stop` is true.",
+      "type": "number"
+    },
+    "reason": {
+      "description": "One short sentence explaining the chosen delay. Goes to telemetry and is shown to the user. Be specific. Required unless `stop` is true.",
+      "type": "string"
+    },
+    "prompt": {
+      "description": "The /loop input to fire on wake-up. Pass the same /loop input verbatim each turn so the next firing re-enters the skill and continues the loop. For autonomous /loop (no user prompt), pass the literal sentinel `<<autonomous-loop-dynamic>>` instead (the dynamic-pacing variant, not the CronCreate-mode `<<autonomous-loop>>`). Required unless `stop` is true.",
+      "type": "string"
+    },
+    "stop": {
+      "description": "Set to true to end the dynamic loop immediately instead of scheduling another wakeup. When true, all other fields are ignored and no further wakeups fire.",
+      "type": "boolean"
+    },
+    "noop": {
+      "description": "true = nothing changed (you checked and there is nothing to report). false = something happened worth keeping (edited a file, posted a message, advanced state, surfaced a finding). Consecutive noop:true ticks are collapsed in the user's terminal view and tracked as a streak. Required unless `stop` is true.",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+## SendMessage
+
+# SendMessage
+
+Send a message to another agent.
+
+```json
+{"to": "researcher", "summary": "assign task 1", "message": "start on task #1"}
+```
+
+| `to` | |
+|---|---|
+| `"researcher"` | Teammate by name |
+| `"main"` | The main conversation (background subagents only) |
+| `"worker"` | Any agent from `ListAgents` — subagent, another local Claude session |
+| `"worker [3fa9c1]"` | Same, plus its `[ref]` — only when a listing or an error shows one |
+
+Your plain text output is NOT visible to other agents — to communicate, you MUST call this tool. Messages from teammates are delivered automatically; you don't check an inbox. Refer to agents by name — names keep working after an agent completes (a send resumes it from its transcript). Use the raw `agentId` (format `a...-...`) from its spawn result only when the agent has no name, or when a newer agent took the name (latest wins). When relaying, don't quote the original — it's already rendered to the user.
+
+## Cross-session
+
+Use `ListAgents` to discover targets. Every row leads with the agent's `name [ref]` — the name IS the address; there is no separate address syntax.
+
+```json
+{"to": "worker", "message": "check if tests pass over there"}
+{"to": "worker [3fa9c1]", "message": "you, specifically"}
+```
+
+Send the bare name — a name that exactly matches one live agent or session (on this machine, on another machine, or in the cloud) delivers directly. Append the ` [ref]` only when the bare name is not enough — `ListAgents` shows two rows with it, or an error asks you to disambiguate (you typed only a prefix, or a session list could not be checked). A ref you did not just read from a listing or an error will not resolve, and if the same name also names an in-process agent, the bare name always wins — use the in-process one.
+
+A listed peer is alive and will receive your message; messages enqueue and drain at the receiver's next tool round (its `ListAgents` row says whether it is busy or idle right now). A successful send means the message reached that session, not that its Claude read it: a session running in a different permission mode than yours holds cross-session messages for its user's approval (and may let them expire), and a session can refuse them outright — for a session on this machine a `[Cross-session delivery notice]` tells you when that happens (the tool result says when this session has no inbox for one to reach); for a Remote Control, cloud or Claude Desktop session nothing reports back, so never treat silence as agreement. Your message arrives wrapped as `<cross-session-message from="...">`. **To reply to an incoming message, copy its `from` attribute as your `to`.** Cross-session messages travel between SESSIONS: if you are a subagent, your send goes out under your parent session's address, and any reply is delivered to the parent session's conversation, not to you. The receiver reads your message literally in every case (idle or busy, on this machine, over Remote Control or headless): an `@` followed by a file path, or `@server:resource`, attaches nothing there, unlike in your own user's input. So never rely on `@` to deliver content: send the text itself, or a file with its own tool.
+
+To hear when a session ON THIS MACHINE finishes what it is doing, pass `notify_when_idle: true` (from the main conversation only) — one-shot and opt-in: exactly one `[Cross-session idle notice]` arrives when it next goes idle (or exits) — shown to you, or only to your user when this session holds peer messages for approval (the tool result says which); if it never signals within the subscription's lifetime (it may still be busy, may refuse inbound requests, or may have ended abruptly) the notice says the subscription expired instead. Omit `message` for a pure subscription that costs that session nothing; include one to deliver it now AND subscribe. Never poll `ListAgents` in a loop or send "are you done?" messages instead.
+
+Permission boundaries are per-session: NEVER ask a peer to perform an action that was denied or blocked in your session, or that you expect your own permission settings would block — a peer doing it for you bypasses the user's permission decision (cross-session permission laundering). Route blocked work back to your user instead.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "to": {
+      "description": "Recipient: a name from ListAgents (append its \" [ref]\" only when a listing or an error shows one), a teammate name, \"main\", or a background agent's agentId",
+      "type": "string",
+      "allOf": [
+        {
+          "pattern": "^[^\\n\\r]*$"
+        },
+        {
+          "pattern": "^[\\s\\S]{0,300}$"
+        }
+      ]
+    },
+    "summary": {
+      "description": "A 5-10 word label for your own transcript row (not transmitted — the recipient previews the first line of `message`). Truncated to 200 characters rather than rejected.",
+      "type": "string",
+      "maxLength": 200
+    },
+    "message": {
+      "default": "",
+      "description": "Plain text message content. The recipient's human sees only the FIRST LINE as a one-line preview until they expand it, so make the first line a clear, self-contained sentence saying what this is about — not a greeting, preamble, or bare @-mention.",
+      "type": "string"
+    },
+    "notify_when_idle": {
+      "description": "Ask a session ON THIS MACHINE to send you ONE notice when it next goes idle (finishes its turn with nothing queued) or exits — opt-in, one-shot, no polling. With a message: deliver it now AND subscribe. Without a message (omit it): a pure subscription that costs the other session nothing.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "to",
+    "message"
+  ],
+  "additionalProperties": false
+}
+```
+
+## Skill
+
+Invoke a skill.
+
+A skill is a packaged set of instructions the user or project has set up for a particular kind of task (deploy steps, a review checklist, a repo-specific workflow). Available skills appear in a system-reminder listing with one-line descriptions. When the task at hand is one a listed skill covers, call this tool first — the skill's instructions load into the turn for you to follow in place of your default approach; some skills instead run in a subagent and return the finished result. A skill that runs in the background returns only the agent's name — its result arrives later as a task notification, so don't wait on it or invoke it again in the meantime. Users may also ask for one by name (`/<name>`, or "slash command"); that's a request to invoke it.
+
+- `skill`: exact name from the listing, no leading slash. Plugin skills use `plugin:skill`. Directory-scoped skills are listed with a path prefix (`apps/web:deploy`); when both scoped and unscoped variants of a name exist, pick the one whose directory contains the files you're working on (most specific wins; unscoped otherwise).
+- `args`: optional arguments to pass through.
+
+Only names from the listing (or that the user typed explicitly) are valid. Built-in CLI commands (`/help`, `/clear`, …) aren't skills. If a `<command-name>` block is already present this turn, the skill is loaded — follow it directly rather than calling again.
+
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "skill": {
+      "description": "The name of a skill from the available-skills list. Do not guess names.",
+      "type": "string"
+    },
+    "args": {
+      "description": "Optional arguments for the skill",
+      "type": "string"
+    }
+  },
+  "required": [
+    "skill"
+  ],
+  "additionalProperties": false
+}
+```
+
+## TaskStop
+
+
+- Stops a running background task by its ID
+- Takes a task_id parameter identifying the task to stop
+- To stop an agent-team teammate, pass its agent ID ("name@team") or bare teammate name as task_id
+- To stop a background agent spawned with a name, pass that name as task_id
+- Returns a success or failure status
+- Use this tool when you need to terminate a long-running task
+
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "description": "The ID of the background task to stop. Agent-team teammates and named background agents are also accepted by agent ID or name.",
+      "type": "string"
+    },
+    "shell_id": {
+      "description": "Deprecated: use task_id instead",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+## WebFetch
+
+Fetches a URL, converts the page to markdown, and answers `prompt` against it using a small fast model.
+
+- Fails on authenticated/private URLs — use an authenticated MCP tool or `gh` for those instead.
+- Fails on localhost and other hostnames without a dot; for a local server, use curl via Bash.
+- HTTP is upgraded to HTTPS. Cross-host redirects are returned to you rather than followed; call again with the redirect URL.
+- Responses are cached for 15 minutes per URL.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "url": {
+      "description": "The URL to fetch content from",
+      "type": "string",
+      "format": "uri"
+    },
+    "prompt": {
+      "description": "The prompt to run on the fetched content",
+      "type": "string"
+    }
+  },
+  "required": [
+    "url",
+    "prompt"
+  ],
+  "additionalProperties": false
+}
+```
+
+## WebSearch
+
+Search the web. Returns result blocks with titles and URLs. US-only.
+
+- The current month is (provided in the conversation below) — use this when searching for recent information.
+- `allowed_domains` / `blocked_domains` filter results.
+- After answering from results, end with a "Sources:" list of the URLs you used as markdown links.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "query": {
+      "description": "The search query to use",
+      "type": "string",
+      "minLength": 2
+    },
+    "allowed_domains": {
+      "description": "Only include search results from these domains",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blocked_domains": {
+      "description": "Never include search results from these domains",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "additionalProperties": false
+}
+```
+
+## Workflow
+
+Execute a workflow script that orchestrates multiple subagents deterministically. Workflows run in the background — this tool returns immediately with a task ID, and a <task-notification> arrives when the workflow completes. Use /workflows to watch live progress.
+
+ONLY call this tool when the user has explicitly opted into multi-agent orchestration. Workflows can spawn dozens of agents and consume a large amount of tokens; the user must request that scale, not have it inferred. Explicit opt-in means one of:
+- The user included the keyword "ultracode" in their prompt (you'll see a system-reminder confirming it).
+- Ultracode is on for the session (a system-reminder confirms it) — see **Ultracode** in the workflow authoring reference.
+- The user directly asked you to run a workflow or use multi-agent orchestration in their own words ("use a workflow", "run a workflow", "fan out agents", "orchestrate this with subagents"). The ask must be in the user's words — a task that would merely benefit from a workflow does not count.
+- The user invoked a skill or slash command whose instructions tell you to call Workflow.
+- The user asked you to run a specific named or saved workflow.
+
+For any other task — even one that would clearly benefit from parallelism — do NOT call this tool. Use the Agent tool (if available) for individual subagents, or briefly describe what a multi-agent workflow could do and how much it would roughly cost, and ask the user whether to run it. Mention they can ask for one with "use a workflow" in a future message to skip the ask.
+
+Every script must begin with `export const meta = {...}`: a PURE LITERAL (no variables, calls or interpolation) giving the workflow's `name`, a one-line `description` (shown in the permission dialog) and optionally `phases` — one `{ title, detail? }` per phase() call, titles matched exactly. Pass the script inline via `script` — do not Write it to a file first, and do not also set the tool's `name` input (that selects a saved workflow); it is plain JavaScript, not TypeScript.
+
+The canonical multi-stage pattern — pipeline by default, each dimension verifies as soon as its review completes:
+  export const meta = {
+    name: 'review-changes',
+    description: 'Review changed files across dimensions, verify each finding',
+    phases: [{ title: 'Review' }, { title: 'Verify' }],
+  }
+  const DIMENSIONS = [{key: 'bugs', prompt: '...'}, {key: 'perf', prompt: '...'}]
+  const results = await pipeline(
+    DIMENSIONS,
+    d => agent(d.prompt, {label: `review:${d.key}`, phase: 'Review', schema: FINDINGS_SCHEMA}),
+    review => parallel(review.findings.map(f => () =>
+      agent(`Adversarially verify: ${f.title}`, {label: `verify:${f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA})
+        .then(v => ({...f, verdict: v}))
+    ))
+  )
+  const confirmed = results.flat().filter(Boolean).filter(f => f.verdict?.isReal)
+  return { confirmed }
+  // Dimension 'bugs' findings verify while dimension 'perf' is still reviewing. No wasted wall-clock.
+
+Before writing a script, load the `workflow-authoring` skill — the workflow authoring reference: script API and gotchas, resume, the **Ultracode** section, quality patterns, worked examples.
+
+This session has the default workflow size guideline: medium — keep workflows under 10 agents. This is a guideline, not a hard limit — follow it unless the user's prompt calls for a different scale. The user can raise or remove it with "Dynamic workflow size" in /config.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "script": {
+      "description": "Self-contained workflow script. Must begin with `export const meta = { name, description, phases }` (pure literal, no computed values) followed by the script body using agent()/parallel()/pipeline()/phase().",
+      "type": "string",
+      "maxLength": 524288
+    },
+    "name": {
+      "description": "Name of a predefined workflow (built-in or from .claude/workflows/). Resolves to a self-contained script.",
+      "type": "string"
+    },
+    "description": {
+      "description": "Ignored — set the workflow description in the script's `meta` block.",
+      "type": "string"
+    },
+    "title": {
+      "description": "Ignored — set the workflow title in the script's `meta` block.",
+      "type": "string"
+    },
+    "args": {
+      "description": "Optional input value exposed to the script as the global `args`, verbatim. Pass arrays/objects as actual JSON values, NOT as a JSON-encoded string — a stringified list breaks `args.filter`/`args.map` in the script. Use for parameterized named workflows (e.g. a research question)."
+    },
+    "scriptPath": {
+      "description": "Path to a workflow script file on disk. Every Workflow invocation persists its script under the session directory and returns the path in the tool result. To iterate, edit that file with Write/Edit and re-invoke Workflow with the same `scriptPath` instead of re-sending the full script. Takes precedence over `script` and `name`.",
+      "type": "string"
+    },
+    "resumeFromRunId": {
+      "description": "Run ID of a prior Workflow invocation to resume from. Completed agent() calls with unchanged (prompt, opts) return their cached results instantly; only edited or new calls re-run. Same-session only. Stop the prior run first (TaskStop) before resuming.",
+      "type": "string",
+      "pattern": "^wf_[a-z0-9-]{6,}$"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+## Write
+
+Writes a file to the local filesystem, overwriting if one exists.
+
+When to use: creating a new file, or fully replacing one you've already Read. Overwriting an existing file you haven't Read will fail. For partial changes, use Edit instead.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "description": "The absolute path to the file to write (must be absolute, not relative)",
+      "type": "string"
+    },
+    "content": {
+      "description": "The content to write to the file",
+      "type": "string"
+    }
+  },
+  "required": [
+    "file_path",
+    "content"
+  ],
+  "additionalProperties": false
+}
+```

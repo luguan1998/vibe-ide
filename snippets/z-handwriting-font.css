@@ -1,0 +1,12 @@
+/*
+  handwriting 手写字体（app 标题 + 右栏 Dir/Git/Aux/Nga tab）
+  只改字体，不动配色与布局；字体缺失时依次回退到楷体
+*/
+
+:root {
+  --ide-app-name-font: 'Segoe Print', 'Ink Free', 'Bradley Hand', 'KaiTi', 'STKaiti', 'Kaiti SC', cursive;
+}
+
+.right-panel__tab {
+  font-family: 'Segoe Print', 'Ink Free', 'Bradley Hand', 'KaiTi', 'STKaiti', 'Kaiti SC', cursive !important;
+}

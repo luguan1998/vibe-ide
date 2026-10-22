@@ -38,6 +38,7 @@ import type { TerminalViewHandle } from './components/TerminalView'
 import { getMainShellType, getAuxShellType } from './utils/shellPrefs'
 import { resolveAbsPath, toFileUrl } from './utils/filePathUtils'
 import type { ProgramStatus } from './programStatus'
+import tomoriHeySound from './assets/tomori-hey.mp3'
 
 const TerminalView = lazy(() => import('./components/TerminalView'))
 
@@ -614,6 +615,9 @@ export default function App() {
   const historyListRef = useRef<HTMLDivElement>(null)
   const [terminalBusy, setTerminalBusy] = useState<Record<string, boolean>>({})
   const [aiBusy, setAiBusy] = useState<Record<string, boolean>>({})
+  const [idleSoundEnabled, setIdleSoundEnabled] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-idle-sound') === '1' } catch { return false }
+  })
   const [pipeRunning, setPipeRunning] = useState<Record<string, boolean>>({})
   const [pipeProgress, setPipeProgress] = useState<Record<string, { current: number; total: number }>>({})
   const pipeRunnersRef = useRef<Map<string, { cancelled: boolean; resolveIdle: (() => void) | null; sleepTimer: ReturnType<typeof setTimeout> | null; sleepResolve: (() => void) | null }>>(new Map())
@@ -629,19 +633,41 @@ export default function App() {
   warnSessionsRef.current = warnSessions
   const [programStatus, setProgramStatus] = useState<Record<string, ProgramStatus>>({})
   const prevBusyRef = useRef<Record<string, boolean>>({})
+  const idleAudioRef = useRef<HTMLAudioElement | null>(null)
+  const lastIdleSoundRef = useRef(0)
+  const idleSoundEnabledRef = useRef(idleSoundEnabled)
+  idleSoundEnabledRef.current = idleSoundEnabled
+  const playIdleSound = useCallback(() => {
+    if (!idleSoundEnabledRef.current) return
+    const now = Date.now()
+    if (now - lastIdleSoundRef.current < 1200) return
+    lastIdleSoundRef.current = now
+    if (!idleAudioRef.current) idleAudioRef.current = new Audio(tomoriHeySound)
+    idleAudioRef.current.currentTime = 0
+    idleAudioRef.current.play().catch(() => {})
+  }, [])
   // 整个 app 是否聚焦（window blur / 最小化 → false），用于宠物 unfocused 状态
   const [appFocused, setAppFocused] = useState(true)
+  // 会话忙碌唯一真相源：有 7501 上报时以程序状态为准（blocked/error 仍算忙碌，避免权限弹窗误判完成），否则回落启发式
+  const sessionBusy = useMemo(() => {
+    const result: Record<string, boolean> = {}
+    for (const s of sessions) {
+      const state = programStatus[s.id]?.state
+      result[s.id] = state
+        ? state === 'working' || state === 'blocked' || state === 'error'
+        : !!(terminalBusy[s.id] || aiBusy[s.id])
+    }
+    return result
+  }, [sessions, programStatus, terminalBusy, aiBusy])
   const agentStatus = useMemo(() => {
     const result: Record<string, 'running' | 'idle' | 'warn'> = {}
     for (const s of sessions) {
-      const prog = programStatus[s.id]
-      const waiting = prog?.state === 'blocked' || prog?.state === 'error'
-      const busy = prog?.state === 'done' ? false : (terminalBusy[s.id] || aiBusy[s.id] || prog?.state === 'working')
-      // blocked/error 优先于启发式 busy：权限弹窗等待期 TUI 若有重绘，旧逻辑会一直显示 running
-      result[s.id] = waiting ? 'warn' : busy ? 'running' : (warnSessions[s.id] ? 'warn' : 'idle')
+      // blocked/error 优先于忙碌：权限弹窗等待期 TUI 若有重绘，旧逻辑会一直显示 running
+      const waiting = programStatus[s.id]?.state === 'blocked' || programStatus[s.id]?.state === 'error'
+      result[s.id] = waiting ? 'warn' : sessionBusy[s.id] ? 'running' : (warnSessions[s.id] ? 'warn' : 'idle')
     }
     return result
-  }, [sessions, terminalBusy, aiBusy, warnSessions, programStatus])
+  }, [sessions, sessionBusy, warnSessions, programStatus])
   // 任意 session(AI tab / 主终端输出活动)处于 running → 暂停 git 元数据监听
   // (AI 每轮裸 git 命令刷 .git/index 会反射成 GitTab 刷新风暴);全部非 running 才恢复。
   // 主进程 setGitMetaPaused 幂等,重复上报为 no-op。
@@ -657,13 +683,16 @@ export default function App() {
     const effSel = boardActive ? null : activeSessionId
     for (const s of sessions) {
       const sid = s.id
-      const busy = !!(terminalBusy[sid] || aiBusy[sid])
+      const busy = !!sessionBusy[sid]
       const prevBusy = prev[sid] ?? false
-      // 非被选中 session：running→idle 变 warn，并触发一次回复快照读取（游标未注册时主进程 no-op）
-      if (prevBusy && !busy && sid !== effSel) {
-        updates[sid] = true
-        changed = true
-        window.api.ai.readReply(sid).catch(() => {})
+      if (prevBusy && !busy) {
+        playIdleSound()
+        // 非被选中 session：running→idle 变 warn，并触发一次回复快照读取（游标未注册时主进程 no-op）
+        if (sid !== effSel) {
+          updates[sid] = true
+          changed = true
+          window.api.ai.readReply(sid).catch(() => {})
+        }
       }
     }
     if (effSel && warnSessionsRef.current[effSel]) {
@@ -671,7 +700,7 @@ export default function App() {
       changed = true
     }
     const cur: Record<string, boolean> = {}
-    for (const s of sessions) cur[s.id] = !!(terminalBusy[s.id] || aiBusy[s.id])
+    for (const s of sessions) cur[s.id] = !!sessionBusy[s.id]
     prevBusyRef.current = cur
     if (changed) {
       setWarnSessions(p => {
@@ -683,7 +712,7 @@ export default function App() {
         return n
       })
     }
-  }, [sessions, terminalBusy, aiBusy, activeSessionId, centerView])
+  }, [sessions, sessionBusy, activeSessionId, centerView, playIdleSound])
 
   // 窗口聚焦/可见性 → appFocused（切走/最小化时宠物切 unfocused）
   useEffect(() => {
@@ -704,10 +733,10 @@ export default function App() {
   const petLogicalState = useMemo<PetLogicalState>(() => {
     if (Object.values(warnSessions).some(Boolean)) return 'approval'
     const sid = activeSessionId ?? ''
-    if (terminalBusy[sid] || aiBusy[sid]) return 'busy'
+    if (sessionBusy[sid]) return 'busy'
     if (!appFocused) return 'unfocused'
     return 'idle'
-  }, [warnSessions, terminalBusy, aiBusy, activeSessionId, appFocused])
+  }, [warnSessions, sessionBusy, activeSessionId, appFocused])
 
   const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
   // GitTab 手动导航打开的工作树浏览态（仅内存）；会话自身的 worktree 身份从 SessionTab 字段派生，
@@ -1013,6 +1042,9 @@ export default function App() {
     try { localStorage.setItem('vibe-ide-cg-enabled', cgEnabled ? '1' : '0') } catch {}
     window.api.code.setEnabled(cgEnabled)
   }, [cgEnabled])
+  useEffect(() => {
+    try { localStorage.setItem('vibe-ide-idle-sound', idleSoundEnabled ? '1' : '0') } catch {}
+  }, [idleSoundEnabled])
   useEffect(() => {
     try { localStorage.setItem('vibe-ide-lsp-langs', JSON.stringify(lspLangs)) } catch {}
     for (const { id } of LSP_SERVERS) window.api.lsp.setEnabled(id, lspLangs.includes(id))
@@ -3567,6 +3599,8 @@ export default function App() {
             onToggleWordWrap={setWordWrap}
             cgEnabled={cgEnabled}
             onToggleCgEnabled={setCgEnabled}
+            idleSound={idleSoundEnabled}
+            onToggleIdleSound={setIdleSoundEnabled}
             lspLangs={lspLangs}
             onToggleLspLang={toggleLspLang}
             lspMultiDef={lspMultiDef}

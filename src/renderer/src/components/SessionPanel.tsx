@@ -375,6 +375,8 @@ interface SessionPanelProps {
   onToggleWordWrap?: (value: boolean) => void
   cgEnabled?: boolean
   onToggleCgEnabled?: (value: boolean) => void
+  idleSound?: boolean
+  onToggleIdleSound?: (value: boolean) => void
   lspLangs?: string[]
   onToggleLspLang?: (serverId: string, value: boolean) => void
   lspMultiDef?: string
@@ -653,6 +655,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onToggleWordWrap,
   cgEnabled = true,
   onToggleCgEnabled,
+  idleSound = false,
+  onToggleIdleSound,
   lspLangs,
   onToggleLspLang,
   lspMultiDef,
@@ -2767,6 +2771,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onAdjustTerminalFontSize={onAdjustTerminalFontSize}
         cgEnabled={cgEnabled}
         onToggleCgEnabled={onToggleCgEnabled}
+        idleSound={idleSound}
+        onToggleIdleSound={onToggleIdleSound}
         lspLangs={lspLangs}
         onToggleLspLang={onToggleLspLang}
         lspMultiDef={lspMultiDef}

@@ -61,6 +61,19 @@ function edgePath(from: Positioned, to: Positioned): string {
   return `M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2},${y2}`
 }
 
+// 图是否"真的变了"只看结构：轮次数/分支数/分支末端。preview 在整轮结束后由终读补齐，
+// 轮询期间不因 preview 抖动反复重排。
+function graphChangeKey(g: AiGraph | null): string {
+  if (!g) return ''
+  return `${g.rootId}|${g.activeClaudeSessionId}|${g.nodes.length}|` +
+    g.branches.map(b => `${b.claudeSessionId}:${b.turnCount}:${b.tipNodeId}`).join(',')
+}
+
+// 落盘时刻不可预测（慢模型、resume 大转录、busy 中插话排队），不拿固定延时猜，
+// 读到图变了为止；这些间隔只用于控制重试密度。
+const RETRY_DELAYS = [600, 1200, 2000, 3000]
+const RETRY_MAX_MS = 10_000
+
 function relTime(ts: number, t: (k: string) => string): string {
   if (!ts) return ''
   const diff = Date.now() - ts
@@ -102,16 +115,27 @@ export default function ConversationGraph({
   const panRef = useRef<{ sx: number; sy: number; vx: number; vy: number; moved: boolean } | null>(null)
   const [panning, setPanning] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const graphRef = useRef<AiGraph | null>(null)
+  const busyRef = useRef(busy)
+  busyRef.current = busy
 
-  const load = useCallback(async (silent = false) => {
-    if (!sessionId || !workspacePath) return
+  const load = useCallback(async (silent = false, skipUnchanged = false): Promise<AiGraph | null> => {
+    if (!sessionId || !workspacePath) return null
     const { configDir } = readAiCliConfig()
     if (!silent) setLoading(true)
     try {
       const g: AiGraph | null = await window.api.ai.sessionGraph(sessionId, workspacePath, configDir)
+      if (skipUnchanged && graphRef.current && graphChangeKey(g) === graphChangeKey(graphRef.current)) {
+        return graphRef.current
+      }
+      graphRef.current = g
       setGraph(g)
+      return g
     } catch {
+      if (skipUnchanged) return null
+      graphRef.current = null
       setGraph(null)
+      return null
     } finally {
       if (!silent) setLoading(false)
     }
@@ -119,17 +143,38 @@ export default function ConversationGraph({
 
   useEffect(() => { if (isActive) load() }, [isActive, load])
 
-  // 发送/落轮边沿先于 CLI 写入转录：立即读会拿到旧图，且 busy 期间信号钉住不再变，
-  // 于是新轮次一直不出现。延后一档再读，busy 中再补读一次兜住慢落盘。
+  // 发送/落轮边沿先于 CLI 写转录，且 busy 期间信号钉住不再变：busy 中从第一档退避开始读，
+  // 图没变就继续退避重读，直到新轮次真的出现；busy 结束的那次读照常做权威刷新。
   const lastSignalRef = useRef(refreshSignal)
   useEffect(() => {
     if (lastSignalRef.current === refreshSignal) return
     lastSignalRef.current = refreshSignal
     if (!isActive) return
-    const t1 = setTimeout(() => { void load(true) }, 500)
-    const t2 = busy ? setTimeout(() => { void load(true) }, 1600) : null
-    return () => { clearTimeout(t1); if (t2) clearTimeout(t2) }
-  }, [isActive, load, refreshSignal, busy])
+
+    const baseline = graphChangeKey(graphRef.current)
+    const startedAt = Date.now()
+    let cancelled = false
+    let attempt = 0
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const refresh = async () => {
+      const g = await load(true, busyRef.current)
+      if (cancelled) return
+      if (graphChangeKey(g) !== baseline) return
+      if (!busyRef.current || Date.now() - startedAt >= RETRY_MAX_MS) return
+      const delay = RETRY_DELAYS[Math.min(attempt++, RETRY_DELAYS.length - 1)]
+      timer = setTimeout(() => { void refresh() }, delay)
+    }
+
+    if (busyRef.current) {
+      // 发送边沿必然早于 CLI 写盘，立即读只能拿到旧图，直接从第一档退避开始
+      timer = setTimeout(() => { void refresh() }, RETRY_DELAYS[attempt++])
+    } else {
+      void refresh()
+    }
+
+    return () => { cancelled = true; if (timer) clearTimeout(timer) }
+  }, [isActive, load, refreshSignal])
 
   const { items, width, height } = useMemo(() => layoutGraph(graph?.nodes ?? []), [graph])
   const posById = useMemo(() => new Map(items.map(i => [i.node.id, i])), [items])

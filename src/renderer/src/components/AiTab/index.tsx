@@ -830,7 +830,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   dispatchMessageRef.current = dispatchMessage
 
   // 图只在轮次落定后重扫盘：busy 期间钉住不变，避免每条 assistant 分段都重读 JSONL；
-  // graphSentTick 让"就在图里发的这条"触发一次重读（CLI 落盘滞后，由 ConversationGraph 延迟执行）
+  // graphSentTick 让"就在图里发的这条"触发重读（CLI 落盘滞后，由 ConversationGraph 重试到图真的变了）
   const graphRefreshSignal = useMemo(
     () => (state.busy ? 0 : state.messages.length) + ':' + (branchRevision ?? 0) + ':' + graphSentTick,
     [state.busy, state.messages.length, branchRevision, graphSentTick],

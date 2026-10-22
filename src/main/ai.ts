@@ -246,7 +246,7 @@ function buildClaudeArgs(opts: {
     '--append-system-prompt', [
       `You are running on ${platformDesc}. The workspace directory is: ${opts.cwd}`,
       mcpUsageHint(opts),
-    ].filter(Boolean).join('\n\n'),
+    ].filter(Boolean).join(' — '),
   ]
   if (opts.resumeSessionId) {
     args.push('--resume', opts.resumeSessionId)
@@ -422,12 +422,22 @@ export function spawnClaude(opts: {
   if (opts.computerUse || opts.browserUse) {
     env.ENABLE_TOOL_SEARCH = 'false'
   }
-  return spawn(resolved.binary, args, {
+  const spawnOpts = {
     cwd: opts.cwd,
     env,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    shell: process.platform === 'win32',
-  })
+    stdio: ['pipe', 'pipe', 'pipe'] as ['pipe', 'pipe', 'pipe'],
+  }
+  // shell 模式只拼接参数不转义：含空格的参数必须手动加引号，否则 --mcp-config 等后续开关被拆散。
+  // 换行在 cmd 里是命令分隔符（引号也挡不住），system prompt 因此不能用 \n 分段。
+  if (process.platform === 'win32') {
+    return spawn([resolved.binary, ...args].map(quoteWinArg).join(' '), { ...spawnOpts, shell: true })
+  }
+  return spawn(resolved.binary, args, spawnOpts)
+}
+
+function quoteWinArg(s: string): string {
+  if (!/[\s"]/.test(s)) return s
+  return '"' + s.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1') + '"'
 }
 
 function isFileEditTool(toolName: string): boolean {

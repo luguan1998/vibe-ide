@@ -185,6 +185,8 @@ interface AppearancePanelProps {
   onAdjustTerminalFontSize?: (delta: number) => void
   cgEnabled?: boolean
   onToggleCgEnabled?: (v: boolean) => void
+  idleSound?: boolean
+  onToggleIdleSound?: (v: boolean) => void
   lspLangs?: string[]
   onToggleLspLang?: (serverId: string, v: boolean) => void
   lspMultiDef?: string
@@ -212,6 +214,7 @@ const AppearancePanel = function AppearancePanel({
   termFontFamily = 'Cascadia Code', onSetTermFontFamily,
   terminalFontSize = 14, onAdjustTerminalFontSize,
   cgEnabled = true, onToggleCgEnabled,
+  idleSound = false, onToggleIdleSound,
   lspLangs = [], onToggleLspLang,
   lspMultiDef = 'peek', onSetLspMultiDef,
   sessionEmojis, onSetSessionEmojis,
@@ -723,6 +726,10 @@ const AppearancePanel = function AppearancePanel({
 
             {activeCategory === 'advanced' && (
               <div className="p-4 flex flex-col">
+                {onToggleIdleSound && (
+                  <ToggleRow labelKey="Idle Sound" descKey='Play a short "hey" when any session finishes and goes idle. Off by default.'
+                    checked={idleSound} onChange={onToggleIdleSound} zone="global" />
+                )}
                 {onToggleCgEnabled && (
                   <ToggleRow labelKey="CodeGraph" descKey="Code symbol indexing for smart search. Disable to stop the background indexer and file watcher."
                     checked={cgEnabled} onChange={onToggleCgEnabled} zone="global" />
