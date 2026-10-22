@@ -178,10 +178,13 @@
   padding: 0 !important;
 }
 /* 去掉全局 hover 扫入横线 — 本主题 cwd 是文件夹 tab 形态 */
+/*
 .session-group__header::after {
   content: none !important;
 }
+*/
 /* cwd folder tab — 梯形包裹 emoji+path，加长右边，按钮不包裹 */
+/*
 .session-group__header > div:first-child {
   display: inline-flex !important;
   align-self: flex-end !important;
@@ -202,6 +205,7 @@
 .session-group__header > div:first-child:hover {
   background: linear-gradient(135deg, rgb(255 64 129 / 0.2), rgb(255 204 0 / 0.16)) !important;
 }
+*/
 /* sessions 容器 — 去外部框线 */
 .session-group__header + div {
   border: none !important;

@@ -109,7 +109,7 @@
   background: rgba(0 122 255 / 0.14) !important;
 }
 
-/* 会话分组 — cwd 梯形 tab 包裹 + 与第一个 session 结合 */
+/* 会话分组 */
 .session-group {
   border: none !important;
   background: transparent !important;
@@ -121,31 +121,6 @@
   border: none !important;
   background: transparent !important;
   padding: 0 !important;
-}
-/* 去掉全局 hover 扫入横线 — 本主题 cwd 是文件夹 tab 形态 */
-.session-group__header::after {
-  content: none !important;
-}
-/* cwd folder tab — 梯形包裹 emoji+path，加长右边，按钮不包裹 */
-.session-group__header > div:first-child {
-  display: inline-flex !important;
-  align-self: flex-end !important;
-  align-items: center !important;
-  gap: 8px !important;
-  padding: 2px 12px 2px 6px !important;
-  margin: 0 0 -1px !important;
-  border: 1px solid rgba(0 0 0 / 0.08) !important;
-  border-bottom: none !important;
-  border-radius: 8px 8px 0 0 !important;
-  background: rgba(255 255 255 / 0.8) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
-  backdrop-filter: blur(12px) saturate(180%) !important;
-  position: relative !important;
-  z-index: 10 !important;
-  box-shadow: 0 1px 2px rgba(0 0 0 / 0.04) !important;
-}
-.session-group__header > div:first-child:hover {
-  background: rgba(0 122 255 / 0.06) !important;
 }
 /* sessions 容器 — 去外部框线 */
 .session-group__header + div {
