@@ -209,11 +209,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
   const [stashCount, setStashCount] = useState(0)
   const [busy, setBusy] = useState(false)
   const [submodules, setSubmodules] = useState<GitSubmodule[]>([])
-  const [hasSubs, setHasSubs] = useState(false)
   const [subsLoading, setSubsLoading] = useState(false)
   const [showSubDropdown, setShowSubDropdown] = useState(false)
   const subReqIdRef = useRef(0)
-  const subLoadedRef = useRef(false)
   const gitRootRef = useRef<string | null>(null)
   const gitCommonDirRef = useRef<string>('')
   const resolveFullPath = useCallback((filePath: string) => {
@@ -452,36 +450,18 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
     }
   }, [])
 
-  // 懒加载两层：面板加载/切换只 probe(21ms)决定下拉按钮显隐；点开下拉才拉全量清单(主进程 10s 缓存)
-  const probeReqIdRef = useRef(0)
-  const probeSubmodules = useCallback(async () => {
-    const repo = submoduleNav?.originalPath || effectiveGitPath
-    const reqId = ++probeReqIdRef.current
-    if (!repo) { setHasSubs(false); return }
-    try {
-      const ok = await window.api.git.submodulesProbe(repo)
-      if (probeReqIdRef.current !== reqId) return
-      setHasSubs(!!ok)
-    } catch {
-      if (probeReqIdRef.current === reqId) setHasSubs(false)
-    }
-  }, [submoduleNav, effectiveGitPath])
-
-  // Refresh submodule list — 在子模块上下文时仍查原始仓库，支持下拉里兄弟切换；force 绕主进程缓存(手动刷新)
-  const refreshSubmodules = useCallback(async (force?: boolean) => {
+  // 子模块清单只在点击标题栏分支名时按需查询；子模块上下文时查原始仓库，支持下拉里兄弟切换
+  const refreshSubmodules = useCallback(async () => {
     const repo = submoduleNav?.originalPath || effectiveGitPath
     if (!repo) { setSubmodules([]); return }
     const reqId = ++subReqIdRef.current
     setSubsLoading(true)
     try {
-      const result = await window.api.git.submodules(repo, force)
+      const result = await window.api.git.submodules(repo)
       if (subReqIdRef.current !== reqId) return
-      const list = Array.isArray(result) ? result : []
-      setSubmodules(list)
-      subLoadedRef.current = true
-      if (list.length === 0) setHasSubs(false)
+      setSubmodules(Array.isArray(result) ? result : [])
     } catch {
-      if (subReqIdRef.current === reqId) { setSubmodules([]); subLoadedRef.current = false }
+      if (subReqIdRef.current === reqId) setSubmodules([])
     } finally {
       if (subReqIdRef.current === reqId) setSubsLoading(false)
     }
@@ -888,10 +868,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
         await refreshStatus()
         await refreshGraph()
         await refreshBranches()
-        probeSubmodules()
       }
     } finally { setBusy(false) }
-  }, [workspacePath, refreshStatus, refreshGraph, refreshBranches, probeSubmodules])
+  }, [workspacePath, refreshStatus, refreshGraph, refreshBranches])
 
   const switchGitWorkspace = useCallback(async (targetPath: string) => {
     pendingGitPathRef.current = targetPath
@@ -902,8 +881,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
     setHasMoreGraph(true)
     setBranches([])
     setSubmodules([])
-    setHasSubs(false)
-    subLoadedRef.current = false
     setShowSubDropdown(false)
     setError(null)
     setLoading(true)
@@ -917,10 +894,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
       refreshGraph()
       refreshBranches()
       refreshStashCount()
-      probeSubmodules()
     }
     setLoading(false)
-  }, [refreshStatus, refreshGraph, refreshBranches, refreshStashCount, probeSubmodules])
+  }, [refreshStatus, refreshGraph, refreshBranches, refreshStashCount])
 
   // Switch git workspace when effective path changes（pauseWhenHidden：隐藏时不动、记 full 脏，
   // 显示时由补刷 effect 补做——路径 A→B→A 往返也强制补一次，防停留在旧快照）
@@ -1297,28 +1273,23 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
         <div className="relative h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean git-tab__header">
           <div className="flex items-center gap-1 min-w-0 flex-1">
             <PanelGitIcon className="w-3.5 h-3.5 text-ide-accent shrink-0" />
-            {hasSubs ? (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowSubDropdown(v => {
-                    const next = !v
-                    if (next && !subLoadedRef.current) refreshSubmodules()
-                    return next
-                  })
-                }}
-                title={submoduleNav ? `${t('Submodule')}: ${submoduleNav.submoduleName}` : t('Switch submodule')}
-                className="flex items-center gap-1.5 min-w-0 max-w-full rounded px-1 -mx-1 hover:bg-ide-hover transition-colors"
-              >
-                <span className="text-sm text-ide-text font-medium truncate git-tab__branch-name">{status.branch}</span>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 shrink-0 text-ide-text-muted transition-transform ${showSubDropdown ? 'rotate-180' : ''}`}><path d="M4 6l4 4 4-4" /></svg>
-                {submoduleNav && (
-                  <span className="shrink-0 max-w-[90px] truncate text-[11px] font-medium leading-4 px-1.5 rounded bg-ide-accent/10 text-ide-accent">{submoduleNav.submoduleName}</span>
-                )}
-              </button>
-            ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowSubDropdown(v => {
+                  const next = !v
+                  if (next) refreshSubmodules()
+                  return next
+                })
+              }}
+              title={submoduleNav ? `${t('Submodule')}: ${submoduleNav.submoduleName}` : t('Switch submodule')}
+              className="flex items-center gap-1.5 min-w-0 max-w-full rounded px-1 -mx-1 hover:bg-ide-hover transition-colors"
+            >
               <span className="text-sm text-ide-text font-medium truncate git-tab__branch-name">{status.branch}</span>
-            )}
+              {submoduleNav && (
+                <span className="shrink-0 max-w-[90px] truncate text-[11px] font-medium leading-4 px-1.5 rounded bg-ide-accent/10 text-ide-accent">{submoduleNav.submoduleName}</span>
+              )}
+            </button>
             {status.ahead > 0 && <span className="text-ide-success text-[11px]">↑{status.ahead}</span>}
           </div>
           <button
@@ -1334,7 +1305,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
             </svg>
           </button>
           <button
-            onClick={() => { refreshStatus(); refreshGraph(); refreshBranches(); probeSubmodules(); if (subLoadedRef.current) refreshSubmodules(true) }}
+            onClick={() => { refreshStatus(); refreshGraph(); refreshBranches() }}
             className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
             title={t('Refresh')}
           >
@@ -1342,13 +1313,16 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
               <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
             </svg>
           </button>
-          {showSubDropdown && (subsLoading || submodules.length > 0) && (
+          {showSubDropdown && (
             <div
               onClick={(e) => e.stopPropagation()}
               className="absolute top-full left-2 mt-1 z-50 w-56 max-h-64 overflow-y-auto bg-ide-bg border border-ide-border rounded shadow-lg py-1"
             >
               {subsLoading && submodules.length === 0 && (
                 <div className="px-3 py-1.5 text-xs text-ide-text-muted">{t('Discovering submodules...')}</div>
+              )}
+              {!subsLoading && submodules.length === 0 && !submoduleNav && (
+                <div className="px-3 py-1.5 text-xs text-ide-text-muted">{t('No submodules')}</div>
               )}
               {submoduleNav && (
                 <button
@@ -1367,14 +1341,15 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
                 return (
                   <button
                     key={sm.absPath}
-                    onClick={() => { if (!isCurrent) handleNavigateToSubmodule(sm) }}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs ${isCurrent ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text hover:bg-ide-hover'}`}
+                    onClick={() => { if (!isCurrent && !sm.uninit) handleNavigateToSubmodule(sm) }}
+                    disabled={!!sm.uninit}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs ${isCurrent ? 'text-ide-accent bg-ide-accent/10' : sm.uninit ? 'text-ide-text-muted cursor-default' : 'text-ide-text hover:bg-ide-hover'}`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <FolderIcon name={sm.name} className="w-3.5 h-3.5" />
-                      <span className="truncate">{sm.name}</span>
+                      <span className={`truncate${sm.uninit ? ' italic' : ''}`}>{sm.name}</span>
                     </div>
-                    <span className="text-[10px] text-ide-text-muted font-mono truncate shrink-0">{sm.branch || sm.sha.slice(0, 7)}</span>
+                    <span className="text-[10px] text-ide-text-muted font-mono truncate shrink-0">{sm.uninit ? t('Not initialized') : sm.branch || sm.sha.slice(0, 7)}</span>
                   </button>
                 )
               })}

@@ -92,8 +92,7 @@ declare global {
         setFilterRules: (rules: string[]) => Promise<any>
         lineLog: (filePath: string, lineNumber: number, opts?: { rev?: string; staged?: boolean }) => Promise<any>
         graph: (opts?: { count?: number; skip?: number }) => Promise<any>
-        submodules: (repoPath: string, force?: boolean) => Promise<any>
-        submodulesProbe: (repoPath: string) => Promise<boolean>
+        submodules: (repoPath: string) => Promise<any>
         prProviders: () => Promise<PrProviderView[]>
         prProviderSave: (input: PrProviderInput) => Promise<PrProviderView[]>
         prProviderDelete: (id: string) => Promise<PrProviderView[]>

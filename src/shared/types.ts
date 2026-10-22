@@ -43,7 +43,6 @@ export const IPC_CHANNELS = {
   GIT_LINE_LOG: 'git:lineLog',
   GIT_GRAPH: 'git:graph',
   GIT_SUBMODULES: 'git:submodules',
-  GIT_SUBMODULES_PROBE: 'git:submodulesProbe',
 
   // Git PR (multi-host: github / gitlab / intranet codehub)
   GIT_PR_PROVIDERS: 'git:prProviders',
@@ -457,6 +456,8 @@ export interface GitSubmodule {
   absPath: string
   branch: string
   sha: string
+  // 已声明但未初始化（git clone 默认不递归）：目录为空，进入会落到「不是 git 仓库」
+  uninit?: boolean
 }
 
 export interface GitCommitFile {

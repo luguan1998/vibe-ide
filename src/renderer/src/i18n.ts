@@ -383,7 +383,9 @@ const ZH_MAP: Record<string, string> = {
   'Show remote': '显示远程分支',
   'Switch submodule': '切换子模块',
   'Discovering submodules...': '子模块探索中...',
+  'No submodules': '无子模块',
   'Submodule': '子模块',
+  'Not initialized': '未初始化',
   'Main Repository': '主仓库',
 
   // GitTab - Commit area
