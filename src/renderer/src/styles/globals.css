@@ -141,26 +141,20 @@ html, body, #root {
   transform: translateY(calc(-100% - 26px));
 }
 
-/* Ctrl+hover 可跳转单词的下划线（VS Code 同款交互）。多带一层 .view-lines：
-   笔刷模式下编辑器正文改用系统光标，这里得压过它 */
+/* Ctrl+hover 可跳转单词的下划线（VS Code 同款交互） */
 .monaco-editor .view-lines .vibe-def-link {
   text-decoration: underline;
   text-underline-position: under;
   cursor: pointer !important;
 }
 
-/* Brush mode: feather pen cursor */
+/* Brush mode: feather pen cursor。Monaco 子树整体排除：Ctrl+左键跳转时笔会先抢跑
+   闪一下，行号槽 / 滚动条 / hover / peek 浮层同理，编辑器内一律保留原生光标 */
 .diff-brush-mode,
-.diff-brush-mode *,
+.diff-brush-mode *:not(.monaco-editor, .monaco-editor *),
 .brush-copy-mode,
 .brush-copy-mode * {
   cursor: var(--brush-cursor, crosshair) !important;
-}
-/* 编辑器正文改用系统光标：跳转词的手型要等 LSP 往返才出，笔会先抢跑闪一下。
-   行号槽、滚动条、文件末尾空白等 .view-lines 之外仍是笔 */
-.diff-brush-mode .view-lines,
-.diff-brush-mode .view-lines * {
-  cursor: auto !important;
 }
 
 .ai-tab__plan-content {
