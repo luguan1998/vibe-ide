@@ -39,7 +39,7 @@ interface AiTabProps {
   backend: AiBackend
   onViewAi: () => void
   onRenameSession: (name: string) => void
-  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
   onForkSession?: (userMessageIndex: number, content?: string, occurrence?: number) => void
   onGraphForkSend?: (node: AiGraphNode, text: string) => Promise<boolean>
   onGraphSendToBranch?: (claudeSessionId: string, cwd: string, text: string) => boolean

@@ -459,7 +459,7 @@ function CopyButton({ text, className = 'opacity-0 group-hover/meta:opacity-100 
 function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }: {
   messages: AiMessage[]
   workspacePath: string | null
-  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
   viewMode?: number
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -503,7 +503,7 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
 function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, viewMode, onFork, forkIdx, isLive, isLatestAssistant, dwellContent, turnTools = 0 }: {
   message: AiMessage
   workspacePath: string | null
-  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
   copyText?: string
   viewMode?: number
   onFork: (idx: number) => void
@@ -692,7 +692,7 @@ export function TodoListPanel({ items }: { items: TodoItem[] }) {
 const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, turnOngoing, isLatestAssistant, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal, allowHistory = true, dwellContent }: {
   message: AiMessage
   workspacePath: string | null
-  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
   userMessageIndex: number
   isBusy: boolean
   turnOngoing: boolean
@@ -771,7 +771,7 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
   busy: boolean
   pendingPermission: boolean
   workspacePath: string | null
-  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
   onRevert: (idx: number) => void
   onRevertAndCode: (idx: number) => void
   onFork: (idx: number) => void

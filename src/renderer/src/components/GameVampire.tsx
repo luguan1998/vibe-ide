@@ -49,10 +49,10 @@ const PASSIVES: PassiveDef[] = [
 
 interface EvolutionDef { base: string; passive: string; id: string; name: string; icon: string; desc: string }
 const EVOLUTIONS: EvolutionDef[] = [
-  { base: 'wand', passive: 'rage', id: 'wandx', name: '神圣魔杖', icon: '🌟', desc: '追踪弹·无限穿透·伤害翻倍' },
+  { base: 'wand', passive: 'rage', id: 'wandx', name: '神圣魔杖', icon: '🌟', desc: '追踪弹·弹射3次·伤害翻倍' },
   { base: 'dagger', passive: 'armor', id: 'daggerx', name: '千刃', icon: '💫', desc: '数量翻倍·刀刃穿透' },
   { base: 'holy', passive: 'regen', id: 'holyx', name: '血色黎明', icon: '☄️', desc: '法阵跟随移动·范围大增' },
-  { base: 'orb', passive: 'magnet', id: 'orbx', name: '雷暴', icon: '🌩️', desc: '全场落雷·伤害翻倍' },
+  { base: 'orb', passive: 'magnet', id: 'orbx', name: '雷暴', icon: '🌩️', desc: '范围落雷·伤害翻倍' },
   { base: 'blade', passive: 'boots', id: 'bladex', name: '瓦尔玛努斯', icon: '🌀', desc: '巨型环绕之刃·数量更多' },
 ]
 
@@ -568,7 +568,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     const lv = evo ? 5 : (weaponsRef.current.wand || 0)
     const dmg = (evo ? 26 : 10 + 4 * lv) * (1 + 0.15 * (passivesRef.current.rage || 0))
     let target: Enemy | null = null
-    let bestD = 240
+    let bestD = 300
     for (const e of enemiesRef.current) {
       if (e.dead || e.burrow > 0) continue
       const d = Math.hypot(e.x - p.x, e.y - p.y)
@@ -576,7 +576,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     }
     if (target) {
       const a = Math.atan2(target.y - p.y, target.x - p.x)
-      shotsRef.current.push({ x: p.x, y: p.y, vx: Math.cos(a) * (evo ? 490 : 430), vy: Math.sin(a) * (evo ? 490 : 430), dmg, kind: 'wand', life: 1.6, pierce: evo ? 99 : lv >= 3 ? 1 : 0, evo })
+      shotsRef.current.push({ x: p.x, y: p.y, vx: Math.cos(a) * (evo ? 490 : 430), vy: Math.sin(a) * (evo ? 490 : 430), dmg, kind: 'wand', life: 1.6, pierce: evo ? 3 : lv >= 3 ? 1 : 0, evo })
       p.facing = a
       for (let j = 0; j < 4; j++) {
         const fa = Math.random() * Math.PI * 2
@@ -592,7 +592,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     const dmg = (evo ? 24 : 9 + 3.5 * lv) * (1 + 0.15 * (passivesRef.current.rage || 0))
     const n = evo ? 12 : 2 + lv
     for (let i = 0; i < n; i++) {
-      const a = p.facing + (Math.random() - 0.5) * (evo ? 2 : 1.4)
+      const a = p.facing + (Math.random() - 0.5) * (evo ? 2 : 1)
       shotsRef.current.push({ x: p.x, y: p.y, vx: Math.cos(a) * 380, vy: Math.sin(a) * 380, dmg, kind: 'dagger', life: 1.2, pierce: evo ? 1 : 0, evo })
       for (let j = 0; j < 2; j++) {
         const fa = Math.random() * Math.PI * 2
@@ -625,7 +625,7 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
     const evo = !!weaponsRef.current.orbx
     const lv = evo ? 5 : (weaponsRef.current.orb || 0)
     const dmg = (evo ? 40 : 12 + 4.5 * lv) * (1 + 0.15 * (passivesRef.current.rage || 0))
-    const radius = evo ? 99999 : 150 + 22 * lv
+    const radius = evo ? 400 : 150 + 22 * lv
     const hits: Enemy[] = []
     for (const e of enemiesRef.current) {
       if (e.dead) continue
@@ -1888,20 +1888,20 @@ export default function GameVampire({ onBack }: { onBack?: () => void }) {
             <div ref={hudLeftRef} className="bg-black/45 rounded-lg px-2.5 py-1.5 backdrop-blur-[2px] w-36 origin-top-left">
               <div className="flex items-center gap-2">
                 <span className="text-xs leading-none">❤️</span>
-                <div className="flex-1 h-2 bg-black/60 rounded-full overflow-hidden border border-white/10">
+                <div className="flex-1 min-w-14 h-2 bg-black/60 rounded-full overflow-hidden border border-white/10">
                   <div
                     className="h-full rounded-full transition-[width] duration-150"
                     style={{ width: `${Math.max(0, Math.min(100, hp / (playerRef.current.maxHp || 100)) * 100)}%`, background: hp > 30 ? 'linear-gradient(90deg,#e53935,#ff8a65)' : 'linear-gradient(90deg,#b71c1c,#ff1744)' }}
                   />
                 </div>
-                <span className="text-[9px] text-ide-text-muted tabular-nums shrink-0">{Math.max(0, Math.ceil(hp))}/{playerRef.current.maxHp}</span>
+                <span className="text-[9px] text-ide-text-muted tabular-nums min-w-0 truncate">{Math.max(0, Math.ceil(hp))}/{playerRef.current.maxHp}</span>
               </div>
               <div className="flex items-center gap-2 mt-1.5">
                 <span className="text-xs leading-none">💰</span>
-                <div className="flex-1 h-1.5 bg-black/60 rounded-full overflow-hidden border border-white/10">
+                <div className="flex-1 min-w-14 h-1.5 bg-black/60 rounded-full overflow-hidden border border-white/10">
                   <div className="h-full bg-gradient-to-r from-amber-400 to-yellow-300 transition-[width] duration-200" style={{ width: `${Math.min(100, xp / xpNext * 100)}%` }} />
                 </div>
-                <span className="text-[9px] text-ide-text-muted tabular-nums shrink-0">{Math.round(xp)}/{xpNext}</span>
+                <span className="text-[9px] text-ide-text-muted tabular-nums min-w-0 truncate">{Math.round(xp)}/{xpNext}</span>
               </div>
             </div>
             <div className="flex-1" />

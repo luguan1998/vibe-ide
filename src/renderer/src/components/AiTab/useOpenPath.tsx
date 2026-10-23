@@ -7,19 +7,19 @@ import { resolveAndOpenFile } from '../../utils/filePathOpen'
 // 多命中复用同一个选择器。AiTab 正文点击与工具卡片回形针共用本 hook。
 export function useOpenPath(
   workspacePath: string | null,
-  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
 ) {
-  const [picker, setPicker] = useState<{ matches: string[]; lineNumber?: number } | null>(null)
+  const [picker, setPicker] = useState<{ matches: string[]; lineNumber?: number; mode?: 'diff' | 'edit' } | null>(null)
   const onOpenFileRef = useRef(onOpenFile)
   onOpenFileRef.current = onOpenFile
   const workspacePathRef = useRef(workspacePath)
   workspacePathRef.current = workspacePath
 
-  const openPath = useCallback((rawText: string) => {
+  const openPath = useCallback((rawText: string, mode?: 'diff' | 'edit') => {
     const cwd = workspacePathRef.current
     const open = onOpenFileRef.current
     if (!cwd || !open || !rawText) return
-    resolveAndOpenFile(rawText, cwd, open, (matches, lineNumber) => setPicker({ matches, lineNumber }))
+    resolveAndOpenFile(rawText, cwd, (fullPath, lineNumber) => open(fullPath, lineNumber, mode), (matches, lineNumber) => setPicker({ matches, lineNumber, mode }))
   }, [])
 
   // portal 的事件在 React 树上仍冒泡到宿主（如工具卡片根节点的展开/收起 handler），
@@ -35,7 +35,7 @@ export function useOpenPath(
             matches={picker.matches}
             lineNumber={picker.lineNumber}
             cwd={workspacePath}
-            onSelect={(fullPath, lineNumber) => onOpenFileRef.current?.(fullPath, lineNumber)}
+            onSelect={(fullPath, lineNumber) => onOpenFileRef.current?.(fullPath, lineNumber, picker.mode)}
             onClose={() => setPicker(null)}
           />
         </div>,

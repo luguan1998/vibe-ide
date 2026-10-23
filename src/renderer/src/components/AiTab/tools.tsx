@@ -254,7 +254,7 @@ function getToolFilePath(tool: AiToolUse): string {
 export function AiToolCallCard({ tool, workspacePath, onOpenFile }: {
   tool: AiToolUse
   workspacePath?: string | null
-  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const category = getToolCategory(tool.name)
@@ -288,7 +288,7 @@ export function AiToolCallCard({ tool, workspacePath, onOpenFile }: {
           <button
             type="button"
             title={toolFilePath}
-            onClick={(e) => { e.stopPropagation(); openPath(toolFilePath) }}
+            onClick={(e) => { e.stopPropagation(); openPath(toolFilePath, isFileEdit ? 'diff' : undefined) }}
             className="ai-tab__tool-open shrink-0 p-0.5 rounded text-ide-text-muted/50 opacity-0 group-hover/tool:opacity-100 hover:text-ide-accent transition-opacity"
           >
             <Paperclip size={11} />
@@ -340,7 +340,7 @@ export function AiToolCallCard({ tool, workspacePath, onOpenFile }: {
 export function CompactToolSummary({ tools, workspacePath, onOpenFile }: {
   tools: AiToolUse[]
   workspacePath?: string | null
-  onOpenFile?: (fullPath: string, lineNumber?: number) => void
+  onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const last = tools[tools.length - 1]
@@ -366,7 +366,7 @@ export function CompactToolSummary({ tools, workspacePath, onOpenFile }: {
           <button
             type="button"
             title={lastFilePath}
-            onClick={() => openPath(lastFilePath)}
+            onClick={() => openPath(lastFilePath, getToolCategory(last.name) === 'file' ? 'diff' : undefined)}
             className="ai-tab__tool-open shrink-0 p-0.5 rounded text-ide-text-muted/50 opacity-0 group-hover/tool:opacity-100 hover:text-ide-accent transition-opacity"
           >
             <Paperclip size={11} />

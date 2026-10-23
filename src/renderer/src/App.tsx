@@ -3228,6 +3228,11 @@ export default function App() {
     openFileView(fullPath, { lineNumber })
   }, [openFileView])
 
+  // AI 工具卡：文件编辑类工具的链接默认打开 diff 视图
+  const handleOpenFileFromAiTab = useCallback((fullPath: string, lineNumber?: number, mode?: OpenFileMode) => {
+    openFileView(fullPath, { lineNumber, mode })
+  }, [openFileView])
+
   // 搜索结果点击打开：即使 md 也默认进编辑模式，区别于最近文件 / AI 链接 / callgraph（md 预览）。
   // 想看渲染预览可按 Ctrl+L（view.togglePreview：diff(md) ↔ markdown）。
   const handleOpenSearchResult = useCallback((fullPath: string, lineNumber?: number) => {
@@ -3800,7 +3805,7 @@ export default function App() {
                         onViewAi={() => {
                           setSessions(prev => prev.map(s => s.id === session.id ? { ...s, kind: 'gui' } : s))
                         }}
-                        onOpenFile={handleOpenFileFromSearch}
+                        onOpenFile={handleOpenFileFromAiTab}
                         onRenameSession={async (name: string) => {
                           if (manuallyRenamedRef.current.has(session.id)) return
                           await applyRename(session.id, name)
