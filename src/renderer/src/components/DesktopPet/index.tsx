@@ -5,7 +5,7 @@ import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
-import { Edit, Send, MessageSquareQuote, X } from 'lucide-react'
+import { Edit, Send, MessageSquareQuote, X, BookOpenText, Pin } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
 import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
@@ -37,6 +37,8 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [contextAlign, setContextAlign] = useState<'default' | 'left' | 'right'>('default')
   const [contextOpen, setContextOpen] = useState(false)
   const [contextBtw, setContextBtw] = useState(false)
+  const [contextPinned, setContextPinned] = useState(false)
+  const [contextFocused, setContextFocused] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [draftCmd, setDraftCmd] = useState('')
   const activeKind = sessions.find(s => s.id === activeSessionId)?.kind
@@ -342,6 +344,24 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     return () => window.removeEventListener(BTW_REPLY_EVENT, handler)
   }, [activeSessionId])
 
+  // 手动查看最新一条 AI 回复（不依赖监听开关；监听未开时取完快照即清理游标）
+  const handleReadReply = useCallback(() => {
+    if (!activeSessionId || !activeSessionCwd) return
+    setContextOpen(false)
+    void (async () => {
+      const cfg = readAiCliConfig()
+      window.api.ai.initReplyCursor(activeSessionId, activeSessionCwd, cfg.configDir).then((cr) => {
+        if (cr?.text) {
+          lastShownReplyIdRef.current = cr.messageId
+          setLatestReply({ messageId: cr.messageId, text: cr.text })
+          setReplyBtw(false)
+          setAiBubbleOpen(true)
+        }
+        if (!listenAi) window.api.ai.stopReplyCursor(activeSessionId)
+      }).catch(() => {})
+    })()
+  }, [activeSessionId, activeSessionCwd, listenAi])
+
   const onContextKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.nativeEvent.isComposing) return
     e.preventDefault()
@@ -365,13 +385,13 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     const onDown = (ev: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(ev.target as Node)) {
         setPopupOpen(false)
-        setContextOpen(false)
+        if (!contextPinned) setContextOpen(false)
         if (!replyBtw) setAiBubbleOpen(false)
       }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [popupOpen, contextOpen, aiBubbleOpen, replyBtw])
+  }, [popupOpen, contextOpen, aiBubbleOpen, contextPinned, replyBtw])
 
   useLayoutEffect(() => {
     if (!contextOpen && !configOpen && !aiBubbleOpen) return
@@ -564,6 +584,9 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       )}
       {contextOpen && !contextBtw && (
         <div className={`desktop-pet__context desktop-pet__context--${contextDir}${contextAlign !== 'default' ? ` desktop-pet__context--align-${contextAlign}` : ''}${(contextDir === 'left' || contextDir === 'right') && contextVAlign !== 'center' ? ` desktop-pet__context--v-${contextVAlign}` : ''}`}>
+          {contextPinned && contextFocused && (
+            <div className="desktop-pet__context-hint">按 Enter 发送</div>
+          )}
           <textarea
             ref={contextInputRef}
             className="desktop-pet__context-input"
@@ -572,7 +595,21 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
             onChange={(e) => setDraftCmd(e.target.value)}
             onKeyDown={onContextKeyDown}
             placeholder="插话 Enter 发送"
+            onFocus={() => setContextFocused(true)}
+            onBlur={() => setContextFocused(false)}
           />
+          <div className="flex items-center gap-1 self-end">
+            <button
+              className={`desktop-pet__context-gear${contextPinned ? ' desktop-pet__context-gear--active' : ''}`}
+              onClick={() => setContextPinned(v => !v)}
+              title={contextPinned ? '取消固定' : '固定输入框'}
+            >
+              <Pin size={14} fill={contextPinned ? 'currentColor' : 'none'} />
+            </button>
+            <button className="desktop-pet__context-gear" onClick={handleReadReply} title="显示最新回复">
+              <BookOpenText size={14} />
+            </button>
+          </div>
         </div>
       )}
       <KeypadConfigModal open={configOpen} onClose={() => setConfigOpen(false)} />
