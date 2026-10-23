@@ -254,7 +254,7 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
         <CopyButton text={cleanedContent} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />
       </div>
       {turnSummary && (
-        <div className="ai-tab__turn-summary-row w-full pb-1.5 border-b border-ide-border">
+        <div className="ai-tab__turn-summary-row w-full pb-1.5">
           <button
             type="button"
             onClick={turnExpandable ? onToggleTurn : undefined}
