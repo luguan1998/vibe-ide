@@ -36,11 +36,11 @@ const NAV_ITEMS: { id: CategoryId; label: string; zones: { session: boolean; edi
 
 type Zone = 'global' | 'session' | 'editor' | 'panel' | 'terminal'
 const ZONE_PILL: Record<Zone, { key: string; cls: string }> = {
-  global: { key: 'Affects: Global', cls: 'bg-ide-accent/15 text-ide-accent' },
-  session: { key: 'Affects: Sessions', cls: 'bg-ide-warning/15 text-ide-warning' },
-  editor: { key: 'Affects: Editor', cls: 'bg-ide-success/15 text-ide-success' },
-  panel: { key: 'Affects: Panel', cls: 'bg-ide-danger/15 text-ide-danger' },
-  terminal: { key: 'Affects: Terminal', cls: 'bg-ide-success/15 text-ide-success' },
+  global: { key: 'Global', cls: 'bg-ide-accent/15 text-ide-accent' },
+  session: { key: 'Sessions', cls: 'bg-ide-warning/15 text-ide-warning' },
+  editor: { key: 'Editor', cls: 'bg-ide-success/15 text-ide-success' },
+  panel: { key: 'Panel', cls: 'bg-ide-danger/15 text-ide-danger' },
+  terminal: { key: 'Terminal', cls: 'bg-ide-success/15 text-ide-success' },
 }
 
 function Pill({ zone }: { zone: Zone }) {
@@ -452,19 +452,19 @@ const AppearancePanel = function AppearancePanel({
             className={`w-28 shrink-0 h-7 rounded-l border text-xs flex items-center justify-center transition-all ${
               zones.session ? 'border-ide-accent bg-ide-accent/15 text-ide-accent font-medium'
                              : 'border-ide-border bg-ide-hover/30 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-            }`}>{t('Affects: Sessions')}</button>
+            }`}>{t('Sessions')}</button>
           <button
             onClick={() => setActiveCategory('middle')}
             className={`w-40 shrink-0 h-7 border-t border-b text-xs flex items-center justify-center transition-all ${
               zones.editor ? 'border-ide-accent bg-ide-accent/15 text-ide-accent font-medium'
                            : 'border-ide-border bg-ide-hover/30 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-            }`}>{t('Affects: Editor')} · {t('Affects: Terminal')}</button>
+            }`}>{t('Editor')} · {t('Terminal')}</button>
           <button
             onClick={() => setActiveCategory('panel')}
             className={`w-32 shrink-0 h-7 rounded-r border text-xs flex items-center justify-center transition-all ${
               zones.panel ? 'border-ide-accent bg-ide-accent/15 text-ide-accent font-medium'
                           : 'border-ide-border bg-ide-hover/30 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text'
-            }`}>{t('Affects: Panel')} · MD</button>
+            }`}>{t('Panel')} · MD</button>
         </div>
 
         <div className="flex flex-1 min-h-0">

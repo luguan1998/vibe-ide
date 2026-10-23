@@ -17,11 +17,6 @@ export type Lang = 'en' | 'zh'
 
 // English overrides — keys whose English value differs from the key string itself
 const EN_MAP: Record<string, string> = {
-  'Affects: Global': 'Global',
-  'Affects: Sessions': 'Sessions',
-  'Affects: Editor': 'Editor',
-  'Affects: Panel': 'Panel',
-  'Affects: Terminal': 'Terminal',
   'Show remote': 'Show remote',
   // 会话行角色标签，w-4 宽度容纳不下完整词
   'User': 'U',
@@ -342,11 +337,8 @@ const ZH_MAP: Record<string, string> = {
   'Middle': '中间栏',
   'Right Panel': '右面板',
   'Terminal': '终端',
-  'Affects: Global': '全局',
-  'Affects: Sessions': '会话栏',
-  'Affects: Editor': '编辑器',
-  'Affects: Panel': '右面板',
-  'Affects: Terminal': '终端',
+  'Sessions': '会话栏',
+  'Panel': '右面板',
   'Try right-clicking a tab to hide/show tabs; drag to reorder.': '试试右键 tab 页，可隐藏或显示 tab；拖动可排序',
 
   // GitTab - Stage/Clear all
