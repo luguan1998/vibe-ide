@@ -6,12 +6,12 @@ import { useI18n } from '../../i18n'
 import { loadFilterRules } from '../../utils/fileFilter'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig, takePendingSend } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
-import { SquareArrowUp, Square, Check, MessageSquarePlus, Eye, EyeOff, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown, Copy, FileText, Sparkles } from 'lucide-react'
+import { SquareArrowUp, Square, Check, MessageSquarePlus, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown, Copy, FileText, Sparkles } from 'lucide-react'
 import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { toFileUrl } from '../../utils/filePathUtils'
 import { StreamingMarkdown } from './markdown'
 import ConversationGraph from './ConversationGraph'
-import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput, deriveUserTurns, countTurnTools } from './messages'
+import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput, deriveUserTurns } from './messages'
 import { ToolIcon, getToolCategory } from './tools'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard, AiPermErrorBoundary } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, PiModelBadge, PiThinkingLevelSelector, ModeSelector } from './inputArea'
@@ -91,8 +91,6 @@ const BUSY_QUIPS = [
 const EDGE_HOVER_PX = 48
 const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onGraphForkWorktree, graphOpen, onGraphOpenChange, graphDockedRight, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, initialWorktreeEnabled, worktreePath, worktreeBranch, worktreeOriginalPath, branchRevision, onWorktreeChange, worktreeNav, onWorktreeNavChange }, ref) {
   const { t } = useI18n()
-  // 0=compact (tools collapsed to summary)，1=精简：过程内容（工具/非末段正文）驻留 2s 后收起，只留每回合末段正文
-  const [viewMode, setViewMode] = useState(0)
   const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
   const isActiveRef = useRef(isActive)
@@ -132,13 +130,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       ? `${Math.floor(busySeconds / 60)}m ${busySeconds % 60}s`
       : `${busySeconds}s`
     : ''
-  // 本轮工具调用数（含子代理）：只有精简模式显示（工具卡片会驻留消失，靠这个数看本轮干了多少活），
-  // 与回合耗时行 Churned for · N tools 同一口径
-  const turnToolCount = useMemo(
-    () => (viewMode === 1 ? countTurnTools(state.messages, state.messages.length - 1) : 0),
-    [state.messages, viewMode])
-  const busyBits = [busyTimeLabel, turnToolCount > 0 ? `${turnToolCount} tools` : ''].filter(Boolean)
-  const busyLabel = busyQuip + (busyBits.length > 0 ? ` (${busyBits.join(' · ')})` : '')
+  // 工具数已由回合摘要行承载，busy 行只报耗时
+  const busyLabel = busyQuip + (busyTimeLabel ? ` (${busyTimeLabel})` : '')
 
   // Stop button two-stage: 点过一次软中断后 5s 内仍 busy 才升级强杀，未点击不自动武装
   const [interruptTried, setInterruptTried] = useState(false)
@@ -234,17 +227,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   const handleCopyConversation = useCallback(() => {
     setTabContextMenu(null)
-    const includeThinking = viewMode !== 1
-    const includeToolUse = viewMode === 0
     const text = formatConversationMarkdown(
-      state.messages, state.userTurns, state.name, includeThinking, includeToolUse
+      state.messages, state.userTurns, state.name, false, false
     )
     if (!text) return
     navigator.clipboard.writeText(text).then(() => {
       setConversationCopied(true)
       setTimeout(() => setConversationCopied(false), 1500)
     })
-  }, [state.messages, state.userTurns, state.name, viewMode])
+  }, [state.messages, state.userTurns, state.name])
 
   const handleCopySessionPath = useCallback(async () => {
     setTabContextMenu(null)
@@ -1557,14 +1548,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           >
             <Network size={14} />
           </button>
-          {/* Toggle tool visibility */}
-          <button
-            onClick={() => setViewMode(v => (v + 1) % 2)}
-            className={`ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors ${viewMode === 1 ? 'ai-tab__header-btn--active bg-ide-active' : ''}`}
-            title={viewMode === 0 ? t('Compact Tools') : t('Hide Tools & Think')}
-          >
-            {viewMode === 0 ? <Eye size={14} /> : <EyeOff size={14} />}
-          </button>
           {/* Session history — Claude JSONL only */}
           {!isPi && (
             <button
@@ -1771,7 +1754,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         <MessageList
           messages={state.messages}
           userTurns={state.userTurns}
-          viewMode={viewMode}
           busy={state.busy}
           pendingPermission={!!state.pendingPermission}
           workspacePath={workspacePath}
@@ -1792,22 +1774,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         <FadeOutOnUnmount visible={state.busy && isActive} duration={200}>
           <div className={`ai-tab__busy w-full ${CONTENT_MAX_W} mx-auto ${MSG_GAP}`}>
             {Object.keys(state.runningTools).length > 0 && (
-              viewMode === 0 ? (
-                <div className="ai-tab__live-tools flex items-center gap-1">
-                  {(() => {
-                    const entries = Object.entries(state.runningTools)
-                    const [id, rt] = entries[entries.length - 1]
-                    return (
-                      <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-hover text-ide-text-muted border border-ide-border/50">
-                        <ToolIcon category={getToolCategory(rt.tool)} />
-                        <span className="claude-shimmer-text truncate max-w-[160px]">{rt.tool}</span>
-                        <span className="text-ide-text-muted/50">{Math.round(rt.elapsed)}s</span>
-                        {entries.length > 1 && <span className="text-ide-text-muted/50">· {entries.length}</span>}
-                      </span>
-                    )
-                  })()}
-                </div>
-              ) : (
               <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">
                 {Object.entries(state.runningTools).map(([id, rt], i) => (
                   <span key={id} className="claude-row-enter inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-hover text-ide-text-muted border border-ide-border/50" style={{ '--enter-delay': `${i * 45}ms` } as React.CSSProperties}>
@@ -1817,7 +1783,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                   </span>
                 ))}
               </div>
-              )
             )}
             {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll noAnimate smoothStream />}
             {state.streamBuffer ? (

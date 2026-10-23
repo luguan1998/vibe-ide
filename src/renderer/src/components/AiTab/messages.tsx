@@ -3,7 +3,7 @@ import type { AiMessage, AiToolUse, UserTurn } from '@shared/types'
 import { asToolArray } from '@shared/types'
 import { useI18n } from '../../i18n'
 import { cleanMessageContent } from '../../utils/aiConversationFormatter'
-import { ChevronDown, Check, Undo2, MessageSquare, GitBranch, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
+import { ChevronDown, ChevronRight, Check, Undo2, MessageSquare, GitBranch, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
 import { ToolIcon, AiToolCallCard, CompactToolSummary, isPureToolMessage } from './tools'
 import { ChatMarkdown } from './markdown'
 import { CONTENT_MAX_W, PANEL_MAX_W, MSG_GAP } from './layout'
@@ -80,16 +80,26 @@ export function isRealUserInput(messages: AiMessage[], i: number): boolean {
   return !(i > 0 && messages[i - 1].type === 'assistant')
 }
 
-// 回合工具调用计数：从 idx 往前扫到上一个真实用户输入为止（含 idx 自身），子代理消息的工具也算。
-// busy 行与本回合耗时行（Churned for）共用这一口径，两处数字必须一致
-export function countTurnTools(messages: AiMessage[], idx: number): number {
-  let n = 0
-  for (let i = idx; i >= 0; i--) {
-    if (isRealUserInput(messages, i)) break
-    const m = messages[i]
-    if (m.toolUse?.length) n += m.toolUse.length
+interface TurnStats {
+  toolCount: number
+  durationMs?: number
+  aborted: boolean
+  // 该回合是否存在被精简掉的过程内容（工具/thinking/非末段正文），决定摘要行能否展开
+  hasProcess: boolean
+  contentCount: number
+}
+
+// 回合摘要行（用户气泡下方左侧）：耗时 + 工具数，与 busy 行同口径
+function formatTurnSummary(s: TurnStats): string {
+  const bits: string[] = []
+  if (s.toolCount > 0) {
+    bits.push(`Cooked for ${s.toolCount} tools`)
+  } else if (s.durationMs != null) {
+    const sec = s.durationMs / 1000
+    bits.push(`Cooked for ${sec < 60 ? `${sec.toFixed(1)}s` : `${Math.floor(sec / 60)}m ${Math.round(sec % 60)}s`}`)
   }
-  return n
+  if (s.aborted) bits.push('paused by user')
+  return bits.join(' · ')
 }
 
 // 真实用户轮清单：turnIdx 与 MessageList 的 data-user-turn 同域，跳转与 hover 弹窗导航共用一份派生口径
@@ -102,7 +112,7 @@ export function deriveUserTurns(messages: AiMessage[]): { turnIdx: number; conte
 }
 
 // 历史会话没有 result 行（CLI 的 result 汇总只走 stream-json，不落 transcript），
-// 回合末条 assistant 需代 result 承载 meta（Churned for/copy/fork）；
+// 回合末条 assistant 需代 result 承载 meta（copy/fork）；
 // 本回合已有 result 或后续还有 assistant 时返回 false，避免与 result 行重复
 // claude 的 result 带耗时/费用，meta 挂它；pi 的 result 是空壳（只有 contextPercent），
 // 既不渲染也不该抢走承载权——否则实时回合刚结束的瞬间按钮会整行消失
@@ -155,7 +165,7 @@ function formatHourMin(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAndCode, isInternal, allowRevert = true }: {
+function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAndCode, isInternal, allowRevert = true, turnSummary, turnExpanded, turnExpandable, onToggleTurn }: {
   message: AiMessage
   userMessageIndex: number
   isBusy: boolean
@@ -163,6 +173,10 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
   onRevertAndCode: (idx: number) => void
   isInternal?: boolean
   allowRevert?: boolean
+  turnSummary?: string
+  turnExpanded?: boolean
+  turnExpandable?: boolean
+  onToggleTurn?: () => void
 }) {
   const { t } = useI18n()
   const [showPopover, setShowPopover] = useState(false)
@@ -224,20 +238,33 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
           </div>
         )}
       </div>
-      <div className="ai-tab__user-actions flex items-center justify-end gap-2.5 h-7 opacity-0 group-hover/user:opacity-100 transition-opacity">
-        <span className="text-sm leading-none tabular-nums text-ide-text-muted/50 mr-1">{timeStr}</span>
-        {showRevert && (
+      <div className="ai-tab__user-actions flex w-full items-center gap-2.5 h-7">
+        {turnSummary && (
           <button
-            ref={revertBtnRef}
-            onClick={() => setShowPopover(v => !v)}
-            disabled={isBusy}
-            title={t('Revert')}
-            className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            type="button"
+            onClick={turnExpandable ? onToggleTurn : undefined}
+            className={`ai-tab__turn-summary flex items-center gap-1 text-sm leading-none text-ide-text-muted/50 transition-colors ${turnExpandable ? 'hover:text-ide-text' : 'cursor-default'}`}
           >
-            <Undo2 size={14} />
+            <span className="shrink-0">✻</span>
+            <span>{turnSummary}</span>
+            {turnExpandable && <ChevronRight size={12} className={`shrink-0 transition-transform ${turnExpanded ? 'rotate-90' : ''}`} />}
           </button>
         )}
-        <CopyButton text={cleanedContent} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />
+        <div className="ml-auto flex items-center justify-end gap-2.5 opacity-0 group-hover/user:opacity-100 transition-opacity">
+          <span className="text-sm leading-none tabular-nums text-ide-text-muted/50 mr-1">{timeStr}</span>
+          {showRevert && (
+            <button
+              ref={revertBtnRef}
+              onClick={() => setShowPopover(v => !v)}
+              disabled={isBusy}
+              title={t('Revert')}
+              className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <Undo2 size={14} />
+            </button>
+          )}
+          <CopyButton text={cleanedContent} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />
+        </div>
       </div>
     </div>
   )
@@ -398,7 +425,7 @@ export function FadeOutOnUnmount({ visible, duration = 200, children }: {
   )
 }
 
-// 精简模式（viewMode=1）驻留：过程内容（工具条/非末段正文）到场后停留 2s，再走 grid 1fr→0fr 平滑收起、
+// 精简模式驻留：过程内容（工具条/非末段正文）到场后停留 2s，再走 grid 1fr→0fr 平滑收起、
 // 动画播完卸载 children（长会话不留一堆 0 高占位 DOM）。
 // stamp = 该内容的到场时刻（消息 timestamp）：挂载时已过期就整块不挂载——历史 / resume / 切模式回来的
 // 旧内容不重放驻留，也不白跑一遍 DOM；dwell 由 false 翻 true（live 那条被后续内容顶掉）时按 stamp 余额决定
@@ -437,7 +464,7 @@ export function Dwell({ dwell, stamp, children }: {
   )
 }
 
-function CopyButton({ text, className = 'opacity-0 group-hover/meta:opacity-100 transition-opacity hover:text-ide-accent' }: { text: string; className?: string }) {
+function CopyButton({ text, className = 'hover:text-ide-accent' }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false)
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(text).then(() => {
@@ -456,11 +483,11 @@ function CopyButton({ text, className = 'opacity-0 group-hover/meta:opacity-100 
   )
 }
 
-function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }: {
+function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, turnExpanded }: {
   messages: AiMessage[]
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
-  viewMode?: number
+  turnExpanded?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const toolCount = messages.reduce((acc, m) => acc + (m.toolUse ? m.toolUse.length : 0), 0)
@@ -491,7 +518,7 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
                 onRevert={() => {}}
                 onRevertAndCode={() => {}}
                 onFork={() => {}}
-                viewMode={viewMode}
+                turnExpanded={turnExpanded}
               />
             ))}
           </div>
@@ -500,18 +527,17 @@ function CollapsibleAgentGroup({ messages, workspacePath, onOpenFile, viewMode }
     </div>
   )
 }
-function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, viewMode, onFork, forkIdx, isLive, isLatestAssistant, dwellContent, turnTools = 0 }: {
+function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, turnExpanded, onFork, forkIdx, isLive, isLatestAssistant, dwellContent }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
   copyText?: string
-  viewMode?: number
+  turnExpanded?: boolean
   onFork: (idx: number) => void
   forkIdx: number
   isLive?: boolean
   isLatestAssistant?: boolean
   dwellContent?: boolean
-  turnTools?: number
 }) {
   const { t } = useI18n()
   // 给 root 补 animate-fade-in 会重播 opacity 0→1 → 整块闪一下，两种到达顺序都要挡：
@@ -521,8 +547,7 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
   // resume/历史消息两者皆为 false，正常渐入
   const wasLiveRef = useRef(false)
   if (isLive || isLatestAssistant) wasLiveRef.current = true
-  // 精简模式：thinking 照旧整块不渲染；工具与非末段正文改走 Dwell 驻留（末段正文是答案，永久留）
-  const concise = viewMode === 1
+  // 回合展开（点顶部 Cooked for 摘要行）：过程内容（thinking/工具/非末段正文）不走 Dwell 驻留，按原样常驻
   const dwellStamp = message.timestamp ?? 0
 
   // result 行只有 CLI 汇总字段；历史会话的回合末条 assistant（无 result）只承载按钮，无耗时
@@ -538,16 +563,6 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
       ? { label: t('Execution failed'), color: 'text-ide-danger' }
       : null
 
-  // 耗时层文本：Churned for Xs · N tools（N = 本回合工具调用数，与 busy 行同口径同措辞）
-  const churnedBits: string[] = []
-  if (message.durationMs != null) {
-    const sec = message.durationMs / 1000
-    churnedBits.push(`Churned for ${sec < 60 ? `${sec.toFixed(1)}s` : `${Math.floor(sec / 60)}m ${Math.round(sec % 60)}s`}`)
-    if (turnTools > 0) churnedBits.push(`${turnTools} tools`)
-  } else if (turnTools > 0) {
-    churnedBits.push(`Churned for ${turnTools} tools`)
-  }
-
   return (
     <div className={`ai-tab__message ai-tab__message--assistant flex flex-col items-center ${MSG_GAP} ${isLive || wasLiveRef.current ? '' : 'animate-fade-in'}`}>
       {errorStatus && (
@@ -560,16 +575,16 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
           {/* isLive = 当前正在流式生成的那条消息（提交时 busy）。autoFold 让它展开态挂载无缝交接 busy 区
               thinking、下一帧平滑收起；历史消息 isLive=false 折叠挂载。isLive 另让本消息 root 跳过 fade-in（接管不透明）。
               精简模式：同样展开态挂载无缝交接，改由 Dwell 驻留 2s 后整块收起卸载；历史 / resume 的 stamp 已过期 → 整块不挂载 */}
-          {message.thinking && (concise
-            ? <Dwell dwell stamp={dwellStamp}><ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} defaultOpen /></Dwell>
-            : <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} autoFold={isLive} />)}
+          {message.thinking && (turnExpanded
+            ? <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} autoFold={isLive} />
+            : <Dwell dwell stamp={dwellStamp}><ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} defaultOpen /></Dwell>)}
           {message.content && (
-            <Dwell dwell={!!dwellContent} stamp={dwellStamp}>
+            <Dwell dwell={!turnExpanded && !!dwellContent} stamp={dwellStamp}>
               <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />
             </Dwell>
           )}
           {message.toolUse && message.toolUse.length > 0 && (
-            <Dwell dwell={concise} stamp={dwellStamp}>
+            <Dwell dwell={!turnExpanded} stamp={dwellStamp}>
               {message.toolUse.length === 1
                 ? <AiToolCallCard key={message.toolUse[0].id} tool={message.toolUse[0]} workspacePath={workspacePath} onOpenFile={onOpenFile} />
                 : <CompactToolSummary tools={message.toolUse} workspacePath={workspacePath} onOpenFile={onOpenFile} />}
@@ -578,35 +593,19 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, view
         </div>
       )}
       {showMeta && (
-        // 两层同格叠加（grid 取较高者定行高，避免 hover 换层时跳动）：
-        // 默认层 = 耗时文本（无耗时即空行）；hover 层 = 时间 + 复制 + fork，格式照抄 user 气泡 actions 行
-        <div className={`ai-tab__message-meta group/meta grid w-full ${CONTENT_MAX_W}`}>
-          {/* 两层同格叠加，靠 opacity 交叉淡入淡出：opacity<1 会新建 stacking context，
-              而 hover 时恰好是「elapsed 变 0、actions 变 1」——绘制顺序会翻过来让 elapsed
-              盖住按钮（实测 elementFromPoint 命中 elapsed 的 span），所以命中权必须用
-              pointer-events 显式指定，不能靠层序 */}
-          <div className="ai-tab__message-meta-elapsed col-start-1 row-start-1 pointer-events-none flex items-center text-xs text-ide-text-muted/50 group-hover/meta:opacity-0 transition-opacity">
-            {(churnedBits.length > 0 || message.isAborted) && (
-              <span className="inline-flex items-center gap-0.5 mr-2">
-                <span className="text-sm">✻</span>
-                {churnedBits.length > 0 && <span>{churnedBits.join(' · ')}</span>}
-                {message.isAborted && <span className="text-ide-text-muted/40">{churnedBits.length > 0 ? ' · paused by user' : 'paused by user'}</span>}
-              </span>
-            )}
-          </div>
-          <div className="ai-tab__message-meta-actions col-start-1 row-start-1 pointer-events-none group-hover/meta:pointer-events-auto flex items-center gap-2.5 h-7 opacity-0 group-hover/meta:opacity-100 transition-opacity">
-            {copyText && <CopyButton text={copyText} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />}
-            {forkIdx >= 0 && (
-              <button
-                onClick={() => onFork(forkIdx)}
-                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
-                title={t('Fork to new session')}
-              >
-                <GitBranch size={14} />
-              </button>
-            )}
-            <span className="text-sm leading-none tabular-nums text-ide-text-muted/50">{message.timestamp ? formatHourMin(message.timestamp) : ''}</span>
-          </div>
+        // 耗时摘要已上移到该回合用户气泡的操作行；回合结束后此处常显 复制 + fork + 时间
+        <div className={`ai-tab__message-meta flex w-full ${CONTENT_MAX_W} items-center gap-2.5 h-7`}>
+          {copyText && <CopyButton text={copyText} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />}
+          {forkIdx >= 0 && (
+            <button
+              onClick={() => onFork(forkIdx)}
+              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+              title={t('Fork to new session')}
+            >
+              <GitBranch size={14} />
+            </button>
+          )}
+          <span className="text-sm leading-none tabular-nums text-ide-text-muted/50">{message.timestamp ? formatHourMin(message.timestamp) : ''}</span>
         </div>
       )}
     </div>
@@ -689,7 +688,7 @@ export function TodoListPanel({ items }: { items: TodoItem[] }) {
   )
 }
 
-const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, turnOngoing, isLatestAssistant, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, viewMode, isInternal, allowHistory = true, dwellContent }: {
+const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, turnOngoing, isLatestAssistant, onRevert, onRevertAndCode, onFork, msgIndex, allMessages, isInternal, allowHistory = true, dwellContent, turnExpanded, turnSummary, turnExpandable, turnIdx, onToggleTurn }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
@@ -702,10 +701,14 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   onFork: (idx: number) => void
   msgIndex: number
   allMessages: AiMessage[]
-  viewMode?: number
   isInternal?: boolean
   allowHistory?: boolean
   dwellContent?: boolean
+  turnExpanded?: boolean
+  turnSummary?: string
+  turnExpandable?: boolean
+  turnIdx?: number
+  onToggleTurn?: (turnIdx: number) => void
 }) {
   // isLive = 当前正在流式生成的那条消息（最后一条 + busy）。用于让它的 thinking 以展开态挂载无缝交接 busy 区、
   // 下一帧平滑折叠；并让本消息 root 跳过 fade-in（接管时不透明）。子 agent 走 CollapsibleAgentGroup 的 isBusy=false → 永远非 live
@@ -728,7 +731,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   if (message.error) {
     inner = <AiErrorMessage message={message} />
   } else if (message.role === 'user') {
-    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} isInternal={isInternal} allowRevert={allowHistory} />
+    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} isInternal={isInternal} allowRevert={allowHistory} turnSummary={turnSummary} turnExpanded={turnExpanded} turnExpandable={turnExpandable} onToggleTurn={turnIdx != null && turnIdx >= 0 && onToggleTurn ? () => onToggleTurn(turnIdx) : undefined} />
   } else if (
     message.type === 'result'
     && message.costUsd == null
@@ -752,11 +755,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
       }
       forkIdx = count - 1
     }
-    // 工具数只有精简模式显示；且只有 result 汇总行与回合末条 assistant 会出耗时行，其余消息不必扫
-    const turnTools = (viewMode === 1 && (message.type === 'result' || copyText != null || forkIdx >= 0))
-      ? countTurnTools(allMessages, msgIndex)
-      : 0
-    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} viewMode={viewMode} onFork={onFork} forkIdx={forkIdx} isLive={isLive} isLatestAssistant={isLatestAssistant} dwellContent={dwellContent} turnTools={turnTools} />
+    inner = <AiAssistantMessage message={message} workspacePath={workspacePath} onOpenFile={onOpenFile} copyText={copyText} turnExpanded={turnExpanded} onFork={onFork} forkIdx={forkIdx} isLive={isLive} isLatestAssistant={isLatestAssistant} dwellContent={dwellContent} />
   }
 
   return <>{inner}</>
@@ -764,10 +763,9 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
 
 // memo：thinking 每次 flush 只换 thinkingBuffer（messages/busy/回调引用不变）→
 // 跳过整表分组重算与 N 个 bubble 的 element 创建，5 次/秒的 O(N) 工作归零
-export const MessageList = React.memo(function MessageList({ messages, userTurns, viewMode, busy, pendingPermission, workspacePath, onOpenFile, onRevert, onRevertAndCode, onFork, allowHistory = true }: {
+export const MessageList = React.memo(function MessageList({ messages, userTurns, busy, pendingPermission, workspacePath, onOpenFile, onRevert, onRevertAndCode, onFork, allowHistory = true }: {
   messages: AiMessage[]
   userTurns: UserTurn[]
-  viewMode: number
   busy: boolean
   pendingPermission: boolean
   workspacePath: string | null
@@ -780,26 +778,65 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
   // busy 不等于回合进行中（等权限批准时 aiStore.onPermission 会把 busy 置回 false），两者合一才是"回合未完"
   const turnOngoing = busy || pendingPermission
   const userMessages = messages.filter((m, i) => isRealUserInput(messages, i))
+
+  // 回合归属：index → turn（真实用户输入序号）。回合摘要行挂在用户气泡上，展开态关掉该回合的 Dwell
+  const turnOf: number[] = new Array(messages.length)
+  const turnStats: TurnStats[] = []
+  let curTurn = -1
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i]
+    if (isRealUserInput(messages, i)) {
+      curTurn++
+      turnStats.push({ toolCount: 0, aborted: false, hasProcess: false, contentCount: 0 })
+    }
+    turnOf[i] = curTurn
+    const s = turnStats[curTurn]
+    if (!s) continue
+    if (m.toolUse?.length) {
+      s.toolCount += m.toolUse.length
+      s.hasProcess = true
+    }
+    if (m.thinking) s.hasProcess = true
+    if (m.type === 'result') {
+      if (m.durationMs != null) s.durationMs = m.durationMs
+      if (m.isAborted) s.aborted = true
+    }
+    // 回合内除最后一段正文外的正文都会被精简掉
+    if (m.type === 'assistant' && !m.parentToolUseId && m.content && s.contentCount++ > 0) s.hasProcess = true
+  }
+  const [expandedTurns, setExpandedTurns] = useState<Set<number>>(() => new Set())
+  const toggleTurn = useCallback((t: number) => {
+    setExpandedTurns(prev => {
+      const next = new Set(prev)
+      if (next.has(t)) next.delete(t)
+      else next.add(t)
+      return next
+    })
+  }, [])
+
   const groups: Array<
     | { type: 'agent'; messages: AiMessage[]; parentId: string; startIndex: number }
     | { type: 'msg'; message: AiMessage; index: number }
-    | { type: 'readSummary'; tools: AiToolUse[]; firstToolId: string; stamp: number }
-    | { type: 'toolCard'; tool: AiToolUse; stamp: number }
+    | { type: 'readSummary'; tools: AiToolUse[]; firstToolId: string; stamp: number; turnIdx: number; index: number }
+    | { type: 'toolCard'; tool: AiToolUse; stamp: number; turnIdx: number; index: number }
   > = []
-  const concise = viewMode === 1
   const readBuffer: AiToolUse[] = []
   let firstToolId = ''
   let firstToolStamp = 0
+  let firstToolTurn = -1
+  let firstToolIdx = -1
   const flushReads = () => {
     if (readBuffer.length === 0) return
     if (readBuffer.length === 1) {
-      groups.push({ type: 'toolCard', tool: readBuffer[0], stamp: firstToolStamp })
+      groups.push({ type: 'toolCard', tool: readBuffer[0], stamp: firstToolStamp, turnIdx: firstToolTurn, index: firstToolIdx })
     } else {
-      groups.push({ type: 'readSummary', tools: [...readBuffer], firstToolId, stamp: firstToolStamp })
+      groups.push({ type: 'readSummary', tools: [...readBuffer], firstToolId, stamp: firstToolStamp, turnIdx: firstToolTurn, index: firstToolIdx })
     }
     readBuffer.length = 0
     firstToolId = ''
     firstToolStamp = 0
+    firstToolTurn = -1
+    firstToolIdx = -1
   }
   // Async sub-agents (and the main agent) interleave in the live stream, so consecutive-
   // same-parent grouping would split one agent into many fragments. Map each parentToolUseId
@@ -826,6 +863,8 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
         if (readBuffer.length === 0) {
           firstToolId = tool.id
           firstToolStamp = msg.timestamp ?? 0
+          firstToolTurn = turnOf[i]
+          firstToolIdx = i
         }
         readBuffer.push(tool)
       }
@@ -836,6 +875,33 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
   }
   flushReads()
 
+  // 未展开态：最新两张工具卡在正文出现前常驻（不再 2s 隐藏）；
+  // 一旦后面落了正文（含最终答案），工具卡恢复正常驻留收起
+  let lastContentIdx = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.type === 'assistant' && !m.parentToolUseId && m.content) { lastContentIdx = i; break }
+  }
+  const keepKeys = new Set<string>()
+  let keepCount = 0
+  for (let i = groups.length - 1; i >= 0 && keepCount < 2; i--) {
+    const g = groups[i]
+    let key = ''
+    let index = -1
+    if (g.type === 'toolCard') {
+      key = `tool-${g.tool.id}`
+      index = g.index
+    } else if (g.type === 'readSummary') {
+      key = `read-${g.firstToolId}`
+      index = g.index
+    } else {
+      continue
+    }
+    if (index <= lastContentIdx) break
+    keepKeys.add(key)
+    keepCount++
+  }
+
   // 列表末条 assistant（跳过子代理消息）= 刚生成完的那条答案。正文与 result 同批到达时 isLive 判不出来
   // （见 AiAssistantMessage wasLiveRef），由它兜住 fade-in
   let lastAssistantIdx = -1
@@ -843,37 +909,42 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     if (messages[i].role === 'assistant' && !messages[i].parentToolUseId) { lastAssistantIdx = i; break }
   }
 
-  // 精简模式：每回合只留最后一段正文（即该回合的答案），此前各段正文与工具一样驻留 2s 后收起。
+  // 每回合只留最后一段正文（即该回合的答案），此前各段正文与工具一样驻留 2s 后收起。
   // 回合边界 = 真实用户输入；末段 = 边界内最后一条带正文的主 assistant 消息（工具消息无正文，不影响）
   const finalContentIdx = new Set<number>()
-  if (concise) {
-    let lastContent = -1
-    for (let i = 0; i < messages.length; i++) {
-      if (isRealUserInput(messages, i)) {
-        if (lastContent >= 0) finalContentIdx.add(lastContent)
-        lastContent = -1
-        continue
-      }
-      const m = messages[i]
-      if (m.type === 'assistant' && !m.parentToolUseId && m.content) lastContent = i
+  let lastContent = -1
+  for (let i = 0; i < messages.length; i++) {
+    if (isRealUserInput(messages, i)) {
+      if (lastContent >= 0) finalContentIdx.add(lastContent)
+      lastContent = -1
+      continue
     }
-    if (lastContent >= 0) finalContentIdx.add(lastContent)
+    const m = messages[i]
+    if (m.type === 'assistant' && !m.parentToolUseId && m.content) lastContent = i
   }
+  if (lastContent >= 0) finalContentIdx.add(lastContent)
 
   return <>{groups.map((item) => {
     if (item.type === 'agent') {
-      return <CollapsibleAgentGroup key={`agent-${item.startIndex}`} messages={item.messages} workspacePath={workspacePath} onOpenFile={onOpenFile} viewMode={viewMode} />
+      return <CollapsibleAgentGroup key={`agent-${item.startIndex}`} messages={item.messages} workspacePath={workspacePath} onOpenFile={onOpenFile} turnExpanded={expandedTurns.has(turnOf[item.startIndex])} />
     }
     if (item.type === 'readSummary') {
-      return <Dwell key={`read-${item.firstToolId}`} dwell={concise} stamp={item.stamp}><CompactToolSummary tools={item.tools} workspacePath={workspacePath} onOpenFile={onOpenFile} /></Dwell>
+      const keep = keepKeys.has(`read-${item.firstToolId}`)
+      return <Dwell key={`read-${item.firstToolId}`} dwell={!keep && !expandedTurns.has(item.turnIdx)} stamp={item.stamp}><CompactToolSummary tools={item.tools} workspacePath={workspacePath} onOpenFile={onOpenFile} /></Dwell>
     }
     if (item.type === 'toolCard') {
-      return <Dwell key={`tool-${item.tool.id}`} dwell={concise} stamp={item.stamp}><AiToolCallCard tool={item.tool} workspacePath={workspacePath} onOpenFile={onOpenFile} /></Dwell>
+      const keep = keepKeys.has(`tool-${item.tool.id}`)
+      return <Dwell key={`tool-${item.tool.id}`} dwell={!keep && !expandedTurns.has(item.turnIdx)} stamp={item.stamp}><AiToolCallCard tool={item.tool} workspacePath={workspacePath} onOpenFile={onOpenFile} /></Dwell>
     }
     const msg = item.message
+    const turnIdx = turnOf[item.index]
+    const expanded = expandedTurns.has(turnIdx)
+    const stats = turnStats[turnIdx]
     const uIdx = isRealUserInput(messages, item.index)
       ? userMessages.indexOf(msg)
       : -1
+    // 回合摘要挂在用户气泡操作行左侧：回合进行中也照常显示（含 paused by user），可随时展开
+    const summary = uIdx >= 0 && stats ? formatTurnSummary(stats) : ''
     const bubble = (
       <AiMessageBubble
         key={item.index}
@@ -889,16 +960,20 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
         onRevert={onRevert}
         onRevertAndCode={onRevertAndCode}
         onFork={onFork}
-        viewMode={viewMode}
         isInternal={userTurns[uIdx]?.isInternal ?? false}
         allowHistory={allowHistory}
-        dwellContent={concise && !finalContentIdx.has(item.index)}
+        dwellContent={!finalContentIdx.has(item.index)}
+        turnExpanded={expanded}
+        turnSummary={summary || undefined}
+        turnExpandable={!!stats?.hasProcess}
+        turnIdx={turnIdx}
+        onToggleTurn={toggleTurn}
       />
     )
-    // 精简模式：整条都是过程噪音（thinking / 非末段正文 / 工具）的消息，连壳一起驻留收起。
+    // 整条都是过程噪音（thinking / 非末段正文 / 工具）的消息，连壳一起驻留收起。
     // 壳本身不走 Dwell 时，内层块收起后会剩一个 0 高空壳，而列表的 MSG_GAP 照旧按它计一份间距——
     // 一趟 30+ 步的长回合能堆出几百 px 空白。live 那条与末条 result 不裹（思考要交接给 busy 区、result 承载按钮）
-    if (concise && !(item.index === messages.length - 1 && busy) && msg.type !== 'result'
+    if (!expanded && !(item.index === messages.length - 1 && busy) && msg.type !== 'result'
       && msg.role === 'assistant' && !finalContentIdx.has(item.index)) {
       return <Dwell key={item.index} dwell stamp={msg.timestamp ?? 0}>{bubble}</Dwell>
     }
