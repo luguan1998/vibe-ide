@@ -238,8 +238,23 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
           </div>
         )}
       </div>
-      <div className="ai-tab__user-actions flex w-full items-center gap-2.5 h-7">
-        {turnSummary && (
+      <div className="ai-tab__user-actions flex w-full items-center justify-end gap-2.5 h-7 opacity-0 group-hover/user:opacity-100 transition-opacity">
+        <span className="text-sm leading-none tabular-nums text-ide-text-muted/50 mr-1">{timeStr}</span>
+        {showRevert && (
+          <button
+            ref={revertBtnRef}
+            onClick={() => setShowPopover(v => !v)}
+            disabled={isBusy}
+            title={t('Revert')}
+            className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Undo2 size={14} />
+          </button>
+        )}
+        <CopyButton text={cleanedContent} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />
+      </div>
+      {turnSummary && (
+        <div className="ai-tab__turn-summary-row w-full pb-1.5 border-b border-ide-border">
           <button
             type="button"
             onClick={turnExpandable ? onToggleTurn : undefined}
@@ -249,23 +264,8 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
             <span>{turnSummary}</span>
             {turnExpandable && <ChevronRight size={12} className={`shrink-0 transition-transform ${turnExpanded ? 'rotate-90' : ''}`} />}
           </button>
-        )}
-        <div className="ml-auto flex items-center justify-end gap-2.5 opacity-0 group-hover/user:opacity-100 transition-opacity">
-          <span className="text-sm leading-none tabular-nums text-ide-text-muted/50 mr-1">{timeStr}</span>
-          {showRevert && (
-            <button
-              ref={revertBtnRef}
-              onClick={() => setShowPopover(v => !v)}
-              disabled={isBusy}
-              title={t('Revert')}
-              className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <Undo2 size={14} />
-            </button>
-          )}
-          <CopyButton text={cleanedContent} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -593,19 +593,21 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, turn
         </div>
       )}
       {showMeta && (
-        // 耗时摘要已上移到该回合用户气泡的操作行；回合结束后此处常显 复制 + fork + 时间
-        <div className={`ai-tab__message-meta flex w-full ${CONTENT_MAX_W} items-center gap-2.5 h-7`}>
-          {copyText && <CopyButton text={copyText} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />}
-          {forkIdx >= 0 && (
-            <button
-              onClick={() => onFork(forkIdx)}
-              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
-              title={t('Fork to new session')}
-            >
-              <GitBranch size={14} />
-            </button>
-          )}
-          <span className="text-sm leading-none tabular-nums text-ide-text-muted/50">{message.timestamp ? formatHourMin(message.timestamp) : ''}</span>
+        // 耗时摘要已上移到该回合用户气泡的操作行；此处 hover 时出 复制 + fork + 时间
+        <div className={`ai-tab__message-meta group/meta flex w-full ${CONTENT_MAX_W} items-center h-7`}>
+          <div className="flex items-center gap-2.5 opacity-0 group-hover/meta:opacity-100 pointer-events-none group-hover/meta:pointer-events-auto transition-opacity">
+            {copyText && <CopyButton text={copyText} className="w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors" />}
+            {forkIdx >= 0 && (
+              <button
+                onClick={() => onFork(forkIdx)}
+                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+                title={t('Fork to new session')}
+              >
+                <GitBranch size={14} />
+              </button>
+            )}
+            <span className="text-sm leading-none tabular-nums text-ide-text-muted/50">{message.timestamp ? formatHourMin(message.timestamp) : ''}</span>
+          </div>
         </div>
       )}
     </div>
