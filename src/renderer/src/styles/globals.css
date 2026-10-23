@@ -1260,7 +1260,6 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
 }
 .session-group .session-item__name {
   -webkit-line-clamp: 1;
-  word-break: normal;
 }
 .session-group .session-item:hover {
   background: rgb(var(--ide-hover) / 0.55);
