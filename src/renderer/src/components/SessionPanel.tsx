@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
-import { RecentFileEntry } from '@shared/types'
-import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon } from '../sessionRestore'
+import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, isDefaultSessionName, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon } from '../sessionRestore'
 import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, mascotColorValue, pixelMascot } from '../pixelMascots'
 import { PixelMascot } from './PixelMascot'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Pin, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages, Ellipsis } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages, Ellipsis } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -16,8 +15,6 @@ import { ModalOverlay } from './ModalOverlay'
 import AppearancePanel from './AppearancePanel'
 import CustomCommands, { CustomCommandsHandle, loadCustomCommands, CustomCommand } from './CustomCommands'
 import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from '../utils/fileFilter'
-import { FileIcon } from './FileIcons'
-import { displayLabel, getShortcuts } from '../shortcuts'
 import type { ProgramStatus } from '../programStatus'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { PiLogoIcon } from './PiLogoIcon'
@@ -360,6 +357,7 @@ interface SessionPanelProps {
   onSetSessionEmoji?: (id: string, emoji?: string) => void
   onReorderGroup?: (fromGroupIndex: number, toGroupIndex: number) => void
   onReorderSessionInGroup?: (sessionId: string, targetSessionId: string, before: boolean) => void
+  onTidySessionsInGroup?: (cwd: string) => void
   commandHistory?: Record<string, string[]>
   onRevealUserTurn?: (sessionId: string, turnIdx: number) => void
   agentStatus?: Record<string, 'running' | 'idle' | 'warn'>
@@ -418,10 +416,7 @@ interface SessionPanelProps {
   termFontFamily?: string
   onSetTermFontFamily?: (font: string) => void
   onResetUiStyle?: () => void
-  recentFiles?: RecentFileEntry[]
   onOpenRecentFile?: (fullPath: string, lineNumber?: number) => void
-  onRemoveRecentFile?: (fullPath: string) => void
-  onTogglePinRecentFile?: (fullPath: string) => void
 }
 
 export interface SessionPanelHandle {
@@ -640,6 +635,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onSetSessionEmoji,
   onReorderGroup,
   onReorderSessionInGroup,
+  onTidySessionsInGroup,
   commandHistory = {},
   onRevealUserTurn,
   agentStatus = {},
@@ -698,10 +694,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   termFontFamily = 'Cascadia Code',
   onSetTermFontFamily,
   onResetUiStyle,
-  recentFiles = [],
   onOpenRecentFile,
-  onRemoveRecentFile,
-  onTogglePinRecentFile,
 }: SessionPanelProps, ref: React.ForwardedRef<SessionPanelHandle>) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showFileFilterRules, setShowFileFilterRules] = useState(false)
@@ -889,7 +882,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [groupQuickNewSubmenu, setGroupQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const groupQuickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [groupMenu, setGroupMenu] = useState<{ x: number; y: number; cwd: string } | null>(null)
-  const navigateBackKey = useMemo(() => displayLabel(getShortcuts()['navigate.back']), [])
   const [groupCloseAsk, setGroupCloseAsk] = useState<{ cwd: string; count: number } | null>(null)
   const quickNewCwd = sessions.find(s => s.id === activeSessionId)?.cwd
   const handleQuickNewSession = (mode: SessionMode) => {
@@ -996,34 +988,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
   }, [showSchedModal, showSchedExamples])
-  const [hoverPreview, setHoverPreview] = useState<{ sessionId: string | null; cwd: string; mode: 'cmds' | 'files'; left: number; top: number; pinned?: boolean } | null>(null)
-  const onPreviewHeaderMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0 || !hoverPreview?.pinned) return
-    e.preventDefault()
-    const startX = e.clientX
-    const startY = e.clientY
-    const origLeft = hoverPreview.left
-    const origTop = hoverPreview.top
-    const onMove = (ev: MouseEvent) => {
-      const left = Math.max(0, Math.min(window.innerWidth - 320, origLeft + (ev.clientX - startX)))
-      const top = Math.max(0, Math.min(window.innerHeight - 40, origTop + (ev.clientY - startY)))
-      setHoverPreview(prev => prev ? { ...prev, left, top } : prev)
-    }
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }
-  const filesUnderCwd = (cwd: string) => {
-    const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
-    const key = norm(cwd)
-    const all = recentFiles.filter(f => { const fp = norm(f.path); return fp === key || fp.startsWith(key + '/') })
-    const pinned = all.filter(f => f.pinned)
-    // 固定的不占名额，其余按最近优先补足 7 个（与全局最近文件上限一致）
-    return [...pinned, ...all.filter(f => !f.pinned)].slice(0, Math.max(7, pinned.length))
-  }
+  const [hoverPreview, setHoverPreview] = useState<{ sessionId: string; left: number; top: number } | null>(null)
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastMouseMoveAtRef = useRef(0)
   const cwdHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1065,7 +1030,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   useEffect(() => () => { clearTimer(hoverTimerRef) }, [])
   // session 关闭时其行整体卸载，mouseleave 不触发 → hover 预览窗格残留，随 session 消失主动清理
   useEffect(() => {
-    if (hoverPreview && hoverPreview.sessionId && !sessions.some(s => s.id === hoverPreview.sessionId)) {
+    if (hoverPreview && !sessions.some(s => s.id === hoverPreview.sessionId)) {
       clearTimer(hoverTimerRef)
       setHoverPreview(null)
     }
@@ -1490,13 +1455,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           if (lastMouseMoveAtRef.current < enterAt - 300) return
           const el = document.elementFromPoint(mx, my)
           if (el && itemEl.contains(el)) {
-            setHoverPreview(prev => prev?.pinned ? prev : { sessionId: session.id, cwd: session.cwd, mode: 'cmds', left: rect.right + 2, top: rect.top })
+            setHoverPreview({ sessionId: session.id, left: rect.right + 2, top: rect.top })
           }
         }, 500)
       }}
       onMouseLeave={() => {
         clearTimer(hoverTimerRef)
-        hoverTimerRef.current = setTimeout(() => setHoverPreview(prev => prev?.pinned ? prev : null), 200)
+        hoverTimerRef.current = setTimeout(() => setHoverPreview(null), 200)
       }}
       onDragStart={() => {
         setDragSessionId(session.id)
@@ -2076,7 +2041,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       onMouseEnter={(e) => {
                         clearTimer(hoverTimerRef)
                         setGroupMenu(null)
-                        setHoverPreview(prev => prev?.pinned ? prev : null)
+                        setHoverPreview(null)
                         if (groupQuickNewSubmenuTimerRef.current) { clearTimeout(groupQuickNewSubmenuTimerRef.current); groupQuickNewSubmenuTimerRef.current = null }
                         const r = e.currentTarget.getBoundingClientRect()
                         setGroupQuickNewSubmenu({ x: r.right + 4, y: r.top, cwd: group.cwd })
@@ -2109,20 +2074,21 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                           <Pencil size={14} className="text-ide-text-muted" />
                           <span>{t('Rename')}</span>
                         </button>
-                        {filesUnderCwd(group.cwd).length > 0 && (
+                        {(group.sessions.length > 1 || group.sessions.some(s => isDefaultSessionName(s.name))) && (
                           <button
-                            className="group/browse w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                            onClick={(e) => {
-                              const r = e.currentTarget.getBoundingClientRect()
-                              const panelRight = panelRef.current?.getBoundingClientRect().right ?? 0
+                            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                            title={t('Sort by time (newest first) and clean sessions still using default names')}
+                            onClick={() => {
                               setGroupMenu(null)
-                              clearTimer(hoverTimerRef)
-                              setHoverPreview({ sessionId: null, cwd: group.cwd, mode: 'files', left: panelRight, top: r.top })
+                              onTidySessionsInGroup?.(group.cwd)
                             }}
                           >
-                            <FolderOpen size={14} className="text-ide-text-muted" />
-                            <span className="group-hover/browse:hidden">{t('Browse Files')}</span>
-                            <span className="hidden group-hover/browse:inline text-ide-text-muted">{navigateBackKey}</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
+                              <path d="M12 2v8" />
+                              <path d="M8 10h8l2.5 11h-13z" />
+                              <path d="M9.5 13l-1 8M12 13v8M14.5 13l1 8" />
+                            </svg>
+                            <span>{t('Tidy Up')}</span>
                           </button>
                         )}
                         <button
@@ -2567,102 +2533,44 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
 
       {/* History Hover Popover */}
       {hoverPreview && (() => {
-        const cmds = (hoverPreview.sessionId ? commandHistory[hoverPreview.sessionId] : undefined) || []
+        const cmds = commandHistory[hoverPreview.sessionId] || []
         const displayed = cmds.slice(-30)
-        const cwdFiles = filesUnderCwd(hoverPreview.cwd)
-        const hoverSess = hoverPreview.sessionId ? sessions.find(s => s.id === hoverPreview.sessionId) : undefined
-        const previewTitle = hoverPreview.mode === 'cmds' ? (hoverSess?.name || t('Cmd')) : dirNameOf(hoverPreview.cwd)
+        const hoverSess = sessions.find(s => s.id === hoverPreview.sessionId)
         return (
           <div
-            className={`fixed z-50 bg-ide-bg rounded-lg overflow-hidden shadow-2xl w-80 max-h-64 flex flex-col border ${hoverPreview.pinned ? 'border-ide-accent/60' : 'border-ide-border'}`}
+            className="fixed z-50 bg-ide-bg rounded-lg overflow-hidden shadow-2xl w-80 max-h-64 flex flex-col border border-ide-border"
             style={{ left: hoverPreview.left, top: hoverPreview.top }}
             onMouseEnter={() => { clearTimer(hoverTimerRef) }}
             onMouseLeave={() => {
               clearTimer(hoverTimerRef)
-              hoverTimerRef.current = setTimeout(() => setHoverPreview(prev => prev?.pinned ? prev : null), 300)
+              hoverTimerRef.current = setTimeout(() => setHoverPreview(null), 300)
             }}
           >
-            <div
-              className={`flex items-center gap-1.5 px-3 py-1 border-b border-ide-border shrink-0 bg-ide-sidebar min-w-0 ${hoverPreview.pinned ? 'cursor-move' : ''}`}
-              onMouseDown={onPreviewHeaderMouseDown}
-            >
-              {hoverPreview.mode === 'files' && <FolderOpen size={12} className="text-ide-accent/70 shrink-0" />}
-              <span
-                className={`text-xs font-medium text-ide-text min-w-0 ${hoverPreview.mode === 'cmds' ? 'line-clamp-2' : 'truncate'}`}
-              >{previewTitle}</span>
-              {hoverPreview.mode === 'files' && (
-                <button
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={() => setHoverPreview(prev => prev ? { ...prev, pinned: !prev.pinned } : prev)}
-                  className={`ml-auto shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors ${
-                    hoverPreview.pinned ? 'text-ide-accent' : 'text-ide-text-muted hover:text-ide-accent hover:bg-ide-hover'
-                  }`}
-                  title={t(hoverPreview.pinned ? 'Unpin' : 'Pin')}
-                >
-                  <Pin size={12} className={hoverPreview.pinned ? 'fill-current' : ''} />
-                </button>
+            <div className="flex items-center gap-1.5 px-3 py-1 border-b border-ide-border shrink-0 bg-ide-sidebar min-w-0">
+              <span className="text-xs font-medium text-ide-text min-w-0 line-clamp-2">{hoverSess?.name || t('Cmd')}</span>
+            </div>
+            <div className="flex-1 overflow-y-auto py-1">
+              {hoverSess?.kind === 'gui' ? (
+                <HoverTurnRows
+                  sessionId={hoverSess.id}
+                  commandsRef={commandsRef}
+                  onPick={(turnIdx) => onRevealUserTurn?.(hoverSess.id, turnIdx)}
+                />
+              ) : cmds.length === 0 ? (
+                <div className="px-3 py-4 text-xs text-ide-text-muted text-center">
+                  {t('No commands yet')}
+                </div>
+              ) : (
+                displayed.map((cmd, i) => (
+                  <HoverPopoverRow
+                    key={`hp-${i}`}
+                    no={cmds.length - displayed.length + i + 1}
+                    text={cmd}
+                    commandsRef={commandsRef}
+                  />
+                ))
               )}
             </div>
-            {hoverPreview.mode === 'cmds' ? (
-              <div className="flex-1 overflow-y-auto py-1">
-                {hoverSess?.kind === 'gui' ? (
-                  <HoverTurnRows
-                    sessionId={hoverSess.id}
-                    commandsRef={commandsRef}
-                    onPick={(turnIdx) => onRevealUserTurn?.(hoverSess.id, turnIdx)}
-                  />
-                ) : cmds.length === 0 ? (
-                  <div className="px-3 py-4 text-xs text-ide-text-muted text-center">
-                    {t('No commands yet')}
-                  </div>
-                ) : (
-                  displayed.map((cmd, i) => (
-                    <HoverPopoverRow
-                      key={`hp-${i}`}
-                      no={cmds.length - displayed.length + i + 1}
-                      text={cmd}
-                      commandsRef={commandsRef}
-                    />
-                  ))
-                )}
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto py-1">
-                {cwdFiles.length === 0 ? (
-                  <div className="px-3 py-4 text-xs text-ide-text-muted text-center">
-                    {t('No files yet')}
-                  </div>
-                ) : null}
-                {cwdFiles.map(f => {
-                  const baseName = f.path.split(/[\\/]/).pop() || f.path
-                  return (
-                    <div
-                      key={f.path}
-                      className="px-3 py-0.5 cursor-pointer transition-colors hover:bg-ide-hover flex items-center gap-2 group relative"
-                      title={f.path}
-                      onClick={() => onOpenRecentFile?.(f.path, f.line)}
-                    >
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onTogglePinRecentFile?.(f.path) }}
-                        className={`absolute left-0.5 text-ide-text-muted hover:text-ide-accent shrink-0 transition-opacity p-0.5 ${f.pinned ? 'opacity-100 text-ide-accent' : 'opacity-0 group-hover:opacity-100'}`}
-                        title={t(f.pinned ? 'Unpin' : 'Pin')}
-                      >
-                        <Pin size={12} className={f.pinned ? 'fill-current' : ''} />
-                      </button>
-                      <FileIcon name={baseName} className="ft-icon ml-2" />
-                      <span className="truncate min-w-0 text-xs text-ide-text flex-1">{baseName}</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onRemoveRecentFile?.(f.path) }}
-                        className="opacity-0 group-hover:opacity-100 shrink-0 text-ide-text-muted hover:text-ide-text transition-opacity p-0.5"
-                        title={t('Remove')}
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
           </div>
         )
       })()}

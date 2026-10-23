@@ -35,6 +35,11 @@ export function resolveDefaultIcon(): string | undefined {
 }
 
 // 新建会话默认名：类型前缀 + 同类型序号（Terminal 1 / Claude 1 / Pi 1）
+// 默认命名（Terminal 1 / Claude 2 / Pi 3）即"新建后从未改过名"，视为可安全清理
+export function isDefaultSessionName(name: string): boolean {
+  return /^(Terminal|Claude|Pi) \d+$/.test(name)
+}
+
 export function defaultSessionName(s: Pick<SessionTab, 'kind' | 'aiBackend'>, existing: Pick<SessionTab, 'name'>[]): string {
   const base = s.kind === 'gui' ? (s.aiBackend === 'pi' ? 'Pi' : 'Claude') : 'Terminal'
   const used = existing.filter(e => new RegExp(`^${base} \\d+$`).test(e.name)).length

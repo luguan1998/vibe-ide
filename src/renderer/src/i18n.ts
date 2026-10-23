@@ -149,7 +149,6 @@ const ZH_MAP: Record<string, string> = {
   'History': '历史',
   'No commands yet': '暂无命令',
   'Files': '文件',
-  'No files yet': '暂无文件',
   'Pin': '固定',
   'Unpin': '取消固定',
   'Cut': '剪切',
@@ -260,7 +259,6 @@ const ZH_MAP: Record<string, string> = {
   'Confirm': '确认',
   'Delete {fileName}?': '确定删除 {fileName}？',
   'Recently Opened': '最近打开的文件',
-  'Browse Files': '文件浏览',
   'Remove': '移除',
   'Queued': '待发送',
   'Interject': '插话发送',
@@ -435,6 +433,8 @@ const ZH_MAP: Record<string, string> = {
   'from': '来自',
   'total': '总计',
   'Sort by extension': '按后缀排序',
+  'Tidy Up': '整理',
+  'Sort by time (newest first) and clean sessions still using default names': '按时间排序（新的靠上），并清理仍是默认命名（未重命名过）的会话',
 
   // QuickOpen
   'Type to search files...': '输入以搜索文件...',

@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { loadSessionWorkspace, saveSessionWorkspace, resolveDefaultIcon, defaultSessionName, sessionGroupKey, type Session, type SessionTab } from './sessionRestore'
+import { loadSessionWorkspace, saveSessionWorkspace, resolveDefaultIcon, defaultSessionName, sessionGroupKey, isDefaultSessionName, type Session, type SessionTab } from './sessionRestore'
 import { hasSchedTask } from './schedStore'
 import type { SessionMode } from './components/DirectoryPicker'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
@@ -564,33 +564,7 @@ export default function App() {
         return prev.map((r, i) => i === existingIdx ? { ...r, line: mergedLine, endLine: mergedEndLine } : r)
       }
       const next = [{ path: fullPath, line, endLine }, ...prev]
-      if (next.length <= 7) return next
-      // 超限时从尾部淘汰未固定的条目；全固定则保持（略超上限）
-      const result = [...next]
-      for (let i = result.length - 1; i >= 0 && result.length > 7; i--) {
-        if (!result[i].pinned) result.splice(i, 1)
-      }
-      return result
-    })
-  }, [])
-
-  // 固定/取消固定最近文件（pinned 不被 max-7 淘汰，hover 预览中置顶）
-  const togglePinRecentFile = useCallback((fullPath: string) => {
-    if (!fullPath) return
-    const norm = (p: string) => p.replace(/\\/g, '/')
-    const target = norm(fullPath)
-    setRecentFiles(prev => prev.map(r => (norm(r.path) === target ? { ...r, pinned: !r.pinned } : r)))
-  }, [])
-
-  // 从最近文件列表移除单个文件（X 按钮）
-  const removeRecentFile = useCallback((fullPath: string) => {
-    if (!fullPath) return
-    const norm = (p: string) => p.replace(/\\/g, '/')
-    const target = norm(fullPath)
-    setRecentFiles(prev => {
-      const next = prev.filter(r => norm(r.path) !== target)
-      if (next.length === prev.length) return prev
-      return next
+      return next.length <= 7 ? next : next.slice(0, 7)
     })
   }, [])
 
@@ -2931,6 +2905,33 @@ export default function App() {
     })
   }, [stableGroupOrder])
 
+  // 整理：清理该组内仍是默认命名（从未手动改名）的会话，再把剩余会话按创建时间倒序
+  const handleTidySessionsInGroup = useCallback(async (cwd: string) => {
+    const ids = sessionsRef.current
+      .filter(s => sessionGroupKey(s) === cwd && isDefaultSessionName(s.name) && !manuallyRenamedRef.current.has(s.id))
+      .map(s => s.id)
+    for (const id of ids) await closeSessionCore(id)
+    setSessions(prev => {
+      const map = new Map<string, SessionTab[]>()
+      const order: string[] = []
+      for (const s of prev) {
+        const key = sessionGroupKey(s)
+        if (!map.has(key)) { map.set(key, []); order.push(key) }
+        map.get(key)!.push(s)
+      }
+      const group = map.get(cwd)
+      if (!group || group.length < 2) return prev
+      map.set(cwd, [...group].sort((a, b) => b.createdAt - a.createdAt))
+      return order.flatMap(k => map.get(k)!)
+    })
+    if (ids.length === 0) return
+    setActiveSessionId(prev => {
+      if (!prev || !ids.includes(prev)) return prev
+      const rest = sessionsRef.current.filter(s => !ids.includes(s.id))
+      return rest.length > 0 ? rest[0].id : null
+    })
+  }, [closeSessionCore])
+
   // Set session row-icon emoji (undefined = type icon), stored on SessionTab
   const handleSetSessionEmoji = useCallback((id: string, emoji?: string) => {
     setSessions(prev => prev.some(s => s.id === id) ? prev.map(s => s.id === id ? { ...s, emoji: emoji || undefined } : s) : prev)
@@ -3596,6 +3597,7 @@ export default function App() {
             onSetSessionEmoji={handleSetSessionEmoji}
             onReorderGroup={handleReorderGroup}
             onReorderSessionInGroup={handleReorderSessionInGroup}
+            onTidySessionsInGroup={handleTidySessionsInGroup}
             commandHistory={commandHistory}
             onRevealUserTurn={handleRevealUserTurn}
             agentStatus={agentStatus}
@@ -3706,10 +3708,7 @@ export default function App() {
                 </div>
               </>
             ) : undefined}
-            recentFiles={recentFiles}
             onOpenRecentFile={handleOpenRecentFile}
-            onRemoveRecentFile={removeRecentFile}
-            onTogglePinRecentFile={togglePinRecentFile}
           />
           </div>
         </div>
