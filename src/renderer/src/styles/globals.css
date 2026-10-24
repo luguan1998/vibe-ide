@@ -550,7 +550,6 @@ html, body, #root {
   animation: spin-pixel 1.2s steps(8, end) infinite;
   display: inline-block;
   will-change: transform;
-  color: rgb(var(--ide-accent));
 }
 
 

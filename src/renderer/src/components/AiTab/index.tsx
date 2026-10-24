@@ -76,22 +76,9 @@ export interface AiTabHandle {
   // session hover 弹窗按轮次下标滚到该轮
   revealTurnIndex: (turnIdx: number) => void
 }
-const BUSY_QUIPS = [
-  'Forging the digital frontier…',
-  'The empire, long divided, must unite…',
-  'Defending the sacred source…',
-  'Decrypting the matrix, one token at a time…',
-  'Wrestling with the thought daemons…',
-  'Aligning the cosmic bits…',
-  'The bytes must flow…',
-  'Resisting the centralized compiler…',
-  'A bug in time saves nine…',
-  'Long live the open-source rebellion…',
-]
 const EDGE_HOVER_PX = 48
 const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSessionId, workspacePath, isActive, autoApprove, permissionMode, onPermissionModeChange, backend, onViewAi, onRenameSession, onOpenFile, onForkSession, onGraphForkSend, onGraphSendToBranch, onGraphOpenBranch, onGraphForkWorktree, graphOpen, onGraphOpenChange, graphDockedRight, onAgentStatusChange, resumeSessionId, brushActive, lastOpenedFile, initialWorktreeEnabled, worktreePath, worktreeBranch, worktreeOriginalPath, branchRevision, onWorktreeChange, worktreeNav, onWorktreeNavChange }, ref) {
   const { t } = useI18n()
-  const busyQuip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const containerRef = useRef<HTMLDivElement>(null)
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
@@ -102,7 +89,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   const busyStartRef = useRef<number>(0)
   const busyPrevStartRef = useRef<number>(0)   // 上一段忙碌起点（排队/无 isAborted CLI 的闪烁兜底）
   const busyPrevEndRef = useRef<number>(0)     // 上一段忙碌结束时刻
-  const [busySeconds, setBusySeconds] = useState(0)
+  const [busyStartAt, setBusyStartAt] = useState(0)
   useEffect(() => {
     if (state.busy) {
       if (!busyStartRef.current) {
@@ -113,25 +100,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             ? busyPrevStartRef.current
             : Date.now()
       }
-      const tick = () => setBusySeconds(Math.floor((Date.now() - busyStartRef.current) / 1000))
-      tick()
-      // 非活动 session 的 AiTab 是 display:none，秒表看不见 → 不起定时器（多个后台忙碌会话会各自 1 次/秒重渲染）
-      if (!isActive) return
-      const id = setInterval(tick, 1000)
-      return () => clearInterval(id)
+      setBusyStartAt(busyStartRef.current)
+      return
     }
     busyPrevEndRef.current = Date.now()
     busyPrevStartRef.current = busyStartRef.current
     busyStartRef.current = 0
-    setBusySeconds(0)
-  }, [state.busy, isActive])
-  const busyTimeLabel = busySeconds >= 10
-    ? busySeconds >= 60
-      ? `${Math.floor(busySeconds / 60)}m ${busySeconds % 60}s`
-      : `${busySeconds}s`
-    : ''
-  // 工具数已由回合摘要行承载，busy 行只报耗时
-  const busyLabel = busyQuip + (busyTimeLabel ? ` (${busyTimeLabel})` : '')
+    setBusyStartAt(0)
+  }, [state.busy])
 
   // Stop button two-stage: 点过一次软中断后 5s 内仍 busy 才升级强杀，未点击不自动武装
   const [interruptTried, setInterruptTried] = useState(false)
@@ -1756,6 +1732,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           userTurns={state.userTurns}
           busy={state.busy}
           pendingPermission={!!state.pendingPermission}
+          busyStartAt={isActive ? busyStartAt : 0}
+          backend={isPi ? 'pi' : 'claude'}
           workspacePath={workspacePath}
           onOpenFile={onOpenFile}
           onRevert={handleRevert}
@@ -1785,20 +1763,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               </div>
             )}
             {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll noAnimate smoothStream />}
-            {state.streamBuffer ? (
+            {state.streamBuffer && (
               <div>
                 <StreamingMarkdown text={state.streamBuffer} workspacePath={workspacePath} onOpenFile={onOpenFile} />
-                {isPi
-                  ? <PiLogoIcon className="ai-tab__busy-sparkle animate-spin-pixel ml-0.5 text-sm leading-none align-middle select-none" />
-                  : <ClaudeLogoIcon className="ai-tab__busy-sparkle animate-spin-pixel ml-0.5 text-sm leading-none align-middle select-none" fill="currentColor" />}
-                <span className="ai-tab__busy-quip ml-1 text-[13px] leading-none align-middle select-none text-ide-accent/60">{busyLabel}</span>
-              </div>
-            ) : (
-              <div>
-                {isPi
-                  ? <PiLogoIcon className="animate-spin-pixel text-sm leading-none select-none" />
-                  : <ClaudeLogoIcon className="animate-spin-pixel text-sm leading-none select-none" fill="currentColor" />}
-                <span className="ml-1 text-[13px] leading-none select-none text-ide-accent/60">{busyLabel}</span>
               </div>
             )}
           </div>
