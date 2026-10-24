@@ -674,6 +674,8 @@ const ZH_MAP: Record<string, string> = {
   'Resume': '恢复',
   'New': '新建',
   'New Session': '新会话',
+  'Preference': '设置偏好',
+  'Default type for the New Session button and history restore': '新建会话按钮与历史会话恢复的默认类型',
   'Copy as Markdown': '复制为 Markdown',
   'Copy Session Path': '复制会话路径',
   'Compact Tools': '精简工具',

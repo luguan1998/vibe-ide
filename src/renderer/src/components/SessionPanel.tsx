@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, isDefaultSessionName, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon } from '../sessionRestore'
 import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, mascotColorValue, pixelMascot } from '../pixelMascots'
 import { PixelMascot } from './PixelMascot'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages, Ellipsis } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages, Ellipsis, Heart } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -358,6 +358,7 @@ interface SessionPanelProps {
   onReorderGroup?: (fromGroupIndex: number, toGroupIndex: number) => void
   onReorderSessionInGroup?: (sessionId: string, targetSessionId: string, before: boolean) => void
   onTidySessionsInGroup?: (cwd: string) => void
+  onTidyAllSessions?: () => void
   commandHistory?: Record<string, string[]>
   onRevealUserTurn?: (sessionId: string, turnIdx: number) => void
   agentStatus?: Record<string, 'running' | 'idle' | 'warn'>
@@ -636,6 +637,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onReorderGroup,
   onReorderSessionInGroup,
   onTidySessionsInGroup,
+  onTidyAllSessions,
   commandHistory = {},
   onRevealUserTurn,
   agentStatus = {},
@@ -878,7 +880,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     </button>
   )
 
-  const [quickNewSubmenu, setQuickNewSubmenu] = useState<{ x: number; y: number } | null>(null)
+  const [showNewModeModal, setShowNewModeModal] = useState(false)
   const [groupQuickNewSubmenu, setGroupQuickNewSubmenu] = useState<{ x: number; y: number; cwd: string | null } | null>(null)
   const groupQuickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [groupMenu, setGroupMenu] = useState<{ x: number; y: number; cwd: string } | null>(null)
@@ -895,7 +897,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const emptyMenuPos = useAdaptiveMenuPos(!!emptyAreaMenu, emptyAreaMenu?.x ?? 0, emptyAreaMenu?.y ?? 0)
   const emojiMenuPos = useAdaptiveMenuPos(!!emojiMenu, emojiMenu?.x ?? 0, emojiMenu?.y ?? 0)
   const cloneSubmenuPos = useAdaptiveMenuPos(!!cloneSubmenu, cloneSubmenu?.x ?? 0, cloneSubmenu?.y ?? 0)
-  const quickNewSubmenuPos = useAdaptiveMenuPos(!!quickNewSubmenu, quickNewSubmenu?.x ?? 0, quickNewSubmenu?.y ?? 0)
   const groupQuickNewSubmenuPos = useAdaptiveMenuPos(!!groupQuickNewSubmenu, groupQuickNewSubmenu?.x ?? 0, groupQuickNewSubmenu?.y ?? 0)
   const groupMenuPos = useAdaptiveMenuPos(!!groupMenu, groupMenu?.x ?? 0, groupMenu?.y ?? 0)
   const recentDirs = useRecentDirs()
@@ -1103,7 +1104,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       setEmptyAreaMenu(null)
       setEmojiMenu(null)
       setCloneSubmenu(null)
-      setQuickNewSubmenu(null)
       setGroupMenu(null)
       if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
     }
@@ -1123,6 +1123,19 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
   }, [showCliConfigModal])
+
+  // ESC 关闭「设置偏好」弹窗
+  useEffect(() => {
+    if (!showNewModeModal) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
+        setShowNewModeModal(false)
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [showNewModeModal])
 
   // ESC 关闭「关闭工作区」确认弹窗
   useEffect(() => {
@@ -1319,7 +1332,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setEmptyAreaMenu(null)
     setEmojiMenu(null)
     setCloneSubmenu(null)
-    setQuickNewSubmenu(null)
     setGroupMenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
     setContextMenu({ x: e.clientX, y: e.clientY, sessionId })
@@ -1330,7 +1342,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     setContextMenu(null)
     setEmojiMenu(null)
     setCloneSubmenu(null)
-    setQuickNewSubmenu(null)
     setGroupMenu(null)
     if (cloneSubmenuTimerRef.current) { clearTimeout(cloneSubmenuTimerRef.current); cloneSubmenuTimerRef.current = null }
     setEmptyAreaMenu({ x: e.clientX, y: e.clientY })
@@ -1535,7 +1546,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                   setContextMenu(null)
                   setEmptyAreaMenu(null)
                   setCloneSubmenu(null)
-                  setQuickNewSubmenu(null)
                   setGroupQuickNewSubmenu(null)
                   setEmojiMenu({ x: e.clientX, y: e.clientY, sessionId: session.id })
                 }}
@@ -1743,25 +1753,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <button
             onClick={(e) => {
               e.stopPropagation()
-              const r = e.currentTarget.parentElement?.getBoundingClientRect()
-              if (r) setQuickNewSubmenu(prev => (prev ? null : { x: r.left, y: r.bottom + 4 }))
+              setShowNewModeModal(true)
             }}
             className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover/new-session:opacity-100 group-hover/new-session:pointer-events-auto text-ide-text-muted hover:text-ide-text transition-opacity"
           >
             <Ellipsis size={14} />
           </button>
-          {quickNewSubmenu && (
-            <div
-              className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50 w-[168px]"
-              ref={quickNewSubmenuPos.ref}
-              style={quickNewSubmenuPos.style}
-            >
-              {newModesSorted.map(mode => renderNewModeItem(mode, (m) => {
-                pickNewMode(m)
-                setQuickNewSubmenu(null)
-              }))}
-            </div>
-          )}
         </div>
         <button
           onClick={() => onOpenHistoryTab?.()}
@@ -1980,7 +1977,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         setContextMenu(null)
                         setEmptyAreaMenu(null)
                         setCloneSubmenu(null)
-                        setQuickNewSubmenu(null)
                         setGroupQuickNewSubmenu(null)
                         setGroupMenu(null)
                         setEmojiMenu({ x: e.clientX, y: e.clientY, cwd: group.cwd })
@@ -2020,7 +2016,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         setContextMenu(null)
                         setEmptyAreaMenu(null)
                         setCloneSubmenu(null)
-                        setQuickNewSubmenu(null)
                         setGroupQuickNewSubmenu(null)
                         const r = e.currentTarget.getBoundingClientRect()
                         setGroupMenu(groupMenu?.cwd === group.cwd ? null : { x: r.left, y: r.bottom + 4, cwd: group.cwd })
@@ -2118,6 +2113,14 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                           if (onNewSessionHere) onNewSessionHere(group.cwd, m)
                           setGroupQuickNewSubmenu(null)
                         }))}
+                        <button
+                          className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                          onClick={() => { setGroupQuickNewSubmenu(null); setShowNewModeModal(true) }}
+                        >
+                          <Heart size={14} className="text-ide-text-muted shrink-0" />
+                          <span>{t('Preference')}</span>
+                          <span className="ml-auto w-3.5 h-3.5 shrink-0" />
+                        </button>
                         <div className="border-t border-ide-border my-1" />
                         <button
                           className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
@@ -2466,6 +2469,21 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             <ScrollText size={14} className="text-ide-text-muted" />
             {t('Custom Command')}
           </button>
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+            title={t('Sort by time (newest first) and clean sessions still using default names')}
+            onClick={() => {
+              onTidyAllSessions?.()
+              setEmptyAreaMenu(null)
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
+              <path d="M12 2v8" />
+              <path d="M8 10h8l2.5 11h-13z" />
+              <path d="M9.5 13l-1 8M12 13v8M14.5 13l1 8" />
+            </svg>
+            {t('Tidy Up')}
+          </button>
           {recentDirs.length > 0 && (
             <>
               <div className="border-t border-ide-border my-1" />
@@ -2574,6 +2592,42 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           </div>
         )
       })()}
+
+      {/* New Session Preference Modal */}
+      {showNewModeModal && createPortal(
+        <ModalOverlay onClose={() => setShowNewModeModal(false)}>
+          <div className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl w-[320px] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
+              <span className="text-sm font-semibold text-ide-text flex items-center gap-1.5"><Heart className="size-3.5" />{t('Preference')}</span>
+              <button
+                className="w-5 h-5 rounded text-ide-text-muted bg-ide-hover hover:bg-ide-accent hover:text-white flex items-center justify-center transition-colors text-sm leading-none"
+                onClick={() => setShowNewModeModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-1.5">
+              {(['term', 'gui', 'pi'] as SessionMode[]).map(mode => (
+                <button
+                  key={mode}
+                  className="w-full px-3 py-2 text-left text-sm text-ide-text hover:bg-ide-hover rounded flex items-center gap-2"
+                  onClick={() => {
+                    pickNewMode(mode)
+                    setShowNewModeModal(false)
+                  }}
+                >
+                  {renderModeIcon(mode)}
+                  <span>{t(MODE_LABELS[mode])}</span>
+                  <span className="ml-auto flex items-center">
+                    {newMode === mode ? <Check size={14} className="text-ide-accent shrink-0" /> : <span className="w-3.5 h-3.5 shrink-0" />}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="px-4 pb-3 text-[11px] text-ide-text-muted">{t('Default type for the New Session button and history restore')}</p>
+          </div>
+        </ModalOverlay>
+      , document.body)}
 
       {/* Keyboard Shortcuts Modal */}
       {showShortcuts && createPortal(

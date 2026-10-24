@@ -2935,6 +2935,52 @@ export default function App() {
     })
   }, [closeSessionCore])
 
+  // 空白处整理：各组清理默认命名会话并按创建时间倒序；整理后无会话的 cwd 排到最前，其余组相对顺序不变
+  const handleTidyAllSessions = useCallback(async () => {
+    const all = sessionsRef.current
+    const idSet = new Set(
+      all
+        .filter(s => isDefaultSessionName(s.name) && !manuallyRenamedRef.current.has(s.id))
+        .map(s => s.id),
+    )
+    for (const id of idSet) await closeSessionCore(id)
+    const map = new Map<string, SessionTab[]>()
+    const order: string[] = []
+    for (const s of all) {
+      if (idSet.has(s.id)) continue
+      const key = sessionGroupKey(s)
+      if (!map.has(key)) { map.set(key, []); order.push(key) }
+      map.get(key)!.push(s)
+    }
+    const full = [...stableGroupOrder, ...order.filter(k => !stableGroupOrder.includes(k))]
+    const empty = full.filter(k => (map.get(k)?.length ?? 0) === 0)
+    const nonEmpty = full.filter(k => !empty.includes(k))
+    const nextOrder = [...empty, ...nonEmpty]
+    setSessions(prev => {
+      const grouped = new Map<string, SessionTab[]>()
+      for (const s of prev) {
+        if (idSet.has(s.id)) continue
+        const key = sessionGroupKey(s)
+        if (!grouped.has(key)) grouped.set(key, [])
+        grouped.get(key)!.push(s)
+      }
+      const extra = [...grouped.keys()].filter(k => !nextOrder.includes(k))
+      return [...nextOrder, ...extra].flatMap(k => [...(grouped.get(k) ?? [])].sort((a, b) => b.createdAt - a.createdAt))
+    })
+    const keptMap = new Map(cwdStore.getKeptGroups().map(e => [e.cwd, e]))
+    for (const k of empty) if (!keptMap.has(k)) keptMap.set(k, { cwd: k, idx: 0 })
+    cwdStore.setKeptGroups([...keptMap.values()].map(e => {
+      const i = nextOrder.indexOf(e.cwd)
+      return i < 0 ? e : { ...e, idx: i }
+    }))
+    if (idSet.size === 0) return
+    setActiveSessionId(prev => {
+      if (!prev || !idSet.has(prev)) return prev
+      const rest = all.filter(s => !idSet.has(s.id))
+      return rest.length > 0 ? rest[0].id : null
+    })
+  }, [closeSessionCore, stableGroupOrder])
+
   // Set session row-icon emoji (undefined = type icon), stored on SessionTab
   const handleSetSessionEmoji = useCallback((id: string, emoji?: string) => {
     setSessions(prev => prev.some(s => s.id === id) ? prev.map(s => s.id === id ? { ...s, emoji: emoji || undefined } : s) : prev)
@@ -3601,6 +3647,7 @@ export default function App() {
             onReorderGroup={handleReorderGroup}
             onReorderSessionInGroup={handleReorderSessionInGroup}
             onTidySessionsInGroup={handleTidySessionsInGroup}
+            onTidyAllSessions={handleTidyAllSessions}
             commandHistory={commandHistory}
             onRevealUserTurn={handleRevealUserTurn}
             agentStatus={agentStatus}
