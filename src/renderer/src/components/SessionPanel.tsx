@@ -2440,6 +2440,21 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         >
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+            title={t('Sort by time (newest first) and clean sessions still using default names')}
+            onClick={() => {
+              onTidyAllSessions?.()
+              setEmptyAreaMenu(null)
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
+              <path d="M12 2v8" />
+              <path d="M8 10h8l2.5 11h-13z" />
+              <path d="M9.5 13l-1 8M12 13v8M14.5 13l1 8" />
+            </svg>
+            {t('Tidy Up')}
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
             onClick={() => {
               if (activeSession && onNewSessionHere) onNewSessionHere(activeSession.cwd, 'term')
               else onCreateSession(termType)
@@ -2468,21 +2483,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           >
             <ScrollText size={14} className="text-ide-text-muted" />
             {t('Custom Command')}
-          </button>
-          <button
-            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-            title={t('Sort by time (newest first) and clean sessions still using default names')}
-            onClick={() => {
-              onTidyAllSessions?.()
-              setEmptyAreaMenu(null)
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
-              <path d="M12 2v8" />
-              <path d="M8 10h8l2.5 11h-13z" />
-              <path d="M9.5 13l-1 8M12 13v8M14.5 13l1 8" />
-            </svg>
-            {t('Tidy Up')}
           </button>
           {recentDirs.length > 0 && (
             <>
