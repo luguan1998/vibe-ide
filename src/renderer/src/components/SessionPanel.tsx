@@ -868,7 +868,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     <button
       key={mode}
       className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-      onClick={() => { pickNewMode(mode); onPick(mode) }}
+      onClick={() => onPick(mode)}
     >
       {renderModeIcon(mode)}
       <span>{t(MODE_LABELS[mode])}</span>
@@ -1757,7 +1757,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               style={quickNewSubmenuPos.style}
             >
               {newModesSorted.map(mode => renderNewModeItem(mode, (m) => {
-                handleQuickNewSession(m)
+                pickNewMode(m)
                 setQuickNewSubmenu(null)
               }))}
             </div>
