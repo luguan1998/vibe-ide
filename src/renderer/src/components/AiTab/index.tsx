@@ -11,8 +11,7 @@ import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
 import { toFileUrl } from '../../utils/filePathUtils'
 import { StreamingMarkdown } from './markdown'
 import ConversationGraph from './ConversationGraph'
-import { ThinkingBlock, FadeOutOnUnmount, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput, deriveUserTurns } from './messages'
-import { ToolIcon, getToolCategory } from './tools'
+import { ThinkingBlock, BusyStatus, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput, deriveUserTurns, lastRealUserTurnStartAt } from './messages'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard, AiPermErrorBoundary } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, PiModelBadge, PiThinkingLevelSelector, ModeSelector } from './inputArea'
 import type { MentionItem } from './inputArea'
@@ -85,29 +84,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   // AI session state — shared singleton store (进程级单例,消除 N 倍冗余)
   const state = useAiSession(activeSessionId)
-
-  const busyStartRef = useRef<number>(0)
-  const busyPrevStartRef = useRef<number>(0)   // 上一段忙碌起点（排队/无 isAborted CLI 的闪烁兜底）
-  const busyPrevEndRef = useRef<number>(0)     // 上一段忙碌结束时刻
-  const [busyStartAt, setBusyStartAt] = useState(0)
-  useEffect(() => {
-    if (state.busy) {
-      if (!busyStartRef.current) {
-        // 插话会让 CLI end 当前 turn（result→busy 闪烁）再开新 turn；
-        // 3s 内复起视为同一轮工作，延续计时避免计数归零跳变
-        busyStartRef.current =
-          busyPrevEndRef.current && Date.now() - busyPrevEndRef.current <= 3000 && busyPrevStartRef.current
-            ? busyPrevStartRef.current
-            : Date.now()
-      }
-      setBusyStartAt(busyStartRef.current)
-      return
-    }
-    busyPrevEndRef.current = Date.now()
-    busyPrevStartRef.current = busyStartRef.current
-    busyStartRef.current = 0
-    setBusyStartAt(0)
-  }, [state.busy])
 
   // Stop button two-stage: 点过一次软中断后 5s 内仍 busy 才升级强杀，未点击不自动武装
   const [interruptTried, setInterruptTried] = useState(false)
@@ -1468,6 +1444,11 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   )
 
+  const runningTool = Object.values(state.runningTools)[0]
+  const busyStatusTool = runningTool ? { name: runningTool.tool, elapsed: runningTool.elapsed } : null
+  // 与回合结束后的耗时同源：最近一条真实用户输入的 timestamp
+  const busyStartAt = lastRealUserTurnStartAt(state.messages)
+
   return (
     <div ref={containerRef} tabIndex={-1} style={{ '--ai-content-w': `${contentW}px` } as React.CSSProperties}
       onContextMenu={(e) => {
@@ -1732,8 +1713,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           userTurns={state.userTurns}
           busy={state.busy}
           pendingPermission={!!state.pendingPermission}
-          busyStartAt={isActive ? busyStartAt : 0}
-          backend={isPi ? 'pi' : 'claude'}
           workspacePath={workspacePath}
           onOpenFile={onOpenFile}
           onRevert={handleRevert}
@@ -1746,30 +1725,25 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             <span>{t('Resuming session...')}</span>
           </div>
         )}
-        {/* Busy indicator — thinking + streaming + sparkle */}
+        {/* Live 区 — 正在生成的 thinking / 正文；提交后由 MessageList 原位接管，不做淡出交接 */}
         {/* isActive=false 的 AiTab 挂在 DOM 里但 display:none：不挂载 live 区，后台会话每次 flush 不再
             产生 markdown/thinking 渲染、动画与滚动量测（store 仍是唯一真相源，切回即补全 live 视图） */}
-        <FadeOutOnUnmount visible={state.busy && isActive} duration={200}>
+        {isActive && (state.thinkingBuffer || state.streamBuffer) && (
           <div className={`ai-tab__busy w-full ${CONTENT_MAX_W} mx-auto ${MSG_GAP}`}>
-            {Object.keys(state.runningTools).length > 0 && (
-              <div className="ai-tab__live-tools flex flex-wrap items-center gap-1">
-                {Object.entries(state.runningTools).map(([id, rt], i) => (
-                  <span key={id} className="claude-row-enter inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-hover text-ide-text-muted border border-ide-border/50" style={{ '--enter-delay': `${i * 45}ms` } as React.CSSProperties}>
-                    <ToolIcon category={getToolCategory(rt.tool)} />
-                    <span className="claude-shimmer-text truncate max-w-[160px]">{rt.tool}</span>
-                    <span className="text-ide-text-muted/50">{Math.round(rt.elapsed)}s</span>
-                  </span>
-                ))}
-              </div>
-            )}
-            {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} defaultOpen autoScroll noAnimate smoothStream />}
+            {state.thinkingBuffer && <ThinkingBlock text={state.thinkingBuffer} openByDefault autoScroll smoothStream />}
             {state.streamBuffer && (
               <div>
                 <StreamingMarkdown text={state.streamBuffer} workspacePath={workspacePath} onOpenFile={onOpenFile} />
               </div>
             )}
           </div>
-        </FadeOutOnUnmount>
+        )}
+        {/* Busy status — 跟随流式输出末尾，不贴输入框；回合结束后由用户气泡下的 cooked 摘要行接管 */}
+        {state.busy && isActive && busyStartAt != null && (
+          <div className={`w-full ${CONTENT_MAX_W} mx-auto`}>
+            <BusyStatus startAt={busyStartAt} backend={isPi ? 'pi' : 'claude'} tool={busyStatusTool} />
+          </div>
+        )}
         <div ref={messagesEndRef} />
         </div>
         </div>
