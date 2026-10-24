@@ -175,7 +175,6 @@
 .session-group__header {
   border: none !important;
   background: transparent !important;
-  padding: 0 !important;
 }
 /* 去掉全局 hover 扫入横线 — 本主题 cwd 是文件夹 tab 形态 */
 /*

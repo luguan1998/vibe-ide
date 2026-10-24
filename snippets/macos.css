@@ -120,7 +120,6 @@
 .session-group__header {
   border: none !important;
   background: transparent !important;
-  padding: 0 !important;
 }
 /* sessions 容器 — 去外部框线 */
 .session-group__header + div {
