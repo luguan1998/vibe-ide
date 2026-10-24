@@ -341,7 +341,7 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
 
   // 展开停留 600ms 供看清尾部，再走 grid 1fr→0fr 200ms 过渡平滑收起（过渡期浏览器连续 clamp scrollTop 保持底部 pinned）。
   // 只按挂载时的交接态调度一次：后续 flush 使该块不再是 live 最后一条时 autoFold 翻 false，
-  // 若拿它当依赖会 clearTimeout 掉折叠 → 块永久展开
+  // 若拿它当依赖会 clearTimeout 掉折叠 → 块永久展开。fade-in 同理按挂载态判：翻 false 时补 class 会重播动画→闪一下
   useEffect(() => {
     if (!autoFoldAtMountRef.current) return
     const id = setTimeout(() => setOpen(false), 2000)
@@ -353,7 +353,7 @@ export function ThinkingBlock({ text, defaultOpen = false, durationMs, autoScrol
   if (!shown) return null
 
   return (
-    <div className={`ai-tab__thinking max-w-full ${autoFold || noAnimate ? '' : 'animate-fade-in'}`}>
+    <div className={`ai-tab__thinking max-w-full ${autoFoldAtMountRef.current || noAnimate ? '' : 'animate-fade-in'}`}>
       <button
         onClick={() => setOpen(v => !v)}
         className="ai-tab__thinking-toggle flex w-fit items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-mono bg-ide-accent/10 text-ide-accent hover:bg-ide-accent/20 ring-1 ring-inset ring-ide-accent/20 transition-colors"
@@ -422,7 +422,7 @@ export function FadeOutOnUnmount({ visible, duration = 200, children }: {
   )
 }
 
-// 精简模式驻留：过程内容（工具条/非末段正文）到场后停留 2s，再走 grid 1fr→0fr 平滑收起、
+// 过程内容驻留：工具条/非末段正文到场后停留 2s，再走 grid 1fr→0fr 平滑收起、
 // 动画播完卸载 children（长会话不留一堆 0 高占位 DOM）。
 // stamp = 该内容的到场时刻（消息 timestamp）：挂载时已过期就整块不挂载——历史 / resume / 切模式回来的
 // 旧内容不重放驻留，也不白跑一遍 DOM；dwell 由 false 翻 true（跌出保留名额 / 回合结束）时从翻转时刻
@@ -455,15 +455,16 @@ export function Dwell({ dwell, stamp, children }: {
     return () => clearTimeout(id)
   }, [dwell, mounted, stamp])
   useEffect(() => {
-    if (!mounted || open) return
+    if (!mounted || open || !dwell) return
     const id = setTimeout(() => setMounted(false), DWELL_FADE_MS + 50)
     return () => clearTimeout(id)
-  }, [mounted, open])
-  if (!dwell) return <>{children}</>
-  if (!mounted) return null
+  }, [dwell, mounted, open])
+  if (dwell && !mounted) return null
+  // 结构必须跨 dwell 翻转保持不变：dwell=false→true（跌出保留名额）若从「裸 children」换成两层
+  // 包装，React 会整棵重挂 → ThinkingBlock/message 的 animate-fade-in 重播 → 闪一下
   return (
-    <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-      <div className="min-h-0 overflow-hidden">{children}</div>
+    <div className={dwell ? `grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}` : ''}>
+      <div className={dwell ? 'min-h-0 overflow-hidden' : ''}>{children}</div>
     </div>
   )
 }
@@ -580,10 +581,10 @@ function AiAssistantMessage({ message, workspacePath, onOpenFile, copyText, turn
         <div className={`ai-tab__message-content w-full ${CONTENT_MAX_W} ${MSG_GAP}`}>
           {/* isLive = 当前正在流式生成的那条消息（提交时 busy）。autoFold 让它展开态挂载无缝交接 busy 区
               thinking、下一帧平滑收起；历史消息 isLive=false 折叠挂载。isLive 另让本消息 root 跳过 fade-in（接管不透明）。
-              精简模式：同样展开态挂载无缝交接，改由 Dwell 驻留 2s 后整块收起卸载；历史 / resume 的 stamp 已过期 → 整块不挂载 */}
+              默认视图：同样展开态挂载无缝交接，改由 Dwell 驻留 2s 后整块收起卸载；历史 / resume 的 stamp 已过期 → 整块不挂载 */}
           {message.thinking && (turnExpanded
             ? <ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} autoFold={isLive} />
-            : <Dwell dwell={!keepThinking} stamp={dwellStamp}><ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} defaultOpen /></Dwell>)}
+            : <Dwell dwell={!keepThinking} stamp={dwellStamp}><ThinkingBlock text={message.thinking} durationMs={message.thinkingDurationMs} defaultOpen noAnimate={wasLiveRef.current} /></Dwell>)}
           {message.content && (
             <Dwell dwell={!turnExpanded && !!dwellContent} stamp={dwellStamp}>
               <ChatMarkdown text={message.content} workspacePath={workspacePath} onOpenFile={onOpenFile} />
@@ -874,7 +875,7 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
       continue
     }
     const isStreamingLast = i === messages.length - 1 && busy
-    // 精简模式的纯 thinking 消息不再跳过：照常成组渲染，由 bubble 内的 Dwell 驻留 2s 后收起（历史 stamp 过期则整块不挂载）
+    // 纯 thinking 消息不再跳过：照常成组渲染，由 bubble 内的 Dwell 驻留 2s 后收起（历史 stamp 过期则整块不挂载）
     if (isPureToolMessage(msg) && !isStreamingLast) {
       for (const tool of msg.toolUse ?? []) {
         if (readBuffer.length === 0) {
@@ -995,10 +996,9 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     // 整条都是过程噪音（thinking / 非末段正文 / 工具）的消息，连壳一起驻留收起。
     // 壳本身不走 Dwell 时，内层块收起后会剩一个 0 高空壳，而列表的 MSG_GAP 照旧按它计一份间距——
     // 一趟 30+ 步的长回合能堆出几百 px 空白。live 那条与末条 result 不裹（思考要交接给 busy 区、result 承载按钮）
-    if (!expanded && !(item.index === messages.length - 1 && busy) && msg.type !== 'result'
-      && msg.role === 'assistant' && !finalContentIdx.has(item.index) && !keepThinkingIdxs.has(item.index) && !keepMsgToolIdxs.has(item.index)) {
-      return <Dwell key={item.index} dwell stamp={msg.timestamp ?? 0}>{bubble}</Dwell>
-    }
-    return bubble
+    const shellDwell = !expanded && !(item.index === messages.length - 1 && busy) && msg.type !== 'result'
+      && msg.role === 'assistant' && !finalContentIdx.has(item.index) && !keepThinkingIdxs.has(item.index) && !keepMsgToolIdxs.has(item.index)
+    // 所有条目都过 Dwell（dwell=false 时只留空壳），保证 dwell 翻转时 bubble 不重挂、fade-in 不重播
+    return <Dwell key={item.index} dwell={shellDwell} stamp={msg.timestamp ?? 0}>{bubble}</Dwell>
   })}</>
 })
