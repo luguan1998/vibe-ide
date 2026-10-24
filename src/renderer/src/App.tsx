@@ -23,6 +23,7 @@ import SearchPanel from './components/SearchPanel'
 import { ModalOverlay } from './components/ModalOverlay'
 import { DirectoryPicker } from './components/DirectoryPicker'
 import QuickOpen from './components/QuickOpen'
+import HistoryView from './components/HistoryView'
 import AiTab, { AiTabHandle } from './components/AiTab'
 import ConversationGraph from './components/AiTab/ConversationGraph'
 import BoardView, { BOARD_FOCUS } from './components/BoardView'
@@ -407,15 +408,10 @@ export default function App() {
   const [rightPanelWidth, setRightPanelWidth] = useState(RIGHT_PANEL_DEFAULT_W)
   const rightPanelPrevWidth = useRef(380)
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false)
-  const [historyNavNonce, setHistoryNavNonce] = useState(0)
+  const [showSessionHistory, setShowSessionHistory] = useState(false)
+  const showSessionHistoryRef = useRef(false)
 
-  const handleOpenHistoryTab = useCallback(() => {
-    if (rightPanelCollapsed) {
-      window.resizeBy(rightPanelWidth + 1, 0)
-      setRightPanelCollapsed(false)
-    }
-    setHistoryNavNonce(n => n + 1)
-  }, [rightPanelCollapsed, rightPanelWidth])
+  const handleOpenHistoryTab = useCallback(() => setShowSessionHistory(true), [])
 
   const handleToggleRightPanel = useCallback(() => {
     const delta = rightPanelWidth + 1 // panel + resize handle
@@ -1085,6 +1081,7 @@ export default function App() {
   }, [showStatusBadge])
   // Keep refs in sync for use in capture-phase keyboard handlers
   React.useEffect(() => { showHistoryRef.current = showHistory }, [showHistory])
+  React.useEffect(() => { showSessionHistoryRef.current = showSessionHistory }, [showSessionHistory])
   React.useEffect(() => { historySelectedIndexRef.current = historySelectedIndex }, [historySelectedIndex])
   React.useEffect(() => { commandHistoryRef.current = commandHistory }, [commandHistory])
 
@@ -2003,6 +2000,12 @@ export default function App() {
         if (showSearchDropdownRef.current) {
           e.preventDefault(); e.stopImmediatePropagation()
           setShowSearchDropdown(false)
+          return
+        }
+        if (showSessionHistoryRef.current) {
+          if (document.querySelector('[data-history-menu-open="true"]')) return
+          e.preventDefault(); e.stopImmediatePropagation()
+          setShowSessionHistory(false)
           return
         }
         const active = document.activeElement as HTMLElement | null
@@ -3949,9 +3952,6 @@ export default function App() {
             onRestoreWidth={handleRestoreRightWidth}
             contentOverlay={rightOverlay}
             brushActive={brushActive}
-            onResumeClaudeHistory={handleResumeClaudeHistory}
-            onResumePiHistory={handleResumePiHistory}
-            historyNavNonce={historyNavNonce}
             browserDocked={browserDocked}
             browserDockNonce={browserDockNonce}
             browserViewRef={browserViewRef}
@@ -3959,6 +3959,7 @@ export default function App() {
             onBrowserAnnotate={(line) => { (window as any).__vibeAppendInput?.(line) }}
             onBrowserToggleDock={handleToggleBrowserDock}
             onOpenBrowser={handleOpenBrowserRight}
+            onOpenSessionHistory={handleOpenHistoryTab}
           />
         </div>
         )}
@@ -4172,6 +4173,25 @@ export default function App() {
         onSelect={handleQuickOpenSelect}
         onClose={closeQuickOpen}
       />
+
+      {/* Session History — center floating panel */}
+      {showSessionHistory && (
+        <ModalOverlay
+          onClose={() => setShowSessionHistory(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in"
+        >
+          <div
+            className="bg-ide-bg border border-ide-border rounded-lg shadow-2xl flex flex-col overflow-hidden w-[80vw] max-w-[960px] h-[80vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <HistoryView
+              workspacePath={activeSessionCwd}
+              onResumeClaudeHistory={handleResumeClaudeHistory}
+              onResumePiHistory={handleResumePiHistory}
+            />
+          </div>
+        </ModalOverlay>
+      )}
 
       {/* Search Dropdown — titlebar 搜索图标浮窗 */}
       <ModalOverlay

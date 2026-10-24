@@ -4,14 +4,13 @@ import { readAiCliConfig } from '../aiStore'
 import { buildHistoryTurns, formatBytes } from '../historyUtils'
 import type { HistoryTurn } from '../historyUtils'
 import type { AiSessionSummary, AiSessionSearchGroup } from '@shared/types'
-import { ArrowLeft, Check, ChevronDown, Filter, FolderOpen, History, Loader2, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, FolderOpen, Loader2, Search, Trash2, X } from 'lucide-react'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { PiLogoIcon } from './PiLogoIcon'
 import { ToolIcon } from './AiTab/tools'
 import { getLastNewMode, toHistoryMode, type HistoryMode } from '../utils/sessionModePrefs'
 
 interface HistoryViewProps {
-  onBack: () => void
   workspacePath: string | null
   onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
   onResumePiHistory?: (piSessionId: string, cwd: string, name: string) => void
@@ -51,8 +50,8 @@ function TurnRow({ turn }: { turn: HistoryTurn }) {
       <span className={`shrink-0 w-4 text-center select-none ${roleCls(turn.role)}`}>
         {turn.role === 'user' ? t('User') : t('Assistant')}
       </span>
-      <span className={`min-w-0 flex-1 truncate ${roleCls(turn.role)}`}>
-        {turn.text.length > 60 ? `${turn.text.slice(0, 60)}…` : turn.text}
+      <span className={`min-w-0 flex-1 break-words line-clamp-3 ${roleCls(turn.role)}`}>
+        {turn.text}
       </span>
     </div>
   )
@@ -69,7 +68,7 @@ const HISTORY_MODE_OPTIONS: { value: HistoryMode; label: string; icon: React.Rea
   { value: 'pi', label: 'pi', icon: <PiLogoIcon size={13} /> },
 ]
 
-export default function HistoryView({ onBack, workspacePath, onResumeClaudeHistory, onResumePiHistory }: HistoryViewProps) {
+export default function HistoryView({ workspacePath, onResumeClaudeHistory, onResumePiHistory }: HistoryViewProps) {
   const { t } = useI18n()
   const [sessions, setSessions] = useState<Summary[]>([])
   const [listLoading, setListLoading] = useState(false)
@@ -90,7 +89,6 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set())
   // 搜索分组用独立折叠态：默认全展开，避免搜到的匹配被折叠藏起来
   const [collapsedSearchProjects, setCollapsedSearchProjects] = useState<Set<string>>(new Set())
-  const [onlyCurrent, setOnlyCurrent] = useState(false)
   const [modeOpen, setModeOpen] = useState(false)
   const modeRef = useRef<HTMLDivElement>(null)
   const fetchReqIdRef = useRef(0)
@@ -303,30 +301,21 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     return [...map.entries()]
   }, [sessions])
 
-  const visibleGroups = useMemo(() => {
-    return onlyCurrent ? groups.filter(([, list]) => list[0]?.inCurrentProject) : groups
-  }, [groups, onlyCurrent])
-
-  const visibleSearchResults = useMemo(() => {
-    if (!searchResults) return null
-    return onlyCurrent ? searchResults.filter(g => g.inCurrentProject) : searchResults
-  }, [searchResults, onlyCurrent])
-
   const visibleSearchGroups = useMemo(() => {
     const map = new Map<string, AiSessionSearchGroup[]>()
-    for (const g of visibleSearchResults || []) {
+    for (const g of searchResults || []) {
       const arr = map.get(g.projectDirName) ?? []
       arr.push(g)
       map.set(g.projectDirName, arr)
     }
     return [...map.entries()]
-  }, [visibleSearchResults])
+  }, [searchResults])
 
   const renderTurns = (sessionId: string) => {
     const item = turnsById[sessionId]
     if (!item) return null
     return (
-      <div className={`${expandedBodyCls} max-h-40 overflow-y-auto py-1.5 space-y-0.5`}>
+      <div className={`${expandedBodyCls} max-h-72 overflow-y-auto py-1.5 space-y-0.5`}>
         {item.loading ? (
           <div className="flex items-center gap-1.5 text-[11px] text-ide-text-muted py-0.5">
             <Loader2 size={11} className="animate-spin" /><span>{t('Loading...')}</span>
@@ -346,7 +335,7 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
     const canResume = !!workspacePath && (s.inCurrentProject || !!s.projectDir)
     return (
       <div
-        className="relative pl-2 pr-2.5 py-0.5 flex items-center gap-2 cursor-pointer hover:bg-ide-hover transition-colors group"
+        className="relative pl-2 pr-2.5 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-ide-hover transition-colors group"
         onClick={searchMode ? () => toggleSearchCollapse(s) : () => toggleExpand(s)}
       >
         <button
@@ -355,13 +344,10 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
         >
           <ChevronDown size={12} />
         </button>
-        <div className="flex-1 min-w-0">
-          <div className="truncate text-xs font-medium text-ide-text">{s.name || s.session_id}</div>
-          <div className="text-[10px] text-ide-text-muted/60 truncate">
-            {s.timestamp ? new Date(s.timestamp).toLocaleString() : ''}
-            {s.sizeBytes > 0 ? ` · ${formatBytes(s.sizeBytes)}` : ''}
-            {s.model ? ` · ${s.model}` : ''}
-          </div>
+        <div className="flex-1 min-w-0 flex items-center gap-3">
+          <span className="flex-1 min-w-0 truncate text-sm font-medium text-ide-text">{s.name || s.session_id}</span>
+          <span className="shrink-0 text-xs text-ide-text-muted/60 tabular-nums">{s.timestamp ? new Date(s.timestamp).toLocaleString() : ''}</span>
+          <span className="shrink-0 w-16 text-right text-xs text-ide-text-muted/60 tabular-nums">{s.sizeBytes > 0 ? formatBytes(s.sizeBytes) : ''}</span>
         </div>
         <div className="absolute inset-y-0 right-0 flex items-center gap-1 pl-3 pr-2.5 bg-ide-hover opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
           {canResume && (
@@ -388,12 +374,12 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   // 普通列表与搜索结果共用同一套骨架：项目分组头（可折叠）+ 会话卡片
   const renderGroupHeader = (dirName: string, list: Summary[], isCollapsed: boolean, onToggle: () => void) => (
     <div
-      className={`flex items-center gap-1 px-1 pt-1 pb-1.5 cursor-pointer select-none rounded hover:bg-ide-hover/50 transition-colors ${isCollapsed ? 'bg-ide-hover/40' : ''}`}
+      className={`flex items-center gap-1.5 px-2 py-2 cursor-pointer select-none rounded hover:bg-ide-hover/50 transition-colors ${isCollapsed ? 'bg-ide-hover/40' : ''}`}
       onClick={onToggle}
     >
-      <ChevronDown size={13} className={`text-ide-text-muted shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-      <span className="text-xs font-bold flex-1 min-w-0 flex items-center gap-1.5">
-        <FolderOpen size={14} className="text-ide-accent/70 shrink-0" />
+      <ChevronDown size={14} className={`text-ide-text-muted shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+      <span className="text-sm font-bold flex-1 min-w-0 flex items-center gap-1.5">
+        <FolderOpen size={15} className="text-ide-accent/70 shrink-0" />
         <span className="truncate font-mono text-ide-text/80">{list[0]?.cwd || dirName}</span>
       </span>
       {list[0]?.inCurrentProject && (
@@ -411,65 +397,33 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
   )
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none">
-      <div className="px-2 py-1.5 bg-ide-hover/50 border-b border-ide-border shrink-0 select-none space-y-1.5">
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={onBack}
-            className="w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors"
-            title={t('Back')}
-          >
-            <ArrowLeft size={13} />
-          </button>
-          <div className="flex items-center gap-1.5 min-w-0">
-            <History size={13} className="shrink-0 text-ide-accent/70" />
-            <span className="text-xs font-bold text-ide-text-muted uppercase tracking-wider truncate">{t('Session History')}</span>
-          </div>
-          <div className="flex-1" />
-          <button
-            onClick={mode === 'pi' ? fetchPiList : fetchSessions}
-            disabled={listLoading}
-            className="w-5 h-5 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title={t('Refresh')}
-          >
-            <RotateCcw size={13} className={listLoading ? 'animate-spin' : ''} />
-          </button>
-          <button
-            onClick={() => setOnlyCurrent(v => !v)}
-            className={`flex items-center gap-1.5 h-5 px-2 rounded text-xs whitespace-nowrap transition-colors ${onlyCurrent ? 'bg-ide-accent/15 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-            title={t('Current project only')}
-          >
-            <Filter size={13} />
-            <span>{t('Current')}</span>
-          </button>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex-1 min-w-0">
-            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-ide-text-muted/50" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('Search Claude sessions...')}
-              className="w-full bg-ide-sidebar border border-ide-border rounded pl-7 pr-6 py-1.5 text-xs text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none focus:border-ide-accent/50"
-            />
-            {query && (
-              <button
-                onClick={() => setQuery('')}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded text-ide-text-muted hover:text-ide-text flex items-center justify-center transition-colors"
-              >
-                <X size={11} />
-              </button>
-            )}
-          </div>
-          <div ref={modeRef} className="relative shrink-0 self-stretch">
+    <div className="flex-1 flex flex-col overflow-hidden outline-none focus:outline-none" data-history-menu-open={modeOpen ? 'true' : undefined}>
+      <div className="px-3 border-b border-ide-border shrink-0 select-none">
+        <div className="flex items-center gap-2 h-11">
+          <Search size={15} className="shrink-0 text-ide-text-muted/60" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('Search Claude sessions...')}
+            className="flex-1 min-w-0 h-full bg-transparent text-sm text-ide-text placeholder:text-ide-text-muted/50 focus:outline-none"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery('')}
+              className="shrink-0 w-5 h-5 rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover flex items-center justify-center transition-colors"
+            >
+              <X size={12} />
+            </button>
+          )}
+          <div ref={modeRef} className="relative shrink-0">
             <button
               type="button"
               onClick={() => setModeOpen(v => !v)}
-              className="flex items-center gap-1 h-full px-2 rounded bg-ide-sidebar border border-ide-border text-ide-text hover:bg-ide-hover transition-colors"
+              className="flex items-center gap-1 px-1.5 py-1 rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
               title={`${HISTORY_MODE_OPTIONS.find(o => o.value === mode)?.label} mode`}
             >
               <span className="shrink-0 text-ide-accent">{HISTORY_MODE_OPTIONS.find(o => o.value === mode)?.icon}</span>
-              <span className="max-w-[88px] truncate text-[11px] text-ide-text">{HISTORY_MODE_OPTIONS.find(o => o.value === mode)?.label}</span>
+              <span className="max-w-[88px] truncate text-xs text-ide-text">{HISTORY_MODE_OPTIONS.find(o => o.value === mode)?.label}</span>
               <ChevronDown size={12} className={`shrink-0 opacity-50 transition-transform ${modeOpen ? 'rotate-180' : ''}`} />
             </button>
             {modeOpen && (
@@ -543,10 +497,10 @@ export default function HistoryView({ onBack, workspacePath, onResumeClaudeHisto
           </div>
         ) : listError ? (
           <div className="py-8 text-center text-xs text-ide-danger px-4">{listError}</div>
-        ) : visibleGroups.length === 0 ? (
+        ) : groups.length === 0 ? (
           <div className="py-8 text-center text-xs text-ide-text-muted px-4">{t('No history sessions')}</div>
         ) : (
-          visibleGroups.map(([dirName, list]) => {
+          groups.map(([dirName, list]) => {
             const isCollapsed = collapsedProjects.has(dirName)
             return (
               <div key={dirName}>

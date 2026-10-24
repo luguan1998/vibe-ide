@@ -1,28 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState } from 'react'
 import { useI18n } from '../i18n'
 import Game2048 from './Game2048'
 import GameSandspiel from './GameSandspiel'
 import GameBalatro from './GameBalatro'
 import GameVampire from './GameVampire'
 import GameBeads from './GameBeads'
-import HistoryView from './HistoryView'
 import SkillMemoryView from './SkillMemoryView'
 
-type GameId = 'menu' | 'history' | 'skills' | 'browser' | '2048' | 'sandspiel' | 'balatro' | 'vampire' | 'beads'
+type GameId = 'menu' | 'skills' | 'browser' | '2048' | 'sandspiel' | 'balatro' | 'vampire' | 'beads'
 
 interface GameLauncherProps {
   workspacePath: string | null
   panelWide?: boolean
-  onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
-  onResumePiHistory?: (piSessionId: string, cwd: string, name: string) => void
-  historyNavNonce?: number
   onOpenFileFromExplorer?: (fullPath: string) => void
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
   onOpenBrowser?: () => void
+  onOpenSessionHistory?: () => void
 }
 
 interface GameCard {
-  id: Exclude<GameId, 'menu'>
+  id: 'history' | Exclude<GameId, 'menu'>
   icon: React.ReactNode
   name: string
   desc: string
@@ -40,15 +37,8 @@ const GAMES: GameCard[] = [
   { id: 'vampire', icon: <span className="text-2xl leading-none">🧛</span>, name: 'Survivors', desc: 'Survive the night — auto-attack hordes, level up, last 6 minutes', duration: '6 min' },
 ]
 
-export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeHistory, onResumePiHistory, historyNavNonce, onOpenFileFromExplorer, onPreviewMarkdown, onOpenBrowser }: GameLauncherProps) {
+export default function GameLauncher({ workspacePath, panelWide, onOpenFileFromExplorer, onPreviewMarkdown, onOpenBrowser, onOpenSessionHistory }: GameLauncherProps) {
   const [currentGame, setCurrentGame] = useState<GameId>('menu')
-  const lastHistoryNonce = useRef(0)
-  useEffect(() => {
-    if (historyNavNonce && historyNavNonce !== lastHistoryNonce.current) {
-      lastHistoryNonce.current = historyNavNonce
-      setCurrentGame('history')
-    }
-  }, [historyNavNonce])
   const { t } = useI18n()
 
   const launch = (id: GameId) => {
@@ -58,7 +48,6 @@ export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeH
   if (currentGame !== 'menu') {
     const back = () => setCurrentGame('menu')
     switch (currentGame) {
-      case 'history': return <HistoryView onBack={back} workspacePath={workspacePath} onResumeClaudeHistory={onResumeClaudeHistory} onResumePiHistory={onResumePiHistory} />
       case 'skills': return <SkillMemoryView onBack={back} workspacePath={workspacePath} onOpenFile={onOpenFileFromExplorer ?? (() => {})} onPreviewFile={onPreviewMarkdown ? (p) => onPreviewMarkdown(p, p.split(/[\\/]/).pop() || p) : undefined} />
       case 'balatro': return <GameBalatro onBack={back} />
       case 'sandspiel': return <GameSandspiel onBack={back} />
@@ -78,7 +67,11 @@ export default function GameLauncher({ workspacePath, panelWide, onResumeClaudeH
           {GAMES.map(game => (
             <button
               key={game.id}
-              onClick={() => (game.id === 'browser' ? onOpenBrowser?.() : launch(game.id))}
+              onClick={() => (
+                game.id === 'browser' ? onOpenBrowser?.()
+                  : game.id === 'history' ? onOpenSessionHistory?.()
+                    : launch(game.id)
+              )}
               className="w-full flex items-center gap-3 p-3 rounded-lg bg-ide-sidebar border border-ide-border hover:border-ide-accent/50 hover:bg-ide-hover transition-colors text-left group"
             >
               <div className="shrink-0 w-7 h-7 flex items-center justify-center">{game.icon}</div>

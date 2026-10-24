@@ -47,9 +47,6 @@ interface RightPanelProps {
   onWorktreeNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>>>
   sessionSubmoduleNav: Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>
   onSubmoduleNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>>>
-  onResumeClaudeHistory: (historySessionId: string, cwd: string, name: string, mode: 'tui' | 'gui') => void
-  onResumePiHistory?: (piSessionId: string, cwd: string, name: string) => void
-  historyNavNonce?: number
   browserDocked?: boolean
   browserDockNonce?: number
   browserViewRef?: React.MutableRefObject<BrowserViewHandle | null>
@@ -61,6 +58,7 @@ interface RightPanelProps {
   onRestoreWidth?: () => void
   contentOverlay?: React.ReactNode
   onOpenBrowser?: () => void
+  onOpenSessionHistory?: () => void
 }
 
 type GitSection = 'git' | 'terminal' | 'file' | 'game'
@@ -459,9 +457,6 @@ function RightPanel({
   onWorktreeNavChange,
   sessionSubmoduleNav,
   onSubmoduleNavChange,
-  onResumeClaudeHistory,
-  onResumePiHistory,
-  historyNavNonce,
   browserDocked,
   browserDockNonce,
   browserViewRef,
@@ -473,6 +468,7 @@ function RightPanel({
   onRestoreWidth,
   contentOverlay,
   onOpenBrowser,
+  onOpenSessionHistory,
 }: RightPanelProps) {
   const [activeSection, setActiveSection] = useState<GitSection>('file')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
@@ -597,17 +593,6 @@ function RightPanel({
       setActiveSection('git')
     }
   }, [lineHistoryPayload])
-
-  useEffect(() => {
-    if (historyNavNonce) {
-      setVisibleTabs(prev => {
-        if (prev['game']) return prev
-        const next = { ...prev, game: true }
-        return next
-      })
-      setActiveSection('game')
-    }
-  }, [historyNavNonce])
 
   // 浏览器停靠右栏 → 切到 Nga tab 展示覆盖层
   useEffect(() => {
@@ -738,7 +723,7 @@ function RightPanel({
       </div>
 
       <div ref={gameContentRef} tabIndex={-1} style={{ display: activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden relative">
-        <GameLauncher workspacePath={workspacePath} panelWide={panelWide} onResumeClaudeHistory={onResumeClaudeHistory} onResumePiHistory={onResumePiHistory} historyNavNonce={historyNavNonce} onOpenFileFromExplorer={onOpenFileFromExplorer} onPreviewMarkdown={onPreviewMarkdown} onOpenBrowser={onOpenBrowser} />
+        <GameLauncher workspacePath={workspacePath} panelWide={panelWide} onOpenFileFromExplorer={onOpenFileFromExplorer} onPreviewMarkdown={onPreviewMarkdown} onOpenBrowser={onOpenBrowser} onOpenSessionHistory={onOpenSessionHistory} />
         {browserDocked && (
           <div className="absolute inset-0 z-10 flex flex-col bg-ide-bg">
             <BrowserView
