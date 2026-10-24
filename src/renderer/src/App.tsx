@@ -2911,7 +2911,7 @@ export default function App() {
   // 整理：清理该组内仍是默认命名（从未手动改名）的会话，再把剩余会话按创建时间倒序
   const handleTidySessionsInGroup = useCallback(async (cwd: string) => {
     const ids = sessionsRef.current
-      .filter(s => sessionGroupKey(s) === cwd && isDefaultSessionName(s.name) && !manuallyRenamedRef.current.has(s.id))
+      .filter(s => sessionGroupKey(s) === cwd && isDefaultSessionName(s.name) && !manuallyRenamedRef.current.has(s.id) && !hasSchedTask(s.id))
       .map(s => s.id)
     for (const id of ids) await closeSessionCore(id)
     setSessions(prev => {
@@ -2940,7 +2940,7 @@ export default function App() {
     const all = sessionsRef.current
     const idSet = new Set(
       all
-        .filter(s => isDefaultSessionName(s.name) && !manuallyRenamedRef.current.has(s.id))
+        .filter(s => isDefaultSessionName(s.name) && !manuallyRenamedRef.current.has(s.id) && !hasSchedTask(s.id))
         .map(s => s.id),
     )
     for (const id of idSet) await closeSessionCore(id)
