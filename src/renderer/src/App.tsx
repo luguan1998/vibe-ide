@@ -30,7 +30,7 @@ import BoardView, { BOARD_FOCUS } from './components/BoardView'
 import { aiStore, readAiCliConfig, queuePendingSend } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
-import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, toRelPath } from './components/vibeEvents'
+import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, QUICK_OPEN_EVENT, toRelPath } from './components/vibeEvents'
 import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode, LSP_SERVERS, LSP_LANG_TO_SERVER } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
@@ -460,6 +460,11 @@ export default function App() {
     quickOpenOpenRef.current = false
     setQuickOpenOpen(false)
   }, [])
+  useEffect(() => {
+    const onQuickOpen = () => openQuickOpen(true)
+    window.addEventListener(QUICK_OPEN_EVENT, onQuickOpen)
+    return () => window.removeEventListener(QUICK_OPEN_EVENT, onQuickOpen)
+  }, [openQuickOpen])
   // useEffect 延迟同步,渲染帧内读到的是打开 overlay 前的 centerView(用于定侧/回落判断)
   const centerViewRef = React.useRef<CenterView>('terminal')
   // 网状视图按会话绑定：分支即会话，切分支必然切会话，放 AiTab 局部会被切没；

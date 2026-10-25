@@ -761,6 +761,11 @@ html, body, #root {
 .file-tree-item:focus-within .row-action,
 [data-recent-idx]:hover .row-action { opacity: 1; }
 
+/* 目录标题栏 hover 才显示的操作 */
+.file-tab__header .header-action { opacity: 0; pointer-events: none; transition: opacity 120ms ease-out, color 150ms; }
+.file-tab__header:hover .header-action,
+.file-tab__header:focus-within .header-action { opacity: 1; pointer-events: auto; }
+
 /* 拖面板分隔条期间：webview 冻结指针事件(否则 guest 抢 mousemove 致拖不动)，全窗保持拖拽光标 */
 body.panel-dragging webview { pointer-events: none; }
 body.panel-dragging { user-select: none; cursor: col-resize; }

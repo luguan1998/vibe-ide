@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Lightbulb, X, Pencil, Search, Filter, FileText, FilePlus, FolderPlus, ClipboardPaste, Scissors, Copy, Check, RotateCw, FolderOpen, GitCompare, Trash2, Route, Globe } from 'lucide-react'
+import { Lightbulb, X, Pencil, Search, FilePlus, FolderPlus, ClipboardPaste, Scissors, Copy, Check, FolderOpen, GitCompare, Trash2, Route, Globe } from 'lucide-react'
 import { FileNode, GrepMatch, CodeSymbol } from '@shared/types'
 import { getFileInfo, FileIcon, FolderIcon } from './FileIcons'
 import { PanelDirIcon } from '../panelIcons'
@@ -8,7 +8,7 @@ import { trimToMatch, highlightMatches } from './SearchPanel'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { loadFilterRules } from '../utils/fileFilter'
 import { useI18n } from '../i18n'
-import { ADD_ANNOTATION_EVENT } from './vibeEvents'
+import { ADD_ANNOTATION_EVENT, QUICK_OPEN_EVENT } from './vibeEvents'
 
 // File clipboard for cut/copy/paste
 interface FileClipboard {
@@ -144,61 +144,6 @@ function setNodesChildrenMap(nodes: FileNode[], map: Map<string, FileNode[]>): F
     if (map.has(key)) return { ...n, children: setNodesChildrenMap(map.get(key)!, map) }
     return n
   })
-}
-
-interface NameMatch { name: string; path: string; type: 'file' | 'directory'; relativePath: string }
-
-function compactFileNodes(nodes: FileNode[]) {
-  const compact = (n: FileNode) => {
-    if (!n.children) return
-    for (const ch of n.children) compact(ch)
-    let kids = n.children
-    while (kids.length === 1 && kids[0].type === 'directory') {
-      const child = kids[0]
-      n.name = n.name ? `${n.name}/${child.name}` : child.name
-      n.path = child.path
-      n.children = child.children
-      kids = child.children || []
-    }
-  }
-  nodes.forEach(compact)
-}
-
-function buildTreeFromMatches(matches: NameMatch[], cwd: string): FileNode[] {
-  const root: FileNode[] = []
-  const dirMap = new Map<string, FileNode>()
-  const rootPath = norm(cwd).replace(/\/$/, '')
-  for (const m of matches) {
-    const segs = norm(m.relativePath).split('/').filter(Boolean)
-    let level = root
-    let cur = rootPath
-    for (let i = 0; i < segs.length; i++) {
-      const seg = segs[i]
-      cur = cur + '/' + seg
-      if (i === segs.length - 1) {
-        if (dirMap.has(cur)) break
-        level.push({ name: seg, path: m.path, type: m.type })
-      } else {
-        let dir = dirMap.get(cur)
-        if (!dir) {
-          dir = { name: seg, path: cur, type: 'directory', children: [] }
-          dirMap.set(cur, dir)
-          level.push(dir)
-        }
-        level = dir.children!
-      }
-    }
-  }
-  compactFileNodes(root)
-  return root
-}
-
-function collectDirPaths(nodes: FileNode[], acc: Set<string> = new Set()): Set<string> {
-  for (const n of nodes) {
-    if (n.type === 'directory') { acc.add(norm(n.path)); if (n.children) collectDirPaths(n.children, acc) }
-    else if (n.children) collectDirPaths(n.children, acc)
-  }
-  return acc
 }
 
 // Context menu item with leading icon
@@ -634,10 +579,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
   const [archExpanded, setArchExpanded] = useState(false)
   const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(null)
-  const [nameFilter, setNameFilter] = useState('')
-  const [nameSearchResults, setNameSearchResults] = useState<FileNode[]>([])
-  const [nameSearching, setNameSearching] = useState(false)
-  const [nameOnly, setNameOnly] = useState(false)
   const { t } = useI18n()
 
   const [sectionVis, setSectionVis] = useState<FileTabSectionVis>(DEFAULT_SECTION_VIS)
@@ -655,33 +596,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   fileTreeRef.current = fileTree
   const expandedDirsRef = useRef<Set<string>>(new Set())
   expandedDirsRef.current = expandedDirs
-
-  const nameSearchReqId = useRef(0)
-  useEffect(() => {
-    const q = nameFilter.trim()
-    if (!q || !workspacePath) { setNameSearchResults([]); setNameSearching(false); return }
-    const reqId = ++nameSearchReqId.current
-    setNameSearching(true)
-    const timer = setTimeout(async () => {
-      try {
-        const res = await window.api.file.searchByName(workspacePath, q, loadFilterRules(), nameOnly)
-        if (nameSearchReqId.current !== reqId) return
-        if (res && !res.error) setNameSearchResults(buildTreeFromMatches(res.matches || [], workspacePath))
-        else setNameSearchResults([])
-      } catch {
-        if (nameSearchReqId.current === reqId) setNameSearchResults([])
-      } finally {
-        if (nameSearchReqId.current === reqId) setNameSearching(false)
-      }
-    }, 250)
-    return () => clearTimeout(timer)
-  }, [nameFilter, workspacePath, nameOnly])
-
-  const filteredTree = useMemo(() => {
-    const q = nameFilter.trim()
-    return q ? nameSearchResults : fileTree
-  }, [fileTree, nameFilter, nameSearchResults])
-  const filteredExpanded = useMemo(() => collectDirPaths(filteredTree), [filteredTree])
 
   // Load file tree (root level only, depth=1 lazy load).
   const loadFileTree = useCallback(async (): Promise<void> => {
@@ -1225,38 +1139,33 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
           onMouseLeave={() => setSearchJustClosed(false)}
         >
-          <div className="group flex items-center gap-1 min-w-0 flex-1">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
             <PanelDirIcon className="w-3.5 h-3.5 text-ide-accent shrink-0" />
             <span className="text-sm text-ide-text font-medium truncate">
               {workspacePath.split(/[\\/]/).pop()}
             </span>
-            <div
-              className={`items-center gap-1 bg-ide-border/30 border border-ide-border group-focus-within:border-ide-accent rounded-full px-2 py-0.5 shrink-0 transition-colors ${nameFilter.trim() ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'}`}
-            >
-              <Filter className="w-3 h-3 text-ide-text-muted shrink-0" />
-              <input
-                value={nameFilter}
-                onChange={(e) => setNameFilter(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Escape') { setNameFilter(''); (e.target as HTMLInputElement).blur() } }}
-                placeholder={t('搜索文件名')}
-                className="w-20 sm:w-28 bg-transparent text-xs text-ide-text outline-none focus-visible:outline-none caret-ide-accent placeholder:text-ide-text-muted/50"
-              />
-              <button
-                onClick={() => setNameOnly(v => !v)}
-                title={t('只匹配文件名（不含路径）')}
-                className={`shrink-0 flex items-center justify-center w-4 h-4 rounded-full transition-colors ${nameOnly ? 'bg-ide-accent/25 text-ide-accent' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
-              ><FileText className="w-3 h-3" /></button>
-              {nameFilter && (
-                <button
-                  onClick={() => setNameFilter('')}
-                  title={t('Clear')}
-                  className="shrink-0 w-4 h-4 flex items-center justify-center rounded-full text-ide-text-muted hover:text-ide-danger hover:bg-ide-danger/10 transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
           </div>
+          <button
+            className="header-action text-ide-text-muted hover:text-ide-text shrink-0 w-5 flex items-center justify-center"
+            onClick={() => window.dispatchEvent(new CustomEvent(QUICK_OPEN_EVENT))}
+            title={t('Quick Open File')}
+          >
+            <Search className="ft-icon" />
+          </button>
+          <button
+            className="header-action text-ide-text-muted hover:text-ide-text shrink-0 w-5 flex items-center justify-center"
+            onClick={() => handleNewFile(workspacePath)}
+            title={t('New File')}
+          >
+            <FilePlus className="ft-icon" />
+          </button>
+          <button
+            className="header-action text-ide-text-muted hover:text-ide-text shrink-0 w-5 flex items-center justify-center"
+            onClick={() => handleNewFolder(workspacePath)}
+            title={t('New Folder')}
+          >
+            <FolderPlus className="ft-icon" />
+          </button>
           <button
             className="text-ide-text-muted hover:text-ide-text transition-colors shrink-0 w-5 flex items-center justify-center"
             onClick={() => setExpandedDirs(new Set())}
@@ -1325,26 +1234,18 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
               </div>
             )}
           </div>
-        ) : nameFilter.trim() && nameSearching ? (
-          <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
-            {t('Searching...')}
-          </div>
-        ) : nameFilter.trim() && filteredTree.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
-            {t('No matches')}
-          </div>
         ) : fileTree.length === 0 && !(editingState && editingState.nodePath === workspacePath) ? (
           <div className="flex items-center justify-center h-full text-ide-text-muted text-xs">
             {workspacePath ? t('Empty directory') : t('No workspace')}
           </div>
         ) : (
           <div className="flex flex-col py-1">
-            {(nameFilter.trim() ? filteredTree : fileTree).map(node => (
+            {fileTree.map(node => (
               <FileTreeItem
                 key={node.path}
                 node={node}
                 depth={0}
-                expandedDirs={nameFilter.trim() ? filteredExpanded : expandedDirs}
+                expandedDirs={expandedDirs}
                 onToggle={toggleDir}
                 onOpenFile={(fullPath) => onOpenFileFromExplorer?.(fullPath)}
                 onContextMenu={(e, node) => {
@@ -1447,6 +1348,20 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 label={t('Open Folder in Explorer')}
                 onClick={() => handleOpenExplorer(fileContextMenu.node)}
               />
+              {isRoot && (
+                <>
+                  <ContextMenuItem
+                    icon={<FilePlus className="ft-icon" />}
+                    label={t('New File')}
+                    onClick={() => handleNewFile(fileContextMenu.node.path)}
+                  />
+                  <ContextMenuItem
+                    icon={<FolderPlus className="ft-icon" />}
+                    label={t('New Folder')}
+                    onClick={() => handleNewFolder(fileContextMenu.node.path)}
+                  />
+                </>
+              )}
               {(fileClipboard || !isRoot) && <div className="border-t border-ide-border my-1" />}
               {fileClipboard && (
                 <ContextMenuItem
@@ -1466,16 +1381,6 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                     icon={<Copy className="ft-icon" />}
                     label={t('Copy')}
                     onClick={() => handleCopy(fileContextMenu.node)}
-                  />
-                </>
-              )}
-              {isRoot && onRefresh && (
-                <>
-                  <div className="border-t border-ide-border my-1" />
-                  <ContextMenuItem
-                    icon={<RotateCw className="ft-icon" />}
-                    label={t('Refresh')}
-                    onClick={() => { onRefresh(); setFileContextMenu(null) }}
                   />
                 </>
               )}
