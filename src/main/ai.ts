@@ -110,9 +110,11 @@ export function parseUserTurns(lines: string[]): UserTurn[] {
     const cleaned = cleanText(msg.message.content)
     if (cleaned !== '') {
       // 系统注入消息（AskUserQuestion 回答、plan 批准、continuation）带 isMeta，
-      // 只存在于 JSONL，不计入用户轮次，否则重载渲染成用户气泡且 revert 索引错位。
+      // task-notification 由 CLI 以 promptSource='system' 写入，二者只存在于 JSONL，
+      // 不计入用户轮次，否则重载渲染成用户气泡、回合被劈成两段且 revert 索引错位。
       // 兜底：修复前写入的旧会话无 isMeta 标记，按内容特征识别
       if (msg.isMeta === true
+        || msg.promptSource === 'system'
         || cleaned.includes('AskUserQuestionResultBase64:')
         || cleaned.startsWith('The user skipped this AskUserQuestion')) {
         i++; continue

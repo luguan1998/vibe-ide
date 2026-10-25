@@ -264,10 +264,10 @@
   border-radius: var(--cream-r-card) !important;
   box-shadow: var(--cream-shadow-lv1) !important;
 }
-/* tool 卡 — 白底 pill + 整卡点击展开：toggle pill 纯白底无装饰（简洁，融入白卡）；
+/* tool 卡 — 白底卡片 + 整卡点击展开：toggle pill 透明无装饰（透出白卡，不出现灰条）；
    点击回调在整卡（cursor:pointer），药丸冒泡触发不双开；折叠态整卡 hover 浅米白提示可点
    flex 容器让 pill 在卡片内 y 轴居中（block+vertical-align 受行高基线影响会偏下），
-   x 轴保持原样（pill 贴左 + margin-left:-1px 补偿 border），只加上下 padding 呼吸；
+   x 轴保持原样，只加上下 padding 呼吸；
    展开态 detail 面板 width:100% 借 flex-wrap 换行占满整行 */
 .ai-tab__tool-call {
   cursor: pointer !important;
@@ -277,10 +277,28 @@
   padding: 4px 0 !important;
 }
 .ai-tab__tool-call:not(:has(.ai-tab__tool-detail-panel)):hover { background: rgb(var(--ide-bg)) !important; }
-.ai-tab__tool-call > .ai-tab__tool-toggle {
-  background: rgb(255 255 255) !important;
-  margin-left: -1px !important;
+.ai-tab__tool-call .ai-tab__tool-toggle {
+  background: transparent !important;
 }
+/* 灰调工具（search/command）文字提到主色，保证白卡上的对比 */
+.ai-tab__tool-toggle[class*="text-ide-text-muted"] { color: rgb(var(--ide-text)) !important; }
+/* 合并摘要行（· N steps）与工具白卡同款：整行白卡，pill 透明 */
+.ai-tab__tools-summary--compact > .ai-tab__tool-row {
+  width: 100% !important;
+  background: rgb(255 255 255) !important;
+  border: 1px solid var(--cream-border) !important;
+  border-radius: var(--cream-r-card) !important;
+  box-shadow: var(--cream-shadow-lv1) !important;
+  padding: 4px 0 !important;
+}
+.ai-tab__tools-summary-toggle {
+  background: transparent !important;
+  color: rgb(var(--ide-text)) !important;
+}
+/* pill 透明后撑满整行 → 点白卡任意处即触发展开/收缩（点击回调挂在 pill 按钮上，无需改代码）；
+   detail 不抢占剩余空间，chevron 仍紧跟文字 */
+.ai-tab__tools-summary--compact > .ai-tab__tool-row > .ai-tab__tools-summary-toggle { flex: 1 1 auto !important; }
+.ai-tab__tools-summary-toggle .ai-tab__tool-detail-preview { flex: 0 1 auto !important; }
 .ai-tab__tool-call > .ai-tab__tool-detail-panel { width: 100% !important; }
 /* thinking 胶囊与工具白卡对齐：工具 pill 无边框（icon 在 6px），thinking 自带 1px 边框会把 icon 挤右 1px，
    cream 语言近零硬边，去边框后左边缘与 icon 同时归位 */
