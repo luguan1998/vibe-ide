@@ -990,31 +990,37 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   gap: 6px;
   min-width: 0;
 }
+/* 输入框与右侧按钮合成一个整控件，避免小圆钮漂浮在长条输入框旁边 */
+.desktop-pet__interject-row--with-input {
+  gap: 2px;
+  padding-right: 4px;
+  border-radius: 12px;
+  background: rgb(var(--ide-sidebar));
+  border: 1px solid rgb(var(--ide-border));
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
+  transition: border-color 120ms, background 120ms;
+}
+.desktop-pet__interject-row--with-input:focus-within { border-color: rgb(var(--ide-accent) / 0.6); }
+.desktop-pet__interject-row--with-input .desktop-pet__context-gear { border: 0; background: transparent; box-shadow: none; }
 .desktop-pet__interject-input,
 .desktop-pet__context-input {
   box-sizing: border-box;
   resize: none;
-  background: rgb(var(--ide-sidebar));
-  border: 1px solid rgb(var(--ide-border));
   color: rgb(var(--ide-text));
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
   outline: none;
-  transition: border-color 120ms, background 120ms;
 }
 .desktop-pet__interject-input {
   flex: 1;
   min-width: 0;
   min-height: 22px;
   padding: 3px 10px;
-  border-radius: 11px;
   font-family: inherit;
   font-size: 12px;
   line-height: 14px;
+  background: transparent;
+  border: 0;
 }
-.desktop-pet__interject-input:focus,
-.desktop-pet__context-input:focus {
-  border-color: rgb(var(--ide-accent) / 0.6);
-}
+.desktop-pet__context-input:focus { border-color: rgb(var(--ide-accent) / 0.6); }
 .desktop-pet__interject-input::placeholder,
 .desktop-pet__context-input::placeholder {
   color: rgb(var(--ide-text-muted) / 0.6);
@@ -1045,6 +1051,10 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.3;
+  background: rgb(var(--ide-sidebar));
+  border: 1px solid rgb(var(--ide-border));
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
+  transition: border-color 120ms, background 120ms;
 }
 .desktop-pet__context-gear {
   display: inline-flex;

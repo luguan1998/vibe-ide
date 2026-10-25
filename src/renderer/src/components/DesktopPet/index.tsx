@@ -523,7 +523,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                 </button>
               ))}
               {si === 0 && (
-                <div className="desktop-pet__interject-row">
+                <div className={`desktop-pet__interject-row${contextOpen && contextBtw ? ' desktop-pet__interject-row--with-input' : ''}`}>
                   {contextOpen && contextBtw && (
                     <textarea
                       ref={inlineInputRef}
