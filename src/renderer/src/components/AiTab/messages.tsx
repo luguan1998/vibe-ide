@@ -406,11 +406,11 @@ export function BusyStatus({ startAt, backend, tool }: {
   const quip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
   const label = quip + (timeLabel ? ` (${timeLabel})` : '')
   return (
-    <div className="ai-tab__busy-status flex items-center gap-1.5 px-1 pb-1 text-[13px] leading-none select-none">
+    <div className="ai-tab__busy-status flex items-center gap-1.5 px-1 pb-1 text-[13px] leading-none text-ide-accent/60 select-none">
       {backend === 'pi'
         ? <PiLogoIcon className="shrink-0 animate-spin-pixel text-sm leading-none select-none" />
         : <ClaudeLogoIcon className="shrink-0 animate-spin-pixel text-sm leading-none select-none" fill="currentColor" />}
-      <span className="text-ide-accent/60">{label}</span>
+      <span>{label}</span>
       {tool && <span className="font-mono text-[11px] text-ide-text-muted/40">· {tool.name} {Math.round(tool.elapsed)}s</span>}
     </div>
   )
