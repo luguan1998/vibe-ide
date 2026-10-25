@@ -240,6 +240,8 @@ function getFileEditContent(tool: AiToolUse): { filePath: string; oldContent?: s
 function getToolDetail(tool: AiToolUse): string {
   const input = tool.input || {}
   if (SKILL_TOOLS.has(tool.name)) return input.skill || input.command || ''
+  if (AGENT_TOOLS.has(tool.name)) return input.description || ''
+  if (WEB_TOOLS.has(tool.name)) return input.url || input.query || ''
   const rawPath = input.file_path || ''
   if (rawPath) return rawPath.length > 32 ? rawPath.slice(0, 15) + '...' + rawPath.slice(-14) : rawPath
   return input.pattern || input.command || ''
