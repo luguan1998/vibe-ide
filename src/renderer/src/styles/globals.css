@@ -732,11 +732,15 @@ html, body, #root {
 @container git-tab (max-width: 230px) {
   .git-stats { display: none; }
 }
-/* ── 窄面板下批量按钮（全部暂存/全部取消）回退为纯 svg ──
-   290px 实测：中文界面 Untracked 行 + 标签文字需 289px；英文需 314px（英文在 290~313 会略挤标题） */
+/* ── 批量按钮（全部暂存/全部取消）：默认不换行，GitTab 实测 header 放不下时加 data-bulk-tight 缩略为纯 svg ──
+   +N/-N 统计数字变长也算进实测，不再靠固定宽度猜 */
 @container git-tab (max-width: 290px) {
   .git-tab__bulk-label { display: none; }
 }
+.git-tab__section-header { white-space: nowrap; overflow: hidden; }
+.git-tab__section-header[data-bulk-tight] .git-tab__bulk-label { display: none; }
+/* 测量态：强制显示标签，scrollWidth 才能反映真实所需宽度 */
+.git-tab__measure-bulk .git-tab__bulk-label { display: inline !important; }
 /* ── 窄面板下 Pop Stash 回退为 Pop（commit area 在 git-tab-container 之外，单建容器） ── */
 .git-tab__commit-area {
   container-type: inline-size;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, Fragment, type MouseEvent as ReactMouseEvent } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Fragment, type MouseEvent as ReactMouseEvent } from 'react'
 import { useI18n } from '../i18n'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitSubmodule, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
@@ -153,6 +153,17 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
   const { t } = useI18n()
   const containerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const headers = Array.from(containerRef.current?.querySelectorAll<HTMLElement>('.git-tab__section-header') ?? [])
+    if (!headers.length) return
+    headers.forEach(el => el.classList.add('git-tab__measure-bulk'))
+    const tight = headers.map(el => el.scrollWidth > el.clientWidth)
+    headers.forEach((el, i) => {
+      el.classList.remove('git-tab__measure-bulk')
+      if (tight[i]) el.dataset.bulkTight = ''
+      else delete el.dataset.bulkTight
+    })
+  })
   const [commitInputFocused, setCommitInputFocused] = useState(false)
   const [stagedExpanded, setStagedExpanded] = useState(true)
   const [changesExpanded, setChangesExpanded] = useState(true)
