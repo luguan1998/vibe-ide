@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { AiMessage, AiToolUse, UserTurn } from '@shared/types'
 import { asToolArray } from '@shared/types'
 import { useI18n } from '../../i18n'
@@ -375,6 +375,19 @@ export function ThinkingBlock({ text, durationMs, openByDefault = false, autoCol
   )
 }
 
+const BUSY_QUIPS = [
+  'Forging the digital frontier…',
+  'The empire, long divided, must unite…',
+  'Decrypting the matrix, one token at a time…',
+  'Wrestling with the thought daemons…',
+  'Aligning the cosmic bits…',
+  'The bytes must flow…',
+  'Resisting the centralized compiler…',
+  'A bug in time saves nine…',
+  'Consulting the rubber duck oracle…',
+  'Bribing the garbage collector…',
+]
+
 // busy 期间固定在输入框上方的状态行：替代原先挂在用户气泡上的 cooked 摘要
 export function BusyStatus({ startAt, backend, tool }: {
   startAt: number
@@ -387,13 +400,17 @@ export function BusyStatus({ startAt, backend, tool }: {
     const id = setInterval(() => setSec(Math.max(0, Math.floor((Date.now() - startAt) / 1000))), 1000)
     return () => clearInterval(id)
   }, [startAt])
-  const label = sec >= 60 ? `${Math.floor(sec / 60)}m ${sec % 60}s` : `${sec}s`
+  const timeLabel = sec >= 10
+    ? sec >= 60 ? `${Math.floor(sec / 60)}m ${sec % 60}s` : `${sec}s`
+    : ''
+  const quip = useMemo(() => BUSY_QUIPS[Math.floor(Math.random() * BUSY_QUIPS.length)], [])
+  const label = quip + (timeLabel ? ` (${timeLabel})` : '')
   return (
-    <div className="ai-tab__busy-status flex items-center gap-1.5 px-1 pb-1 text-sm leading-none text-ide-text-muted/50 select-none">
+    <div className="ai-tab__busy-status flex items-center gap-1.5 px-1 pb-1 text-[13px] leading-none select-none">
       {backend === 'pi'
         ? <PiLogoIcon className="shrink-0 animate-spin-pixel text-sm leading-none select-none" />
         : <ClaudeLogoIcon className="shrink-0 animate-spin-pixel text-sm leading-none select-none" fill="currentColor" />}
-      <span>Cooked for {label}</span>
+      <span className="text-ide-accent/60">{label}</span>
       {tool && <span className="font-mono text-[11px] text-ide-text-muted/40">· {tool.name} {Math.round(tool.elapsed)}s</span>}
     </div>
   )
