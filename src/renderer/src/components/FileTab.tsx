@@ -215,7 +215,7 @@ export function ContextMenuItem({ icon, label, danger, onClick }: { icon: React.
 }
 
 // File tree item component
-function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, onSearchInFolder, inlineSearch, onCopyPath, brushActive, workspacePath }: {
+function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, onSearchInFolder, onNewFile, onNewFolder, inlineSearch, onCopyPath, brushActive, workspacePath }: {
   node: FileNode
   depth: number
   expandedDirs: Set<string>
@@ -230,6 +230,8 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   onPreviewImage?: (fullPath: string, fileName: string) => void
   onOpenInBrowser?: (fullPath: string) => void
   onSearchInFolder?: (path: string) => void
+  onNewFile?: (dirPath: string) => void
+  onNewFolder?: (dirPath: string) => void
   inlineSearch?: InlineSearch
   onCopyPath?: (fullPath: string) => void
   brushActive?: boolean
@@ -368,17 +370,45 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                   <X className="w-3 h-3" />
                 </button>
               </div>
-            ) : isDir && onSearchInFolder ? (
-              <button
-                className="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 row-action"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSearchInFolder(node.path)
-                }}
-                title={t('Search in folder')}
-              >
-                <Search className="ft-icon" />
-              </button>
+            ) : isDir ? (
+              <div className="ml-auto flex items-center gap-0.5 shrink-0">
+                {onSearchInFolder && (
+                  <button
+                    className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 row-action"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSearchInFolder(node.path)
+                    }}
+                    title={t('Search in folder')}
+                  >
+                    <Search className="ft-icon" />
+                  </button>
+                )}
+                {onNewFile && (
+                  <button
+                    className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 row-action"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onNewFile(node.path)
+                    }}
+                    title={t('New File')}
+                  >
+                    <FilePlus className="ft-icon" />
+                  </button>
+                )}
+                {onNewFolder && (
+                  <button
+                    className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 row-action"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onNewFolder(node.path)
+                    }}
+                    title={t('New Folder')}
+                  >
+                    <FolderPlus className="ft-icon" />
+                  </button>
+                )}
+              </div>
             ) : !isDir && /\.(html?|xhtml)$/i.test(node.name) && onOpenInBrowser ? (
               <button
                 className="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10 row-action"
@@ -469,6 +499,8 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
                 onPreviewImage={onPreviewImage}
                 onOpenInBrowser={onOpenInBrowser}
                 onSearchInFolder={onSearchInFolder}
+                onNewFile={onNewFile}
+                onNewFolder={onNewFolder}
                 inlineSearch={inlineSearch}
                 onCopyPath={onCopyPath}
                 brushActive={brushActive}
@@ -1080,16 +1112,16 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     setEditingState({ type: 'rename', nodePath: node.path })
   }, [])
 
-  const handleNewFile = useCallback((dirNode: FileNode) => {
+  const handleNewFile = useCallback((dirPath: string) => {
     setFileContextMenu(null)
-    setExpandedDirs(prev => { const next = new Set(prev); next.add(norm(dirNode.path)); return next })
-    setEditingState({ type: 'newFile', nodePath: dirNode.path })
+    setExpandedDirs(prev => { const next = new Set(prev); next.add(norm(dirPath)); return next })
+    setEditingState({ type: 'newFile', nodePath: dirPath })
   }, [])
 
-  const handleNewFolder = useCallback((dirNode: FileNode) => {
+  const handleNewFolder = useCallback((dirPath: string) => {
     setFileContextMenu(null)
-    setExpandedDirs(prev => { const next = new Set(prev); next.add(norm(dirNode.path)); return next })
-    setEditingState({ type: 'newFolder', nodePath: dirNode.path })
+    setExpandedDirs(prev => { const next = new Set(prev); next.add(norm(dirPath)); return next })
+    setEditingState({ type: 'newFolder', nodePath: dirPath })
   }, [])
 
   const handleEditSubmit = useCallback(async (value: string) => {
@@ -1328,6 +1360,8 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 onPreviewImage={onPreviewImage}
                 onOpenInBrowser={onOpenInBrowser}
                 onSearchInFolder={(p) => openSearch(p)}
+                onNewFile={handleNewFile}
+                onNewFolder={handleNewFolder}
                 inlineSearch={inlineSearchPayload}
                 onCopyPath={handleCopyPath}
                 brushActive={brushActive}
@@ -1409,14 +1443,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
           {fileContextMenu.node.type === 'directory' ? (
             <>
               <ContextMenuItem
-                icon={<FilePlus className="ft-icon" />}
-                label={t('New File')}
-                onClick={() => handleNewFile(fileContextMenu.node)}
-              />
-              <ContextMenuItem
-                icon={<FolderPlus className="ft-icon" />}
-                label={t('New Folder')}
-                onClick={() => handleNewFolder(fileContextMenu.node)}
+                icon={<FolderOpen className="ft-icon" />}
+                label={t('Open Folder in Explorer')}
+                onClick={() => handleOpenExplorer(fileContextMenu.node)}
               />
               {(fileClipboard || !isRoot) && <div className="border-t border-ide-border my-1" />}
               {fileClipboard && (
