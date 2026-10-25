@@ -362,6 +362,7 @@ interface SessionPanelProps {
   commandHistory?: Record<string, string[]>
   onRevealUserTurn?: (sessionId: string, turnIdx: number) => void
   agentStatus?: Record<string, 'running' | 'idle' | 'warn'>
+  idleSinceMap?: Record<string, number>
   programStatus?: Record<string, ProgramStatus>
   sessionWorktreeNav?: Record<string, { originalPath: string; worktreePath: string; originalBranch: string }>
   onOpenHistoryTab?: () => void
@@ -641,6 +642,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   commandHistory = {},
   onRevealUserTurn,
   agentStatus = {},
+  idleSinceMap = {},
   programStatus = {},
   sessionWorktreeNav = {},
   onOpenHistoryTab,
@@ -1051,22 +1053,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     }
     prevSessionIdsRef.current = new Set(sessions.map(s => s.id))
   }, [sessions])
-
-  // 每会话 idleSince：running→(idle|warn) 转换时盖戳 now；首次见到的非 running 会话用 createdAt 初始化
-  const [idleSinceMap, setIdleSinceMap] = useState<Record<string, number>>({})
-  const prevStatusRef = useRef<Record<string, 'running' | 'idle' | 'warn'>>({})
-  useEffect(() => {
-    const prev = prevStatusRef.current
-    const stamps: Record<string, number> = {}
-    for (const s of sessions) {
-      const cur = agentStatus[s.id] ?? 'idle'
-      const p = prev[s.id]
-      if (p === undefined) { if (cur !== 'running') stamps[s.id] = s.createdAt }
-      else if (p === 'running' && cur !== 'running') stamps[s.id] = Date.now()
-      prev[s.id] = cur
-    }
-    if (Object.keys(stamps).length) setIdleSinceMap(m => ({ ...m, ...stamps }))
-  }, [agentStatus, sessions])
 
   // Group sessions by normalized cwd（空组保留位按记录下标插回，最后一个 session 关闭后分组不消失）
   // worktree 会话并入其来源仓库的组：组键取 worktreeOriginalPath || cwd（sessionGroupKey）
@@ -2072,7 +2058,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         {(group.sessions.length > 1 || group.sessions.some(s => isDefaultSessionName(s.name))) && (
                           <button
                             className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                            title={t('Sort by time (newest first) and clean sessions still using default names')}
+                            title={t('Sort by latest reply (newest first) and clean sessions still using default names')}
                             onClick={() => {
                               setGroupMenu(null)
                               onTidySessionsInGroup?.(group.cwd)
@@ -2440,7 +2426,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         >
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-            title={t('Sort by time (newest first) and clean sessions still using default names')}
+            title={t('Sort by latest reply (newest first) and clean sessions still using default names')}
             onClick={() => {
               onTidyAllSessions?.()
               setEmptyAreaMenu(null)

@@ -426,7 +426,7 @@ const ZH_MAP: Record<string, string> = {
   'total': '总计',
   'Sort by extension': '按后缀排序',
   'Tidy Up': '整理',
-  'Sort by time (newest first) and clean sessions still using default names': '按时间排序（新的靠上），并清理仍是默认命名（未重命名过）的会话',
+  'Sort by latest reply (newest first) and clean sessions still using default names': '按最近回复时间排序（新的靠上），并清理仍是默认命名（未重命名过）的会话',
 
   // QuickOpen
   'Type to search files...': '输入以搜索文件...',

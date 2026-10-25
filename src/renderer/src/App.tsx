@@ -638,6 +638,21 @@ export default function App() {
     }
     return result
   }, [sessions, sessionBusy, warnSessions, programStatus])
+  // 每会话 idleSince：running→(idle|warn) 转换时盖戳 now；首次见到的非 running 会话用 createdAt 初始化
+  const [idleSinceMap, setIdleSinceMap] = useState<Record<string, number>>({})
+  const prevAgentStatusRef = useRef<Record<string, 'running' | 'idle' | 'warn'>>({})
+  useEffect(() => {
+    const prev = prevAgentStatusRef.current
+    const stamps: Record<string, number> = {}
+    for (const s of sessions) {
+      const cur = agentStatus[s.id] ?? 'idle'
+      const p = prev[s.id]
+      if (p === undefined) { if (cur !== 'running') stamps[s.id] = s.createdAt }
+      else if (p === 'running' && cur !== 'running') stamps[s.id] = Date.now()
+      prev[s.id] = cur
+    }
+    if (Object.keys(stamps).length) setIdleSinceMap(m => ({ ...m, ...stamps }))
+  }, [agentStatus, sessions])
   // 任意 session(AI tab / 主终端输出活动)处于 running → 暂停 git 元数据监听
   // (AI 每轮裸 git 命令刷 .git/index 会反射成 GitTab 刷新风暴);全部非 running 才恢复。
   // 主进程 setGitMetaPaused 幂等,重复上报为 no-op。
@@ -2908,7 +2923,11 @@ export default function App() {
     })
   }, [stableGroupOrder])
 
-  // 整理：清理该组内仍是默认命名（从未手动改名）的会话，再把剩余会话按创建时间倒序
+  // 整理排序键：最近一次回复完成时间（running 视为最新），与列表右侧显示的空闲时长同源
+  const sessionActivityAt = useCallback((s: SessionTab) => (
+    agentStatus[s.id] === 'running' ? Number.MAX_SAFE_INTEGER : (idleSinceMap[s.id] ?? s.createdAt)
+  ), [agentStatus, idleSinceMap])
+  // 整理：清理该组内仍是默认命名（从未手动改名）的会话，再把剩余会话按最近回复时间倒序
   const handleTidySessionsInGroup = useCallback(async (cwd: string) => {
     const ids = sessionsRef.current
       .filter(s => sessionGroupKey(s) === cwd && isDefaultSessionName(s.name) && !manuallyRenamedRef.current.has(s.id) && !hasSchedTask(s.id))
@@ -2924,7 +2943,7 @@ export default function App() {
       }
       const group = map.get(cwd)
       if (!group || group.length < 2) return prev
-      map.set(cwd, [...group].sort((a, b) => b.createdAt - a.createdAt))
+      map.set(cwd, [...group].sort((a, b) => sessionActivityAt(b) - sessionActivityAt(a)))
       return order.flatMap(k => map.get(k)!)
     })
     if (ids.length === 0) return
@@ -2933,9 +2952,9 @@ export default function App() {
       const rest = sessionsRef.current.filter(s => !ids.includes(s.id))
       return rest.length > 0 ? rest[0].id : null
     })
-  }, [closeSessionCore])
+  }, [closeSessionCore, sessionActivityAt])
 
-  // 空白处整理：各组清理默认命名会话并按创建时间倒序；整理后无会话的 cwd 排到最前，其余组相对顺序不变
+  // 空白处整理：各组清理默认命名会话并按最近回复时间倒序；整理后无会话的 cwd 排到最前，其余组相对顺序不变
   const handleTidyAllSessions = useCallback(async () => {
     const all = sessionsRef.current
     const idSet = new Set(
@@ -2965,7 +2984,7 @@ export default function App() {
         grouped.get(key)!.push(s)
       }
       const extra = [...grouped.keys()].filter(k => !nextOrder.includes(k))
-      return [...nextOrder, ...extra].flatMap(k => [...(grouped.get(k) ?? [])].sort((a, b) => b.createdAt - a.createdAt))
+      return [...nextOrder, ...extra].flatMap(k => [...(grouped.get(k) ?? [])].sort((a, b) => sessionActivityAt(b) - sessionActivityAt(a)))
     })
     const keptMap = new Map(cwdStore.getKeptGroups().map(e => [e.cwd, e]))
     for (const k of empty) if (!keptMap.has(k)) keptMap.set(k, { cwd: k, idx: 0 })
@@ -2979,7 +2998,7 @@ export default function App() {
       const rest = all.filter(s => !idSet.has(s.id))
       return rest.length > 0 ? rest[0].id : null
     })
-  }, [closeSessionCore, stableGroupOrder])
+  }, [closeSessionCore, stableGroupOrder, sessionActivityAt])
 
   // Set session row-icon emoji (undefined = type icon), stored on SessionTab
   const handleSetSessionEmoji = useCallback((id: string, emoji?: string) => {
@@ -3651,6 +3670,7 @@ export default function App() {
             commandHistory={commandHistory}
             onRevealUserTurn={handleRevealUserTurn}
             agentStatus={agentStatus}
+            idleSinceMap={idleSinceMap}
             programStatus={programStatus}
             sessionWorktreeNav={sessionWorktreeNav}
             onResetCache={handleResetCache}
