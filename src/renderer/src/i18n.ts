@@ -84,7 +84,7 @@ const ZH_MAP: Record<string, string> = {
   'Play a short "hey" when any session finishes and goes idle. Off by default.': '任意会话从运行变为空闲时播放一声「hey」。默认关闭。',
   'Code symbol indexing for smart search. Disable to stop the background indexer and file watcher.': '代码符号索引，用于智能搜索。关闭可停止后台索引进程与文件监听。',
   'Language Server': '语言服务器',
-  'Precise go-to-definition. Nothing is loaded until you jump; the server is killed after 60 min idle.': '精确跳转定义。不跳转就不加载；空闲 60 分钟后自动回收。',
+  'Precise go-to-definition. Nothing is loaded until you jump; the server is killed after 30 min idle.': '精确跳转定义。不跳转就不加载；空闲 30 分钟后自动回收。',
   'Server binary not found — install it first.': '未找到服务端程序，需先安装。',
   'Needs clangd — install LLVM, or Visual Studio with the C++ workload.': '需要 clangd —— 安装 LLVM，或装了 C++ 工作负载的 Visual Studio。',
   'Not running — starts on first jump': '未启动 — 首次跳转时拉起',
