@@ -97,14 +97,23 @@ interface TurnStats {
   metaResult?: boolean
 }
 
+const TURN_VERBS = ['Cooked', 'Roasted', 'Grilled', 'Baked', 'Steamed', 'Whisked', 'Kneaded', 'Fermented', 'Whipped', 'Brewed']
+
+// 以回合起始时间戳为种子取词，保证同一条摘要每次渲染词不变
+function turnVerb(seed?: number): string {
+  const h = Math.imul(seed ?? 0, 0x9e3779b1) >>> 0
+  return TURN_VERBS[(h >>> 16) % TURN_VERBS.length]
+}
+
 // 回合结束后挂在用户气泡下方的摘要行：耗时/工具数，点击展开过程内容
 function formatTurnSummary(s: TurnStats): string {
+  const verb = turnVerb(s.startAt)
   const bits: string[] = []
   if (s.toolCount > 0) {
-    bits.push(`Cooked for ${s.toolCount} tools`)
+    bits.push(`${verb} for ${s.toolCount} tools`)
   } else if (s.durationMs != null) {
     const sec = s.durationMs / 1000
-    bits.push(`Cooked for ${sec < 60 ? `${sec.toFixed(1)}s` : `${Math.floor(sec / 60)}m ${Math.round(sec % 60)}s`}`)
+    bits.push(`${verb} for ${sec < 60 ? `${sec.toFixed(1)}s` : `${Math.floor(sec / 60)}m ${Math.round(sec % 60)}s`}`)
   }
   if (s.aborted) bits.push('paused by user')
   return bits.join(' · ')
