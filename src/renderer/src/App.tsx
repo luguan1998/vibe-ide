@@ -109,7 +109,7 @@ declare global {
       }
       file: {
         read: (filePath: string) => Promise<any>
-        write: (filePath: string, content: string) => Promise<any>
+        write: (filePath: string, content: string | Uint8Array) => Promise<any>
         readWithEncoding: (filePath: string, encoding?: string, forceOpen?: boolean) => Promise<{ content: string; encoding: string; bom: boolean; confidence: number; error?: string }>
         writeWithEncoding: (filePath: string, content: string, encoding?: string) => Promise<{ success: boolean; error?: string }>
         list: (dirPath: string) => Promise<any>

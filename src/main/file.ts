@@ -126,12 +126,13 @@ export function registerFileHandlers(): void {
 
   
   // Write file content
-  ipcMain.handle(IPC_CHANNELS.FILE_WRITE, async (_event, filePath: string, content: string) => {
+  ipcMain.handle(IPC_CHANNELS.FILE_WRITE, async (_event, filePath: string, content: string | Uint8Array) => {
     try {
       const dir = dirname(filePath)
       const { mkdir } = require('fs/promises')
       await mkdir(dir, { recursive: true })
-      await writeFile(filePath, content, 'utf-8')
+      if (typeof content === 'string') await writeFile(filePath, content, 'utf-8')
+      else await writeFile(filePath, content)
       return { success: true }
     } catch (err: any) {
       return { error: err.message }

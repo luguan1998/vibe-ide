@@ -66,8 +66,45 @@ function resolveImagePath(src: string, mdFullPath: string): string | null {
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tiff', '.tif', '.ico', '.svg'])
 
+const MIME_EXTS: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/bmp': '.bmp',
+  'image/svg+xml': '.svg',
+  'image/tiff': '.tiff',
+  'image/x-icon': '.ico',
+  'image/vnd.microsoft.icon': '.ico'
+}
+
 function isImageFile(file: File): boolean {
   return file.type.startsWith('image/') || IMAGE_EXTS.has('.' + (file.name.split('.').pop() || '').toLowerCase())
+}
+
+function imageExt(file: File): string {
+  const dot = file.name.lastIndexOf('.')
+  const fromName = dot > 0 ? file.name.slice(dot).toLowerCase() : ''
+  if (IMAGE_EXTS.has(fromName)) return fromName
+  return MIME_EXTS[file.type.toLowerCase()] || '.png'
+}
+
+function collectClipboardImages(dt: DataTransfer | null): File[] {
+  if (!dt) return []
+  const out: File[] = []
+  const seen = new Set<string>()
+  const push = (f: File | null) => {
+    if (!f || !isImageFile(f)) return
+    const key = `${f.name}:${f.size}:${f.type}`
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(f)
+  }
+  for (const item of Array.from(dt.items)) {
+    if (item.kind === 'file') push(item.getAsFile())
+  }
+  for (const f of Array.from(dt.files || [])) push(f)
+  return out
 }
 
 function uniqueName(stem: string, ext: string, taken: Set<string>): string {
@@ -79,6 +116,38 @@ function uniqueName(stem: string, ext: string, taken: Set<string>): string {
   }
   taken.add(name)
   return name
+}
+
+interface AssetsCtx {
+  dir: string
+  sep: string
+  taken: Set<string>
+}
+
+async function prepareAssets(fullPath: string): Promise<AssetsCtx> {
+  const sep = fullPath.includes('\\') ? '\\' : '/'
+  const dir = fullPath.substring(0, fullPath.lastIndexOf(sep)) + sep + 'assets'
+  const mk = await window.api.file.createDir(dir)
+  if (mk?.error) throw new Error(mk.error)
+  const listResult = await window.api.file.list(dir)
+  if (listResult?.error) throw new Error(listResult.error)
+  return { dir, sep, taken: new Set<string>(listResult.map((f: any) => f.name)) }
+}
+
+async function saveImageFile(file: File, ctx: AssetsCtx): Promise<string> {
+  const srcPath = window.api.file.getPathForFile(file) || ((file as any).path as string | undefined)
+  const dot = file.name.lastIndexOf('.')
+  const stem = (dot > 0 ? file.name.substring(0, dot) : file.name) || 'image'
+  const destName = uniqueName(stem, imageExt(file), ctx.taken)
+  const destPath = ctx.dir + ctx.sep + destName
+  if (srcPath) {
+    const res = await window.api.file.copy(srcPath, destPath)
+    if (res?.error) throw new Error(res.error)
+  } else {
+    const res = await window.api.file.write(destPath, new Uint8Array(await file.arrayBuffer()))
+    if (res?.error) throw new Error(res.error)
+  }
+  return `![${stem}](assets/${destName})`
 }
 
 interface BlockInfo {
@@ -408,6 +477,12 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
   const [dragOver, setDragOver] = useState(false)
   const [hoverBlockIdx, setHoverBlockIdx] = useState(-1)
 
+  const showStatus = useCallback((text: string, type: 'success' | 'error') => {
+    setExportStatus({ text, type })
+    if (exportStatusTimerRef.current) clearTimeout(exportStatusTimerRef.current)
+    exportStatusTimerRef.current = setTimeout(() => setExportStatus(null), 3000)
+  }, [])
+
   const handleLinkClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
     if (window.getSelection()?.toString().trim()) return
@@ -554,7 +629,7 @@ ${clone.innerHTML}
     try {
       const html = buildExportHtml()
       if (!html) {
-        setExportStatus({ text: '无可导出内容', type: 'error' })
+        showStatus('无可导出内容', 'error')
         return
       }
       const dirResult = await window.api.workspace.pickDir()
@@ -563,19 +638,14 @@ ${clone.innerHTML}
       const sep = dir.includes('\\') ? '\\' : '/'
       const outPath = dir + sep + getExportDefaultName()
       const result = await window.api.file.write(outPath, html)
-      if (result?.error) {
-        setExportStatus({ text: '导出失败: ' + result.error, type: 'error' })
-      } else {
-        setExportStatus({ text: '已导出: ' + outPath, type: 'success' })
-      }
+      if (result?.error) showStatus('导出失败: ' + result.error, 'error')
+      else showStatus('已导出: ' + outPath, 'success')
     } catch (err: any) {
-      setExportStatus({ text: '导出失败: ' + String(err?.message || err), type: 'error' })
+      showStatus('导出失败: ' + String(err?.message || err), 'error')
     } finally {
       setExporting(false)
-      if (exportStatusTimerRef.current) clearTimeout(exportStatusTimerRef.current)
-      exportStatusTimerRef.current = setTimeout(() => setExportStatus(null), 3000)
     }
-  }, [exporting, buildExportHtml, getExportDefaultName])
+  }, [exporting, buildExportHtml, getExportDefaultName, showStatus])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     if (!e.dataTransfer?.types.includes('Files')) return
@@ -607,28 +677,10 @@ ${clone.innerHTML}
     const targetEl = e.target as Element | null
     const wrapper = targetEl?.closest ? (targetEl.closest('.md-block') as HTMLElement | null) : null
     const dropIdx = wrapper ? parseInt(wrapper.getAttribute('data-block-idx') || '', 10) : -1
-    const sep = fullPath.includes('\\') ? '\\' : '/'
-    const dir = fullPath.substring(0, fullPath.lastIndexOf(sep))
-    const assetsDir = dir + sep + 'assets'
     try {
-      const mk = await window.api.file.createDir(assetsDir)
-      if (mk?.error) throw new Error(mk.error)
-      const listResult = await window.api.file.list(assetsDir)
-      if (listResult?.error) throw new Error(listResult.error)
-      const taken = new Set<string>(listResult.map((f: any) => f.name))
+      const ctx = await prepareAssets(fullPath)
       const links: string[] = []
-      for (const file of images) {
-        const srcPath = window.api.file.getPathForFile(file) || ((file as any).path as string | undefined)
-        if (!srcPath) continue
-        const dot = file.name.lastIndexOf('.')
-        const stem = dot > 0 ? file.name.substring(0, dot) : file.name
-        const ext = dot >= 0 ? file.name.substring(dot) : ''
-        const destName = uniqueName(stem, ext, taken)
-        const copyResult = await window.api.file.copy(srcPath, assetsDir + sep + destName)
-        if (copyResult?.error) throw new Error(copyResult.error)
-        links.push(`![${stem || 'image'}](assets/${destName})`)
-      }
-      if (links.length === 0) return
+      for (const file of images) links.push(await saveImageFile(file, ctx))
       const crlf = rawContent.includes('\r\n')
       const nl = crlf ? '\r\n' : '\n'
       const joinedLinks = links.join(nl + nl)
@@ -650,14 +702,47 @@ ${clone.innerHTML}
       if (writeResult?.error) throw new Error(writeResult.error)
       setRawContent(newContent)
       setSavedRawContent(newContent)
-      setExportStatus({ text: `已插入 ${links.length} 张图片到 ${insertWhere}`, type: 'success' })
+      showStatus(`已插入 ${links.length} 张图片到 ${insertWhere}`, 'success')
     } catch (err: any) {
-      setExportStatus({ text: '插入图片失败: ' + String(err?.message || err), type: 'error' })
-    } finally {
-      if (exportStatusTimerRef.current) clearTimeout(exportStatusTimerRef.current)
-      exportStatusTimerRef.current = setTimeout(() => setExportStatus(null), 3000)
+      showStatus('插入图片失败: ' + String(err?.message || err), 'error')
     }
-  }, [loading, error, fullPath, rawContent, blocks, bodyStart])
+  }, [loading, error, fullPath, rawContent, blocks, bodyStart, showStatus])
+
+  const handleEditPaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const images = collectClipboardImages(e.clipboardData)
+    if (images.length === 0) return
+    const hasText = !!(e.clipboardData?.getData('text/plain') || '').trim()
+    const pathBacked = images.some(f => window.api.file.getPathForFile(f))
+    if (hasText && !pathBacked) return
+    e.preventDefault()
+    const el = e.currentTarget
+    const blockStart = editingBlockRef.current?.start
+    try {
+      const ctx = await prepareAssets(fullPath)
+      const links: string[] = []
+      for (const file of images) links.push(await saveImageFile(file, ctx))
+      if (editTextareaRef.current !== el || editingBlockRef.current?.start !== blockStart) return
+      const value = el.value
+      const nl = value.includes('\r\n') ? '\r\n' : '\n'
+      const start = el.selectionStart
+      const end = el.selectionEnd
+      const before = value.slice(0, start)
+      const after = value.slice(end)
+      const lead = before.length === 0 || /\n\r?\n$/.test(before) ? '' : before.endsWith('\n') ? nl : nl + nl
+      const trail = after.length === 0 || /^\r?\n\r?\n/.test(after) ? '' : after.startsWith('\n') ? nl : nl + nl
+      const inserted = lead + links.join(nl + nl) + trail
+      const next = before + inserted + after
+      pendingValueRef.current = next
+      el.value = next
+      el.selectionStart = el.selectionEnd = start + inserted.length
+      el.style.height = 'auto'
+      el.style.height = `${Math.max(60, el.scrollHeight)}px`
+      el.focus()
+      showStatus(`已插入 ${links.length} 张图片`, 'success')
+    } catch (err: any) {
+      showStatus('插入图片失败: ' + String(err?.message || err), 'error')
+    }
+  }, [fullPath, showStatus])
 
   // Ctrl+F 从 App.tsx 派发瞬时事件 → 开搜索栏。事件不累积、mount 不重放，
   // 新开的 md 天然不弹。已开时直接 focus+select 便于重输；首次开 input 未挂载，
@@ -871,6 +956,7 @@ ${clone.innerHTML}
           >
             <textarea
               ref={editTextareaRef}
+              onPaste={handleEditPaste}
               onChange={(e) => {
                 pendingValueRef.current = e.target.value
                 e.target.style.height = 'auto'
