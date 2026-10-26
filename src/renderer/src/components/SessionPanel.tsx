@@ -173,9 +173,22 @@ async function readCurrentSettings(): Promise<Record<string, string>> {
 }
 async function applyClaudeGroup(group: ClaudeConfigGroup): Promise<void> {
   const dir = await claudeDir()
-  const raw = await readTextFile(`${dir}/settings.json`)
-  if (raw === null) throw new Error('settings.json 读取失败，未写入以保护现有配置')
-  const obj = JSON.parse(raw)
+  const path = `${dir}/settings.json`
+  const r: any = await window.api.file.read(path)
+  let obj: any = {}
+  if (r && typeof r.content === 'string') {
+    if (r.content.trim()) {
+      try {
+        obj = JSON.parse(r.content)
+      } catch {
+        throw new Error('settings.json 解析失败，未写入以保护现有配置')
+      }
+    }
+  } else if (r && r.code !== 'ENOENT') {
+    // 目录整体不存在时也是 ENOENT —— 交给 write 递归建目录，不算失败
+    throw new Error('settings.json 读取失败，未写入以保护现有配置')
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) obj = {}
   // 合并而非整组替换：只覆盖组里有的 key（跳过空值以免误清），其它 env 字段（DISABLE_AUTOUPDATER 等）原样保留
   const env: Record<string, string> = { ...(obj.env && typeof obj.env === 'object' ? obj.env : {}) }
   for (const [k, v] of Object.entries(group.env)) if (v !== '') env[k] = v

@@ -110,7 +110,8 @@ export function registerFileHandlers(): void {
       const content = await readFile(filePath, 'utf-8')
       return { content }
     } catch (err: any) {
-      return { error: err.message }
+      // code 供 renderer 区分「不存在」与「存在但读不了」——前者允许新建覆盖
+      return { error: err.message, code: err.code }
     }
   })
 
