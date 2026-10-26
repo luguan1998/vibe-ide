@@ -4,7 +4,7 @@ import { asToolArray } from '@shared/types'
 import { useI18n } from '../../i18n'
 import { cleanMessageContent } from '../../utils/aiConversationFormatter'
 import { ChevronDown, ChevronRight, Check, Undo2, MessageSquare, GitBranch, Copy, Circle, Loader2, ListTodo } from 'lucide-react'
-import { ToolIcon, AiToolCallCard, CompactToolSummary, isPureToolMessage } from './tools'
+import { ToolIcon, AiToolCallCard, CompactToolSummary, isPureToolMessage, getToolCategory } from './tools'
 import { ChatMarkdown } from './markdown'
 import { CONTENT_MAX_W, PANEL_MAX_W, MSG_GAP } from './layout'
 import { ClaudeLogoIcon } from '../ClaudeLogoIcon'
@@ -717,7 +717,8 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     if (!m.parentToolUseId && m.timestamp != null) s.endAt = Math.max(s.endAt ?? 0, m.timestamp)
     if (m.toolUse?.length) {
       s.toolCount += m.toolUse.length
-      s.hasProcess = true
+      // AskUserQuestion 卡常显，不算"被折叠的过程内容"
+      if (m.toolUse.some(t => getToolCategory(t.name) !== 'question')) s.hasProcess = true
     }
     if (m.thinking) s.hasProcess = true
     if (m.type === 'result') {
@@ -725,8 +726,8 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
       if (m.isAborted) s.aborted = true
       if (!m.parentToolUseId && (m.costUsd != null || m.numTurns != null || m.isAborted === true || m.durationMs != null)) s.metaResult = true
     }
-    // 回合内除最后一段正文外的正文都会被收进摘要行
-    if (m.type === 'assistant' && !m.parentToolUseId && m.content && s.contentCount++ > 0) s.hasProcess = true
+    // 回合内未被 meta 行承接的正文会后置判定为过程内容（见下方 answerIdx）
+    if (m.type === 'assistant' && !m.parentToolUseId && m.content) s.contentCount++
   }
   // 时间戳口径优先于 CLI 的 result.durationMs：历史会话没有 result 行也能显示耗时
   for (const s of turnStats) {
@@ -796,6 +797,12 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     const isStreamingLast = i === messages.length - 1 && busy
     if (isPureToolMessage(msg) && !isStreamingLast) {
       for (const tool of msg.toolUse ?? []) {
+        // AskUserQuestion 是用户决策留痕，不随回合折叠，单独成卡常显
+        if (getToolCategory(tool.name) === 'question') {
+          flushReads()
+          groups.push({ type: 'toolCard', tool, turnIdx: turnOf[i], index: i })
+          continue
+        }
         if (readBuffer.length === 0) {
           firstToolId = tool.id
           firstToolTurn = turnOf[i]
@@ -805,24 +812,61 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
       }
     } else {
       flushReads()
-      groups.push({ type: 'msg', message: msg, index: i })
+      const askTools = msg.toolUse?.filter(t => getToolCategory(t.name) === 'question') ?? []
+      const restTools = askTools.length > 0 ? msg.toolUse?.filter(t => getToolCategory(t.name) !== 'question') : msg.toolUse
+      groups.push({
+        type: 'msg',
+        message: askTools.length > 0 ? { ...msg, toolUse: restTools?.length ? restTools : undefined } : msg,
+        index: i,
+      })
+      for (const tool of askTools) groups.push({ type: 'toolCard', tool, turnIdx: turnOf[i], index: i })
     }
   }
   flushReads()
 
-  // 每回合只留最后一段正文（即该回合的答案）；此前各段正文与工具一样收进摘要行
-  const finalContentIdx = new Set<number>()
-  let lastContent = -1
+  // 回合内的"有价值正文" = 后面挂着 meta 行（复制 / fork / 时间）的正文段。
+  // 带 meta 的 result 行承接它前面最近的一段主会话正文；无 result 行的历史回合由末段正文自承 meta
+  const answerIdx = new Set<number>()
+  const selfMetaIdx = new Set<number>()
+  // result 行的复制文本 = 它承接的那段正文，与 answerIdx 同一趟判定，避免两处启发式漂移
+  const resultCopyText = new Map<number, string>()
   for (let i = 0; i < messages.length; i++) {
-    if (isRealUserInput(messages, i)) {
-      if (lastContent >= 0) finalContentIdx.add(lastContent)
+    const m = messages[i]
+    if (m.type !== 'result' || m.parentToolUseId) continue
+    if (m.costUsd == null && m.numTurns == null && m.isAborted !== true && m.durationMs == null) continue
+    for (let j = i - 1; j >= 0; j--) {
+      const prev = messages[j]
+      // 子代理消息与工具回填都夹在主 result 与主回复之间，属本回合内部噪音
+      if (prev.parentToolUseId || prev.toolResult) continue
+      if (prev.type === 'assistant' && prev.content) {
+        answerIdx.add(j)
+        resultCopyText.set(i, prev.content)
+        break
+      }
+      if (prev.type !== 'assistant') break
+    }
+  }
+  let lastContent = -1
+  for (let i = 0; i <= messages.length; i++) {
+    const m = messages[i]
+    if (i === messages.length || isRealUserInput(messages, i)) {
+      if (lastContent >= 0 && !turnStats[turnOf[lastContent]]?.metaResult) {
+        answerIdx.add(lastContent)
+        selfMetaIdx.add(lastContent)
+      }
       lastContent = -1
       continue
     }
-    const m = messages[i]
     if (m.type === 'assistant' && !m.parentToolUseId && m.content) lastContent = i
   }
-  if (lastContent >= 0) finalContentIdx.add(lastContent)
+  // 未被 meta 行承接的正文与工具/thinking 一样收进回合摘要行
+  const answerCountByTurn = new Map<number, number>()
+  for (const idx of answerIdx) {
+    answerCountByTurn.set(turnOf[idx], (answerCountByTurn.get(turnOf[idx]) ?? 0) + 1)
+  }
+  turnStats.forEach((s, t) => {
+    if (s.contentCount > (answerCountByTurn.get(t) ?? 0)) s.hasProcess = true
+  })
 
   return <>{groups.map((item) => {
     const turnIdx = turnOf['index' in item ? item.index : item.startIndex]
@@ -840,30 +884,24 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
       return <CompactToolSummary key={`read-${item.firstToolId}`} tools={item.tools} workspacePath={workspacePath} onOpenFile={onOpenFile} />
     }
     if (item.type === 'toolCard') {
-      if (!showProcess) return null
+      if (!showProcess && getToolCategory(item.tool.name) !== 'question') return null
       return <AiToolCallCard key={`tool-${item.tool.id}`} tool={item.tool} workspacePath={workspacePath} onOpenFile={onOpenFile} />
     }
 
     const msg = item.message
-    const isFinal = finalContentIdx.has(item.index)
+    const isAnswer = answerIdx.has(item.index)
     const isUser = isRealUserInput(messages, item.index)
     const stats = turnStats[turnIdx]
-    // 回合结束后，末条正文以外的过程内容全部收进摘要行；result / error 仍需渲染
-    if (!isUser && !isFinal && !showProcess && msg.type !== 'result' && !msg.error) return null
+    // 回合结束后，未被 meta 行承接的过程内容全部收进摘要行；result / error 仍需渲染
+    if (!isUser && !isAnswer && !showProcess && msg.type !== 'result' && !msg.error) return null
 
     const uIdx = isUser ? userMessages.indexOf(msg) : -1
     let copyText: string | undefined
     let forkIdx = -1
     if (msg.type === 'result' && !msg.parentToolUseId) {
-      for (let j = item.index - 1; j >= 0; j--) {
-        const prev = messages[j]
-        // 子代理消息与工具回填都夹在主 result 与主回复之间，属本回合内部噪音
-        if (prev.parentToolUseId || prev.toolResult) continue
-        if (prev.type === 'assistant' && prev.content) { copyText = prev.content; break }
-        if (prev.type !== 'assistant') break
-      }
+      copyText = resultCopyText.get(item.index)
       if (allowHistory) forkIdx = userCountBefore[item.index] - 1
-    } else if (isFinal && !ongoing && msg.type === 'assistant' && !stats?.metaResult) {
+    } else if (isAnswer && !ongoing && msg.type === 'assistant' && selfMetaIdx.has(item.index)) {
       copyText = msg.content || undefined
       if (allowHistory) forkIdx = userCountBefore[item.index] - 1
     }
@@ -883,7 +921,7 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
         allowHistory={allowHistory}
         turnSummary={isUser && !ongoing && stats ? formatTurnSummary(stats) || undefined : undefined}
         thinkingMode={thinkingMode}
-        contentOnly={isFinal && !showProcess}
+        contentOnly={isAnswer && !showProcess}
         copyText={copyText}
         forkIdx={forkIdx}
         turnExpandable={isUser && !!stats?.hasProcess}
