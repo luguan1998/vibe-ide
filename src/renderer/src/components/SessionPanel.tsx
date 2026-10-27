@@ -117,6 +117,11 @@ const DEFAULT_CLAUDE_ENV_KEYS = [
   'CLAUDE_CODE_AUTO_COMPACT_WINDOW',
 ]
 
+// env 值输入框的示例提示：按 key 覆盖，未列出的走默认 URL 示例
+const CLAUDE_ENV_VALUE_PLACEHOLDERS: Record<string, string> = {
+  CLAUDE_CODE_AUTO_COMPACT_WINDOW: 'e.g. 140000 (auto-compact context threshold)',
+}
+
 let claudeDirCache: string | null = null
 async function claudeDir(): Promise<string> {
   if (claudeDirCache) return claudeDirCache
@@ -3077,7 +3082,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                         type="text"
                         value={row.value}
                         onChange={e => setEditEnv(prev => prev.map((r, j) => j === i ? { ...r, value: e.target.value } : r))}
-                        placeholder="https://..."
+                        placeholder={t(CLAUDE_ENV_VALUE_PLACEHOLDERS[row.key.trim()] || 'https://...')}
                         className="flex-1 min-w-0 px-2 py-1 text-[11px] font-mono bg-ide-sidebar border border-ide-border rounded text-ide-text placeholder:text-ide-text-muted/40 focus:outline-none focus:border-ide-accent/60"
                       />
                       <button

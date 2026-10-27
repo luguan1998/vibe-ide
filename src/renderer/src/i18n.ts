@@ -68,6 +68,7 @@ const ZH_MAP: Record<string, string> = {
   'Written to models.json · effective after pi restarts': '已写入 models.json · 下次启动 pi 生效',
   'Name': '名称',
   'Env Variables': 'env 变量',
+  'e.g. 140000 (auto-compact context threshold)': '如：140000（上下文自动压缩门限）',
   'e.g. Aliyun GLM': '如：阿里云 GLM',
   'Refreshed {n} environment variables': '已刷新 {n} 个环境变量',
   'Refresh failed: {err}': '刷新失败：{err}',
