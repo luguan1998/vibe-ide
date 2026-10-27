@@ -119,6 +119,12 @@ const DEFAULT_CLAUDE_ENV_KEYS = [
 
 // env 值输入框的示例提示：按 key 覆盖，未列出的走默认 URL 示例
 const CLAUDE_ENV_VALUE_PLACEHOLDERS: Record<string, string> = {
+  ANTHROPIC_AUTH_TOKEN: 'sk-xxx',
+  ANTHROPIC_MODEL: 'deepseek-flash[1m]',
+  ANTHROPIC_DEFAULT_OPUS_MODEL: 'deepseek-pro[1m]',
+  ANTHROPIC_DEFAULT_SONNET_MODEL: 'deepseek-pro[1m]',
+  ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-flash[1m]',
+  CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash[1m]',
   CLAUDE_CODE_AUTO_COMPACT_WINDOW: 'e.g. 140000 (auto-compact context threshold)',
 }
 
