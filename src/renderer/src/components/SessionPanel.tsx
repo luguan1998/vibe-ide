@@ -108,7 +108,7 @@ function CliConfigToggle({ labelKey, descKey, checked, onChange }: {
 // 新建配置组时 env 默认预填的 key（值留空由用户填）
 const DEFAULT_CLAUDE_ENV_KEYS = [
   'ANTHROPIC_BASE_URL',
-  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
   'ANTHROPIC_MODEL',
   'ANTHROPIC_DEFAULT_OPUS_MODEL',
   'ANTHROPIC_DEFAULT_SONNET_MODEL',
