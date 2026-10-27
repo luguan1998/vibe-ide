@@ -13,13 +13,16 @@ const RAIL_TEXT_MAX = 60
 const RAIL_GUTTER_MIN = 34
 
 // 右侧轮次导航：每轮一行「文案 + 线段」。收起时只留线段，hover 展开文案。
-// 行高恒定 → 两种状态线段位置不跳。高亮 = 离视口垂直中心最近的那一轮，
-// 滚动状态留在本组件内，避免每个 scroll 事件重渲染整个 AiTab。
+// 行高恒定 → 两种状态线段位置不跳。滚动状态留在本组件内，
+// 避免每个 scroll 事件重渲染整个 AiTab。
 const TurnRail = React.memo(function TurnRail({ turns, scrollEl, contentW, onPick }: TurnRailProps) {
   const [open, setOpen] = useState(false)
   const [activeTurn, setActiveTurn] = useState<number | null>(null)
   const [roomy, setRoomy] = useState(false)
   const rafRef = useRef(0)
+  // 点击后钉住目标轮：目标贴近顶部时 scrollTop 被 clamp 到 0，滚不到居中，
+  // 纯位置规则会亮到下一轮。用户自己滚走/点消息区后解除
+  const pinnedRef = useRef<number | null>(null)
 
   // 内容列两侧留白 = px-2 的 8px + 居中后的富余；富余不够就整块不渲染。
   // clientWidth 已扣掉滚动条，估算偏保守
@@ -38,22 +41,24 @@ const TurnRail = React.memo(function TurnRail({ turns, scrollEl, contentW, onPic
 
   const sync = useCallback(() => {
     if (!scrollEl || !scrollEl.offsetParent) return
+    if (pinnedRef.current != null) { setActiveTurn(pinnedRef.current); return }
     const els = scrollEl.querySelectorAll<HTMLElement>('[data-user-turn]')
     if (els.length === 0) { setActiveTurn(null); return }
     const cRect = scrollEl.getBoundingClientRect()
     const mid = cRect.top + cRect.height / 2
+    // 当前轮 = 起点已越过视口中心的最后一轮(长回合里往下读仍算它)；
+    // 都在中心以下(刚滚到顶/内容不足一屏)时回落成第一轮
     let cur = Number(els[0].dataset.userTurn) || 0
-    let best = Infinity
     for (let i = 0; i < els.length; i++) {
-      const r = els[i].getBoundingClientRect()
-      const d = Math.abs(r.top + r.height / 2 - mid)
-      if (d < best) { best = d; cur = Number(els[i].dataset.userTurn) || 0 }
+      if (els[i].getBoundingClientRect().top <= mid) cur = Number(els[i].dataset.userTurn) || 0
+      else break
     }
     setActiveTurn(prev => (prev === cur ? prev : cur))
   }, [scrollEl])
 
   useEffect(() => {
     if (!scrollEl) return
+    pinnedRef.current = null
     const onScroll = () => {
       if (rafRef.current) return
       rafRef.current = requestAnimationFrame(() => {
@@ -61,13 +66,28 @@ const TurnRail = React.memo(function TurnRail({ turns, scrollEl, contentW, onPic
         sync()
       })
     }
-    onScroll()
+    const unpin = () => { pinnedRef.current = null }
     scrollEl.addEventListener('scroll', onScroll, { passive: true })
+    scrollEl.addEventListener('wheel', unpin, { passive: true })
+    scrollEl.addEventListener('touchstart', unpin, { passive: true })
+    scrollEl.addEventListener('mousedown', unpin, { passive: true })
+    scrollEl.addEventListener('keydown', unpin)
+    onScroll()
     return () => {
       scrollEl.removeEventListener('scroll', onScroll)
+      scrollEl.removeEventListener('wheel', unpin)
+      scrollEl.removeEventListener('touchstart', unpin)
+      scrollEl.removeEventListener('mousedown', unpin)
+      scrollEl.removeEventListener('keydown', unpin)
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = 0 }
     }
   }, [scrollEl, sync, turns.length])
+
+  const handlePick = useCallback((turnIdx: number) => {
+    pinnedRef.current = turnIdx
+    setActiveTurn(turnIdx)
+    onPick(turnIdx)
+  }, [onPick])
 
   if (turns.length < 2 || !roomy) return null
   return (
@@ -86,7 +106,7 @@ const TurnRail = React.memo(function TurnRail({ turns, scrollEl, contentW, onPic
             <button
               key={turn.turnIdx}
               type="button"
-              onClick={() => onPick(turn.turnIdx)}
+              onClick={() => handlePick(turn.turnIdx)}
               title={`${turn.turnIdx + 1}. ${turn.content}`}
               className={`h-7 flex items-center justify-end gap-2 ${open ? 'shrink-0' : ''}`}
             >
@@ -95,7 +115,7 @@ const TurnRail = React.memo(function TurnRail({ turns, scrollEl, contentW, onPic
                   {text}
                 </span>
               )}
-              <span className={`shrink-0 h-0.5 rounded-full transition-all duration-150 ${active ? 'w-4 bg-ide-accent' : 'w-2.5 bg-ide-border'}`} />
+              <span className={`shrink-0 h-0.5 rounded-full transition-all duration-150 ${active ? 'w-3 bg-ide-accent' : 'w-2.5 bg-ide-border'}`} />
             </button>
           )
         })}
