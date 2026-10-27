@@ -25,6 +25,7 @@ Vibe IDE — Electron-based desktop IDE with native terminal, git, file diff/edi
 11. **Caps Lock 安全** — 字母键判断必须 `.toLowerCase()`：`e.key.toLowerCase() === 's'`，不得直接 `e.key === 's'`。Caps Lock 时 `e.key` 为大写，直接比较会漏匹配
 12. **同语义只留一套** — 一个视觉构件不并存两个类/两档值；中间栏统一 `centerCardCls`
 13. **主题适配优先减法** — 颜色修改优先，几何修改要讨论
+14. **hover 才现的控件不占位** — 用 `display: none` ↔ `display: flex` 切换（手写 CSS，如 `.file-tab__header .header-action`），不要用 `opacity: 0` / `visibility`；后者仍占宽高，会把同行的标题（目录名、分支名）提前截断
 
 ## Commands
 
