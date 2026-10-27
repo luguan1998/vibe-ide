@@ -110,6 +110,18 @@ html, body, #root {
   background: rgb(var(--scrollbar-thumb-hover)) !important;
 }
 
+/* AI tab 轮次导航（右侧线段 + hover 展开的卡片） */
+#root .ai-tab__turn-rail-card::-webkit-scrollbar {
+  width: 6px;
+}
+#root .ai-tab__turn-rail-card::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+#root .ai-tab__turn-rail-card:hover::-webkit-scrollbar-thumb {
+  background: rgb(var(--scrollbar-thumb));
+}
+
 /* xterm overrides */
 .term-view__canvas {
   background-color: rgb(var(--term-bg, var(--ide-bg)));

@@ -12,6 +12,7 @@ import { toFileUrl } from '../../utils/filePathUtils'
 import { StreamingMarkdown } from './markdown'
 import ConversationGraph from './ConversationGraph'
 import { ThinkingBlock, BusyStatus, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput, deriveUserTurns, lastRealUserTurnStartAt } from './messages'
+import TurnRail from './turnRail'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard, AiPermErrorBoundary } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, PiModelBadge, PiThinkingLevelSelector, ModeSelector } from './inputArea'
 import type { MentionItem } from './inputArea'
@@ -591,19 +592,24 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // ── Smart auto-scroll: passive listener + threshold ──
   // scrollContainer 在空会话/网状视图时不渲染,靠 scrollEl 感知重挂;漏绑监听时
   // userScrolledUpRef 恒为初值 false → 流式刷新永远把用户拉回底部。
+  // atBottom 与 userScrolledUpRef 共用这一个监听(轮次高亮在 TurnRail 内自己监听)
   useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
     const onScroll = () => {
       const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
       userScrolledUpRef.current = distFromBottom > 40
+      setAtBottom(distFromBottom <= 40)
     }
+    onScroll()
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
   }, [scrollEl, state.messages.length, state.streaming])
 
   // 轮次导航已外移到 session hover 弹窗,本组件只保留滚到某轮的能力
-  const lastTurnIdx = useMemo(() => deriveUserTurns(state.messages).length - 1, [state.messages])
+  // 右侧轮次导航：hover 时展开成卡片，平时只留线条。滚动高亮状态下沉在 TurnRail 内
+  const railTurns = useMemo(() => deriveUserTurns(state.messages), [state.messages])
+  const lastTurnIdx = railTurns.length - 1
 
   const [bottomBarHover, setBottomBarHover] = useState(false)
   const [atBottom, setAtBottom] = useState(true)
@@ -640,18 +646,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     el.scrollTop = el.scrollHeight
     inputRef.current?.focus({ preventScroll: true })
   }, [])
-
-  useEffect(() => {
-    const el = scrollContainerRef.current
-    if (!el) return
-    const onScroll = () => {
-      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-      userScrolledUpRef.current = distFromBottom > 40
-      setAtBottom(distFromBottom <= 40)
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return () => el.removeEventListener('scroll', onScroll)
-  }, [scrollEl, state.messages.length, state.streaming])
 
   // ── 流式跟随:观察实际高度变化,而不是只在 flush 事件上滚一次 ──
   // 打字机逐帧揭示、shiki 着色回调、mermaid SVG 注入、图片加载、折叠动画过渡
@@ -1747,6 +1741,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         <div ref={messagesEndRef} />
         </div>
         </div>
+
+        <TurnRail turns={railTurns} scrollEl={scrollEl} contentW={contentW} onPick={jumpToUserTurn} />
 
         {/* 跳到底部:通栏横线 + 中部圆形把手,未贴底且鼠标靠近下缘时显示,整条可点(线宽对齐内容列) */}
         {!atBottom && bottomBarHover && (
