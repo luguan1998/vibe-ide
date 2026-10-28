@@ -586,8 +586,13 @@ function initListeners() {
         while (i < max && b[i] === target[i]) i++
         return i >= b.length ? '' : b.slice(i)
       }
-      const extraThinking = coveredByMergedThinking ? '' : tailNotCovered(s0.thinkingBuffer, msg.thinking)
-      const extraText = coveredByMergedText ? '' : tailNotCovered(s0.streamBuffer, msg.content)
+      // 当前分段不带 thinking/正文（同一 message 的后继分段，如 tool_use 段）时基准不能退化成空串：
+      // 那样会把整个 buffer 当新增量补发成第二条消息，与已提交的那条形成"子集 + 同时长"的双 think 块。
+      // 回退到同 id 上一条消息的字段，buffer 已被它覆盖就判空。
+      const thinkingBase = msg.thinking ?? (isSameMessageId ? lastMsg?.thinking : undefined)
+      const textBase = msg.content ?? (isSameMessageId ? lastMsg?.content : undefined)
+      const extraThinking = coveredByMergedThinking ? '' : tailNotCovered(s0.thinkingBuffer, thinkingBase)
+      const extraText = coveredByMergedText ? '' : tailNotCovered(s0.streamBuffer, textBase)
       const hasExtra = extraThinking || extraText
 
       const flushedMsg = (hasExtra && s0.streaming && (isAssistant || isMainResult))
