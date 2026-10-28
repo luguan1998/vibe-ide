@@ -301,25 +301,27 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     else setContextAlign('default')
   }, [contextOpen, contextDir])
 
-  const recordSend = useCallback((text: string, trackReply: boolean) => {
+  const recordBtw = useCallback((text: string) => {
     if (activeKind !== 'gui' || !activeSessionId) return
-    const added = addInterjectRecord(activeSessionId, text)
+    const added = addInterjectRecord(activeSessionId, text.replace(/^\s*\/btw\b\s*/i, ''))
     setInterjectRecords(added.records)
-    if (trackReply && added.id) pendingBtwRecordRef.current = { sessionId: activeSessionId, id: added.id }
+    if (added.id) pendingBtwRecordRef.current = { sessionId: activeSessionId, id: added.id }
   }, [activeKind, activeSessionId])
 
   const handleSend = useCallback(() => {
     const text = draftCmd.trim()
     if (text) {
-      const body = contextBtw && !/^\s*\/btw\b/i.test(text) ? `/btw ${text}` : text
+      const rawBtw = /^\s*\/btw\b/i.test(text)
+      const isBtw = contextBtw || rawBtw
+      const body = isBtw && !rawBtw ? `/btw ${text}` : text
       ;(window as any).__vibeSendLine?.(body)
-      recordSend(text, /^\s*\/btw\b/i.test(body))
+      if (isBtw) recordBtw(text)
       triggerTransient('sendMessage')
     }
     setDraftCmd('')
     setContextOpen(false)
     setPopupOpen(false)
-  }, [draftCmd, contextBtw, recordSend, triggerTransient])
+  }, [draftCmd, contextBtw, recordBtw, triggerTransient])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -481,7 +483,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       onAction: () => {
         const btw = k.mode === 'btw' && activeKind === 'gui'
         sendLine(btw ? `/btw ${k.text}` : k.text)
-        if (btw) recordSend(k.text, true)
+        if (btw) recordBtw(k.text)
       },
     }))
   }
