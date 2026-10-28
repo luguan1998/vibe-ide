@@ -428,6 +428,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         return prev.replace(/\s+$/, '') + '; ' + ref + ' → '
       })
       setPopupOpen(false)
+      setContextBtw(false)
       setContextOpen(true)
       requestAnimationFrame(() => {
         const el = contextInputRef.current
