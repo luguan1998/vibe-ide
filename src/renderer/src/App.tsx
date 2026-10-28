@@ -247,7 +247,6 @@ declare global {
         setBusy: (busy: boolean) => void
         onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => any
         removeModelChangedListener: (handler?: any) => void
-        askResume: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
         resolveConfigDir: (configDir?: string) => Promise<string>
         resolveProjectDir: (cwd: string, configDir?: string) => Promise<string | null>
         sessionFilePath: (sessionId: string) => Promise<string | null>

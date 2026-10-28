@@ -753,6 +753,12 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       return
     }
     const sent = await window.api.ai.send(activeSessionId, message)
+    // 待答期间键入的文字被主进程当成答案回给 CLI（control_response），问答卡随之收掉
+    if (sent?.success && !isPi) {
+      updateSession(activeSessionId, (s) => s.pendingPermission?.tool === 'AskUserQuestion'
+        ? { ...s, pendingPermission: null }
+        : s)
+    }
     if (!sent?.success && !isClear) {
       // 发送失败（会话未就绪/进程已死，常见于 pause 强杀后的 respawn 窗口）：这条消息
       // 不会写入 JSONL 报文，必须回滚本地回显，否则凭空多出的用户轮次让回退节点全部错位
@@ -1085,11 +1091,12 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   // 否则新开的分支会话会先闪一帧空页面再跳到对话
   const awaitingHistory = !state.ready && !!resumeSessionId && state.messages.length === 0
   const showEmptyCenter = state.messages.length === 0 && !state.streaming
-  // pi 的 select/input/editor 复用问答卡，但回执走 extension_ui_response（普通权限通道），
-  // claude 的 AskUserQuestion 才需要 kill+resume；按 piUiId 标记分流。
+  // pi 的 select/input/editor 复用问答卡，但回执走 extension_ui_response（普通权限通道）；
+  // claude 的 AskUserQuestion 只有「拒绝」需要特殊处理（实测回 deny 后模型仍会继续干活，
+  // 所以拒绝要走暂停），其余权限一律走普通 control_response。
   const answerResponder = state.pendingPermission?.toolInput?.piUiId != null || state.pendingPermission?.tool !== 'AskUserQuestion'
     ? aiStore.handlePermissionResponse
-    : aiStore.handleAskResume
+    : aiStore.handleAskUserQuestion
 
   const inputArea = (
       <div className={`ai-tab__input-area relative shrink-0 w-full ${PANEL_MAX_W} mx-auto px-2 pt-2 pb-0`}>

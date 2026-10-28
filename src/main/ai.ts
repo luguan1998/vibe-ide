@@ -732,10 +732,19 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
     case 'message_stop':
     // Heartbeat from CLI — no action needed
     case 'keep_alive':
-    // Confirmation that a control_request was cancelled
-    case 'control_cancel_request':
       // No text content in these — just metadata markers, ignore
       break
+
+    // CLI 取消了一个未应答的 control_request（用户点停止/中断，或被新事件覆盖）。
+    // 不清挂起缓存的话，之后键入的文字会被 AI_SEND 当成早已作废那个问题的答案。
+    case 'control_cancel_request': {
+      const s = aiSessions.get(sessionId)
+      if (s?.pendingPermission && (!msg.request_id || msg.request_id === s.pendingPermission.requestId)) {
+        s.pendingPermission = undefined
+        s.awaitingUserInput = false
+      }
+      break
+    }
 
     case 'permission_request':
     case 'control_request': {
@@ -754,21 +763,13 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
         session.pendingPermission = { requestId, toolName, toolInput, toolUseId }
       }
 
-      // AskUserQuestion is special: Claude CLI auto-fills empty answers ~0.5s after
-      // sending the control_request. If we just respond (deny or wait), LLM still
-      // sees the auto-filled empty tool_result and proceeds — calls Write/Edit
-      // (whose control_request then overwrites renderer's pendingPermission card)
-      // or streams text pollution.
-      //
-      // Fix: kill the subprocess immediately. The CLI never gets to auto-fill an
-      // answer, so LLM cannot continue. Real answer arrives via ai-ask-resume
-      // (kill is a no-op on an already-dead process; spawn `--resume` + fresh user
-      // message carries the user's selection). The card stays displayed because
-      // pendingPermission is renderer-side state; session is preserved (not deleted)
-      // so ask-resume can read claudeSessionId/cwd/permissionMode.
+      // AskUserQuestion 走普通 control_response：把 answers 塞进 updatedInput 即可（实测
+      // 2.1.139+ 全版本支持，且 CLI 不会自动填空答案）。进程保持存活，/btw 旁路提问在
+      // 等待作答期间仍可用；answer 迟到多久都能正常续跑。
+      // 标记 awaitingUserInput 只为让 AI_SEND 知道「此刻键入的文本是答案」，不是新消息
+      // （待答期间直接写 user 消息会被 CLI 静默丢弃）。
       if (toolName === 'AskUserQuestion' && session) {
         session.awaitingUserInput = true
-        killAiProcess(session.process)
       }
 
       send(IPC_CHANNELS.AI_PERMISSION, {
@@ -799,6 +800,12 @@ function handleNdjsonMessage(sessionId: string, msg: any, cwd: string): void {
       const wasCancelled = session?.cancelRequested
       if (wasCancelled) session!.cancelRequested = false
       const parentToolUseId = msg.message?.parent_tool_use_id || msg.parent_tool_use_id
+      // 主回合收尾即作废挂起的权限/提问缓存：用户点了停止、或 CLI 自行放弃该轮，
+      // 缓存留着会让之后键入的文字被 AI_SEND 误当成早已作废那个问题的答案。
+      if (!parentToolUseId && session) {
+        session.pendingPermission = undefined
+        session.awaitingUserInput = false
+      }
       // result.usage/modelUsage 的 token 计数为 session 累加值（实测 usage=各桶求和），
       // 不得用作 ring 分子——renderer 保留最后一条 assistant 的真实上下文。
       // 但 modelUsage 桶的 contextWindow 是静态分母且最权威（实测 deepseek-v4-flash-0731[1m]
@@ -1696,11 +1703,6 @@ export function attachAiProcess(sessionId: string, proc: ChildProcess, cwd: stri
     const current = aiSessions.get(sessionId)
     if (current && current.process.pid === proc.pid) {
       dropSideQuestionsForSession(sessionId, 'AI process exited')
-      // AskUserQuestion proactive kill: keep session (ask-resume needs claudeSessionId),
-      // skip AI_ERROR — this exit is intentional, not a crash.
-      if (current!.awaitingUserInput === true) {
-        return
-      }
       const stderrMsg = stderrChunks.join('\n').trim()
       // --resume 目标报文已不存在（被清理/fork 失联）：不展示死错误现场，
       // 通知渲染层按新对话清空，再免 resume 重开 CLI 完成恢复
@@ -1763,91 +1765,30 @@ export function killAiProcess(proc: ChildProcess): void {
   }
 }
 
-// Format the user's AskUserQuestion answers into a follow-up prompt message sent via --resume.
-// Port of desktop-cc-gui-main/src-tauri/src/engine/claude_message_content.rs:format_ask_user_answer.
-//
-// Why this exists: Claude CLI in stream-json input mode auto-fills an empty answer ~0.5s after
-// sending an AskUserQuestion control_request, regardless of --permission-prompt-tool stdio.
-// Sending a real control_response arrives too late — the LLM already saw "User has answered:
-// ." and proceeded. Kill-and-resume dodges this: we kill the auto-fill path, then --resume the
-// same claude session with the real answers as a fresh user message.
-function formatAskUserAnswer(answers: Record<string, string>): string {
-  const entries = Object.entries(answers).filter(([, v]) => v && v.trim())
-  if (entries.length === 0) {
-    return 'The user skipped this AskUserQuestion without selecting an option. Stop and wait for the next user instruction — do not continue the original task, do not make assumptions, do not call further tools.'
-  }
-  // Match reference impl: "questionText=answer" pairs joined by "; "
-  // Keys here are question text (not question IDs) — LLM only uses these for natural-language hint
-  const parts = entries.map(([q, a]) => `${q}=${a}`)
-
-  const structuredAnswers: Record<string, string[]> = {}
-  for (const [q, a] of entries) structuredAnswers[q] = [a]
-  const payload = JSON.stringify({ answers: structuredAnswers, skippedQuestionIds: [] })
-  const base64 = Buffer.from(payload, 'utf-8').toString('base64')
-
-  return `The user answered the AskUserQuestion: ${parts.join('; ')}. Please continue based on this selection. AskUserQuestionResultBase64:${base64}`
+// 回 control_response 并清掉挂起的权限缓存。AI_PERMISSION_RESPONSE（点卡片）与
+// respondAskUserQuestion（待答期间直接键入文字）共用同一条写路径。
+function writePermissionDecision(session: ManagedAiSession, requestId: string, decision: Record<string, any>): void {
+  session.process.stdin!.write(JSON.stringify({
+    type: 'control_response',
+    response: { subtype: 'success', request_id: requestId, response: decision },
+  }) + '\n')
+  if (session.pendingPermission?.toolName === 'AskUserQuestion') session.awaitingUserInput = false
+  session.pendingPermission = undefined
 }
 
-// Kill-and-resume for AskUserQuestion. Shared by the ai:askResume IPC (answer via the question
-// card) and by AI_SEND (a message typed into the prompt box while awaitingUserInput — the
-// subprocess is already dead, so a raw stdin write would vanish silently). The old session's
-// worktree fields are carried onto the resumed session so AI_DESTROY still cleans up the
-// original worktree after a question/answer round-trip.
-export function resumeAfterAsk(sessionId: string, answers: Record<string, string>): { success: boolean; error?: string; installCmd?: string } {
-  const session = aiSessions.get(sessionId)
-  if (!session) return { success: false, error: 'Session not found' }
-
-  const claudeSessionId = session.claudeSessionId
-  const cwd = session.cwd
-  const permissionMode = session.permissionMode || 'bypassPermissions'
-
-  if (!claudeSessionId) return { success: false, error: 'No claudeSessionId cached (system/init not received yet)' }
-
-  // Kill the auto-filling subprocess. Safe to call even if the AskUserQuestion
-  // control_request handler already killed it (Windows taskkill /f /t is a no-op on
-  // a dead PID; Unix kill is wrapped in try/catch inside killAiProcess). Clear the
-  // flag so the new subprocess's eventual exit is not misclassified as proactive.
-  killAiProcess(session.process)
-  stopCuForSession(sessionId, session.computerUse)
-  stopBmForSession(sessionId, session.browserUse)
-  session.awaitingUserInput = false
-  stopSidecarWatchersForSession(sessionId)
-  aiSessions.delete(sessionId)
-
-  const mcpConfigPath = startCuForSession(sessionId, session.computerUse)
-  const browserMcpConfigPath = startBmForSession(sessionId, session.browserUse)
-  const result = spawnClaude({ cwd, permissionMode, model: session.model, cliCommand: session.cliCommand, configDir: session.configDir, resumeSessionId: claudeSessionId, computerUse: session.computerUse, browserUse: session.browserUse, mcpConfigPath, browserMcpConfigPath })
-  if ('error' in result) {
-    stopCuForSession(sessionId, session.computerUse)
-    stopBmForSession(sessionId, session.browserUse)
-    send(IPC_CHANNELS.AI_ERROR, {
-      sessionId,
-      error: result.error,
-      installCmd: result.installCmd,
-    })
-    return { success: false, error: result.error, installCmd: result.installCmd }
-  }
-
-  attachAiProcess(sessionId, result, cwd, session.model, session.configDir, session.cliCommand, session.computerUse, session.browserUse, claudeSessionId)
-
-  const newSession = aiSessions.get(sessionId)
-  if (newSession) {
-    newSession.permissionMode = permissionMode
-    newSession.contextWindow = session.contextWindow
-    if (session.model) newSession.model = session.model
-    // Preserve worktree tracking so destroy() still removes the original worktree
-    newSession.enableWorktree = session.enableWorktree
-    newSession.worktreePath = session.worktreePath
-    newSession.preWorktreeSnapshot = session.preWorktreeSnapshot
-  }
-
-  const prompt = formatAskUserAnswer(answers)
-  result.stdin!.write(JSON.stringify({
-    type: 'user',
-    message: { role: 'user', content: prompt },
-    isMeta: true,
-  }) + '\n')
-
+// 待答期间把键入的文本当作答案回给 CLI：每个问题都填这段文本，等价于在问答卡里点「自定义」。
+// 必须走 control_response 而不是裸写 user 消息——提问挂起时的 user 消息会被 CLI 静默丢弃。
+function respondAskUserQuestion(
+  session: ManagedAiSession,
+  answers: Record<string, string>,
+): { success: boolean; error?: string } {
+  const pending = session.pendingPermission
+  if (!pending?.requestId) return { success: false, error: 'No pending AskUserQuestion' }
+  writePermissionDecision(session, pending.requestId, {
+    behavior: 'allow',
+    updatedInput: { ...pending.toolInput, answers },
+    toolUseID: pending.toolUseId || '',
+  })
   return { success: true }
 }
 
@@ -1983,14 +1924,13 @@ export function registerAiHandlers(): void {
     if (hasPiSession(payload.sessionId)) return sendPiTurn(payload.sessionId, payload.message)
     const session = aiSessions.get(payload.sessionId)
     if (!session || !session.ready) return { success: false, error: 'AI not ready' }
-    // AskUserQuestion kills the subprocess while waiting for an answer — stdin is a dead
-    // pipe, so a raw write would vanish silently. Route the typed message through
-    // kill-and-resume as the free-text answer so the conversation actually continues.
+    // 待答期间直接写 user 消息会被 CLI 静默丢弃，所以把这段文本当作答案回给 CLI：
+    // 每个问题都填这段文本，效果等同用户在问答卡里点「自定义」。
     if (session.awaitingUserInput) {
       const questions = asToolArray<{ question: string }>(session.pendingPermission?.toolInput?.questions)
       const answers: Record<string, string> = {}
       for (const q of questions) answers[q.question] = payload.message
-      return resumeAfterAsk(payload.sessionId, answers)
+      return respondAskUserQuestion(session, answers)
     }
     const ndjson = JSON.stringify({
       type: 'user',
@@ -2034,18 +1974,7 @@ export function registerAiHandlers(): void {
       ? { behavior: 'allow', updatedInput: toolInput, toolUseID: toolUseId }
       : { behavior: 'deny', message: payload.feedback || 'User denied permission', toolUseID: toolUseId }
 
-    const ndjson = JSON.stringify({
-      type: 'control_response',
-      response: {
-        subtype: 'success',
-        request_id: requestId,
-        response: decision,
-      },
-    }) + '\n'
-    session.process.stdin!.write(ndjson)
-
-    // Clear cached permission
-    session.pendingPermission = undefined
+    writePermissionDecision(session, requestId, decision)
     return { success: true }
   })
 
@@ -2135,6 +2064,10 @@ export function registerAiHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.AI_SIDE_QUESTION, (_event, payload: AiSideQuestionPayload) => {
     const session = aiSessions.get(payload.sessionId)
     if (!session || !session.ready) return { success: false, error: 'AI not ready' }
+    // 进程已退出时 stdin 是死管道：写入只会触发 stdin 'error'（被吞掉），Promise 只能等
+    // 超时。immediate fail 让渲染层马上回落。exitCode 而非 killed —— Windows 下是外部
+    // taskkill 杀的，proc.killed 恒为 false。
+    if (session.process.exitCode !== null) return { success: false, error: 'AI process has exited' }
     const requestId = `side-${randomUUID()}`
     return new Promise<SideQuestionResult>((resolve) => {
       const timer = setTimeout(() => {

@@ -169,7 +169,6 @@ export const IPC_CHANNELS = {
   AI_GET_CONTEXT_INFO: 'ai:getContextInfo',
   AI_SET_VISIBLE: 'ai:setVisible',       // invoke: renderer hidden → main drops stream tokens
   AI_SET_BUSY: 'ai:setBusy',             // send: 任意 AI 会话 busy 变化 → main 暂停/恢复 git 元数据监听
-  AI_ASK_RESUME: 'ai:askResume',
   AI_RESOLVE_CONFIG_DIR: 'ai:resolveConfigDir',
   AI_RESOLVE_PROJECT_DIR: 'ai:resolveProjectDir',  // invoke: cwd → ~/.claude/projects/<slug>（记忆目录的父目录）
   AI_SESSION_FILE_PATH: 'ai:sessionFilePath',     // invoke: 会话转录 jsonl 的绝对路径（claude / pi）
@@ -987,16 +986,6 @@ export interface AiSetContextWindowPayload {
 
 // Fallback context window (tokens) when the model name carries no [Nk|Nm] marker.
 export const DEFAULT_AI_CONTEXT_WINDOW = 200_000
-
-// Kill-and-resume for AskUserQuestion. Claude CLI auto-fills empty answers after ~0.5s when
-// waiting on a control_response in stream-json input mode, so we can't rely on the normal
-// control_response path. Instead: kill the subprocess, respawn with --resume <claudeSessionId>,
-// and send the user's answers as a fresh user message. This avoids the "I didn't receive a
-// selection" noise message. Pattern copied from desktop-cc-gui-main (Tauri reference impl).
-export interface AiAskResumePayload {
-  sessionId: string
-  answers: Record<string, string>  // { [questionText]: "selected label" }
-}
 
 // Revert conversation to a specific user message by truncating the JSONL and restarting CLI.
 // Scope 'conversation' only rewinds messages; 'both' also reverts file changes via git checkout.

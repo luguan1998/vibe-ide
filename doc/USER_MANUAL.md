@@ -124,7 +124,7 @@ Claude / Pi / dsh 三种 Agent 后端共用同一套对话界面（下面除特�
 
 - **权限模式**三档：`Plan 📋` / `Edit 🖌️` / `Bypass 🔓`，随时下拉切换，**不重启子进程**（走 CLI 的 control_request 协议）。
 - **权限卡**：工具名 + 命令 + Approve / Deny，浮动在输入框上方。
-- **问答卡**：Agent 用 AskUserQuestion 提问时，渲染成多题 / 多选 / 自定义答案卡片。为防 CLI 自动填空，收到问题即挂起子进程，你答完再 `--resume` 同会话续上。
+- **问答卡**：Agent 用 AskUserQuestion 提问时，渲染成多题 / 多选 / 自定义答案卡片。答案经 `control_response` 的 `updatedInput.answers` 回给 CLI，子进程不重启；点「拒绝」则暂停本轮。
 
 ### 模型与上下文
 

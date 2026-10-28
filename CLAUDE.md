@@ -54,7 +54,6 @@ src/
 │   ├── codegraph.ts              # CodeGraph 调用图索引（生成/查询/进度/MCP）
 │   ├── ai.ts                     # Claude CLI 子进程管理（configDir → CLAUDE_CONFIG_DIR + 同目录 JSONL）
 │   ├── ai-history.ts             # JSONL 会话历史读取
-│   ├── ai-ask-resume.ts          # 断点续聊（resume）
 │   ├── ai-plan-execute.ts        # plan 模式执行
 │   ├── ai-revert.ts              # 消息回退（revert/fork，真实 user turns 为单真相源）
 │   ├── computer-use.ts           # computer-use MCP 服务
@@ -106,7 +105,7 @@ src/
 - **file**：read/write/readEncoding/writeEncoding/list/tree/delete/rename/createDir/openExplorer/copy/move/getDrives/find/searchByName + `fs:changed` 推送
 - **workspace**：open/current/pickDir；**search**：grep/replace
 - **code**：setWorkspace/init/searchNodes/getCallers/getCallees/isIndexing/progress/cancelInit/getStats/installMcp/findRelevantContext/explore/setEnabled/checkAvailable
-- **ai**：create/send/cancel/forceStop/destroy/checkAvailable/会话管理（list/load/delete/search，按 dir 与按 session 两套）/permissionResponse/planExecute/setPermissionMode/setModel/setContextWindow/askResume/resolveConfigDir/revert/fork/reply（init/stop/read/reply 桌宠气泡）+ 推送 streamToken/message/progress/permission/ready/modelChanged/error/fileChange
+- **ai**：create/send/cancel/forceStop/destroy/checkAvailable/会话管理（list/load/delete/search，按 dir 与按 session 两套）/permissionResponse/planExecute/setPermissionMode/setModel/setContextWindow/resolveConfigDir/revert/fork/reply（init/stop/read/reply 桌宠气泡）+ 推送 streamToken/message/progress/permission/ready/modelChanged/error/fileChange
 - **board**：records/create/finish/clear/merge/mergeAbort
 - **pet**：list/setActive/delete/changed；杂项：claudeConfig:dir、titlebar:update、font:adjust/list、focus:settings、startup:openPath、perf:snapshot、ocr:recognize、app:version、snippets:load/toggle
 

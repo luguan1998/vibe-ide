@@ -344,8 +344,6 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_PLAN_EXECUTE, { sessionId, planFilePath, model, resume }),
     setPermissionMode: (sessionId: string, mode: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_PERMISSION_MODE, { sessionId, mode }),
-    askResume: (sessionId: string, answers: Record<string, string>) =>
-      ipcRenderer.invoke(IPC_CHANNELS.AI_ASK_RESUME, { sessionId, answers }),
     resolveConfigDir: (configDir?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_RESOLVE_CONFIG_DIR, configDir),
     resolveProjectDir: (cwd: string, configDir?: string) =>

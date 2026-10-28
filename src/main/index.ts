@@ -7,7 +7,6 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers, cleanupTerminals, setPtyMainWindow } from './pty'
 import { registerAiHandlers, cleanupAiSessions, setAiMainWindow, resolveConfigDir, resolveProjectDir } from './ai'
 import { registerPlanExecuteHandlers } from './ai-plan-execute'
-import { registerAskResumeHandlers } from './ai-ask-resume'
 import { registerRevertHandlers } from './ai-revert'
 import { registerTreeHandlers } from './ai-tree'
 import { registerWorktreeHandlers } from './ai-worktree'
@@ -245,7 +244,6 @@ app.whenReady().then(() => {
   registerBoardHandlers()
   registerAiHandlers()
   registerPlanExecuteHandlers()
-  registerAskResumeHandlers()
   registerRevertHandlers()
   registerTreeHandlers()
   registerWorktreeHandlers()
