@@ -433,7 +433,7 @@ const ZH_MAP: Record<string, string> = {
   // QuickOpen
   'Type to search files...': '输入以搜索文件...',
   'No matches': '无匹配',
-  'Type to search': '输入以搜索',
+  'Type to search': '输入以搜索 Ctrl + E',
   '{n} matching files': '{n} 个匹配文件',
 
   // Custom Commands
