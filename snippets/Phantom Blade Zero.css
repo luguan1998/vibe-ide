@@ -1,9 +1,11 @@
 /*
   Phantom Blade Zero · 影之刃零
+  - 配色：墨黑 / 骨白 / 石绿 / 朱砂，青绿山水路子（覆盖当前主题的 --ide-* 变量）
   - 全应用：落日屋顶背景，面板 / 终端半透明
   - 左栏 session：普通行墨色笔刷底，选中行朱砂笔刷框 + 墨洗
-  - 依赖 assets/ink-session-row.svg、ink-session-frame.svg、ink-blade-bg.jpg
-  - 换色改 --ink-cinnabar / --ink-bone / --ink-row；读不清加大 --app-bg-dim
+  - AI 输入框：宣纸毛边 + 纸纹，发送键作石绿印章
+  - 依赖 assets/ 下：笔刷行、笔刷框、纸边、纸纹、背景图
+  - 换色改 --ink-cinnabar / --ink-bone / --paper / --ink-row；读不清加大 --app-bg-dim
 */
 
 :root {
@@ -12,6 +14,7 @@
   --ink-row: 16 14 12;
   --ink-row-alpha: 0.7;
   --ink-wash: 1;
+  --paper: 226 211 178;
 
   --app-bg-image: url('assets/ink-blade-bg.jpg');
   --app-bg-dim: 0.45;
@@ -21,6 +24,31 @@
   --app-bg-text-alpha: 0.64;
   --app-bg-center-alpha: 0.5;
   --terminal-bg-image: none;
+}
+
+/* 主题配色：墨底 / 骨白字 / 石绿主强调（青绿山水）/ 朱砂给笔刷选中与危险 / 赭石警告 */
+:root {
+  --ide-bg: 13 12 10 !important;
+  --ide-sidebar: 21 19 15 !important;
+  --ide-panel: 26 23 18 !important;
+  --ide-border: 60 53 41 !important;
+  --ide-text: 234 225 205 !important;
+  --ide-text-muted: 148 138 118 !important;
+  --ide-accent: 78 154 136 !important;
+  --ide-accent-hover: 104 186 166 !important;
+  --ide-success: 118 170 104 !important;
+  --ide-danger: 200 62 48 !important;
+  --ide-warning: 200 138 62 !important;
+  --ide-hover: 38 33 24 !important;
+  --ide-active: 54 45 30 !important;
+  --scrollbar-thumb: 76 68 52 !important;
+  --scrollbar-thumb-hover: 128 114 88 !important;
+  --selection-bg: 78 154 136 !important;
+  --selection-opacity: 0.3 !important;
+  --focus-outline: 78 154 136 !important;
+  --monaco-margin-bg: 17 16 13 !important;
+  /* 笔刷光标跟石绿强调色走（路径同 themes/context.tsx，只是换 fill） */
+  --brush-cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 35.738 35.738'%3E%3Cpath fill='%234E9A88' d='M0,35.667c0,0,11.596-37.07,35.738-35.55c0,0-2.994,4.849-10.551,6.416c0,0,3.518,0.429,6.369-0.522c0,0-1.711,5.515-11.025,6.273c0,0,5.133,1.331,7.414,0.57c0,0-0.619,4.111-10.102,6.154c-0.562,0.12-4.347,1.067-1.306,1.448c0,0,4.371,0.763,5.514,0.381c0,0-3.744,5.607-12.928,5.132c-0.903-0.047-1.332,0-1.332,0L0,35.667z'/%3E%3C/svg%3E") 1 23, crosshair !important;
 }
 
 /* ── 全应用背景 ─────────────────────────────── */
@@ -111,47 +139,104 @@ body .ai-tab__input-pill textarea::placeholder {
   color: rgb(var(--ide-text-muted)) !important;
 }
 
-/* ── AI 输入框：聚焦落笔 ─────────────────────── */
+/* ── AI 输入框：宣纸笺 ─────────────────────── */
 
+/* 纸面：主题实底上叠纸纹，圆角收小成信笺 */
 .ai-tab__input-pill {
   position: relative;
   isolation: isolate;
-}
-
-/* 聚焦时由笔刷框接管，隐藏原来的 1px 主题色描边 */
-.ai-tab__input-pill:focus-within {
+  border-radius: 10px !important;
   border-color: transparent !important;
+  background-image: url("assets/paper-grain.svg") !important;
+  background-size: 120px 120px !important;
+  background-blend-mode: soft-light !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  transition: box-shadow 0.25s ease;
 }
 
-/* 光标也用朱砂，像落笔 */
-.ai-tab__input-pill:focus-within .ai-tab__textarea {
-  caret-color: rgb(var(--ink-cinnabar));
+/* 聚焦：墨顺着纸边往里洇 */
+.ai-tab__input-pill:focus-within {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.3),
+    inset 0 -16px 24px -18px rgb(var(--ink-row) / 0.85);
 }
 
-@supports (-webkit-mask-box-image: url("assets/ink-session-frame.svg") 20 fill) {
+/* 纸 body：暖白纸上托，向下略浓，像纸压着桌面 */
+.ai-tab__input-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--paper) / 0.09),
+    rgb(var(--paper) / 0.035) 55%,
+    rgb(var(--paper) / 0.1)
+  );
+  box-shadow: inset 0 0 14px rgb(var(--ink-row) / 0.22);
+}
+
+/* 毛边纸沿：撕口 + 纸纤维。hover 提亮，聚焦时纸边被压得更清晰 */
+@supports (-webkit-mask-box-image: url("assets/paper-edge.svg") 24 fill) {
   .ai-tab__input-pill::after {
     content: "";
     position: absolute;
-    inset: 0;
-    z-index: 0;
+    inset: -3px;
+    z-index: -1;
     pointer-events: none;
-    background: rgb(var(--ink-cinnabar) / 0.95);
-    -webkit-mask-box-image: url("assets/ink-session-frame.svg") 20 fill / 8px / 0 stretch;
-    opacity: 0;
-    transition: opacity 0.15s ease;
+    background: rgb(var(--paper) / 0.62);
+    -webkit-mask-box-image: url("assets/paper-edge.svg") 24 fill / 16px / 0 stretch;
+    transition: background-color 0.18s ease;
   }
   .ai-tab__input-pill:hover::after {
-    opacity: 0.3;
+    background-color: rgb(var(--paper) / 0.78);
   }
   .ai-tab__input-pill:focus-within::after {
-    opacity: 1;
-    animation: pbz-input-frame-in 0.22s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    background-color: rgb(var(--paper) / 0.9);
   }
 }
 
-@keyframes pbz-input-frame-in {
-  from { clip-path: inset(0 100% 0 0); opacity: 0.25; }
-  to { clip-path: inset(0 0 0 0); opacity: 1; }
+/* 光标用石绿，像笔尖落纸 */
+.ai-tab__input-pill:focus-within .ai-tab__textarea {
+  caret-color: rgb(var(--ide-accent));
+}
+
+/* 工具栏分隔线：两端收锋的颜料线，不是通栏灰线 */
+body .ai-tab__input-toolbar {
+  border-top-color: transparent !important;
+  background-image: linear-gradient(
+    90deg,
+    transparent 1%,
+    rgb(var(--ide-accent) / 0.16) 12%,
+    rgb(var(--ide-accent) / 0.3) 50%,
+    rgb(var(--ide-accent) / 0.16) 88%,
+    transparent 99%
+  );
+  background-size: 100% 1px;
+  background-position: top;
+  background-repeat: no-repeat;
+}
+
+/* 发送/停止按钮：印章，微斜落款。发送为石绿印阴刻，停止为朱砂 */
+body .ai-tab__send-btn {
+  border-radius: 3px !important;
+  transform: rotate(-2deg);
+  color: rgb(var(--ink-row)) !important;
+  box-shadow: inset 0 0 0 1.5px rgb(var(--ink-row) / 0.42);
+  transition: transform 0.15s ease;
+}
+body .ai-tab__send-btn:not(:disabled):hover {
+  transform: rotate(0deg) scale(1.05);
+}
+body .ai-tab__send-btn:not(:disabled):active {
+  transform: rotate(0deg) scale(0.93);
+}
+body .ai-tab__stop-btn {
+  border-radius: 3px !important;
+  transform: rotate(-2deg);
+  box-shadow: inset 0 0 0 1.5px rgb(var(--paper) / 0.45);
 }
 
 /* ── 左栏 session：笔刷行 ───────────────────── */
@@ -310,8 +395,7 @@ body .term-view__canvas {
 }
 @media (prefers-reduced-motion: reduce) {
   .session-item--active::before,
-  .session-item--active::after,
-  .ai-tab__input-pill:focus-within::after {
+  .session-item--active::after {
     animation: none !important;
   }
 }
