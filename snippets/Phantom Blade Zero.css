@@ -111,6 +111,49 @@ body .ai-tab__input-pill textarea::placeholder {
   color: rgb(var(--ide-text-muted)) !important;
 }
 
+/* ── AI 输入框：聚焦落笔 ─────────────────────── */
+
+.ai-tab__input-pill {
+  position: relative;
+  isolation: isolate;
+}
+
+/* 聚焦时由笔刷框接管，隐藏原来的 1px 主题色描边 */
+.ai-tab__input-pill:focus-within {
+  border-color: transparent !important;
+}
+
+/* 光标也用朱砂，像落笔 */
+.ai-tab__input-pill:focus-within .ai-tab__textarea {
+  caret-color: rgb(var(--ink-cinnabar));
+}
+
+@supports (-webkit-mask-box-image: url("assets/ink-session-frame.svg") 20 fill) {
+  .ai-tab__input-pill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: rgb(var(--ink-cinnabar) / 0.95);
+    -webkit-mask-box-image: url("assets/ink-session-frame.svg") 20 fill / 8px / 0 stretch;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .ai-tab__input-pill:hover::after {
+    opacity: 0.3;
+  }
+  .ai-tab__input-pill:focus-within::after {
+    opacity: 1;
+    animation: pbz-input-frame-in 0.22s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+}
+
+@keyframes pbz-input-frame-in {
+  from { clip-path: inset(0 100% 0 0); opacity: 0.25; }
+  to { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+
 /* ── 左栏 session：笔刷行 ───────────────────── */
 
 body .session-item {
@@ -267,7 +310,8 @@ body .term-view__canvas {
 }
 @media (prefers-reduced-motion: reduce) {
   .session-item--active::before,
-  .session-item--active::after {
+  .session-item--active::after,
+  .ai-tab__input-pill:focus-within::after {
     animation: none !important;
   }
 }
