@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import type { AiPermissionRequest } from '@shared/types'
 import { asToolArray } from '@shared/types'
 import { useI18n } from '../../i18n'
-import { ChevronDown, ChevronUp, Check, FileText } from 'lucide-react'
+import { ChevronDown, ChevronUp, Check, FileText, HelpCircle } from 'lucide-react'
 import { displayLabel, getShortcuts } from '../../shortcuts'
 import { ChatMarkdown } from './markdown'
 import { PANEL_MAX_W } from './layout'
@@ -97,6 +97,7 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [activeOpt, setActiveOpt] = useState<Record<number, string>>({})
   const [activeQ, setActiveQ] = useState(0)
+  const [collapsed, setCollapsed] = useState(false)
 
   // 全脏数据（清洗后无可用题目）→ 降级为普通 Approve/Deny 卡,不阻塞会话
   if (questions.length === 0) {
@@ -168,7 +169,7 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
     return (
       <div key={qi} className={tabbed ? '' : 'mb-3 last:mb-0'}>
         <QuestionHeader header={tabbed ? '' : q.header} multi={q.multiSelect} />
-        <div className="text-[13px] text-ide-text mb-1.5">{q.question}</div>
+        <div className={`text-[13px] text-ide-text mb-1.5 ${tabbed ? '' : 'pr-6'}`}>{q.question}</div>
         <div className="flex flex-col gap-1">
           {q.options.map((opt, oi) => {
             const selected = selections[q.question]?.has(opt.label) ?? false
@@ -243,49 +244,76 @@ export const AiAskQuestionCard = React.memo(function AiAskQuestionCard({ perm, s
 
   return (
     <div className={FLOATING_CARD_WRAP_CLS}>
-      <div className="ai-tab__question-card flex flex-col max-h-[60vh] rounded-xl border border-ide-accent/40 bg-ide-sidebar shadow-md px-3 py-2.5">
-        {tabbed && (
-          <div className="ai-tab__question-tabs flex items-end gap-3 shrink-0 mb-2 border-b border-ide-border/60 overflow-x-auto">
-            {questions.map((q, qi) => (
-              <button
-                key={qi}
-                type="button"
-                onClick={() => setActiveQ(qi)}
-                className={`ai-tab__question-tab shrink-0 pb-1.5 text-[13px] leading-none whitespace-nowrap border-b-2 transition-colors ${
-                  qi === activeQ
-                    ? 'border-ide-accent text-ide-text font-medium'
-                    : 'border-transparent text-ide-text-muted hover:text-ide-text'
-                }`}
-              >
-                {q.header || `Q${qi + 1}`}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="ai-tab__question-body flex-1 min-h-0 overflow-y-auto">
-          {tabbed ? renderQuestion(questions[activeQ], activeQ) : questions.map((q, qi) => renderQuestion(q, qi))}
-        </div>
-
-        <div className="flex gap-1.5 mt-2 shrink-0">
+      <div className={`ai-tab__question-card relative flex flex-col rounded-xl border border-ide-accent/40 bg-ide-sidebar shadow-md px-3 py-2.5 ${collapsed ? '' : 'max-h-[60vh]'}`}>
+        {collapsed ? (
           <button
             type="button"
-            disabled={!allAnswered}
-            onClick={handleSubmit}
-            className={`ai-tab__question-submit-btn px-4 py-1.5 text-[13px] font-medium rounded transition-colors ${
-              allAnswered
-                ? 'bg-ide-accent hover:bg-ide-accent-hover text-white'
-                : 'bg-ide-accent/30 text-white/50 cursor-not-allowed'
-            }`}
+            onClick={() => setCollapsed(false)}
+            title={t('Expand')}
+            className="ai-tab__question-head flex items-center gap-1.5 w-full text-left"
           >
-            {tabbed ? `${questions.filter(isAnswered).length}/${questions.length} ${t('Submit')}` : t('Submit')}
+            <HelpCircle size={13} className="shrink-0 text-ide-accent" />
+            <span className="truncate text-[13px] leading-none text-ide-text">{questions[0].question}</span>
+            <span className="flex-1" />
+            <span className="shrink-0 text-[11px] leading-none tabular-nums text-ide-text-muted">
+              {questions.filter(isAnswered).length}/{questions.length}
+            </span>
+            <ChevronUp size={14} className="shrink-0 text-ide-text-muted" />
           </button>
-          <button
-            onClick={() => onRespond(sessionId, perm.requestId, false, perm.tool, perm.toolInput)}
-            className="ai-tab__question-deny-btn px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
-          >
-            {t('Deny')}
-          </button>
-        </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => setCollapsed(true)}
+              title={t('Collapse')}
+              className="ai-tab__question-collapse absolute top-1 right-3 z-10 flex items-center justify-center w-6 h-6 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
+            >
+              <ChevronDown size={14} />
+            </button>
+            {tabbed && (
+              <div className="ai-tab__question-tabs flex items-end gap-3 shrink-0 mb-2 pr-9 border-b border-ide-border/60 overflow-x-auto">
+                {questions.map((q, qi) => (
+                  <button
+                    key={qi}
+                    type="button"
+                    onClick={() => setActiveQ(qi)}
+                    className={`ai-tab__question-tab shrink-0 pb-1.5 text-[13px] leading-none whitespace-nowrap border-b-2 transition-colors ${
+                      qi === activeQ
+                        ? 'border-ide-accent text-ide-text font-medium'
+                        : 'border-transparent text-ide-text-muted hover:text-ide-text'
+                    }`}
+                  >
+                    {q.header || `Q${qi + 1}`}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="ai-tab__question-body flex-1 min-h-0 overflow-y-auto">
+              {tabbed ? renderQuestion(questions[activeQ], activeQ) : questions.map((q, qi) => renderQuestion(q, qi))}
+            </div>
+
+            <div className="flex gap-1.5 mt-2 shrink-0">
+              <button
+                type="button"
+                disabled={!allAnswered}
+                onClick={handleSubmit}
+                className={`ai-tab__question-submit-btn px-4 py-1.5 text-[13px] font-medium rounded transition-colors ${
+                  allAnswered
+                    ? 'bg-ide-accent hover:bg-ide-accent-hover text-white'
+                    : 'bg-ide-accent/30 text-white/50 cursor-not-allowed'
+                }`}
+              >
+                {tabbed ? `${questions.filter(isAnswered).length}/${questions.length} ${t('Submit')}` : t('Submit')}
+              </button>
+              <button
+                onClick={() => onRespond(sessionId, perm.requestId, false, perm.tool, perm.toolInput)}
+                className="ai-tab__question-deny-btn px-4 py-1.5 text-[13px] font-medium border border-ide-border hover:bg-ide-hover text-ide-text-muted rounded transition-colors"
+              >
+                {t('Deny')}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -456,7 +484,7 @@ export function InlineAnnotationInput({ top, left, containerRef, onSubmit, onDis
 // "Clear & Execute" kills the plan-mode subprocess and respawns in bypassPermissions mode with the
 // plan re-injected as first message — clears the inflated context from exploration.
 // "Send Feedback" denies with a feedback message so the model revises the plan.
-export const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onContinue, onClearExecute, onDeny, workspacePath, onOpenFile, model, brushActive }: {
+export const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm, sessionId, onContinue, onClearExecute, onDeny, workspacePath, onOpenFile, brushActive }: {
   perm: AiPermissionRequest
   sessionId: string
   onContinue: (sessionId: string, requestId: string, modelOverride?: string) => void
@@ -464,7 +492,6 @@ export const AiExitPlanModeCard = React.memo(function AiExitPlanModeCard({ perm,
   onDeny: (sessionId: string, requestId: string, feedback: string) => void
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number) => void
-  model: string
   brushActive?: boolean
 }) {
   const { t } = useI18n()

@@ -910,7 +910,7 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   white-space: nowrap;
 }
 .desktop-pet__bubble-section--history { grid-template-columns: 1fr; }
-.desktop-pet__bubble--history { cursor: default; }
+.desktop-pet__bubble--history { cursor: default; user-select: text; }
 .desktop-pet__bubble--history:active { transform: none; }
 .desktop-pet__bubble--history:hover {
   background: rgb(var(--ide-sidebar));
@@ -964,6 +964,7 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
   z-index: 35;
   cursor: default;
+  user-select: text;
 }
 .desktop-pet__ai-reply--with-close { padding-right: 28px; }
 .desktop-pet__ai-reply-close {

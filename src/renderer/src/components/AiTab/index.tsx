@@ -1917,7 +1917,6 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           onDeny={aiStore.handlePlanDeny}
           workspacePath={workspacePath}
           onOpenFile={onOpenFile}
-          model={state.model}
           brushActive={brushActive}
         />
       )}

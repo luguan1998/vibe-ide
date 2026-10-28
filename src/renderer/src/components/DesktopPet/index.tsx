@@ -553,7 +553,10 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                   <div
                     className={`desktop-pet__bubble desktop-pet__bubble--history${r.reply ? ' desktop-pet__bubble--history-clickable' : ''}`}
                     title={r.text}
-                    onClick={r.reply ? () => setExpandedRecordId(v => v === r.id ? null : r.id) : undefined}
+                    onClick={r.reply ? () => {
+                      if ((window.getSelection()?.toString() || '').trim()) return
+                      setExpandedRecordId(v => v === r.id ? null : r.id)
+                    } : undefined}
                   >
                     <span className="desktop-pet__bubble-text">{r.text}</span>
                     <button
