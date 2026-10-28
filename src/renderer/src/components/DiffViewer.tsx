@@ -1066,6 +1066,18 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     if (a) void runReferences(a.word, a.x, a.y, a.line, a.column)
   }
 
+  // 右键「Add to Chat」= Ctrl+左键注解：多行选区取起止行，否则取光标行
+  const addToChatRef = useRef<(ed: any) => void>(() => {})
+  addToChatRef.current = (ed: any) => {
+    const sel = ed?.getSelection()
+    if (sel && sel.startLineNumber !== sel.endLineNumber) {
+      handleAnnotationClickRef.current(sel.startLineNumber, sel.endLineNumber)
+      return
+    }
+    const ln = ed?.getPosition()?.lineNumber
+    if (ln) handleAnnotationClickRef.current(ln, ln)
+  }
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle keys when visible (not display:none)
@@ -1475,6 +1487,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                   }
                 } catch {}
               }
+              ;(modifiedEditor as any)._addToChatActionDisposable = modifiedEditor.addAction({
+                id: 'add-to-chat',
+                label: t('Add to Chat'),
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.4,
+                run: (ed: any) => addToChatRef.current(ed)
+              })
               ;(modifiedEditor as any)._goToDefinitionActionDisposable = modifiedEditor.addAction({
                 id: 'lsp-go-to-definition',
                 label: t('Go to Definition'),
@@ -1683,6 +1702,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
                   }
                 }, 100)
               }
+              ;(editor as any)._addToChatActionDisposable = editor.addAction({
+                id: 'add-to-chat',
+                label: t('Add to Chat'),
+                contextMenuGroupId: 'navigation',
+                contextMenuOrder: 1.4,
+                run: (ed: any) => addToChatRef.current(ed)
+              })
               ;(editor as any)._goToDefinitionActionDisposable = editor.addAction({
                 id: 'lsp-go-to-definition',
                 label: t('Go to Definition'),

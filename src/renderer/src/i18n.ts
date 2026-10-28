@@ -480,6 +480,7 @@ const ZH_MAP: Record<string, string> = {
   'Components used as JSX produce no call edges — showing reference sites instead': '组件以 JSX 使用时不产生调用关系，这里改列引用位置（使用处）',
   'No callers or callees in the index': '索引里没有调用者或被调用者',
   'Go to Definition': '转到定义',
+  'Add to Chat': '加入对话',
   'Find All References': '查找所有引用',
   'References': '引用',
   'No references found': '未找到引用',
