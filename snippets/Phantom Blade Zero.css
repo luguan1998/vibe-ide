@@ -1,0 +1,273 @@
+/*
+  Phantom Blade Zero · 影之刃零
+  - 全应用：落日屋顶背景，面板 / 终端半透明
+  - 左栏 session：普通行墨色笔刷底，选中行朱砂笔刷框 + 墨洗
+  - 依赖 assets/ink-session-row.svg、ink-session-frame.svg、ink-blade-bg.jpg
+  - 换色改 --ink-cinnabar / --ink-bone / --ink-row；读不清加大 --app-bg-dim
+*/
+
+:root {
+  --ink-cinnabar: 178 42 34;
+  --ink-bone: 244 234 215;
+  --ink-row: 16 14 12;
+  --ink-row-alpha: 0.7;
+  --ink-wash: 1;
+
+  --app-bg-image: url('assets/ink-blade-bg.jpg');
+  --app-bg-dim: 0.45;
+  --app-bg-alpha: 0.5;
+  --app-bg-title-alpha: 0.58;
+  --app-bg-wash: 0.42;
+  --app-bg-text-alpha: 0.64;
+  --app-bg-center-alpha: 0.5;
+  --terminal-bg-image: none;
+}
+
+/* ── 全应用背景 ─────────────────────────────── */
+
+html,
+body,
+#root {
+  background: transparent !important;
+}
+
+#root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(rgb(var(--ide-bg) / var(--app-bg-dim)), rgb(var(--ide-bg) / var(--app-bg-dim))),
+    var(--app-bg-image);
+  background-size: 100% 100%, cover;
+  background-position: center, center 42%;
+  background-repeat: no-repeat;
+  filter: saturate(0.85) brightness(1) contrast(1.02);
+  pointer-events: none;
+}
+
+#root > div {
+  background: transparent !important;
+}
+
+body :is(.session-panel, .session-panel__list-wrapper, .session-group,
+         .center-panel, .center-card, .ai-tab) {
+  background: transparent !important;
+}
+
+body .bg-ide-bg {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-alpha)) !important;
+}
+
+/* 标题栏保持主题实底：右侧是原生 WCO 窗控 overlay，
+   它由 titlebarSync 按 .titlebar-drag 的实色绘制，透明化会让右侧出现一块异色 */
+body .bg-ide-sidebar:not(.titlebar-drag):not(.session-group):not(.session-panel__quick-action) {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-alpha)) !important;
+}
+
+body .bg-ide-panel {
+  background-color: rgb(var(--ide-panel) / var(--app-bg-alpha)) !important;
+}
+
+body .session-panel {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-wash)) !important;
+}
+
+body .session-panel__quick-action {
+  background-color: transparent !important;
+}
+body .session-panel__quick-action:hover {
+  background-color: rgb(var(--ide-hover) / var(--app-bg-alpha)) !important;
+}
+body .session-panel__quick-action.bg-ide-accent\/15 {
+  background-color: rgb(var(--ide-accent) / 0.15) !important;
+}
+
+body .center-panel:not(.center-panel--flush-left),
+body [data-panel="right"] {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-center-alpha)) !important;
+}
+body .center-panel--flush-left {
+  background: linear-gradient(
+    90deg,
+    transparent 0 4px,
+    rgb(var(--ide-bg) / var(--app-bg-center-alpha)) 4px
+  ) !important;
+}
+body :where(.center-panel ~ .cursor-col-resize) {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-center-alpha));
+}
+
+body .ai-tab__header {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-title-alpha)) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body .ai-tab__input-pill {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-text-alpha)) !important;
+}
+body .ai-tab__input-pill textarea::placeholder {
+  color: rgb(var(--ide-text-muted)) !important;
+}
+
+/* ── 左栏 session：笔刷行 ───────────────────── */
+
+body .session-item {
+  isolation: isolate;
+  background: transparent !important;
+  border-left-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* 扁平行（带 cwd）原本有 3px 左边框：去掉边框、补回内边距，文字不横跳 */
+.session-item--active:has(.session-item__cwd) {
+  border-left-width: 0 !important;
+  padding-left: calc(1rem + 3px) !important;
+}
+
+/* 普通行：墨色笔刷横扫 */
+.session-item:not(.session-item__drop-marker)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: rgb(var(--ink-row) / var(--ink-row-alpha));
+  -webkit-mask: url("assets/ink-session-row.svg") center / 100% 100% no-repeat;
+  mask: url("assets/ink-session-row.svg") center / 100% 100% no-repeat;
+  transition: background-color 0.12s;
+}
+
+/* 偶数行翻转笔锋，避免每行笔触完全一样 */
+.session-item:not(.session-item--active):not(.session-item--running):not(.session-item__drop-marker):nth-child(even)::before {
+  transform: scaleX(-1);
+}
+
+/* 未选中 hover：墨色加深，左端透一点朱砂 */
+.session-item:not(.session-item--active):not(.session-item__drop-marker):hover::before {
+  background:
+    linear-gradient(90deg, rgb(var(--ink-cinnabar) / 0.08), transparent 42%),
+    rgb(var(--ink-row) / 0.84);
+}
+
+/* 运行中（未选中）：左端朱砂晕染 */
+.session-item--running:not(.session-item--active):not(.session-item__drop-marker)::before {
+  background:
+    linear-gradient(90deg, rgb(var(--ink-cinnabar) / 0.22), transparent 55%),
+    rgb(var(--ink-row) / 0.74);
+}
+
+/* 警告（未选中）：左端 warning 晕染，代替原来的左条 */
+.session-item--warn:not(.session-item--active):not(.session-item--running):not(.session-item__drop-marker)::before {
+  background:
+    linear-gradient(90deg, rgb(var(--ide-warning, 200 150 60) / 0.3), transparent 50%),
+    rgb(var(--ink-row) / var(--ink-row-alpha));
+}
+
+/* 选中行：墨底 + 朱砂墨洗（左浓右淡） */
+.session-item--active:not(.session-item__drop-marker)::before {
+  background:
+    linear-gradient(
+      90deg,
+      rgb(var(--ink-cinnabar) / calc(0.3 * var(--ink-wash))) 0%,
+      rgb(var(--ink-cinnabar) / calc(0.1 * var(--ink-wash))) 45%,
+      rgb(var(--ink-cinnabar) / calc(0.02 * var(--ink-wash))) 75%,
+      transparent 100%
+    ),
+    rgb(var(--ink-row) / var(--ink-row-alpha));
+  animation: pbz-wash-in 0.18s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* 选中行：朱砂飞白笔刷框，9-slice，四角与飞白不随行宽拉伸 */
+@supports (-webkit-mask-box-image: url("assets/ink-session-frame.svg") 20 fill) {
+  .session-item--active:not(.session-item__drop-marker)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: rgb(var(--ink-cinnabar) / 0.95);
+    -webkit-mask-box-image: url("assets/ink-session-frame.svg") 20 fill / 8px / 0 stretch;
+    animation: pbz-frame-in 0.2s 0.03s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+}
+
+/* 选中行文字与图标改用骨白，红只留给笔刷本身 */
+.session-item--active {
+  color: rgb(var(--ink-bone)) !important;
+}
+.session-item--active:hover {
+  background: transparent !important;
+}
+.session-item--active .session-item__name {
+  color: rgb(var(--ink-bone)) !important;
+}
+.session-item--active .session-item__cwd,
+.session-item--active .session-item__cwd span {
+  color: rgb(var(--ink-bone) / 0.52) !important;
+  opacity: 1 !important;
+}
+.session-item--active .session-item__icon [class*="text-ide-accent"] {
+  color: rgb(var(--ink-bone)) !important;
+}
+.session-item--active .session-item__actions button {
+  color: rgb(var(--ink-bone) / 0.72) !important;
+}
+.session-item--active .session-item__actions button:not(.session-item__pipe-cancel):hover {
+  background: rgb(var(--ink-bone) / 0.14) !important;
+  color: rgb(var(--ink-bone)) !important;
+}
+.session-item--active .session-item__worktree {
+  background: rgb(var(--ink-bone) / 0.1) !important;
+  color: rgb(var(--ink-bone) / 0.8) !important;
+}
+.session-item--active .animate-text-wave {
+  background-image: linear-gradient(
+    90deg,
+    rgb(var(--ink-bone)) 0%,
+    rgb(var(--ink-bone)) 40%,
+    rgb(var(--ink-bone) / 0.55) 50%,
+    rgb(var(--ink-bone)) 60%,
+    rgb(var(--ink-bone)) 100%
+  ) !important;
+}
+
+/* ── 终端 / 编辑器 ──────────────────────────── */
+
+body .term-view__canvas {
+  background: transparent !important;
+  background-image: none !important;
+}
+.xterm .xterm-viewport,
+.xterm .xterm-screen,
+.xterm .xterm-screen canvas {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Monaco 保持实底，避免编辑文字和底图重叠 */
+.monaco-editor,
+.monaco-diff-editor,
+.monaco-diff-editor .gutter,
+.monaco-diff-editor .gutter .gutterItem,
+.diff-inline {
+  background-color: rgb(var(--ide-bg)) !important;
+}
+
+/* ── 动画 ───────────────────────────────────── */
+
+@keyframes pbz-wash-in {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes pbz-frame-in {
+  from { clip-path: inset(0 100% 0 0); opacity: 0.35; }
+  to { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .session-item--active::before,
+  .session-item--active::after {
+    animation: none !important;
+  }
+}
