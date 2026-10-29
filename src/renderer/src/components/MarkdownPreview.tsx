@@ -974,7 +974,7 @@ ${clone.innerHTML}
                   e.preventDefault()
                 }
               }}
-              className="w-full resize-none outline-none text-ide-text bg-ide-bg px-3 py-2"
+              className="md-block-editor w-full resize-none outline-none text-ide-text bg-ide-bg px-3 py-2"
               style={{
                 fontFamily: 'var(--ide-font-family), Consolas, Cascadia Code, monospace',
                 fontSize: 14,
@@ -996,7 +996,7 @@ ${clone.innerHTML}
       )}
 
       {searchOpen && (
-        <div className="absolute top-10 right-3 z-20 flex items-center gap-1 p-1.5 bg-ide-sidebar border border-ide-border rounded-md shadow-lg">
+        <div className="md-search-bar absolute top-10 right-3 z-20 flex items-center gap-1 p-1.5 bg-ide-sidebar border border-ide-border rounded-md shadow-lg">
           <input
             ref={searchInputRef}
             type="text"

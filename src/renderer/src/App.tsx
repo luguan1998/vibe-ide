@@ -4272,7 +4272,7 @@ export default function App() {
       >
         <div
           ref={searchPanelRef}
-          className="absolute pointer-events-auto bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+          className="search-flyout absolute pointer-events-auto bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl flex flex-col overflow-hidden animate-fade-in"
           style={searchPos
             ? { left: searchPos.x, top: searchPos.y, width: 480, maxHeight: 'calc(100vh - 56px)' }
             : { top: 40, right: 16, width: 480, maxHeight: 'calc(100vh - 56px)' }}
