@@ -3042,8 +3042,6 @@ export default function App() {
     document.addEventListener('mouseup', onMouseUp)
   }, [rightPanelWidth])
 
-  const handleRestoreRightWidth = useCallback(() => setRightPanelWidth(RIGHT_PANEL_DEFAULT_W), [])
-
   const handleLeftResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -3535,7 +3533,7 @@ export default function App() {
   const panelWide = !isWelcome && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W
   const leftPanelShown = !isWelcome && !leftPanelCollapsed
   const rightPanelShown = !isWelcome && !rightPanelCollapsed
-  // 右面板宽到出现 TabRail 导航时收紧中间卡片与右面板的间隙（原始宽度保持对称），并去掉中间栏边框使两栏融合
+  // 右面板宽栏时收紧中间卡片与右面板的间隙（原始宽度保持对称），并去掉中间栏边框使两栏融合
   // 右栏收起时中间栏就是最后一栏，右侧不再留缝（否则卡片右边空出 4px + 边框 + 圆角，贴窗口缘看着像缺口）
   // 左栏可见时中间栏整体左移压住会话栏右缘（圆角缺口由会话栏底色补齐，见 globals.css .center-panel--flush-left）
   const centerGapX = panelWide || !rightPanelShown ? 'ml-1 mr-0' : 'mx-1'
@@ -4018,10 +4016,9 @@ export default function App() {
             onToggleCollapse={handleToggleRightPanel}
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
-            hideTabBar={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W}
             panelWide={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W}
-            onRestoreWidth={handleRestoreRightWidth}
             contentOverlay={rightOverlay}
+            contentOverlayKind={overlayKind}
             brushActive={brushActive}
             browserDocked={browserDocked}
             browserDockNonce={browserDockNonce}

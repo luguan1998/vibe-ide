@@ -157,8 +157,8 @@ const ZH_MAP: Record<string, string> = {
   'Press keys...': '按按键...',
   'Reset to defaults': '重置为默认值',
   'Reset Defaults': '恢复默认',
-  'Restore Default Width': '恢复默认宽度',
-  'Hide Rail': '隐藏导航栏',
+  'Open file': '打开文件',
+  'Select a file from the workspace tree': '从目录树中选择文件',
   'Clear': '清除',
   'Disabled': '已禁用',
 

@@ -481,7 +481,7 @@ html, body, #root {
   );
 }
 
-/* 右面板宽形态（TabRail）时中间栏去边框，与右面板融为一体 */
+/* 右面板宽栏形态时中间栏去边框，与右面板融为一体 */
 .center-no-border .center-card {
   border: none;
 }
