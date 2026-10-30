@@ -71,6 +71,8 @@ export interface AiTabHandle {
   appendText: (text: string) => void
   sendText: (text: string) => void
   getInputValue: () => string
+  // 加入对话：引用以气泡挂在输入框上方，发送时拼回 @rel:start-end
+  addRef: (rel: string, start?: number, end?: number) => void
   // 图挂在右栏时按 content+occurrence 滚到该轮（本组件持有消息态与滚动容器）
   revealTurn: (content: string, occurrence: number) => void
   // session hover 弹窗按轮次下标滚到该轮
@@ -217,6 +219,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
   type DraftAttachment =
     | { id: string; kind: 'prompt'; label: string; text: string }
     | { id: string; kind: 'image'; label: string; text: string; src: string; path: string; ephemeral?: boolean }
+    | { id: string; kind: 'ref'; label: string; text: string }
   const [inputAttachments, setInputAttachments] = useState<Record<string, DraftAttachment[]>>({})
   const inputAttachmentsRef = useRef(inputAttachments)
   inputAttachmentsRef.current = inputAttachments
@@ -227,9 +230,18 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     setInputAttachments(prev => {
       const list = prev[sid] || []
       if (att.kind === 'prompt' && list.some(a => a.kind === 'prompt' && a.text === att.text)) return prev
+      if (att.kind === 'ref' && list.some(a => a.kind === 'ref' && a.text === att.text)) return prev
       return { ...prev, [sid]: [...list, att] }
     })
   }, [])
+
+  // 「加入对话」引用：气泡显示文件名+行号（hover 见完整路径），发送时以 @rel:start-end 拼回文本
+  const addRef = useCallback((rel: string, start?: number, end?: number) => {
+    const range = start != null && end != null ? (start === end ? `:${start}` : `:${start}-${end}`) : ''
+    const text = `@${rel}${range}`
+    const base = rel.split(/[\\\/]/).pop() || rel
+    addAttachment({ id: `ref-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, kind: 'ref', label: base + range, text })
+  }, [addAttachment])
   const removeAttachment = useCallback((id: string) => {
     const sid = activeSessionIdRef.current
     if (!sid) return
@@ -463,13 +475,17 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
       const sid = activeSessionIdRef.current
       return sid ? (inputValuesRef.current[sid] || '') : ''
     },
+    addRef: (rel: string, start?: number, end?: number) => {
+      addRef(rel, start, end)
+      requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }))
+    },
     revealTurn: (content: string, occurrence: number) => {
       revealTurnRef.current?.(content, occurrence)
     },
     revealTurnIndex: (turnIdx: number) => {
       revealTurnIndexRef.current?.(turnIdx)
     },
-  }), [setInputValue, setInputValues])
+  }), [setInputValue, setInputValues, addRef])
 
   const autoGrow = useCallback(() => {
     const el = inputRef.current
@@ -865,7 +881,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   // 气泡文本 + 手打文本 = 真正发送的内容（气泡在前，与快捷提示词原先前置追加的行为一致）
   const composeDraft = useCallback((text: string, atts: DraftAttachment[]) => {
-    const parts = atts.map(a => a.text)
+    const refs = atts.filter(a => a.kind === 'ref').map(a => a.text)
+    const parts = refs.length > 0 ? [refs.join('; ')] : []
+    for (const a of atts) if (a.kind !== 'ref') parts.push(a.text)
     const body = text.trim()
     if (body) parts.push(body)
     return parts.join('\n')
@@ -1169,7 +1187,26 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
             {attachments.length > 0 && (
               <div className="ai-tab__input-chips flex flex-wrap gap-1.5 px-3 pt-2">
                 {attachments.map((att) => (
-                  att.kind === 'image' ? (
+                  att.kind === 'ref' ? (
+                    <span
+                      key={att.id}
+                      className="ai-tab__input-chip ai-tab__input-chip--ref group inline-flex items-center gap-1.5 h-7 pl-2 pr-1 rounded-full
+                                 border border-ide-border bg-ide-hover/40 max-w-[220px] animate-fade-in"
+                      title={att.text}
+                    >
+                      <MessageSquarePlus size={11} strokeWidth={2} className="shrink-0 text-ide-text-muted" />
+                      <span className="truncate text-[11px] text-ide-text">{att.label}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(att.id)}
+                        className="shrink-0 w-5 h-5 grid place-items-center rounded-full text-ide-text-muted opacity-60
+                                   group-hover:opacity-100 hover:bg-ide-hover hover:text-ide-text transition-all"
+                        title={t('Remove')}
+                      >
+                        <X size={11} strokeWidth={2} />
+                      </button>
+                    </span>
+                  ) : att.kind === 'image' ? (
                     <span key={att.id} className="ai-tab__input-chip ai-tab__input-chip--image group relative inline-flex shrink-0 animate-fade-in">
                       <img src={att.src} alt={att.label} className="w-14 h-14 rounded-lg object-cover" />
                       <button

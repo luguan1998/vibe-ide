@@ -41,6 +41,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [contextFocused, setContextFocused] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [draftCmd, setDraftCmd] = useState('')
+  const [draftRefs, setDraftRefs] = useState<string[]>([])
   const activeKind = sessions.find(s => s.id === activeSessionId)?.kind
   const [keypadItems, setKeypadItems] = useState<ReturnType<typeof loadKeypadItems>>([])
   const [, setConfigTick] = useState(0)
@@ -310,18 +311,21 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
 
   const handleSend = useCallback(() => {
     const text = draftCmd.trim()
-    if (text) {
+    const refsPart = draftRefs.join('; ')
+    const merged = refsPart ? (text ? refsPart + '\n' + text : refsPart) : text
+    if (merged) {
       const rawBtw = /^\s*\/btw\b/i.test(text)
       const isBtw = contextBtw || rawBtw
-      const body = isBtw && !rawBtw ? `/btw ${text}` : text
+      const body = isBtw && !rawBtw ? `/btw ${merged}` : merged
       ;(window as any).__vibeSendLine?.(body)
       if (isBtw) recordBtw(text)
       triggerTransient('sendMessage')
     }
     setDraftCmd('')
+    setDraftRefs([])
     setContextOpen(false)
     setPopupOpen(false)
-  }, [draftCmd, contextBtw, recordBtw, triggerTransient])
+  }, [draftCmd, draftRefs, contextBtw, recordBtw, triggerTransient])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -413,22 +417,14 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
 
   useEffect(() => {
     const handler = (e: Event) => {
+      // AI 对话 + 右栏宽栏：App 侧直接落 AiTab 输入框，宠物不再接管
+      if ((window as any).__vibeAnnotationToAi?.()) return
       const d = (e as CustomEvent).detail as { rel: string; start?: number; end?: number }
       const ref = (d.start != null && d.end != null)
         ? (d.start === d.end ? `@${d.rel}:${d.start}` : `@${d.rel}:${d.start}-${d.end}`)
         : `@${d.rel}`
-      setDraftCmd(prev => {
-        if (!prev.trim()) {
-          const mid = readCenterDraft()
-          return mid ? mid + '\n' + ref + ' → ' : ref + ' → '
-        }
-        const lastSep = prev.lastIndexOf('; ')
-        const lastAnno = lastSep > -1 ? prev.slice(lastSep + 2) : prev
-        if (/^@.+? →\s*$/.test(lastAnno)) {
-          return (lastSep > -1 ? prev.slice(0, lastSep + 2) : '') + ref + ' → '
-        }
-        return prev.replace(/\s+$/, '') + '; ' + ref + ' → '
-      })
+      setDraftRefs(prev => prev.includes(ref) ? prev : [...prev, ref])
+      setDraftCmd(prev => prev.trim() ? prev : readCenterDraft())
       setPopupOpen(false)
       setContextBtw(false)
       setContextOpen(true)
@@ -592,6 +588,26 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         <div className={`desktop-pet__context desktop-pet__context--${contextDir}${contextAlign !== 'default' ? ` desktop-pet__context--align-${contextAlign}` : ''}${(contextDir === 'left' || contextDir === 'right') && contextVAlign !== 'center' ? ` desktop-pet__context--v-${contextVAlign}` : ''}`}>
           {contextPinned && contextFocused && (
             <div className="desktop-pet__context-hint">按 Enter 发送</div>
+          )}
+          {draftRefs.length > 0 && (
+            <div className="flex flex-wrap gap-1 pb-1">
+              {draftRefs.map(ref => (
+                <span
+                  key={ref}
+                  title={ref}
+                  className="inline-flex items-center gap-1 h-5 pl-1.5 pr-0.5 rounded-full border border-ide-border bg-ide-hover/50 text-[10px] text-ide-text max-w-[170px]"
+                >
+                  <span className="truncate">{ref.replace(/^@/, '')}</span>
+                  <button
+                    className="shrink-0 w-4 h-4 grid place-items-center rounded-full text-ide-text-muted hover:text-ide-text hover:bg-ide-hover"
+                    onClick={() => setDraftRefs(prev => prev.filter(r => r !== ref))}
+                    title="移除"
+                  >
+                    <X size={9} />
+                  </button>
+                </span>
+              ))}
+            </div>
           )}
           <textarea
             ref={contextInputRef}

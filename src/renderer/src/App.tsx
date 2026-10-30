@@ -1473,9 +1473,26 @@ export default function App() {
       if (sessionsRef.current.find(s => s.id === sid)?.kind !== 'gui') return ''
       return aiTabRefs.current[sid]?.getInputValue() ?? ''
     }
+    ;(window as any).__vibeAnnotationToAi = () => {
+      const sid = activeSessionIdRef.current
+      return !!sid && sessionsRef.current.find(s => s.id === sid)?.kind === 'gui' && rightPanelWideRef.current
+    }
     ;(window as any).__vibeBrowse = handleBrowseUrl
     ;(window as any).__vibeIsBrowserOpen = () => browserDockedRef.current || centerViewRef.current === 'browser'
   }, [waitDraftIdle, sendDraftLine, handleBrowseUrl])
+
+  // 加入对话：AI 对话场景 + 右栏宽栏时直接落 AiTab 输入框（宠物气泡那边按同一判据跳过）
+  useEffect(() => {
+    const handler = (e: Event) => {
+      if (!(window as any).__vibeAnnotationToAi?.()) return
+      const sid = activeSessionIdRef.current
+      if (!sid) return
+      const d = (e as CustomEvent).detail as { rel: string; start?: number; end?: number }
+      aiTabRefs.current[sid]?.addRef(d.rel, d.start, d.end)
+    }
+    window.addEventListener(ADD_ANNOTATION_EVENT, handler)
+    return () => window.removeEventListener(ADD_ANNOTATION_EVENT, handler)
+  }, [])
 
   const handleAiAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     const v = status === 'running'
