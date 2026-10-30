@@ -485,6 +485,9 @@ export default function App() {
       right: isRightPanelWide(rightPanelCollapsed, rightPanelWidth),
       base,
     }
+  } else if (overlayKind) {
+    // 右栏宽窄变化时预览跟随：变宽落右栏预览列，变窄回中栏
+    overlaySnapRef.current.right = isRightPanelWide(rightPanelCollapsed, rightPanelWidth)
   }
   if (!overlayKind && overlaySnapRef.current.key !== null) {
     overlaySnapRef.current = { key: null, right: false, base: 'terminal' }
