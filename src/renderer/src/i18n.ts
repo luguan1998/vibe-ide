@@ -217,6 +217,8 @@ const ZH_MAP: Record<string, string> = {
   'Collapse All': '全部收缩',
   'Expand Panel': '展开面板',
   'Collapse Panel': '收缩面板',
+  'Widen Panel': '加宽面板',
+  'Narrow Panel': '收窄面板',
   'Collapse Sessions': '收缩会话栏',
   'Restore Sessions': '恢复会话栏',
   'Web Brush (Annotate)': '网页羽毛笔（注释）',

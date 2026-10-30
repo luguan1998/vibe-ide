@@ -45,6 +45,7 @@ const TerminalView = lazy(() => import('./components/TerminalView'))
 
 const PANEL_TAB_RAIL_MIN_W = 700
 const RIGHT_PANEL_DEFAULT_W = 308
+const RIGHT_PANEL_EXPAND_W = 860
 const BROWSER_DOCK_W = 860
 const BROWSER_DOCK_MIN_CENTER_W = 450
 
@@ -3059,6 +3060,15 @@ export default function App() {
     document.addEventListener('mouseup', onMouseUp)
   }, [rightPanelWidth])
 
+  // 分界线按钮：窄栏一键拉宽 / 宽栏一键回默认窄栏
+  const handleToggleRightWidth = useCallback(() => {
+    if (rightPanelWidth >= PANEL_TAB_RAIL_MIN_W) {
+      setRightPanelWidth(RIGHT_PANEL_DEFAULT_W)
+    } else {
+      setRightPanelWidth(Math.min(RIGHT_PANEL_EXPAND_W, Math.max(280, window.innerWidth - 240)))
+    }
+  }, [rightPanelWidth])
+
   const handleLeftResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -3982,10 +3992,22 @@ export default function App() {
         {/* Right Panel Resize Handle */}
         {!rightPanelCollapsed && !isWelcome && (
           <div
-            className={`relative z-30 ${rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'w-px' : 'w-1 hover:bg-ide-accent'} cursor-col-resize shrink-0 transition-colors`}
+            className={`group relative z-30 ${rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'w-px' : 'w-1 hover:bg-ide-accent'} cursor-col-resize shrink-0 transition-colors`}
             onMouseDown={handleRightResizeStart}
           >
             <div className={`absolute inset-y-0 -left-2 -right-2 ${rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'hover:bg-ide-accent/25' : ''}`} />
+            <button
+              className="no-drag absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-[18px] h-8 rounded-full bg-ide-accent hover:bg-ide-accent-hover text-white flex items-center justify-center cursor-pointer opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
+              onMouseDown={e => e.stopPropagation()}
+              onClick={handleToggleRightWidth}
+              title={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? t('Narrow Panel') : t('Widen Panel')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
+                {rightPanelWidth >= PANEL_TAB_RAIL_MIN_W
+                  ? <polyline points="9 18 15 12 9 6" />
+                  : <polyline points="15 18 9 12 15 6" />}
+              </svg>
+            </button>
           </div>
         )}
 
