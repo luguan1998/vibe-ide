@@ -241,6 +241,7 @@ function TabBar({
   onToggleCollapse,
   capsuleTabs = true,
   onToggleCapsuleTabs,
+  divided = false,
 }: {
   tabs: GitSection[]
   activeSection: GitSection
@@ -251,6 +252,7 @@ function TabBar({
   onToggleCollapse?: () => void
   capsuleTabs?: boolean
   onToggleCapsuleTabs?: () => void
+  divided?: boolean
 }) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [dragOverSection, setDragOverSection] = useState<GitSection | null>(null)
@@ -303,7 +305,7 @@ function TabBar({
   }, [onReorder])
 
   return (
-    <div className="h-10 flex items-center shrink-0 px-3 right-panel__tab-bar" onContextMenu={handleContextMenu}>
+    <div className={`h-10 flex items-center shrink-0 px-3 right-panel__tab-bar${divided ? ' border-b border-ide-border' : ''}`} onContextMenu={handleContextMenu}>
       {capsuleTabs ? (
         <>
           <div className="flex-1" />
@@ -579,7 +581,7 @@ function RightPanel({
     }
   }, [visibleTabs, activeSection, visibleList])
 
-  const tabBarNode = (
+  const renderTabBar = (divided = false) => (
     <TabBar
       tabs={visibleList}
       activeSection={activeSection}
@@ -590,13 +592,14 @@ function RightPanel({
       onToggleCollapse={onToggleCollapse}
       capsuleTabs={capsuleTabs}
       onToggleCapsuleTabs={onToggleCapsuleTabs}
+      divided={divided}
     />
   )
 
   if (!workspacePath) {
     return (
       <div className="flex flex-col h-full relative">
-        {tabBarNode}
+        {renderTabBar()}
         <div className={`flex-1 min-h-0 mx-1 mb-1 mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center right-panel__content`}>
           <span className="text-ide-text-muted text-xs">No active session</span>
         </div>
@@ -606,7 +609,7 @@ function RightPanel({
 
   return (
     <div className="flex flex-col h-full right-panel relative">
-      {!splitWide && tabBarNode}
+      {!splitWide && renderTabBar()}
 
       <div className={`relative flex-1 min-h-0 mx-1 mb-2 mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex right-panel__content ${splitWide ? 'flex-row' : 'flex-col'}${splitDragging ? ' select-none cursor-col-resize' : ''}`}>
         {contentOverlay && !splitWide && (
@@ -635,7 +638,7 @@ function RightPanel({
       )}
 
       <div className={splitWide ? 'shrink-0 flex flex-col min-h-0' : 'contents'} style={splitWide ? { width: splitRightWidth, maxWidth: 'calc(100% - 200px)' } : undefined}>
-      {splitWide && tabBarNode}
+      {splitWide && renderTabBar(true)}
       <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="group flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <GitTab
           workspacePath={workspacePath}
