@@ -45,7 +45,7 @@ const TerminalView = lazy(() => import('./components/TerminalView'))
 
 const PANEL_TAB_RAIL_MIN_W = 700
 const RIGHT_PANEL_DEFAULT_W = 308
-const RIGHT_PANEL_EXPAND_W = 860
+const RIGHT_PANEL_EXPAND_W = 760
 const BROWSER_DOCK_W = 860
 const BROWSER_DOCK_MIN_CENTER_W = 450
 
