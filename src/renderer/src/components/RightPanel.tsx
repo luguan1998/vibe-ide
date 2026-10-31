@@ -590,7 +590,7 @@ function RightPanel({
       onReorder={handleReorder}
       onToggleVisibility={handleToggleVisibility}
       onToggleCollapse={onToggleCollapse}
-      capsuleTabs={capsuleTabs}
+      capsuleTabs={splitWide ? false : capsuleTabs}
       onToggleCapsuleTabs={onToggleCapsuleTabs}
       divided={divided}
     />
