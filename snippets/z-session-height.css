@@ -1,5 +1,5 @@
 /*
-  分组模式 session 项增高
+  session 高度增加
   仅 .session-group 内的 session-item，不影响 flat 列表
   覆盖 z-session-tab.css 的 min-height: 40px（更高特异性 + !important，不依赖加载顺序）
 */
