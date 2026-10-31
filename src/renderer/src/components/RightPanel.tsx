@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { FolderOpen } from 'lucide-react'
 import { useI18n } from '../i18n'
 
 import GitTab from './GitTab'
@@ -53,10 +54,9 @@ interface RightPanelProps {
   onBrowserBack?: () => void
   onBrowserAnnotate?: (line: string) => void
   onBrowserToggleDock?: () => void
-  hideTabBar?: boolean
   panelWide?: boolean
-  onRestoreWidth?: () => void
   contentOverlay?: React.ReactNode
+  contentOverlayKind?: 'files' | 'graph' | null
   onOpenBrowser?: () => void
   onOpenSessionHistory?: () => void
 }
@@ -380,63 +380,6 @@ function TabBar({
   )
 }
 
-// ── Hover Tab Rail (hideTabBar 模式:右缘垂直居中的图标导航) ──
-
-function TabRail({ activeSection, visibleList, onSelect, onRestoreWidth, onHideRail }: {
-  activeSection: GitSection
-  visibleList: GitSection[]
-  onSelect: (s: GitSection) => void
-  onRestoreWidth?: () => void
-  onHideRail?: () => void
-}) {
-  const { t } = useI18n()
-  return (
-    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 border border-ide-border rounded-lg bg-ide-panel/95 backdrop-blur-md p-1 shadow-xl opacity-0 translate-x-3 pointer-events-none group-hover/rail:opacity-100 group-hover/rail:translate-x-0 group-hover/rail:pointer-events-auto transition-[opacity,transform] duration-150 ease-out group/rx">
-      {visibleList.map((section, i) => {
-        const active = section === activeSection
-        return (
-          <button
-            key={section}
-            className={`relative w-9 h-9 flex items-center justify-center rounded transition-colors ${
-              active ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'
-            }`}
-            onClick={() => onSelect(section)}
-            title={TAB_DEFS[section].label}
-          >
-            <span className="scale-125">{TAB_DEFS[section].icon}</span>
-            {i === 0 && onHideRail && (
-              <span
-                onClick={(e) => { e.stopPropagation(); onHideRail() }}
-                title={t('Hide Rail')}
-                className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-ide-text-muted hover:text-ide-danger hover:bg-ide-hover bg-ide-panel border border-ide-border shadow-sm cursor-pointer opacity-0 pointer-events-none group-hover/rx:opacity-100 group-hover/rx:pointer-events-auto transition-opacity duration-150"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5">
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </span>
-            )}
-          </button>
-        )
-      })}
-      {onRestoreWidth && (
-        <button
-          className="w-9 h-9 flex items-center justify-center rounded text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
-          onClick={onRestoreWidth}
-          title={t('Restore Default Width')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-            <path d="M15 3h6v6" />
-            <path d="M9 21H3v-6" />
-            <path d="M21 3l-7 7" />
-            <path d="M3 21l7-7" />
-          </svg>
-        </button>
-      )}
-    </div>
-  )
-}
-
-
 function RightPanel({
   workspacePath, onFileSelect, refreshKey,
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
@@ -463,23 +406,19 @@ function RightPanel({
   onBrowserBack,
   onBrowserAnnotate,
   onBrowserToggleDock,
-  hideTabBar,
   panelWide,
-  onRestoreWidth,
   contentOverlay,
+  contentOverlayKind,
   onOpenBrowser,
   onOpenSessionHistory,
 }: RightPanelProps) {
+  const { t } = useI18n()
   const [activeSection, setActiveSection] = useState<GitSection>('file')
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
   const [visibleTabs, setVisibleTabs] = useState<Record<GitSection, boolean>>(DEFAULT_VISIBLE_TABS)
   const [fileRefreshKey, setFileRefreshKey] = useState(0)
-  const [railHidden, setRailHidden] = useState(false)
-
-  // 面板回到 tab 栏模式（宽度 <700）时清除竖栏隐藏状态
-  useEffect(() => {
-    if (!hideTabBar) setRailHidden(false)
-  }, [hideTabBar])
+  const [splitRightWidth, setSplitRightWidth] = useState(288)
+  const [splitDragging, setSplitDragging] = useState(false)
 
   const worktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
   const submoduleNav = activeSessionId ? sessionSubmoduleNav[activeSessionId] ?? null : null
@@ -489,6 +428,33 @@ function RightPanel({
   const activeRightTerminal = auxArr?.[activeAuxIdx]?.terminals?.[0] ?? null
 
   const visibleList = useMemo(() => tabOrder.filter(s => visibleTabs[s]), [tabOrder, visibleTabs])
+
+  // 分栏右列宽度拖拽（仅本次会话内有效，不持久化）
+  const handleSplitResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startW = splitRightWidth
+    const maxW = Math.max(240, ((e.currentTarget as HTMLElement).parentElement?.clientWidth ?? 700) - 240)
+    setSplitDragging(true)
+    const onMove = (ev: MouseEvent) => {
+      setSplitRightWidth(Math.max(200, Math.min(maxW, startW - (ev.clientX - startX))))
+    }
+    const onUp = () => {
+      setSplitDragging(false)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [splitRightWidth])
+
+  // 宽栏下右栏统一拆两列：右列固定宽度的树 / 变更 / 终端 / Nga，左列文件预览（四栏布局）
+  // 文件落中栏（宽栏是打开后才拖宽的）时不拆，避免预览列空占位；网页调试停靠时整栏独占
+  const splitWide = !!panelWide
+    && !browserDocked
+    && contentOverlayKind !== 'graph'
+    && (!!contentOverlay || contentOverlayKind == null)
 
   // 切 tab 时聚焦到 tab 内容（search tab 需聚焦到输入框）
   const gitContentRef = useRef<HTMLDivElement>(null)
@@ -613,26 +579,25 @@ function RightPanel({
     }
   }, [visibleTabs, activeSection, visibleList])
 
+  const tabBarNode = (
+    <TabBar
+      tabs={visibleList}
+      activeSection={activeSection}
+      onSelect={setActiveSection}
+      visibleTabs={visibleTabs}
+      onReorder={handleReorder}
+      onToggleVisibility={handleToggleVisibility}
+      onToggleCollapse={onToggleCollapse}
+      capsuleTabs={capsuleTabs}
+      onToggleCapsuleTabs={onToggleCapsuleTabs}
+    />
+  )
+
   if (!workspacePath) {
     return (
-      <div className="flex flex-col h-full group/rail relative">
-        {!hideTabBar && (
-        <TabBar
-          tabs={visibleList}
-          activeSection={activeSection}
-          onSelect={setActiveSection}
-          visibleTabs={visibleTabs}
-          onReorder={handleReorder}
-          onToggleVisibility={handleToggleVisibility}
-          onToggleCollapse={onToggleCollapse}
-          capsuleTabs={capsuleTabs}
-          onToggleCapsuleTabs={onToggleCapsuleTabs}
-        />
-        )}
-        {hideTabBar && !railHidden && (
-          <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} onRestoreWidth={onRestoreWidth} onHideRail={() => setRailHidden(true)} />
-        )}
-        <div className={`flex-1 min-h-0 mx-1 ${hideTabBar ? 'mb-0.5' : 'mb-1'} mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center right-panel__content`}>
+      <div className="flex flex-col h-full relative">
+        {tabBarNode}
+        <div className={`flex-1 min-h-0 mx-1 mb-1 mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex items-center justify-center right-panel__content`}>
           <span className="text-ide-text-muted text-xs">No active session</span>
         </div>
       </div>
@@ -640,29 +605,37 @@ function RightPanel({
   }
 
   return (
-    <div className="flex flex-col h-full right-panel group/rail relative">
-      {!hideTabBar && (
-      <TabBar
-        tabs={visibleList}
-        activeSection={activeSection}
-        onSelect={setActiveSection}
-        visibleTabs={visibleTabs}
-        onReorder={handleReorder}
-        onToggleVisibility={handleToggleVisibility}
-        onToggleCollapse={onToggleCollapse}
-        capsuleTabs={capsuleTabs}
-        onToggleCapsuleTabs={onToggleCapsuleTabs}
-      />
-      )}
-      {hideTabBar && !railHidden && (
-        <TabRail activeSection={activeSection} visibleList={visibleList} onSelect={setActiveSection} onRestoreWidth={onRestoreWidth} onHideRail={() => setRailHidden(true)} />
-      )}
+    <div className="flex flex-col h-full right-panel relative">
+      {!splitWide && tabBarNode}
 
-      <div className={`relative flex-1 min-h-0 mx-1 ${hideTabBar ? 'mb-0.5' : 'mb-2'} mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex flex-col right-panel__content`}>
-        {contentOverlay && (
+      <div className={`relative flex-1 min-h-0 mx-1 mb-2 mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex right-panel__content ${splitWide ? 'flex-row' : 'flex-col'}${splitDragging ? ' select-none cursor-col-resize' : ''}`}>
+        {contentOverlay && !splitWide && (
           <div className="absolute inset-0 z-20 flex flex-col bg-ide-sidebar">{contentOverlay}</div>
         )}
 
+      {splitWide && (
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
+          {contentOverlay ?? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-1.5 text-ide-text-muted select-none">
+              <FolderOpen className="w-7 h-7 mb-1 opacity-60" strokeWidth={1.5} />
+              <span className="text-xs font-medium text-ide-text">{t('Open file')}</span>
+              <span className="text-[11px]">{t('Select a file from the workspace tree')}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {splitWide && (
+        <div
+          className="relative z-10 w-px shrink-0 bg-ide-border hover:bg-ide-accent cursor-col-resize transition-colors"
+          onMouseDown={handleSplitResizeStart}
+        >
+          <div className="absolute inset-y-0 -left-2 -right-2" />
+        </div>
+      )}
+
+      <div className={splitWide ? 'shrink-0 flex flex-col min-h-0' : 'contents'} style={splitWide ? { width: splitRightWidth, maxWidth: 'calc(100% - 200px)' } : undefined}>
+      {splitWide && tabBarNode}
       <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="group flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <GitTab
           workspacePath={workspacePath}
@@ -723,22 +696,25 @@ function RightPanel({
       </div>
 
       <div ref={gameContentRef} tabIndex={-1} style={{ display: activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden relative">
-        <GameLauncher workspacePath={workspacePath} panelWide={panelWide} onOpenFileFromExplorer={onOpenFileFromExplorer} onPreviewMarkdown={onPreviewMarkdown} onOpenBrowser={onOpenBrowser} onOpenSessionHistory={onOpenSessionHistory} />
-        {browserDocked && (
-          <div className="absolute inset-0 z-10 flex flex-col bg-ide-bg">
-            <BrowserView
-              ref={browserViewRef ?? undefined}
-              docked
-              onBack={onBrowserBack ?? (() => {})}
-              onAnnotate={onBrowserAnnotate ?? (() => {})}
-              onToggleDock={onBrowserToggleDock}
-              workspacePath={workspacePath}
-            />
-          </div>
-        )}
+        <GameLauncher workspacePath={workspacePath} panelWide={panelWide && !splitWide} onOpenFileFromExplorer={onOpenFileFromExplorer} onPreviewMarkdown={onPreviewMarkdown} onOpenBrowser={onOpenBrowser} onOpenSessionHistory={onOpenSessionHistory} />
+      </div>
       </div>
 
       </div>
+
+      {/* 网页调试停靠：整栏占满，Tab 栏一并不显示 */}
+      {browserDocked && (
+        <div className="absolute inset-0 z-30 flex flex-col bg-ide-bg">
+          <BrowserView
+            ref={browserViewRef ?? undefined}
+            docked
+            onBack={onBrowserBack ?? (() => {})}
+            onAnnotate={onBrowserAnnotate ?? (() => {})}
+            onToggleDock={onBrowserToggleDock}
+            workspacePath={workspacePath}
+          />
+        </div>
+      )}
 
     </div>
   )

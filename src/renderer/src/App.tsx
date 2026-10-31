@@ -45,6 +45,7 @@ const TerminalView = lazy(() => import('./components/TerminalView'))
 
 const PANEL_TAB_RAIL_MIN_W = 700
 const RIGHT_PANEL_DEFAULT_W = 308
+const RIGHT_PANEL_EXPAND_W = 860
 const BROWSER_DOCK_W = 860
 const BROWSER_DOCK_MIN_CENTER_W = 450
 
@@ -484,6 +485,9 @@ export default function App() {
       right: isRightPanelWide(rightPanelCollapsed, rightPanelWidth),
       base,
     }
+  } else if (overlayKind) {
+    // 右栏宽窄变化时预览跟随：变宽落右栏预览列，变窄回中栏
+    overlaySnapRef.current.right = isRightPanelWide(rightPanelCollapsed, rightPanelWidth)
   }
   if (!overlayKind && overlaySnapRef.current.key !== null) {
     overlaySnapRef.current = { key: null, right: false, base: 'terminal' }
@@ -1473,9 +1477,26 @@ export default function App() {
       if (sessionsRef.current.find(s => s.id === sid)?.kind !== 'gui') return ''
       return aiTabRefs.current[sid]?.getInputValue() ?? ''
     }
+    ;(window as any).__vibeAnnotationToAi = () => {
+      const sid = activeSessionIdRef.current
+      return !!sid && sessionsRef.current.find(s => s.id === sid)?.kind === 'gui' && rightPanelWideRef.current
+    }
     ;(window as any).__vibeBrowse = handleBrowseUrl
     ;(window as any).__vibeIsBrowserOpen = () => browserDockedRef.current || centerViewRef.current === 'browser'
   }, [waitDraftIdle, sendDraftLine, handleBrowseUrl])
+
+  // 加入对话：AI 对话场景 + 右栏宽栏时直接落 AiTab 输入框（宠物气泡那边按同一判据跳过）
+  useEffect(() => {
+    const handler = (e: Event) => {
+      if (!(window as any).__vibeAnnotationToAi?.()) return
+      const sid = activeSessionIdRef.current
+      if (!sid) return
+      const d = (e as CustomEvent).detail as { rel: string; start?: number; end?: number }
+      aiTabRefs.current[sid]?.addRef(d.rel, d.start, d.end)
+    }
+    window.addEventListener(ADD_ANNOTATION_EVENT, handler)
+    return () => window.removeEventListener(ADD_ANNOTATION_EVENT, handler)
+  }, [])
 
   const handleAiAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     const v = status === 'running'
@@ -3042,7 +3063,14 @@ export default function App() {
     document.addEventListener('mouseup', onMouseUp)
   }, [rightPanelWidth])
 
-  const handleRestoreRightWidth = useCallback(() => setRightPanelWidth(RIGHT_PANEL_DEFAULT_W), [])
+  // 分界线按钮：窄栏一键拉宽 / 宽栏一键回默认窄栏
+  const handleToggleRightWidth = useCallback(() => {
+    if (rightPanelWidth >= PANEL_TAB_RAIL_MIN_W) {
+      setRightPanelWidth(RIGHT_PANEL_DEFAULT_W)
+    } else {
+      setRightPanelWidth(Math.min(RIGHT_PANEL_EXPAND_W, Math.max(280, window.innerWidth - 240)))
+    }
+  }, [rightPanelWidth])
 
   const handleLeftResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -3535,7 +3563,7 @@ export default function App() {
   const panelWide = !isWelcome && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W
   const leftPanelShown = !isWelcome && !leftPanelCollapsed
   const rightPanelShown = !isWelcome && !rightPanelCollapsed
-  // 右面板宽到出现 TabRail 导航时收紧中间卡片与右面板的间隙（原始宽度保持对称），并去掉中间栏边框使两栏融合
+  // 右面板宽栏时收紧中间卡片与右面板的间隙（原始宽度保持对称），并去掉中间栏边框使两栏融合
   // 右栏收起时中间栏就是最后一栏，右侧不再留缝（否则卡片右边空出 4px + 边框 + 圆角，贴窗口缘看着像缺口）
   // 左栏可见时中间栏整体左移压住会话栏右缘（圆角缺口由会话栏底色补齐，见 globals.css .center-panel--flush-left）
   const centerGapX = panelWide || !rightPanelShown ? 'ml-1 mr-0' : 'mx-1'
@@ -3967,10 +3995,22 @@ export default function App() {
         {/* Right Panel Resize Handle */}
         {!rightPanelCollapsed && !isWelcome && (
           <div
-            className={`relative z-30 ${rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'w-px' : 'w-1 hover:bg-ide-accent'} cursor-col-resize shrink-0 transition-colors`}
+            className={`group relative z-30 ${rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'w-px' : 'w-1 hover:bg-ide-accent'} cursor-col-resize shrink-0 transition-colors`}
             onMouseDown={handleRightResizeStart}
           >
             <div className={`absolute inset-y-0 -left-2 -right-2 ${rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? 'hover:bg-ide-accent/25' : ''}`} />
+            <button
+              className="no-drag absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-[18px] h-8 rounded-full bg-ide-accent hover:bg-ide-accent-hover text-white flex items-center justify-center cursor-pointer opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
+              onMouseDown={e => e.stopPropagation()}
+              onClick={handleToggleRightWidth}
+              title={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W ? t('Narrow Panel') : t('Widen Panel')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
+                {rightPanelWidth >= PANEL_TAB_RAIL_MIN_W
+                  ? <polyline points="9 18 15 12 9 6" />
+                  : <polyline points="15 18 9 12 15 6" />}
+              </svg>
+            </button>
           </div>
         )}
 
@@ -4018,10 +4058,9 @@ export default function App() {
             onToggleCollapse={handleToggleRightPanel}
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
-            hideTabBar={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W}
             panelWide={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W}
-            onRestoreWidth={handleRestoreRightWidth}
             contentOverlay={rightOverlay}
+            contentOverlayKind={overlayKind}
             brushActive={brushActive}
             browserDocked={browserDocked}
             browserDockNonce={browserDockNonce}
