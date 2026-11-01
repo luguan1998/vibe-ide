@@ -506,6 +506,14 @@ export default function App() {
   }
   const overlayOnRight = overlayKind !== null && overlaySnapRef.current.right && !rightPanelCollapsed
   const overlayOnRightRef = useRef(false); overlayOnRightRef.current = overlayOnRight
+  // 宽栏预览被收窄/收起时，文件视图退回 term/AI 背后（tab 保活，不再挡住中栏）
+  const wasOverlayOnRightRef = useRef(false)
+  React.useLayoutEffect(() => {
+    if (wasOverlayOnRightRef.current && !overlayOnRight && overlayKind === 'files') {
+      setCenterView(overlaySnapRef.current.base === 'board' ? 'board' : 'terminal')
+    }
+    wasOverlayOnRightRef.current = overlayOnRight
+  }, [overlayOnRight, overlayKind])
   // 左栏「看板激活」随 base 保持(overlay 期间不回落 session)
   const boardActive = overlayKind !== null ? overlaySnapRef.current.base === 'board' : centerView === 'board'
   // 中栏看板卡片:仅无 overlay 或 overlay 落右栏时显示(覆盖中栏时让位给文件)
