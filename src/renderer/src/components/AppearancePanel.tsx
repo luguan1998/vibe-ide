@@ -191,6 +191,8 @@ interface AppearancePanelProps {
   onToggleLspLang?: (serverId: string, v: boolean) => void
   lspMultiDef?: string
   onSetLspMultiDef?: (v: string) => void
+  lspIdleKill?: boolean
+  onToggleLspIdleKill?: (v: boolean) => void
   sessionEmojis: string[]
   onSetSessionEmojis: (arr: string[]) => void
   defaultSessionIcon?: DefaultSessionIcon
@@ -217,6 +219,7 @@ const AppearancePanel = function AppearancePanel({
   idleSound = false, onToggleIdleSound,
   lspLangs = [], onToggleLspLang,
   lspMultiDef = 'peek', onSetLspMultiDef,
+  lspIdleKill = true, onToggleLspIdleKill,
   sessionEmojis, onSetSessionEmojis,
   defaultSessionIcon = 'blank', onSetDefaultSessionIcon,
   onResetUiStyle, onCreateSessionAt,
@@ -740,15 +743,16 @@ const AppearancePanel = function AppearancePanel({
                       <span className="text-sm font-semibold text-ide-text-muted uppercase tracking-wide">{t('Language Server')}</span>
                       <div className="flex-1 border-t border-ide-border/60" />
                     </div>
-                    <p className="text-[12px] text-ide-text-muted pb-1">
-                      {t('Precise go-to-definition. Nothing is loaded until you jump; the server is killed after 30 min idle.')}
-                    </p>
                     {onSetLspMultiDef && (
                       <SelectRow labelKey="Multiple Definitions" value={lspMultiDef} onChange={onSetLspMultiDef}
                         options={[
                           { value: 'peek', label: t('List them, let me pick') },
                           { value: 'goto', label: t('Jump to the first') },
                         ]} />
+                    )}
+                    {onToggleLspIdleKill && (
+                      <ToggleRow labelKey="Auto Recycle Idle Server" descKey="Kill the server after 30 min idle. Turn off to keep it running."
+                        checked={lspIdleKill} onChange={onToggleLspIdleKill} zone="global" />
                     )}
                     {LSP_SERVERS.map(s => {
                       const on = lspLangs.includes(s.id)

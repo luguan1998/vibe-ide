@@ -180,6 +180,7 @@ declare global {
       }
       lsp: {
         setEnabled: (serverId: string, enabled: boolean) => Promise<{ enabled: boolean; error?: string }>
+        setIdleKill: (enabled: boolean) => Promise<{ enabled: boolean }>
         definition: (args: import('@shared/types').LspDefinitionArgs) => Promise<import('@shared/types').LspDefinitionResult>
         references: (args: import('@shared/types').LspDefinitionArgs) => Promise<import('@shared/types').LspReferencesResult>
         callPrepare: (args: import('@shared/types').LspDefinitionArgs) => Promise<import('@shared/types').LspCallResult>
@@ -817,6 +818,9 @@ export default function App() {
   const [lspMultiDef, setLspMultiDef] = useState<string>(() => {
     try { return localStorage.getItem('vibe-ide-lsp-multi-def') || 'peek' } catch { return 'peek' }
   })
+  const [lspIdleKill, setLspIdleKill] = useState(() => {
+    try { return localStorage.getItem('vibe-ide-lsp-idle-kill') !== '0' } catch { return true }
+  })
   const toggleLspLang = useCallback((serverId: string, on: boolean) => {
     setLspLangs(prev => on ? (prev.includes(serverId) ? prev : [...prev, serverId]) : prev.filter(x => x !== serverId))
   }, [])
@@ -1072,6 +1076,10 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem('vibe-ide-lsp-multi-def', lspMultiDef) } catch {}
   }, [lspMultiDef])
+  useEffect(() => {
+    try { localStorage.setItem('vibe-ide-lsp-idle-kill', lspIdleKill ? '1' : '0') } catch {}
+    window.api.lsp.setIdleKill(lspIdleKill)
+  }, [lspIdleKill])
 
   const openCodeGraphAt = useCallback(async (word: string) => {
     try {
@@ -3780,6 +3788,8 @@ export default function App() {
             onToggleLspLang={toggleLspLang}
             lspMultiDef={lspMultiDef}
             onSetLspMultiDef={setLspMultiDef}
+            lspIdleKill={lspIdleKill}
+            onToggleLspIdleKill={setLspIdleKill}
             ocrEnabled={ocrEnabled}
             onToggleOcrEnabled={setOcrEnabled}
             forceDomRenderer={forceDomRenderer}

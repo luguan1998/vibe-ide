@@ -292,6 +292,8 @@ const api = {
   lsp: {
     setEnabled: (serverId: string, enabled: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.LSP_SET_ENABLED, serverId, enabled),
+    setIdleKill: (enabled: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.LSP_SET_IDLE_KILL, enabled),
     definition: (args: import('../shared/types').LspDefinitionArgs) =>
       ipcRenderer.invoke(IPC_CHANNELS.LSP_DEFINITION, args) as Promise<import('../shared/types').LspDefinitionResult>,
     references: (args: import('../shared/types').LspDefinitionArgs) =>

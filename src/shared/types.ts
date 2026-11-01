@@ -120,6 +120,7 @@ export const IPC_CHANNELS = {
 
   // LSP (language server, on-demand)
   LSP_SET_ENABLED: 'lsp:setEnabled',
+  LSP_SET_IDLE_KILL: 'lsp:setIdleKill',
   LSP_DEFINITION: 'lsp:definition',
   LSP_REFERENCES: 'lsp:references',
   LSP_STATUS: 'lsp:status',

@@ -249,6 +249,7 @@ class LspClient {
   // stopClient(serverId) —— 杀的是接任的活跃实例，而自己因为不在 clients 里反而漏杀成孤儿进程
   touch(): void {
     if (this.idle) clearTimeout(this.idle)
+    if (!idleKillEnabled) { this.idle = null; return }
     this.idle = setTimeout(() => {
       if (clients.get(this.serverId) !== this) return
       stopClient(this.serverId)
@@ -489,6 +490,7 @@ const clients = new Map<string, LspClient>()
 const retiring = new Map<string, { client: LspClient; rootKey: string }>()
 const enabledServers = new Set<string>()
 let activeScopes = new Set<string>()
+let idleKillEnabled = true
 
 // LSP 的 CallHierarchyItem 里 data 是不透明字段，展开下一层时必须原样回传。
 // 渲染层只拿 node id，原始 item 留在主进程（见 LspCallNode 注释）
@@ -731,6 +733,15 @@ export function registerLspHandlers(): void {
     if (on) enabledServers.add(serverId)
     else { enabledServers.delete(serverId); stopClient(serverId); dropRetiring(serverId) }
     return { enabled: enabledServers.has(serverId) }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.LSP_SET_IDLE_KILL, (_event, on: boolean) => {
+    idleKillEnabled = on !== false
+    for (const c of clients.values()) {
+      if (idleKillEnabled) c.touch()
+      else c.clearIdle()
+    }
+    return { enabled: idleKillEnabled }
   })
 
   ipcMain.handle(IPC_CHANNELS.LSP_DEFINITION, (_event, args: LspDefinitionArgs) => handleLspRequest('definition', args))

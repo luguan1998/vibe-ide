@@ -406,6 +406,8 @@ interface SessionPanelProps {
   onToggleLspLang?: (serverId: string, value: boolean) => void
   lspMultiDef?: string
   onSetLspMultiDef?: (value: string) => void
+  lspIdleKill?: boolean
+  onToggleLspIdleKill?: (value: boolean) => void
   inlineDiff?: boolean
   onToggleInlineDiff?: (value: boolean) => void
   diffSplitRatio?: number
@@ -686,6 +688,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onToggleLspLang,
   lspMultiDef,
   onSetLspMultiDef,
+  lspIdleKill,
+  onToggleLspIdleKill,
   ocrEnabled = false,
   onToggleOcrEnabled,
   forceDomRenderer = false,
@@ -2750,6 +2754,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         onToggleLspLang={onToggleLspLang}
         lspMultiDef={lspMultiDef}
         onSetLspMultiDef={onSetLspMultiDef}
+        lspIdleKill={lspIdleKill}
+        onToggleLspIdleKill={onToggleLspIdleKill}
         sessionEmojis={sessionEmojis}
         onSetSessionEmojis={(arr) => { setSessionEmojis(arr); saveSessionEmojis(arr) }}
         defaultSessionIcon={defaultIcon}
