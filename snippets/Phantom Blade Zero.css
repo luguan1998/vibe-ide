@@ -97,6 +97,19 @@ body .bg-ide-panel {
   background-color: rgb(var(--ide-panel) / var(--app-bg-alpha)) !important;
 }
 
+/* 搜索浮窗 / Markdown 编辑框保持实底：压在文字上，透底后与正文重叠看不清。
+   #root 前缀是为了压过上面 .bg-ide-sidebar:not(...)×3 的四级特异性 */
+#root .search-flyout,
+#root .search-flyout .bg-ide-sidebar,
+#root .md-search-bar {
+  background-color: rgb(var(--ide-sidebar)) !important;
+}
+#root .search-flyout .bg-ide-bg,
+#root .md-search-bar .bg-ide-bg,
+#root .md-block-editor {
+  background-color: rgb(var(--ide-bg)) !important;
+}
+
 body .session-panel {
   background-color: rgb(var(--ide-bg) / var(--app-bg-wash)) !important;
 }

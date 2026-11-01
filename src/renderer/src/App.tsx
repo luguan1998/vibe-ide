@@ -45,7 +45,7 @@ const TerminalView = lazy(() => import('./components/TerminalView'))
 
 const PANEL_TAB_RAIL_MIN_W = 700
 const RIGHT_PANEL_DEFAULT_W = 308
-const RIGHT_PANEL_EXPAND_W = 860
+const RIGHT_PANEL_EXPAND_W = 760
 const BROWSER_DOCK_W = 860
 const BROWSER_DOCK_MIN_CENTER_W = 450
 
@@ -4378,7 +4378,7 @@ export default function App() {
       >
         <div
           ref={searchPanelRef}
-          className="absolute pointer-events-auto bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+          className="search-flyout absolute pointer-events-auto bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl flex flex-col overflow-hidden animate-fade-in"
           style={searchPos
             ? { left: searchPos.x, top: searchPos.y, width: 480, maxHeight: 'calc(100vh - 56px)' }
             : { top: 40, right: 16, width: 480, maxHeight: 'calc(100vh - 56px)' }}
