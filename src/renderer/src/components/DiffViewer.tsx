@@ -867,6 +867,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const jumpInflightRef = useRef<{ word: string; ts: number } | null>(null)
   const [dbBusy, setDbBusy] = useState(false)
   const [dbError, setDbError] = useState(false)
+  const [dbPromptCopied, setDbPromptCopied] = useState(false)
 
   const getDefHintCtx = (): DefHintCtx => {
     const target = fullPathRef.current
@@ -1026,6 +1027,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       setDbBusy(false)
     }
   }, [dbBusy, performJumpQuery])
+
+  const copyDbPrompt = useCallback(() => {
+    navigator.clipboard.writeText(t('Create a compile_flags.txt in this project\'s root so clangd can resolve #include paths: detect the build system, write one -I<dir> line per header search directory, and confirm no headers are reported missing. If the build system can export compile_commands.json instead, prefer that.')).then(() => {
+      setDbPromptCopied(true)
+      setTimeout(() => setDbPromptCopied(false), 1500)
+    })
+  }, [t])
 
   // IMouseEvent 没有 button 字段（只有 leftButton/browserEvent），用 !leftButton 判左键
   const handleJumpMouseDown = useCallback((editor: any, e: any) => {
@@ -1807,9 +1815,18 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
               <div className="px-3 py-1 text-[11px] text-ide-text max-w-[380px] leading-snug">
                 {t("clangd can't resolve header includes without a compile database, and this project has none")}
               </div>
-              <div className="px-3 pb-1.5 text-[10px] text-ide-text-muted max-w-[380px] leading-snug">
-                {t('CMake projects: rerun cmake with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON')}
+              <div className="px-3 pb-1 max-w-[380px]">
+                <div className="px-2 py-1.5 rounded border border-ide-border bg-ide-panel text-[10px] text-ide-text-muted leading-snug select-text max-h-24 overflow-y-auto">
+                  {t('Create a compile_flags.txt in this project\'s root so clangd can resolve #include paths: detect the build system, write one -I<dir> line per header search directory, and confirm no headers are reported missing. If the build system can export compile_commands.json instead, prefer that.')}
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => void copyDbPrompt()}
+                className="w-full px-3 py-1 text-left text-xs text-ide-accent hover:bg-ide-accent/15 transition-colors"
+              >
+                {dbPromptCopied ? t('✓ Copied') : t('Copy prompt')}
+              </button>
               <button
                 onClick={() => void createCompileDb()}
                 disabled={dbBusy}
