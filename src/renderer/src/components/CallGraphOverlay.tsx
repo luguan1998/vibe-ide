@@ -4,19 +4,16 @@ import { getKindColorHex } from '../utils/kindColors'
 import { useTheme } from '../themes/context'
 import { useI18n } from '../i18n'
 
-const NODE_H = 30
-const NODE_W = 190
-const MIN_W = 150
-const MAX_W = 320
+const NODE_H = 26
+const NODE_W = 150
+const MIN_W = 108
+const MAX_W = 248
 /** 两列之间的空隙 */
-const RANK_GAP = 60
+const RANK_GAP = 34
 /** 同列两个节点之间的竖向空隙 */
-const NODE_SEP = 16
-const HEADER_H = 40
-const FONT_SIZE = 12.5
-/** 浮窗最小尺寸 */
-const WIN_MIN_W = 420
-const WIN_MIN_H = 260
+const NODE_SEP = 8
+const HEADER_H = 34
+const FONT_SIZE = 12
 /** LSP 侧初始自动铺开：调用者 2 层、被调用者 3 层（上游比下游涨得快），每方向节点总数封顶。
  *  再往里的靠点节点上的 + 手动展开。
  *  codegraph 那条不走这里 —— 它一次请求就能拿到三层调用者链，保持原样别动 */
@@ -24,8 +21,8 @@ const LSP_AUTO_DEPTH_CALLERS = 2
 const LSP_AUTO_DEPTH_CALLEES = 3
 const LSP_AUTO_BUDGET = 45
 /** 文本可用横向空间 = 卡片宽 - 左图标片 - 右展开按钮 - 两侧留白 */
-const PAD_L = 34
-const PAD_R = 32
+const PAD_L = 26
+const PAD_R = 26
 const TEXT_MAX = MAX_W - PAD_L - PAD_R
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 /** codegraph 节点 kind：file 是文件符号，调用图不放文件 */
@@ -57,23 +54,6 @@ function fitName(name: string, fontStack: string, maxPx: number): string {
 function nodeWidth(name: string, fontStack: string): number {
   return clamp(PAD_L + textWidth(fitName(name, fontStack, TEXT_MAX), fontStack) + PAD_R, MIN_W, MAX_W)
 }
-
-/** 浮窗尺寸记在模块作用域：关掉再开沿用，重启 app 不保留（位置也不存，每次居中） */
-let lastWinSize: { w: number; h: number } | null = null
-
-/** 八向缩放命中区：dir 里的 n/s/e/w 决定拖这条边时动哪几条边 */
-const EDGE_HIT = 5
-const CORNER_HIT = 14
-const RESIZE_HANDLES: { dir: string; cls: string; style: React.CSSProperties }[] = [
-  { dir: 'n', cls: 'cursor-ns-resize', style: { top: 0, left: CORNER_HIT, right: CORNER_HIT, height: EDGE_HIT } },
-  { dir: 's', cls: 'cursor-ns-resize', style: { bottom: 0, left: CORNER_HIT, right: CORNER_HIT, height: EDGE_HIT } },
-  { dir: 'w', cls: 'cursor-ew-resize', style: { left: 0, top: CORNER_HIT, bottom: CORNER_HIT, width: EDGE_HIT } },
-  { dir: 'e', cls: 'cursor-ew-resize', style: { right: 0, top: CORNER_HIT, bottom: CORNER_HIT, width: EDGE_HIT } },
-  { dir: 'nw', cls: 'cursor-nwse-resize', style: { top: 0, left: 0, width: CORNER_HIT, height: CORNER_HIT } },
-  { dir: 'ne', cls: 'cursor-nesw-resize', style: { top: 0, right: 0, width: CORNER_HIT, height: CORNER_HIT } },
-  { dir: 'sw', cls: 'cursor-nesw-resize', style: { bottom: 0, left: 0, width: CORNER_HIT, height: CORNER_HIT } },
-  { dir: 'se', cls: 'cursor-nwse-resize', style: { bottom: 0, right: 0, width: CORNER_HIT, height: CORNER_HIT } },
-]
 
 /** Read CSS variable "R G B" triplet → { r, g, b, hex } */
 function cssRgb(varName: string): { r: number; g: number; b: number; hex: string } {
@@ -182,9 +162,6 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
   const [interaction, setInteraction] = useState<
     | { kind: 'node'; nodeId: string }
     | { kind: 'pan'; sx: number; sy: number; vx: number; vy: number }
-    | { kind: 'move'; dx: number; dy: number }
-    // 缩放记下按下那一刻的整份几何：拖哪条边就只动哪条，对侧保持不动，也不会累积漂移
-    | { kind: 'resize'; dir: string; sx: number; sy: number; x: number; y: number; w: number; h: number }
     | null
   >(null)
   const [hovered, setHovered] = useState<string | null>(null)
@@ -192,12 +169,6 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
   const [tooltipNode, setTooltipNode] = useState<string | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [win, setWin] = useState(() => {
-    // 上次拖过的尺寸优先，但要按当前窗口夹一遍（换显示器/窗口变小后不能溢出）
-    const w = lastWinSize ? clamp(lastWinSize.w, WIN_MIN_W, window.innerWidth) : clamp(Math.round(window.innerWidth * 0.78), 640, 1180)
-    const h = lastWinSize ? clamp(lastWinSize.h, WIN_MIN_H, window.innerHeight) : clamp(Math.round(window.innerHeight * 0.78), WIN_MIN_H, 780)
-    return { x: Math.round((window.innerWidth - w) / 2), y: Math.round((window.innerHeight - h) / 2), w, h }
-  })
 
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ctxMenuRef = useRef<HTMLDivElement>(null)
@@ -421,7 +392,7 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
       minX = Math.min(minX, gn.x - w / 2); maxX = Math.max(maxX, gn.x + w / 2)
       minY = Math.min(minY, gn.y - NODE_H / 2); maxY = Math.max(maxY, gn.y + NODE_H / 2)
     }
-    const pad = 56
+    const pad = 36
     const body = bodyRef.current
     const vw = body?.clientWidth || bodySize.w
     const vh = body?.clientHeight || bodySize.h
@@ -467,20 +438,14 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
     return () => { window.removeEventListener('mousemove', mm); window.removeEventListener('mouseup', mu) }
   }, [interaction])
 
-  // 尺寸停止变化 400ms 后再记，拖动过程中每帧都写没必要
-  useEffect(() => {
-    const t = setTimeout(() => { lastWinSize = { w: win.w, h: win.h } }, 400)
-    return () => clearTimeout(t)
-  }, [win.w, win.h])
-
-  // 拖动 / 平移 / 挪窗 / 改尺寸共用一个 window 监听（都要能跑到窗外）
+  // 拖动节点 / 平移画布共用一个 window 监听（都要能跑到画布外）
   useEffect(() => {
     if (!interaction) return
     const mm = (e: MouseEvent) => {
       if (interaction.kind === 'pan') {
         const s = viewBoxRef.current.scale
         setViewBox(p => ({ ...p, x: interaction.vx - (e.clientX - interaction.sx) / s, y: interaction.vy - (e.clientY - interaction.sy) / s }))
-      } else if (interaction.kind === 'node') {
+      } else {
         const svg = svgRef.current
         if (!svg) return
         const r = svg.getBoundingClientRect()
@@ -488,27 +453,6 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
         const wx = (e.clientX - r.left - r.width / 2) / vb.scale + vb.x
         const wy = (e.clientY - r.top - r.height / 2) / vb.scale + vb.y
         setNodes(prev => { const next = new Map(prev); const n = next.get(interaction.nodeId); if (n) next.set(interaction.nodeId, { ...n, x: wx, y: wy }); return next })
-      } else if (interaction.kind === 'move') {
-        setWin(w0 => ({
-          ...w0,
-          x: clamp(e.clientX - interaction.dx, 80 - w0.w, window.innerWidth - 80),
-          y: clamp(e.clientY - interaction.dy, 0, window.innerHeight - 40),
-        }))
-      } else {
-        const dx = e.clientX - interaction.sx
-        const dy = e.clientY - interaction.sy
-        let { x, y, w, h } = interaction
-        if (interaction.dir.includes('e')) w = clamp(interaction.w + dx, WIN_MIN_W, window.innerWidth - interaction.x)
-        if (interaction.dir.includes('s')) h = clamp(interaction.h + dy, WIN_MIN_H, window.innerHeight - interaction.y)
-        if (interaction.dir.includes('w')) {
-          w = clamp(interaction.w - dx, WIN_MIN_W, interaction.x + interaction.w)
-          x = interaction.x + interaction.w - w
-        }
-        if (interaction.dir.includes('n')) {
-          h = clamp(interaction.h - dy, WIN_MIN_H, interaction.y + interaction.h)
-          y = interaction.y + interaction.h - h
-        }
-        setWin({ x, y, w, h })
       }
     }
     const mu = () => setInteraction(null)
@@ -572,29 +516,27 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
   return (
     <div
       ref={boxRef}
-      className="fixed z-50 flex flex-col bg-ide-sidebar border border-ide-border rounded-lg shadow-2xl overflow-hidden animate-fade-in"
-      style={{ left: win.x, top: win.y, width: win.w, height: win.h }}
+      className="flex flex-col w-full h-full bg-ide-sidebar overflow-hidden animate-fade-in"
       onMouseDownCapture={handleRightDown}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* Header（同时是拖动把手） */}
+      {/* Header */}
       <div
-        className="flex items-center gap-2 px-3 border-b border-ide-border shrink-0 select-none cursor-grab active:cursor-grabbing"
+        className="flex items-center gap-2 px-3 border-b border-ide-border shrink-0 select-none"
         style={{ height: HEADER_H }}
-        onMouseDown={(e) => { if (e.button === 0) setInteraction({ kind: 'move', dx: e.clientX - win.x, dy: e.clientY - win.y }) }}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4 text-ide-accent shrink-0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="w-3.5 h-3.5 text-ide-accent shrink-0">
           <circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="12" cy="18" r="2.5" />
           <path d="M6 8.5v3a2 2 0 002 2h8a2 2 0 002-2v-3M12 13.5v2" />
         </svg>
-        <span className="text-sm font-medium text-ide-text truncate min-w-0">{focalNode.name}</span>
-        <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] text-ide-text-muted bg-ide-hover/60 border border-ide-border">{focalNode.kind}</span>
-        <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] text-ide-text-muted border border-ide-border/70">{badge}</span>
+        <span className="text-[12.5px] font-medium text-ide-text truncate min-w-0">{focalNode.name}</span>
+        <span className="shrink-0 text-[10px] uppercase tracking-wider text-ide-text-muted/80">{focalNode.kind}</span>
+        <span className="shrink-0 text-[10px] text-ide-text-muted/55">{badge}</span>
         <button
           onMouseDown={(e) => e.stopPropagation()}
           onClick={onClose}
           title="Esc"
-          className="ml-auto shrink-0 w-7 h-7 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors"
+          className="ml-auto shrink-0 w-6 h-6 rounded text-ide-text-muted hover:bg-ide-hover hover:text-ide-text flex items-center justify-center transition-colors"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
             <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -611,37 +553,29 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
           style={{ cursor: interaction?.kind === 'pan' ? 'grabbing' : 'default' }}
         >
           <defs>
-            <pattern id="cg-grid" width="26" height="26" patternUnits="userSpaceOnUse">
-              <circle cx="1" cy="1" r="1" fill={th.border} opacity="0.55" />
-            </pattern>
-            <marker id="cg-arrow" markerWidth="7" markerHeight="7" refX="6.5" refY="3" orient="auto">
-              <path d="M0 0.6 L6.5 3 L0 5.4" fill="none" stroke={th.accent.hex} strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" opacity="0.55" />
+            <marker id="cg-arrow" markerWidth="7" markerHeight="7" refX="6.2" refY="3" orient="auto">
+              <path d="M0.5 0.8 L6.2 3 L0.5 5.2" fill="none" stroke={th.textMuted} strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
             </marker>
-            <marker id="cg-arrow-active" markerWidth="7" markerHeight="7" refX="6.5" refY="3" orient="auto">
-              <path d="M0 0.6 L6.5 3 L0 5.4" fill="none" stroke={th.accent.hex} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            <marker id="cg-arrow-active" markerWidth="7" markerHeight="7" refX="6.2" refY="3" orient="auto">
+              <path d="M0.5 0.8 L6.2 3 L0.5 5.2" fill="none" stroke={th.accent.hex} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
             </marker>
-            <filter id="cg-focal-glow" x="-40%" y="-60%" width="180%" height="220%">
-              <feDropShadow dx="0" dy="1" stdDeviation="3" floodColor={th.accent.hex} floodOpacity="0.28" />
-            </filter>
           </defs>
-
-          <rect x={vb.x - bodySize.w / 2 / vb.scale} y={vb.y - bodySize.h / 2 / vb.scale} width={bodySize.w / vb.scale} height={bodySize.h / vb.scale} fill="url(#cg-grid)" />
 
           {liveEdges.map((e, i) => {
             const fn = nodes.get(e.from)!, tn = nodes.get(e.to)!
             const fw = widths.get(e.from) ?? NODE_W, tw = widths.get(e.to) ?? NODE_W
             const x1 = fn.x + fw / 2, x2 = tn.x - tw / 2
-            const dx = Math.max(28, Math.abs(x2 - x1) * 0.5)
+            const dx = Math.max(18, Math.abs(x2 - x1) * 0.45)
             const active = hovered === e.from || hovered === e.to
             return (
               <path
                 key={`${e.from}->${e.to}:${i}`}
                 d={`M${x1},${fn.y} C${x1 + dx},${fn.y} ${x2 - dx},${tn.y} ${x2},${tn.y}`}
                 fill="none"
-                stroke={th.accent.hex}
-                strokeWidth={active ? 1.8 : 1.2}
+                stroke={active ? th.accent.hex : th.textMuted}
+                strokeWidth={active ? 1.5 : 1}
                 markerEnd={active ? 'url(#cg-arrow-active)' : 'url(#cg-arrow)'}
-                opacity={hovered ? (active ? 0.95 : 0.1) : 0.28}
+                opacity={hovered ? (active ? 0.9 : 0.12) : 0.4}
               />
             )
           })}
@@ -658,7 +592,7 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
             const iconHovered = iconHoveredNode === gn.id
             const showTrash = callersActive && iconHovered
             const name = labels.get(gn.id) ?? gn.name
-            const chipY = (NODE_H - 20) / 2
+            const chipY = (NODE_H - 16) / 2
             return (
               <g
                 key={gn.id}
@@ -675,16 +609,13 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
                 onMouseEnter={() => handleNodeEnter(gn.id)}
                 onMouseLeave={handleNodeLeave}
               >
-                {/* 底色一定不透明：焦点态的强调色叠在上面单独一层，否则背景点阵会从卡片里透出来 */}
                 <rect
-                  x={0} y={0} width={fw} height={NODE_H} rx={7}
+                  x={0} y={0} width={fw} height={NODE_H} rx={3}
                   fill={th.bg}
                   stroke={isFocal || isHovered || adjacent ? th.accent.hex : th.border}
-                  strokeWidth={isFocal ? 1.8 : 1}
-                  opacity={isFocal || isHovered || adjacent ? 0.95 : 0.75}
-                  filter={isFocal ? 'url(#cg-focal-glow)' : undefined}
+                  strokeWidth={isFocal ? 1.5 : 1}
                 />
-                {isFocal && <rect x={1.5} y={1.5} width={fw - 3} height={NODE_H - 3} rx={6} fill={th.accent.hex} opacity={0.16} />}
+                {isFocal && <rect x={1} y={1} width={fw - 2} height={NODE_H - 2} rx={2} fill={th.accent.hex} opacity={0.07} />}
                 {/* 文字先画、两端按钮后画；再套一层嵌套 svg 当裁剪视口 —— 量宽已保证放得下，
                     这层是硬兜底：字体度量若有偏差只会把名字截掉，绝不压到两端的按钮上 */}
                 <svg
@@ -692,7 +623,7 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
                   style={{ pointerEvents: 'none' }}
                 >
                   <text
-                    x={0} y={NODE_H / 2 + 4.2}
+                    x={0} y={NODE_H / 2 + 4}
                     fill={th.text} fontSize={FONT_SIZE}
                     fontWeight={isFocal ? 600 : 400}
                     style={{ fontFamily: fontStack }}
@@ -706,33 +637,33 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
                   onMouseLeave={gn.opaque ? undefined : () => setIconHoveredNode(null)}
                   style={{ cursor: gn.opaque || (gn.callersSealed && !callersActive) ? 'inherit' : 'pointer' }}
                 >
-                  <rect x={6} y={chipY} width={20} height={20} rx={5} fill={kindColor} opacity={callersActive ? 0.26 : iconHovered ? 0.2 : 0.12} />
+                  <rect x={5} y={chipY} width={16} height={16} rx={2} fill={kindColor} opacity={callersActive ? 0.24 : iconHovered ? 0.18 : 0.1} />
                   {showTrash ? (
-                    <svg x={8} y={chipY + 2} width={16} height={16} viewBox="0 0 16 16">
+                    <svg x={7} y={chipY + 2} width={12} height={12} viewBox="0 0 16 16">
                       <path d="M3 5h10M5 5v9a1 1 0 001 1h4a1 1 0 001-1V5M7 5V3a1 1 0 011-1h1a1 1 0 011 1v2" fill="none" stroke="#f88" strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round" />
                       <line x1="6" y1="8" x2="6" y2="12" stroke="#f88" strokeWidth={1} strokeLinecap="round" opacity={0.6} />
                       <line x1="8" y1="8" x2="8" y2="12" stroke="#f88" strokeWidth={1} strokeLinecap="round" opacity={0.6} />
                       <line x1="10" y1="8" x2="10" y2="12" stroke="#f88" strokeWidth={1} strokeLinecap="round" opacity={0.6} />
                     </svg>
                   ) : (
-                    <svg x={8} y={chipY + 2} width={16} height={16} viewBox="0 0 16 16">{kindIconPaths(gn.kind, kindColor)}</svg>
+                    <svg x={7} y={chipY + 2} width={12} height={12} viewBox="0 0 16 16">{kindIconPaths(gn.kind, kindColor)}</svg>
                   )}
                 </g>
                 {/* 右：展开/收起被调用者。使用处节点没有关系可拉；没展开的节点平时也不占这个位置，
                     悬停才露出 —— 否则满屏都是 +，看着像每个节点都该点一下 */}
                 {gn.opaque ? null : loading ? (
-                  <circle cx={fw - 15} cy={NODE_H / 2} r={2.5} fill={th.accent.hex} className="animate-pulse" />
+                  <circle cx={fw - 13} cy={NODE_H / 2} r={2.2} fill={th.accent.hex} className="animate-pulse" />
                 ) : gn.calleesExpanded || (isHovered && !gn.calleesSealed) ? (
                   <g
                     onClick={(e) => { e.stopPropagation(); gn.calleesExpanded ? collapse(gn.id, 'callees') : expand(gn.id, 'callees') }}
                     style={{ cursor: 'pointer' }}
                   >
-                    <rect x={fw - 26} y={chipY} width={20} height={20} rx={5} fill={th.accent.hex} opacity={gn.calleesExpanded ? 0.22 : 0.08} />
+                    <rect x={fw - 21} y={chipY} width={16} height={16} rx={2} fill={gn.calleesExpanded ? th.accent.hex : 'transparent'} fillOpacity={0.16} stroke={gn.calleesExpanded ? th.accent.hex : th.border} strokeWidth={1} />
                     <text
-                      x={fw - 16} y={NODE_H / 2 + 4.5}
+                      x={fw - 13} y={NODE_H / 2 + 3.8}
                       fill={gn.calleesExpanded ? th.accent.hex : th.textMuted}
-                      fontSize={gn.calleesExpanded ? 14 : 13}
-                      fontWeight="bold" textAnchor="middle"
+                      fontSize={12}
+                      fontWeight="600" textAnchor="middle"
                       style={{ fontFamily: MONO_FONT, pointerEvents: 'none' }}
                     >{gn.calleesExpanded ? '−' : '+'}</text>
                   </g>
@@ -746,11 +677,11 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
             const tn = nodes.get(tooltipNode)
             if (!tn) return null
             const label = `${baseName(tn.filePath)}:${tn.line}${tn.detail ? ` · ${tn.detail}` : ''}`
-            const tw = Math.min(textWidth(label, MONO_FONT, 10.5) + 20, 460)
+            const tw = Math.min(textWidth(label, MONO_FONT, 10) + 16, 460)
             return (
-              <g transform={`translate(${tn.x - tw / 2},${tn.y + NODE_H / 2 + 6})`} style={{ pointerEvents: 'none' }}>
-                <rect x={0} y={0} width={tw} height={20} rx={5} fill={th.bg} stroke={th.border} strokeWidth={1} opacity={0.97} />
-                <text x={tw / 2} y={13.5} fill={th.textMuted} fontSize={10.5} textAnchor="middle" style={{ fontFamily: MONO_FONT }}>{label}</text>
+              <g transform={`translate(${tn.x - tw / 2},${tn.y + NODE_H / 2 + 5})`} style={{ pointerEvents: 'none' }}>
+                <rect x={0} y={0} width={tw} height={18} rx={2} fill={th.bg} stroke={th.border} strokeWidth={1} />
+                <text x={tw / 2} y={12.2} fill={th.textMuted} fontSize={10} textAnchor="middle" style={{ fontFamily: MONO_FONT }}>{label}</text>
               </g>
             )
           })()}
@@ -769,25 +700,6 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
         <div className="absolute left-3 bottom-2 text-[10px] text-ide-text-muted/70 pointer-events-none select-none">
           {t('Right-drag to pan · Scroll to zoom · Click a node to open it')}
         </div>
-        {/* 四边 + 四角都能缩放。画在最后 = 盖在 header/body 之上，边缘 5~14px 命中区 */}
-        {RESIZE_HANDLES.map(hd => (
-          <div
-            key={hd.dir}
-            className={`absolute ${hd.cls}`}
-            style={hd.style}
-            onMouseDown={(e) => {
-              if (e.button !== 0) return
-              e.preventDefault()
-              setInteraction({ kind: 'resize', dir: hd.dir, sx: e.clientX, sy: e.clientY, x: win.x, y: win.y, w: win.w, h: win.h })
-            }}
-          >
-            {hd.dir === 'se' && (
-              <svg viewBox="0 0 16 16" className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 text-ide-text-muted/45 pointer-events-none">
-                <path d="M11 15L15 11M7 15L15 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
-              </svg>
-            )}
-          </div>
-        ))}
       </div>
 
       {/* Context Menu */}

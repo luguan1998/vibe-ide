@@ -515,6 +515,22 @@ export default function App() {
   // source 决定浮层数据源与左上角徽标（by CodeGraph / by LSP · tsserver）
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<{ node: any; source: 'codegraph' | 'lsp'; serverLabel?: string } | null>(null)
   const callGraphFocalNodeRef = useRef<any>(null); callGraphFocalNodeRef.current = callGraphFocalNode
+  const [callGraphPanelH, setCallGraphPanelH] = useState(() => Math.round(window.innerHeight * 0.42))
+  const handleCallGraphResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const startY = e.clientY
+    const startH = callGraphPanelH
+    const containerH = (e.currentTarget as HTMLElement).parentElement?.clientHeight ?? window.innerHeight
+    const maxH = Math.max(160, containerH - 160)
+    const onMove = (ev: MouseEvent) => setCallGraphPanelH(Math.max(160, Math.min(maxH, startH - (ev.clientY - startY))))
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [callGraphPanelH])
   const handleViewLineHistory = useCallback((filePath: string, lineNumber: number, rev?: string, staged?: boolean) => {
     setLineHistoryPayload({ filePath, lineNumber, rev, staged })
   }, [])
@@ -3571,7 +3587,34 @@ export default function App() {
     />
   ) : null
 
-  const rightOverlay = overlayOnRight ? (overlayKind === 'graph' ? graphDockNode : fileTabsNode) : null
+  const callGraphEl = callGraphFocalNode ? (
+    <CallGraphOverlay
+      focalNode={callGraphFocalNode.node}
+      source={callGraphFocalNode.source}
+      serverLabel={callGraphFocalNode.serverLabel}
+      onClose={() => setCallGraphFocalNode(null)}
+      onJumpToFile={(filePath, line) => {
+        handleOpenFileFromSearch(resolveAbsPath(filePath, activeSessionCwd ?? undefined), line)
+      }}
+    />
+  ) : null
+  const callGraphDockedRight = !!callGraphEl && overlayOnRight && overlayKind === 'files'
+
+  const rightOverlay = overlayOnRight ? (
+    overlayKind === 'graph' ? graphDockNode : (
+      <div className="flex-1 min-h-0 flex flex-col">
+        {fileTabsNode}
+        {callGraphDockedRight && (
+          <>
+            <div className="shrink-0 h-1 cursor-ns-resize bg-ide-border hover:bg-ide-accent/60 transition-colors" onMouseDown={handleCallGraphResizeStart} />
+            <div className="shrink-0 border-t border-ide-border overflow-hidden flex flex-col" style={{ height: callGraphPanelH }}>
+              {callGraphEl}
+            </div>
+          </>
+        )}
+      </div>
+    )
+  ) : null
 
   const panelWide = !isWelcome && rightPanelWidth >= PANEL_TAB_RAIL_MIN_W
   const leftPanelShown = !isWelcome && !leftPanelCollapsed
@@ -3582,6 +3625,14 @@ export default function App() {
   const centerGapX = panelWide || !rightPanelShown ? 'ml-1 mr-0' : 'mx-1'
   // 中间栏所有内容块同一套卡片：终端 / AiTab / 浏览器 / 文件（diff·md·图片）/ 看板
   const centerCardCls = `flex-1 ${centerGapX} border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`
+  const callGraphDock = callGraphEl && !callGraphDockedRight ? (
+    <>
+      <div className={`${centerGapX} shrink-0 h-1 cursor-ns-resize bg-ide-border hover:bg-ide-accent/60 transition-colors`} onMouseDown={handleCallGraphResizeStart} />
+      <div className={`${centerGapX} shrink-0 border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`} style={{ height: callGraphPanelH }}>
+        {callGraphEl}
+      </div>
+    </>
+  ) : null
 
   return (
     <div className="h-full w-full flex flex-col bg-ide-bg">
@@ -3995,6 +4046,7 @@ export default function App() {
             />
           </div>
           )}
+          {callGraphDock}
           {/* Drag-over overlay for file compare */}
           {isDragOverEdit && (
             <div className="absolute inset-0 z-50 bg-ide-accent/20 border-2 border-dashed border-ide-accent rounded-lg flex items-center justify-center pointer-events-none">
@@ -4345,19 +4397,6 @@ export default function App() {
           />
         </div>
       </ModalOverlay>
-
-      {/* Call Graph — rendered at App level to stay on top */}
-      {callGraphFocalNode && (
-        <CallGraphOverlay
-          focalNode={callGraphFocalNode.node}
-          source={callGraphFocalNode.source}
-          serverLabel={callGraphFocalNode.serverLabel}
-          onClose={() => setCallGraphFocalNode(null)}
-          onJumpToFile={(filePath, line) => {
-            handleOpenFileFromSearch(resolveAbsPath(filePath, activeSessionCwd ?? undefined), line)
-          }}
-        />
-      )}
 
       {/* CodeGraph Search — Alt-triggered center overlay */}
       {showCodeSearch && (
