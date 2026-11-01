@@ -826,18 +826,25 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
   const handlePush = useCallback(async (force = false) => {
     setBusy(true)
     try {
+      let result
       if (selectedRemote) {
         const parts = selectedRemote.split('/')
-        const remote = parts[0]
-        const branch = parts.slice(1).join('/')
-        await window.api.git.push(remote, branch, force)
+        result = await window.api.git.push(parts[0], parts.slice(1).join('/'), force)
       } else {
-        await window.api.git.push(undefined, undefined, force)
+        result = await window.api.git.push(undefined, undefined, force)
+      }
+      if (result.error) {
+        setError(result.error)
+        return false
       }
       await refreshStatus()
       await refreshGraph()
       await refreshBranches()
       setShowPushDropdown(false)
+      return true
+    } catch (err: any) {
+      setError(err.message)
+      return false
     } finally { setBusy(false) }
   }, [refreshStatus, refreshGraph, refreshBranches, selectedRemote])
 
@@ -862,7 +869,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
 
   const handlePushAndPr = useCallback(async () => {
     setShowPushDropdown(false)
-    try { await handlePush() } catch {}
+    if (!await handlePush()) return
     await openPrModal()
   }, [handlePush, openPrModal])
 
@@ -1378,7 +1385,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
         )}
         {error && !/not a git/i.test(error) && (
           <div className="px-3 py-2 text-sm text-ide-danger bg-ide-danger/10 animate-fade-in">
-            <p>{error}</p>
+            <p className="whitespace-pre-wrap break-words">{error}</p>
           </div>
         )}
         {error && /not a git/i.test(error) && (
