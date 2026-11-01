@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { Share2, Box, CircleDot, Variable, Lock, Diamond, List, Folder, Component, Link2, Circle } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { CodeSymbol } from '@shared/types'
 import { getKindColorHex } from '../utils/kindColors'
 import { useTheme } from '../themes/context'
@@ -20,9 +22,9 @@ const FONT_SIZE = 12
 const LSP_AUTO_DEPTH_CALLERS = 2
 const LSP_AUTO_DEPTH_CALLEES = 3
 const LSP_AUTO_BUDGET = 45
-/** 文本可用横向空间 = 卡片宽 - 左图标片 - 右展开按钮 - 两侧留白 */
+/** 文本可用横向空间 = 卡片宽 - 左图标片 - 两侧留白（右侧展开按钮外置，不占位） */
 const PAD_L = 26
-const PAD_R = 26
+const PAD_R = 14
 const TEXT_MAX = MAX_W - PAD_L - PAD_R
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 /** codegraph 节点 kind：file 是文件符号，调用图不放文件 */
@@ -71,22 +73,27 @@ function cssRgb(varName: string): { r: number; g: number; b: number; hex: string
 /** Read CSS variable "R G B" triplet → hex string */
 function cssRgbToHex(varName: string): string { return cssRgb(varName).hex }
 
-function kindIconPaths(kind: string, color: string) {
-  const t: Record<string, React.ReactNode> = {
-    function: <><path d="M2 4l6-3 6 3v5l-6 3-6-3V4z" fill={color} opacity={0.15}/><path d="M2 4l6-3 6 3M2 4v5l6 3M8 1v12M14 4l-6 3" fill="none" stroke={color} strokeWidth={1.3} strokeLinejoin="round"/></>,
-    method: <><path d="M2 4l6-3 6 3v5l-6 3-6-3V4z" fill={color} opacity={0.15}/><path d="M2 4l6-3 6 3M2 4v5l6 3M8 1v12M14 4l-6 3" fill="none" stroke={color} strokeWidth={1.3} strokeLinejoin="round"/></>,
-    class: <><rect x={1} y={7.5} width={4} height={4} rx={0.5} fill={color} opacity={0.15} stroke={color} strokeWidth={1.2}/><rect x={6} y={4} width={4} height={7.5} rx={0.5} fill={color} opacity={0.3} stroke={color} strokeWidth={1.2}/><rect x={11} y={6.5} width={4} height={5} rx={0.5} fill={color} opacity={0.15} stroke={color} strokeWidth={1.2}/></>,
-    interface: <><circle cx={8} cy={8} r={6} fill={color} opacity={0.1} stroke={color} strokeWidth={1.2}/><circle cx={8} cy={8} r={1.5} fill={color}/></>,
-    variable: <><rect x={2} y={2} width={12} height={12} rx={1.5} fill={color} opacity={0.1} stroke={color} strokeWidth={1.2}/><path d="M11 2v12M2 11h12" fill="none" stroke={color} strokeWidth={1} opacity={0.5}/></>,
-    constant: <><rect x={3} y={7} width={10} height={7} rx={1.5} fill={color} opacity={0.15} stroke={color} strokeWidth={1.2}/><path d="M5 7V5a3 3 0 016 0v2" fill="none" stroke={color} strokeWidth={1.3} strokeLinecap="round"/></>,
-    type: <><path d="M8 1l6 7-6 7-6-7z" fill={color} opacity={0.15} stroke={color} strokeWidth={1.2} strokeLinejoin="round"/></>,
-    enum: <><rect x={2.5} y={2.5} width={11} height={11} rx={1.5} fill={color} opacity={0.1} stroke={color} strokeWidth={1.2}/><path d="M5 6h6M5 8.5h6M5 11h4" fill="none" stroke={color} strokeWidth={1.1} strokeLinecap="round"/></>,
-    module: <><path d="M2 3h4l1.5 2H14v8H2z" fill={color} opacity={0.15} stroke={color} strokeWidth={1.2} strokeLinejoin="round"/></>,
-    component: <><path d="M3 4h2l1 3-1 3H3M13 4h-2l-1 3 1 3h2" fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round"/><path d="M6 7h4" fill="none" stroke={color} strokeWidth={1} opacity={0.5}/></>,
-    // 使用处（引用位置，不是符号）
-    ref: <><path d="M6.5 9.5a3 3 0 004.2.4l1.6-1.6a3 3 0 10-4.2-4.2l-.9.9" fill="none" stroke={color} strokeWidth={1.3} strokeLinecap="round"/><path d="M9.5 6.5a3 3 0 00-4.2-.4L3.7 7.7a3 3 0 104.2 4.2l.9-.9" fill="none" stroke={color} strokeWidth={1.3} strokeLinecap="round"/></>,
-  }
-  return t[kind] || <><rect x={2.5} y={2.5} width={11} height={11} rx={1.5} fill={color} opacity={0.1} stroke={color} strokeWidth={1.2}/></>
+const KIND_ICONS: Record<string, LucideIcon> = {
+  // 调用关系本身：左根 → 右两个叶子
+  function: Share2,
+  method: Share2,
+  class: Box,
+  interface: CircleDot,
+  variable: Variable,
+  constant: Lock,
+  type: Diamond,
+  type_alias: Diamond,
+  enum: List,
+  module: Folder,
+  component: Component,
+  property: CircleDot,
+  // 使用处（引用位置，不是符号）
+  ref: Link2,
+}
+
+function KindIcon({ kind, color, x, y, size }: { kind: string; color: string; x: number; y: number; size: number }) {
+  const Icon = KIND_ICONS[kind] || Circle
+  return <Icon x={x} y={y} width={size} height={size} color={color} strokeWidth={2} />
 }
 
 interface GraphNode {
@@ -165,7 +172,6 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
     | null
   >(null)
   const [hovered, setHovered] = useState<string | null>(null)
-  const [iconHoveredNode, setIconHoveredNode] = useState<string | null>(null)
   const [tooltipNode, setTooltipNode] = useState<string | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -230,7 +236,7 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
     const key = dir === 'callers' ? 'callersExpanded' : 'calleesExpanded'
     const sealedKey = dir === 'callers' ? 'callersSealed' : 'calleesSealed'
     setNodes(prev => { const next = new Map(prev); const n = next.get(nodeId); if (n) next.set(nodeId, { ...n, [key]: true }); return next })
-    setLoadingNodes(prev => new Set(prev).add(nodeId))
+    setLoadingNodes(prev => new Set(prev).add(`${nodeId}|${dir}`))
 
     let fetched: FetchedNode[] = []
     let newEdges: GraphEdge[] = []
@@ -271,7 +277,7 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
       }
     } catch {
     } finally {
-      setLoadingNodes(prev => { const s = new Set(prev); s.delete(nodeId); return s })
+      setLoadingNodes(prev => { const s = new Set(prev); s.delete(`${nodeId}|${dir}`); return s })
     }
     if (!ok) {
       // 这次没问出来（服务器在起 / 索引没好）：把展开态退回去，否则节点显示成已展开却没有子节点
@@ -378,9 +384,6 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
     () => edges.filter(e => nodes.has(e.from) && nodes.has(e.to)),
     [edges, nodes],
   )
-
-  // Has callers/callees
-  const hasCallers = useCallback((nodeId: string) => liveEdges.some(e => e.to === nodeId), [liveEdges])
 
   // 把整张图取景到可视区。只在首次铺开后自动做一次
   const fitView = useCallback(() => {
@@ -489,7 +492,7 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
     return () => { clearTimeout(timer); document.removeEventListener('mousedown', mm) }
   }, [ctxMenu])
 
-  // 右键：节点 → 菜单，空白 → 拖动平移。只在窗体内拦截，窗外的右键照常用
+  // 右键：节点 → 菜单，空白 → 关菜单
   const handleRightDown = (e: React.MouseEvent) => {
     if (e.button !== 2) return
     e.preventDefault()
@@ -502,6 +505,12 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
       el = el.parentElement
     }
     setCtxMenu(null)
+  }
+
+  // 左键：空白处按下拖动整块画板（节点自己 stopPropagation，不会误触）
+  const handleCanvasDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    e.preventDefault()
     userMoved.current = true
     const vb = viewBoxRef.current
     setInteraction({ kind: 'pan', sx: e.clientX, sy: e.clientY, vx: vb.x, vy: vb.y })
@@ -550,7 +559,8 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
           ref={svgRef}
           className="w-full h-full block"
           viewBox={svgViewBox}
-          style={{ cursor: interaction?.kind === 'pan' ? 'grabbing' : 'default' }}
+          onMouseDown={handleCanvasDown}
+          style={{ cursor: interaction?.kind === 'pan' ? 'grabbing' : 'grab' }}
         >
           <defs>
             <marker id="cg-arrow" markerWidth="7" markerHeight="7" refX="6.2" refY="3" orient="auto">
@@ -584,13 +594,11 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
             const isFocal = gn.id === focalNode.id
             const fw = widths.get(gn.id) ?? NODE_W
             const kindColor = getKindColorHex(gn.kind)
-            const loading = loadingNodes.has(gn.id)
+            const loadingCallers = loadingNodes.has(`${gn.id}|callers`)
+            const loadingCallees = loadingNodes.has(`${gn.id}|callees`)
             const isHovered = hovered === gn.id
             const adjacent = !!hovered && !isHovered && liveEdges.some(e => (e.from === hovered && e.to === gn.id) || (e.to === hovered && e.from === gn.id))
             const dim = !!hovered && !isFocal && !isHovered && !adjacent
-            const callersActive = gn.callersExpanded && hasCallers(gn.id)
-            const iconHovered = iconHoveredNode === gn.id
-            const showTrash = callersActive && iconHovered
             const name = labels.get(gn.id) ?? gn.name
             const chipY = (NODE_H - 16) / 2
             return (
@@ -629,38 +637,39 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
                     style={{ fontFamily: fontStack }}
                   >{name}</text>
                 </svg>
-                {/* 左：kind 图标兼「展开调用者」按钮（已展开时悬停变删除）。
-                    使用处节点、以及问过确实没有调用者的节点，都只当图标 */}
-                <g
-                  onClick={gn.opaque || (gn.callersSealed && !callersActive) ? undefined : (e) => { e.stopPropagation(); callersActive ? collapse(gn.id, 'callers') : expand(gn.id, 'callers') }}
-                  onMouseEnter={gn.opaque ? undefined : () => setIconHoveredNode(gn.id)}
-                  onMouseLeave={gn.opaque ? undefined : () => setIconHoveredNode(null)}
-                  style={{ cursor: gn.opaque || (gn.callersSealed && !callersActive) ? 'inherit' : 'pointer' }}
-                >
-                  <rect x={5} y={chipY} width={16} height={16} rx={2} fill={kindColor} opacity={callersActive ? 0.24 : iconHovered ? 0.18 : 0.1} />
-                  {showTrash ? (
-                    <svg x={7} y={chipY + 2} width={12} height={12} viewBox="0 0 16 16">
-                      <path d="M3 5h10M5 5v9a1 1 0 001 1h4a1 1 0 001-1V5M7 5V3a1 1 0 011-1h1a1 1 0 011 1v2" fill="none" stroke="#f88" strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round" />
-                      <line x1="6" y1="8" x2="6" y2="12" stroke="#f88" strokeWidth={1} strokeLinecap="round" opacity={0.6} />
-                      <line x1="8" y1="8" x2="8" y2="12" stroke="#f88" strokeWidth={1} strokeLinecap="round" opacity={0.6} />
-                      <line x1="10" y1="8" x2="10" y2="12" stroke="#f88" strokeWidth={1} strokeLinecap="round" opacity={0.6} />
-                    </svg>
-                  ) : (
-                    <svg x={7} y={chipY + 2} width={12} height={12} viewBox="0 0 16 16">{kindIconPaths(gn.kind, kindColor)}</svg>
-                  )}
-                </g>
-                {/* 右：展开/收起被调用者。使用处节点没有关系可拉；没展开的节点平时也不占这个位置，
-                    悬停才露出 —— 否则满屏都是 +，看着像每个节点都该点一下 */}
-                {gn.opaque ? null : loading ? (
-                  <circle cx={fw - 13} cy={NODE_H / 2} r={2.2} fill={th.accent.hex} className="animate-pulse" />
-                ) : gn.calleesExpanded || (isHovered && !gn.calleesSealed) ? (
+                {/* kind 图标只作标识；调用者方向的展开/收起在框外左侧的 +/− 按钮，
+                    与右侧对称（− 即收起调用者链，等同原来的垃圾桶） */}
+                <KindIcon kind={gn.kind} color={kindColor} x={4} y={(NODE_H - 18) / 2} size={18} />
+                {gn.opaque ? null : loadingCallers ? (
+                  <circle cx={-7} cy={NODE_H / 2} r={2.2} fill={th.accent.hex} className="animate-pulse" />
+                ) : !gn.callersSealed ? (
                   <g
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); gn.callersExpanded ? collapse(gn.id, 'callers') : expand(gn.id, 'callers') }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <rect x={-15} y={chipY} width={16} height={16} rx={2} fill={th.bg} stroke={gn.callersExpanded ? th.accent.hex : th.border} strokeWidth={1} />
+                    <text
+                      x={-7} y={NODE_H / 2 + 3.8}
+                      fill={gn.callersExpanded ? th.accent.hex : th.textMuted}
+                      fontSize={12} fontWeight="600" textAnchor="middle"
+                      style={{ fontFamily: MONO_FONT, pointerEvents: 'none' }}
+                    >{gn.callersExpanded ? '−' : '+'}</text>
+                  </g>
+                ) : null}
+                {/* 右：展开/收起被调用者，挂在框外右侧、常显。使用处节点没有关系可拉；
+                    问过确实没有被调用者的节点也不再显示 */}
+                {gn.opaque ? null : loadingCallees ? (
+                  <circle cx={fw + 8} cy={NODE_H / 2} r={2.2} fill={th.accent.hex} className="animate-pulse" />
+                ) : !gn.calleesSealed ? (
+                  <g
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => { e.stopPropagation(); gn.calleesExpanded ? collapse(gn.id, 'callees') : expand(gn.id, 'callees') }}
                     style={{ cursor: 'pointer' }}
                   >
-                    <rect x={fw - 21} y={chipY} width={16} height={16} rx={2} fill={gn.calleesExpanded ? th.accent.hex : 'transparent'} fillOpacity={0.16} stroke={gn.calleesExpanded ? th.accent.hex : th.border} strokeWidth={1} />
+                    <rect x={fw - 1} y={chipY} width={16} height={16} rx={2} fill={th.bg} stroke={gn.calleesExpanded ? th.accent.hex : th.border} strokeWidth={1} />
                     <text
-                      x={fw - 13} y={NODE_H / 2 + 3.8}
+                      x={fw + 7} y={NODE_H / 2 + 3.8}
                       fill={gn.calleesExpanded ? th.accent.hex : th.textMuted}
                       fontSize={12}
                       fontWeight="600" textAnchor="middle"
@@ -698,7 +707,7 @@ function CallGraphOverlay({ focalNode, source = 'codegraph', serverLabel, onClos
           </div>
         )}
         <div className="absolute left-3 bottom-2 text-[10px] text-ide-text-muted/70 pointer-events-none select-none">
-          {t('Right-drag to pan · Scroll to zoom · Click a node to open it')}
+          {t('Drag empty space to pan · Scroll to zoom · Click a node to open it')}
         </div>
       </div>
 
