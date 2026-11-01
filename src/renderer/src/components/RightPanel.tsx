@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { FolderOpen } from 'lucide-react'
+import { FolderOpen, Clock } from 'lucide-react'
 import { useI18n } from '../i18n'
 
 import GitTab from './GitTab'
 import AuxTab from './AuxTab'
 import FileTab from './FileTab'
+import { FileIcon } from './FileIcons'
+import { baseName } from '../fileTabs'
 import { PanelGitIcon, PanelDirIcon } from '../panelIcons'
 import GameLauncher from './GameLauncher'
 import BrowserView, { BrowserViewHandle } from './BrowserView'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
-import { AuxTerminalTab } from '@shared/types'
+import { AuxTerminalTab, RecentFileEntry } from '@shared/types'
 
 interface RightPanelProps {
   workspacePath: string | null
@@ -59,6 +61,8 @@ interface RightPanelProps {
   contentOverlayKind?: 'files' | 'graph' | null
   onOpenBrowser?: () => void
   onOpenSessionHistory?: () => void
+  recentFiles?: RecentFileEntry[]
+  onOpenRecent?: (fullPath: string, lineNumber?: number) => void
 }
 
 type GitSection = 'git' | 'terminal' | 'file' | 'game'
@@ -411,6 +415,8 @@ function RightPanel({
   contentOverlayKind,
   onOpenBrowser,
   onOpenSessionHistory,
+  recentFiles = [],
+  onOpenRecent,
 }: RightPanelProps) {
   const { t } = useI18n()
   const [activeSection, setActiveSection] = useState<GitSection>('file')
@@ -615,13 +621,39 @@ function RightPanel({
 
       {splitWide && (
         <div className="flex-1 min-w-0 flex flex-col min-h-0">
-          {contentOverlay ?? (
+          {contentOverlay ?? (recentFiles.length > 0 ? (
+            <div className="flex-1 min-h-0 flex items-center justify-center px-8 py-6 select-none">
+              <div className="w-full max-w-[340px] flex flex-col min-h-0">
+                <div className="flex items-center gap-1.5 px-2 pb-1.5 text-[11px] text-ide-text-muted">
+                  <Clock size={11} />
+                  <span>{t('Recently Opened')}</span>
+                </div>
+                <div className="rounded-lg border border-ide-border bg-ide-bg/30 overflow-y-auto">
+                  {recentFiles.map(f => {
+                    const name = baseName(f.path)
+                    return (
+                      <div
+                        key={f.path}
+                        title={`${f.path}${f.line ? ':' + f.line : ''}`}
+                        onClick={() => onOpenRecent?.(f.path, f.line)}
+                        className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+                      >
+                        <FileIcon name={name} className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate flex-1">{name}</span>
+                        {f.line ? <span className="text-[10px] text-ide-accent shrink-0">{f.line}</span> : null}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : (
             <div className="flex-1 flex flex-col items-center justify-center gap-1.5 text-ide-text-muted select-none">
               <FolderOpen className="w-7 h-7 mb-1 opacity-60" strokeWidth={1.5} />
               <span className="text-xs font-medium text-ide-text">{t('Open file')}</span>
               <span className="text-[11px]">{t('Select a file from the workspace tree')}</span>
             </div>
-          )}
+          ))}
         </div>
       )}
 

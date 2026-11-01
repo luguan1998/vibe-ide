@@ -405,7 +405,18 @@ export default function App() {
   })
   const [rightTerminalSessions, setRightTerminalSessions] = useState<Record<string, AuxTerminalTab[]>>({})  // 每个 session 独立的 aux terminal tabs（每 tab 含 1-3 个 terminal）
   const [activeAuxIndex, setActiveAuxIndex] = useState<Record<string, number>>({})  // 每个 session 当前 active 的 aux terminal 下标
-  const [rightPanelWidth, setRightPanelWidth] = useState(RIGHT_PANEL_DEFAULT_W)
+  // Get cwd of the currently active session
+  const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
+  // 右栏宽度按 cwd 记忆（仅内存，不落 localStorage）
+  const [rightPanelWidthByCwd, setRightPanelWidthByCwd] = useState<Record<string, number>>({})
+  const rightPanelWidthKey = activeSessionCwd ?? ''
+  const rightPanelWidth = rightPanelWidthByCwd[rightPanelWidthKey] ?? RIGHT_PANEL_DEFAULT_W
+  const setRightPanelWidth = useCallback((next: number) => {
+    setRightPanelWidthByCwd(prev => {
+      if ((prev[rightPanelWidthKey] ?? RIGHT_PANEL_DEFAULT_W) === next) return prev
+      return { ...prev, [rightPanelWidthKey]: next }
+    })
+  }, [rightPanelWidthKey])
   const rightPanelPrevWidth = useRef(380)
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false)
   const [showSessionHistory, setShowSessionHistory] = useState(false)
@@ -885,7 +896,7 @@ export default function App() {
   const [browserDocked, setBrowserDocked] = useState(false)
   const [browserDockNonce, setBrowserDockNonce] = useState(0)
   const browserDockedRef = useRef(false)
-  const browserDockPrevWidth = useRef<number | null>(null)
+  const browserDockPrevWidth = useRef<{ key: string; width: number } | null>(null)
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const centerPanelRef = useRef<HTMLDivElement>(null)
   const sessionPanelRef = useRef<SessionPanelHandle>(null)
@@ -2094,8 +2105,6 @@ export default function App() {
     closeQuickOpen()
   }, [openFileView, closeQuickOpen])
 
-  // Get cwd of the currently active session
-  const activeSessionCwd = sessions.find(s => s.id === activeSessionId)?.cwd ?? null
   const leftWorktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
   // 会话增减时让所有图重扫盘：新分支是在别的会话里长出来的，当前图的 messages 不会变
   const branchRevision = useMemo(() => sessions.length, [sessions])
@@ -3061,7 +3070,7 @@ export default function App() {
 
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
-  }, [rightPanelWidth])
+  }, [rightPanelWidth, setRightPanelWidth])
 
   // 分界线按钮：窄栏一键拉宽 / 宽栏一键回默认窄栏
   const handleToggleRightWidth = useCallback(() => {
@@ -3070,7 +3079,7 @@ export default function App() {
     } else {
       setRightPanelWidth(Math.min(RIGHT_PANEL_EXPAND_W, Math.max(280, window.innerWidth - 240)))
     }
-  }, [rightPanelWidth])
+  }, [rightPanelWidth, setRightPanelWidth])
 
   const handleLeftResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -3118,12 +3127,16 @@ export default function App() {
     setNavigateToFilePayload({ trigger: Date.now(), filePath })
   }, [])
 
-  // 浏览器停靠期间临时加宽的右栏，关闭/移回中栏时还原本来的宽度
+  // 浏览器停靠期间临时加宽的右栏，关闭/移回中栏时还原本来的宽度（回到记录时的 cwd，避免串到别的 cwd）
   const restoreBrowserDockWidth = useCallback(() => {
-    if (browserDockPrevWidth.current !== null) {
-      setRightPanelWidth(browserDockPrevWidth.current)
-      browserDockPrevWidth.current = null
-    }
+    const prev = browserDockPrevWidth.current
+    browserDockPrevWidth.current = null
+    if (!prev) return
+    setRightPanelWidthByCwd(m => {
+      const cur = m[prev.key] ?? RIGHT_PANEL_DEFAULT_W
+      if (cur === prev.width) return m
+      return { ...m, [prev.key]: prev.width }
+    })
   }, [])
 
   const handleCloseBrowser = useCallback(() => {
@@ -3168,13 +3181,13 @@ export default function App() {
     browserDockedRef.current = true
     setBrowserDocked(true)
     if (browserDockPrevWidth.current === null) {
-      browserDockPrevWidth.current = rightPanelWidth
+      browserDockPrevWidth.current = { key: rightPanelWidthKey, width: rightPanelWidth }
       const leftW = leftPanelCollapsed ? 0 : leftPanelWidth + 1
       const maxW = window.innerWidth - leftW - BROWSER_DOCK_MIN_CENTER_W - 1
       setRightPanelWidth(Math.max(RIGHT_PANEL_DEFAULT_W, Math.min(BROWSER_DOCK_W, maxW)))
     }
     setBrowserDockNonce(n => n + 1)
-  }, [rightPanelWidth, leftPanelWidth, leftPanelCollapsed])
+  }, [rightPanelWidth, rightPanelWidthKey, leftPanelWidth, leftPanelCollapsed, setRightPanelWidth])
 
   useEffect(() => {
     const handler = window.api.onBrowserOpen((data) => {
@@ -4070,6 +4083,8 @@ export default function App() {
             onBrowserToggleDock={handleToggleBrowserDock}
             onOpenBrowser={handleOpenBrowserRight}
             onOpenSessionHistory={handleOpenHistoryTab}
+            recentFiles={recentFiles}
+            onOpenRecent={handleOpenRecentFile}
           />
         </div>
         )}
