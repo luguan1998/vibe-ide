@@ -786,7 +786,7 @@ html, body, #root {
 body.panel-dragging webview { pointer-events: none; }
 body.panel-dragging { user-select: none; cursor: col-resize; }
 
-/* ── AiTab input toolbar container query: 空间不足时先隐藏最近文件，模型名逐级收缩 ── */
+/* ── AiTab input toolbar container query: 空间不足时先隐藏最近文件，模型名按 flex 实际剩余空间截断 ── */
 .ai-tab__input-toolbar {
   container-type: inline-size;
   container-name: ai-tab-toolbar;
@@ -794,10 +794,25 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
 .ai-tab__model-label { max-width: 260px; }
 @container ai-tab-toolbar (max-width: 640px) {
   .ai-tab__last-file-btn { display: none; }
-  .ai-tab__model-label { max-width: 96px; }
 }
-@container ai-tab-toolbar (max-width: 520px) {
-  .ai-tab__model-label { max-width: 90px; }
+/* button 宽度不会自动跟随收缩的父级（shrink-to-fit），必须显式限宽并裁剪，否则文字会压到相邻控件上 */
+.ai-tab__model-btn,
+.ai-tab__mode-btn { max-width: 100%; overflow: hidden; }
+
+@container ai-tab-toolbar (max-width: 360px) {
+  .ai-tab__mode-label { display: none; }
+}
+@container ai-tab-toolbar (max-width: 250px) {
+  .ai-tab__mode-chevron { display: none; }
+}
+@container ai-tab-toolbar (max-width: 230px) {
+  .ai-tab__context { display: none; }
+}
+@container ai-tab-toolbar (max-width: 190px) {
+  .ai-tab__model-chevron { display: none; }
+}
+@container ai-tab-toolbar (max-width: 160px) {
+  .ai-tab__model-icon { display: none; }
 }
 
 /* ── Desktop pet (codex-style webp sprite sheet) ── */

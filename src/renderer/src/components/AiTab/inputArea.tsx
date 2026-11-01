@@ -318,9 +318,9 @@ export function ModelBadge({
         title={model || 'Model'}
         disabled={!sessionId}
       >
-        <Bot size={14} strokeWidth={2} className="shrink-0" />
+        <Bot size={14} strokeWidth={2} className="ai-tab__model-icon shrink-0" />
         <span className="ai-tab__model-label truncate">{displayLabel}</span>
-        {sessionId && <ChevronDown size={12} className={`shrink-0 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
+        {sessionId && <ChevronDown size={12} className={`ai-tab__model-chevron shrink-0 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
       </button>
       {open && (
         <div className="ai-tab__model-dropdown absolute bottom-full right-0 mb-1.5 z-30
@@ -479,9 +479,9 @@ export function PiModelBadge({
         title={model || 'Model'}
         disabled={!sessionId}
       >
-        <Bot size={14} strokeWidth={2} className="shrink-0" />
+        <Bot size={14} strokeWidth={2} className="ai-tab__model-icon shrink-0" />
         <span className="ai-tab__model-label truncate">{label}</span>
-        {sessionId && <ChevronDown size={12} className={`shrink-0 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
+        {sessionId && <ChevronDown size={12} className={`ai-tab__model-chevron shrink-0 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />}
       </button>
       {open && (
         <div className="ai-tab__model-dropdown absolute bottom-full right-0 mb-1.5 z-30
@@ -578,7 +578,7 @@ export function PiThinkingLevelSelector({
   }
 
   return (
-    <div ref={ref} className="ai-tab__mode relative shrink-0">
+    <div ref={ref} className="ai-tab__mode relative min-w-0">
       <button
         type="button"
         onClick={() => sessionId && setOpen(v => !v)}
@@ -589,8 +589,8 @@ export function PiThinkingLevelSelector({
         disabled={!sessionId}
       >
         <Brain size={13} strokeWidth={2} className="shrink-0" />
-        <span className="max-w-[72px] truncate">{label}</span>
-        <ChevronDown size={12} className={`opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className="ai-tab__mode-label max-w-[72px] truncate">{label}</span>
+        <ChevronDown size={12} className={`ai-tab__mode-chevron shrink-0 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="ai-tab__mode-dropdown absolute bottom-full left-0 mb-1.5 z-30
@@ -647,7 +647,7 @@ export function ModeSelector({
   }, [open])
 
   return (
-    <div ref={ref} className="ai-tab__mode relative shrink-0">
+    <div ref={ref} className="ai-tab__mode relative min-w-0">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
@@ -656,9 +656,9 @@ export function ModeSelector({
                    transition-colors"
         title={`${current?.label} mode`}
       >
-        <span className="text-sm">{current?.icon}</span>
-        <span className="max-w-[60px] truncate">{current?.label}</span>
-        <ChevronDown size={12} className={`opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className="text-sm shrink-0">{current?.icon}</span>
+        <span className="ai-tab__mode-label max-w-[60px] truncate">{current?.label}</span>
+        <ChevronDown size={12} className={`ai-tab__mode-chevron shrink-0 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="ai-tab__mode-dropdown absolute bottom-full right-0 mb-1.5 z-30

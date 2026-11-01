@@ -72,6 +72,8 @@ function getLanguageFromFile(path: string): string {
   return langMap[ext] || 'plaintext'
 }
 
+const COMPILE_DB_PROMPT = "Create a compile_flags.txt in this project's root so clangd can resolve #include paths: detect the build system, write one -I<dir> line per header search directory, and confirm no headers are reported missing. If the build system can export compile_commands.json instead, prefer that. This IDE ships its own clangd, so no install is needed — use it to verify the result."
+
 // 引用可能上百条，浮层只渲染前这么多，其余在标题上标出来
 const REFERENCES_MAX = 200
 // 引用数不超过这个值的文件在结果里默认展开，省掉逐组点开
@@ -1029,7 +1031,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   }, [dbBusy, performJumpQuery])
 
   const copyDbPrompt = useCallback(() => {
-    navigator.clipboard.writeText(t('Create a compile_flags.txt in this project\'s root so clangd can resolve #include paths: detect the build system, write one -I<dir> line per header search directory, and confirm no headers are reported missing. If the build system can export compile_commands.json instead, prefer that.')).then(() => {
+    navigator.clipboard.writeText(t(COMPILE_DB_PROMPT)).then(() => {
       setDbPromptCopied(true)
       setTimeout(() => setDbPromptCopied(false), 1500)
     })
@@ -1817,7 +1819,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
               </div>
               <div className="px-3 pb-1 max-w-[380px]">
                 <div className="px-2 py-1.5 rounded border border-ide-border bg-ide-panel text-[10px] text-ide-text-muted leading-snug select-text max-h-24 overflow-y-auto">
-                  {t('Create a compile_flags.txt in this project\'s root so clangd can resolve #include paths: detect the build system, write one -I<dir> line per header search directory, and confirm no headers are reported missing. If the build system can export compile_commands.json instead, prefer that.')}
+                  {t(COMPILE_DB_PROMPT)}
                 </div>
               </div>
               <button

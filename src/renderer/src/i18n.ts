@@ -488,7 +488,7 @@ const ZH_MAP: Record<string, string> = {
   '{hits} results in {files} files': '{files} 个文件中有 {hits} 个结果',
   'Language server starting — retry in a moment': '语言服务器启动中 — 请稍后重试',
   "clangd can't resolve header includes without a compile database, and this project has none": 'clangd 缺少编译数据库，无法解析 #include 的头文件路径；当前工程里没有',
-  "Create a compile_flags.txt in this project's root so clangd can resolve #include paths: detect the build system, write one -I<dir> line per header search directory, and confirm no headers are reported missing. If the build system can export compile_commands.json instead, prefer that.": '请在工程根目录创建 compile_flags.txt 供 clangd 解析 #include 路径：先识别构建系统，把每个头文件搜索目录各写成一行 -I<目录>，再确认不再提示找不到头文件。若构建系统能直接导出 compile_commands.json，优先用它。',
+  "Create a compile_flags.txt in this project's root so clangd can resolve #include paths: detect the build system, write one -I<dir> line per header search directory, and confirm no headers are reported missing. If the build system can export compile_commands.json instead, prefer that. This IDE ships its own clangd, so no install is needed — use it to verify the result.": '请在工程根目录创建 compile_flags.txt 供 clangd 解析 #include 路径：先识别构建系统，把每个头文件搜索目录各写成一行 -I<目录>，再确认不再提示找不到头文件。若构建系统能直接导出 compile_commands.json，优先用它。本 IDE 自带 clangd，无需另外安装，可直接用它验证配置是否生效。',
   'Copy prompt': '复制提示词',
   'Generate compile_flags.txt (-I<project root>)': '生成 compile_flags.txt（写入 -I<工程根>）',
   'Generating...': '生成中...',

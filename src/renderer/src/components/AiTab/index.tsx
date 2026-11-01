@@ -1371,7 +1371,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                             border-t border-ide-border/30">
               {/* LEFT: plus + mode selector + last file */}
               <div className="ai-tab__toolbar-left flex items-center gap-2 min-w-0">
-                <div className="ai-tab__toolbar-controls flex items-center gap-0 shrink-0">
+                <div className="ai-tab__toolbar-controls flex items-center gap-0 min-w-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -1387,7 +1387,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       setSlashSelectedIndex(0)
                       inputRef.current?.focus({ preventScroll: true })
                     }}
-                    className={`ai-tab__plus-btn w-7 h-7 flex items-center justify-center rounded-lg
+                    className={`ai-tab__plus-btn shrink-0 w-7 h-7 flex items-center justify-center rounded-lg
                                 transition-colors ${
                                   slashMenuOpen
                                     ? 'bg-ide-accent/15 text-ide-accent'
