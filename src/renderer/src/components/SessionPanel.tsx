@@ -956,6 +956,13 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       <path d="M7 2v4.17a3 3 0 0 0 .59 1.8L12 13l4.41-5.03A3 3 0 0 0 17 6.17V2" />
     </svg>
   )
+  const tidyIcon = (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
+      <path d="M12 2v8" />
+      <path d="M8 10h8l2.5 11h-13z" />
+      <path d="M9.5 13l-1 8M12 13v8M14.5 13l1 8" />
+    </svg>
+  )
   const handleSendAppendCmd = () => {
     if (!appendCmdDraft.trim() || !appendCmdSessionId) return
     onSwitchSession(appendCmdSessionId)
@@ -2093,11 +2100,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                               onTidySessionsInGroup?.(group.cwd)
                             }}
                           >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
-                              <path d="M12 2v8" />
-                              <path d="M8 10h8l2.5 11h-13z" />
-                              <path d="M9.5 13l-1 8M12 13v8M14.5 13l1 8" />
-                            </svg>
+                            {tidyIcon}
                             <span>{t('Tidy Up')}</span>
                           </button>
                         )}
@@ -2168,13 +2171,23 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         {/* 悬停列表空白处才浮出：新建工作区（虚线框），占位常在避免 hover 时列表跳动；显隐判定见 globals.css */}
         {sessionGroups.length > 0 && (
           <div className="session-panel__new-workspace pt-2 transition-opacity">
-            <button
-              onClick={() => onCreateSession(termType)}
-              className="w-full h-8 flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-ide-border text-xs text-ide-text-muted hover:text-ide-text hover:border-ide-accent hover:bg-ide-hover transition-colors"
-            >
-              <FolderPlus size={14} />
-              {t('New Workspace')}
-            </button>
+            <div className="h-8 flex items-stretch rounded-lg border border-dashed border-ide-border hover:border-ide-accent overflow-hidden transition-colors">
+              <button
+                onClick={() => onCreateSession(termType)}
+                className="flex-1 min-w-0 flex items-center justify-center gap-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-colors"
+              >
+                <FolderPlus size={14} />
+                {t('New')}
+              </button>
+              <button
+                onClick={() => onTidyAllSessions?.()}
+                className="flex-1 min-w-0 flex items-center justify-center gap-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover border-l border-dashed border-ide-border transition-colors"
+                title={t('Sort by latest reply (newest first) and clean sessions still using default names')}
+              >
+                {tidyIcon}
+                {t('Tidy Up')}
+              </button>
+            </div>
           </div>
         )}
         </div>
@@ -2461,11 +2474,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               setEmptyAreaMenu(null)
             }}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-ide-text-muted shrink-0">
-              <path d="M12 2v8" />
-              <path d="M8 10h8l2.5 11h-13z" />
-              <path d="M9.5 13l-1 8M12 13v8M14.5 13l1 8" />
-            </svg>
+            {tidyIcon}
             {t('Tidy Up')}
           </button>
           <button
