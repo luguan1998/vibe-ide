@@ -301,6 +301,10 @@ type CenterView = 'terminal' | 'files' | 'browser' | 'search' | 'board'
 // 右栏是否处于宽栏模式（承当主内容区）：文件 tab / 网页调试落右栏的同一判据
 const isRightPanelWide = (collapsed: boolean, width: number) => !collapsed && width >= PANEL_TAB_RAIL_MIN_W
 
+// cwd 桶键：分隔符/尾斜杠/大小写归一（Windows 路径大小写不敏感），按 cwd 分桶的状态共用
+const cwdBucketKey = (cwd: string | null | undefined) => (cwd ?? '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+const EMPTY_RECENT: RecentFileEntry[] = []
+
 type OpenFileMode = 'auto' | 'edit' | 'diff'
 
 interface OpenFileOpts {
@@ -583,30 +587,10 @@ export default function App() {
   const [navigateToFilePayload, setNavigateToFilePayload] = useState<{ trigger: number; filePath: string } | null>(null)
 
   // ── Recently opened files (in-memory only, not persisted) ──
-  const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>([])
-  const [lastOpenedFile, setLastOpenedFile] = useState<RecentFileEntry | null>(null)
-
-  const recordRecentFile = useCallback((fullPath: string, lineNumber?: number, endLineNumber?: number) => {
-    if (!fullPath) return
-    const line = typeof lineNumber === 'number' && lineNumber > 0 ? lineNumber : undefined
-    const endLine = typeof endLineNumber === 'number' && endLineNumber > 0 ? endLineNumber : undefined
-    const entry = { path: fullPath, line, endLine }
-    setLastOpenedFile(entry)
-    const norm = (p: string) => p.replace(/\\/g, '/')
-    const target = norm(fullPath)
-    setRecentFiles(prev => {
-      const existingIdx = prev.findIndex(r => norm(r.path) === target)
-      if (existingIdx >= 0) {
-        const existing = prev[existingIdx]
-        const mergedLine = line ?? existing.line
-        const mergedEndLine = endLine ?? existing.endLine
-        if (existing.line === mergedLine && existing.endLine === mergedEndLine) return prev
-        return prev.map((r, i) => i === existingIdx ? { ...r, line: mergedLine, endLine: mergedEndLine } : r)
-      }
-      const next = [{ path: fullPath, line, endLine }, ...prev]
-      return next.length <= 7 ? next : next.slice(0, 7)
-    })
-  }, [])
+  // 按 cwd 分桶：切到另一个仓库会话时，最近文件列表不能串台（桶键用 cwdBucketKey）
+  const [recentFilesByCwd, setRecentFilesByCwd] = useState<Record<string, RecentFileEntry[]>>({})
+  const [lastOpenedByCwd, setLastOpenedByCwd] = useState<Record<string, RecentFileEntry | null>>({})
+  const recentFiles = recentFilesByCwd[cwdBucketKey(activeSessionCwd)] ?? EMPTY_RECENT
 
   // Line history payload — triggered by Monaco right-click "View Line History"
   const [lineHistoryPayload, setLineHistoryPayload] = useState<{ filePath: string; lineNumber: number; rev?: string; staged?: boolean } | null>(null)
@@ -627,6 +611,40 @@ export default function App() {
   const manuallyRenamedRef = useRef<Set<string>>(new Set())
   const commandHistoryRef = useRef(commandHistory)
   const historyListRef = useRef<HTMLDivElement>(null)
+
+  const recordRecentFile = useCallback((fullPath: string, lineNumber?: number, endLineNumber?: number) => {
+    if (!fullPath) return
+    const line = typeof lineNumber === 'number' && lineNumber > 0 ? lineNumber : undefined
+    const endLine = typeof endLineNumber === 'number' && endLineNumber > 0 ? endLineNumber : undefined
+    const entry = { path: fullPath, line, endLine }
+    // 桶按「文件落在哪个 cwd 下」取最长前缀匹配，与记录时机无关（切会话确认弹窗延迟 flush 时 active 已变，按 active 归桶会串台）
+    const fp = fullPath.replace(/\\/g, '/').toLowerCase()
+    let bucketKey = ''
+    let bestLen = -1
+    for (const s of sessionsRef.current) {
+      const c = cwdBucketKey(s.cwd)
+      if (c && fp.startsWith(c + '/') && c.length > bestLen) { bucketKey = c; bestLen = c.length }
+    }
+    if (!bucketKey) bucketKey = cwdBucketKey(sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd)
+    setLastOpenedByCwd(prev => (prev[bucketKey]?.path === entry.path && prev[bucketKey]?.line === entry.line && prev[bucketKey]?.endLine === entry.endLine) ? prev : { ...prev, [bucketKey]: entry })
+    const norm = (p: string) => p.replace(/\\/g, '/')
+    const target = norm(fullPath)
+    setRecentFilesByCwd(prev => {
+      const prevList = prev[bucketKey] ?? []
+      const existingIdx = prevList.findIndex(r => norm(r.path) === target)
+      if (existingIdx >= 0) {
+        const existing = prevList[existingIdx]
+        const mergedLine = line ?? existing.line
+        const mergedEndLine = endLine ?? existing.endLine
+        if (existing.line === mergedLine && existing.endLine === mergedEndLine) return prev
+        const nextList = prevList.map((r, i) => i === existingIdx ? { ...r, line: mergedLine, endLine: mergedEndLine } : r)
+        return { ...prev, [bucketKey]: nextList }
+      }
+      const nextList = [{ path: fullPath, line, endLine }, ...prevList]
+      return { ...prev, [bucketKey]: nextList.length <= 7 ? nextList : nextList.slice(0, 7) }
+    })
+  }, [])
+
   const [terminalBusy, setTerminalBusy] = useState<Record<string, boolean>>({})
   const [aiBusy, setAiBusy] = useState<Record<string, boolean>>({})
   const [idleSoundEnabled, setIdleSoundEnabled] = useState(() => {
@@ -4004,7 +4022,7 @@ export default function App() {
                         onGraphForkWorktree={(node: AiGraphNode) => handleGraphForkWorktree(session.id, node)}
                         onAgentStatusChange={handleAiAgentStatusChange}
                         brushActive={brushActive}
-                        lastOpenedFile={lastOpenedFile}
+                        lastOpenedFile={lastOpenedByCwd[cwdBucketKey(session.cwd)] ?? null}
                         branchRevision={branchRevision}
                         graphOpen={graphOpenFor === session.id}
                         graphDockedRight={graphOnRight}
