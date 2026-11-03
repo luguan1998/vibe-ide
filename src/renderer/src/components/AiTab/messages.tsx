@@ -201,7 +201,7 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
       {...(userMessageIndex >= 0 ? { 'data-user-turn': userMessageIndex } : undefined)}
     >
       <div className="ai-tab__message-wrap max-w-[85%] relative">
-        <div className="ai-tab__user-bubble px-3 py-2 rounded-2xl bg-ide-accent/12 border-2 border-ide-accent/30 text-ide-text whitespace-pre-wrap">
+        <div className="ai-tab__user-bubble px-3 py-2 rounded-2xl bg-ide-accent/12 border-2 border-ide-accent/30 text-ide-text whitespace-pre-wrap break-words">
           {cleanedContent}
         </div>
 
@@ -824,12 +824,34 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
   }
   flushReads()
 
-  // 回合内的"有价值正文" = 后面挂着 meta 行（复制 / fork / 时间）的正文段。
-  // 带 meta 的 result 行承接它前面最近的一段主会话正文；无 result 行的历史回合由末段正文自承 meta
+  // 回合内的"有价值正文" = 收尾正文组：最后一个工具/子代理动作之后未被打断的连续正文段。
+  // 收尾可以有多段正文（task-notification 插话后的补充回答、先结论后补充），只留末段会把
+  // 同属收尾的前段误折进摘要行。带 meta 的 result 行承接它前面最近的正文段并点亮同组其余段；
+  // 无 result 行的历史回合由组末段自承 meta
   const answerIdx = new Set<number>()
   const selfMetaIdx = new Set<number>()
   // result 行的复制文本 = 它承接的那段正文，与 answerIdx 同一趟判定，避免两处启发式漂移
   const resultCopyText = new Map<number, string>()
+  // 无 meta result 的回合：组末段自承 meta，复制文本同样取整组
+  const selfMetaCopyText = new Map<number, string>()
+  // 过程动作（切断收尾正文组）：question 工具是用户决策卡（渲染时拆出常显），不算过程动作
+  const hasWork = (m: AiMessage) =>
+    !!(m.toolResult || m.parentToolUseId || m.toolUse?.some(t => getToolCategory(t.name) !== 'question'))
+  const extendAnswerStretch = (anchor: number) => {
+    // 从锚点向前收拢再反转成时间序（unshift 在长收尾组里是 O(n²)）
+    const stretch = [anchor]
+    // live 模式下同 id 的正文+工具合并成一条：自带工具意味着它之前的正文先于工具动作，不延伸
+    if (!hasWork(messages[anchor])) {
+      for (let k = anchor - 1; k >= 0 && turnOf[k] === turnOf[anchor]; k--) {
+        const m = messages[k]
+        if (hasWork(m)) break
+        if (m.type === 'assistant' && m.content) stretch.push(k)
+      }
+      stretch.reverse()
+    }
+    for (const k of stretch) answerIdx.add(k)
+    return stretch
+  }
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i]
     if (m.type !== 'result' || m.parentToolUseId) continue
@@ -839,25 +861,41 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
       // 子代理消息与工具回填都夹在主 result 与主回复之间，属本回合内部噪音
       if (prev.parentToolUseId || prev.toolResult) continue
       if (prev.type === 'assistant' && prev.content) {
-        answerIdx.add(j)
-        resultCopyText.set(i, prev.content)
+        const stretch = extendAnswerStretch(j)
+        // 复制文本 = 整个收尾正文组（组内各段按序拼接）
+        resultCopyText.set(i, stretch.map(k => messages[k].content).join('\n\n'))
         break
       }
       if (prev.type !== 'assistant') break
     }
   }
+  let contentStretch: number[] = []
   let lastContent = -1
+  const flushStretch = () => {
+    // 无收尾正文（回合停在工具上）时回退到该回合最后一段正文，与旧"留末段"口径一致
+    const answers = contentStretch.length > 0 ? contentStretch : (lastContent >= 0 ? [lastContent] : [])
+    if (answers.length > 0 && !turnStats[turnOf[answers[answers.length - 1]]]?.metaResult) {
+      for (const idx of answers) answerIdx.add(idx)
+      const last = answers[answers.length - 1]
+      selfMetaIdx.add(last)
+      selfMetaCopyText.set(last, answers.map(k => messages[k].content).join('\n\n'))
+    }
+    contentStretch = []
+    lastContent = -1
+  }
   for (let i = 0; i <= messages.length; i++) {
     const m = messages[i]
     if (i === messages.length || isRealUserInput(messages, i)) {
-      if (lastContent >= 0 && !turnStats[turnOf[lastContent]]?.metaResult) {
-        answerIdx.add(lastContent)
-        selfMetaIdx.add(lastContent)
-      }
-      lastContent = -1
+      flushStretch()
       continue
     }
-    if (m.type === 'assistant' && !m.parentToolUseId && m.content) lastContent = i
+    // 子代理正文既不算收尾段也不切断（与 result 承接扫描同一口径）
+    if (m.parentToolUseId) continue
+    if (m.type === 'assistant' && m.content) lastContent = i
+    // 自带工具的合并条（正文先于自己的工具）属动作前叙事，只切断不收组；
+    // 回合恰好停在它上面时由 lastContent 回退承接，与 result 承接扫描同一口径
+    if (hasWork(m)) contentStretch = []
+    else if (m.type === 'assistant' && m.content) contentStretch.push(i)
   }
   // 未被 meta 行承接的正文与工具/thinking 一样收进回合摘要行
   const answerCountByTurn = new Map<number, number>()
@@ -902,7 +940,7 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
       copyText = resultCopyText.get(item.index)
       if (allowHistory) forkIdx = userCountBefore[item.index] - 1
     } else if (isAnswer && !ongoing && msg.type === 'assistant' && selfMetaIdx.has(item.index)) {
-      copyText = msg.content || undefined
+      copyText = selfMetaCopyText.get(item.index) ?? (msg.content || undefined)
       if (allowHistory) forkIdx = userCountBefore[item.index] - 1
     }
 
