@@ -528,6 +528,15 @@ export default function App() {
   // source 决定浮层数据源与左上角徽标（by CodeGraph / by LSP · tsserver）
   const [callGraphFocalNode, setCallGraphFocalNode] = useState<{ node: any; source: 'codegraph' | 'lsp'; serverLabel?: string } | null>(null)
   const callGraphFocalNodeRef = useRef<any>(null); callGraphFocalNodeRef.current = callGraphFocalNode
+  // 调用图是工作区级视图：cwd 变了旧图即失效（LSP 实例退役、跳转路径解析错），直接关掉。
+  // 与 applySessionTabPolicy 同一套 cwd 归一化，同 cwd 不同写法的会话不误清
+  const callGraphPrevCwdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const norm = (p: string | null) => (p ?? '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+    const prev = callGraphPrevCwdRef.current
+    callGraphPrevCwdRef.current = activeSessionCwd
+    if (prev && norm(prev) !== norm(activeSessionCwd)) setCallGraphFocalNode(null)
+  }, [activeSessionCwd])
   const [callGraphPanelH, setCallGraphPanelH] = useState(() => Math.round(window.innerHeight * 0.42))
   const handleCallGraphResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
