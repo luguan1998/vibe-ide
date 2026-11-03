@@ -16,11 +16,11 @@ const RANK_GAP = 34
 const NODE_SEP = 8
 const HEADER_H = 34
 const FONT_SIZE = 12
-/** LSP 侧初始自动铺开：调用者 2 层、被调用者 3 层（上游比下游涨得快），每方向节点总数封顶。
+/** LSP 侧初始自动铺开：调用者 2 层、被调用者 1 层（与 codegraph 一致），每方向节点总数封顶。
  *  再往里的靠点节点上的 + 手动展开。
  *  codegraph 那条不走这里 —— 它一次请求就能拿到三层调用者链，保持原样别动 */
 const LSP_AUTO_DEPTH_CALLERS = 2
-const LSP_AUTO_DEPTH_CALLEES = 3
+const LSP_AUTO_DEPTH_CALLEES = 1
 const LSP_AUTO_BUDGET = 45
 /** 文本可用横向空间 = 卡片宽 - 左图标片 - 两侧留白（右侧展开按钮外置，不占位） */
 const PAD_L = 26
