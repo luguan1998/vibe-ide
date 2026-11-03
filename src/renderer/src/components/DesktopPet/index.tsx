@@ -12,7 +12,6 @@ import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
 import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi } from './petSettings'
 import { readAiCliConfig } from '../../aiStore'
 import { AiReplyBubble } from './AiReplyBubble'
-import { ChatMarkdown } from '../AiTab'
 import { addInterjectRecord, loadInterjectRecords, removeInterjectRecord, setInterjectReply, type InterjectRecord } from './interjectHistory'
 
 const CONTEXT_SIDE_SPACE = 228
@@ -52,7 +51,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [latestReply, setLatestReply] = useState<{ messageId: string; text: string } | null>(null)
   const [replyBtw, setReplyBtw] = useState(false)
   const [interjectRecords, setInterjectRecords] = useState<InterjectRecord[]>(() => activeSessionId ? loadInterjectRecords(activeSessionId) : [])
-  const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null)
   const [dragDir, setDragDir] = useState<'left' | 'right' | null>(null)
 
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -92,7 +90,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
 
   useEffect(() => {
     setInterjectRecords(activeSessionId ? loadInterjectRecords(activeSessionId) : [])
-    setExpandedRecordId(null)
   }, [activeSessionId])
 
   const prevVisibleRef = useRef(visible)
@@ -554,7 +551,10 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                     title={r.text}
                     onClick={r.reply ? () => {
                       if ((window.getSelection()?.toString() || '').trim()) return
-                      setExpandedRecordId(v => v === r.id ? null : r.id)
+                      setLatestReply({ messageId: `history-${r.id}`, text: r.reply })
+                      setReplyBtw(true)
+                      setAiBubbleOpen(true)
+                      setPopupOpen(false)
                     } : undefined}
                   >
                     <span className="desktop-pet__bubble-text">{r.text}</span>
@@ -562,7 +562,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                       className="desktop-pet__bubble-remove"
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (expandedRecordId === r.id) setExpandedRecordId(null)
                         if (activeSessionId) setInterjectRecords(removeInterjectRecord(activeSessionId, r.id))
                       }}
                       title="删除记录"
@@ -570,11 +569,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                       <X size={10} />
                     </button>
                   </div>
-                  {expandedRecordId === r.id && r.reply && (
-                    <div className="desktop-pet__ai-reply desktop-pet__ai-reply--inline">
-                      <ChatMarkdown text={r.reply} workspacePath={null} />
-                    </div>
-                  )}
                 </div>
               ))}
             </div>

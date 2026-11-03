@@ -11,7 +11,9 @@ export const AiReplyBubble = React.memo(function AiReplyBubble({ text, align = '
           <X size={12} />
         </button>
       )}
-      <ChatMarkdown text={text} workspacePath={null} />
+      <div className="desktop-pet__ai-reply-scroll">
+        <ChatMarkdown text={text} workspacePath={null} />
+      </div>
     </div>
   )
 })
