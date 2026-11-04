@@ -1117,7 +1117,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     : aiStore.handleAskUserQuestion
 
   const inputArea = (
-      <div className={`ai-tab__input-area relative shrink-0 w-full ${PANEL_MAX_W} mx-auto px-2 pt-2 pb-0`}>
+      <div className={`ai-tab__input-area relative shrink-0 w-full ${PANEL_MAX_W} mx-auto px-2 py-2`}>
         <div
           onPointerDown={(e) => startContentResize(e, -1)}
           title={t('Resize width')}
