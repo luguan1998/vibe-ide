@@ -4165,7 +4165,6 @@ export default function App() {
             onWorktreeNavChange={setWorktreeBrowseNav}
             onDiffScroll={handleDiffScroll}
             onHunkNav={handleHunkNav}
-            onToggleCollapse={handleToggleRightPanel}
             capsuleTabs={capsuleTabs}
             onToggleCapsuleTabs={() => setCapsuleTabs(v => !v)}
             panelWide={rightPanelWidth >= PANEL_TAB_RAIL_MIN_W}

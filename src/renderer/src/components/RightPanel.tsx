@@ -38,7 +38,6 @@ interface RightPanelProps {
   onOpenFileInBrowser?: (fullPath: string) => void
   onDiffScroll?: (delta: number) => void
   onHunkNav?: () => void
-  onToggleCollapse?: () => void
   capsuleTabs?: boolean
   onToggleCapsuleTabs?: () => void
   navigateToFilePayload?: { trigger: number; filePath: string } | null
@@ -66,6 +65,10 @@ interface RightPanelProps {
 }
 
 type GitSection = 'git' | 'terminal' | 'file' | 'game'
+
+// 停靠覆盖层（网状会话 / 网页调试）：整栏铺满，卡片外框与右栏内容区同一套
+const DOCK_SHELL_CLS = 'absolute inset-0 z-30 flex flex-col px-1 pt-0.5 pb-2'
+const DOCK_CARD_CLS = 'flex-1 min-h-0 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden right-panel__content'
 
 const ALL_SECTIONS: GitSection[] = ['file', 'git', 'terminal', 'game']
 
@@ -242,7 +245,6 @@ function TabBar({
   visibleTabs,
   onReorder,
   onToggleVisibility,
-  onToggleCollapse,
   capsuleTabs = true,
   onToggleCapsuleTabs,
   divided = false,
@@ -253,7 +255,6 @@ function TabBar({
   visibleTabs: Record<GitSection, boolean>
   onReorder: (fromSection: GitSection, toSection: GitSection) => void
   onToggleVisibility: (s: GitSection) => void
-  onToggleCollapse?: () => void
   capsuleTabs?: boolean
   onToggleCapsuleTabs?: () => void
   divided?: boolean
@@ -395,7 +396,6 @@ function RightPanel({
   clearAuxBufferTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenFileInBrowser,
   onDiffScroll,
   onHunkNav,
-  onToggleCollapse,
   capsuleTabs = true,
   onToggleCapsuleTabs,
   navigateToFilePayload, onNavigateToFile,
@@ -595,7 +595,6 @@ function RightPanel({
       visibleTabs={visibleTabs}
       onReorder={handleReorder}
       onToggleVisibility={handleToggleVisibility}
-      onToggleCollapse={onToggleCollapse}
       capsuleTabs={splitWide ? false : capsuleTabs}
       onToggleCapsuleTabs={onToggleCapsuleTabs}
       divided={divided}
@@ -618,7 +617,7 @@ function RightPanel({
       {!splitWide && renderTabBar()}
 
       <div className={`relative flex-1 min-h-0 mx-1 mb-2 mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex right-panel__content ${splitWide ? 'flex-row' : 'flex-col'}${splitDragging ? ' select-none cursor-col-resize' : ''}`}>
-        {contentOverlay && !splitWide && (
+        {contentOverlay && !splitWide && contentOverlayKind !== 'graph' && (
           <div className="absolute inset-0 z-20 flex flex-col bg-ide-sidebar">{contentOverlay}</div>
         )}
 
@@ -737,17 +736,26 @@ function RightPanel({
 
       </div>
 
-      {/* 网页调试停靠：整栏占满，Tab 栏一并不显示 */}
+      {/* 网状会话停靠（走 contentOverlay 通道）：整栏占满、带边框卡片（与内容区同款），Tab 栏一并不显示 */}
+      {contentOverlayKind === 'graph' && contentOverlay && (
+        <div className={DOCK_SHELL_CLS}>
+          <div className={DOCK_CARD_CLS}>{contentOverlay}</div>
+        </div>
+      )}
+
+      {/* 网页调试停靠：整栏占满、带边框卡片（与内容区同款），Tab 栏一并不显示 */}
       {browserDocked && (
-        <div className="absolute inset-0 z-30 flex flex-col bg-ide-bg">
-          <BrowserView
-            ref={browserViewRef ?? undefined}
-            docked
-            onBack={onBrowserBack ?? (() => {})}
-            onAnnotate={onBrowserAnnotate ?? (() => {})}
-            onToggleDock={onBrowserToggleDock}
-            workspacePath={workspacePath}
-          />
+        <div className={DOCK_SHELL_CLS}>
+          <div className={DOCK_CARD_CLS}>
+            <BrowserView
+              ref={browserViewRef ?? undefined}
+              docked
+              onBack={onBrowserBack ?? (() => {})}
+              onAnnotate={onBrowserAnnotate ?? (() => {})}
+              onToggleDock={onBrowserToggleDock}
+              workspacePath={workspacePath}
+            />
+          </div>
         </div>
       )}
 
