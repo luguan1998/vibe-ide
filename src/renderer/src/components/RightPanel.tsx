@@ -68,7 +68,7 @@ type GitSection = 'git' | 'terminal' | 'file' | 'game'
 
 // 停靠覆盖层（网状会话 / 网页调试）：整栏铺满，卡片外框与右栏内容区同一套
 const DOCK_SHELL_CLS = 'absolute inset-0 z-30 flex flex-col px-1 pt-0.5 pb-2'
-const DOCK_CARD_CLS = 'flex-1 min-h-0 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden right-panel__content'
+const DOCK_CARD_CLS = 'flex-1 min-h-0 flex flex-col bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden right-panel__content'
 
 const ALL_SECTIONS: GitSection[] = ['file', 'git', 'terminal', 'game']
 
@@ -457,12 +457,17 @@ function RightPanel({
     window.addEventListener('mouseup', onUp)
   }, [splitRightWidth])
 
+  // 右栏图层互斥：一次只画一层。absolute 盖住≠隐藏，透明主题下叠层会层层透出串色
+  // dockKind 为独占停靠层（browser 盖 graph，同旧 DOM 渲染序）；独占时基础层整体 display:none
+  const dockKind: 'browser' | 'graph' | null =
+    browserDocked ? 'browser' : contentOverlayKind === 'graph' && contentOverlay ? 'graph' : null
   // 宽栏下右栏统一拆两列：右列固定宽度的树 / 变更 / 终端 / Nga，左列文件预览（四栏布局）
-  // 文件落中栏（宽栏是打开后才拖宽的）时不拆，避免预览列空占位；网页调试停靠时整栏独占
+  // 文件落中栏（宽栏是打开后才拖宽的）时不拆，避免预览列空占位
   const splitWide = !!panelWide
-    && !browserDocked
-    && contentOverlayKind !== 'graph'
+    && !dockKind
     && (!!contentOverlay || contentOverlayKind == null)
+  // 窄栏文件预览：卡片内嵌独占内容区，四个 tab 区隐藏保活（不再 absolute 叠加）
+  const filesNarrow = !!contentOverlay && !splitWide && contentOverlayKind !== 'graph'
 
   // 切 tab 时聚焦到 tab 内容（search tab 需聚焦到输入框）
   const gitContentRef = useRef<HTMLDivElement>(null)
@@ -614,12 +619,11 @@ function RightPanel({
 
   return (
     <div className="flex flex-col h-full right-panel relative">
-      {!splitWide && renderTabBar()}
+      {!splitWide && !dockKind && renderTabBar()}
 
-      <div className={`relative flex-1 min-h-0 mx-1 mb-2 mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex right-panel__content ${splitWide ? 'flex-row' : 'flex-col'}${splitDragging ? ' select-none cursor-col-resize' : ''}`}>
-        {contentOverlay && !splitWide && contentOverlayKind !== 'graph' && (
-          <div className="absolute inset-0 z-20 flex flex-col bg-ide-sidebar">{contentOverlay}</div>
-        )}
+      <div
+        style={{ display: dockKind ? 'none' : undefined }}
+        className={`relative flex-1 min-h-0 mx-1 mb-2 mt-0.5 bg-ide-sidebar border border-ide-border rounded-lg overflow-hidden flex right-panel__content ${splitWide ? 'flex-row' : 'flex-col'}${splitDragging ? ' select-none cursor-col-resize' : ''}`}>
 
       {splitWide && (
         <div className="flex-1 min-w-0 flex flex-col min-h-0">
@@ -670,7 +674,7 @@ function RightPanel({
 
       <div className={splitWide ? 'shrink-0 flex flex-col min-h-0' : 'contents'} style={splitWide ? { width: splitRightWidth, maxWidth: 'calc(100% - 200px)' } : undefined}>
       {splitWide && renderTabBar(true)}
-      <div ref={gitContentRef} tabIndex={-1} style={{ display: activeSection === 'git' ? 'flex' : 'none' }} className="group flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
+      <div ref={gitContentRef} tabIndex={-1} style={{ display: !filesNarrow && activeSection === 'git' ? 'flex' : 'none' }} className="group flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <GitTab
           workspacePath={workspacePath}
           effectiveGitPath={effectiveGitPath}
@@ -692,7 +696,7 @@ function RightPanel({
         />
       </div>
 
-      <div ref={terminalContentRef} tabIndex={-1} style={{ display: activeSection === 'terminal' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
+      <div ref={terminalContentRef} tabIndex={-1} style={{ display: !filesNarrow && activeSection === 'terminal' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col outline-none focus:outline-none">
         <AuxTab
           rightTerminalSessions={rightTerminalSessions ?? {}}
           activeSessionId={activeSessionId ?? null}
@@ -710,7 +714,7 @@ function RightPanel({
         />
       </div>
 
-      <div ref={fileContentRef} tabIndex={-1} style={{ display: activeSection === 'file' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden">
+      <div ref={fileContentRef} tabIndex={-1} style={{ display: !filesNarrow && activeSection === 'file' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden">
         <FileTab
           workspacePath={workspacePath}
           onOpenFileFromExplorer={onOpenFileFromExplorer}
@@ -729,22 +733,26 @@ function RightPanel({
         />
       </div>
 
-      <div ref={gameContentRef} tabIndex={-1} style={{ display: activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden relative">
+      <div ref={gameContentRef} tabIndex={-1} style={{ display: !filesNarrow && activeSection === 'game' ? 'flex' : 'none' }} className="flex-1 flex flex-col outline-none focus:outline-none overflow-hidden relative">
         <GameLauncher workspacePath={workspacePath} panelWide={panelWide && !splitWide} onOpenFileFromExplorer={onOpenFileFromExplorer} onPreviewMarkdown={onPreviewMarkdown} onOpenBrowser={onOpenBrowser} onOpenSessionHistory={onOpenSessionHistory} />
       </div>
       </div>
 
+      {/* 窄栏文件预览：内嵌填满内容区（tab 区保活隐藏） */}
+      {filesNarrow && (
+        <div className="flex-1 min-h-0 flex flex-col">{contentOverlay}</div>
+      )}
+
       </div>
 
-      {/* 网状会话停靠（走 contentOverlay 通道）：整栏占满、带边框卡片（与内容区同款），Tab 栏一并不显示 */}
-      {contentOverlayKind === 'graph' && contentOverlay && (
+      {/* 独占停靠层（网状会话 / 网页调试）：整栏铺满，与内容区同一套卡片外框；盖 graph 而非并挂 */}
+      {dockKind === 'graph' && (
         <div className={DOCK_SHELL_CLS}>
           <div className={DOCK_CARD_CLS}>{contentOverlay}</div>
         </div>
       )}
 
-      {/* 网页调试停靠：整栏占满、带边框卡片（与内容区同款），Tab 栏一并不显示 */}
-      {browserDocked && (
+      {dockKind === 'browser' && (
         <div className={DOCK_SHELL_CLS}>
           <div className={DOCK_CARD_CLS}>
             <BrowserView
