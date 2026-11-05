@@ -7,7 +7,7 @@ import { loadFilterRules } from '../../utils/fileFilter'
 import { aiStore, useAiSession, EMPTY_SESSION, enrichSlashCommands, SLASH_COMMAND_DESCRIPTIONS, readAiCliConfig, takePendingSend } from '../../aiStore'
 import { EXAMPLE_PROMPTS } from '../examplePrompts'
 import { SquareArrowUp, Square, Check, MessageSquarePlus, Plug, GitBranch, Network, X, Plus, Pencil, Send, Monitor, Globe, ChevronDown, Copy, FileText, Sparkles } from 'lucide-react'
-import { formatConversationMarkdown } from '../../utils/aiConversationFormatter'
+import { formatConversationMarkdown, buildSessionDigest } from '../../utils/aiConversationFormatter'
 import { toFileUrl } from '../../utils/filePathUtils'
 import { StreamingMarkdown } from './markdown'
 import ConversationGraph from './ConversationGraph'
@@ -262,6 +262,26 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
     setInputAttachments(prev => {
       if (!prev[sid]?.length) return prev
       return { ...prev, [sid]: [] }
+    })
+  }, [])
+  // 摘要等长文本 chip：点击主体展开到输入框二次编辑（chip 文本前插 textarea，编辑落回 chip）
+  const expandAttachmentToInput = useCallback((id: string) => {
+    const sid = activeSessionIdRef.current
+    if (!sid) return
+    const att = (inputAttachmentsRef.current[sid] || []).find(a => a.id === id)
+    if (!att || att.kind === 'image') return
+    const cur = inputValuesRef.current[sid] || ''
+    setInputValues(prev => ({ ...prev, [sid]: `${att.text}\n${cur}` }))
+    setInputAttachments(prev => {
+      const list = prev[sid]
+      if (!list) return prev
+      return { ...prev, [sid]: list.filter(a => a.id !== id) }
+    })
+    requestAnimationFrame(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.focus({ preventScroll: true })
+      el.selectionStart = el.selectionEnd = att.text.length
     })
   }, [])
   const [dragOverInput, setDragOverInput] = useState(false)
@@ -1226,8 +1246,15 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       className="ai-tab__input-chip ai-tab__input-chip--prompt group inline-flex items-center gap-1.5 h-7 pl-2 pr-1 rounded-full
                                  border border-ide-accent/30 bg-ide-accent/10 max-w-[220px] animate-fade-in"
                     >
-                      <Sparkles size={11} strokeWidth={2} className="shrink-0 text-ide-accent" />
-                      <span className="truncate text-[11px] text-ide-accent">{att.label}</span>
+                      <button
+                        type="button"
+                        onClick={() => expandAttachmentToInput(att.id)}
+                        className="flex items-center gap-1.5 min-w-0 cursor-text"
+                        title={t('Click to edit in the input box')}
+                      >
+                        <Sparkles size={11} strokeWidth={2} className="shrink-0 text-ide-accent" />
+                        <span className="truncate text-[11px] text-ide-accent">{att.label}</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => removeAttachment(att.id)}
@@ -1562,7 +1589,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               </svg>
             </button>
           )}
-          {/* Continue in new session — 新会话但输入框预填上次转录路径，让 CLI 读文件续上上下文 */}
+          {/* Continue in new session — 销毁重建，输入框挂摘要 chip（用户轮/末轮回复/改动文件/完整转录路径），免整读 JSONL */}
           <button
             onClick={async () => {
               if (!activeSessionId || !workspacePath) return
@@ -1570,6 +1597,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               const prevPath = state.messages.length > 0
                 ? await window.api.ai.sessionFilePath(activeSessionId)
                 : null
+              // pi 无 userTurns、claude 首轮进行中 turns 未刷新，都从 messages 派生兜底；闭包持有点击时的 state 快照
+              const prevTurns = (!isPi && state.userTurns.length > 0)
+                ? state.userTurns
+                : deriveUserTurns(state.messages).map(turn => ({ lineIdx: 0, content: turn.content, isInternal: false }))
+              const digest = state.messages.length > 0
+                ? buildSessionDigest(state.messages, prevTurns, state.fileChangesByTurn, prevPath, t)
+                : ''
               handleDestroySession(activeSessionId)
               const { cliCommand, configDir } = readAiCliConfig()
               aiStore.ensureCreated(activeSessionId, {
@@ -1583,8 +1617,9 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 computerUse: state.computerUse,
                 browserUse: state.browserUse,
               })
-              if (prevPath) {
-                setInputValue(t('Previous session transcript: {path}. Read the file first to catch up on our previous context and progress, then continue.').replace('{path}', () => prevPath))
+              if (digest) {
+                addAttachment({ id: `prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, kind: 'prompt', label: t('Previous session summary'), text: digest })
+                setInputValue(t('Continue based on the attached previous-session summary:'))
               }
               onViewAi()
             }}

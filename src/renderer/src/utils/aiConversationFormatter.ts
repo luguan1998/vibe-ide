@@ -1,4 +1,4 @@
-import type { AiMessage, UserTurn } from '@shared/types'
+import type { AiFileChange, AiMessage, UserTurn } from '@shared/types'
 
 export function cleanMessageContent(raw: string): string {
   return raw
@@ -89,4 +89,61 @@ export function formatConversationMarkdown(
   }
 
   return parts.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+// ── 新会话继续：从渲染层内存直接提取摘要，免整读 3MB 级 JSONL ──
+// 段落格式仿 CLI /compact 的续接摘要：开场句 + 编号小节 + 末尾全部用户消息引文清单。
+// 轮次选取：N ≤ 6 全保留；N > 6 首 3 轮 + 末 3 轮，中间省略一行。
+// pi 无 userTurns（仅 claude 填充），调用方传 deriveUserTurns 的结果兜底。
+const DIGEST_TURN_MAX_CHARS = 300
+const DIGEST_LAST_REPLY_MAX_CHARS = 1000
+const DIGEST_FILES_MAX = 20
+
+export function buildSessionDigest(
+  messages: AiMessage[],
+  userTurns: UserTurn[],
+  fileChangesByTurn: AiFileChange[][],
+  transcriptPath: string | null,
+  t: (key: string) => string,
+): string {
+  const isRealTurn = (content: string) => cleanMessageContent(content) !== ''
+  const realTurns = userTurns.filter(turn => !turn.isInternal && isRealTurn(turn.content))
+
+  const sections: { title: string; body: string }[] = []
+  if (realTurns.length > 0) {
+    sections.push({ title: t('Primary request and intent:'), body: truncate(cleanMessageContent(realTurns[0].content), DIGEST_TURN_MAX_CHARS) })
+  }
+
+  const lastReply = [...messages].reverse().find(m => m.role === 'assistant' && m.type === 'assistant' && m.content?.trim())
+  if (lastReply?.content) {
+    sections.push({ title: t('Latest progress:'), body: truncate(lastReply.content.trim(), DIGEST_LAST_REPLY_MAX_CHARS) })
+  }
+
+  const changedFiles = new Map<string, string>()
+  for (const turnChanges of fileChangesByTurn) {
+    for (const change of turnChanges) {
+      if (!changedFiles.has(change.relativePath)) changedFiles.set(change.relativePath, change.action)
+    }
+  }
+  if (changedFiles.size > 0) {
+    const lines = [...changedFiles.entries()].slice(0, DIGEST_FILES_MAX).map(([relPath, action]) => `- ${action} ${relPath}`)
+    if (changedFiles.size > DIGEST_FILES_MAX) lines.push(t('(more files omitted)'))
+    sections.push({ title: t('Files changed:'), body: lines.join('\n') })
+  }
+
+  if (realTurns.length > 0) {
+    const quote = (turn: UserTurn) => `- "${truncate(cleanMessageContent(turn.content), DIGEST_TURN_MAX_CHARS)}"`
+    const lines = realTurns.length > 6
+      ? [...realTurns.slice(0, 3).map(quote), t('({n} middle messages omitted)').replace('{n}', () => String(realTurns.length - 6)), ...realTurns.slice(-3).map(quote)]
+      : realTurns.map(quote)
+    sections.push({ title: t('All user messages:'), body: lines.join('\n') })
+  }
+
+  if (sections.length === 0 && !transcriptPath) return ''
+  const parts: string[] = [t('This session is continued from a previous session in the same workspace. The summary of the previous session:')]
+  sections.forEach((s, i) => parts.push(`${i + 1}. ${s.title}\n${s.body}`))
+  if (transcriptPath) {
+    parts.push(t('Full transcript: {path}. Read it to trace details beyond this summary.').replace('{path}', () => transcriptPath))
+  }
+  return parts.join('\n\n')
 }

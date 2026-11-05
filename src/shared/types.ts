@@ -710,7 +710,7 @@ export interface AiToolResult {
   isError: boolean
 }
 
-interface AiFileChange {
+export interface AiFileChange {
   toolUseId: string
   sessionId: string
   filePath: string
