@@ -1562,10 +1562,14 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
               </svg>
             </button>
           )}
-          {/* New session */}
+          {/* Continue in new session — 新会话但输入框预填上次转录路径，让 CLI 读文件续上上下文 */}
           <button
-            onClick={() => {
+            onClick={async () => {
               if (!activeSessionId || !workspacePath) return
+              // 路径要在 destroy 前取：销毁后主进程 aiSessions 条目即失效
+              const prevPath = state.messages.length > 0
+                ? await window.api.ai.sessionFilePath(activeSessionId)
+                : null
               handleDestroySession(activeSessionId)
               const { cliCommand, configDir } = readAiCliConfig()
               aiStore.ensureCreated(activeSessionId, {
@@ -1579,10 +1583,13 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 computerUse: state.computerUse,
                 browserUse: state.browserUse,
               })
+              if (prevPath) {
+                setInputValue(t('Previous session transcript: {path}. Read the file first to catch up on our previous context and progress, then continue.').replace('{path}', () => prevPath))
+              }
               onViewAi()
             }}
             className="ai-tab__header-btn w-5 h-5 rounded flex items-center justify-center text-ide-text-muted hover:bg-ide-hover hover:text-ide-text transition-colors"
-            title={t('New Session')}
+            title={t('Continue in new session')}
           >
             <MessageSquarePlus size={14} />
           </button>

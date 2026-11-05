@@ -684,6 +684,8 @@ const ZH_MAP: Record<string, string> = {
   'Default type for the New Session button and history restore': '新建会话按钮与历史会话恢复的默认类型',
   'Copy as Markdown': '复制为 Markdown',
   'Copy Session Path': '复制会话路径',
+  'Continue in new session': '以新会话继续',
+  'Previous session transcript: {path}. Read the file first to catch up on our previous context and progress, then continue.': '上次会话的完整记录：{path}。请先读取该文件，了解之前的上下文与进展后在此基础上继续。',
   'Compact Tools': '精简工具',
   'Hide Tools & Think': '隐藏工具和思考',
   'Plan': '计划',
