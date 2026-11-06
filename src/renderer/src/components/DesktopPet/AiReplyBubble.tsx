@@ -7,9 +7,11 @@ export const AiReplyBubble = React.memo(function AiReplyBubble({ text, align = '
   return (
     <div className={`desktop-pet__ai-reply${align !== 'center' ? ` desktop-pet__ai-reply--${align}` : ''}${closable ? ' desktop-pet__ai-reply--with-close' : ''}`}>
       {closable && (
-        <button className="desktop-pet__ai-reply-close" onClick={onClose} title="关闭">
-          <X size={12} />
-        </button>
+        <div className="desktop-pet__ai-reply-head">
+          <button className="desktop-pet__ai-reply-close" onClick={onClose} title="关闭">
+            <X size={10} />
+          </button>
+        </div>
       )}
       <div className="desktop-pet__ai-reply-scroll">
         <ChatMarkdown text={text} workspacePath={null} />

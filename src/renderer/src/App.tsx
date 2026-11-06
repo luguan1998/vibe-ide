@@ -37,6 +37,7 @@ import { useI18n } from './i18n'
 import { cwdStore, useKeptGroups, mergeGroupOrder } from './cwdStore'
 import type { TerminalViewHandle } from './components/TerminalView'
 import { getMainShellType, getAuxShellType } from './utils/shellPrefs'
+import { getLastNewMode } from './utils/sessionModePrefs'
 import { resolveAbsPath, toFileUrl } from './utils/filePathUtils'
 import type { ProgramStatus } from './programStatus'
 import tomoriHeySound from './assets/tomori-hey.mp3'
@@ -3973,7 +3974,7 @@ export default function App() {
             <WelcomeScreen
               isOpening={isOpening}
               onOpenFolder={() => handleCreateSession()}
-              onOpenPath={(path) => handleCreateSessionAt(path)}
+              onOpenPath={(path) => handleNewSessionHere(path, getLastNewMode())}
             />
           )}
           {/* Terminal sessions / AI GUI mode — overlayOnRight 时回落 base 视图(terminal/board)而非恒显示 terminal */}

@@ -979,16 +979,18 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   cursor: default;
   user-select: text;
 }
-.desktop-pet__ai-reply--with-close { padding-right: 28px; }
+/* 叉号不再单占一右栏（原 padding-right: 28px 让叉号和滚动条分成两列）：改为滚动区上方一行右对齐，与滚动条同一条竖列 */
+.desktop-pet__ai-reply--with-close { padding: 2px 4px 10px 12px; }
+.desktop-pet__ai-reply-head {
+  display: flex;
+  justify-content: flex-end;
+}
 .desktop-pet__ai-reply-close {
-  position: absolute;
-  top: 6px;
-  right: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: rgb(var(--ide-sidebar));
   border: 1px solid rgb(var(--ide-border));

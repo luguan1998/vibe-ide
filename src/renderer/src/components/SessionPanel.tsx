@@ -2515,7 +2515,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 <span className="text-[11px] text-ide-text-muted uppercase tracking-wider">{t('Recent Directories')}</span>
                 <button
                   onClick={() => {
-                    for (const d of favCwds) onCloneSession(null, d, termType)
+                    for (const d of favCwds) onNewSessionHere?.(d, newMode)
                     setEmptyAreaMenu(null)
                   }}
                   disabled={favCwds.length === 0}
@@ -2544,7 +2544,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                       <button
                         className="flex items-center gap-2 truncate flex-1 cursor-pointer bg-transparent border-none text-inherit text-sm p-0"
                         onClick={() => {
-                          onCloneSession(null, dir, termType)
+                          onNewSessionHere?.(dir, newMode)
                           setEmptyAreaMenu(null)
                         }}
                       >
