@@ -2105,7 +2105,7 @@ export function registerAiHandlers(): void {
     if (!session) return null
     const usage = session.lastUsage
     const usedTokens = usage ? usedContextTokens(usage) : null
-    return { usedTokens, contextWindow: session.contextWindow ?? null }
+    return { usedTokens, contextWindow: session.contextWindow ?? null, contextPercent: calcContextPercent(usage, session.contextWindow) ?? null }
   })
 
   // Cancel current operation — send interrupt via stdin (CLI handles it gracefully)

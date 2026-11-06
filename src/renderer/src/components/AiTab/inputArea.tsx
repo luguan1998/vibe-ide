@@ -33,7 +33,7 @@ export function ContextBar({ percent, sessionId }: { percent: number | null; ses
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
-  const [info, setInfo] = useState<{ usedTokens: number | null; contextWindow: number | null } | null>(null)
+  const [info, setInfo] = useState<{ usedTokens: number | null; contextWindow: number | null; contextPercent: number | null } | null>(null)
   const ref = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
@@ -60,7 +60,12 @@ export function ContextBar({ percent, sessionId }: { percent: number | null; ses
     setEditing(false)
     setDraft('')
     if (next) {
-      window.api.ai.getContextInfo(sessionId).then(setInfo).catch(() => {})
+      window.api.ai.getContextInfo(sessionId).then(info => {
+        setInfo(info)
+        if (info?.contextPercent != null) {
+          aiStore.updateSession(sessionId, s => ({ ...s, contextPercent: Math.round(info.contextPercent) }))
+        }
+      }).catch(() => {})
     }
   }, [sessionId, open])
 
@@ -79,7 +84,7 @@ export function ContextBar({ percent, sessionId }: { percent: number | null; ses
       if (res?.success && nextPercent != null) {
         aiStore.updateSession(sessionId, s => ({ ...s, contextPercent: Math.round(nextPercent) }))
       }
-      setInfo(prev => ({ usedTokens: prev?.usedTokens ?? null, contextWindow: tokens }))
+      setInfo(prev => ({ usedTokens: prev?.usedTokens ?? null, contextWindow: tokens, contextPercent: prev?.contextPercent ?? null }))
     } catch {}
     setEditing(false)
   }, [sessionId, draft])

@@ -244,7 +244,7 @@ declare global {
         sideQuestion: (sessionId: string, question: string) => Promise<{ success: boolean; response?: string | null; synthetic?: boolean; error?: string }>
         savePastedImage: (data: { buffer: Uint8Array; ext: string }) => Promise<{ path?: string; error?: string }>
         setContextWindow: (sessionId: string, contextWindow: number) => Promise<{ success: boolean; contextPercent?: number | null; error?: string }>
-        getContextInfo: (sessionId: string) => Promise<{ usedTokens: number | null; contextWindow: number | null } | null>
+        getContextInfo: (sessionId: string) => Promise<{ usedTokens: number | null; contextWindow: number | null; contextPercent: number | null } | null>
         setVisible: (visible: boolean) => Promise<void>
         setBusy: (busy: boolean) => void
         onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => any

@@ -330,10 +330,10 @@ export async function setPiThinkingLevel(sessionId: string, level: string): Prom
   return { success: true }
 }
 
-export function piContextInfo(sessionId: string): { usedTokens: number | null; contextWindow: number | null } | null {
+export function piContextInfo(sessionId: string): { usedTokens: number | null; contextWindow: number | null; contextPercent: number | null } | null {
   const session = piSessions.get(sessionId)
   if (!session) return null
-  return { usedTokens: session.usedTokens ?? null, contextWindow: session.contextWindow ?? null }
+  return { usedTokens: session.usedTokens ?? null, contextWindow: session.contextWindow ?? null, contextPercent: contextPercentOf(session) }
 }
 
 export function setPiContextWindow(sessionId: string, contextWindow: number): { success: boolean; contextPercent: number | null } {
