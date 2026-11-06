@@ -49,7 +49,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [listenAi, setListenAi] = useState(() => getPetListenAi())
   const [aiBubbleOpen, setAiBubbleOpen] = useState(false)
   const [latestReply, setLatestReply] = useState<{ messageId: string; text: string } | null>(null)
-  const [replyBtw, setReplyBtw] = useState(false)
   const [interjectRecords, setInterjectRecords] = useState<InterjectRecord[]>(() => activeSessionId ? loadInterjectRecords(activeSessionId) : [])
   const [dragDir, setDragDir] = useState<'left' | 'right' | null>(null)
 
@@ -149,7 +148,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       if (!r?.text || r.messageId === lastShownReplyIdRef.current) return
       lastShownReplyIdRef.current = r.messageId
       setLatestReply({ messageId: r.messageId, text: r.text })
-      setReplyBtw(false)
       setPopupOpen(false)
       setAiBubbleOpen(true)
     })
@@ -340,7 +338,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
           if (pending.sessionId === activeSessionId) setInterjectRecords(next)
         }
       }
-      setReplyBtw(true)
       setAiBubbleOpen(true)
     }
     window.addEventListener(BTW_REPLY_EVENT, handler)
@@ -357,7 +354,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         if (cr?.text) {
           lastShownReplyIdRef.current = cr.messageId
           setLatestReply({ messageId: cr.messageId, text: cr.text })
-          setReplyBtw(false)
           setAiBubbleOpen(true)
         }
         if (!listenAi) window.api.ai.stopReplyCursor(activeSessionId)
@@ -382,19 +378,19 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     return () => cancelAnimationFrame(id)
   }, [contextOpen, contextBtw])
 
-  // 点面板外关闭 popup/context；旁路气泡只能叉号/ESC 关，其余来源气泡点外仍关
+  // 点面板外关闭 popup/context/AI 回复气泡
   useEffect(() => {
     if (!popupOpen && !contextOpen && !aiBubbleOpen) return
     const onDown = (ev: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(ev.target as Node)) {
         setPopupOpen(false)
         if (!contextPinned) setContextOpen(false)
-        if (!replyBtw) setAiBubbleOpen(false)
+        setAiBubbleOpen(false)
       }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [popupOpen, contextOpen, aiBubbleOpen, contextPinned, replyBtw])
+  }, [popupOpen, contextOpen, aiBubbleOpen, contextPinned])
 
   useLayoutEffect(() => {
     if (!contextOpen && !configOpen && !aiBubbleOpen) return
@@ -552,7 +548,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                     onClick={r.reply ? () => {
                       if ((window.getSelection()?.toString() || '').trim()) return
                       setLatestReply({ messageId: `history-${r.id}`, text: r.reply })
-                      setReplyBtw(true)
                       setAiBubbleOpen(true)
                       setPopupOpen(false)
                     } : undefined}
@@ -576,7 +571,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         </div>
       )}
       {visible && activeSessionId && aiBubbleOpen && latestReply && (
-        <AiReplyBubble text={latestReply.text} align={aiBubbleAlign} closable={replyBtw} onClose={() => setAiBubbleOpen(false)} />
+        <AiReplyBubble text={latestReply.text} align={aiBubbleAlign} />
       )}
       {contextOpen && !contextBtw && (
         <div className={`desktop-pet__context desktop-pet__context--${contextDir}${contextAlign !== 'default' ? ` desktop-pet__context--align-${contextAlign}` : ''}${(contextDir === 'left' || contextDir === 'right') && contextVAlign !== 'center' ? ` desktop-pet__context--v-${contextVAlign}` : ''}`}>
