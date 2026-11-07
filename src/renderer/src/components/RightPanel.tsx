@@ -425,7 +425,7 @@ function RightPanel({
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
   const [visibleTabs, setVisibleTabs] = useState<Record<GitSection, boolean>>(DEFAULT_VISIBLE_TABS)
   const [fileRefreshKey, setFileRefreshKey] = useState(0)
-  const [splitRightWidth, setSplitRightWidth] = useState(288)
+  const [splitRightWidth, setSplitRightWidth] = useState(240)
   const [splitDragging, setSplitDragging] = useState(false)
 
   const worktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
