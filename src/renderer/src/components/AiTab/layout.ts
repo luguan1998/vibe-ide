@@ -2,7 +2,7 @@
 // 外壳组件(输入区/权限卡/todo/队列条,含 px-2)比内容列宽 32px
 export const CONTENT_MAX_W = 'max-w-[var(--ai-content-w,680px)]'
 export const PANEL_MAX_W = 'max-w-[calc(var(--ai-content-w,680px)_+_32px)]'
-export const CONTENT_W_MIN = 560
+export const CONTENT_W_MIN = 420
 export const CONTENT_W_MAX = 1400
 export const CONTENT_W_DEFAULT = 680
 
