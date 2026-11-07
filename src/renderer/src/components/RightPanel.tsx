@@ -310,7 +310,7 @@ function TabBar({
   }, [onReorder])
 
   return (
-    <div className={`h-10 flex items-center shrink-0 px-3 right-panel__tab-bar${divided ? ' border-b border-ide-border' : ''}`} onContextMenu={handleContextMenu}>
+    <div className={`h-10 flex items-center justify-center shrink-0 px-3 right-panel__tab-bar${divided ? ' border-b border-ide-border' : ''}`} onContextMenu={handleContextMenu}>
       {capsuleTabs ? (
         <>
           <div className="flex-1" />
