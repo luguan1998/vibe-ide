@@ -1602,7 +1602,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                 ? state.userTurns
                 : deriveUserTurns(state.messages).map(turn => ({ lineIdx: 0, content: turn.content, isInternal: false }))
               const digest = state.messages.length > 0
-                ? buildSessionDigest(state.messages, prevTurns, state.fileChangesByTurn, prevPath, t)
+                ? buildSessionDigest(state.messages, prevTurns, prevPath, t)
                 : ''
               handleDestroySession(activeSessionId)
               const { cliCommand, configDir } = readAiCliConfig()
