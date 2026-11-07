@@ -106,7 +106,7 @@ function createWindow(): void {
   // 表现为"全屏占住"且无法最小化。clamp 后窗口必然完整落在工作区内（反复出现的问题）
   const workArea = screen.getPrimaryDisplay().workArea
   const winWidth = Math.min(1400, workArea.width)
-  const winHeight = Math.min(860, workArea.height)
+  const winHeight = Math.min(870, workArea.height)
   mainWindow = new BrowserWindow({
     width: winWidth,
     height: winHeight,
