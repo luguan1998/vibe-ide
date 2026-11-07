@@ -617,7 +617,7 @@ const ZH_MAP: Record<string, string> = {
   'Write a todo…': '输入待办内容，Ctrl+Enter 保存；每行逐轮次发送',
   'Save (Ctrl+Enter)': '保存 (Ctrl+Enter)',
   'Delete todo': '删除待办',
-  'Todo drag hint': '拖到「空闲」会话即作为输入发送',
+  'Todo drag hint': '拖到「空闲」卡片或左侧会话即作为输入发送',
   'New terminal': '新建终端',
   'New terminal session': '在本目录新建普通终端会话（不关联 worktree）',
   'Create': '创建',

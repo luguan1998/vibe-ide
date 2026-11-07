@@ -1043,6 +1043,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [dragSessionId, setDragSessionId] = useState<string | null>(null)
   const [dropSessionId, setDropSessionId] = useState<string | null>(null)
   const [dropBefore, setDropBefore] = useState(false)
+  // 外部文本（看板待办等）拖入时命中的会话
+  const [dropTextSessionId, setDropTextSessionId] = useState<string | null>(null)
   // 整组拖动插入标记 top：absolute overlay 定位，clamp 到列表容器内侧防顶部被裁
   const [groupMarkerTop, setGroupMarkerTop] = useState<number | null>(null)
 
@@ -1469,6 +1471,8 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       }${
         dragSessionId === session.id ? ' opacity-40' : ''
       }${
+        dropTextSessionId === session.id ? ' bg-ide-accent/15 ring-1 ring-inset ring-ide-accent' : ''
+      }${
         dropSessionId === session.id
           ? dropBefore
             ? ' session-item__drop-marker session-item__drop-marker--before'
@@ -1506,6 +1510,14 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         setDropGroupIndex(null)
       }}
       onDragOver={(e) => {
+        if (dragGroupIndex === null && dragSessionId === null) {
+          if (!Array.from(e.dataTransfer.types).includes('text/plain')) return
+          e.preventDefault()
+          e.stopPropagation()
+          e.dataTransfer.dropEffect = 'copy'
+          setDropTextSessionId(session.id)
+          return
+        }
         if (dragGroupIndex !== null) return
         if (dragSessionId === null) return
         const dragged = sessions.find(s => s.id === dragSessionId)
@@ -1520,7 +1532,20 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         setDropSessionId(session.id)
         setDropBefore(e.clientY < midY)
       }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return
+        setDropTextSessionId(null)
+      }}
       onDrop={(e) => {
+        if (dragGroupIndex === null && dragSessionId === null) {
+          const text = e.dataTransfer.getData('text/plain').trim()
+          setDropTextSessionId(null)
+          if (!text) return
+          e.preventDefault()
+          e.stopPropagation()
+          onPipeToSession?.(session.id, text)
+          return
+        }
         if (dragGroupIndex !== null) return
         e.preventDefault()
         e.stopPropagation()
