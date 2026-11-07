@@ -115,6 +115,7 @@ const DEFAULT_CLAUDE_ENV_KEYS = [
   'ANTHROPIC_DEFAULT_HAIKU_MODEL',
   'CLAUDE_CODE_SUBAGENT_MODEL',
   'CLAUDE_CODE_AUTO_COMPACT_WINDOW',
+  'CLAUDE_CODE_EFFORT_LEVEL',
 ]
 
 // env 值输入框的示例提示：按 key 覆盖，未列出的走默认 URL 示例
@@ -126,6 +127,7 @@ const CLAUDE_ENV_VALUE_PLACEHOLDERS: Record<string, string> = {
   ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-flash[1m]',
   CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash[1m]',
   CLAUDE_CODE_AUTO_COMPACT_WINDOW: 'e.g. 140000 (auto-compact context threshold)',
+  CLAUDE_CODE_EFFORT_LEVEL: 'low | medium | high | max',
 }
 
 let claudeDirCache: string | null = null
