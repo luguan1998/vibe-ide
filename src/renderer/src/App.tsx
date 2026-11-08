@@ -95,7 +95,7 @@ declare global {
         deleteBranch: (branch: string) => Promise<any>
         setFilterRules: (rules: string[]) => Promise<any>
         lineLog: (filePath: string, lineNumber: number, opts?: { rev?: string; staged?: boolean }) => Promise<any>
-        graph: (opts?: { count?: number; skip?: number }) => Promise<any>
+        graph: (opts?: { count?: number; skip?: number; prune?: boolean }) => Promise<any>
         submodules: (repoPath: string) => Promise<any>
         prProviders: () => Promise<PrProviderView[]>
         prProviderSave: (input: PrProviderInput) => Promise<PrProviderView[]>

@@ -315,13 +315,13 @@ export function registerGitHandlers(): void {
     }
   })
 
-  ipcMain.handle(IPC_CHANNELS.GIT_GRAPH, async (_event, opts?: { count?: number; skip?: number }) => {
+  ipcMain.handle(IPC_CHANNELS.GIT_GRAPH, async (_event, opts?: { count?: number; skip?: number; prune?: boolean }) => {
     try {
       const git = getGit()
       const count = opts?.count ?? 50
       const skip = opts?.skip ?? 0
       const output = await git.raw([
-        'log', '--all', '--topo-order', '--date-order',
+        'log', opts?.prune ? 'HEAD' : '--all', '--topo-order', '--date-order',
         `--skip=${skip}`, `--max-count=${count}`,
         '--pretty=format:%H%x00%P%x00%D%x00%s%x00%aN%x00%aI%x1e'
       ])

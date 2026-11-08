@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Fragment, type MouseEvent as ReactMouseEvent } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, useSyncExternalStore, Fragment, type MouseEvent as ReactMouseEvent } from 'react'
 import { useI18n } from '../i18n'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { GitStatusResult, GitFileStatus, GitGraphEntry, GitBranch, GitSubmodule, GitCommitFile, GitLineLogEntry, TerminalSession } from '@shared/types'
@@ -147,10 +147,39 @@ const collectLeafPaths = (node: TreeNode): string[] => {
 
 const GRAPH_PAGE_SIZE = 50
 
+interface CwdPanelFlags {
+  prune: boolean
+  remoteBranches: boolean
+}
+
+const DEFAULT_CWD_FLAGS: CwdPanelFlags = { prune: false, remoteBranches: false }
+const cwdFlagsMap = new Map<string, CwdPanelFlags>()
+const cwdFlagsListeners = new Set<() => void>()
+
+function setCwdFlags(cwd: string, patch: Partial<CwdPanelFlags>) {
+  const next = { ...(cwdFlagsMap.get(cwd) || DEFAULT_CWD_FLAGS), ...patch }
+  cwdFlagsMap.set(cwd, next)
+  cwdFlagsListeners.forEach(listener => listener())
+}
+
+function useCwdFlags(cwd: string): CwdPanelFlags {
+  const subscribe = useCallback((listener: () => void) => {
+    cwdFlagsListeners.add(listener)
+    return () => { cwdFlagsListeners.delete(listener) }
+  }, [])
+  return useSyncExternalStore(subscribe, () => cwdFlagsMap.get(cwd) || DEFAULT_CWD_FLAGS)
+}
+
 export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, submoduleNav, onFileSelect, refreshKey, activeSessionId, isActive, pauseWhenHidden, rightTerminalSession, onCloseRightTerminal, onWorktreeNavChange, onSubmoduleNavChange, onDiffScroll, onHunkNav, onNavigateToFile, lineHistoryPayload, brushActive }: GitTabProps) {
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
   const { t } = useI18n()
+  const cwdKey = effectiveGitPath || workspacePath || ''
+  const cwdFlags = useCwdFlags(cwdKey)
+  const prune = cwdFlags.prune
+  const showRemoteBranches = cwdFlags.remoteBranches
+  const pruneRef = useRef(prune)
+  pruneRef.current = prune
   const containerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   useLayoutEffect(() => {
@@ -169,7 +198,6 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
   const [untrackedExpanded, setUntrackedExpanded] = useState(true)
   const [logExpanded, setLogExpanded] = useState(false)
   const [branchesExpanded, setBranchesExpanded] = useState(false)
-  const [showRemoteBranches, setShowRemoteBranches] = useState(false)
   const [status, setStatus] = useState<GitStatusResult | null>(null)
   const statusRef = useRef(status)
   statusRef.current = status
@@ -378,9 +406,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
 
   const refreshStatus = useCallback(() => runStatusExclusive(loadStatus), [loadStatus])
 
-  const refreshGraph = useCallback(async () => {
+  const refreshGraph = useCallback(async (pruneOverride?: boolean) => {
     try {
-      const result = await window.api.git.graph({ count: GRAPH_PAGE_SIZE, skip: 0 })
+      const result = await window.api.git.graph({ count: GRAPH_PAGE_SIZE, skip: 0, prune: pruneOverride ?? pruneRef.current })
       if (result.error) {
         if (!/does not have any commits/.test(result.error)) {
           setError(result.error)
@@ -399,7 +427,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
     loadingMoreRef.current = true
     setLoadingMoreGraph(true)
     try {
-      const result = await window.api.git.graph({ count: GRAPH_PAGE_SIZE, skip: graphEntries.length })
+      const result = await window.api.git.graph({ count: GRAPH_PAGE_SIZE, skip: graphEntries.length, prune: pruneRef.current })
       if (result.error) {
         if (!/does not have any commits/.test(result.error)) {
           setError(result.error)
@@ -1730,7 +1758,7 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
           {/* Commits / Graph */}
           <div className="border-b border-ide-border">
             <div
-              className="pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between"
+              className="pl-1 pr-3 py-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-ide-hover flex items-center justify-between group/log"
               onClick={() => setLogExpanded(!logExpanded)}
             >
               <div className="flex items-center gap-1">
@@ -1741,6 +1769,21 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
                 </svg>
                 <span>{t('Commits ({count})').replace('{count}', String(graphEntries.length))}</span>
               </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const next = !prune
+                  setCwdFlags(cwdKey, { prune: next })
+                  refreshGraph(next)
+                }}
+                title={t('Prune')}
+                className={`shrink-0 w-4 h-4 items-center justify-center rounded ${prune ? 'flex text-ide-accent' : 'hidden group-hover/log:flex text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10'}`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                  <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                </svg>
+              </button>
             </div>
             {logExpanded && (
               <GitGraph
@@ -1817,9 +1860,9 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
                 <span>{t('Branches ({count})').replace('{count}', String(visibleBranches.length))}</span>
               </div>
               <button
-                onClick={(e) => { e.stopPropagation(); setShowRemoteBranches(v => !v) }}
+                onClick={(e) => { e.stopPropagation(); setCwdFlags(cwdKey, { remoteBranches: !showRemoteBranches }) }}
                 title={t('Show remote')}
-                className={`shrink-0 w-4 h-4 flex items-center justify-center rounded transition-opacity ${showRemoteBranches ? 'opacity-100 text-ide-accent' : 'opacity-0 group-hover/branch:opacity-100 text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10'}`}
+                className={`shrink-0 w-4 h-4 items-center justify-center rounded ${showRemoteBranches ? 'flex text-ide-accent' : 'hidden group-hover/branch:flex text-ide-text-muted hover:text-ide-accent hover:bg-ide-accent/10'}`}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
                   <circle cx="12" cy="12" r="10" />

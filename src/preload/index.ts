@@ -67,7 +67,7 @@ const api = {
     setFilterRules: (rules: string[]) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SET_FILTER_RULES, rules),
     lineLog: (filePath: string, lineNumber: number, opts?: { rev?: string; staged?: boolean }) =>
       ipcRenderer.invoke(IPC_CHANNELS.GIT_LINE_LOG, filePath, lineNumber, opts) as Promise<import('../shared/types').GitLineLogEntry[] | { error: string }>,
-    graph: (opts?: { count?: number; skip?: number }) => ipcRenderer.invoke(IPC_CHANNELS.GIT_GRAPH, opts),
+    graph: (opts?: { count?: number; skip?: number; prune?: boolean }) => ipcRenderer.invoke(IPC_CHANNELS.GIT_GRAPH, opts),
     submodules: (repoPath: string) => ipcRenderer.invoke(IPC_CHANNELS.GIT_SUBMODULES, repoPath) as Promise<import('../shared/types').GitSubmodule[]>,
     prProviders: () => ipcRenderer.invoke(IPC_CHANNELS.GIT_PR_PROVIDERS) as Promise<import('../shared/types').PrProviderView[]>,
     prProviderSave: (input: import('../shared/types').PrProviderInput) =>

@@ -375,6 +375,7 @@ const ZH_MAP: Record<string, string> = {
   'Load more commits': '加载更多提交',
   'No branches': '暂无分支',
   'Show remote': '显示远程分支',
+  'Prune': '剪枝',
   'Switch submodule': '切换子模块',
   'Discovering submodules...': '子模块探索中...',
   'No submodules': '无子模块',
