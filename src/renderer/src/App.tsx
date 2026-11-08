@@ -34,7 +34,7 @@ import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, QUICK_OPEN_EVENT, toRelPath } fr
 import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode, LSP_SERVERS, LSP_LANG_TO_SERVER } from '@shared/types'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
-import { cwdStore, useKeptGroups, mergeGroupOrder } from './cwdStore'
+import { cwdStore, useGroupOrder, useEmptyGroups, orderGroups } from './cwdStore'
 import type { TerminalViewHandle } from './components/TerminalView'
 import { getMainShellType, getAuxShellType } from './utils/shellPrefs'
 import { getLastNewMode } from './utils/sessionModePrefs'
@@ -364,47 +364,19 @@ export default function App() {
     [initialWorkspace],
   )
   const [sessions, setSessions] = useState<SessionTab[]>(initialTabs)
-  const keptGroups = useKeptGroups()
-  // 稳定分组顺序:会话数组按创建序混杂插入,组序若按"首现位置"推导,删除组内会话会令该组位置跳变导致排布错位。
-  // 用 session id 保序子序列判定:仅删/仅增(含 clone 插入、cwd 变更)→ 保持旧组序(被删组剔除、新组追加);
-  // id 相对顺序被打乱(组/会话拖拽重排)→ 才跟随新首现序。
-  // 空组保留位(keptGroups)按记录下标并入组序,与 SessionPanel 渲染序一致(键盘切会话、看板同步)。
-  const stableGroupRef = useRef<{ ids: string[]; order: string[] } | null>(null)
-  const stableGroupOrder = useMemo(() => {
-    const sessionOrder: string[] = []
-    const seen = new Set<string>()
-    for (const s of sessions) {
-      const key = sessionGroupKey(s)
-      if (!seen.has(key)) { seen.add(key); sessionOrder.push(key) }
-    }
-    let base = sessionOrder
-    const prev = stableGroupRef.current
-    if (prev) {
-      const newIds = sessions.map(s => s.id)
-      const subseq = (outer: string[], inner: string[]) => {
-        let j = 0
-        for (const id of outer) {
-          if (id === inner[j]) { j++; if (j === inner.length) return true }
-        }
-        return false
-      }
-      const sameIds = prev.ids.length === newIds.length && prev.ids.every((id, i) => id === newIds[i])
-      const keepOrder = sameIds || subseq(prev.ids, newIds) || subseq(newIds, prev.ids)
-      if (keepOrder) {
-        base = prev.order.filter(k => seen.has(k))
-        for (const k of sessionOrder) if (!base.includes(k)) base.push(k)
-      }
-    }
-    const order = mergeGroupOrder(base, keptGroups)
-    stableGroupRef.current = { ids: sessions.map(s => s.id), order }
-    return order
-  }, [sessions, keptGroups])
-  // 按稳定组序重排的会话数组:分组模式取代 sessions 传面板与快捷键循环,组内会话保持原相对顺序
+  // 组序唯一真源：cwdStore 持久化的 groupOrder。会话增删只影响组内会话，不影响组序。
+  const groupOrder = useGroupOrder()
+  const emptyGroups = useEmptyGroups()
+  const effectiveGroupOrder = useMemo(
+    () => orderGroups(sessions.map(sessionGroupKey), groupOrder, emptyGroups),
+    [sessions, groupOrder, emptyGroups],
+  )
+  useEffect(() => { cwdStore.setGroupOrder(effectiveGroupOrder) }, [effectiveGroupOrder])
+  // 按组序重排的会话数组：传面板与快捷键循环，组内会话保持原相对顺序
   const stableSessions = useMemo(() => {
-    if (stableGroupOrder.length === 0) return sessions
-    const pos = new Map<string, number>(stableGroupOrder.map((k, i) => [k, i]))
+    const pos = new Map<string, number>(effectiveGroupOrder.map((k, i) => [k, i]))
     return [...sessions].sort((a, b) => (pos.get(sessionGroupKey(a)) ?? Infinity) - (pos.get(sessionGroupKey(b)) ?? Infinity))
-  }, [sessions, stableGroupOrder])
+  }, [sessions, effectiveGroupOrder])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
     const id = initialWorkspace?.activeTabId ?? null
     return id && initialTabs.some(t => t.id === id) ? id : (initialTabs[0]?.id ?? null)
@@ -2687,11 +2659,11 @@ export default function App() {
     delete terminalRefs.current[id]
     delete aiTabRefs.current[id]
     setSessions(prev => prev.filter(s => s.id !== id))
-    // 关闭组内最后一个 session：该 cwd 记为保留空组，位置沿用当前组序
+    // 关掉组内最后一个会话：保留空组卡（位置由 groupOrder 决定）
     const closing = sessions.find(s => s.id === id)
-    const closingKey = closing ? sessionGroupKey(closing) : ''
-    if (closingKey && !sessions.some(s => s.id !== id && sessionGroupKey(s) === closingKey)) {
-      cwdStore.upsertKeptGroup(closingKey, Math.max(0, stableGroupOrder.indexOf(closingKey)))
+    if (closing) {
+      const key = sessionGroupKey(closing)
+      if (!sessions.some(s => s.id !== id && sessionGroupKey(s) === key)) cwdStore.keepEmptyGroup(key)
     }
     if (twinId) setSplitTwins(prev => { const n = { ...prev }; delete n[id]; return n })
     if (twinId) setSplitRatios(prev => { const n = { ...prev }; delete n[id]; return n })
@@ -2741,7 +2713,7 @@ export default function App() {
       const remaining = sessions.filter(s => s.id !== id)
       setActiveSessionId(remaining.length > 0 ? remaining[0].id : null)
     }
-  }, [activeSessionId, sessions, rightTerminalSessions, splitTwins, setSplitTwins, setSplitRatios, stableGroupOrder])
+  }, [activeSessionId, sessions, rightTerminalSessions, splitTwins, setSplitTwins, setSplitRatios])
 
   // 看板任务会话：关标签不再静默遗留记录+worktree，弹确认让用户选"仅关闭"或"关闭并清理"
   const [boardCloseAsk, setBoardCloseAsk] = useState<{ rec: WorktreeRecord; sessionId: string } | null>(null)
@@ -2780,8 +2752,7 @@ export default function App() {
     for (const id of ids) {
       await closeSessionCore(id)
     }
-    // closeSessionCore 依据渲染期快照判断"组内最后一个会话"会保留空组，批量场景统一不保留
-    cwdStore.removeKeptGroup(cwd)
+    cwdStore.removeGroup(cwd)
     setActiveSessionId(prev => {
       if (!prev || !ids.includes(prev)) return prev
       const rest = sessionsRef.current.filter(s => !ids.includes(s.id))
@@ -2899,8 +2870,8 @@ export default function App() {
         console.warn('[board] finish:', res.error)
         return false
       }
-      // worktree 会话已并入原仓库分组，清掉关最后一个会话时落下的空组保留位
-      cwdStore.removeKeptGroup(rec.repoRoot)
+      // worktree 会话已并入原仓库分组，移除该空组
+      cwdStore.removeGroup(rec.repoRoot)
       return true
     } catch (e: any) {
       console.warn('[board] finish failed:', e?.message)
@@ -2913,7 +2884,7 @@ export default function App() {
     await closeSessionCore(rec.id)
     try {
       const res = await window.api.board.clear(rec.repoRoot, rec.id)
-      if (!res?.error) cwdStore.removeKeptGroup(rec.repoRoot)
+      if (!res?.error) cwdStore.removeGroup(rec.repoRoot)
     } catch (e: any) {
       console.warn('[board] clear failed:', e?.message)
     }
@@ -2966,56 +2937,27 @@ export default function App() {
     return terminalRefs.current[sessionId]?.readTail(maxLines ?? 200) ?? []
   }, [])
 
-  // 组拖拽：索引按完整组序（含空组保留位，与面板视觉一致），保留位下标同步写回 store
+  // 组拖拽：索引对应面板展示组序（含空组），只改组序，不碰会话数组
   const handleReorderGroup = useCallback((fromGroupIdx: number, toGroupIdx: number) => {
-    const full = stableGroupOrder.slice()
+    const full = effectiveGroupOrder.slice()
     const [moved] = full.splice(fromGroupIdx, 1)
     if (!moved) return
     full.splice(toGroupIdx, 0, moved)
-    const kept = cwdStore.getKeptGroups()
-    if (kept.length) {
-      cwdStore.setKeptGroups(kept.map(e => {
-        const i = full.indexOf(e.cwd)
-        return i < 0 ? e : { ...e, idx: i }
-      }))
-    }
-    setSessions(prev => {
-      const map = new Map<string, SessionTab[]>()
-      for (const s of prev) {
-        const key = sessionGroupKey(s)
-        if (!map.has(key)) map.set(key, [])
-        map.get(key)!.push(s)
-      }
-      // full 之外的组（快照后新入 state 的 session）追加尾部，避免被 flatMap 静默丢弃
-      const rest = [...map.keys()].filter(k => !full.includes(k))
-      return [...full, ...rest].flatMap(k => map.get(k) ?? [])
-    })
-  }, [stableGroupOrder])
+    cwdStore.setGroupOrder(full)
+  }, [effectiveGroupOrder])
 
-  // 分组模式组内拖动：按 id 定位，组序沿用当前稳定组序（与面板视觉一致），新组追加尾部；
-  // 避免全局 splice 使组序被首现序推导而跳变
+  // 组内拖拽：只调整 sessions 数组内两项的相对位置，组序不受影响
   const handleReorderSessionInGroup = useCallback((sessionId: string, targetSessionId: string, before: boolean) => {
     setSessions(prev => {
       const moved = prev.find(s => s.id === sessionId)
       const target = prev.find(s => s.id === targetSessionId)
-      if (!moved || !target || sessionGroupKey(moved) !== sessionGroupKey(target)) return prev
-      const gKey = sessionGroupKey(moved)
-      const map = new Map<string, SessionTab[]>()
-      const order: string[] = []
-      for (const s of prev) {
-        const key = sessionGroupKey(s)
-        if (!map.has(key)) { map.set(key, []); order.push(key) }
-        map.get(key)!.push(s)
-      }
-      const rest = map.get(gKey)!.filter(s => s.id !== sessionId)
-      const ti = rest.findIndex(s => s.id === targetSessionId)
-      if (ti < 0) return prev
-      rest.splice(before ? ti : ti + 1, 0, moved)
-      map.set(gKey, rest)
-      const groupOrder = stableGroupOrder.filter(k => map.has(k)).concat(order.filter(k => !stableGroupOrder.includes(k)))
-      return groupOrder.flatMap(k => map.get(k)!)
+      if (!moved || !target || moved === target || sessionGroupKey(moved) !== sessionGroupKey(target)) return prev
+      const next = prev.filter(s => s !== moved)
+      const ti = next.indexOf(target)
+      next.splice(before ? ti : ti + 1, 0, moved)
+      return next
     })
-  }, [stableGroupOrder])
+  }, [])
 
   // 整理排序键：最近一次回复完成时间（running 视为最新），与列表右侧显示的空闲时长同源
   const sessionActivityAt = useCallback((s: SessionTab) => (
@@ -3028,17 +2970,13 @@ export default function App() {
       .map(s => s.id)
     for (const id of ids) await closeSessionCore(id)
     setSessions(prev => {
-      const map = new Map<string, SessionTab[]>()
-      const order: string[] = []
-      for (const s of prev) {
-        const key = sessionGroupKey(s)
-        if (!map.has(key)) { map.set(key, []); order.push(key) }
-        map.get(key)!.push(s)
-      }
-      const group = map.get(cwd)
-      if (!group || group.length < 2) return prev
-      map.set(cwd, [...group].sort((a, b) => sessionActivityAt(b) - sessionActivityAt(a)))
-      return order.flatMap(k => map.get(k)!)
+      const positions: number[] = []
+      prev.forEach((s, i) => { if (sessionGroupKey(s) === cwd) positions.push(i) })
+      if (positions.length < 2) return prev
+      const sorted = positions.map(i => prev[i]).sort((a, b) => sessionActivityAt(b) - sessionActivityAt(a))
+      const next = [...prev]
+      positions.forEach((pos, j) => { next[pos] = sorted[j] })
+      return next
     })
     if (ids.length === 0) return
     setActiveSessionId(prev => {
@@ -3057,18 +2995,11 @@ export default function App() {
         .map(s => s.id),
     )
     for (const id of idSet) await closeSessionCore(id)
-    const map = new Map<string, SessionTab[]>()
-    const order: string[] = []
-    for (const s of all) {
-      if (idSet.has(s.id)) continue
-      const key = sessionGroupKey(s)
-      if (!map.has(key)) { map.set(key, []); order.push(key) }
-      map.get(key)!.push(s)
-    }
-    const full = [...stableGroupOrder, ...order.filter(k => !stableGroupOrder.includes(k))]
-    const empty = full.filter(k => (map.get(k)?.length ?? 0) === 0)
-    const nonEmpty = full.filter(k => !empty.includes(k))
-    const nextOrder = [...empty, ...nonEmpty]
+    const present = new Set(all.filter(s => !idSet.has(s.id)).map(sessionGroupKey))
+    const empty = effectiveGroupOrder.filter(k => !present.has(k))
+    const extras = [...present].filter(k => !effectiveGroupOrder.includes(k))
+    const nextOrder = [...empty, ...effectiveGroupOrder.filter(k => present.has(k)), ...extras]
+    for (const k of empty) cwdStore.keepEmptyGroup(k)
     setSessions(prev => {
       const grouped = new Map<string, SessionTab[]>()
       for (const s of prev) {
@@ -3077,22 +3008,18 @@ export default function App() {
         if (!grouped.has(key)) grouped.set(key, [])
         grouped.get(key)!.push(s)
       }
-      const extra = [...grouped.keys()].filter(k => !nextOrder.includes(k))
-      return [...nextOrder, ...extra].flatMap(k => [...(grouped.get(k) ?? [])].sort((a, b) => sessionActivityAt(b) - sessionActivityAt(a)))
+      for (const group of grouped.values()) group.sort((a, b) => sessionActivityAt(b) - sessionActivityAt(a))
+      const ordered = [...grouped.keys()].sort((a, b) => nextOrder.indexOf(a) - nextOrder.indexOf(b))
+      return ordered.flatMap(k => grouped.get(k)!)
     })
-    const keptMap = new Map(cwdStore.getKeptGroups().map(e => [e.cwd, e]))
-    for (const k of empty) if (!keptMap.has(k)) keptMap.set(k, { cwd: k, idx: 0 })
-    cwdStore.setKeptGroups([...keptMap.values()].map(e => {
-      const i = nextOrder.indexOf(e.cwd)
-      return i < 0 ? e : { ...e, idx: i }
-    }))
+    cwdStore.setGroupOrder(nextOrder)
     if (idSet.size === 0) return
     setActiveSessionId(prev => {
       if (!prev || !idSet.has(prev)) return prev
       const rest = all.filter(s => !idSet.has(s.id))
       return rest.length > 0 ? rest[0].id : null
     })
-  }, [closeSessionCore, stableGroupOrder, sessionActivityAt])
+  }, [closeSessionCore, effectiveGroupOrder, sessionActivityAt])
 
   // Set session row-icon emoji (undefined = type icon), stored on SessionTab
   const handleSetSessionEmoji = useCallback((id: string, emoji?: string) => {
@@ -3511,8 +3438,8 @@ export default function App() {
     openFileView(fullPath, { mode: 'auto' })
   }, [openFileView])
 
-  // 无任何 cwd（含空组保留位）才视为空应用，空组存在时左侧面板可见、可直接在该组新建
-  const isWelcome = sessions.length === 0 && keptGroups.length === 0
+  // 无任何 cwd（含空组）才视为空应用，空组存在时左侧面板可见、可直接在该组新建
+  const isWelcome = sessions.length === 0 && effectiveGroupOrder.length === 0
 
   const currentEditFilePath = activeTab?.kind === 'diff' && activeTab.defaultEdit && !activeTab.compareOriginalPath ? activeTab.fullPath : null
 

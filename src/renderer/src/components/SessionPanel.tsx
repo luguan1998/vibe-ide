@@ -5,7 +5,7 @@ import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, ma
 import { PixelMascot } from './PixelMascot'
 import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages, Ellipsis, Heart } from 'lucide-react'
 import { useI18n } from '../i18n'
-import { cwdStore, useRecentDirs, useFavCwds, useKeptGroups, mergeGroupOrder } from '../cwdStore'
+import { cwdStore, useRecentDirs, useFavCwds, useGroupOrder, useEmptyGroups, orderGroups } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
 import { getMainShellType, setMainShellType, getAuxShellType, setAuxShellType } from '@renderer/utils/shellPrefs'
 import { getLastNewMode, setLastNewMode } from '@renderer/utils/sessionModePrefs'
@@ -1094,22 +1094,19 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     prevSessionIdsRef.current = new Set(sessions.map(s => s.id))
   }, [sessions])
 
-  // Group sessions by normalized cwd（空组保留位按记录下标插回，最后一个 session 关闭后分组不消失）
+  // 二重布局：cwd 组序取持久化 groupOrder（空组也保留），组内会话按 sessions 相对顺序
   // worktree 会话并入其来源仓库的组：组键取 worktreeOriginalPath || cwd（sessionGroupKey）
-  const keptGroups = useKeptGroups()
+  const groupOrder = useGroupOrder()
+  const emptyGroups = useEmptyGroups()
   const sessionGroups = useMemo(() => {
     const map = new Map<string, SessionTab[]>()
-    const order: string[] = []
     for (const s of sessions) {
       const key = sessionGroupKey(s)
-      if (!map.has(key)) {
-        map.set(key, [])
-        order.push(key)
-      }
+      if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(s)
     }
-    return mergeGroupOrder(order, keptGroups).map(cwd => ({ cwd, sessions: map.get(cwd) ?? [] }))
-  }, [sessions, keptGroups, activeSessionId])
+    return orderGroups([...map.keys()], groupOrder, emptyGroups).map(cwd => ({ cwd, sessions: map.get(cwd) ?? [] }))
+  }, [sessions, groupOrder, emptyGroups])
 
   const groupRefs = useRef<(HTMLDivElement | null)[]>([])
   // 边界用当前组数而非 groupRefs.length：组被删除后数组尾部残留旧条目（React 置 null 不截断），
@@ -2135,7 +2132,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                           className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover flex items-center gap-2"
                           onClick={() => {
                             setGroupMenu(null)
-                            if (group.sessions.length === 0) { cwdStore.removeKeptGroup(group.cwd); return }
+                            if (group.sessions.length === 0) { cwdStore.removeGroup(group.cwd); return }
                             setGroupCloseAsk({ cwd: group.cwd, count: group.sessions.length })
                           }}
                         >
