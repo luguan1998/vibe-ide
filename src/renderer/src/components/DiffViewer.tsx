@@ -256,6 +256,7 @@ interface DiffViewerProps {
   onPushSnapshot?: (s: TabSnapshot) => void
   onRuntimeChange?: (rt: TabRuntime | null) => void
   onViewModeChange?: (mode: ViewMode) => void
+  viewMode?: ViewMode           // 容器回传 tab.viewMode：外部改值（git 面板以 diff 复用已开 tab）时采纳切换
   onUnreadableChange?: (fullPath: string, unreadable: boolean) => void  // 过大/二进制读不出内容（只剩 Force Open 占位）
 }
 
@@ -378,7 +379,7 @@ type JumpRow =
   | { kind: 'group'; key: string; label: string; count: number }
   | { kind: 'item'; item: JumpItem }
 
-const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, hunkNavTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onOpenCallHierarchy, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange, onUnreadableChange }: DiffViewerProps) {
+const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged, commitHash, lineNumber, fontSize = 14, wordWrap = false, scrollTrigger, hunkNavTrigger, revision, onDismiss, onOpenPreview, onSaved, defaultEdit, inlineDiff = false, diffSplitRatio = 0.3, cursorRef, visibleLineRef, onOpenCallGraph, onOpenCallHierarchy, onViewLineHistory, jumpCwd, lspLangs, lspMultiDef, onJumpToFile, compareOriginalContent, compareOriginalPath, onAnnotationTrigger, brushActive, onOutlineNavigate, headerLeading, isActive = true, tabId, jumpNonce, getSnapshot, onPushSnapshot, onRuntimeChange, onViewModeChange, viewMode: externalViewMode, onUnreadableChange }: DiffViewerProps) {
   const { theme: currentTheme } = useTheme()
   const { t } = useI18n()
 
@@ -388,13 +389,18 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const restoreSnap = restoreSnapRef.current
   const restorePendingRef = useRef(!!restoreSnap)
 
-  const [viewMode, setViewMode] = useState<ViewMode>(restoreSnap?.viewMode ?? (defaultEdit ? 'edit' : 'diff'))
+  const [viewMode, setViewMode] = useState<ViewMode>(externalViewMode ?? restoreSnap?.viewMode ?? (defaultEdit ? 'edit' : 'diff'))
   const viewModeRef = useRef(viewMode)
   viewModeRef.current = viewMode
 
   const onViewModeChangeRef = useRef(onViewModeChange)
   onViewModeChangeRef.current = onViewModeChange
   useEffect(() => { onViewModeChangeRef.current?.(viewMode) }, [viewMode])
+
+  // 外部 viewMode（git 面板复用已开 tab）→ 直接跟随
+  useEffect(() => {
+    if (externalViewMode) setViewMode(externalViewMode)
+  }, [externalViewMode])
 
   // Reset viewMode when file changes
   const prevFullPathRef = useRef(fullPath)

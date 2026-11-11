@@ -1637,7 +1637,7 @@ export default function App() {
         patch.lineNumber = opts.lineNumber
         patch.jumpNonce = (opened.jumpNonce ?? 0) + 1
       }
-      // 未保存的 tab 不重拉内容，避免覆盖内存 buffer
+      // 未保存的 tab 不重拉内容、不切视图，避免覆盖内存 buffer
       if (opened.kind === 'diff' && !tabRuntimeRef.current.get(opened.id)?.dirty) {
         if (opts.git) {
           patch.gitStats = opts.git.gitStats
@@ -1648,6 +1648,8 @@ export default function App() {
           patch.compareOriginalContent = opts.compare.content
           patch.revision = ((patch.revision as number | undefined) ?? opened.revision) + 1
         }
+        // 视图跟进入口意图：git 面板=diff，文件浏览器/搜索=edit；已是目标视图不写，edit→edit 重复点开保持惰性
+        if (mode !== 'auto' && opened.viewMode !== mode) patch.viewMode = mode
       }
       if (Object.keys(patch).length) updateTab(opened.id, patch as Partial<FileTabState>)
     }
@@ -3454,6 +3456,7 @@ export default function App() {
           onPushSnapshot={(s) => pushTabSnapshot(tab.id, s)}
           onRuntimeChange={(rt) => handleTabRuntime(tab.id, rt)}
           onViewModeChange={(m) => updateTab(tab.id, { viewMode: m })}
+          viewMode={tab.viewMode}
           filePath={tab.filePath}
           fullPath={tab.fullPath}
           isStaged={tab.isStaged}
