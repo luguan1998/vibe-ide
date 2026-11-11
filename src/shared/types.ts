@@ -992,15 +992,14 @@ export const DEFAULT_AI_CONTEXT_WINDOW = 200_000
 // Scope 'conversation' only rewinds messages; 'both' also reverts file changes via git checkout.
 export interface AiRevertPayload {
   sessionId: string
-  userMessageIndex: number   // index of the target user message among real user messages
   scope: 'conversation' | 'both'
   cwd: string
-  // Renderer's user-message index can drift below the JSONL turn index (injected turns like
-  // AskUserQuestion answers / plan approvals / continuation prompts never reach the live
-  // stream). When present, the main process resolves the target turn by content + occurrence
-  // instead of trusting userMessageIndex. occurrence = which occurrence of that content the
-  // user clicked (0-based, counted among renderer user messages).
+  // claude：目标轮次在 JSONL 里的精确行号（parseUserTurns.lineIdx）。主进程重新解析后
+  // 按行号定位并校验 content，对不上返回 stale，不回退到任何下标猜测。
+  lineIdx?: number
   content?: string
+  // pi：没有 JSONL 轮次表，按渲染层轮次下标 + content/occurrence 定位。
+  userMessageIndex?: number
   occurrence?: number
 }
 
@@ -1008,9 +1007,10 @@ export interface AiRevertPayload {
 // session ID. The renderer spawns a new CLI process via --resume to the forked session.
 export interface AiForkPayload {
   sessionId: string
-  userMessageIndex: number
   cwd: string
+  lineIdx?: number
   content?: string
+  userMessageIndex?: number
   occurrence?: number
 }
 

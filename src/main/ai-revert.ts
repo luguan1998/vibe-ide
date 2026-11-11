@@ -31,15 +31,14 @@ import { piSessionMeta, resumePiSessionFrom } from './pi/session'
 
 // ── JSONL truncation ──────────────────────────────────────────────
 
-async function truncateJsonlAtUserMessage(
+export async function truncateJsonlAtUserMessage(
   claudeSessionId: string,
   cwd: string,
-  userMessageIndex: number,
+  lineIdx: number,
   keepTarget: boolean,
   configDir?: string,
   content?: string,
-  occurrence?: number,
-): Promise<{ truncated: string[] } | { error: string }> {
+): Promise<{ truncated: string[] } | { error: string; stale?: true }> {
   const projectDir = resolveProjectDir(cwd, configDir)
   if (!projectDir) return { error: 'Project directory not found under ~/.claude/projects/' }
 
@@ -52,28 +51,14 @@ async function truncateJsonlAtUserMessage(
   const lines = fileContent.split('\n').filter(Boolean)
   const turns = parseUserTurns(lines)
 
-  // Renderer's userMessageIndex can drift below the JSONL turn index: injected turns
-  // (AskUserQuestion answers, plan approvals, continuation prompts) exist only in the
-  // JSONL and never reach the live stream. When the renderer passes content, resolve the
-  // target turn by content + occurrence (which occurrence of that content was clicked);
-  // fall back to the index when content is absent or unmatched.
-  let targetTurnIdx = userMessageIndex
-  if (content && turns.length > 0) {
-    let found = -1
-    let seen = 0
-    const occ = occurrence ?? 0
-    for (let i = 0; i < turns.length; i++) {
-      if (turns[i].content === content) {
-        if (seen === occ) { found = i; break }
-        seen++
-      }
-    }
-    if (found >= 0) targetTurnIdx = found
+  // 回退点只认报文行号：渲染层传来的 lineIdx 必须能在最新解析里命中且 content 一致，
+  // 否则说明轮次快照已过期（文件被外部改动/另一个窗口回退过），返回 stale 让渲染层刷新，
+  // 绝不按任何下标猜测截断位置。
+  const targetTurnIdx = turns.findIndex(t => t.lineIdx === lineIdx)
+  if (targetTurnIdx < 0 || (content != null && turns[targetTurnIdx].content !== content)) {
+    return { error: `User turn at line ${lineIdx} not found or changed`, stale: true }
   }
-  if (targetTurnIdx < 0 || targetTurnIdx >= turns.length) {
-    return { error: `User message index ${userMessageIndex} not found (found ${turns.length} user turns)` }
-  }
-  const targetLineIdx = turns[targetTurnIdx].lineIdx
+  const targetLineIdx = lineIdx
 
   // keepTarget=false (revert): truncate BEFORE the target (exclude it).
   // keepTarget=true (fork): keep the ENTIRE turn (user message + its assistant reply + result),
@@ -108,7 +93,7 @@ export function registerRevertHandlers(): void {
 
   // ── REVERT ──────────────────────────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.AI_REVERT, async (_event, payload: AiRevertPayload) => {
-    const { sessionId, userMessageIndex, cwd } = payload
+    const { sessionId, cwd } = payload
 
     // pi：没有截断 RPC，改从目标轮之前分叉出会话再原地重建（旧内容留作另一分支，不丢）
     const piMeta = piSessionMeta(sessionId)
@@ -116,7 +101,7 @@ export function registerRevertHandlers(): void {
       const forked = await forkPiSession({
         sourceSessionId: piMeta.piSessionId,
         cwd: piMeta.cwd,
-        userTurnIndex: userMessageIndex,
+        userTurnIndex: payload.userMessageIndex ?? -1,
         mode: 'before',
         content: payload.content,
         occurrence: payload.occurrence,
@@ -136,12 +121,13 @@ export function registerRevertHandlers(): void {
     }
 
     const effectiveCwd = prev?.cwd || cwd
+    if (payload.lineIdx == null) return { success: false, error: 'Missing target line' }
 
     // 1. Truncate JSONL
-    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, false, prev?.configDir, payload.content, payload.occurrence)
+    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, payload.lineIdx, false, prev?.configDir, payload.content)
     if ('error' in result) {
-      console.error(`[ai:${sessionId}] revert failed: ${result.error} (userMessageIndex=${userMessageIndex}, content=${JSON.stringify(payload.content)}, occurrence=${payload.occurrence})`)
-      return { success: false, error: result.error }
+      console.error(`[ai:${sessionId}] revert failed: ${result.error} (lineIdx=${payload.lineIdx}, content=${JSON.stringify(payload.content)})`)
+      return { success: false, error: result.error, stale: result.stale }
     }
 
     // 2. Write truncated JSONL back
@@ -227,7 +213,7 @@ export function registerRevertHandlers(): void {
 
   // ── FORK ────────────────────────────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.AI_FORK, async (_event, payload: AiForkPayload) => {
-    const { sessionId, userMessageIndex, cwd } = payload
+    const { sessionId, cwd } = payload
 
     // pi：协议原生 fork，源会话由临时进程分叉，源进程/文件不受影响
     const piMeta = piSessionMeta(sessionId)
@@ -235,7 +221,7 @@ export function registerRevertHandlers(): void {
       const forked = await forkPiSession({
         sourceSessionId: piMeta.piSessionId,
         cwd: piMeta.cwd,
-        userTurnIndex: userMessageIndex,
+        userTurnIndex: payload.userMessageIndex ?? -1,
         mode: 'through',
         content: payload.content,
         occurrence: payload.occurrence,
@@ -252,11 +238,12 @@ export function registerRevertHandlers(): void {
     }
 
     const effectiveCwd = prev?.cwd || cwd
+    if (payload.lineIdx == null) return { success: false, error: 'Missing target line' }
 
     // 1. Truncate JSONL (keep target message for fork)
-    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, userMessageIndex, true, prev?.configDir, payload.content, payload.occurrence)
+    const result = await truncateJsonlAtUserMessage(claudeSessionId, effectiveCwd, payload.lineIdx, true, prev?.configDir, payload.content)
     if ('error' in result) {
-      return { success: false, error: result.error }
+      return { success: false, error: result.error, stale: result.stale }
     }
 
     // 2. Generate new session ID and write to new JSONL
@@ -328,8 +315,8 @@ export function registerRevertHandlers(): void {
       return { success: false, error: `Turn not found in forked source (occurrence ${occ})` }
     }
 
-    const result = await truncateJsonlAtUserMessage(sourceClaudeSessionId, sourceCwd, targetTurnIdx, true, configDir, content, occ)
-    if ('error' in result) return { success: false, error: result.error }
+    const result = await truncateJsonlAtUserMessage(sourceClaudeSessionId, sourceCwd, turns[targetTurnIdx].lineIdx, true, configDir, turns[targetTurnIdx].content)
+    if ('error' in result) return { success: false, error: result.error, stale: result.stale }
 
     let targetDir: string
     if (targetCwd === sourceCwd) {

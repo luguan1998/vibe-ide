@@ -11,7 +11,7 @@ import { formatConversationMarkdown, buildSessionDigest } from '../../utils/aiCo
 import { toFileUrl } from '../../utils/filePathUtils'
 import { StreamingMarkdown } from './markdown'
 import ConversationGraph from './ConversationGraph'
-import { ThinkingBlock, BusyStatus, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput, deriveUserTurns, lastRealUserTurnStartAt } from './messages'
+import { ThinkingBlock, BusyStatus, TodoListPanel, deriveTodoList, findMessageIndexForUserMessage, countContentOccurrencesBefore, MessageList, isRealUserInput, deriveUserTurns, lastRealUserTurnStartAt, type RevertTurnRef } from './messages'
 import TurnRail from './turnRail'
 import { AiAskQuestionCard, AiPermissionCard, AiExitPlanModeCard, AiPermErrorBoundary } from './permissions'
 import { SlashCommandAutocomplete, MentionAutocomplete, ContextBar, ModelBadge, PiModelBadge, PiThinkingLevelSelector, ModeSelector } from './inputArea'
@@ -40,7 +40,7 @@ interface AiTabProps {
   onViewAi: () => void
   onRenameSession: (name: string) => void
   onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
-  onForkSession?: (userMessageIndex: number, content?: string, occurrence?: number) => void
+  onForkSession?: (target: RevertTurnRef, occurrence: number) => void
   onGraphForkSend?: (node: AiGraphNode, text: string) => Promise<boolean>
   onGraphSendToBranch?: (claudeSessionId: string, cwd: string, text: string) => boolean
   onGraphOpenBranch?: (claudeSessionId: string, cwd: string) => void
@@ -1002,27 +1002,20 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
   // ── Revert / Fork handlers ──────────────────────────────────────
 
-  const handleRevert = useCallback(async (userMessageIndex: number) => {
+  // turn 由 MessageList 按 userTurns 绑定；回退点只认报文 lineIdx，气泡序号只用来切显示。
+  // pi 没有 userTurns（lineIdx = -1），退回渲染层轮次下标 + content/occurrence。
+  const handleRevert = useCallback(async (turn: RevertTurnRef, bubbleMsgIdx: number) => {
     if (!activeSessionId || !workspacePath) return
-
-    const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
-    if (targetMsgIdx < 0) return
-
-    // Renderer's userMessageIndex can drift below the JSONL turn index (AskUserQuestion
-    // answers / plan approvals / continuation prompts exist only in the JSONL). Pass the
-    // clicked message's content + occurrence so the main process resolves the true turn.
-    const targetContent = state.messages[targetMsgIdx]?.content
-    const occurrence = targetContent ? countContentOccurrencesBefore(state.messages, targetMsgIdx, targetContent) : 0
 
     const savedMessages = state.messages
     const savedFileChanges = state.fileChangesByTurn
 
-    const truncatedMessages = state.messages.slice(0, targetMsgIdx)
-    const truncatedFileChanges = state.fileChangesByTurn.slice(0, userMessageIndex)
+    const truncatedMessages = state.messages.slice(0, bubbleMsgIdx)
+    // fileChangesByTurn 由主进程按真实 JSONL 轮次序号（extractFileChange 的 turnIndex）写入，
+    // 必须用报文轮次切，渲染层气泡序号与之不同域
+    const truncatedFileChanges = state.fileChangesByTurn.slice(0, turn.turnIdx)
 
-    if (targetMsgIdx >= 0 && state.messages[targetMsgIdx]?.content) {
-      setInputValue(state.messages[targetMsgIdx].content!)
-    }
+    if (turn.content) setInputValue(turn.content)
 
     updateSession(activeSessionId, (s) => ({
       ...s,
@@ -1035,10 +1028,11 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
     const result = await window.api.ai.revert({
       sessionId: activeSessionId,
-      userMessageIndex,
       scope: 'conversation',
       cwd: workspacePath,
-      ...(targetContent ? { content: targetContent, occurrence } : {}),
+      ...(turn.lineIdx >= 0
+        ? { lineIdx: turn.lineIdx, content: turn.content }
+        : { userMessageIndex: turn.turnIdx, content: turn.content, occurrence: countContentOccurrencesBefore(state.messages, bubbleMsgIdx, turn.content) }),
     })
 
     if (!result.success) {
@@ -1048,20 +1042,18 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         fileChangesByTurn: savedFileChanges,
         busy: false,
       }))
-    } else {
-      aiStore.refreshUserTurns(activeSessionId)
     }
+    // 成功失败都刷新：失败可能是 stale（轮次快照已过期），下次点击必须基于最新报文
+    aiStore.refreshUserTurns(activeSessionId)
+    return result.success
   }, [activeSessionId, workspacePath, state.messages, state.fileChangesByTurn, updateSession, setInputValue])
 
-  const handleRevertAndCode = useCallback(async (userMessageIndex: number) => {
+  const handleRevertAndCode = useCallback(async (turn: RevertTurnRef, bubbleMsgIdx: number) => {
     if (!activeSessionId || !workspacePath) return
 
-    const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
-    if (targetMsgIdx < 0) return
-
     const filesToRevert = new Map<string, { filePath: string; action: string; oldContent?: string }>()
-    for (let turn = userMessageIndex; turn < state.fileChangesByTurn.length; turn++) {
-      const changes = state.fileChangesByTurn[turn]
+    for (let ti = turn.turnIdx; ti < state.fileChangesByTurn.length; ti++) {
+      const changes = state.fileChangesByTurn[ti]
       if (!changes) continue
       for (const change of changes) {
         if (!filesToRevert.has(change.relativePath)) {
@@ -1073,6 +1065,10 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         }
       }
     }
+
+    // 先回退会话；目标行已过期（stale）时不动文件，避免"会话没退、文件却退了"
+    const ok = await handleRevert(turn, bubbleMsgIdx)
+    if (!ok) return
 
     for (const [, info] of filesToRevert) {
       try {
@@ -1088,17 +1084,21 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
         }
       } catch (err) { console.error('file revert failed:', err) }
     }
+  }, [handleRevert, workspacePath, state.fileChangesByTurn])
 
-    await handleRevert(userMessageIndex)
-  }, [handleRevert, workspacePath, state.messages, state.fileChangesByTurn])
-
-  const handleFork = useCallback(async (userMessageIndex: number) => {
+  const handleFork = useCallback(async (turnIdx: number) => {
     if (!activeSessionId || !onForkSession) return
-    const targetMsgIdx = findMessageIndexForUserMessage(state.messages, userMessageIndex)
-    const targetContent = targetMsgIdx >= 0 ? state.messages[targetMsgIdx]?.content : undefined
-    const occurrence = targetContent ? countContentOccurrencesBefore(state.messages, targetMsgIdx, targetContent) : 0
-    onForkSession(userMessageIndex, targetContent, occurrence)
-  }, [activeSessionId, onForkSession, state.messages])
+    const turn = state.userTurns[turnIdx]
+    if (turn) {
+      onForkSession({ turnIdx, lineIdx: turn.lineIdx, content: turn.content, isInternal: turn.isInternal }, 0)
+      return
+    }
+    // pi 无 userTurns / 报文轮次未回：退回渲染层下标
+    const targetMsgIdx = findMessageIndexForUserMessage(state.messages, turnIdx)
+    const targetContent = (targetMsgIdx >= 0 ? state.messages[targetMsgIdx]?.content : undefined) ?? ''
+    const occurrence = countContentOccurrencesBefore(state.messages, targetMsgIdx, targetContent)
+    onForkSession({ turnIdx, lineIdx: -1, content: targetContent, isInternal: false }, occurrence)
+  }, [activeSessionId, onForkSession, state.userTurns, state.messages])
 
   // ── Todo list ──
   const todoItems = useMemo(() => deriveTodoList(state.messages), [state.messages])
@@ -1797,6 +1797,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           onRevert={handleRevert}
           onRevertAndCode={handleRevertAndCode}
           onFork={handleFork}
+          turnIndexFallback={isPi}
         />
         {!state.ready && state.messages.length > 0 && (
           <div className={`ai-tab__resume flex items-center gap-2 w-full ${CONTENT_MAX_W} mx-auto px-3 py-2 rounded-lg bg-ide-sidebar border border-ide-border/50 text-xs text-ide-text-muted animate-fade-in`}>

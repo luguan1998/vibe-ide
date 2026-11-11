@@ -25,6 +25,7 @@ import { DirectoryPicker } from './components/DirectoryPicker'
 import QuickOpen from './components/QuickOpen'
 import HistoryView from './components/HistoryView'
 import AiTab, { AiTabHandle } from './components/AiTab'
+import type { RevertTurnRef } from './components/AiTab/messages'
 import ConversationGraph from './components/AiTab/ConversationGraph'
 import BoardView, { BOARD_FOCUS } from './components/BoardView'
 import { aiStore, readAiCliConfig, queuePendingSend } from './aiStore'
@@ -260,8 +261,8 @@ declare global {
         searchSessions: (query: string, opts?: import('@shared/types').AiSearchOptions) => Promise<{ sessions: import('@shared/types').AiSessionSearchGroup[]; truncated?: boolean }>
         loadSessionMessagesByDir: (resumeSessionId: string, projectDir: string, configDir?: string) => Promise<{ messages: any[]; model?: string; slashCommands?: any[]; error?: string; actualCwd?: string }>
         deleteSessionByDir: (sessionId: string, projectDir: string, configDir?: string) => Promise<{ success: boolean; error?: string }>
-        revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string }) => Promise<{ success: boolean; error?: string }>
-        fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string }>
+        revert: (payload: { sessionId: string; scope: 'conversation' | 'both'; cwd: string; lineIdx?: number; content?: string; userMessageIndex?: number; occurrence?: number }) => Promise<{ success: boolean; error?: string; stale?: boolean }>
+        fork: (payload: { sessionId: string; cwd: string; lineIdx?: number; content?: string; userMessageIndex?: number; occurrence?: number }) => Promise<{ success: boolean; newClaudeSessionId?: string; error?: string; stale?: boolean }>
         onMessage: (callback: (data: any) => void) => any
         removeMessageListener: (handler?: any) => void
         onStreamToken: (callback: (data: { sessionId: string; token: string }) => void) => any
@@ -2356,7 +2357,7 @@ export default function App() {
   }, [splitTwins, applySessionTabPolicy])
 
   // Fork AI conversation at a specific user message
-  const handleForkSession = useCallback(async (currentSessionId: string, userMessageIndex: number, content?: string, occurrence?: number) => {
+  const handleForkSession = useCallback(async (currentSessionId: string, target: RevertTurnRef, occurrence: number) => {
     try {
       const current = sessions.find(s => s.id === currentSessionId)
       if (!current) return
@@ -2364,9 +2365,10 @@ export default function App() {
       // 1. Call fork IPC to create truncated JSONL with new session ID
       const result = await window.api.ai.fork({
         sessionId: currentSessionId,
-        userMessageIndex,
         cwd: current.cwd,
-        ...(content ? { content, occurrence } : {}),
+        ...(target.lineIdx >= 0
+          ? { lineIdx: target.lineIdx, content: target.content }
+          : { userMessageIndex: target.turnIdx, content: target.content, occurrence }),
       })
       if (!result.success || !result.newClaudeSessionId) {
         console.error('Fork failed:', result.error)
@@ -3950,8 +3952,8 @@ export default function App() {
                         }}
                         resumeSessionId={session.resumeSessionId}
                         backend={session.aiBackend ?? 'claude'}
-                        onForkSession={(userMessageIndex: number, content?: string, occurrence?: number) => {
-                          handleForkSession(session.id, userMessageIndex, content, occurrence)
+                        onForkSession={(target, occurrence) => {
+                          handleForkSession(session.id, target, occurrence)
                         }}
                         onGraphForkSend={(node: AiGraphNode, text: string) => handleGraphForkSend(session.id, node, text)}
                         onGraphSendToBranch={(claudeSessionId: string, cwd: string, text: string) => handleGraphSendToBranch(session.id, claudeSessionId, cwd, text)}

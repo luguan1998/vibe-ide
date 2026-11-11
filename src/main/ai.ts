@@ -1470,8 +1470,10 @@ function parseTranscriptLines(
             }
           }
         }
+        // 中断标记不是用户轮次（parseUserTurns 也不计入），live 流同样不转发；
+        // 历史里渲染成假用户气泡会打乱轮次对位
         const textPart = userContent.find(b => b.type === 'text')
-        if (textPart) {
+        if (textPart && !textPart.text.startsWith('[Request interrupted by user')) {
           messages.push({
             sessionId: sid, type: 'user', role: 'user',
             content: textPart.text, timestamp: ts,

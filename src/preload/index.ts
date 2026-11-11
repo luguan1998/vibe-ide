@@ -384,9 +384,9 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.AI_SET_VISIBLE, visible),
     setBusy: (busy: boolean) =>
       ipcRenderer.send(IPC_CHANNELS.AI_SET_BUSY, busy),
-    revert: (payload: { sessionId: string; userMessageIndex: number; scope: 'conversation' | 'both'; cwd: string; content?: string; occurrence?: number }) =>
+    revert: (payload: { sessionId: string; scope: 'conversation' | 'both'; cwd: string; lineIdx?: number; content?: string; userMessageIndex?: number; occurrence?: number }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_REVERT, payload),
-    fork: (payload: { sessionId: string; userMessageIndex: number; cwd: string; content?: string; occurrence?: number }) =>
+    fork: (payload: { sessionId: string; cwd: string; lineIdx?: number; content?: string; userMessageIndex?: number; occurrence?: number }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_FORK, payload),
     listUserTurns: (sessionId: string, cwd: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.AI_LIST_USER_TURNS, { sessionId, cwd }),

@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, Check, Undo2, MessageSquare, GitBranch, Copy
 import { ToolIcon, AiToolCallCard, CompactToolSummary, isPureToolMessage, getToolCategory } from './tools'
 import { ChatMarkdown } from './markdown'
 import { CONTENT_MAX_W, PANEL_MAX_W, MSG_GAP } from './layout'
+import { isRealUserInput, mapRealUserTurns, type RevertTurnRef } from './revertTurns'
 import { ClaudeLogoIcon } from '../ClaudeLogoIcon'
 import { PiLogoIcon } from '../PiLogoIcon'
 interface TodoItem {
@@ -72,16 +73,6 @@ export function deriveTodoList(messages: AiMessage[]): TodoItem[] {
   }
   return [...tasks.values()].filter(t => t.status !== 'deleted')
 }
-// 真实用户输入：tool_result 回填消息也是 type:'user' 的 AiMessage（CLI 把工具结果写进
-// user 行），但它们紧跟含 tool_use 的 assistant 之后，不得计入 userTurns/revert/fork 索引
-// resume 历史由主进程 turnByLine 打 isRealUserTurn 标记，跨轮无 result 分隔时启发式不可信，标记优先
-export function isRealUserInput(messages: AiMessage[], i: number): boolean {
-  const m = messages[i]
-  if (!m || m.role !== 'user' || m.type !== 'user' || !m.content) return false
-  if (m.isRealUserTurn === true) return true
-  return !(i > 0 && messages[i - 1].type === 'assistant')
-}
-
 interface TurnStats {
   toolCount: number
   durationMs?: number
@@ -136,38 +127,21 @@ export function deriveUserTurns(messages: AiMessage[]): { turnIdx: number; conte
   return turns
 }
 
-export function findMessageIndexForUserMessage(messages: AiMessage[], userMessageIndex: number): number {
-  let count = 0
-  for (let i = 0; i < messages.length; i++) {
-    if (isRealUserInput(messages, i)) {
-      if (count === userMessageIndex) return i
-      count++
-    }
-  }
-  return -1
-}
-
-// 该 content 在真实用户输入中、index 之前出现的次数 = index 处消息的 occurrence（0-based）
-export function countContentOccurrencesBefore(messages: AiMessage[], index: number, content: string): number {
-  let occurrence = 0
-  for (let i = 0; i < index; i++) {
-    if (isRealUserInput(messages, i) && messages[i].content === content) occurrence++
-  }
-  return occurrence
-}
+export { isRealUserInput, findMessageIndexForUserMessage, countContentOccurrencesBefore, mapRealUserTurns, type RevertTurnRef } from './revertTurns'
 
 function formatHourMin(ts: number): string {
   const d = new Date(ts)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAndCode, isInternal, allowRevert = true, turnSummary, turnExpanded, turnExpandable, onToggleTurn }: {
+function AiUserMessage({ message, userMessageIndex, revertTurn, bubbleMsgIdx, isBusy, onRevert, onRevertAndCode, allowRevert = true, turnSummary, turnExpanded, turnExpandable, onToggleTurn }: {
   message: AiMessage
   userMessageIndex: number
+  revertTurn: RevertTurnRef | null
+  bubbleMsgIdx: number
   isBusy: boolean
-  onRevert: (idx: number) => void
-  onRevertAndCode: (idx: number) => void
-  isInternal?: boolean
+  onRevert: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
+  onRevertAndCode: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
   allowRevert?: boolean
   turnSummary?: string
   turnExpanded?: boolean
@@ -193,7 +167,7 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
   const cleanedContent = cleanMessageContent(message.content || '')
   if (!cleanedContent) return null
   const timeStr = message.timestamp ? formatHourMin(message.timestamp) : ''
-  const showRevert = allowRevert && userMessageIndex >= 0 && !isInternal
+  const showRevert = allowRevert && !!revertTurn && !revertTurn.isInternal
 
   return (
     <div
@@ -212,7 +186,7 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
                        py-1 min-w-[170px] animate-fade-in"
           >
             <button
-              onClick={() => { setShowPopover(false); onRevertAndCode(userMessageIndex) }}
+              onClick={() => { setShowPopover(false); if (revertTurn) onRevertAndCode(revertTurn, bubbleMsgIdx) }}
               disabled={isBusy}
               className="ai-tab__user-popover-item w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left text-ide-text-muted
                          hover:bg-ide-hover hover:text-ide-text
@@ -222,7 +196,7 @@ function AiUserMessage({ message, userMessageIndex, isBusy, onRevert, onRevertAn
               {t('Revert conversation & code')}
             </button>
             <button
-              onClick={() => { setShowPopover(false); onRevert(userMessageIndex) }}
+              onClick={() => { setShowPopover(false); if (revertTurn) onRevert(revertTurn, bubbleMsgIdx) }}
               disabled={isBusy}
               className="ai-tab__user-popover-item w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left text-ide-text-muted
                          hover:bg-ide-hover hover:text-ide-text
@@ -639,16 +613,17 @@ export function TodoListPanel({ items }: { items: TodoItem[] }) {
   )
 }
 
-const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, isBusy, onRevert, onRevertAndCode, onFork, isInternal, allowHistory = true, turnSummary, thinkingMode, contentOnly, copyText, forkIdx, turnExpandable, turnExpanded, turnIdx, onToggleTurn }: {
+const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspacePath, onOpenFile, userMessageIndex, revertTurn, bubbleMsgIdx, isBusy, onRevert, onRevertAndCode, onFork, allowHistory = true, turnSummary, thinkingMode, contentOnly, copyText, forkIdx, turnExpandable, turnExpanded, turnIdx, onToggleTurn }: {
   message: AiMessage
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
   userMessageIndex: number
+  revertTurn?: RevertTurnRef | null
+  bubbleMsgIdx?: number
   isBusy: boolean
-  onRevert: (idx: number) => void
-  onRevertAndCode: (idx: number) => void
+  onRevert: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
+  onRevertAndCode: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
   onFork: (idx: number) => void
-  isInternal?: boolean
   allowHistory?: boolean
   turnSummary?: string
   thinkingMode?: 'recent' | 'collapsed'
@@ -664,7 +639,7 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
   if (message.error) {
     inner = <AiErrorMessage message={message} />
   } else if (message.role === 'user') {
-    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} isInternal={isInternal} allowRevert={allowHistory} turnSummary={turnSummary} turnExpandable={turnExpandable} turnExpanded={turnExpanded} onToggleTurn={turnIdx != null && turnIdx >= 0 && onToggleTurn ? () => onToggleTurn(turnIdx) : undefined} />
+    inner = <AiUserMessage message={message} userMessageIndex={userMessageIndex} revertTurn={revertTurn ?? null} bubbleMsgIdx={bubbleMsgIdx ?? -1} isBusy={isBusy} onRevert={onRevert} onRevertAndCode={onRevertAndCode} allowRevert={allowHistory} turnSummary={turnSummary} turnExpandable={turnExpandable} turnExpanded={turnExpanded} onToggleTurn={turnIdx != null && turnIdx >= 0 && onToggleTurn ? () => onToggleTurn(turnIdx) : undefined} />
   } else if (
     message.type === 'result'
     && message.costUsd == null
@@ -684,21 +659,30 @@ const AiMessageBubble = React.memo(function AiMessageBubble({ message, workspace
 
 // 回合视图：busy 时过程内容按时间顺序全部展开（think 块停笔 2s 后各自收起）；
 // 回合结束后过程内容整体收进用户气泡下的 cooked 摘要行，点击可展开。
-export const MessageList = React.memo(function MessageList({ messages, userTurns, busy, pendingPermission, workspacePath, onOpenFile, onRevert, onRevertAndCode, onFork, allowHistory = true }: {
+export const MessageList = React.memo(function MessageList({ messages, userTurns, busy, pendingPermission, workspacePath, onOpenFile, onRevert, onRevertAndCode, onFork, allowHistory = true, turnIndexFallback = false }: {
   messages: AiMessage[]
   userTurns: UserTurn[]
   busy: boolean
   pendingPermission: boolean
   workspacePath: string | null
   onOpenFile?: (fullPath: string, lineNumber?: number, mode?: 'diff' | 'edit') => void
-  onRevert: (idx: number) => void
-  onRevertAndCode: (idx: number) => void
+  onRevert: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
+  onRevertAndCode: (turn: RevertTurnRef, bubbleMsgIdx: number) => void
   onFork: (idx: number) => void
   allowHistory?: boolean
+  // pi 无 userTurns：允许用渲染层顺序下标兜底；claude 不允许（配不上就不显示入口）
+  turnIndexFallback?: boolean
 }) {
   // busy 不等于回合进行中（等权限批准时 aiStore.onPermission 会把 busy 置回 false），两者合一才是"回合未完"
   const turnOngoing = busy || pendingPermission
   const userMessages = messages.filter((m, i) => isRealUserInput(messages, i))
+
+  // 气泡 → 报文轮次绑定：只决定按钮画在哪；回退点用绑定到的 lineIdx
+  const turnForMsg = useMemo(() => mapRealUserTurns(messages, userTurns, turnIndexFallback), [messages, userTurns, turnIndexFallback])
+  const boundTurnIdxOf = (rendererTurnIdx: number): number => {
+    const m = userMessages[rendererTurnIdx]
+    return m ? (turnForMsg.get(m)?.turnIdx ?? -1) : -1
+  }
 
   // 回合归属：index → turn（真实用户输入序号）
   const turnOf: number[] = new Array(messages.length)
@@ -934,14 +918,15 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     if (!isUser && !isAnswer && !showProcess && msg.type !== 'result' && !msg.error) return null
 
     const uIdx = isUser ? userMessages.indexOf(msg) : -1
+    const bound = isUser ? turnForMsg.get(msg) : undefined
     let copyText: string | undefined
     let forkIdx = -1
     if (msg.type === 'result' && !msg.parentToolUseId) {
       copyText = resultCopyText.get(item.index)
-      if (allowHistory) forkIdx = userCountBefore[item.index] - 1
+      if (allowHistory) forkIdx = boundTurnIdxOf(userCountBefore[item.index] - 1)
     } else if (isAnswer && !ongoing && msg.type === 'assistant' && selfMetaIdx.has(item.index)) {
       copyText = selfMetaCopyText.get(item.index) ?? (msg.content || undefined)
-      if (allowHistory) forkIdx = userCountBefore[item.index] - 1
+      if (allowHistory) forkIdx = boundTurnIdxOf(userCountBefore[item.index] - 1)
     }
 
     return (
@@ -951,11 +936,12 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
         workspacePath={workspacePath}
         onOpenFile={onOpenFile}
         userMessageIndex={uIdx}
+        revertTurn={bound ?? null}
+        bubbleMsgIdx={item.index}
         isBusy={busy}
         onRevert={onRevert}
         onRevertAndCode={onRevertAndCode}
         onFork={onFork}
-        isInternal={userTurns[uIdx]?.isInternal ?? false}
         allowHistory={allowHistory}
         turnSummary={isUser && !ongoing && stats ? formatTurnSummary(stats) || undefined : undefined}
         thinkingMode={thinkingMode}
