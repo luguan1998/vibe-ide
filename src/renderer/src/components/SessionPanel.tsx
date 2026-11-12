@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
-import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, isDefaultSessionName, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon } from '../sessionRestore'
+import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon } from '../sessionRestore'
 import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, mascotColorValue, pixelMascot } from '../pixelMascots'
 import { PixelMascot } from './PixelMascot'
 import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages, Ellipsis, Heart } from 'lucide-react'
@@ -384,7 +384,6 @@ interface SessionPanelProps {
   onSetSessionEmoji?: (id: string, emoji?: string) => void
   onReorderGroup?: (fromGroupIndex: number, toGroupIndex: number) => void
   onReorderSessionInGroup?: (sessionId: string, targetSessionId: string, before: boolean) => void
-  onTidySessionsInGroup?: (cwd: string) => void
   onTidyAllSessions?: () => void
   commandHistory?: Record<string, string[]>
   onRevealUserTurn?: (sessionId: string, turnIdx: number) => void
@@ -666,7 +665,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onSetSessionEmoji,
   onReorderGroup,
   onReorderSessionInGroup,
-  onTidySessionsInGroup,
   onTidyAllSessions,
   commandHistory = {},
   onRevealUserTurn,
@@ -2115,19 +2113,16 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                           <Pencil size={14} className="text-ide-text-muted" />
                           <span>{t('Rename')}</span>
                         </button>
-                        {(group.sessions.length > 1 || group.sessions.some(s => isDefaultSessionName(s.name))) && (
-                          <button
-                            className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
-                            title={t('Sort by latest reply (newest first) and clean sessions still using default names')}
-                            onClick={() => {
-                              setGroupMenu(null)
-                              onTidySessionsInGroup?.(group.cwd)
-                            }}
-                          >
-                            {tidyIcon}
-                            <span>{t('Tidy Up')}</span>
-                          </button>
-                        )}
+                        <button
+                          className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
+                          onClick={() => {
+                            setGroupMenu(null)
+                            window.api.file.openTerminal(group.cwd)
+                          }}
+                        >
+                          {renderModeIcon('term')}
+                          <span>{t('Open New Terminal')}</span>
+                        </button>
                         <button
                           className="w-full px-3 py-1.5 text-left text-sm text-ide-danger hover:bg-ide-hover flex items-center gap-2"
                           onClick={() => {

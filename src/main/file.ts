@@ -1,4 +1,5 @@
 import { ipcMain, shell } from 'electron'
+import { spawn } from 'child_process'
 import { readFile, writeFile, readdir, rename, mkdir, rm, cp, stat } from 'fs/promises'
 import { existsSync, statSync } from 'fs'
 import { join, dirname, extname, relative } from 'path'
@@ -238,6 +239,18 @@ export function registerFileHandlers(): void {
       } else {
         shell.showItemInFolder(filePath)
       }
+      return { success: true }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
+
+  // Open a directory in Windows Terminal
+  ipcMain.handle(IPC_CHANNELS.FILE_OPEN_TERMINAL, async (_event, dirPath: string) => {
+    try {
+      const child = spawn('wt.exe', ['-d', dirPath], { detached: true, stdio: 'ignore' })
+      child.on('error', () => {})
+      child.unref()
       return { success: true }
     } catch (err: any) {
       return { error: err.message }

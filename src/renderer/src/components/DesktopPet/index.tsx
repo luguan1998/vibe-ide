@@ -547,7 +547,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                     title={r.text}
                     onClick={r.reply ? () => {
                       if ((window.getSelection()?.toString() || '').trim()) return
-                      setLatestReply({ messageId: `history-${r.id}`, text: r.reply })
+                      setLatestReply({ messageId: `history-${r.id}`, text: r.reply! })
                       setAiBubbleOpen(true)
                       setPopupOpen(false)
                     } : undefined}

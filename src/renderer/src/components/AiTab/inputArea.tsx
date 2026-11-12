@@ -62,8 +62,9 @@ export function ContextBar({ percent, sessionId }: { percent: number | null; ses
     if (next) {
       window.api.ai.getContextInfo(sessionId).then(info => {
         setInfo(info)
-        if (info?.contextPercent != null) {
-          aiStore.updateSession(sessionId, s => ({ ...s, contextPercent: Math.round(info.contextPercent) }))
+        const percent = info?.contextPercent
+        if (percent != null) {
+          aiStore.updateSession(sessionId, s => ({ ...s, contextPercent: Math.round(percent) }))
         }
       }).catch(() => {})
     }

@@ -123,6 +123,7 @@ declare global {
         rename: (oldPath: string, newPath: string) => Promise<any>
         createDir: (dirPath: string) => Promise<any>
         openExplorer: (filePath: string) => Promise<any>
+        openTerminal: (dirPath: string) => Promise<any>
         copy: (srcPath: string, destPath: string) => Promise<any>
         move: (srcPath: string, destPath: string) => Promise<any>
         find: (cwd: string, filename: string, skipPatterns?: string[]) => Promise<any>
@@ -2967,29 +2968,6 @@ export default function App() {
   const sessionActivityAt = useCallback((s: SessionTab) => (
     agentStatus[s.id] === 'running' ? Number.MAX_SAFE_INTEGER : (idleSinceMap[s.id] ?? s.createdAt)
   ), [agentStatus, idleSinceMap])
-  // 整理：清理该组内仍是默认命名（从未手动改名）的会话，再把剩余会话按最近回复时间倒序
-  const handleTidySessionsInGroup = useCallback(async (cwd: string) => {
-    const ids = sessionsRef.current
-      .filter(s => sessionGroupKey(s) === cwd && isDefaultSessionName(s.name) && !manuallyRenamedRef.current.has(s.id) && !hasSchedTask(s.id))
-      .map(s => s.id)
-    for (const id of ids) await closeSessionCore(id)
-    setSessions(prev => {
-      const positions: number[] = []
-      prev.forEach((s, i) => { if (sessionGroupKey(s) === cwd) positions.push(i) })
-      if (positions.length < 2) return prev
-      const sorted = positions.map(i => prev[i]).sort((a, b) => sessionActivityAt(b) - sessionActivityAt(a))
-      const next = [...prev]
-      positions.forEach((pos, j) => { next[pos] = sorted[j] })
-      return next
-    })
-    if (ids.length === 0) return
-    setActiveSessionId(prev => {
-      if (!prev || !ids.includes(prev)) return prev
-      const rest = sessionsRef.current.filter(s => !ids.includes(s.id))
-      return rest.length > 0 ? rest[0].id : null
-    })
-  }, [closeSessionCore, sessionActivityAt])
-
   // 空白处整理：各组清理默认命名会话并按最近回复时间倒序；整理后无会话的 cwd 排到最前，其余组相对顺序不变
   const handleTidyAllSessions = useCallback(async () => {
     const all = sessionsRef.current
@@ -3737,7 +3715,6 @@ export default function App() {
             onSetSessionEmoji={handleSetSessionEmoji}
             onReorderGroup={handleReorderGroup}
             onReorderSessionInGroup={handleReorderSessionInGroup}
-            onTidySessionsInGroup={handleTidySessionsInGroup}
             onTidyAllSessions={handleTidyAllSessions}
             commandHistory={commandHistory}
             onRevealUserTurn={handleRevealUserTurn}
