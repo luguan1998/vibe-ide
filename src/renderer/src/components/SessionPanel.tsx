@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon } from '../sessionRestore'
 import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, mascotColorValue, pixelMascot } from '../pixelMascots'
 import { PixelMascot } from './PixelMascot'
-import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages, Ellipsis, Heart } from 'lucide-react'
+import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages, Ellipsis, Heart, NotebookPen } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { cwdStore, useRecentDirs, useFavCwds, useGroupOrder, useEmptyGroups, orderGroups } from '../cwdStore'
 import { useAdaptiveMenuPos } from '@renderer/utils/useAdaptiveMenuPos'
@@ -18,7 +18,7 @@ import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from '../utils
 import type { ProgramStatus } from '../programStatus'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { PiLogoIcon } from './PiLogoIcon'
-import { BOARD_FOCUS } from './BoardView'
+import { BOARD_FOCUS, requestBoardNewTodo } from './BoardView'
 import { SessionGlyph, renderKindIcon } from '../sessionIcon'
 import { PanelGitIcon, PanelDirIcon, PanelSessionsIcon } from '../panelIcons'
 import { useSchedTasks, setSchedTask, deleteSchedTask, markSchedFired, pruneSchedTasks } from '../schedStore'
@@ -1823,11 +1823,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             {t('Task Board')}
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onToggleShowSessionButtons?.(false) }}
+            onClick={(e) => { e.stopPropagation(); requestBoardNewTodo() }}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto hover:bg-ide-accent hover:text-white transition-all flex items-center justify-center"
-            title={t('Collapse')}
+            title={t('New todo')}
           >
-            <ChevronUp size={14} />
+            <NotebookPen size={14} />
           </button>
         </div>
         </>)}

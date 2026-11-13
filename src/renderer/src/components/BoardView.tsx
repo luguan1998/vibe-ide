@@ -10,6 +10,13 @@ import { FolderIcon } from './FileIcons'
 
 export const BOARD_FOCUS = 'board-focus'
 
+let pendingNewTodo = false
+
+export function requestBoardNewTodo() {
+  pendingNewTodo = true
+  window.dispatchEvent(new CustomEvent(BOARD_FOCUS, { detail: { newTodo: true } }))
+}
+
 const BOARD_DEFAULT_CMD_KEY = 'vibe-ide-board-default-cmd'
 const BOARD_FILTER_KEY = 'vibe-ide-board-cwd-exclude'
 const BOARD_TODOS_KEY = 'vibe-ide-board-todos'
@@ -405,6 +412,20 @@ export default function BoardView({
   const addTodo = useCallback(() => {
     setTodoModal({ id: null, draft: '' })
   }, [])
+
+  useEffect(() => {
+    if (pendingNewTodo) {
+      pendingNewTodo = false
+      addTodo()
+    }
+    const onFocus = (e: Event) => {
+      if (!(e as CustomEvent).detail?.newTodo || !pendingNewTodo) return
+      pendingNewTodo = false
+      addTodo()
+    }
+    window.addEventListener(BOARD_FOCUS, onFocus)
+    return () => window.removeEventListener(BOARD_FOCUS, onFocus)
+  }, [addTodo])
 
   const deleteTodo = useCallback((id: number) => {
     setTodos(prev => prev.filter(t => t.id !== id))
