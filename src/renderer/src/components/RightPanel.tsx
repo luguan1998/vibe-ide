@@ -15,6 +15,7 @@ import { AuxTerminalTab, RecentFileEntry } from '@shared/types'
 
 interface RightPanelProps {
   workspacePath: string | null
+  onEnsureSession?: () => void
   onFileSelect?: (filePath: string, isStaged: boolean, commitHash: string | undefined, fullPath: string | undefined, gitStats: { additions: number; deletions: number }) => void
   refreshKey?: number
   onOpenFileFromRightTerminal?: (fullPath: string, lineNumber?: number) => void
@@ -388,7 +389,7 @@ function TabBar({
 }
 
 function RightPanel({
-  workspacePath, onFileSelect, refreshKey,
+  workspacePath, onEnsureSession, onFileSelect, refreshKey,
   onOpenFileFromRightTerminal, onOpenFileFromSearch,
   rightTerminalSessions, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
@@ -422,6 +423,11 @@ function RightPanel({
 }: RightPanelProps) {
   const { t } = useI18n()
   const [activeSection, setActiveSection] = useState<GitSection>('file')
+  // 用户切换面板即视为对该会话的一次操作：恢复出来的 SSH 会话此时才建连接
+  const selectSection = useCallback((section: GitSection) => {
+    setActiveSection(section)
+    onEnsureSession?.()
+  }, [onEnsureSession])
   const [tabOrder, setTabOrder] = useState<GitSection[]>(loadTabOrder)
   const [visibleTabs, setVisibleTabs] = useState<Record<GitSection, boolean>>(DEFAULT_VISIBLE_TABS)
   const [fileRefreshKey, setFileRefreshKey] = useState(0)
@@ -524,7 +530,7 @@ function RightPanel({
         e.stopImmediatePropagation()
         const idx = visibleList.indexOf(activeSection)
         if (idx !== -1) {
-          setActiveSection(visibleList[(idx + 1) % visibleList.length])
+          selectSection(visibleList[(idx + 1) % visibleList.length])
         }
       }
       if (eventMatchesBinding(e, bindings['panel.tabLeft'])) {
@@ -532,7 +538,7 @@ function RightPanel({
         e.stopImmediatePropagation()
         const idx = visibleList.indexOf(activeSection)
         if (idx !== -1) {
-          setActiveSection(visibleList[(idx - 1 + visibleList.length) % visibleList.length])
+          selectSection(visibleList[(idx - 1 + visibleList.length) % visibleList.length])
         }
       }
       for (let i = 1; i <= 5; i++) {
@@ -540,14 +546,14 @@ function RightPanel({
           e.preventDefault()
           e.stopImmediatePropagation()
           if (visibleList[i - 1]) {
-            setActiveSection(visibleList[i - 1])
+            selectSection(visibleList[i - 1])
           }
         }
       }
     }
     window.addEventListener('keydown', handleKey, true)
     return () => window.removeEventListener('keydown', handleKey, true)
-  }, [activeSection, visibleList])
+  }, [activeSection, visibleList, selectSection])
 
   // navigateToFilePayload → 切换到 File 面板
   useEffect(() => {
@@ -557,9 +563,9 @@ function RightPanel({
         const next = { ...prev, file: true }
         return next
       })
-      setActiveSection('file')
+      selectSection('file')
     }
-  }, [navigateToFilePayload])
+  }, [navigateToFilePayload, selectSection])
 
   // lineHistoryPayload → 切换到 Git 面板
   useEffect(() => {
@@ -569,9 +575,9 @@ function RightPanel({
         const next = { ...prev, git: true }
         return next
       })
-      setActiveSection('git')
+      selectSection('git')
     }
-  }, [lineHistoryPayload])
+  }, [lineHistoryPayload, selectSection])
 
   // 浏览器停靠右栏 → 切到 Nga tab 展示覆盖层
   useEffect(() => {
@@ -596,7 +602,7 @@ function RightPanel({
     <TabBar
       tabs={visibleList}
       activeSection={activeSection}
-      onSelect={setActiveSection}
+      onSelect={selectSection}
       visibleTabs={visibleTabs}
       onReorder={handleReorder}
       onToggleVisibility={handleToggleVisibility}

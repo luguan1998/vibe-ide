@@ -11,6 +11,15 @@ export const IPC_CHANNELS = {
   PTY_GET_SHELLS: 'pty:getShells',
   PTY_REFRESH_ENV: 'pty:refreshEnv',
 
+  // SSH
+  SSH_HOSTS_LIST: 'ssh:hostsList',
+  SSH_HOST_SAVE: 'ssh:hostSave',
+  SSH_HOST_DELETE: 'ssh:hostDelete',
+  SSH_CONNECT: 'ssh:connect',
+  SSH_DISCONNECT: 'ssh:disconnect',
+  SSH_HOME: 'ssh:home',
+  SSH_LIST_DIR: 'ssh:listDir',
+
   // Git
   GIT_STATUS: 'git:status',
   GIT_SET_WORKSPACE: 'git:setWorkspace',
@@ -348,6 +357,7 @@ export interface TerminalSession {
   name: string
   cwd: string
   shell?: string
+  sshConnectionId?: string
   active: boolean
   createdAt: number
 }
@@ -414,6 +424,39 @@ export interface CreateTerminalOptions {
   name?: string
   shell?: string
   initCommand?: string
+  sshConnectionId?: string
+}
+
+// SSH
+export interface SshHost {
+  id: string
+  label: string
+  host: string
+  port?: number
+  username?: string
+  authMethod: 'password' | 'key' | 'agent'
+  privateKeyPath?: string
+}
+
+export interface SshHostInput extends Omit<SshHost, 'id'> {
+  id?: string
+  password?: string
+  passphrase?: string
+}
+
+export interface SshConnectOptions {
+  hostId: string
+  password?: string
+  passphrase?: string
+}
+
+export type SshConnectionState = 'connected' | 'auth-failed' | 'error'
+
+export interface SshConnectResult {
+  connectionId: string
+  state: SshConnectionState
+  message?: string
+  nodeVersion?: string
 }
 
 // Git types

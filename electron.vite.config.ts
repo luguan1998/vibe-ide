@@ -4,14 +4,16 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // relay.js 部署到远端裸 Node 执行：simple-git 必须打进产物，远端不装依赖
+    plugins: [externalizeDepsPlugin({ exclude: ['simple-git'] })],
     build: {
       rollupOptions: {
         external: ['node-pty'],
         input: {
           index: resolve('src/main/index.ts'),
           'computer-use': resolve('src/main/computer-use.ts'),
-          'browser-use': resolve('src/main/browser-use.ts')
+          'browser-use': resolve('src/main/browser-use.ts'),
+          relay: resolve('src/relay/index.ts')
         },
         output: {
           entryFileNames: '[name].js'

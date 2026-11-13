@@ -66,6 +66,9 @@ export interface SessionTab {
   worktreeOriginalPath?: string
   worktreeBranch?: string
   worktreeBaseBranch?: string
+  sshConnectionId?: string
+  // 持久化的主机 id：重启后先占位，点击会话时按 hostId 重新连接
+  sshHostId?: string
   loaded: boolean
 }
 
@@ -75,6 +78,10 @@ export interface Session {
   name: string
   activeTabId: string
   tabs: SessionTab[]
+}
+
+export function isSshSession(s: Pick<SessionTab, 'sshConnectionId' | 'sshHostId'>): boolean {
+  return !!(s.sshConnectionId || s.sshHostId)
 }
 
 // 会话列表分组键：worktree 会话并入其来源仓库的组（没有来源信息时退回自身 cwd）
@@ -100,9 +107,12 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
     for (const s of data.sessions) {
       if (!s || typeof s.cwd !== 'string' || !Array.isArray(s.tabs)) continue
       const tabs: SessionTab[] = []
+      const hadTabs = s.tabs.length > 0
       for (const t of s.tabs) {
         if (!t || typeof t.id !== 'string' || typeof t.name !== 'string' || typeof t.cwd !== 'string') continue
         if (t.kind !== 'terminal' && t.kind !== 'gui') continue
+        // SSH 会话只保存 hostId，运行期 connectionId 不持久化；没有 hostId 的旧数据无法恢复
+        if (t.sshConnectionId && typeof t.sshHostId !== 'string') continue
         tabs.push({
           id: t.id,
           kind: t.kind,
@@ -120,10 +130,12 @@ export function loadSessionWorkspace(): SessionWorkspace | null {
           worktreeOriginalPath: typeof t.worktreeOriginalPath === 'string' ? t.worktreeOriginalPath : undefined,
           worktreeBranch: typeof t.worktreeBranch === 'string' ? t.worktreeBranch : undefined,
           worktreeBaseBranch: typeof t.worktreeBaseBranch === 'string' ? t.worktreeBaseBranch : undefined,
+          sshHostId: typeof t.sshHostId === 'string' ? t.sshHostId : undefined,
           loaded: false,
         })
       }
       if (tabs.length === 0) {
+        if (hadTabs) continue
         tabs.push({
           id: `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           kind: 'terminal',

@@ -1,7 +1,7 @@
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { Smile } from 'lucide-react'
+import { Server, Smile } from 'lucide-react'
 import type { SessionTab } from './sessionRestore'
-import { ICON_NONE } from './sessionRestore'
+import { ICON_NONE, isSshSession } from './sessionRestore'
 import { useI18n } from './i18n'
 import { useSchedTasks } from './schedStore'
 import { ToolIcon } from './components/AiTab/tools'
@@ -17,6 +17,10 @@ export function renderKindIcon(kind: SessionTab['kind'], aiBackend?: SessionTab[
   ) : (
     <ClaudeLogoIcon size={14} className="shrink-0" />
   )
+}
+
+export function SshIcon({ size = 13 }: { size?: number }) {
+  return <Server size={size} className="shrink-0 text-ide-accent" />
 }
 
 // 行首图标状态机：scheduled > worktree > running > warn > idle（照抄 SessionPanel 原渲染结构）
@@ -62,7 +66,10 @@ export function SessionGlyph({ session, status, worktreeNav, reveal, hideEmpty, 
     : 'idle' as const
   const clickable = state === 'scheduled' || state === 'idle' || state === 'running'
   const showEmojiHint = (state === 'idle' || state === 'running') && !reveal
-  const idleGlyph = blankIcon ? '' : (curEmoji ?? renderKindIcon(session.kind, session.aiBackend))
+  const isSsh = isSshSession(session)
+  const idleGlyph = isSsh
+    ? <SshIcon />
+    : blankIcon ? '' : (curEmoji ?? renderKindIcon(session.kind, session.aiBackend))
   const glyph = state === 'scheduled' ? '⏰'
     : state === 'worktree' ? '🌿'
     : state === 'running'
@@ -89,6 +96,7 @@ export function SessionGlyph({ session, status, worktreeNav, reveal, hideEmpty, 
     : state === 'worktree' ? (worktreePath || 'Worktree')
     : state === 'running' ? t('Running')
     : state === 'warn' ? t('Warning')
+    : isSsh ? 'SSH'
     : (blankIcon ? t('Blank') : session.kind === 'terminal' ? t('Terminal') : (session.aiBackend === 'pi' ? 'Pi' : 'Claude'))
   return (
     <span

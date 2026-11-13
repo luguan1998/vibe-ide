@@ -2,11 +2,15 @@ import { ipcMain, shell } from 'electron'
 import { spawn } from 'child_process'
 import { readFile, writeFile, readdir, rename, mkdir, rm, cp, stat } from 'fs/promises'
 import { existsSync, statSync } from 'fs'
-import { join, dirname, extname, relative } from 'path'
-import { IPC_CHANNELS, FileNode } from '../shared/types'
+import { join, dirname, extname, posix } from 'path'
+import { IPC_CHANNELS } from '../shared/types'
 import * as iconv from 'iconv-lite'
 import * as jschardet from 'jschardet'
 import { normalizeEncoding, DEFAULT_ENCODING } from '../shared/encodings'
+import { buildFsTree, findFilesByName, searchPathsByName } from '../shared/fsWalk'
+import { getSshRelay } from './remote/ssh'
+import { resolveRemoteConnection } from './remote/roots'
+import type { RelayClient } from './remote/relay-client'
 
 const BINARY_EXTENSIONS = new Set([
   'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'tiff', 'tif', 'psd', 'heic', 'heif', 'avif',
@@ -57,6 +61,105 @@ function autoDetectEncoding(buffer: Buffer): { encoding: string; confidence: num
   return { encoding, confidence: result.confidence || 0, bom: false }
 }
 
+function remoteRelay(filePath: string): RelayClient | undefined {
+  const connectionId = resolveRemoteConnection(filePath)
+  return connectionId ? getSshRelay(connectionId) : undefined
+}
+
+interface FsBackend {
+  relay: RelayClient | null
+}
+
+function backendOf(filePath: string): FsBackend {
+  return { relay: remoteRelay(filePath) ?? null }
+}
+
+function backendJoin(dir: string, name: string, remote: boolean): string {
+  return remote ? posix.join(dir, name) : join(dir, name)
+}
+
+async function backendMkdir(backend: FsBackend, dirPath: string): Promise<void> {
+  if (backend.relay) {
+    await backend.relay.request('fs.mkdir', { path: dirPath })
+    return
+  }
+  await mkdir(dirPath, { recursive: true })
+}
+
+async function backendList(backend: FsBackend, dirPath: string): Promise<{ name: string; isDirectory: boolean }[]> {
+  if (backend.relay) {
+    const entries = await backend.relay.request('fs.list', { path: dirPath })
+    return entries.map((e: any) => ({ name: e.name, isDirectory: e.type === 'directory' }))
+  }
+  const entries = await readdir(dirPath, { withFileTypes: true })
+  return entries.map(e => ({ name: e.name, isDirectory: e.isDirectory() }))
+}
+
+async function backendRead(backend: FsBackend, filePath: string): Promise<Buffer> {
+  if (backend.relay) {
+    const { base64 } = await backend.relay.request('fs.readBase64', { path: filePath })
+    return Buffer.from(base64, 'base64')
+  }
+  return readFile(filePath)
+}
+
+async function backendWrite(backend: FsBackend, filePath: string, data: Buffer): Promise<void> {
+  if (backend.relay) {
+    await backend.relay.request('fs.writeBase64', { path: filePath, base64: data.toString('base64') })
+    return
+  }
+  await mkdir(dirname(filePath), { recursive: true })
+  await writeFile(filePath, data)
+}
+
+async function copyAcrossBackends(srcPath: string, destPath: string): Promise<void> {
+  const src = backendOf(srcPath)
+  const dest = backendOf(destPath)
+  // 本地 stat 的 isDirectory 是方法，relay 返回的是布尔值，必须分别归一
+  const isDir = src.relay
+    ? (await src.relay.request('fs.stat', { path: srcPath })).isDirectory
+    : (await stat(srcPath)).isDirectory()
+  if (isDir) {
+    await backendMkdir(dest, destPath)
+    for (const entry of await backendList(src, srcPath)) {
+      await copyAcrossBackends(
+        backendJoin(srcPath, entry.name, !!src.relay),
+        backendJoin(destPath, entry.name, !!dest.relay),
+      )
+    }
+    return
+  }
+  await backendWrite(dest, destPath, await backendRead(src, srcPath))
+}
+
+async function removeAcrossBackends(filePath: string): Promise<void> {
+  const backend = backendOf(filePath)
+  if (backend.relay) {
+    await backend.relay.request('fs.delete', { path: filePath })
+    return
+  }
+  await rm(filePath, { recursive: true, force: true })
+}
+
+function decodeBuffer(buffer: Buffer, encoding?: string, forceOpen?: boolean) {
+  let targetEncoding: string
+  let confidence = 1
+  let bom = false
+
+  if (encoding) {
+    targetEncoding = normalizeEncoding(encoding)
+  } else {
+    const detected = autoDetectEncoding(buffer)
+    targetEncoding = detected.encoding
+    confidence = detected.confidence
+    bom = detected.bom
+  }
+
+  if (!forceOpen && !encoding && confidence < 0.1 && buffer.includes(0x00)) return null
+
+  return { content: iconv.decode(buffer, targetEncoding), encoding: targetEncoding, bom, confidence }
+}
+
 export async function readFileWithEncoding(filePath: string, encoding?: string, forceOpen?: boolean) {
   // Pre-read checks (skipped when user forces open)
   if (!forceOpen) {
@@ -75,25 +178,37 @@ export async function readFileWithEncoding(filePath: string, encoding?: string, 
   }
 
   const buffer = await readFile(filePath)
-  let targetEncoding: string
-  let confidence = 1
-  let bom = false
-
-  if (encoding) {
-    targetEncoding = normalizeEncoding(encoding)
-  } else {
-    const detected = autoDetectEncoding(buffer)
-    targetEncoding = detected.encoding
-    confidence = detected.confidence
-    bom = detected.bom
-  }
-
-  if (!forceOpen && !encoding && confidence < 0.1 && buffer.includes(0x00)) {
+  const decoded = decodeBuffer(buffer, encoding, forceOpen)
+  if (!decoded) {
     return { error: 'Cannot display binary file', content: '', encoding: '', bom: false, confidence: 0 }
   }
+  return decoded
+}
 
-  const content = iconv.decode(buffer, targetEncoding)
-  return { content, encoding: targetEncoding, bom, confidence }
+async function readRemoteWithEncoding(relay: RelayClient, filePath: string, encoding?: string, forceOpen?: boolean) {
+  const empty = { content: '', encoding: '', bom: false, confidence: 0 }
+  if (!forceOpen) {
+    if (isBinaryByExtension(filePath)) {
+      return { error: 'Cannot display binary file', ...empty }
+    }
+    try {
+      const st = await relay.request('fs.stat', { path: filePath })
+      if (st.size > MAX_EDIT_FILE_SIZE) {
+        const mb = (st.size / (1024 * 1024)).toFixed(1)
+        return { error: `File too large (${mb} MB), cannot display`, ...empty }
+      }
+    } catch {
+      return { error: 'File not found or inaccessible', ...empty }
+    }
+  }
+  try {
+    const { base64 } = await relay.request('fs.readBase64', { path: filePath })
+    const decoded = decodeBuffer(Buffer.from(base64, 'base64'), encoding, forceOpen)
+    if (!decoded) return { error: 'Cannot display binary file', ...empty }
+    return decoded
+  } catch (err: any) {
+    return { error: err?.message ?? String(err), ...empty }
+  }
 }
 
 export function registerFileHandlers(): void {
@@ -102,6 +217,16 @@ export function registerFileHandlers(): void {
     try {
       if (isBinaryByExtension(filePath)) {
         return { error: 'Cannot display binary file' }
+      }
+      const relay = remoteRelay(filePath)
+      if (relay) {
+        const st = await relay.request('fs.stat', { path: filePath })
+        if (st.size > MAX_EDIT_FILE_SIZE) {
+          const mb = (st.size / (1024 * 1024)).toFixed(1)
+          return { error: `File too large (${mb} MB), cannot display` }
+        }
+        const content = await relay.request('fs.readText', { path: filePath })
+        return { content }
       }
       const st = await stat(filePath)
       if (st.size > MAX_EDIT_FILE_SIZE) {
@@ -119,6 +244,8 @@ export function registerFileHandlers(): void {
   // Read file content with encoding detection/support
   ipcMain.handle(IPC_CHANNELS.FILE_READ_ENCODING, async (_event, filePath: string, encoding?: string, forceOpen?: boolean) => {
     try {
+      const relay = remoteRelay(filePath)
+      if (relay) return await readRemoteWithEncoding(relay, filePath, encoding, forceOpen)
       return await readFileWithEncoding(filePath, encoding, forceOpen)
     } catch (err: any) {
       return { error: err.message, content: '', encoding: '', bom: false, confidence: 0 }
@@ -129,6 +256,12 @@ export function registerFileHandlers(): void {
   // Write file content
   ipcMain.handle(IPC_CHANNELS.FILE_WRITE, async (_event, filePath: string, content: string | Uint8Array) => {
     try {
+      const relay = remoteRelay(filePath)
+      if (relay) {
+        const buffer = typeof content === 'string' ? Buffer.from(content, 'utf-8') : Buffer.from(content)
+        await relay.request('fs.writeBase64', { path: filePath, base64: buffer.toString('base64') })
+        return { success: true }
+      }
       const dir = dirname(filePath)
       const { mkdir } = require('fs/promises')
       await mkdir(dir, { recursive: true })
@@ -145,6 +278,11 @@ export function registerFileHandlers(): void {
     try {
       const targetEncoding = encoding ? normalizeEncoding(encoding) : DEFAULT_ENCODING
       const buffer = iconv.encode(content, targetEncoding)
+      const relay = remoteRelay(filePath)
+      if (relay) {
+        await relay.request('fs.writeBase64', { path: filePath, base64: buffer.toString('base64') })
+        return { success: true }
+      }
       const dir = dirname(filePath)
       const { mkdir } = require('fs/promises')
       await mkdir(dir, { recursive: true })
@@ -170,6 +308,8 @@ export function registerFileHandlers(): void {
   // List files in directory
   ipcMain.handle(IPC_CHANNELS.FILE_LIST, async (_event, dirPath: string) => {
     try {
+      const relay = remoteRelay(dirPath)
+      if (relay) return await relay.request('fs.list', { path: dirPath })
       const entries = await readdir(dirPath, { withFileTypes: true })
       return entries.map(entry => ({
         name: entry.name,
@@ -184,6 +324,8 @@ export function registerFileHandlers(): void {
   // Delete file or directory
   ipcMain.handle(IPC_CHANNELS.FILE_DELETE, async (_event, filePath: string) => {
     try {
+      const relay = remoteRelay(filePath)
+      if (relay) return await relay.request('fs.delete', { path: filePath })
       await rm(filePath, { recursive: true })
       return { success: true }
     } catch (err: any) {
@@ -194,6 +336,8 @@ export function registerFileHandlers(): void {
   // Rename/move file or directory
   ipcMain.handle(IPC_CHANNELS.FILE_RENAME, async (_event, oldPath: string, newPath: string) => {
     try {
+      const relay = remoteRelay(oldPath)
+      if (relay) return await relay.request('fs.rename', { oldPath, newPath })
       await rename(oldPath, newPath)
       return { success: true }
     } catch (err: any) {
@@ -204,6 +348,8 @@ export function registerFileHandlers(): void {
   // Create directory
   ipcMain.handle(IPC_CHANNELS.FILE_CREATE_DIR, async (_event, dirPath: string) => {
     try {
+      const relay = remoteRelay(dirPath)
+      if (relay) return await relay.request('fs.mkdir', { path: dirPath })
       await mkdir(dirPath, { recursive: true })
       return { success: true }
     } catch (err: any) {
@@ -214,6 +360,13 @@ export function registerFileHandlers(): void {
   // Copy file or directory recursively
   ipcMain.handle(IPC_CHANNELS.FILE_COPY, async (_event, srcPath: string, destPath: string) => {
     try {
+      const srcRelay = remoteRelay(srcPath)
+      const destRelay = remoteRelay(destPath)
+      if (srcRelay && srcRelay === destRelay) return await srcRelay.request('fs.copy', { srcPath, destPath })
+      if (srcRelay || destRelay) {
+        await copyAcrossBackends(srcPath, destPath)
+        return { success: true }
+      }
       await cp(srcPath, destPath, { recursive: true })
       return { success: true }
     } catch (err: any) {
@@ -224,6 +377,14 @@ export function registerFileHandlers(): void {
   // Move (cut) file or directory
   ipcMain.handle(IPC_CHANNELS.FILE_MOVE, async (_event, srcPath: string, destPath: string) => {
     try {
+      const srcRelay = remoteRelay(srcPath)
+      const destRelay = remoteRelay(destPath)
+      if (srcRelay && srcRelay === destRelay) return await srcRelay.request('fs.move', { srcPath, destPath })
+      if (srcRelay || destRelay) {
+        await copyAcrossBackends(srcPath, destPath)
+        await removeAcrossBackends(srcPath)
+        return { success: true }
+      }
       await rename(srcPath, destPath)
       return { success: true }
     } catch (err: any) {
@@ -234,6 +395,7 @@ export function registerFileHandlers(): void {
   // Open file in system explorer
   ipcMain.handle(IPC_CHANNELS.FILE_OPEN_EXPLORER, async (_event, filePath: string) => {
     try {
+      if (remoteRelay(filePath)) return { error: 'Remote path: local explorer is not available' }
       if (statSync(filePath).isDirectory()) {
         shell.openPath(filePath)
       } else {
@@ -248,6 +410,7 @@ export function registerFileHandlers(): void {
   // Open a directory in Windows Terminal
   ipcMain.handle(IPC_CHANNELS.FILE_OPEN_TERMINAL, async (_event, dirPath: string) => {
     try {
+      if (remoteRelay(dirPath)) return { error: 'Remote path: local terminal is not available' }
       const child = spawn('wt.exe', ['-d', dirPath], { detached: true, stdio: 'ignore' })
       child.on('error', () => {})
       child.unref()
@@ -259,34 +422,16 @@ export function registerFileHandlers(): void {
 
   // Find files by name recursively (for bare-filename resolution)
   ipcMain.handle(IPC_CHANNELS.FILE_FIND, async (_event, cwd: string, filename: string, skipPatterns?: string[]) => {
-    const patterns = skipPatterns || []
-    const results: string[] = []
-    const maxDepth = 5
-    const maxResults = 50
-
-    async function walk(dir: string, depth: number): Promise<void> {
-      if (depth > maxDepth || results.length >= maxResults) return
-      let entries: any[]
+    const relay = remoteRelay(cwd)
+    if (relay) {
       try {
-        entries = await readdir(dir, { withFileTypes: true })
-      } catch {
-        return
-      }
-      for (const entry of entries) {
-        if (results.length >= maxResults) return
-        const full = join(dir, entry.name)
-        if (entry.isDirectory()) {
-          if (patterns.includes(entry.name)) continue
-          await walk(full, depth + 1)
-        } else if (entry.name === filename) {
-          results.push(full)
-        }
+        return await relay.request('fs.find', { cwd, filename, skipPatterns: skipPatterns || [] })
+      } catch (err: any) {
+        return { error: err.message }
       }
     }
-
     try {
-      await walk(cwd, 0)
-      return { matches: results }
+      return { matches: await findFilesByName(cwd, filename, skipPatterns || []) }
     } catch (err: any) {
       return { error: err.message }
     }
@@ -294,48 +439,16 @@ export function registerFileHandlers(): void {
 
   // Search files and directories by name/path substring (for @-mention autocomplete)
   ipcMain.handle(IPC_CHANNELS.FILE_SEARCH_BY_NAME, async (_event, cwd: string, query: string, skipPatterns?: string[], nameOnly?: boolean) => {
-    const patterns = skipPatterns || []
-    const q = (query || '').toLowerCase().trim()
-    if (!q) return { matches: [] }
-    const matches: { name: string; path: string; type: 'file' | 'directory'; relativePath: string }[] = []
-    const maxDepth = 12
-    const maxResults = 100
-    const maxScanned = 20000
-    let scanned = 0
-
-    async function walk(dir: string, depth: number): Promise<void> {
-      if (depth > maxDepth || matches.length >= maxResults || scanned >= maxScanned) return
-      let entries: any[]
+    const relay = remoteRelay(cwd)
+    if (relay) {
       try {
-        entries = await readdir(dir, { withFileTypes: true })
-      } catch {
-        return
-      }
-      scanned += entries.length
-      entries.sort((a, b) => (a.isDirectory() === b.isDirectory() ? a.name.localeCompare(b.name) : a.isDirectory() ? -1 : 1))
-      for (const entry of entries) {
-        if (matches.length >= maxResults) return
-        const full = join(dir, entry.name)
-        const isDir = entry.isDirectory()
-        if (isDir && patterns.includes(entry.name)) continue
-        const rel = relative(cwd, full).replace(/\\/g, '/')
-        const hit = nameOnly ? entry.name.toLowerCase().includes(q) : rel.toLowerCase().includes(q)
-        if (hit && !isDir) {
-          matches.push({ name: entry.name, path: full, type: 'file', relativePath: rel })
-        }
-        if (isDir) await walk(full, depth + 1)
+        return await relay.request('fs.searchByName', { cwd, query, skipPatterns: skipPatterns || [], nameOnly })
+      } catch (err: any) {
+        return { error: err.message }
       }
     }
-
     try {
-      await walk(cwd, 0)
-      matches.sort((a, b) => {
-        const an = a.name.toLowerCase().startsWith(q) ? 0 : 1
-        const bn = b.name.toLowerCase().startsWith(q) ? 0 : 1
-        if (an !== bn) return an - bn
-        return a.relativePath.localeCompare(b.relativePath)
-      })
-      return { matches: matches.slice(0, maxResults) }
+      return { matches: await searchPathsByName(cwd, query || '', skipPatterns || [], nameOnly) }
     } catch (err: any) {
       return { error: err.message }
     }
@@ -344,41 +457,12 @@ export function registerFileHandlers(): void {
   // Get file tree
   ipcMain.handle(IPC_CHANNELS.FILE_TREE, async (_event, dirPath: string, depth?: number, skipPatterns?: string[]) => {
     try {
-      return await buildFileTree(dirPath, depth || 3, 0, skipPatterns || [])
+      const relay = remoteRelay(dirPath)
+      if (relay) return await relay.request('fs.tree', { path: dirPath, depth: depth || 3, skipPatterns: skipPatterns || [] })
+      return await buildFsTree(dirPath, depth || 3, 0, skipPatterns || [])
     } catch (err: any) {
       return { error: err.message }
     }
   })
 }
 
-async function buildFileTree(dirPath: string, maxDepth: number, currentDepth: number = 0, skipPatterns: string[] = []): Promise<FileNode[]> {
-  // 到达最大深度时：仍列出当前目录文件，但不递归子目录
-  const entries = await readdir(dirPath, { withFileTypes: true })
-  const nodes: FileNode[] = []
-
-  // Sort: directories first, then files
-  const sorted = entries.sort((a, b) => {
-    if (a.isDirectory() && !b.isDirectory()) return -1
-    if (!a.isDirectory() && b.isDirectory()) return 1
-    return a.name.localeCompare(b.name)
-  })
-
-  for (const entry of sorted) {
-    if (entry.isDirectory() && skipPatterns.includes(entry.name)) continue
-
-    const fullPath = join(dirPath, entry.name)
-    const node: FileNode = {
-      name: entry.name,
-      path: fullPath,
-      type: entry.isDirectory() ? 'directory' : 'file'
-    }
-
-    if (entry.isDirectory() && currentDepth < maxDepth - 1) {
-      node.children = await buildFileTree(fullPath, maxDepth, currentDepth + 1)
-    }
-
-    nodes.push(node)
-  }
-
-  return nodes
-}
